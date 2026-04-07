@@ -38,7 +38,7 @@ main { print("ok") }
 NAAB
 
 EXIT_CODE=0
-"$NAAB_BIN" "${CLEAN_DIR}/ok.naab" > /dev/null 2>&1 || EXIT_CODE=$?
+"$NAAB_BIN" --no-governance "${CLEAN_DIR}/ok.naab" > /dev/null 2>&1 || EXIT_CODE=$?
 check "Exit 0: clean script without governance" '[ "$EXIT_CODE" = "0" ]'
 
 # ============================================================================
@@ -51,7 +51,7 @@ main { throw "runtime error" }
 NAAB
 
 EXIT_CODE=0
-"$NAAB_BIN" "${RUNTIME_DIR}/throw.naab" > /dev/null 2>&1 || EXIT_CODE=$?
+"$NAAB_BIN" --no-governance "${RUNTIME_DIR}/throw.naab" > /dev/null 2>&1 || EXIT_CODE=$?
 check "Exit 1: runtime throw without governance" '[ "$EXIT_CODE" = "1" ]'
 
 # ============================================================================

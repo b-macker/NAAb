@@ -22,6 +22,8 @@ TMPDIR_NAAB="${HOME}/.naab_gc_test_$$"
 mkdir -p "$TMPDIR_NAAB"
 cleanup() { rm -rf "$TMPDIR_NAAB"; }
 trap cleanup EXIT
+# V-GOV-007: provide govern.json so fail-closed default doesn't block these GC tests
+echo '{"mode":"off"}' > "$TMPDIR_NAAB/govern.json"
 
 # Simple program that allocates several strings
 TMPFILE="${TMPDIR_NAAB}/alloc.naab"

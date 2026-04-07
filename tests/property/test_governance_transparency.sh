@@ -8,6 +8,10 @@ set -e
 NAAB_BIN="${NAAB_BIN:-./build/naab-lang}"
 TMPDIR="${TMPDIR:-$HOME/.naab_prop_tmp}"
 mkdir -p "$TMPDIR"
+# V-GOV-007: provide govern.json so fail-closed default doesn't block the "with governance" runs.
+# mode:off means governance is loaded (satisfying require_governance) but isActive()=false,
+# which is equivalent to --no-governance for pure-computation transparency testing.
+echo '{"mode":"off"}' > "$TMPDIR/govern.json"
 
 PASSED=0
 FAILED=0

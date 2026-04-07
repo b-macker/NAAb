@@ -23,6 +23,8 @@ TEST_DIR="${HOME}/.naab_pipe_test_$$"
 mkdir -p "$TEST_DIR"
 cleanup() { rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
+# V-GOV-007: provide govern.json so fail-closed default doesn't block these pipe mode tests
+echo '{"mode":"off"}' > "$TEST_DIR/govern.json"
 
 echo "=== Pipe Mode Tests ==="
 echo ""
