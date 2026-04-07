@@ -5,6 +5,7 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/error_sanitizer.h"
+#include "naab/crypto_utils.h"
 #include <sstream>
 #include <filesystem>
 
@@ -303,10 +304,13 @@ public:
                 }
                 bool ok = false;
                 if (req.has_header("Authorization")) {
-                    ok = (req.get_header_value("Authorization") == "Bearer " + api_key);
+                    // V-API-002: constant-time comparison to prevent timing-based key guessing
+                    ok = naab::security::CryptoUtils::constantTimeCompare(
+                        req.get_header_value("Authorization"), "Bearer " + api_key);
                 }
                 if (!ok && req.has_header("X-API-Key")) {
-                    ok = (req.get_header_value("X-API-Key") == api_key);
+                    ok = naab::security::CryptoUtils::constantTimeCompare(
+                        req.get_header_value("X-API-Key"), api_key);
                 }
                 if (!ok) {
                     res.status = 401;

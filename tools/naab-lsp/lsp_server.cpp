@@ -410,10 +410,19 @@ void LSPServer::handleWorkspaceSymbol(const RequestMessage& request) {
     }
 
     // Collect symbols from all open documents
+    // V-LSP-002: cap result size to prevent unbounded JSON serialization
+    constexpr size_t MAX_WORKSPACE_SYMBOLS = 10000;
+    bool truncated = false;
+
     json result = json::array();
     for (Document* doc : doc_manager_.getAllDocuments()) {
+        if (truncated) break;
         auto symbols = symbol_provider_.getDocumentSymbols(*doc);
         for (const auto& sym : symbols) {
+            if (result.size() >= MAX_WORKSPACE_SYMBOLS) {
+                truncated = true;
+                break;
+            }
             // Filter by query (case-insensitive prefix or substring match)
             if (!query.empty()) {
                 std::string sym_lower = sym.name;
@@ -433,6 +442,10 @@ void LSPServer::handleWorkspaceSymbol(const RequestMessage& request) {
             sym_json.erase("range");
             result.push_back(sym_json);
         }
+    }
+    if (truncated) {
+        fprintf(stderr, "[lsp] handleWorkspaceSymbol: result truncated at %zu symbols\n",
+                MAX_WORKSPACE_SYMBOLS);
     }
 
     sendResponse(request.id, result);

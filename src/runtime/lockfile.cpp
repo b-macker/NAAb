@@ -200,8 +200,18 @@ std::vector<std::string> Lockfile::checkDrift(
 bool Lockfile::verifySignature(const std::string& lock_path) {
     const char* key_env = std::getenv("NAAB_LOCK_KEY");
     if (!key_env || !*key_env) {
+        // V-SC-003: if a .sig sidecar exists, signing was previously enabled.
+        // Without the key we cannot verify it — fail closed to prevent silent bypass.
+        std::ifstream sig_probe(lock_path + ".sig");
+        if (sig_probe.is_open()) {
+            fprintf(stderr, "[lock] TAMPER: %s.sig exists but NAAB_LOCK_KEY is not set.\n"
+                            "  Set NAAB_LOCK_KEY to verify, or delete the .sig to disable signing.\n",
+                            lock_path.c_str());
+            return false;
+        }
+        // No .sig and no key — signing simply not enabled; warn and proceed.
         fprintf(stderr, "[lock] Warning: NAAB_LOCK_KEY not set; lockfile integrity unverified.\n");
-        return true;  // No key = can't verify = warn but proceed
+        return true;
     }
     // Read lock file content
     std::ifstream lf(lock_path);

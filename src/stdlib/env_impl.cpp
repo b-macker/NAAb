@@ -27,6 +27,14 @@ extern char **environ;
 namespace naab {
 namespace stdlib {
 
+// V-SC-002: NAAb-internal secrets must not be readable by user scripts.
+static const std::unordered_set<std::string> NAAB_INTERNAL_ENV_VARS = {
+    "NAAB_LOCK_KEY",
+};
+static bool isBlockedEnvVar(const std::string& name) {
+    return NAAB_INTERNAL_ENV_VARS.count(name) > 0;
+}
+
 // Security: Check sandbox permissions for environment access
 static void checkEnvSandbox(const std::string& operation, const std::string& var_name = "") {
     auto* sandbox = security::ScopedSandbox::getCurrent();
@@ -78,6 +86,10 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("get", key);
+        if (isBlockedEnvVar(key)) {
+            if (args.size() == 2) return args[1];
+            return interpreter::NaabVal::makeNull();
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -109,6 +121,7 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("has", key);
+        if (isBlockedEnvVar(key)) return makeBool(false);
         const char* value = std::getenv(key.c_str());
         return makeBool(value != nullptr);
     }
@@ -155,6 +168,10 @@ interpreter::NaabVal EnvModule::call(
             ::FreeEnvironmentStringsA(env_block);
         }
 #endif
+        // V-SC-002: strip NAAb-internal secrets before returning to user script
+        for (const auto& blocked : NAAB_INTERNAL_ENV_VARS) {
+            env_map.erase(blocked);
+        }
         return makeMap(env_map);
     }
 
@@ -214,6 +231,10 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("get_int", key);
+        if (isBlockedEnvVar(key)) {
+            if (args.size() == 2) return args[1];
+            return makeInt(0);
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -236,6 +257,10 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("get_float", key);
+        if (isBlockedEnvVar(key)) {
+            if (args.size() == 2) return args[1];
+            return makeDouble(0.0);
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -258,6 +283,10 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("get_bool", key);
+        if (isBlockedEnvVar(key)) {
+            if (args.size() == 2) return args[1];
+            return makeBool(false);
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
