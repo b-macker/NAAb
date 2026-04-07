@@ -35,6 +35,17 @@ static bool isBlockedEnvVar(const std::string& name) {
     return NAAB_INTERNAL_ENV_VARS.count(name) > 0;
 }
 
+// V-RCE-001: Variables that can hijack loader/runtime behavior in polyglot subprocesses.
+static const std::unordered_set<std::string> NAAB_DANGEROUS_ENV_VARS = {
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+    "PYTHONPATH", "PYTHONSTARTUP", "NODE_OPTIONS", "NODE_PATH",
+    "PERL5LIB", "PERLLIB", "RUBYOPT", "RUBYLIB",
+    "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS",
+};
+static bool isDangerousEnvVar(const std::string& name) {
+    return NAAB_DANGEROUS_ENV_VARS.count(name) > 0;
+}
+
 // Security: Check sandbox permissions for environment access
 static void checkEnvSandbox(const std::string& operation, const std::string& var_name = "") {
     auto* sandbox = security::ScopedSandbox::getCurrent();
@@ -108,6 +119,16 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("set_var", key);
+        // V-ENV-001: block mutation of internal secrets
+        if (isBlockedEnvVar(key)) {
+            throw std::runtime_error(
+                "Security: env.set_var() denied — '" + key + "' is an internal NAAb variable");
+        }
+        // V-RCE-001: block loader/runtime hijack variables
+        if (isDangerousEnvVar(key)) {
+            throw std::runtime_error(
+                "Security: env.set_var() denied — '" + key + "' can hijack polyglot sandbox");
+        }
         std::string value = getString(args[1]);
 
         naab::platform::setenv(key, value, true);
@@ -133,6 +154,11 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("delete_var", key);
+        // V-ENV-001: block deletion of internal secrets
+        if (isBlockedEnvVar(key)) {
+            throw std::runtime_error(
+                "Security: env.delete_var() denied — '" + key + "' is an internal NAAb variable");
+        }
         naab::platform::unsetenv(key);
         return makeNull();
     }
@@ -205,6 +231,17 @@ interpreter::NaabVal EnvModule::call(
         std::string content = buffer.str();
 
         auto env_vars = parseEnvFile(content);
+
+        // V-ENV-001 + V-RCE-001: strip internal and dangerous vars loaded from .env files
+        for (auto it = env_vars.begin(); it != env_vars.end(); ) {
+            if (isBlockedEnvVar(it->first) || isDangerousEnvVar(it->first)) {
+                fprintf(stderr, "[env] Warning: load_dotenv skipping blocked variable: %s\n",
+                        it->first.c_str());
+                it = env_vars.erase(it);
+            } else {
+                ++it;
+            }
+        }
 
         // Set environment variables
         for (const auto& pair : env_vars) {

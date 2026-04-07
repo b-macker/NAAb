@@ -978,6 +978,51 @@ int main(int argc, char** argv) {
                 }
             }
 
+            // V-SC-004: lock-check is a pre-execution security gate, not a post-run report.
+            // Must halt before any user code runs if the lockfile is invalid or runtime has drifted.
+            if (lock_check) {
+                std::string lf_path_precheck = lock_path;
+                if (lf_path_precheck.empty()) {
+                    auto script_dir_pc = std::filesystem::absolute(filename).parent_path().string();
+                    lf_path_precheck = naab::discoverLockfilePath(script_dir_pc);
+                    if (lf_path_precheck.empty()) {
+                        lf_path_precheck = std::filesystem::absolute(filename).parent_path().string()
+                                          + "/.naab/naab.lock";
+                    }
+                }
+                if (!naab::Lockfile::verifySignature(lf_path_precheck)) {
+                    fprintf(stderr, "[lock] TAMPER DETECTED: lockfile signature mismatch.\n"
+                                    "  The lockfile may have been modified by an attacker.\n"
+                                    "  Re-run with --lock to regenerate: naab-lang --lock %s\n",
+                                    filename.c_str());
+                    fflush(stderr);
+                    _exit(1);
+                }
+                auto& lang_registry_pc = naab::runtime::LanguageRegistry::instance();
+                std::unordered_map<std::string, std::string> observed_pc;
+                for (const auto& lang : lang_registry_pc.supportedLanguages()) {
+                    auto* exec = lang_registry_pc.getExecutor(lang);
+                    if (exec) {
+                        std::string ver = exec->getRuntimeVersion();
+                        if (!ver.empty()) observed_pc[lang] = ver;
+                    }
+                }
+                naab::Lockfile lf_pc = naab::Lockfile::load(lf_path_precheck);
+                auto drifts_pc = lf_pc.checkDrift(observed_pc);
+                if (!drifts_pc.empty()) {
+                    for (const auto& d : drifts_pc) {
+                        fprintf(stderr, "[lock] DRIFT: %s\n", d.c_str());
+                    }
+                    fprintf(stderr, "[lock] Runtime versions differ from lockfile.\n"
+                                    "  Run with --lock to update: naab-lang --lock %s\n",
+                                    filename.c_str());
+                    fflush(stdout); fflush(stderr);
+                    _exit(1);
+                } else if (verbose) {
+                    fprintf(stderr, "[lock] All runtime versions match lockfile.\n");
+                }
+            }
+
             if (use_vm) {
                 // Governance: discover and load govern.json BEFORE compilation
                 // (compiler needs it for pre-flight taint analysis)
@@ -1344,8 +1389,9 @@ int main(int argc, char** argv) {
                 interpreter.printProfile();
             }
 
-            // Phase 8.4: Lockfile support — record or verify observed runtime versions
-            if (lock_update || lock_check) {
+            // Phase 8.4: Lockfile support — record observed runtime versions post-execution.
+            // NOTE: lock_check (V-SC-004) was moved to a pre-execution gate above.
+            if (lock_update) {
                 // Discover lockfile path if not explicitly provided
                 std::string lf_path = lock_path;
                 if (lf_path.empty()) {
@@ -1369,41 +1415,13 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                if (lock_update) {
-                    naab::Lockfile lf = naab::Lockfile::load(lf_path);
-                    for (const auto& [lang, ver] : observed) {
-                        lf.update(lang, ver);
-                    }
-                    lf.save(lf_path);
-                    if (verbose) {
-                        fprintf(stderr, "[lock] Lockfile updated: %s\n", lf_path.c_str());
-                    }
+                naab::Lockfile lf = naab::Lockfile::load(lf_path);
+                for (const auto& [lang, ver] : observed) {
+                    lf.update(lang, ver);
                 }
-
-                if (lock_check) {
-                    // V-SC-001: verify HMAC-SHA256 signature before accepting lockfile
-                    if (!naab::Lockfile::verifySignature(lf_path)) {
-                        fprintf(stderr, "[lock] TAMPER DETECTED: lockfile signature mismatch.\n"
-                                        "  The lockfile may have been modified by an attacker.\n"
-                                        "  Re-run with --lock to regenerate: naab-lang --lock %s\n",
-                                        filename.c_str());
-                        fflush(stderr);
-                        _exit(1);
-                    }
-                    naab::Lockfile lf = naab::Lockfile::load(lf_path);
-                    auto drifts = lf.checkDrift(observed);
-                    if (!drifts.empty()) {
-                        for (const auto& d : drifts) {
-                            fprintf(stderr, "[lock] DRIFT: %s\n", d.c_str());
-                        }
-                        fprintf(stderr, "[lock] Runtime versions differ from lockfile.\n"
-                                        "  Run with --lock to update: naab-lang --lock %s\n",
-                                filename.c_str());
-                        fflush(stdout); fflush(stderr);
-                        _exit(1);
-                    } else if (verbose) {
-                        fprintf(stderr, "[lock] All runtime versions match lockfile.\n");
-                    }
+                lf.save(lf_path);
+                if (verbose) {
+                    fprintf(stderr, "[lock] Lockfile updated: %s\n", lf_path.c_str());
                 }
             }
 

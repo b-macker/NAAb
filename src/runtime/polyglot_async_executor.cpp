@@ -781,9 +781,19 @@ std::vector<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeParallel(
     std::vector<std::future<ffi::AsyncCallbackResult>> futures;
     futures.reserve(blocks.size());
 
-    for (size_t i = 0; i < blocks.size(); ++i) {
-        const auto& [language, code, args] = blocks[i];
-        futures.push_back(executeAsync(language, code, args, timeout));
+    // V-ASYNC-004: catch queue-full exceptions and drain already-submitted futures
+    // before rethrowing — prevents abandoned background threads.
+    try {
+        for (size_t i = 0; i < blocks.size(); ++i) {
+            const auto& [language, code, args] = blocks[i];
+            futures.push_back(executeAsync(language, code, args, timeout));
+        }
+    } catch (const std::runtime_error& e) {
+        // Drain already-submitted futures so their tasks are not abandoned
+        for (auto& f : futures) {
+            try { f.get(); } catch (...) {}
+        }
+        throw;
     }
 
     // Collect results

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <unistd.h>
+#include <sys/wait.h>
 
 namespace naab {
 namespace lsp {
@@ -261,20 +262,40 @@ static Diagnostic parseGovernanceBlock(const std::string& block) {
 // Governance errors are thrown as exceptions and printed to stderr
 static std::string runNaabGovernance(const std::string& naab_path,
                                       const std::string& file_path) {
-    // Run naab-lang on the file, capture stderr (governance errors)
-    // The process will exit non-zero on governance failures
-    std::string cmd = naab_path + " \"" + file_path + "\" 2>&1";
+    // V-LSP-003: use fork/execvp instead of popen to avoid shell injection.
+    // file_path comes from an untrusted LSP URI; passing it through a shell
+    // would allow metacharacters to execute arbitrary commands.
+    int pipefd[2];
+    if (pipe(pipefd) != 0) return "";
 
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) return "";
-
-    std::string result;
-    char buffer[4096];
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        result += buffer;
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return "";
     }
 
-    pclose(pipe);
+    if (pid == 0) {
+        // Child: redirect stdout+stderr to pipe write end, then exec
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        dup2(pipefd[1], STDERR_FILENO);
+        close(pipefd[1]);
+        const char* argv[] = { naab_path.c_str(), file_path.c_str(), nullptr };
+        execvp(naab_path.c_str(), const_cast<char* const*>(argv));
+        _exit(127);  // execvp failed
+    }
+
+    // Parent: read from pipe read end
+    close(pipefd[1]);
+    std::string result;
+    char buffer[4096];
+    ssize_t n;
+    while ((n = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
+        result.append(buffer, static_cast<size_t>(n));
+    }
+    close(pipefd[0]);
+    waitpid(pid, nullptr, 0);
     return result;
 }
 
