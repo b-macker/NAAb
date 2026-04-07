@@ -31,19 +31,30 @@ namespace stdlib {
 static const std::unordered_set<std::string> NAAB_INTERNAL_ENV_VARS = {
     "NAAB_LOCK_KEY",
 };
-static bool isBlockedEnvVar(const std::string& name) {
-    return NAAB_INTERNAL_ENV_VARS.count(name) > 0;
-}
 
 // V-RCE-001: Variables that can hijack loader/runtime behavior in polyglot subprocesses.
+// V-RCE-002: Expanded to include PATH, shell init vars, and compiler hijack vectors.
 static const std::unordered_set<std::string> NAAB_DANGEROUS_ENV_VARS = {
     "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
-    "PYTHONPATH", "PYTHONSTARTUP", "NODE_OPTIONS", "NODE_PATH",
+    "PYTHONPATH", "PYTHONSTARTUP", "PYTHONHOME", "PYTHONUSERBASE",
+    "NODE_OPTIONS", "NODE_PATH",
     "PERL5LIB", "PERLLIB", "RUBYOPT", "RUBYLIB",
     "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS",
+    "PATH", "BASH_ENV", "ENV",
+    "COMPILER_PATH", "GCC_EXEC_PREFIX",
 };
+
+// V-RCE-003: Case-insensitive comparison — Windows env vars are case-insensitive.
+static std::string toUpperCase(const std::string& s) {
+    std::string result = s;
+    std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+    return result;
+}
+static bool isBlockedEnvVar(const std::string& name) {
+    return NAAB_INTERNAL_ENV_VARS.count(toUpperCase(name)) > 0;
+}
 static bool isDangerousEnvVar(const std::string& name) {
-    return NAAB_DANGEROUS_ENV_VARS.count(name) > 0;
+    return NAAB_DANGEROUS_ENV_VARS.count(toUpperCase(name)) > 0;
 }
 
 // Security: Check sandbox permissions for environment access

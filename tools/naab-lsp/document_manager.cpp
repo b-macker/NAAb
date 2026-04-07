@@ -4,6 +4,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 namespace naab {
 namespace lsp {
@@ -281,7 +282,20 @@ static std::string runNaabGovernance(const std::string& naab_path,
         dup2(pipefd[1], STDOUT_FILENO);
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
-        const char* argv[] = { naab_path.c_str(), file_path.c_str(), nullptr };
+        // V-LSP-004: redirect stdin from /dev/null so the child cannot steal
+        // JSON-RPC messages from the LSP server's stdin pipe.
+        int devnull = open("/dev/null", O_RDONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            close(devnull);
+        }
+        // V-LSP-005: use --lint-only so naab-lang parses + checks governance
+        //            without executing the file.
+        // V-LSP-004: pass "--" before file_path to prevent flag injection from
+        //            crafted URIs (e.g. file://--repl → file_path="--repl").
+        const char* argv[] = {
+            naab_path.c_str(), "--lint-only", "--", file_path.c_str(), nullptr
+        };
         execvp(naab_path.c_str(), const_cast<char* const*>(argv));
         _exit(127);  // execvp failed
     }

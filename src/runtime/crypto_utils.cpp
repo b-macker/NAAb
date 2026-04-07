@@ -92,17 +92,20 @@ std::string CryptoUtils::hmacSha256(const std::string& data, const std::string& 
 }
 
 bool CryptoUtils::constantTimeCompare(const std::string& a, const std::string& b) {
-    // Constant-time comparison to prevent timing attacks
-    // Always compare all bytes even if early mismatch is found
-
-    if (a.length() != b.length()) {
-        return false;
-    }
-
+    // V-API-003: do not short-circuit on length mismatch — prevents length oracle attack.
+    // When i >= a.length(), compare b[i] against b[i] (always 0), keeping execution time
+    // bounded by b.length() regardless of a's length. The length mismatch is recorded
+    // branchlessly via result so the function still returns false when lengths differ.
     volatile unsigned char result = 0;
+    size_t len = b.length();
 
-    for (size_t i = 0; i < a.length(); i++) {
-        result |= static_cast<unsigned char>(a[i] ^ b[i]);
+    // Branchless length mismatch record
+    result |= static_cast<unsigned char>(a.length() != len);
+
+    for (size_t i = 0; i < len; i++) {
+        unsigned char ca = (i < a.length()) ? static_cast<unsigned char>(a[i])
+                                             : static_cast<unsigned char>(b[i]);
+        result |= (ca ^ static_cast<unsigned char>(b[i]));
     }
 
     return result == 0;

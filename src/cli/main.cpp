@@ -317,6 +317,7 @@ int main(int argc, char** argv) {
     bool global_lock_update    = false;   // --lock: write/update naab.lock
     bool global_lock_check     = false;   // --lock-check: fail on runtime drift
     std::string global_lock_path;         // --lock-path: override lockfile location
+    bool global_lint_only      = false;   // --lint-only: parse+governance, skip execution (V-LSP-005)
 
     while (command_arg_index < argc) {
         std::string arg(argv[command_arg_index]);
@@ -393,6 +394,14 @@ int main(int argc, char** argv) {
         } else if (arg == "--sandbox-level" && command_arg_index + 1 < argc) {
             global_sandbox_level = argv[++command_arg_index];
             command_arg_index++;
+        } else if (arg == "--lint-only") {
+            // V-LSP-005: parse + governance pre-flight without executing user code
+            global_lint_only = true;
+            command_arg_index++;
+        } else if (arg == "--") {
+            // V-LSP-004: end-of-flags sentinel — everything after is positional
+            command_arg_index++;
+            break;
         } else if (arg == "--repl") {
             return naab::repl::run(global_no_governance);
         } else {
@@ -507,6 +516,7 @@ int main(int argc, char** argv) {
         bool lock_update    = global_lock_update;
         bool lock_check     = global_lock_check;
         std::string lock_path = global_lock_path;
+        bool lint_only      = global_lint_only;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
@@ -588,6 +598,16 @@ int main(int argc, char** argv) {
                 lock_check = true;
             } else if (arg == "--lock-path" && i + 1 < argc) {
                 lock_path = argv[++i];
+            } else if (arg == "--lint-only") {
+                // V-LSP-005: parse + governance pre-flight without executing user code
+                lint_only = true;
+            } else if (arg == "--") {
+                // V-LSP-004: end-of-flags — remaining args are positional
+                while (++i < argc) {
+                    if (filename.empty()) filename = argv[i];
+                    else script_args.push_back(argv[i]);
+                }
+                break;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -1272,6 +1292,21 @@ int main(int argc, char** argv) {
                     }
                 }
 
+                // V-LSP-005: lint-only — compile + pre-flight governance; skip execution.
+                if (lint_only) {
+                    if (vm_governance.isActive()) {
+                        vm_governance.writeReports();
+                        std::string gate = vm_governance.evaluateQualityGate();
+                        if (!gate.empty()) {
+                            fprintf(stderr, "%s", gate.c_str());
+                            fflush(stdout); fflush(stderr);
+                            _exit(2);
+                        }
+                    }
+                    fflush(stdout); fflush(stderr);
+                    _exit(naab::governance::g_governance_hard_block ? 3 : 0);
+                }
+
                 // Finding A fix: arm SIGALRM for NAAb VM execution itself.
                 // Previously timeout only guarded polyglot subprocesses (security_config).
                 // ScopedTimeout disarms the alarm automatically on any exit path.
@@ -1324,6 +1359,22 @@ int main(int argc, char** argv) {
                     }
                 }
             } else {
+                // V-LSP-005: lint-only gate for tree-walker path.
+                if (lint_only) {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov) {
+                        gov->writeReports();
+                        std::string gate = gov->evaluateQualityGate();
+                        if (!gate.empty()) {
+                            fprintf(stderr, "%s", gate.c_str());
+                            fflush(stdout); fflush(stderr);
+                            _exit(2);
+                        }
+                    }
+                    fflush(stdout); fflush(stderr);
+                    _exit(naab::governance::g_governance_hard_block ? 3 : 0);
+                }
+
                 // Inner try-catch: write governance reports before re-throwing.
                 // The interpreter is alive here, so we can safely access it.
                 // Finding A fix: arm SIGALRM for tree-walker execution (mirrors VM path above).
