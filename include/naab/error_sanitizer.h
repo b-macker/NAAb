@@ -185,7 +185,8 @@ private:
 namespace patterns {
 
 // API keys, tokens (e.g., "token: abc123...")
-inline const char* API_KEY = R"((?:api[_-]?key|token|secret|password|auth)[:\s]*['"]?([a-zA-Z0-9_-]{16,})['"]?)";
+// V-ERR-001: expanded to include camelCase variants and lowered min length 16→8
+inline const char* API_KEY = R"((?:api[_\-]?key|apiKey|api_secret|token|access_token|refresh_token|secret|secretKey|password|passwd|auth|authorization|authToken|bearer|bearerToken|credential)[:\s]*['"]?([a-zA-Z0-9_\-\.]{8,})['"]?)";
 
 // Email addresses
 inline const char* EMAIL = R"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})";
@@ -203,7 +204,8 @@ inline const char* ABSOLUTE_PATH = R"((?:\/[a-zA-Z0-9._-]+)+)";
 inline const char* MEMORY_ADDRESS = R"(0x[0-9a-fA-F]{8,16})";
 
 // Variable values in quotes
-inline const char* QUOTED_VALUE = R"((?:value|content|data)['"]?\s*[:=]\s*['"]([^'"]+)['"])";
+// V-ERR-001: expanded keyword list to cover common sensitive key names
+inline const char* QUOTED_VALUE = R"((?:value|content|data|token|key|secret|pass|password|auth|authorization|bearer|apikey|api_key|credential|access_token|refresh_token)['"]?\s*[:=]\s*['"]([^'"]+)['"])";
 
 } // namespace patterns
 

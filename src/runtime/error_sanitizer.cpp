@@ -18,7 +18,8 @@ const std::vector<std::regex> ErrorSanitizer::sensitive_patterns_ = {
     std::regex(patterns::EMAIL),
     std::regex(patterns::CREDIT_CARD),
     std::regex(patterns::MEMORY_ADDRESS),
-    std::regex(patterns::QUOTED_VALUE),
+    std::regex(patterns::QUOTED_VALUE, std::regex::icase),
+    std::regex(patterns::IP_ADDRESS),  // V-ERR-001: was defined in header but never added
 };
 
 // ============================================================================
@@ -109,8 +110,11 @@ std::string ErrorSanitizer::redactValues(
         redacted = redactPattern(redacted, pattern);
     }
 
-    // Redact values in quotes (e.g., "value: 'secret123'")
-    std::regex value_pattern(R"((value|content|data)['"]?\s*[:=]\s*['"]([^'"]+)['"])");
+    // Redact values in quotes (e.g., "token: 'secret123'")
+    // V-ERR-001: expanded keyword list to match sensitive key names; icase for Token/TOKEN/etc.
+    std::regex value_pattern(
+        R"((value|content|data|token|key|secret|pass|password|auth|authorization|bearer|apikey|api_key|credential|access_token|refresh_token)['"]?\s*[:=]\s*['"]([^'"]+)['"])",
+        std::regex::icase);
     redacted = std::regex_replace(redacted, value_pattern, "$1: <redacted>");
 
     // Redact variable assignments (e.g., "password = 'secret'")
