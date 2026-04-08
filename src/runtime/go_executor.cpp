@@ -6,11 +6,24 @@
 #include <sstream>
 #include <thread>
 #include <fmt/core.h>
+#include <cstdlib>
+#include <sys/stat.h>
 
 namespace naab {
 namespace runtime {
 
 std::atomic<int> GoExecutor::temp_file_counter_(0);
+
+// Termux-aware temp directory
+static std::filesystem::path getGoSafeTempDir() {
+    try {
+        auto dir = std::filesystem::temp_directory_path();
+        if (std::filesystem::is_directory(dir)) return dir;
+    } catch (...) {}
+    auto fallback = std::filesystem::path("/data/data/com.termux/files/home/.cache/naab");
+    std::filesystem::create_directories(fallback);
+    return fallback;
+}
 
 GoExecutor::GoExecutor() {}
 
@@ -78,20 +91,24 @@ std::string GoExecutor::wrapGoCode(const std::string& code, bool for_return) {
 }
 
 bool GoExecutor::execute(const std::string& code) {
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_go_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_go = temp_dir / (filename_base.str() + ".go");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_bin");
+    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory
+    std::string tmpl = (getGoSafeTempDir() / "naab_go_XXXXXX").string();
+    char* raw_dir = mkdtemp(tmpl.data());
+    if (!raw_dir) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return false;
+    }
+    chmod(raw_dir, 0700);
+    std::filesystem::path compile_dir(raw_dir);
+    std::filesystem::path temp_go = compile_dir / "src.go";
+    std::filesystem::path temp_bin = compile_dir / "bin";
 
     try {
         std::string go_code = wrapGoCode(code, false);
 
         std::ofstream ofs(temp_go);
         if (!ofs.is_open()) {
+            std::filesystem::remove_all(compile_dir);
             fmt::print("[ERROR] Failed to create temp Go file\n");
             return false;
         }
@@ -111,7 +128,7 @@ bool GoExecutor::execute(const std::string& code) {
         if (compile_exit != 0) {
             fmt::print("[ERROR] Go compilation failed (exit code {})\n", compile_exit);
             stderr_buffer_.append(compile_stderr);
-            std::filesystem::remove(temp_go);
+            std::filesystem::remove_all(compile_dir);
             return false;
         }
 
@@ -128,9 +145,8 @@ bool GoExecutor::execute(const std::string& code) {
             stderr_buffer_.append(exec_stderr);
         }
 
-        // Clean up
-        std::filesystem::remove(temp_go);
-        std::filesystem::remove(temp_bin);
+        // Cleanup secure compile dir
+        std::filesystem::remove_all(compile_dir);
 
         if (exec_exit != 0) {
             fmt::print("[ERROR] Go program failed (exit code {})\n", exec_exit);
@@ -140,8 +156,7 @@ bool GoExecutor::execute(const std::string& code) {
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Go execution failed: {}\n", e.what());
-        std::filesystem::remove(temp_go);
-        std::filesystem::remove(temp_bin);
+        std::filesystem::remove_all(compile_dir);
         return false;
     }
 }
@@ -149,20 +164,24 @@ bool GoExecutor::execute(const std::string& code) {
 interpreter::NaabVal GoExecutor::executeWithReturn(
     const std::string& code) {
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_go_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_go = temp_dir / (filename_base.str() + "_ret.go");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_ret_bin");
+    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory
+    std::string tmpl_r = (getGoSafeTempDir() / "naab_go_XXXXXX").string();
+    char* raw_dir_r = mkdtemp(tmpl_r.data());
+    if (!raw_dir_r) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return interpreter::NaabVal::makeNull();
+    }
+    chmod(raw_dir_r, 0700);
+    std::filesystem::path compile_dir_r(raw_dir_r);
+    std::filesystem::path temp_go = compile_dir_r / "src.go";
+    std::filesystem::path temp_bin = compile_dir_r / "bin";
 
     try {
         std::string go_code = wrapGoCode(code, true);
 
         std::ofstream ofs(temp_go);
         if (!ofs.is_open()) {
+            std::filesystem::remove_all(compile_dir_r);
             return interpreter::NaabVal::makeNull();
         }
         ofs << go_code;
@@ -177,7 +196,7 @@ interpreter::NaabVal GoExecutor::executeWithReturn(
 
         if (compile_exit != 0) {
             std::string error_msg = compile_stderr;
-            std::filesystem::remove(temp_go);
+            std::filesystem::remove_all(compile_dir_r);
             throw std::runtime_error(
                 "Go compilation failed:\n" + error_msg +
                 "\n  Code preview:\n    " + go_code.substr(0, std::min(go_code.size(), size_t(200))));
@@ -200,9 +219,8 @@ interpreter::NaabVal GoExecutor::executeWithReturn(
         }
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
-        // Cleanup
-        std::filesystem::remove(temp_go);
-        std::filesystem::remove(temp_bin);
+        // Cleanup secure compile dir
+        std::filesystem::remove_all(compile_dir_r);
 
         // Trim trailing whitespace/newlines
         std::string result = exec_stdout;
@@ -246,8 +264,7 @@ interpreter::NaabVal GoExecutor::executeWithReturn(
         return interpreter::NaabVal::makeString(result);
 
     } catch (const std::exception& e) {
-        std::filesystem::remove(temp_go);
-        std::filesystem::remove(temp_bin);
+        std::filesystem::remove_all(compile_dir_r);
         throw;
     }
 }

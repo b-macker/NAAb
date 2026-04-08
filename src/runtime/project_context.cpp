@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <regex>
 #include <algorithm>
 #include <cctype>
@@ -795,6 +796,25 @@ std::vector<ContextExtraction> ProjectContextLoader::parseEditorConfig(const std
     return results;
 }
 
+// V-GOV-011: guard against stack overflow via deeply nested project config JSON.
+// A malicious repo can place a deeply nested .eslintrc.json / package.json that
+// crashes the scanner via C++ stack overflow inside nlohmann::json::parse.
+static bool checkJsonDepth(const std::string& s, int max_depth = 128) {
+    int depth = 0;
+    bool in_string = false;
+    bool escape_next = false;
+    for (unsigned char c : s) {
+        if (escape_next) { escape_next = false; continue; }
+        if (c == '\\' && in_string) { escape_next = true; continue; }
+        if (c == '"') { in_string = !in_string; continue; }
+        if (!in_string) {
+            if (c == '{' || c == '[') { if (++depth > max_depth) return false; }
+            else if (c == '}' || c == ']') { if (depth > 0) --depth; }
+        }
+    }
+    return true;
+}
+
 std::vector<ContextExtraction> ProjectContextLoader::parseJsonConfig(
     const std::string& path, const std::string& filename) {
 
@@ -803,9 +823,16 @@ std::vector<ContextExtraction> ProjectContextLoader::parseJsonConfig(
     std::ifstream ifs(path);
     if (!ifs.is_open()) return results;
 
+    // V-GOV-011: read to string and depth-check before parsing
+    std::string raw((std::istreambuf_iterator<char>(ifs)),
+                     std::istreambuf_iterator<char>());
+    if (!checkJsonDepth(raw)) {
+        return results;  // Reject maliciously nested config — skip silently
+    }
+
     nlohmann::json j;
     try {
-        j = nlohmann::json::parse(ifs);
+        j = nlohmann::json::parse(raw);
     } catch (...) {
         return results;  // Malformed JSON — skip
     }

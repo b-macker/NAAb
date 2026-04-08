@@ -85,6 +85,25 @@ LSPServer::~LSPServer() {
     }
 }
 
+// V-LSP-006: guard against stack overflow via deeply nested JSON-RPC input.
+// nlohmann::json::parse has no built-in depth limit — a deeply nested payload
+// exhausts the C++ call stack and crashes the LSP server.
+static bool checkJsonDepth(const std::string& s, int max_depth = 128) {
+    int depth = 0;
+    bool in_string = false;
+    bool escape_next = false;
+    for (unsigned char c : s) {
+        if (escape_next) { escape_next = false; continue; }
+        if (c == '\\' && in_string) { escape_next = true; continue; }
+        if (c == '"') { in_string = !in_string; continue; }
+        if (!in_string) {
+            if (c == '{' || c == '[') { if (++depth > max_depth) return false; }
+            else if (c == '}' || c == ']') { if (depth > 0) --depth; }
+        }
+    }
+    return true;
+}
+
 void LSPServer::run() {
     LSP_LOG(LogLevel::INFO, "NAAb LSP Server starting...");
 
@@ -99,6 +118,12 @@ void LSPServer::run() {
                 LSP_LOG(LogLevel::WARN, "Server received EOF before initialization");
             }
             break;
+        }
+
+        // V-LSP-006: depth-guard before parse to prevent stack overflow DoS
+        if (!checkJsonDepth(*message_str)) {
+            LSP_LOG(LogLevel::WARN, "JSON-RPC message rejected: nesting depth exceeds limit");
+            continue;
         }
 
         // Parse JSON

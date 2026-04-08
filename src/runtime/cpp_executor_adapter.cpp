@@ -10,6 +10,9 @@
 #include <sstream>
 #include <filesystem>
 #include <thread>
+#include <regex>
+#include <cstdlib>
+#include <sys/stat.h>
 
 namespace naab {
 namespace runtime {
@@ -106,8 +109,27 @@ static std::string addCppCompileHints(const std::string& stderr_output) {
     return hints;
 }
 
-// Initialize static temp file counter for thread-safe unique file names
+// Initialize static temp file counter (kept for ABI compatibility; no longer used for naming)
 std::atomic<int> CppExecutorAdapter::temp_file_counter_(0);
+
+// V-RCE-005: pre-compilation scanner — reject dangerous compile-time directives that
+// can leak arbitrary files via compiler error messages or execute native code before
+// the NAAb runtime sandbox is active.
+static bool isCppSourceSafe(const std::string& code, std::string& reason) {
+    // Reject absolute-path #include — e.g. #include "/etc/shadow" embeds file in error output
+    std::regex abs_include(R"(#\s*include\s*"/)");
+    if (std::regex_search(code, abs_include)) {
+        reason = "absolute-path #include directive is not permitted in polyglot C++ blocks";
+        return false;
+    }
+    // Reject #pragma GCC plugin — executes a native shared library at compile time
+    std::regex plugin_pragma(R"(#\s*pragma\s+GCC\s+plugin)");
+    if (std::regex_search(code, plugin_pragma)) {
+        reason = "#pragma GCC plugin is not permitted in polyglot C++ blocks";
+        return false;
+    }
+    return true;
+}
 
 CppExecutorAdapter::CppExecutorAdapter()
     : block_counter_(0) {
@@ -120,6 +142,12 @@ bool CppExecutorAdapter::execute(const std::string& code) {
 }
 
 bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode) {
+    // V-RCE-005: pre-compilation source scanner — applied to all compilation modes
+    std::string unsafe_reason;
+    if (!isCppSourceSafe(code, unsafe_reason)) {
+        throw std::runtime_error("[Security] C++ polyglot block rejected: " + unsafe_reason);
+    }
+
     // For BLOCK_LIBRARY mode, compile to shared library
     if (mode == CppExecutionMode::BLOCK_LIBRARY) {
         // Generate unique block ID based on code hash (so each block gets its own cache)
@@ -145,19 +173,23 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 
         // Detected main() - compiling as executable (silent)
 
-        // Create unique temp files for thread-safe parallel execution
-        std::filesystem::path temp_dir = getSafeTempDir();
-        auto thread_id = std::this_thread::get_id();
-        int counter = temp_file_counter_.fetch_add(1);
-        std::ostringstream filename_base;
-        filename_base << "naab_cpp_" << thread_id << "_" << counter;
-
-        std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_src.cpp");
-        std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_bin");
+        // V-RCE-004: mkdtemp creates an exclusive, unpredictable temp directory.
+        // Predictable /tmp names allow symlink pre-creation attacks; mkdtemp eliminates this.
+        std::string tmpl1 = (getSafeTempDir() / "naab_cpp_XXXXXX").string();
+        char* raw_dir1 = mkdtemp(tmpl1.data());
+        if (!raw_dir1) {
+            fmt::print("[ERROR] Failed to create secure temp directory\n");
+            return false;
+        }
+        chmod(raw_dir1, 0700);
+        std::filesystem::path compile_dir1(raw_dir1);
+        std::filesystem::path temp_cpp = compile_dir1 / "src.cpp";
+        std::filesystem::path temp_bin = compile_dir1 / "bin";
 
         // Write code to temp file
         std::ofstream ofs(temp_cpp);
         if (!ofs.is_open()) {
+            std::filesystem::remove_all(compile_dir1);
             fmt::print("[ERROR] Failed to create temp C++ source file\n");
             return false;
         }
@@ -176,7 +208,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 
         if (compile_exit != 0) {
             fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
-            std::filesystem::remove(temp_cpp);
+            std::filesystem::remove_all(compile_dir1);
             return false;
         }
 
@@ -196,9 +228,8 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
             captured_output_ += "\n[C++ stderr]: " + exec_stderr;
         }
 
-        // Cleanup
-        std::filesystem::remove(temp_cpp);
-        std::filesystem::remove(temp_bin);
+        // Cleanup secure compile dir
+        std::filesystem::remove_all(compile_dir1);
 
         bool success = (exec_exit == 0);
         if (success) {
@@ -255,19 +286,22 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
         "    return 0;\n"
         "}\n";
 
-    // Create unique temp files for thread-safe parallel execution
-    std::filesystem::path temp_dir = getSafeTempDir();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_cpp_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_exec_src.cpp");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_exec_bin");
+    // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory (wrapped code path)
+    std::string tmpl2 = (getSafeTempDir() / "naab_cpp_XXXXXX").string();
+    char* raw_dir2 = mkdtemp(tmpl2.data());
+    if (!raw_dir2) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return false;
+    }
+    chmod(raw_dir2, 0700);
+    std::filesystem::path compile_dir2(raw_dir2);
+    std::filesystem::path temp_cpp = compile_dir2 / "src.cpp";
+    std::filesystem::path temp_bin = compile_dir2 / "bin";
 
     // Write wrapped code to temp file
     std::ofstream ofs(temp_cpp);
     if (!ofs.is_open()) {
+        std::filesystem::remove_all(compile_dir2);
         fmt::print("[ERROR] Failed to create temp C++ source file\n");
         return false;
     }
@@ -286,7 +320,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 
     if (compile_exit != 0) {
         fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
-        std::filesystem::remove(temp_cpp);
+        std::filesystem::remove_all(compile_dir2);
         return false;
     }
 
@@ -310,9 +344,8 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
         captured_output_ += "\n[C++ stderr]: " + exec_stderr;
     }
 
-    // Cleanup
-    std::filesystem::remove(temp_cpp);
-    std::filesystem::remove(temp_bin);
+    // Cleanup secure compile dir
+    std::filesystem::remove_all(compile_dir2);
 
     bool success = (exec_exit == 0);
     if (success) {
@@ -327,6 +360,12 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 // Phase 2.3: Execute code and return the result value
 interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
     const std::string& code) {
+
+    // V-RCE-005: pre-compilation source scanner
+    std::string unsafe_reason_r;
+    if (!isCppSourceSafe(code, unsafe_reason_r)) {
+        throw std::runtime_error("[Security] C++ polyglot block rejected: " + unsafe_reason_r);
+    }
 
     // For C++ with main(), compile and execute
     if (code.find("int main(") != std::string::npos ||
@@ -346,17 +385,21 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
             // Cache miss - compile
             // Compiling (cache miss) (silent)
 
-            std::filesystem::path temp_dir = getSafeTempDir();
-            auto thread_id = std::this_thread::get_id();
-            int counter = temp_file_counter_.fetch_add(1);
-            std::ostringstream filename_base;
-            filename_base << "naab_cpp_" << thread_id << "_" << counter;
-
-            std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_ret_src.cpp");
-            temp_bin_main = temp_dir / (filename_base.str() + "_ret_bin");
+            // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory
+            std::string tmpl3 = (getSafeTempDir() / "naab_cpp_XXXXXX").string();
+            char* raw_dir3 = mkdtemp(tmpl3.data());
+            if (!raw_dir3) {
+                fmt::print("[ERROR] Failed to create secure temp directory\n");
+                return interpreter::NaabVal::makeNull();
+            }
+            chmod(raw_dir3, 0700);
+            std::filesystem::path compile_dir3(raw_dir3);
+            std::filesystem::path temp_cpp = compile_dir3 / "src.cpp";
+            temp_bin_main = compile_dir3 / "bin";
 
             std::ofstream ofs(temp_cpp);
             if (!ofs.is_open()) {
+                std::filesystem::remove_all(compile_dir3);
                 fmt::print("[ERROR] Failed to create temp C++ file\n");
                 return interpreter::NaabVal::makeNull();
             }
@@ -373,14 +416,14 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
 
             if (compile_exit != 0) {
                 fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
-                std::filesystem::remove(temp_cpp);
+                std::filesystem::remove_all(compile_dir3);
                 return interpreter::NaabVal::makeNull();
             }
 
-            // Store in cache
+            // Store in cache (binary stays in compile_dir3; dir persists for cache lifetime)
             cache_.storeBinary("cpp", code, temp_bin_main.string(), temp_cpp.string());
 
-            // Cleanup temp source
+            // Remove source only; binary remains in the private dir for cache use
             std::filesystem::remove(temp_cpp);
         }
 
@@ -635,17 +678,21 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
         // Cache miss - compile and cache
         // Compiling C++ code (cache miss) (silent)
 
-        std::filesystem::path temp_dir = getSafeTempDir();
-        auto thread_id = std::this_thread::get_id();
-        int counter = temp_file_counter_.fetch_add(1);
-        std::ostringstream filename_base;
-        filename_base << "naab_cpp_" << thread_id << "_" << counter;
-
-        std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_expr_src.cpp");
-        temp_bin = temp_dir / (filename_base.str() + "_expr_bin");
+        // V-RCE-004: mkdtemp for exclusive, unpredictable temp directory (expression path)
+        std::string tmpl4 = (getSafeTempDir() / "naab_cpp_XXXXXX").string();
+        char* raw_dir4 = mkdtemp(tmpl4.data());
+        if (!raw_dir4) {
+            fmt::print("[ERROR] Failed to create secure temp directory\n");
+            return interpreter::NaabVal::makeNull();
+        }
+        chmod(raw_dir4, 0700);
+        std::filesystem::path compile_dir4(raw_dir4);
+        std::filesystem::path temp_cpp = compile_dir4 / "src.cpp";
+        temp_bin = compile_dir4 / "bin";
 
         std::ofstream ofs(temp_cpp);
         if (!ofs.is_open()) {
+            std::filesystem::remove_all(compile_dir4);
             fmt::print("[ERROR] Failed to create temp C++ file\n");
             return interpreter::NaabVal::makeNull();
         }
@@ -662,14 +709,14 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
 
         if (compile_exit != 0) {
             fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
-            std::filesystem::remove(temp_cpp);
+            std::filesystem::remove_all(compile_dir4);
             return interpreter::NaabVal::makeNull();
         }
 
-        // Store in cache
+        // Store in cache (binary stays in compile_dir4; dir persists for cache lifetime)
         cache_.storeBinary("cpp", wrapped_code, temp_bin.string(), temp_cpp.string());
 
-        // Cleanup temp source (binary will be cached)
+        // Remove source only; binary remains in private dir for cache use
         std::filesystem::remove(temp_cpp);
     }
 
