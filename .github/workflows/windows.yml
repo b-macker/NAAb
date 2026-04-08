@@ -62,7 +62,7 @@ jobs:
         shell: msys2 {0}
         run: |
           echo 'main { print("hello windows") }' > hello.naab
-          ./build/naab-lang.exe hello.naab
+          ./build/naab-lang.exe --no-governance hello.naab
 
       - name: Smoke test — version flag
         shell: msys2 {0}
@@ -75,7 +75,7 @@ jobs:
           use env
           main { let p = env.get("PATH") if p != "" { print("env ok") } else { throw "PATH empty" } }
           EOF
-          ./build/naab-lang.exe envtest.naab
+          ./build/naab-lang.exe --no-governance envtest.naab
 
       - name: CLI tests
         shell: msys2 {0}
