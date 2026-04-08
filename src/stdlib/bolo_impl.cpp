@@ -6,6 +6,7 @@
 #include "naab/interpreter.h"
 #include "naab/governance.h"
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace naab {
@@ -67,12 +68,16 @@ static std::string levelStr(EnforcementLevel level) {
     }
 }
 
+// V-CONC-002: protect g_engine initialization against concurrent first-call races.
+// Without a mutex, two threads can both see g_engine==nullptr and create two engines,
+// leaving one to be silently lost with its accumulated state.
+static std::mutex g_engine_mutex;
 static void ensureEngine() {
+    std::lock_guard<std::mutex> lock(g_engine_mutex);
     if (!g_engine) {
         g_engine = std::make_unique<GovernanceEngine>();
     }
-    auto& rules = g_engine->getMutableRules();
-    rules.mode = GovernanceMode::AUDIT;
+    g_engine->getMutableRules().mode = GovernanceMode::AUDIT;
 }
 
 static void applyProfile(const std::string& profile) {

@@ -112,19 +112,36 @@ static std::string addCppCompileHints(const std::string& stderr_output) {
 // Initialize static temp file counter (kept for ABI compatibility; no longer used for naming)
 std::atomic<int> CppExecutorAdapter::temp_file_counter_(0);
 
-// V-RCE-005: pre-compilation scanner — reject dangerous compile-time directives that
-// can leak arbitrary files via compiler error messages or execute native code before
-// the NAAb runtime sandbox is active.
+// V-RCE-005/V-RCE-006: pre-compilation scanner — reject dangerous compile-time directives.
+// V-RCE-006 hardens the original scanner to catch angle-bracket includes and line-splice
+// obfuscation that bypassed the R16 regex.
 static bool isCppSourceSafe(const std::string& code, std::string& reason) {
-    // Reject absolute-path #include — e.g. #include "/etc/shadow" embeds file in error output
-    std::regex abs_include(R"(#\s*include\s*"/)");
-    if (std::regex_search(code, abs_include)) {
-        reason = "absolute-path #include directive is not permitted in polyglot C++ blocks";
+    // V-RCE-006: pre-process line continuations so "#inc\<newline>lude" collapses to "#include"
+    std::string processed;
+    processed.reserve(code.size());
+    for (size_t i = 0; i < code.size(); i++) {
+        if (code[i] == '\\' && i + 1 < code.size() && code[i + 1] == '\n') {
+            i++;  // drop both the backslash and the newline
+        } else {
+            processed += code[i];
+        }
+    }
+
+    // Reject absolute-path double-quote #include (e.g. #include "/etc/shadow")
+    std::regex abs_include_dq(R"(#\s*include\s*"/)");
+    if (std::regex_search(processed, abs_include_dq)) {
+        reason = "absolute-path #include (double-quote) is not permitted in polyglot C++ blocks";
+        return false;
+    }
+    // V-RCE-006: also reject angle-bracket absolute #include (e.g. #include </etc/shadow>)
+    std::regex abs_include_ab(R"(#\s*include\s*</)");
+    if (std::regex_search(processed, abs_include_ab)) {
+        reason = "absolute-path #include (angle-bracket) is not permitted in polyglot C++ blocks";
         return false;
     }
     // Reject #pragma GCC plugin — executes a native shared library at compile time
     std::regex plugin_pragma(R"(#\s*pragma\s+GCC\s+plugin)");
-    if (std::regex_search(code, plugin_pragma)) {
+    if (std::regex_search(processed, plugin_pragma)) {
         reason = "#pragma GCC plugin is not permitted in polyglot C++ blocks";
         return false;
     }

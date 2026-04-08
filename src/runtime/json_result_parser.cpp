@@ -52,6 +52,24 @@ static interpreter::NaabVal parseValue(const nlohmann::json& j) {
     return interpreter::NaabVal::makeString(j.dump());
 }
 
+// V-RT-011: guard against stack overflow from deeply nested polyglot result JSON.
+// A malicious polyglot block can return [[[[...]]]] to crash the parent process.
+static bool checkJsonDepth(const std::string& s, int max_depth = 128) {
+    int depth = 0;
+    bool in_string = false;
+    bool escape_next = false;
+    for (unsigned char c : s) {
+        if (escape_next) { escape_next = false; continue; }
+        if (c == '\\' && in_string) { escape_next = true; continue; }
+        if (c == '"') { in_string = !in_string; continue; }
+        if (!in_string) {
+            if (c == '{' || c == '[') { if (++depth > max_depth) return false; }
+            else if (c == '}' || c == ']') { if (depth > 0) --depth; }
+        }
+    }
+    return true;
+}
+
 interpreter::NaabVal JsonResultParser::parse(const std::string& json_output) {
     try {
         // Trim whitespace and newlines
@@ -61,6 +79,11 @@ interpreter::NaabVal JsonResultParser::parse(const std::string& json_output) {
 
         if (trimmed.empty()) {
             return interpreter::NaabVal::makeNull();
+        }
+
+        // V-RT-011: depth-guard before parse to prevent stack overflow DoS
+        if (!checkJsonDepth(trimmed)) {
+            return interpreter::NaabVal::makeNull();  // Reject maliciously nested output
         }
 
         // Try to parse as JSON

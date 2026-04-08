@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <dlfcn.h>
 #include <cstdlib>
+#include <sys/stat.h>
 
 #ifdef HAVE_LIBFFI
 #include <ffi.h>
@@ -153,21 +154,39 @@ bool CppExecutor::compileBlock(
         return loadCompiledBlock(block_id);
     }
 
-    // Write source code to file
-    std::string source_path = getSourcePath(block_id);
-    std::ofstream source_file(source_path);
+    // V-RCE-007: write source to a private mkdtemp directory to prevent symlink attacks.
+    // The predictable cache path (BLOCK_LIB_<hash>.cpp) could be pre-symlinked by an attacker;
+    // mkdtemp eliminates that window. The compiled .so is atomically renamed to the cache.
+    fs::path base_tmp;
+    try {
+        base_tmp = fs::temp_directory_path();
+    } catch (...) {
+        // Termux fallback
+        base_tmp = fs::path("/data/data/com.termux/files/home/.cache/naab");
+        fs::create_directories(base_tmp);
+    }
+    std::string tmpl = (base_tmp / "naab_cpp_bl_XXXXXX").string();
+    char* raw_dir = mkdtemp(tmpl.data());
+    if (!raw_dir) {
+        fmt::print("[ERROR] Failed to create secure temp directory for block compilation\n");
+        return false;
+    }
+    chmod(raw_dir, 0700);
+    fs::path compile_dir(raw_dir);
+    std::string temp_source_path = (compile_dir / (block_id + ".cpp")).string();
+    std::string temp_so_path     = (compile_dir / (block_id + ".so")).string();
+
+    std::ofstream source_file(temp_source_path);
     if (!source_file.is_open()) {
-        fmt::print("[ERROR] Failed to create source file: {}\n", source_path);
+        fs::remove_all(compile_dir);
+        fmt::print("[ERROR] Failed to create source file in secure temp dir\n");
         return false;
     }
 
     // Write the actual C++ code
-    // If the code is complete and compilable, use it directly
-    // If it's a fragment, we'll need wrapping (not implemented yet)
     source_file << "// Auto-generated from NAAb C++ block: " << block_id << "\n\n";
 
     // Inject common STL headers for inline C++ code
-    // This allows users to use std::cout, std::vector, std::sort, etc. without explicit includes
     source_file << "#include <iostream>\n";
     source_file << "#include <vector>\n";
     source_file << "#include <algorithm>\n";
@@ -182,17 +201,28 @@ bool CppExecutor::compileBlock(
     source_file << "#include <cstdlib>\n";
     source_file << "\n";
 
-    // Write the code (wrapped if it's a fragment)
     std::string final_code = wrapFragmentIfNeeded(code);
     source_file << final_code;
-
     source_file.close();
 
-    // Source written (silent)
-
-    // Compile to shared library
-    bool compiled = compileToSharedLibrary(source_path, so_path, dependencies);
+    // Compile to shared library inside the private temp dir
+    bool compiled = compileToSharedLibrary(temp_source_path, temp_so_path, dependencies);
     if (!compiled) {
+        fs::remove_all(compile_dir);
+        return false;
+    }
+
+    // Atomically move compiled .so to persistent cache (rename(2) replaces atomically)
+    std::error_code ec;
+    fs::rename(temp_so_path, so_path, ec);
+    if (ec) {
+        // Cross-device fallback (tmp and cache on different filesystems)
+        fs::copy_file(temp_so_path, so_path, fs::copy_options::overwrite_existing, ec);
+    }
+    fs::remove_all(compile_dir);
+
+    if (ec) {
+        fmt::print("[ERROR] Failed to install compiled block to cache: {}\n", ec.message());
         return false;
     }
 

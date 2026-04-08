@@ -2351,6 +2351,44 @@ int main(int argc, char** argv) {
             auto interpreter = std::make_shared<naab::interpreter::Interpreter>();
             server.setInterpreter(interpreter);
 
+            // V-SC-005: apply lockfile verification before starting the server.
+            // The run command has this gate; the api command was missing it.
+            if (global_lock_check) {
+                std::string lf_path_api = global_lock_path;
+                if (lf_path_api.empty()) {
+                    auto cwd_api = std::filesystem::current_path().string();
+                    lf_path_api = naab::discoverLockfilePath(cwd_api);
+                    if (lf_path_api.empty()) {
+                        lf_path_api = cwd_api + "/.naab/naab.lock";
+                    }
+                }
+                if (!naab::Lockfile::verifySignature(lf_path_api)) {
+                    fprintf(stderr, "[lock] TAMPER DETECTED: lockfile signature mismatch.\n"
+                                    "  The lockfile may have been modified by an attacker.\n"
+                                    "  Re-run with --lock to regenerate.\n");
+                    fflush(stderr);
+                    _exit(1);
+                }
+                auto& lang_registry_api = naab::runtime::LanguageRegistry::instance();
+                std::unordered_map<std::string, std::string> observed_api;
+                for (const auto& lang : lang_registry_api.supportedLanguages()) {
+                    auto* exec = lang_registry_api.getExecutor(lang);
+                    if (exec) {
+                        std::string ver = exec->getRuntimeVersion();
+                        if (!ver.empty()) observed_api[lang] = ver;
+                    }
+                }
+                naab::Lockfile loaded_lf_api = naab::Lockfile::load(lf_path_api);
+                auto drift_api = loaded_lf_api.checkDrift(observed_api);
+                if (!drift_api.empty()) {
+                    fprintf(stderr, "[lock] RUNTIME DRIFT DETECTED:\n");
+                    for (const auto& d : drift_api) fprintf(stderr, "  %s\n", d.c_str());
+                    fprintf(stderr, "  Re-run with --lock to update: naab-lang --lock api\n");
+                    fflush(stderr);
+                    _exit(1);
+                }
+            }
+
             fmt::print("\n");
             fmt::print("╔════════════════════════════════════════════════════╗\n");
             fmt::print("║  NAAb REST API Server v{}                      ║\n", NAAB_VERSION_STRING);
