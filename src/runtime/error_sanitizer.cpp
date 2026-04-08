@@ -44,7 +44,7 @@ std::string ErrorSanitizer::sanitize(
     if (mode == SanitizationMode::PRODUCTION) {
         sanitized = redactValues(sanitized, mode);
         sanitized = sanitizeTypeNames(sanitized);
-    } else if (mode == SanitizationMode::STRICT) {
+    } else if (mode == SanitizationMode::MINIMAL) {
         sanitized = redactValues(sanitized, mode);
         sanitized = sanitizeTypeNames(sanitized);
 
@@ -78,7 +78,7 @@ std::string ErrorSanitizer::sanitizeStackTrace(
     sanitized = sanitizeAddresses(sanitized);
 
     // Remove internal function names in strict mode
-    if (mode == SanitizationMode::STRICT) {
+    if (mode == SanitizationMode::MINIMAL) {
         // Replace internal namespace prefixes
         std::regex internal_ns(R"(naab::(?:interpreter|parser|lexer|internal)::)");
         sanitized = std::regex_replace(sanitized, internal_ns, "");

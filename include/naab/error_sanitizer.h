@@ -24,7 +24,7 @@ namespace error {
 enum class SanitizationMode {
     DEVELOPMENT,   // Show all details (for debugging)
     PRODUCTION,    // Scrub sensitive information
-    STRICT         // Minimal information only
+    MINIMAL        // Minimal information only (was STRICT, renamed to avoid Windows macro collision)
 };
 
 // ============================================================================

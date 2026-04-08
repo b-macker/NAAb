@@ -99,8 +99,10 @@ EXPECTED_ERROR_TESTS["before_after_optimization.naab"]=1  # Julia executor failu
 
 # Category 2: Tests that need compilers/executors not installed on this platform
 # NOTE: Termux has g++, nim, node, go, rustc, julia, csc/mono, ruby, php, python3.
-# Only add tests here that genuinely fail from a missing compiler binary.
+# CI runners may not have all of these, so tests that need multiple polyglot
+# executors should stay here even if they pass on Termux.
 declare -A MISSING_EXECUTOR_TESTS
+MISSING_EXECUTOR_TESTS["polyglot_optimization_test.naab"]=1   # needs numpy, Go, Nim, Ruby
 
 # Category 2b: Tests that use 'use BLOCK-...' syntax requiring --tree-walk mode.
 # VM mode rejects this syntax with "Compiler error: 'use BLOCK-...' block-loading
