@@ -79,6 +79,13 @@ public:
      */
     void setApiTimeout(unsigned int seconds);
 
+    /**
+     * Set per-client rate limit in requests per minute (V-DOS-005).
+     * Token-bucket algorithm keyed by API key (or remote IP if no key).
+     * 0 disables rate limiting (default).
+     */
+    void setApiRateLimit(unsigned int requests_per_minute);
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;

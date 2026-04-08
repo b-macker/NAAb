@@ -3,7 +3,7 @@
 Tracks every finding that was raised in a vulnerability report but refuted (not fixed),
 along with the reason. When a new finding is refuted, add it here before closing the round.
 
-Last updated: R20 (Apr 7, 2026)
+Last updated: R24 (Apr 8, 2026)
 
 ---
 
@@ -149,9 +149,7 @@ Candidates for future audit rounds:
    the user unredacted. V-ERR-001 hardened the sanitizer patterns but the sanitizer
    is still disconnected.
 
-4. **REST API — no authentication or rate limiting**
-   `/execute` endpoint runs arbitrary NAAb code for any caller. No auth, no request
-   size limit, no per-request governance isolation from the server-global config.
+4. **REST API — no rate limiting** ← Auth FIXED (V-API-001 R11), timeout FIXED (V-API-004 R24), rate limiting tracked as V-DOS-005 (R25)
 
 5. **naab-gov CLI — adversarial govern.json via scanned directory**
    `naab-gov` calls `discoverAndLoad()` relative to the scanned file's directory. Scanning
@@ -163,9 +161,7 @@ Candidates for future audit rounds:
    LSP triggers partial parse/execution for type inference, a malicious `.naab` file
    could affect the LSP server process.
 
-7. **naab.lock — no cryptographic signature**
-   Lock file specifies exact module versions but has no signature. Tampered `naab.lock`
-   in CI silently pins to a different version — same class as npm lockfile poisoning.
+7. **naab.lock — no cryptographic signature** ← FIXED (V-SC-001 R12: HMAC-SHA256 .sig sidecar)
 
 8. **REPL :type eval injection**
    `:type <expr>` wraps user input in `main{}` and executes it. In scripted pipeline
@@ -173,6 +169,56 @@ Candidates for future audit rounds:
    execution.
 
 9. **govern.json adversarial inputs — ReDoS in governance rules** ← CONFIRMED as V-GOV-010 (R12) — FIXED R12
+
+---
+
+## R24 Refutations (3 of 5 raised)
+
+### V-ASYNC-001 — Multi-Tenant Timeout Contamination (re-raised)
+- **Claimed:** `handleAlarm` sets both `timeout_triggered_` and `global_shutdown_`, causing any
+  timed-out request to terminate all concurrent scripts in the process.
+- **Refuted because:** Already fixed in R7 (V-ASYNC-001r). `handleAlarm` and `handleCpuLimit`
+  (`src/runtime/resource_limits.cpp:215-231`) set only `timeout_triggered_` (thread-local),
+  **not** `global_shutdown_`. The `global_shutdown_` path only fires from the Windows timer
+  thread (line 124), which is single-tenant by design. The report's claim that "handleAlarm
+  sets both" is factually incorrect.
+- **Residual (Windows-only):** `isTimeoutTriggered()` (`include/naab/resource_limits.h:50`)
+  still checks `global_shutdown_`, and the Windows timer thread still sets it. This is a
+  Windows-only issue, not the cross-platform critical the report claims.
+
+### V-GOV-020 — Incomplete Role Enforcement Bypass
+- **Claimed:** `checkShellAllowed` and `checkLanguageAllowed` only check project-wide rules,
+  ignoring per-agent `agent_roles` restrictions for shell and language capabilities.
+- **Refuted because:** `applyAgentRole()` (`src/runtime/governance_reports.cpp:597`) already:
+  1. Intersects per-role `allowed_languages` with the base set (lines 601-614)
+  2. Applies per-role shell restriction via V-GOV-018 fix (line 620: `rules_.shell_allowed = false`)
+  These propagate into `rules_`, so `checkShellAllowed()` and `checkLanguageAllowed()` enforce
+  them transitively. The report was based on analysis that missed the `applyAgentRole()` call.
+
+### V-DOS-004 — Scanner Directory Bomb (re-raised as V-GOV-016)
+- **Claimed:** `collectFiles` uses unbounded recursive iteration vulnerable to directory bombs.
+- **Refuted because:** Same finding as V-GOV-016 (R22), already refuted. `config_.max_files`
+  cap (default 200) at `scanner.cpp:482` stops file collection. `exclude_dirs` filters common
+  deep trees. Error-code-based iteration handles OS path limit errors gracefully. See R22
+  refutation below for detailed analysis.
+
+---
+
+## R24 Valid Findings (2 of 5 raised)
+
+### V-RT-015 — Loader Symlink Race (TOCTOU) — VALID (low severity)
+- **Issue:** `readFileBounded` (`src/runtime/bounded_read.cpp:20-25`) performs `lstat()` then
+  opens with `std::ifstream` — a classic TOCTOU gap.
+- **Severity:** Low. Exploitation requires local filesystem write access in the same directory
+  as NAAb source files.
+- **Fix:** Replace with `open(O_RDONLY | O_NOFOLLOW | O_CLOEXEC)` + `fstat(fd)` + fd-based read.
+- **Tracked in:** R25 remediation plan (Phase 1)
+
+### V-DOS-005 — REST API Rate Limiting — VALID (low priority)
+- **Issue:** No rate limiting in the REST API. Authenticated clients can flood the server.
+- **Severity:** Low. Auth required (V-API-001), per-request timeout (V-API-004), body cap exist.
+- **Fix:** Token-bucket rate limiter per API key, `--api-rate-limit` CLI flag, HTTP 429 response.
+- **Tracked in:** R25 remediation plan (Phase 2)
 
 ---
 

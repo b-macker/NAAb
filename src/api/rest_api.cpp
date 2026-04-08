@@ -11,6 +11,9 @@
 #include <sstream>
 #include <filesystem>
 #include <atomic>
+#include <chrono>
+#include <mutex>
+#include <unordered_map>
 
 using json = nlohmann::json;
 
@@ -25,6 +28,37 @@ public:
     std::shared_ptr<runtime::BlockLoader> block_loader;
     // V-API-004 (R24): per-request execution timeout in seconds. 0 disables.
     std::atomic<unsigned int> api_timeout_seconds{10};
+    // V-DOS-005 (R25): token-bucket rate limiter. 0 = disabled.
+    std::atomic<unsigned int> api_rate_limit_rpm{0};
+    std::mutex rate_limit_mutex_;
+    struct TokenBucket {
+        double tokens = 0;
+        std::chrono::steady_clock::time_point last_refill{};
+    };
+    std::unordered_map<std::string, TokenBucket> rate_buckets_;
+
+    // Returns true if the request is allowed, false if rate-limited.
+    bool checkRateLimit(const std::string& key) {
+        unsigned int limit = api_rate_limit_rpm.load(std::memory_order_relaxed);
+        if (limit == 0) return true;
+        std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+        auto now = std::chrono::steady_clock::now();
+        auto& bucket = rate_buckets_[key];
+        if (bucket.last_refill.time_since_epoch().count() == 0) {
+            // First request: initialize with full capacity
+            bucket.tokens = static_cast<double>(limit);
+            bucket.last_refill = now;
+        }
+        double elapsed = std::chrono::duration<double>(now - bucket.last_refill).count();
+        bucket.tokens = std::min(static_cast<double>(limit),
+                                 bucket.tokens + elapsed * (limit / 60.0));
+        bucket.last_refill = now;
+        if (bucket.tokens >= 1.0) {
+            bucket.tokens -= 1.0;
+            return true;
+        }
+        return false;
+    }
 
     Impl() {
         setupRoutes();
@@ -306,37 +340,55 @@ public:
     }
 
     // V-API-001: apply body size cap and optional API key auth.
+    // V-DOS-005 (R25): rate limiting added after auth check.
     // Called after construction so the outer RestApiServer members are set.
     void applySecurityConfig(const std::string& api_key, size_t max_body_bytes) {
         // Body size cap — reject oversized requests before handlers run
         server.set_payload_max_length(max_body_bytes);
 
-        // API key guard — skip if no key configured (auth disabled)
-        if (api_key.empty()) return;
-
+        // Pre-routing handler: auth + rate limiting
+        // Always install if either auth or rate limiting could be enabled.
         server.set_pre_routing_handler(
-            [api_key](const httplib::Request& req, httplib::Response& res) {
-                // /health is always public — no key required
+            [this, api_key](const httplib::Request& req, httplib::Response& res) {
+                // /health is always public — no auth, no rate limit
                 if (req.path == "/health") {
                     return httplib::Server::HandlerResponse::Unhandled;
                 }
-                bool ok = false;
-                if (req.has_header("Authorization")) {
-                    // V-API-002: constant-time comparison to prevent timing-based key guessing
-                    ok = naab::security::CryptoUtils::constantTimeCompare(
-                        req.get_header_value("Authorization"), "Bearer " + api_key);
+
+                // Auth check (V-API-001) — skip if no key configured
+                if (!api_key.empty()) {
+                    bool ok = false;
+                    if (req.has_header("Authorization")) {
+                        // V-API-002: constant-time comparison
+                        ok = naab::security::CryptoUtils::constantTimeCompare(
+                            req.get_header_value("Authorization"), "Bearer " + api_key);
+                    }
+                    if (!ok && req.has_header("X-API-Key")) {
+                        ok = naab::security::CryptoUtils::constantTimeCompare(
+                            req.get_header_value("X-API-Key"), api_key);
+                    }
+                    if (!ok) {
+                        res.status = 401;
+                        res.set_content(
+                            nlohmann::json{{"error","Unauthorized"},{"status","error"}}.dump(2),
+                            "application/json");
+                        return httplib::Server::HandlerResponse::Handled;
+                    }
                 }
-                if (!ok && req.has_header("X-API-Key")) {
-                    ok = naab::security::CryptoUtils::constantTimeCompare(
-                        req.get_header_value("X-API-Key"), api_key);
-                }
-                if (!ok) {
-                    res.status = 401;
+
+                // V-DOS-005 (R25): rate limit check — after auth so unauthenticated
+                // requests are rejected before consuming rate tokens.
+                std::string rate_key = req.get_header_value("X-API-Key");
+                if (rate_key.empty()) rate_key = req.remote_addr;
+                if (!checkRateLimit(rate_key)) {
+                    res.status = 429;
+                    res.set_header("Retry-After", "1");
                     res.set_content(
-                        nlohmann::json{{"error","Unauthorized"},{"status","error"}}.dump(2),
+                        nlohmann::json{{"error","Rate limit exceeded"},{"status","error"}}.dump(2),
                         "application/json");
                     return httplib::Server::HandlerResponse::Handled;
                 }
+
                 return httplib::Server::HandlerResponse::Unhandled;
             });
     }
@@ -366,6 +418,14 @@ void RestApiServer::setMaxBodySize(size_t bytes) {
 void RestApiServer::setApiTimeout(unsigned int seconds) {
     impl_->api_timeout_seconds.store(seconds);
     spdlog::info("REST API: per-request execution timeout set to {} seconds", seconds);
+}
+
+void RestApiServer::setApiRateLimit(unsigned int requests_per_minute) {
+    impl_->api_rate_limit_rpm.store(requests_per_minute, std::memory_order_relaxed);
+    // Re-apply security config so the pre-routing handler is installed
+    // (rate limiting works even without an API key)
+    impl_->applySecurityConfig(api_key_, max_body_bytes_);
+    spdlog::info("REST API: rate limit set to {} requests/minute per client", requests_per_minute);
 }
 
 RestApiServer::~RestApiServer() {
