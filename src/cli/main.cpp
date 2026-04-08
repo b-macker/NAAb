@@ -2319,6 +2319,7 @@ int main(int argc, char** argv) {
         int port = 8080; // Default port
         std::string api_key;
         size_t max_body = 1048576; // 1 MiB default
+        unsigned int api_timeout = 10; // V-API-004 (R24): default 10s
 
         // Scan all argv for api flags (port is positional arg 2 if numeric)
         for (int i = 2; i < argc; ++i) {
@@ -2328,6 +2329,9 @@ int main(int argc, char** argv) {
             } else if (arg == "--max-body" && i + 1 < argc) {
                 try { max_body = static_cast<size_t>(std::stoull(argv[++i])); }
                 catch (...) { fmt::print("Error: Invalid --max-body value\n"); return 1; }
+            } else if (arg == "--api-timeout" && i + 1 < argc) {
+                try { api_timeout = static_cast<unsigned int>(std::stoul(argv[++i])); }
+                catch (...) { fmt::print("Error: Invalid --api-timeout value\n"); return 1; }
             } else if (i == 2 && arg[0] != '-') {
                 try { port = std::stoi(arg); }
                 catch (...) { fmt::print("Error: Invalid port number\n"); return 1; }
@@ -2341,6 +2345,8 @@ int main(int argc, char** argv) {
             // V-API-001: apply body size cap and optional API key auth
             server.setMaxBodySize(max_body);
             if (!api_key.empty()) server.setApiKey(api_key);
+            // V-API-004 (R24): per-request execution timeout
+            server.setApiTimeout(api_timeout);
 
             // Set up block loader for API endpoints
             std::string db_path = NAAB_DATABASE_PATH;

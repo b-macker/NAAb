@@ -2144,6 +2144,13 @@ void Interpreter::visit(ast::WhileStmt& node) {
 
     size_t iter_count = 0;
     while (true) {
+        // V-API-004 (R24): honor ScopedTimeout in tree-walker hot loop. The
+        // signal handler sets a thread_local flag; check it here so an
+        // infinite loop in REST-served code can't pin a worker thread.
+        if (naab::security::ResourceLimiter::isTimeoutTriggered()) {
+            throw std::runtime_error("Execution timeout exceeded (while loop)");
+        }
+
         auto condition = eval(*node.getCondition());
         if (!condition.toBool()) break;
 

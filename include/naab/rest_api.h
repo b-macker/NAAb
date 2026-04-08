@@ -71,6 +71,14 @@ public:
      */
     void setMaxBodySize(size_t bytes);
 
+    /**
+     * Set per-request execution timeout in seconds (V-API-004).
+     * Wraps each /api/v1/execute call in a ScopedTimeout so that an infinite
+     * loop or runaway script cannot permanently pin a cpp-httplib worker.
+     * 0 disables the timeout (tests/debug only). Default: 10 seconds.
+     */
+    void setApiTimeout(unsigned int seconds);
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;

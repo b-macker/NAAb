@@ -4,6 +4,7 @@
 #include "naab/module_resolver.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
+#include "naab/bounded_read.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -110,17 +111,31 @@ static bool isUrl(const std::string& spec) {
     return spec.substr(0, 8) == "https://" || spec.substr(0, 7) == "http://";
 }
 
+// V-DOS-003 (R24): hard cap on downloaded module size (10 MB).
+static constexpr curl_off_t MAX_MODULE_DOWNLOAD_BYTES = 10LL * 1024 * 1024;
+
 // Helper: Generate cache path from URL
 static fs::path urlToCachePath(const std::string& url) {
     // Hash the URL for a unique cache filename
     std::hash<std::string> hasher;
     size_t hash = hasher(url);
 
-    // Extract filename from URL for readability
+    // V-DOS-003 (R24): extract filename defensively — strip BOTH POSIX and
+    // Windows separators so that a URL like "http://evil/\..\..\evil.naab"
+    // cannot escape the cache directory on Windows. The hash prefix already
+    // guarantees filename uniqueness, so aggressive sanitization is safe.
     std::string filename;
-    auto last_slash = url.rfind('/');
-    if (last_slash != std::string::npos) {
-        filename = url.substr(last_slash + 1);
+    auto last_sep = url.find_last_of("/\\");
+    if (last_sep != std::string::npos) {
+        filename = url.substr(last_sep + 1);
+    }
+    // Replace any residual path-affecting characters
+    for (char& c : filename) {
+        if (c == '/' || c == '\\' || c == ':' || c == '\0') c = '_';
+    }
+    // Reject traversal sequences outright
+    if (filename.find("..") != std::string::npos) {
+        filename = "module";
     }
     // Ensure .naab extension
     if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".naab") {
@@ -132,12 +147,30 @@ static fs::path urlToCachePath(const std::string& url) {
     return cache_dir / (std::to_string(hash) + "_" + filename);
 }
 
-// Helper: Download URL to file using curl
+// V-DOS-003 (R24): bounded write callback. Tracks cumulative bytes and aborts
+// the transfer (by returning a short write count) once the 10 MB cap is hit.
+// This is defense-in-depth on top of CURLOPT_MAXFILESIZE_LARGE, which only
+// enforces the cap when the server advertises Content-Length.
+struct BoundedCurlSink {
+    std::ofstream* file;
+    curl_off_t written = 0;
+};
+
 static size_t writeFileCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t total = size * nmemb;
-    auto* file = static_cast<std::ofstream*>(userp);
-    file->write(static_cast<char*>(contents), static_cast<std::streamsize>(total));
-    return total;
+    auto* sink = static_cast<BoundedCurlSink*>(userp);
+    if (sink->written >= MAX_MODULE_DOWNLOAD_BYTES) {
+        return 0; // signal curl to abort
+    }
+    curl_off_t remaining = MAX_MODULE_DOWNLOAD_BYTES - sink->written;
+    size_t writable = total;
+    if (static_cast<curl_off_t>(writable) > remaining) {
+        writable = static_cast<size_t>(remaining);
+    }
+    sink->file->write(static_cast<char*>(contents), static_cast<std::streamsize>(writable));
+    sink->written += static_cast<curl_off_t>(writable);
+    // Returning less than `total` signals curl to abort with CURLE_WRITE_ERROR.
+    return writable;
 }
 
 static bool downloadUrl(const std::string& url, const fs::path& dest) {
@@ -150,14 +183,19 @@ static bool downloadUrl(const std::string& url, const fs::path& dest) {
     CURL* curl = curl_easy_init();
     if (!curl) { file.close(); return false; }
 
+    BoundedCurlSink sink{&file, 0};
+
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFileCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "NAAb/1.0");
+    // V-DOS-003 (R24): pre-flight size cap via Content-Length. The write
+    // callback above enforces the same cap for chunked/unknown-length servers.
+    curl_easy_setopt(curl, CURLOPT_MAXFILESIZE_LARGE, MAX_MODULE_DOWNLOAD_BYTES);
 
     CURLcode res = curl_easy_perform(curl);
 
@@ -369,15 +407,13 @@ std::optional<fs::path> ModuleResolver::resolveFromSystem(const std::string& spe
 }
 
 std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& path) {
-    // Read file
-    std::ifstream file(path);
-    if (!file.is_open()) {
+    // V-RT-014 (R24): size-cap the read and reject symlinks (e.g. a malicious
+    // workspace symlinking utils.naab -> /dev/zero would OOM the loader).
+    auto src = naab::readFileBounded(path.string());
+    if (!src) {
         throw std::runtime_error("Failed to open module file: " + path.string());
     }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string source = buffer.str();
+    std::string source = std::move(*src);
 
     // Lex and parse
     lexer::Lexer lexer(source);

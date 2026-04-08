@@ -6,6 +6,7 @@
 #include "naab/lockfile.h"
 #include "naab/config.h"
 #include "naab/crypto_utils.h"
+#include "naab/secure_file.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -116,17 +117,28 @@ void Lockfile::save(const std::string& path) const {
     }
 
     std::string content = j.dump(2) + "\n";
-    std::ofstream ofs(path);
-    if (ofs.is_open()) {
-        ofs << content;
+
+    // V-SC-005 (R24): refuse to follow symlinks when writing the lockfile.
+    // A malicious workspace could pre-create .naab/naab.lock as a symlink to
+    // ~/.ssh/id_rsa and trick a developer into overwriting secrets. Using
+    // writeFileSecure() opens with O_NOFOLLOW so such paths fail with ELOOP.
+    if (!naab::security::writeFileSecure(path, content)) {
+        fprintf(stderr,
+                "[lock] Refusing to write %s (symlink, permission error, or non-regular file)\n",
+                path.c_str());
+        return;
     }
 
     // V-SC-001: write HMAC-SHA256 sidecar when NAAB_LOCK_KEY is set
     const char* lock_key = std::getenv("NAAB_LOCK_KEY");
     if (lock_key && *lock_key) {
         std::string sig = naab::security::CryptoUtils::hmacSha256(content, lock_key);
-        std::ofstream sigf(path + ".sig");
-        if (sigf.is_open()) sigf << sig << "\n";
+        // V-SC-005: sidecar is equally sensitive — write it via the same path.
+        if (!naab::security::writeFileSecure(path + ".sig", sig + "\n")) {
+            fprintf(stderr,
+                    "[lock] Refusing to write %s.sig (symlink or permission error)\n",
+                    path.c_str());
+        }
     }
 }
 

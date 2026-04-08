@@ -7,8 +7,10 @@
 #include "naab/error_sanitizer.h"
 #include "naab/crypto_utils.h"
 #include "naab/stdlib.h"
+#include "naab/resource_limits.h"
 #include <sstream>
 #include <filesystem>
+#include <atomic>
 
 using json = nlohmann::json;
 
@@ -21,6 +23,8 @@ public:
     httplib::Server server;
     std::shared_ptr<interpreter::Interpreter> interpreter;
     std::shared_ptr<runtime::BlockLoader> block_loader;
+    // V-API-004 (R24): per-request execution timeout in seconds. 0 disables.
+    std::atomic<unsigned int> api_timeout_seconds{10};
 
     Impl() {
         setupRoutes();
@@ -78,7 +82,18 @@ public:
                     auto req_interpreter = std::make_shared<interpreter::Interpreter>();
                     auto cwd = std::filesystem::current_path().string();
                     req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
-                    req_interpreter->execute(*program);
+                    // V-API-004 (R24): bound execution to api_timeout_seconds
+                    // so that an infinite-loop script can't permanently pin a
+                    // cpp-httplib worker thread. ScopedTimeout installs a
+                    // SIGALRM/pthread_kill alarm and disarms on any exit path.
+                    // timeout=0 opts out (tests/debug only).
+                    unsigned int t = api_timeout_seconds.load();
+                    if (t > 0) {
+                        naab::security::ScopedTimeout _to(t);
+                        req_interpreter->execute(*program);
+                    } else {
+                        req_interpreter->execute(*program);
+                    }
                 } catch (const std::exception& e) {
                     // V-ERR-002: sanitize error messages before returning to caller
                     error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
@@ -346,6 +361,11 @@ void RestApiServer::setMaxBodySize(size_t bytes) {
     max_body_bytes_ = bytes;
     impl_->applySecurityConfig(api_key_, max_body_bytes_);
     spdlog::info("REST API: max body size set to {} bytes", bytes);
+}
+
+void RestApiServer::setApiTimeout(unsigned int seconds) {
+    impl_->api_timeout_seconds.store(seconds);
+    spdlog::info("REST API: per-request execution timeout set to {} seconds", seconds);
 }
 
 RestApiServer::~RestApiServer() {

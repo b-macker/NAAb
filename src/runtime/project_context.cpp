@@ -9,9 +9,11 @@
 
 #include "naab/project_context.h"
 #include "naab/governance.h"
+#include "naab/bounded_read.h"
 
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <iterator>
 #include <regex>
 #include <algorithm>
@@ -272,8 +274,11 @@ std::vector<ContextExtraction> ProjectContextLoader::parseMarkdownFile(
 
     std::vector<ContextExtraction> results;
 
-    std::ifstream ifs(path);
-    if (!ifs.is_open()) return results;
+    // V-RT-014 (R24): size-cap + reject symlinks so a workspace cannot point
+    // README.md at /dev/zero to OOM naab-gov during context scanning.
+    auto buffered = naab::readFileBounded(path);
+    if (!buffered) return results;
+    std::istringstream ifs(*buffered);
 
     std::string line;
     int line_num = 0;
@@ -820,12 +825,11 @@ std::vector<ContextExtraction> ProjectContextLoader::parseJsonConfig(
 
     std::vector<ContextExtraction> results;
 
-    std::ifstream ifs(path);
-    if (!ifs.is_open()) return results;
-
-    // V-GOV-011: read to string and depth-check before parsing
-    std::string raw((std::istreambuf_iterator<char>(ifs)),
-                     std::istreambuf_iterator<char>());
+    // V-RT-014 (R24): size-cap + reject symlinks. V-GOV-011 still applies:
+    // depth-check before parsing.
+    auto raw_opt = naab::readFileBounded(path);
+    if (!raw_opt) return results;
+    std::string raw = std::move(*raw_opt);
     if (!checkJsonDepth(raw)) {
         return results;  // Reject maliciously nested config — skip silently
     }

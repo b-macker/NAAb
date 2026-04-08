@@ -5,6 +5,7 @@
 #include "naab/parser.h"
 #include "naab/lexer.h"
 #include "naab/logger.h"
+#include "naab/bounded_read.h"
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -78,15 +79,13 @@ std::optional<std::string> ModuleRegistry::resolveModulePath(
 
 // Parse a module file
 std::unique_ptr<ast::Program> ModuleRegistry::parseModuleFile(const std::string& file_path) {
-    // Read source code
-    std::ifstream file(file_path);
-    if (!file.is_open()) {
+    // V-RT-014 (R24): size-cap + reject symlinks so that a malicious workspace
+    // cannot OOM the loader via utils.naab -> /dev/zero.
+    auto src = naab::readFileBounded(file_path);
+    if (!src) {
         throw std::runtime_error("Failed to open file: " + file_path);
     }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string source = buffer.str();
+    std::string source = std::move(*src);
 
     if (source.empty()) {
         throw std::runtime_error("Empty module file: " + file_path);

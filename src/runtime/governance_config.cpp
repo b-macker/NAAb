@@ -142,6 +142,25 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
     return {false, EnforcementLevel::HARD};
 }
 
+// V-GOV-019 (R24): governance configs are parsed by dozens of unbounded
+// `for (auto& el : arr) vec.push_back(...)` loops. nlohmann::json caps parse
+// depth but not array width, so a single `taint_tracking.sources` array of
+// millions of strings would allocate an enormous std::vector before any
+// check runs. Walk the parsed tree once and reject any array wider than this
+// cap — cheap, and a single guard covers every downstream loop without
+// mechanically rewriting each call site.
+static constexpr size_t MAX_GOV_ARRAY_ELEMS = 10000;
+
+static bool checkJsonArrayWidth(const nlohmann::json& j, size_t max = MAX_GOV_ARRAY_ELEMS) {
+    if (j.is_array() && j.size() > max) return false;
+    if (j.is_structured()) {
+        for (auto& child : j) {
+            if (!checkJsonArrayWidth(child, max)) return false;
+        }
+    }
+    return true;
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Mode
     if (j.contains("mode")) {
@@ -1537,6 +1556,13 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         if (!ifs.is_open()) return false;
 
         nlohmann::json j = nlohmann::json::parse(ifs);
+        // V-GOV-019 (R24): reject configs with any array wider than the cap.
+        if (!checkJsonArrayWidth(j)) {
+            fmt::print(stderr,
+                       "[governance] Config rejected: JSON array exceeds {} elements "
+                       "(V-GOV-019 cap)\n", MAX_GOV_ARRAY_ELEMS);
+            return false;
+        }
         loadFromJson(j, rules_);
         loaded_path_ = path;
         active_ = (rules_.mode != GovernanceMode::OFF);

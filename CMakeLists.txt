@@ -516,6 +516,8 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/persistent_ruby_executor.cpp     # Task 18: Persistent Ruby executor
     src/utils/paths.cpp  # Portable path resolution
     src/runtime/lockfile.cpp  # Phase 8.4: Lockfile for deterministic builds
+    src/runtime/secure_file.cpp  # R24 V-SC-005: symlink-resistant file writes
+    src/runtime/bounded_read.cpp # R24 V-RT-014: size-capped, symlink-rejecting reads
     # Phase 7.3: Platform abstraction — source selected at configure time
 
 )

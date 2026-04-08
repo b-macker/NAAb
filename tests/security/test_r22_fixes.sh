@@ -6,7 +6,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 GOV="$SCRIPT_DIR/../../build/naab-gov"
-WORK_DIR="$(mktemp -d -p "$SCRIPT_DIR")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_r22.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 PASS=0
