@@ -1475,6 +1475,19 @@ void Interpreter::visit(ast::ExprStmt& node) {
     }
     eval(*node.getExpr());
 
+    // V-GOV-013: file-local duplicate of findRootIdentifier (defined in expressions.cpp).
+    // Needed here to fix the same cast failure for arr[0].push(secret).
+    static const auto findRootId = [](auto& self, ast::Expr* expr) -> ast::IdentifierExpr* {
+        if (!expr) return nullptr;
+        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) return id;
+        if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr))
+            if (bin->getOp() == ast::BinaryOp::Subscript)
+                return self(self, bin->getLeft());
+        if (auto* mem = dynamic_cast<ast::MemberExpr*>(expr))
+            return self(self, mem->getObject());
+        return nullptr;
+    };
+
     // V-GOV-012: propagate taint for container mutation calls.
     // Storing a tainted value via push/insert/append/set bypasses name-based
     // taint tracking unless we explicitly mark the container as tainted here.
@@ -1494,8 +1507,9 @@ void Interpreter::visit(ast::ExprStmt& node) {
                         }
                     }
                     if (arg_tainted) {
-                        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
-                            governance_->markTainted(obj_id->getName());
+                        // V-GOV-013: use recursive unwrap so arr[0].push(s) marks arr
+                        if (auto* root_id = findRootId(findRootId, member->getObject())) {
+                            governance_->markTainted(root_id->getName());
                         }
                     }
                 }

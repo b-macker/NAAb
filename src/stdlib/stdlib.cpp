@@ -28,6 +28,16 @@ bool getPipeMode() {
     return g_pipe_mode;
 }
 
+// V-DOS-002: thread-local output capture for REST API per-request isolation.
+// When set, io.write/print/log/output write here instead of std::cout/cerr.
+// Zero-cost (null check) on the common path; each REST request sets its own
+// ostringstream, eliminating the need for a global rdbuf redirect + mutex.
+static thread_local std::ostream* tl_capture_stream = nullptr;
+
+void setIoCaptureStream(std::ostream* stream) {
+    tl_capture_stream = stream;
+}
+
 // ============================================================================
 // IO Module Implementation
 // ============================================================================
@@ -62,7 +72,9 @@ interpreter::NaabVal IOModule::call(
         if (args.empty()) {
             throw std::runtime_error("write() requires at least one argument");
         }
-        auto& out = g_pipe_mode ? std::cerr : std::cout;
+        // V-DOS-002: use per-request capture stream when set (REST API path)
+        std::ostream& out = tl_capture_stream ? *tl_capture_stream
+                                              : (g_pipe_mode ? std::cerr : std::cout);
         for (const auto& arg : args) {
             out << arg.toString();
         }
@@ -75,10 +87,12 @@ interpreter::NaabVal IOModule::call(
         if (args.empty()) {
             throw std::runtime_error("output() requires at least one argument");
         }
+        // V-DOS-002: capture stream also covers io.output in REST context
+        std::ostream& out = tl_capture_stream ? *tl_capture_stream : std::cout;
         for (const auto& arg : args) {
-            std::cout << arg.toString();
+            out << arg.toString();
         }
-        std::cout.flush();
+        out.flush();
         return interpreter::NaabVal::makeNull();
     }
     else if (function_name == "write_error") {
@@ -104,7 +118,8 @@ interpreter::NaabVal IOModule::call(
     else if (function_name == "input") {
         // Read line from stdin with optional prompt
         if (!args.empty()) {
-            auto& out = g_pipe_mode ? std::cerr : std::cout;
+            std::ostream& out = tl_capture_stream ? *tl_capture_stream
+                                                  : (g_pipe_mode ? std::cerr : std::cout);
             out << args[0].toString();
             out.flush();
         }
@@ -117,7 +132,9 @@ interpreter::NaabVal IOModule::call(
 
     // Aliases: io.print(), io.println(), io.log() → same as io.write()
     if (function_name == "print" || function_name == "println" || function_name == "log") {
-        auto& out = g_pipe_mode ? std::cerr : std::cout;
+        // V-DOS-002: capture stream for REST API path
+        std::ostream& out = tl_capture_stream ? *tl_capture_stream
+                                              : (g_pipe_mode ? std::cerr : std::cout);
         if (args.empty()) {
             if (function_name == "println") {
                 out << "\n";

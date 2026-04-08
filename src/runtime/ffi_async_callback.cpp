@@ -178,7 +178,10 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
                 "Execution completed successfully in {}ms", elapsed.count()
             ));
 
-            return AsyncCallbackResult::makeSuccess(result, elapsed);
+            // V-GOV-015: query taint reporter (if wired) so the async result
+            // carries the governance taint bit from the worker thread.
+            bool tainted = taint_reporter_ ? taint_reporter_() : false;
+            return AsyncCallbackResult::makeSuccess(result, elapsed, tainted);
 
         } catch (const std::exception& e) {
             // Exception from callback - join thread before handling

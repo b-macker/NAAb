@@ -32,6 +32,11 @@ struct AsyncCallbackResult {
     std::string error_message;
     std::string error_type;
     std::chrono::milliseconds execution_time;
+    // V-GOV-015: carry governance taint across the FFI async boundary.
+    // The callback runs in a worker thread whose Interpreter instance is
+    // separate from the caller's; taint state does not cross thread boundaries
+    // unless propagated explicitly through this field.
+    bool is_tainted = false;
 
     AsyncCallbackResult()
         : success(false)
@@ -40,12 +45,14 @@ struct AsyncCallbackResult {
 
     static AsyncCallbackResult makeSuccess(
         const interpreter::NaabVal& val,
-        std::chrono::milliseconds exec_time
+        std::chrono::milliseconds exec_time,
+        bool tainted = false
     ) {
         AsyncCallbackResult result;
         result.success = true;
         result.value = val;
         result.execution_time = exec_time;
+        result.is_tainted = tainted;
         return result;
     }
 
@@ -65,6 +72,10 @@ struct AsyncCallbackResult {
 class AsyncCallbackWrapper {
 public:
     using CallbackFunc = std::function<interpreter::NaabVal()>;
+    // V-GOV-015: optional hook called after callback completes to query
+    // whether the callback's execution tainted its result. The governance
+    // engine supplies this when wiring up an FFI async callback.
+    using TaintReporterFunc = std::function<bool()>;
 
     // Create async callback wrapper
     // timeout_ms: Maximum execution time (0 = no timeout)
@@ -103,8 +114,16 @@ public:
     // Get timeout setting
     std::chrono::milliseconds getTimeout() const { return timeout_; }
 
+    // V-GOV-015: register a taint reporter so the governance engine can learn
+    // whether the callback's return value is tainted. Call before executeAsync()
+    // or executeBlocking().
+    void setTaintReporter(TaintReporterFunc reporter) {
+        taint_reporter_ = std::move(reporter);
+    }
+
 private:
     CallbackFunc callback_;
+    TaintReporterFunc taint_reporter_;  // V-GOV-015: optional; null if not set
     std::string name_;
     std::chrono::milliseconds timeout_;
 

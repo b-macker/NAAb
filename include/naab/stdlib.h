@@ -3,6 +3,7 @@
 // NAAb Standard Library
 // Built-in modules for common operations
 
+#include <iosfwd>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,6 +22,11 @@ namespace stdlib {
 // so stdout stays clean for machine-readable output via io.output()
 void setPipeMode(bool enabled);
 bool getPipeMode();
+
+// V-DOS-002: per-request output capture (thread-local, avoids global rdbuf race).
+// REST API sets this to a private ostringstream before each execute() call and
+// clears it afterward. nullptr restores the default (std::cout / std::cerr).
+void setIoCaptureStream(std::ostream* stream);
 
 // Module interface
 class Module {

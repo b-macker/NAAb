@@ -24,6 +24,22 @@ static std::string getTypeName(NaabVal val) {
 }
 
 
+// V-GOV-013: Recursively unwrap nested subscripts/members to find the root
+// container identifier.  dynamic_cast to IdentifierExpr fails for arr[0][1]
+// because the immediate left-hand side is a BinaryExpr(Subscript), not an
+// IdentifierExpr.  This helper peels layers until it reaches the root name.
+static ast::IdentifierExpr* findRootIdentifier(ast::Expr* expr) {
+    if (!expr) return nullptr;
+    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) return id;
+    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
+        if (bin->getOp() == ast::BinaryOp::Subscript)
+            return findRootIdentifier(bin->getLeft());
+    }
+    if (auto* mem = dynamic_cast<ast::MemberExpr*>(expr))
+        return findRootIdentifier(mem->getObject());
+    return nullptr;  // function call result, literal, etc. — no named container
+}
+
 void Interpreter::visit(ast::BinaryExpr& node) {
     // Handle short-circuit operators BEFORE evaluating right side
     if (node.getOp() == ast::BinaryOp::And) {
@@ -107,9 +123,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 result_ = right;
 
                 // FIX-4: Taint propagation for struct field assignment (REFACTOR-1)
+                // V-GOV-013: use findRootIdentifier so obj.field[0] = secret marks obj tainted.
                 if (governance_ && governance_->isActive() && checkRhsTainted(node.getRight())) {
-                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
-                    if (obj_id) governance_->markTainted(obj_id->getName());
+                    auto* root_id = findRootIdentifier(member->getObject());
+                    if (root_id) governance_->markTainted(root_id->getName());
                 }
             } else {
                 std::ostringstream oss;
@@ -161,8 +178,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     result_ = right;
 
                     // FIX-3: Taint propagation for array subscript assignment (REFACTOR-1)
+                    // V-GOV-013: use findRootIdentifier so arr[0][1] = secret marks arr tainted.
                     if (governance_ && governance_->isActive() && checkRhsTainted(node.getRight())) {
-                        auto* container_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
+                        auto* container_id = findRootIdentifier(subscript->getLeft());
                         if (container_id) governance_->markTainted(container_id->getName());
                     }
                 }
@@ -176,8 +194,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     result_ = right;
 
                     // FIX-3: Taint propagation for dict subscript assignment (REFACTOR-1)
+                    // V-GOV-013: use findRootIdentifier so dict[key1][key2] = secret marks dict tainted.
                     if (governance_ && governance_->isActive() && checkRhsTainted(node.getRight())) {
-                        auto* container_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
+                        auto* container_id = findRootIdentifier(subscript->getLeft());
                         if (container_id) governance_->markTainted(container_id->getName());
                     }
                 } else {
