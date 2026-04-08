@@ -5,6 +5,7 @@
 #include <memory>
 #include <map>
 #include <vector>
+#include <mutex>
 #include "naab/ast.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
@@ -71,7 +72,9 @@ public:
     int getVersion() const { return version_; }
     ast::Program* getAST() const { return ast_.get(); }
     const semantic::SymbolTable& getSymbolTable() const { return symbol_table_; }
-    const std::vector<Diagnostic>& getDiagnostics() const { return diagnostics_; }
+    // V-CONC-004: return by value (not reference) so the debounce thread holds
+    // its own copy and cannot race with update() clearing diagnostics_.
+    std::vector<Diagnostic> getDiagnostics() const;
 
     // Query
     std::string getLineText(int line) const;
@@ -88,6 +91,7 @@ private:
     semantic::SymbolTable symbol_table_;
     std::vector<lexer::Token> tokens_;
     std::vector<Diagnostic> diagnostics_;
+    mutable std::mutex diag_mutex_;  // V-CONC-004: protects diagnostics_
 
     // Symbol table population
     void buildSymbolTable();

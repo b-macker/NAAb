@@ -80,9 +80,16 @@ void Document::update(const std::string& new_text, int new_version) {
     runGovernanceChecks();
 }
 
+std::vector<Diagnostic> Document::getDiagnostics() const {
+    std::lock_guard<std::mutex> lock(diag_mutex_);
+    return diagnostics_;
+}
+
 void Document::parse() {
     std::cerr << "[Document::parse] Starting parse for " << uri_ << "\n";
-    diagnostics_.clear();
+    // V-CONC-004: build into a local vector; assign under lock at end so the
+    // debounce thread never iterates a partially-cleared diagnostics_ vector.
+    std::vector<Diagnostic> new_diags;
 
     try {
         // Tokenize
@@ -113,7 +120,7 @@ void Document::parse() {
         diag.severity = DiagnosticSeverity::Error;
         diag.code = "parse-error";
         diag.message = std::string("Parse error: ") + e.what();
-        diagnostics_.push_back(diag);
+        new_diags.push_back(diag);
     } catch (...) {
         std::cerr << "[Document::parse] Unknown exception caught!\n";
         Diagnostic diag;
@@ -121,12 +128,19 @@ void Document::parse() {
         diag.severity = DiagnosticSeverity::Error;
         diag.code = "parse-error";
         diag.message = "Unknown parse error";
-        diagnostics_.push_back(diag);
+        new_diags.push_back(diag);
+    }
+    {
+        std::lock_guard<std::mutex> lock(diag_mutex_);
+        diagnostics_ = std::move(new_diags);
     }
 }
 
 void Document::typeCheck() {
     if (!ast_) return;
+
+    // V-CONC-004: accumulate into a local vector; append under lock.
+    std::vector<Diagnostic> new_diags;
 
     try {
         // Run type checker
@@ -146,7 +160,7 @@ void Document::typeCheck() {
             diag.severity = DiagnosticSeverity::Error;
             diag.code = "type-error";
             diag.message = err.message;
-            diagnostics_.push_back(diag);
+            new_diags.push_back(diag);
         }
 
     } catch (const std::exception& e) {
@@ -156,7 +170,11 @@ void Document::typeCheck() {
         diag.severity = DiagnosticSeverity::Error;
         diag.code = "type-check-error";
         diag.message = std::string("Type check error: ") + e.what();
-        diagnostics_.push_back(diag);
+        new_diags.push_back(diag);
+    }
+    {
+        std::lock_guard<std::mutex> lock(diag_mutex_);
+        diagnostics_.insert(diagnostics_.end(), new_diags.begin(), new_diags.end());
     }
 }
 
@@ -346,6 +364,8 @@ void Document::runGovernanceChecks() {
 
     // Parse output: split on "Governance error:" or "Governance warning:" or "Taint tracking violation:"
     // Each block starts with one of these prefixes
+    // V-CONC-004: accumulate into a local vector; append under lock.
+    std::vector<Diagnostic> new_diags;
     std::vector<std::string> blocks;
     std::string current_block;
     std::istringstream iss(output);
@@ -370,11 +390,15 @@ void Document::runGovernanceChecks() {
         if (block.find("Governance error:") != std::string::npos ||
             block.find("Governance warning:") != std::string::npos ||
             block.find("Taint tracking violation:") != std::string::npos) {
-            diagnostics_.push_back(parseGovernanceBlock(block));
+            new_diags.push_back(parseGovernanceBlock(block));
         }
     }
 
-    std::cerr << "[Document] Governance produced " << diagnostics_.size() << " total diagnostics\n";
+    {
+        std::lock_guard<std::mutex> lock(diag_mutex_);
+        diagnostics_.insert(diagnostics_.end(), new_diags.begin(), new_diags.end());
+        std::cerr << "[Document] Governance produced " << diagnostics_.size() << " total diagnostics\n";
+    }
 }
 
 // Forward declaration

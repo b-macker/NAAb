@@ -7,6 +7,7 @@
 #include "naab/error_sanitizer.h"
 #include "naab/crypto_utils.h"
 #include <sstream>
+#include <mutex>
 #include <filesystem>
 
 using json = nlohmann::json;
@@ -59,32 +60,37 @@ public:
                     return;
                 }
 
-                // Capture stdout during execution
+                // V-CONC-003: serialize stdout capture across concurrent requests.
+                // std::cout is a process-global object; simultaneous rdbuf() redirects
+                // from different httplib threads corrupt each other's output and can crash.
+                static std::mutex stdout_capture_mutex_;
                 std::ostringstream captured;
-                std::streambuf* old_buf = std::cout.rdbuf(captured.rdbuf());
                 std::string error_msg;
                 int exit_code = 0;
-
-                try {
-                    naab::lexer::Lexer lexer(code);
-                    auto tokens = lexer.tokenize();
-                    naab::parser::Parser parser(tokens);
-                    auto program = parser.parseProgram();
-                    // Finding B fix: create a fresh interpreter per request to prevent state
-                    // leakage, governance override persistence, and race conditions
-                    auto req_interpreter = std::make_shared<interpreter::Interpreter>();
-                    auto cwd = std::filesystem::current_path().string();
-                    req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
-                    req_interpreter->execute(*program);
-                } catch (const std::exception& e) {
-                    // V-ERR-002: sanitize error messages before returning to caller
-                    error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
-                    exit_code = 1;
-                } catch (...) {
-                    error_msg = "Unknown error during execution";
-                    exit_code = 1;
+                {
+                    std::lock_guard<std::mutex> lock(stdout_capture_mutex_);
+                    std::streambuf* old_buf = std::cout.rdbuf(captured.rdbuf());
+                    try {
+                        naab::lexer::Lexer lexer(code);
+                        auto tokens = lexer.tokenize();
+                        naab::parser::Parser parser(tokens);
+                        auto program = parser.parseProgram();
+                        // Finding B fix: create a fresh interpreter per request to prevent state
+                        // leakage, governance override persistence, and race conditions
+                        auto req_interpreter = std::make_shared<interpreter::Interpreter>();
+                        auto cwd = std::filesystem::current_path().string();
+                        req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
+                        req_interpreter->execute(*program);
+                    } catch (const std::exception& e) {
+                        // V-ERR-002: sanitize error messages before returning to caller
+                        error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
+                        exit_code = 1;
+                    } catch (...) {
+                        error_msg = "Unknown error during execution";
+                        exit_code = 1;
+                    }
+                    std::cout.rdbuf(old_buf);  // Always restored inside lock scope
                 }
-                std::cout.rdbuf(old_buf);
 
                 json response = {
                     {"status",    error_msg.empty() ? "success" : "error"},

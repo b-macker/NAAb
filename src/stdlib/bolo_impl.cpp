@@ -168,6 +168,15 @@ interpreter::NaabVal BoloModule::call(
         std::string lang = getString(args[0]);
         std::string code = getString(args[1]);
 
+        // V-DOS-001: cap input size to prevent memory exhaustion in GovernanceEngine.
+        constexpr size_t MAX_BOLO_SCAN_BYTES = 10 * 1024 * 1024;  // 10 MiB
+        if (code.size() > MAX_BOLO_SCAN_BYTES) {
+            throw std::runtime_error(
+                "bolo.scan() error: Input exceeds maximum scan size (10 MiB)\n\n"
+                "  Got: " + std::to_string(code.size()) + " bytes\n"
+                "  Limit: " + std::to_string(MAX_BOLO_SCAN_BYTES) + " bytes\n");
+        }
+
         ensureEngine();
         g_engine->resetCheckResults();
         g_engine->checkPolyglotBlock(lang, code, "<bolo-scan>", 1);

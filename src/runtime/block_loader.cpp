@@ -7,6 +7,7 @@
 #include "naab/sandbox.h"
 #include <sqlite3.h>
 #include <fmt/core.h>
+#include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -266,48 +267,20 @@ std::string BlockLoader::loadBlockCode(const std::string& block_id) {
     buffer << file.rdbuf();
     std::string json_content = buffer.str();
 
-    // Extract "code" field from JSON (simple string search)
-    // JSON format: "code": "actual code here"
-    size_t code_pos = json_content.find("\"code\": \"");
-    if (code_pos == std::string::npos) {
-        throw std::runtime_error("No 'code' field found in block JSON");
-    }
-
-    code_pos += 9;  // Skip '"code": "'
-    size_t end_pos = code_pos;
-    int brace_depth = 0;
-
-    // Find end of code string (handle escaped quotes)
-    while (end_pos < json_content.size()) {
-        if (json_content[end_pos] == '\\' && end_pos + 1 < json_content.size()) {
-            end_pos += 2;  // Skip escaped character
-            continue;
+    // V-RT-012: use proper JSON parser instead of fragile string search.
+    // The old find("\"code\": \"") approach could be misdirected by attacker-controlled
+    // metadata fields containing the same substring. nlohmann::json correctly extracts
+    // the top-level "code" key and handles all JSON escape sequences automatically.
+    try {
+        auto j = nlohmann::json::parse(json_content);
+        if (!j.contains("code") || !j["code"].is_string()) {
+            throw std::runtime_error("No 'code' string field found in block JSON");
         }
-        if (json_content[end_pos] == '"') {
-            break;
-        }
-        end_pos++;
+        return j["code"].get<std::string>();
+    } catch (const nlohmann::json::exception& e) {
+        throw std::runtime_error(
+            std::string("Failed to parse block JSON for '") + block_id + "': " + e.what());
     }
-
-    std::string code = json_content.substr(code_pos, end_pos - code_pos);
-
-    // Unescape the code string (handle \\n, \\t, \\\", etc.)
-    std::string unescaped;
-    for (size_t i = 0; i < code.size(); i++) {
-        if (code[i] == '\\' && i + 1 < code.size()) {
-            char next = code[i + 1];
-            if (next == 'n') { unescaped += '\n'; i++; }
-            else if (next == 't') { unescaped += '\t'; i++; }
-            else if (next == 'r') { unescaped += '\r'; i++; }
-            else if (next == '"') { unescaped += '"'; i++; }
-            else if (next == '\\') { unescaped += '\\'; i++; }
-            else { unescaped += code[i]; }
-        } else {
-            unescaped += code[i];
-        }
-    }
-
-    return unescaped;
 }
 
 void BlockLoader::recordBlockUsage(const std::string& block_id, int tokens_saved) {

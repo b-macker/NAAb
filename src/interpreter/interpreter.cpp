@@ -1474,6 +1474,34 @@ void Interpreter::visit(ast::ExprStmt& node) {
         debugger_->shouldBreak(loc_str);
     }
     eval(*node.getExpr());
+
+    // V-GOV-012: propagate taint for container mutation calls.
+    // Storing a tainted value via push/insert/append/set bypasses name-based
+    // taint tracking unless we explicitly mark the container as tainted here.
+    if (governance_ && governance_->isActive()) {
+        if (auto* call = dynamic_cast<ast::CallExpr*>(node.getExpr())) {
+            if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                static const std::unordered_set<std::string> MUTATION_METHODS = {
+                    "push", "insert", "append", "set", "prepend"
+                };
+                const std::string& method = member->getMember();
+                if (MUTATION_METHODS.count(method)) {
+                    bool arg_tainted = false;
+                    for (const auto& arg : call->getArgs()) {
+                        if (expressionContainsTaint(arg.get())) {
+                            arg_tainted = true;
+                            break;
+                        }
+                    }
+                    if (arg_tainted) {
+                        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+                            governance_->markTainted(obj_id->getName());
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 void Interpreter::visit(ast::ReturnStmt& node) {
