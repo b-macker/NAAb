@@ -1428,6 +1428,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (const auto& p : role_json["allowed_paths"])
                     role.allowed_paths.push_back(p.get<std::string>());
             }
+            // V-GOV-018: parse per-role shell capability
+            if (role_json.contains("shell_allowed") && role_json["shell_allowed"].is_boolean()) {
+                role.shell_allowed = role_json["shell_allowed"].get<bool>();
+                role.shell_allowed_set = true;
+            }
             rules_.agent_roles.push_back(role);
         }
     }

@@ -1206,6 +1206,11 @@ struct AgentRoleConfig {
     std::vector<std::string> allowed_languages;
     std::vector<std::string> blocked_paths;
     std::vector<std::string> allowed_paths;
+    // V-GOV-018: per-agent shell capability override.
+    // shell_allowed_set = false means "use global policy" (don't restrict further).
+    // shell_allowed_set = true + shell_allowed = false → block shell for this role.
+    bool shell_allowed = true;
+    bool shell_allowed_set = false;
 };
 
 // ============================================================================

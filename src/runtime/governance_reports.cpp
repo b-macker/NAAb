@@ -614,6 +614,13 @@ void GovernanceEngine::applyAgentRole() {
                 }
             }
 
+            // V-GOV-018: Apply per-role shell restriction.
+            // Roles can only restrict (deny shell); they cannot grant shell if
+            // the global policy already denies it.
+            if (role.shell_allowed_set && !role.shell_allowed) {
+                rules_.shell_allowed = false;
+            }
+
             // Path restrictions enforced at runtime via checkPathAccess()
             fprintf(stderr, "[governance] Agent role applied: %s (languages: ",
                     agent_id_.c_str());
@@ -623,7 +630,8 @@ void GovernanceEngine::applyAgentRole() {
                 fprintf(stderr, "%s", l.c_str());
                 first = false;
             }
-            fprintf(stderr, ")\n");
+            fprintf(stderr, "), shell: %s\n",
+                    rules_.shell_allowed ? "allowed" : "blocked");
             return;
         }
     }

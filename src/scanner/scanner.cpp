@@ -13,6 +13,10 @@
 #include <set>
 #include <map>
 #include <unordered_set>
+#ifndef _WIN32
+#  include <sys/stat.h>
+#  include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -457,7 +461,12 @@ std::vector<std::string> ScannerEngine::collectFiles(
             }
         }
 
-        if (!it->is_regular_file(ec)) continue;
+        // V-GOV-017: use symlink_status() instead of is_regular_file() so that
+        // file-level symlinks are rejected without following them.
+        // is_regular_file() resolves the symlink and returns true for the target;
+        // symlink_status() inspects the directory entry itself — symlinks return
+        // file_type::symlink, not file_type::regular.
+        if (it->symlink_status(ec).type() != fs::file_type::regular) continue;
 
         std::string ext = it->path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -483,11 +492,35 @@ std::vector<std::string> ScannerEngine::collectFiles(
 
 std::vector<Issue> ScannerEngine::scanFile(const std::string& filepath,
                                             const std::string& language) const {
+    // V-GOV-017 (defense-in-depth): reject symlinks that slipped past collectFiles.
+    // lstat() does not follow symlinks; S_ISLNK on the result catches file symlinks
+    // before std::ifstream (which follows them) can open the target.
+#ifndef _WIN32
+    {
+        struct stat lst;
+        if (::lstat(filepath.c_str(), &lst) != 0 || S_ISLNK(lst.st_mode)) return {};
+    }
+#endif
     std::ifstream file(filepath);
     if (!file.is_open()) return {};
 
-    std::string content((std::istreambuf_iterator<char>(file)),
-                         std::istreambuf_iterator<char>());
+    // V-RT-013: cap file read at 10 MB to prevent OOM from a TOCTOU-swapped file
+    // (e.g. /dev/zero replacing a previously size-checked file). Partial content is
+    // still useful for pattern matching; over-limit bytes are silently truncated.
+    static constexpr size_t MAX_SCAN_FILE_BYTES = 10ULL * 1024 * 1024;
+    std::string content;
+    content.reserve(std::min(static_cast<size_t>(65536), MAX_SCAN_FILE_BYTES));
+    {
+        char buf[65536];
+        while (file.read(buf, sizeof(buf)) || file.gcount() > 0) {
+            auto chunk = static_cast<size_t>(file.gcount());
+            if (content.size() + chunk > MAX_SCAN_FILE_BYTES) {
+                content.append(buf, MAX_SCAN_FILE_BYTES - content.size());
+                break;
+            }
+            content.append(buf, chunk);
+        }
+    }
     if (content.empty()) return {};
 
     auto lines = splitLines(content);

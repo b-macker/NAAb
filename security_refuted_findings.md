@@ -173,3 +173,24 @@ Candidates for future audit rounds:
    execution.
 
 9. **govern.json adversarial inputs — ReDoS in governance rules** ← CONFIRMED as V-GOV-010 (R12) — FIXED R12
+
+---
+
+## R22 Refutations (1 of 4 raised)
+
+### V-GOV-016 — Unbounded Directory Depth DoS
+- **Claimed:** `ScannerEngine::collectFiles` uses `std::filesystem::recursive_directory_iterator`
+  with no depth limit; a "directory bomb" of 100,000 nested folders would hang or crash the scanner.
+- **Refuted because:** `ScanConfig::max_files = 200` (default, `include/naab/scanner.h`) causes
+  the iterator loop at `scanner.cpp:473` to `break` after at most 200 file entries are collected.
+  An adversarial directory tree containing only empty subdirectories (no files) would be traversed
+  until the iterator is exhausted — but each traversal step costs only an `is_directory` check and
+  a `filename()` string compare against the exclusion set; there is no memory accumulation and no
+  path-length issue (the iterator tracks depth internally, not via a path string that grows).
+  A 100,000-deep bomb with no `.naab` files never fills `found`, terminates when the iterator
+  exhausts, and exits normally. Performance degradation (slow traversal of many empty directories)
+  is real but does not meet the bar for Availability (no crash, no hang, no OOM).
+- **Root cause of confusion:** The report conflated "files collected" with "directories traversed".
+  The cap applies to the `found` vector; the iterator walks uncollected directories without limit.
+  The practical upper bound is imposed by OS path limits (~4096 bytes) and inode table size, both
+  of which affect the filesystem layer before reaching the scanner.
