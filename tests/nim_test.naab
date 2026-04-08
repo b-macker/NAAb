@@ -1,14 +1,12 @@
 # NAAb Nim Executor Test Suite
 
-use string
-
 main {
     # Test 1: Simple expression
     print("Test 1: Simple Nim expression")
     let result1 = <<nim
 2 + 3
 >>
-    print("Result: " + string.str(result1))
+    print("Result: " + "" + (result1))
     assert(result1 == 5, "Test 1 FAIL: Expected 5")
     print("✓ Test 1 PASS\n")
 
@@ -19,7 +17,7 @@ let x = 10
 let y = 20
 x + y
 >>
-    print("Result: " + string.str(result2))
+    print("Result: " + "" + (result2))
     assert(result2 == 30, "Test 2 FAIL: Expected 30")
     print("✓ Test 2 PASS\n")
 
@@ -74,7 +72,7 @@ let a = 15
 let b = 7
 a * b
 >>
-    print("Result: " + string.str(result7))
+    print("Result: " + "" + (result7))
     assert(result7 == 105, "Test 7 FAIL: Expected 105")
     print("✓ Test 7 PASS\n")
 
