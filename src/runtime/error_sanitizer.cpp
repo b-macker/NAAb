@@ -149,24 +149,48 @@ std::string ErrorSanitizer::sanitizeFilePaths(const std::string& msg) {
         "/data/data/",  // Android paths
     };
 
-    for (const auto& prefix : prefixes) {
-        std::regex prefix_pattern(prefix + R"([^\s:]+)");
-        sanitized = std::regex_replace(sanitized, prefix_pattern, [&](const std::smatch& match) {
-            std::string path = match.str();
-            // Keep only the last 2-3 components
-            std::filesystem::path fs_path(path);
-            std::filesystem::path relative_path;
+    // libc++ (Termux/Android) does not support the lambda overload of std::regex_replace
+    // (that is a libstdc++ extension). Use a manual search-and-replace loop instead.
+    // Also escape backslashes in the prefix literal before embedding it in a regex —
+    // "C:\Users\" fed raw to std::regex produces \U and \P which are invalid ECMAScript
+    // escapes and throw std::regex_error on libc++.
+    auto escapeForRegex = [](const std::string& s) {
+        std::string out;
+        out.reserve(s.size() * 2);
+        for (char c : s) {
+            if (c == '\\' || c == '.' || c == '^' || c == '$' || c == '*' ||
+                c == '+' || c == '?' || c == '(' || c == ')' || c == '[' ||
+                c == ']' || c == '{' || c == '}' || c == '|') {
+                out += '\\';
+            }
+            out += c;
+        }
+        return out;
+    };
 
+    for (const auto& prefix : prefixes) {
+        std::regex prefix_pattern(escapeForRegex(prefix) + R"([^\s:]+)");
+        std::string result;
+        result.reserve(sanitized.size());
+        auto it = sanitized.cbegin();
+        std::smatch m;
+        while (std::regex_search(it, sanitized.cend(), m, prefix_pattern)) {
+            result.append(it, m[0].first);  // text before the match
+            // Keep only the last 2-3 path components of the matched path
+            std::filesystem::path fs_path(m[0].str());
+            std::filesystem::path relative_path;
             int components = 0;
-            for (auto it = fs_path.end(); it != fs_path.begin() && components < 3; --it) {
-                if (it != fs_path.end()) {
-                    relative_path = *it / relative_path;
+            for (auto pit = fs_path.end(); pit != fs_path.begin() && components < 3; --pit) {
+                if (pit != fs_path.end()) {
+                    relative_path = *pit / relative_path;
                     components++;
                 }
             }
-
-            return relative_path.string();
-        });
+            result += relative_path.string();
+            it = m[0].second;  // advance past the match
+        }
+        result.append(it, sanitized.cend());  // remaining text
+        sanitized = std::move(result);
     }
 
     return sanitized;
