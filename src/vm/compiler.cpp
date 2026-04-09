@@ -1301,7 +1301,18 @@ void Compiler::visit(ast::ThrowStmt& node) {
 void Compiler::visit(ast::ModuleUseStmt& node) {
     int line = node.getLocation().line;
     std::string module_path = node.getModulePath();
-    std::string bind_name = node.hasAlias() ? node.getAlias() : module_path;
+    // Match tree-walker: without alias, use last component of dotted path
+    // "modules.identity" -> "identity", "math" -> "math"
+    std::string bind_name;
+    if (node.hasAlias()) {
+        bind_name = node.getAlias();
+    } else {
+        bind_name = module_path;
+        auto last_dot = module_path.find_last_of('.');
+        if (last_dot != std::string::npos) {
+            bind_name = module_path.substr(last_dot + 1);
+        }
+    }
 
     // Check if it's a known stdlib module name (prelude modules)
     static const std::unordered_set<std::string> stdlib_modules = {
