@@ -35,6 +35,9 @@ thread_local bool ResourceLimiter::timeout_triggered_ = false;
 std::atomic<bool> ResourceLimiter::global_shutdown_{false};
 #ifdef _WIN32
 std::atomic<bool> ResourceLimiter::win_timer_cancel_{false};
+// R1 fix: generation counter for cancellable Windows timer threads.
+// File-local to avoid a header ABI change.
+static std::atomic<uint64_t> g_win_timer_generation{0};
 #else
 // V-RT-007: cancel flag for the POSIX timer thread (set by clearTimeout()).
 std::atomic<bool> ResourceLimiter::posix_timer_cancel_{false};
@@ -105,22 +108,24 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
     }).detach();
     alarm(0);  // cancel any prior system-level alarm
 #else
-    // Windows has no alarm(). Spawn a detached timer thread that polls
-    // win_timer_cancel_ every 50ms and sets global_shutdown_ at the deadline.
-    // global_shutdown_ is then picked up by isTimeoutTriggered() in VM_NEXT().
-    win_timer_cancel_.store(false, std::memory_order_relaxed);
-    std::thread([seconds]() {
+    // Windows has no alarm(). Spawn a detached timer thread that sets
+    // global_shutdown_ after the deadline.
+    //
+    // R1 fix: generation counter prevents a stale timer from execution N
+    // from poisoning execution N+1. Each new setExecutionTimeout() bumps the
+    // counter; the timer thread captures the pre-bump value; before setting
+    // global_shutdown_ it verifies the counter still matches. clearTimeout()
+    // also bumps, so normal completion invalidates the in-flight timer.
+    uint64_t my_gen = ++g_win_timer_generation;
+    win_timer_cancel_.store(false, std::memory_order_relaxed);  // kept for compat
+    std::thread([seconds, my_gen]() {
         using clock = std::chrono::steady_clock;
         auto deadline = clock::now() + std::chrono::seconds(seconds);
         while (clock::now() < deadline) {
-            if (ResourceLimiter::win_timer_cancel_.load(std::memory_order_relaxed)) return;
+            if (g_win_timer_generation.load(std::memory_order_relaxed) != my_gen) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        // V-ASYNC-001r (Windows): timer thread cannot set a thread_local variable of
-        // the execution thread, so we still use global_shutdown_ here. For single-tenant
-        // Windows builds this is acceptable; multi-tenant Windows would need a per-execution
-        // cancellation token (future work). The POSIX path uses thread_local only.
-        if (!ResourceLimiter::win_timer_cancel_.load(std::memory_order_relaxed)) {
+        if (g_win_timer_generation.load(std::memory_order_relaxed) == my_gen) {
             ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
         }
     }).detach();
@@ -133,9 +138,11 @@ void ResourceLimiter::clearTimeout() {
     posix_timer_cancel_.store(true, std::memory_order_relaxed);
     alarm(0);
 #else
-    // Signal the Windows timer thread to exit without setting global_shutdown_.
-    // Must be set BEFORE resetting global_shutdown_ to close the race window.
-    win_timer_cancel_.store(true, std::memory_order_relaxed);
+    // R1 fix: bumping the generation counter invalidates any in-flight timer
+    // thread — when it wakes, its captured my_gen no longer matches and it
+    // returns without touching global_shutdown_.
+    ++g_win_timer_generation;
+    win_timer_cancel_.store(true, std::memory_order_relaxed);  // kept for compat
 #endif
     timeout_triggered_ = false;
     global_shutdown_.store(false, std::memory_order_relaxed);  // V-ASYNC-001

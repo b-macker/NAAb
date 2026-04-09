@@ -11,8 +11,15 @@ skip() { echo "  SKIP: $1"; ((SKIP++)); }
 
 # Use TMPDIR (not $HOME) so the upward-walk won't find ~/govern.json
 # or tests/govern.json — the temp dir must have NO govern.json in any ancestor.
-WORK_DIR=$(mktemp -d -t naab_gov007.XXXXXX) || WORK_DIR=$(mktemp -d)
-[ -z "$WORK_DIR" ] && { echo "mktemp failed"; exit 1; }
+# Pick the first writable tmp base we can find. Don't rely on $TMPDIR — some
+# invocation contexts (nested test runners, CI, Termux subshells) leave it
+# stale or unset. Create the base if needed so mktemp -d can't fail.
+for base in "$TMPDIR" /data/data/com.termux/files/usr/tmp /tmp "$HOME/.cache"; do
+    [ -z "$base" ] && continue
+    mkdir -p "$base" 2>/dev/null && [ -w "$base" ] && { TMP_BASE="$base"; break; }
+done
+: "${TMP_BASE:?cannot find a writable temp directory}"
+WORK_DIR=$(mktemp -d "$TMP_BASE/naab_gov007.XXXXXX") || { echo "mktemp failed"; exit 1; }
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "=== V-GOV-007: Fail-Closed Default Governance ==="

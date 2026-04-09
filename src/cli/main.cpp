@@ -248,9 +248,34 @@ void print_usage() {
     fmt::print("  --allow-network                     Enable network access (default: disabled)\n");
 }
 
+#ifdef _WIN32
+// Ctrl-C handler: on first Ctrl-C, request graceful shutdown so the
+// subprocess polling loop in subprocess_helpers.cpp can tear children down
+// cleanly (exit code 124). On second Ctrl-C, return FALSE so the default
+// handler terminates the process — the Job Object (KILL_ON_JOB_CLOSE) then
+// guarantees every descendant dies with us.
+static std::atomic<int> g_naab_ctrlc_count{0};
+static BOOL WINAPI naabCtrlHandler(DWORD type) {
+    if (type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT) {
+        if (g_naab_ctrlc_count.fetch_add(1) == 0) {
+            naab::security::ResourceLimiter::requestShutdown();
+            return TRUE;
+        }
+        return FALSE;
+    }
+    // CTRL_CLOSE_EVENT / CTRL_LOGOFF_EVENT / CTRL_SHUTDOWN_EVENT:
+    // let the default handler run — Job Object tears the tree down.
+    return FALSE;
+}
+#endif
+
 int main(int argc, char** argv) {
     // Enable ANSI colours + UTF-8 console on Windows; no-op on POSIX.
     naab::platform::enableAnsiConsole();
+
+#ifdef _WIN32
+    ::SetConsoleCtrlHandler(naabCtrlHandler, TRUE);
+#endif
 
     // Export interpreter path so polyglot scripts can find naab-lang
     // This solves the common problem of Python/shell scripts not knowing

@@ -113,6 +113,28 @@ static std::string buildMemoryLimitError(
 }
 #endif // !_WIN32
 
+#ifdef _WIN32
+// Process-lifetime Job Object with KILL_ON_JOB_CLOSE.
+// Every child spawned by execute_subprocess_with_pipes() is assigned to this
+// job, so when naab-lang exits (graceful OR crash OR Stop-Process), the
+// Windows kernel terminates every still-running descendant. This is the
+// Windows analogue of the POSIX V-RT-003 orphan-prevention work.
+static HANDLE getNaabJobObject() {
+    static HANDLE job = []() -> HANDLE {
+        HANDLE h = ::CreateJobObjectA(nullptr, nullptr);
+        if (!h) return nullptr;
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+        info.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE |
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+        ::SetInformationJobObject(h, JobObjectExtendedLimitInformation,
+                                  &info, sizeof(info));
+        return h;
+    }();
+    return job;
+}
+#endif // _WIN32
+
 // Helper to execute a subprocess and capture its stdout/stderr.
 // Returns exit code, fills stdout_str and stderr_str.
 //
@@ -209,75 +231,151 @@ int execute_subprocess_with_pipes(
         env_ptr = env_block.data();
     }
 
-    // Open temp files as inheritable handles for stdout/stderr
+    // RAII cleanup — guarantees temp files, handles, and attribute list are
+    // released even if readFileContents or any other call throws.
+    struct WinSubprocessCleanup {
+        std::string out_path, err_path;
+        HANDLE proc = nullptr;
+        HANDLE thread = nullptr;
+        HANDLE hOut = INVALID_HANDLE_VALUE;
+        HANDLE hErr = INVALID_HANDLE_VALUE;
+        LPPROC_THREAD_ATTRIBUTE_LIST attrs = nullptr;
+        ~WinSubprocessCleanup() {
+            if (attrs) { ::DeleteProcThreadAttributeList(attrs); std::free(attrs); }
+            if (hOut != INVALID_HANDLE_VALUE) ::CloseHandle(hOut);
+            if (hErr != INVALID_HANDLE_VALUE) ::CloseHandle(hErr);
+            if (thread) ::CloseHandle(thread);
+            if (proc) ::CloseHandle(proc);
+            if (!out_path.empty()) ::DeleteFileA(out_path.c_str());
+            if (!err_path.empty()) ::DeleteFileA(err_path.c_str());
+        }
+    };
+    WinSubprocessCleanup cleanup;
+    cleanup.out_path = stdout_tmp;
+    cleanup.err_path = stderr_tmp;
+
+    // Open temp files as inheritable handles for stdout/stderr.
+    // FILE_SHARE_DELETE: defense-in-depth against future delete races (W7).
     SECURITY_ATTRIBUTES sa = {};
     sa.nLength = sizeof(sa);
     sa.bInheritHandle = TRUE;
     sa.lpSecurityDescriptor = nullptr;
 
-    HANDLE hOut = ::CreateFileA(stdout_tmp.c_str(), GENERIC_WRITE,
-                                FILE_SHARE_READ, &sa, CREATE_ALWAYS,
-                                FILE_ATTRIBUTE_NORMAL, nullptr);
-    HANDLE hErr = ::CreateFileA(stderr_tmp.c_str(), GENERIC_WRITE,
-                                FILE_SHARE_READ, &sa, CREATE_ALWAYS,
-                                FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hOut == INVALID_HANDLE_VALUE || hErr == INVALID_HANDLE_VALUE) {
-        if (hOut != INVALID_HANDLE_VALUE) ::CloseHandle(hOut);
-        if (hErr != INVALID_HANDLE_VALUE) ::CloseHandle(hErr);
+    cleanup.hOut = ::CreateFileA(stdout_tmp.c_str(), GENERIC_WRITE,
+                                 FILE_SHARE_READ | FILE_SHARE_DELETE, &sa,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    cleanup.hErr = ::CreateFileA(stderr_tmp.c_str(), GENERIC_WRITE,
+                                 FILE_SHARE_READ | FILE_SHARE_DELETE, &sa,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (cleanup.hOut == INVALID_HANDLE_VALUE || cleanup.hErr == INVALID_HANDLE_VALUE) {
         fprintf(stderr, "[subprocess] CreateFile for temp output failed (error %lu)\n",
                 ::GetLastError());
-        ::DeleteFileA(stdout_tmp.c_str());
-        ::DeleteFileA(stderr_tmp.c_str());
         return -1;
     }
 
-    STARTUPINFOA si = {};
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
-    si.hStdOutput = hOut;
-    si.hStdError = hErr;
+    // Narrow handle inheritance (W3): only hOut/hErr may cross into the child.
+    // Any other inheritable handles in the parent stay put.
+    SIZE_T attrSize = 0;
+    ::InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
+    cleanup.attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(std::malloc(attrSize));
+    if (!cleanup.attrs ||
+        !::InitializeProcThreadAttributeList(cleanup.attrs, 1, 0, &attrSize)) {
+        fprintf(stderr, "[subprocess] InitializeProcThreadAttributeList failed (error %lu)\n",
+                ::GetLastError());
+        if (cleanup.attrs) { std::free(cleanup.attrs); cleanup.attrs = nullptr; }
+        return -1;
+    }
+    HANDLE inheritable[2] = { cleanup.hOut, cleanup.hErr };
+    if (!::UpdateProcThreadAttribute(cleanup.attrs, 0,
+                                     PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                     inheritable, sizeof(inheritable),
+                                     nullptr, nullptr)) {
+        fprintf(stderr, "[subprocess] UpdateProcThreadAttribute failed (error %lu)\n",
+                ::GetLastError());
+        return -1;
+    }
+
+    STARTUPINFOEXA siex = {};
+    siex.StartupInfo.cb = sizeof(STARTUPINFOEXA);
+    siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    siex.StartupInfo.hStdInput  = ::GetStdHandle(STD_INPUT_HANDLE);
+    siex.StartupInfo.hStdOutput = cleanup.hOut;
+    siex.StartupInfo.hStdError  = cleanup.hErr;
+    siex.lpAttributeList = cleanup.attrs;
 
     PROCESS_INFORMATION pi = {};
     std::vector<char> cmdline_buf(cmdline.begin(), cmdline.end());
     cmdline_buf.push_back('\0');
 
+    // CREATE_SUSPENDED: required so the child cannot spawn grandchildren before
+    // we assign it to the Job Object. Without this, grandchildren escape
+    // KILL_ON_JOB_CLOSE. EXTENDED_STARTUPINFO_PRESENT enables STARTUPINFOEXA.
     BOOL ok = ::CreateProcessA(
         nullptr,
         cmdline_buf.data(),
         nullptr, nullptr,
-        TRUE,   // inherit handles
-        0,
+        TRUE,  // bInheritHandles — required for PROC_THREAD_ATTRIBUTE_HANDLE_LIST
+        CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT,
         env_ptr,
         nullptr,
-        &si, &pi);
-
-    ::CloseHandle(hOut);
-    ::CloseHandle(hErr);
+        &siex.StartupInfo, &pi);
 
     if (!ok) {
         DWORD err = ::GetLastError();
         fprintf(stderr, "[subprocess] CreateProcess failed for '%s' (error %lu)\n",
                 command_path.c_str(), err);
-        ::DeleteFileA(stdout_tmp.c_str());
-        ::DeleteFileA(stderr_tmp.c_str());
         return (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) ? 127 : -1;
     }
+    cleanup.proc = pi.hProcess;
+    cleanup.thread = pi.hThread;
 
-    ::WaitForSingleObject(pi.hProcess, INFINITE);
+    // Assign to the process-wide Job Object BEFORE resuming (W2).
+    HANDLE job = getNaabJobObject();
+    if (job && !::AssignProcessToJobObject(job, pi.hProcess)) {
+        DWORD err = ::GetLastError();
+        fprintf(stderr, "[subprocess] AssignProcessToJobObject failed (error %lu)\n", err);
+        ::TerminateProcess(pi.hProcess, 1);
+        ::WaitForSingleObject(pi.hProcess, 1000);
+        return -1;
+    }
+    ::ResumeThread(pi.hThread);
 
-    DWORD exit_code = 1;
-    ::GetExitCodeProcess(pi.hProcess, &exit_code);
-    ::CloseHandle(pi.hProcess);
-    ::CloseHandle(pi.hThread);
+    // Polling wait with timeout check (W1 + W4). Mirrors the POSIX branch in
+    // this same file — 50ms cadence, ResourceLimiter::isTimeoutTriggered().
+    DWORD exit_code_raw = 1;
+    for (;;) {
+        DWORD waitRc = ::WaitForSingleObject(pi.hProcess, 50 /* ms */);
+        if (waitRc == WAIT_OBJECT_0) {
+            // Child exited — read its real status (W5).
+            if (!::GetExitCodeProcess(pi.hProcess, &exit_code_raw)) {
+                exit_code_raw = 1;
+            }
+            break;
+        }
+        if (waitRc == WAIT_FAILED) {
+            ::TerminateProcess(pi.hProcess, 1);
+            ::WaitForSingleObject(pi.hProcess, 1000);
+            exit_code_raw = 1;
+            break;
+        }
+        // waitRc == WAIT_TIMEOUT → check cancellation.
+        if (naab::security::ResourceLimiter::isTimeoutTriggered()) {
+            ::TerminateProcess(pi.hProcess, 124);        // GNU "timeout" convention
+            ::WaitForSingleObject(pi.hProcess, 1000);    // reap
+            exit_code_raw = 124;
+            break;
+        }
+    }
+
+    // Close the temp-file handles BEFORE reading them — ReadFile in
+    // readFileContents won't see data flushed by the child otherwise on Windows.
+    ::CloseHandle(cleanup.hOut); cleanup.hOut = INVALID_HANDLE_VALUE;
+    ::CloseHandle(cleanup.hErr); cleanup.hErr = INVALID_HANDLE_VALUE;
 
     stdout_str = readFileContents(stdout_tmp);
     stderr_str = readFileContents(stderr_tmp);
 
-    ::DeleteFileA(stdout_tmp.c_str());
-    ::DeleteFileA(stderr_tmp.c_str());
-
-    return static_cast<int>(exit_code);
+    return static_cast<int>(exit_code_raw);
 
 #else
     // =========================================================================

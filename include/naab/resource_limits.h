@@ -41,6 +41,13 @@ public:
     // Disable all resource limits (for cleanup)
     static void disableAll();
 
+    // Request a cooperative shutdown — sets global_shutdown_ so the VM loop
+    // and subprocess polling waits bail out at the next checkpoint. Used by
+    // the Windows Ctrl-C handler and may be called from any thread.
+    static void requestShutdown() {
+        global_shutdown_.store(true, std::memory_order_relaxed);
+    }
+
     // Check if timeout has been triggered on this thread OR process-wide.
     // thread_local flag: set when this specific thread received SIGALRM.
     // global_shutdown_: set by the signal handler; visible to ALL threads,
