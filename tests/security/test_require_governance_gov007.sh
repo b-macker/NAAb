@@ -11,7 +11,8 @@ skip() { echo "  SKIP: $1"; ((SKIP++)); }
 
 # Use TMPDIR (not $HOME) so the upward-walk won't find ~/govern.json
 # or tests/govern.json — the temp dir must have NO govern.json in any ancestor.
-WORK_DIR=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_gov007.XXXXXX")
+WORK_DIR=$(mktemp -d -t naab_gov007.XXXXXX) || WORK_DIR=$(mktemp -d)
+[ -z "$WORK_DIR" ] && { echo "mktemp failed"; exit 1; }
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "=== V-GOV-007: Fail-Closed Default Governance ==="

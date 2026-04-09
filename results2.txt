@@ -1,0 +1,56 @@
+╰────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ The comprehensive audit of the NAAb Language system architecture (/.naab/language) is complete.
+  The review identified several critical architectural vulnerabilities, bypass paths, and state
+  consistency issues that undermine the system's governance model.
+
+  Executive Summary of Findings
+
+   1. Critical Bypass: Fail-Open by Default
+       * Finding: If the govern.json configuration is missing or unparseable, the NAAb C++ engine
+         defaults to an "unrestricted" state.
+       * Impact: A malicious actor can disable all security enforcement by deleting or corrupting
+         the configuration file.
+       * Location: src/runtime/governance_engine.cpp:221 (discoverAndLoad).
+
+   2. Critical Bypass: Polyglot Governance Gaps
+       * Finding: Polyglot blocks (Python, JavaScript) have no runtime filesystem or network
+         restrictions. The system relies on a static regex-based "Dangerous Patterns DB" which
+         currently lacks common operations like open(), pathlib, or os.listdir().
+       * Impact: Any polyglot block can access, read, or delete any file on the system, completely
+         bypassing the path_security.cpp checks.
+       * Location: src/runtime/governance_engine.cpp:150 (DANGEROUS_PATTERNS_DB).
+
+   3. High Severity: Asynchronous State Consistency Loss
+       * Finding: Security contexts (Sandbox and Governance Engine) are stored in thread_local
+         variables. These contexts are lost when moving execution to the worker thread pool for
+         asynchronous polyglot blocks.
+       * Impact: Because the sandbox defaults to "allow" when no context is found (for backward
+         compatibility), all async polyglot tasks execute with full system privileges.
+       * Location: src/runtime/thread_pool.cpp:16 and src/stdlib/file_impl.cpp:25.
+
+   4. High Severity: CLI Governance Bypasses
+       * Finding: The CLI explicitly provides flags to disable all security measures
+         (--no-governance) or set the sandbox to unrestricted.
+       * Impact: Any user with CLI access can choose to run scripts without any governance
+         oversight.
+       * Location: src/cli/main.cpp:332.
+
+   5. Architectural Disconnect: PM System Placeholders
+       * Finding: The "Triadic Defense" and "81 Components" mentioned in the high-level
+         documentation are largely skeletal. Critical governance methods like convene_council and
+         execute_component are placeholders that always return success or approved.
+       * Location: /.pm_system/unified_system.py:280.
+
+   6. Database Inconsistency
+       * Finding: The Policy Management system uses naab.db for provenance tracking, while the
+         Language Engine uses blocks.db for block metadata. These two databases are disconnected,
+         meaning provenance "Proof Objects" do not reflect actual block execution state.
+
+  Next Steps & Remediation
+   - Hardening: Implement a "Fail-Safe" (Deny-All) default for the governance engine.
+   - Context Propagation: Refactor the ThreadPool to capture and restore thread_local security
+     contexts.
+   - Dynamic Hooks: Implement runtime hooks in the Python C API and QuickJS wrappers to intercept
+     file and network operations.
+   - Pattern Expansion: Add open, io, and pathlib patterns to the DANGEROUS_PATTERNS_DB as an
+     immediate static mitigation.
