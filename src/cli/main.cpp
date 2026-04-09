@@ -65,6 +65,9 @@
 #  define WIN32_LEAN_AND_MEAN
 #  define NOMINMAX
 #  include <windows.h>
+   // windows.h defines OUT as a SAL annotation macro (expands to empty).
+   // This collides with naab::debugger::StepMode::OUT.
+#  undef OUT
 #endif
 #include <atomic>        // Ctrl-C handler counter (Windows)
 #include <chrono>        // Calibration timing
