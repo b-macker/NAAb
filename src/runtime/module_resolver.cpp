@@ -21,10 +21,12 @@ namespace modules {
 // ============================================================================
 
 bool ModuleCache::has(const std::string& canonical_path) const {
+    std::shared_lock lock(mutex_);
     return cache_.find(canonical_path) != cache_.end();
 }
 
 std::shared_ptr<Module> ModuleCache::get(const std::string& canonical_path) {
+    std::shared_lock lock(mutex_);
     auto it = cache_.find(canonical_path);
     if (it != cache_.end()) {
         return it->second;
@@ -33,14 +35,17 @@ std::shared_ptr<Module> ModuleCache::get(const std::string& canonical_path) {
 }
 
 void ModuleCache::put(const std::string& canonical_path, std::shared_ptr<Module> module) {
+    std::unique_lock lock(mutex_);
     cache_[canonical_path] = std::move(module);
 }
 
 void ModuleCache::clear() {
+    std::unique_lock lock(mutex_);
     cache_.clear();
 }
 
 std::vector<std::string> ModuleCache::getPaths() const {
+    std::shared_lock lock(mutex_);
     std::vector<std::string> paths;
     paths.reserve(cache_.size());
     for (const auto& [path, _] : cache_) {

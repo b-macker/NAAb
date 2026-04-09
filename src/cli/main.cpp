@@ -2874,13 +2874,14 @@ int main(int argc, char** argv) {
                                   " 2>/dev/null && " + tmp_bin;
                         }
 
-                        FILE* pipe = popen(cmd.c_str(), "r");
+                        std::unique_ptr<FILE, decltype(&pclose)> pipe(
+                            popen(cmd.c_str(), "r"), pclose);
                         if (!pipe) continue;
                         char buf[256];
                         std::string output;
-                        while (fgets(buf, sizeof(buf), pipe))
+                        while (fgets(buf, sizeof(buf), pipe.get()))
                             output += buf;
-                        int status = pclose(pipe);
+                        int status = pclose(pipe.release());
 
                         if (!tmp_bin.empty()) std::remove(tmp_bin.c_str());
 

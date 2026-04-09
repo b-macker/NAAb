@@ -534,16 +534,23 @@ void GovernanceEngine::writeReports() const {
 void GovernanceEngine::writeTelemetry() const {
     if (!rules_.telemetry_output.enabled || rules_.telemetry_output.output_file.empty()) return;
 
-    // Use C FILE* + flock for atomic multi-process writes
-    FILE* fp = fopen(rules_.telemetry_output.output_file.c_str(), "a");
+    // Use C FILE* + flock for atomic multi-process writes.
+    // RAII wrapper ensures fclose+unlock even if json serialization throws.
+    auto fp_deleter = [](FILE* f) {
+#ifndef _WIN32
+        ::flock(fileno(f), LOCK_UN);
+#endif
+        fclose(f);
+    };
+    std::unique_ptr<FILE, decltype(fp_deleter)> fp(
+        fopen(rules_.telemetry_output.output_file.c_str(), "a"), fp_deleter);
     if (!fp) {
         fprintf(stderr, "[governance] Warning: Could not open telemetry file: %s\n",
                 rules_.telemetry_output.output_file.c_str());
         return;
     }
-    int fd = fileno(fp);
 #ifndef _WIN32
-    ::flock(fd, LOCK_EX);  // Blocking exclusive lock
+    ::flock(fileno(fp.get()), LOCK_EX);  // Blocking exclusive lock
 #endif
 
     // ISO timestamp
@@ -579,13 +586,9 @@ void GovernanceEngine::writeTelemetry() const {
             for (const auto& c : r.cwe_ids) ev["cwe"].push_back(c);
         }
         std::string line = ev.dump() + "\n";
-        fwrite(line.c_str(), 1, line.size(), fp);
+        fwrite(line.c_str(), 1, line.size(), fp.get());
     }
-
-#ifndef _WIN32
-    ::flock(fd, LOCK_UN);
-#endif
-    fclose(fp);
+    // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
     if (!check_results_.empty()) {
         fprintf(stderr, "[governance] Telemetry: %zu events written to %s\n",

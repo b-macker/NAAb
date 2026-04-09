@@ -65,40 +65,29 @@ public:
         meta.name      = safeColumnText(stmt, 1);
         meta.language  = safeColumnText(stmt, 2);
 
-        const char* category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        meta.category = category ? category : "";
-
-        const char* subcategory = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        meta.subcategory = subcategory ? subcategory : "";
-
-        meta.file_path = safeColumnText(stmt, 5);
-        meta.code_hash = safeColumnText(stmt, 6);
+        meta.category    = safeColumnText(stmt, 3);
+        meta.subcategory = safeColumnText(stmt, 4);
+        meta.file_path   = safeColumnText(stmt, 5);
+        meta.code_hash   = safeColumnText(stmt, 6);
         meta.token_count = sqlite3_column_int(stmt, 7);
-        meta.times_used = sqlite3_column_int(stmt, 8);
+        meta.times_used  = sqlite3_column_int(stmt, 8);
 
-        const char* version = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        meta.version = version ? version : "1.0";
+        std::string ver  = safeColumnText(stmt, 10);
+        meta.version     = ver.empty() ? "1.0" : ver;
 
         meta.is_active = sqlite3_column_int(stmt, 15) != 0;
 
         // Versioning fields (with safe defaults if columns don't exist)
-        meta.min_runtime_version = "";  // No requirement by default
+        meta.min_runtime_version = "";
         meta.deprecated = false;
         meta.deprecated_reason = "";
         meta.replacement_block_id = "";
 
         // AI-powered discovery fields (Phase 1.4) - now from database
-        const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 16));
-        meta.description = desc ? desc : "";
-
-        const char* short_d = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 17));
-        meta.short_desc = short_d ? short_d : "";
-
-        const char* in_types = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 18));
-        meta.input_types = in_types ? in_types : "";
-
-        const char* out_type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 19));
-        meta.output_type = out_type ? out_type : "";
+        meta.description  = safeColumnText(stmt, 16);
+        meta.short_desc   = safeColumnText(stmt, 17);
+        meta.input_types  = safeColumnText(stmt, 18);
+        meta.output_type  = safeColumnText(stmt, 19);
 
         // TODO: Parse JSON arrays for keywords, use_cases, related_blocks (columns 20-22)
         // For now, leave as empty vectors

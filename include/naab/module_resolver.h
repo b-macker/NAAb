@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <shared_mutex>
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -51,6 +52,7 @@ public:
     std::vector<std::string> getPaths() const;
 
 private:
+    mutable std::shared_mutex mutex_;  // S3: thread-safe cache for concurrent imports
     std::unordered_map<std::string, std::shared_ptr<Module>> cache_;
 };
 

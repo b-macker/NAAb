@@ -16,6 +16,7 @@
 #include "naab/sandbox.h"      // ScopedSandbox / SandboxManager for context propagation
 #include "naab/thread_pool.h"  // Thread pool for limited concurrency
 #include <fmt/format.h>
+#include <mutex>  // std::call_once for thread-safe pool init (S2)
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -40,11 +41,12 @@ namespace polyglot {
 // is still clean. If initialized lazily (after dlopen), address space is
 // too fragmented for mmap to allocate CFI shadow memory.
 static runtime::ThreadPool* g_thread_pool = nullptr;
+static std::once_flag g_thread_pool_init;
 
 static runtime::ThreadPool& getPolyglotThreadPool() {
-    if (!g_thread_pool) {
+    std::call_once(g_thread_pool_init, []() {
         g_thread_pool = new runtime::ThreadPool(2);
-    }
+    });
     return *g_thread_pool;
 }
 
