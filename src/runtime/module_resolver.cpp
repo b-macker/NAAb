@@ -6,6 +6,7 @@
 #include "naab/parser.h"
 #include "naab/bounded_read.h"
 #include <fmt/core.h>
+#include <shared_mutex>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
