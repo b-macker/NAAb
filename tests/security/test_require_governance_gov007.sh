@@ -9,9 +9,9 @@ pass() { echo "  PASS: $1"; ((PASS++)); }
 fail() { echo "  FAIL: $1"; ((FAIL++)); }
 skip() { echo "  SKIP: $1"; ((SKIP++)); }
 
-# Use a temp dir that is NOT under .naab/language/tests/ so it won't
-# inherit tests/govern.json through the upward-search logic.
-WORK_DIR=$(mktemp -d -p "$HOME" .naab_gov007_XXXXXX 2>/dev/null || mktemp -d)
+# Use TMPDIR (not $HOME) so the upward-walk won't find ~/govern.json
+# or tests/govern.json — the temp dir must have NO govern.json in any ancestor.
+WORK_DIR=$(mktemp -d "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/naab_gov007.XXXXXX")
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "=== V-GOV-007: Fail-Closed Default Governance ==="
