@@ -163,3 +163,4 @@ docs/book/verification/ch0_full_projects/*/bin/
 docs/book/verification/ch0_full_projects/*/vessels/*_bin_*
 docs/book/verification/ch0_full_projects/*/vessels/production_binary
 telemetry.jsonl
+external/quickjs-2021-03-27/version

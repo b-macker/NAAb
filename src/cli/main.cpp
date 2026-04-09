@@ -61,7 +61,12 @@
 #include <filesystem>
 #ifndef _WIN32
 #  include <unistd.h>  // _exit()
+#else
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
 #endif
+#include <atomic>        // Ctrl-C handler counter (Windows)
 #include <chrono>        // Calibration timing
 #include <map>           // Calibration data
 
