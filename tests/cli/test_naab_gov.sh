@@ -41,7 +41,7 @@ echo ""
 VERSION_OUT=$("${GOV}" --version 2>&1)
 VERSION_EXIT=$?
 check "--version exits 0" "$VERSION_EXIT"
-check "--version prints 0.8.1" "$(echo "${VERSION_OUT}" | grep -q "0.8.1" && echo 0 || echo 1)"
+check "--version prints 0.9.0" "$(echo "${VERSION_OUT}" | grep -q "0.9.0" && echo 0 || echo 1)"
 
 # Test 2: --help exits non-zero (usage) OR zero (acceptable either way)
 HELP_OUT=$("${GOV}" --help 2>&1)
