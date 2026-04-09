@@ -508,8 +508,15 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
             functions.push_back(parseFunctionDecl());
         }
         else if (check(lexer::TokenType::MAIN)) {
+            if (main_block) {
+                auto& tok = current();
+                throw std::runtime_error(
+                    fmt::format("Parse error {}: Multiple 'main' blocks are not allowed.\n\n"
+                        "  A program can only have one main {{}} entry point.",
+                        formatLocation(tok.line, tok.column)));
+            }
             main_block = parseMainBlock();
-            break;  // Main block ends the program
+            // Continue parsing — functions/structs/enums may follow main
         }
         else {
             // Unknown token at top level - provide helpful error message
