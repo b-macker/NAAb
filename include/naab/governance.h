@@ -1204,6 +1204,7 @@ struct TelemetryOutputConfig {
 struct AgentRoleConfig {
     std::string name;
     std::vector<std::string> allowed_languages;
+    std::vector<std::string> blocked_languages;  // V-GOV-020: per-agent language blocking
     std::vector<std::string> blocked_paths;
     std::vector<std::string> allowed_paths;
     // V-GOV-018: per-agent shell capability override.

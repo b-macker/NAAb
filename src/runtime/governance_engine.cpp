@@ -456,6 +456,53 @@ std::string GovernanceEngine::checkLanguageAllowed(
                     *rules_.allowed_languages.begin())));
     }
 
+    // V-GOV-020: Per-agent language enforcement (defense-in-depth beyond applyAgentRole)
+    for (const auto& role : rules_.agent_roles) {
+        if (role.name == agent_id_) {
+            // Check per-agent blocked languages
+            for (const auto& bl : role.blocked_languages) {
+                if (bl == language) {
+                    return enforce("agent_role.language", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            fmt::format("Agent '{}' is blocked from using language \"{}\"",
+                                agent_id_, language),
+                            "",
+                            fmt::format("agent_roles.{}.blocked_languages contains \"{}\"",
+                                agent_id_, language),
+                            "Your agent role does not permit this language",
+                            fmt::format("let result = <<{}\n...\n>>", language),
+                            "Request access from the project governance config"));
+                }
+            }
+            // Check per-agent allowed languages (if non-empty, must be in list)
+            if (!role.allowed_languages.empty()) {
+                bool found = false;
+                for (const auto& al : role.allowed_languages) {
+                    if (al == language) { found = true; break; }
+                }
+                if (!found) {
+                    std::string al_list;
+                    for (const auto& al : role.allowed_languages) {
+                        if (!al_list.empty()) al_list += ", ";
+                        al_list += al;
+                    }
+                    return enforce("agent_role.language", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            fmt::format("Agent '{}' is not allowed to use language \"{}\"",
+                                agent_id_, language),
+                            "",
+                            fmt::format("agent_roles.{}.allowed_languages = [{}]",
+                                agent_id_, al_list),
+                            fmt::format("Your agent role only permits: {}", al_list),
+                            fmt::format("let result = <<{}\n...\n>>", language),
+                            fmt::format("let result = <<{}\n...\n>>",
+                                role.allowed_languages.front())));
+                }
+            }
+            break;
+        }
+    }
+
     recordPass("languages", EnforcementLevel::HARD);
     return "";
 }
@@ -668,6 +715,22 @@ std::string GovernanceEngine::checkShellAllowed() {
                 "Use NAAb stdlib or other allowed languages instead",
                 "let result = <<shell\nls -la\n>>",
                 "let files = file.list(\".\")"));
+    }
+    // V-GOV-020: Per-agent shell enforcement (defense-in-depth beyond applyAgentRole)
+    for (const auto& role : rules_.agent_roles) {
+        if (role.name == agent_id_) {
+            if (role.shell_allowed_set && !role.shell_allowed) {
+                return enforce("agent_role.shell", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        "Agent '" + agent_id_ + "' is not allowed to execute shell blocks",
+                        "",
+                        "agent_roles." + agent_id_ + ".shell_allowed = false",
+                        "Your agent role does not permit shell execution",
+                        "let result = <<shell\nls -la\n>>",
+                        "Use NAAb stdlib or request shell access from governance config"));
+            }
+            break;
+        }
     }
     recordPass("capabilities.shell", EnforcementLevel::HARD);
     return "";

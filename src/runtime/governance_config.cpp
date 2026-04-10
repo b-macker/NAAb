@@ -1439,6 +1439,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (const auto& l : role_json["allowed_languages"])
                     role.allowed_languages.push_back(l.get<std::string>());
             }
+            // V-GOV-020: parse per-role blocked languages
+            if (role_json.contains("blocked_languages") && role_json["blocked_languages"].is_array()) {
+                for (const auto& l : role_json["blocked_languages"])
+                    role.blocked_languages.push_back(l.get<std::string>());
+            }
             if (role_json.contains("blocked_paths") && role_json["blocked_paths"].is_array()) {
                 for (const auto& p : role_json["blocked_paths"])
                     role.blocked_paths.push_back(p.get<std::string>());
@@ -1451,6 +1456,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (role_json.contains("shell_allowed") && role_json["shell_allowed"].is_boolean()) {
                 role.shell_allowed = role_json["shell_allowed"].get<bool>();
                 role.shell_allowed_set = true;
+            }
+            // Also support capabilities.shell (same format as global capabilities)
+            if (!role.shell_allowed_set && role_json.contains("capabilities") && role_json["capabilities"].is_object()) {
+                auto& caps = role_json["capabilities"];
+                if (caps.contains("shell") && caps["shell"].is_boolean()) {
+                    role.shell_allowed = caps["shell"].get<bool>();
+                    role.shell_allowed_set = true;
+                } else if (caps.contains("shell") && caps["shell"].is_object()) {
+                    auto& sh = caps["shell"];
+                    if (sh.contains("enabled") && sh["enabled"].is_boolean()) {
+                        role.shell_allowed = sh["enabled"].get<bool>();
+                        role.shell_allowed_set = true;
+                    }
+                }
             }
             rules_.agent_roles.push_back(role);
         }

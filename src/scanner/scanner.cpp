@@ -335,6 +335,7 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
     if (scanner_cfg.contains("scan") && scanner_cfg["scan"].is_object()) {
         auto& scan = scanner_cfg["scan"];
         if (scan.contains("max_files")) config_.max_files = scan["max_files"].get<int>();
+        if (scan.contains("max_depth")) config_.max_depth = scan["max_depth"].get<int>();
         if (scan.contains("max_file_size_kb")) config_.max_file_size_kb = scan["max_file_size_kb"].get<int>();
         if (scan.contains("include_tests")) config_.include_tests = scan["include_tests"].get<bool>();
         if (scan.contains("follow_symlinks")) config_.follow_symlinks = scan["follow_symlinks"].get<bool>();
@@ -456,6 +457,11 @@ std::vector<std::string> ScannerEngine::collectFiles(
         if (it->is_directory(ec)) {
             std::string dirname = it->path().filename().string();
             if (exclude_dirs.count(dirname)) {
+                it.disable_recursion_pending();
+                continue;
+            }
+            // V-DOS-004: Cap directory recursion depth
+            if (it.depth() > config_.max_depth) {
                 it.disable_recursion_pending();
                 continue;
             }

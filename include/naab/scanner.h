@@ -37,6 +37,7 @@ struct ScanConfig {
 
     // scan settings
     int max_files = 200;
+    int max_depth = 32;  // V-DOS-004: directory recursion depth cap
     int max_file_size_kb = 500;
     std::vector<std::string> exclude_patterns;
     bool include_tests = false;
