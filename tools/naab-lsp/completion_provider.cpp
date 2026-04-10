@@ -318,10 +318,62 @@ std::vector<CompletionItem> CompletionProvider::getTypeCompletions(const std::st
 }
 
 std::vector<CompletionItem> CompletionProvider::getMemberCompletions(const std::string& type_name) {
-    // TODO: Query struct fields, enum variants, etc.
-    // For now, return empty
-    std::cerr << "[CompletionProvider] getMemberCompletions not yet implemented\n";
-    return {};
+    std::vector<CompletionItem> items;
+
+    // Built-in type methods
+    if (type_name == "string" || type_name == "String") {
+        auto add = [&](const std::string& name, const std::string& detail, const std::string& doc) {
+            CompletionItem item;
+            item.label = name;
+            item.kind = CompletionItemKind::Method;
+            item.detail = detail;
+            item.documentation = doc;
+            items.push_back(item);
+        };
+        add("length", "() -> int", "Returns the length of the string");
+        add("upper", "() -> string", "Returns uppercase copy");
+        add("lower", "() -> string", "Returns lowercase copy");
+        add("trim", "() -> string", "Removes leading/trailing whitespace");
+        add("split", "(delimiter: string) -> [string]", "Splits string by delimiter");
+        add("contains", "(substr: string) -> bool", "Checks if string contains substring");
+        add("starts_with", "(prefix: string) -> bool", "Checks if string starts with prefix");
+        add("ends_with", "(suffix: string) -> bool", "Checks if string ends with suffix");
+        add("replace", "(old: string, new: string) -> string", "Replaces occurrences");
+        add("slice", "(start: int, end?: int) -> string", "Returns substring");
+    } else if (type_name == "array" || type_name == "Array" || type_name == "list") {
+        auto add = [&](const std::string& name, const std::string& detail, const std::string& doc) {
+            CompletionItem item;
+            item.label = name;
+            item.kind = CompletionItemKind::Method;
+            item.detail = detail;
+            item.documentation = doc;
+            items.push_back(item);
+        };
+        add("length", "() -> int", "Returns the number of elements");
+        add("push", "(value) -> void", "Appends an element");
+        add("pop", "() -> any", "Removes and returns the last element");
+        add("slice", "(start: int, end?: int) -> array", "Returns a sub-array");
+        add("contains", "(value) -> bool", "Checks if array contains value");
+        add("join", "(separator: string) -> string", "Joins elements into a string");
+        add("reverse", "() -> array", "Returns reversed copy");
+        add("sort", "() -> array", "Returns sorted copy");
+    } else if (type_name == "dict" || type_name == "Dict" || type_name == "map") {
+        auto add = [&](const std::string& name, const std::string& detail, const std::string& doc) {
+            CompletionItem item;
+            item.label = name;
+            item.kind = CompletionItemKind::Method;
+            item.detail = detail;
+            item.documentation = doc;
+            items.push_back(item);
+        };
+        add("get", "(key: string) -> any", "Gets value by key (returns null if missing)");
+        add("has", "(key: string) -> bool", "Checks if key exists");
+        add("put", "(key: string, value) -> void", "Sets a key-value pair");
+        add("remove", "(key: string) -> void", "Removes a key");
+        add("size", "() -> int", "Returns the number of entries");
+    }
+
+    return items;
 }
 
 void CompletionProvider::invalidateCache(const std::string& uri) {

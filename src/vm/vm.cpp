@@ -2614,9 +2614,10 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             // Reserved opcodes — no-op (compiler doesn't emit these).
-            // OP_GOV_CHECK_FUNC: placeholder for future per-function governance
-            // policy (e.g. govern.json "function_rules"). Not emitted by the
-            // compiler; neither engine has this feature yet. Post-v1.0.
+            // OP_GOV_CHECK_FUNC: reserved for future per-function governance
+            // policy (e.g. govern.json "function_rules"). Not emitted by compiler.
+            // VM already enforces function contracts via checkFunctionContract()
+            // and checkFunctionInputContract() at call sites. Post-v1.0.
             vm_STUB_NOP:
                 VM_NEXT();
 

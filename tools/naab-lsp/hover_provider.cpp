@@ -123,7 +123,10 @@ std::string HoverProvider::formatFunction(const semantic::Symbol& symbol) {
     std::ostringstream ss;
     ss << "fn " << symbol.name << symbol.type;
 
-    // TODO: Add documentation if available
+    // Show type information
+    if (!symbol.type.empty() && symbol.type != symbol.name) {
+        ss << "\n\n**Type:** " << symbol.type;
+    }
 
     return ss.str();
 }

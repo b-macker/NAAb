@@ -179,9 +179,36 @@ void completion(const char* buf, linenoiseCompletions* lc) {
     }
 }
 
-// History hints callback
+// History hints callback — shows inline completion hint in dim text
 char* hints(const char* buf, int* color, int* bold) {
-    // Could show hints like "press Tab for completion"
+    if (!buf || !*buf) return nullptr;
+
+    // Find last token being typed
+    std::string input(buf);
+    size_t last_space = input.find_last_of(" \t({[,=");
+    std::string prefix = (last_space != std::string::npos) ? input.substr(last_space + 1) : input;
+    if (prefix.empty() || prefix.size() < 2) return nullptr;
+
+    // Check keywords
+    for (const auto& kw : g_keywords) {
+        if (kw.find(prefix) == 0 && kw != prefix) {
+            std::string hint = kw.substr(prefix.size());
+            *color = 90;  // dim gray
+            *bold = 0;
+            return strdup(hint.c_str());
+        }
+    }
+
+    // Check stdlib modules
+    for (const auto& mod : g_stdlib_modules) {
+        if (mod.find(prefix) == 0 && mod != prefix) {
+            std::string hint = mod.substr(prefix.size());
+            *color = 90;
+            *bold = 0;
+            return strdup(hint.c_str());
+        }
+    }
+
     return nullptr;
 }
 
@@ -341,7 +368,7 @@ private:
                     parser::Parser pr(toks);
                     auto prog = pr.parseProgram();
                     interpreter_.execute(*prog);
-                    fmt::print("  {}\n", interpreter_.getResult().getTypeName());
+                    fmt::print("  \033[36m{}\033[0m\n", interpreter_.getResult().getTypeName());
                 } catch (const std::exception& e) {
                     fmt::print("  \033[31mError:\033[0m {}\n", e.what());
                 }
@@ -352,7 +379,7 @@ private:
                 fmt::print("  (empty environment)\n");
             } else {
                 for (const auto& [name, val] : vars) {
-                    fmt::print("  {} : {} = {}\n", name, val.getTypeName(), val.toString());
+                    fmt::print("  {} : \033[36m{}\033[0m = \033[32m{}\033[0m\n", name, val.getTypeName(), val.toString());
                 }
             }
         } else {
