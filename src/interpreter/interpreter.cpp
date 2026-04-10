@@ -857,6 +857,11 @@ void Interpreter::visit(ast::Program& node) {
         }
     }
 
+    // S11: Process top-level runtime declarations (before main, after functions)
+    for (auto& rd : node.getRuntimeDecls()) {
+        rd->accept(*this);
+    }
+
     // Phase 3.1: Process exports
     LOG_DEBUG("Processing {} export statements\n", node.getExports().size());
     for (auto& export_stmt : node.getExports()) {

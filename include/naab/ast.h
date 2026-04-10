@@ -1212,6 +1212,12 @@ public:
     void addInterface(std::unique_ptr<InterfaceDecl> iface_decl) {
         interfaces_.push_back(std::move(iface_decl));
     }
+    void addRuntimeDecl(std::unique_ptr<RuntimeDeclStmt> runtime_decl) {
+        runtime_decls_.push_back(std::move(runtime_decl));
+    }
+    const std::vector<std::unique_ptr<RuntimeDeclStmt>>& getRuntimeDecls() const {
+        return runtime_decls_;
+    }
 
     void accept(ASTVisitor& visitor) override;
 
@@ -1224,6 +1230,7 @@ private:
     std::vector<std::unique_ptr<StructDecl>> structs_;  // Struct declarations
     std::vector<std::unique_ptr<EnumDecl>> enums_;  // Phase 2.4.3: Enum declarations
     std::vector<std::unique_ptr<InterfaceDecl>> interfaces_;  // Phase 6: Interface declarations
+    std::vector<std::unique_ptr<RuntimeDeclStmt>> runtime_decls_;  // S11: Top-level runtime decls
     std::unique_ptr<MainBlock> main_block_;
 };
 

@@ -2230,7 +2230,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (debugger_ && debugger_->isActive()) {
                 debugger::CallFrame frame;
                 frame.function_name = func->name;
-                frame.source_location = "unknown:0:0";  // TODO: Get from AST node
+                frame.source_location = (func->source_file.empty() ? current_file_ : func->source_file)
+                    + ":" + std::to_string(func->source_line) + ":0";
                 frame.env = func_env;
                 frame.frame_depth = debugger_->getCurrentDepth();
 

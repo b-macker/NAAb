@@ -2609,9 +2609,10 @@ interpreter::NaabVal VM::run() {
             }
                 VM_NEXT();
 
-            // Reserved opcodes — no-op (compiler doesn't emit these)
-            // TODO: implement vm_OP_GOV_CHECK_FUNC when function-level governance policy
-            //       is defined in govern.json (currently opcode 66, never emitted by compiler)
+            // Reserved opcodes — no-op (compiler doesn't emit these).
+            // OP_GOV_CHECK_FUNC: placeholder for future per-function governance
+            // policy (e.g. govern.json "function_rules"). Not emitted by the
+            // compiler; neither engine has this feature yet. Post-v1.0.
             vm_STUB_NOP:
                 VM_NEXT();
 

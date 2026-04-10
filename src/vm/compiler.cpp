@@ -391,6 +391,10 @@ void Compiler::visit(ast::Program& node) {
     for (auto& func : node.getFunctions()) {
         func->accept(*this);
     }
+    // S11: Top-level runtime declarations
+    for (auto& rd : node.getRuntimeDecls()) {
+        rd->accept(*this);
+    }
     if (node.getMainBlock() && !skip_main_) {
         node.getMainBlock()->accept(*this);
     }

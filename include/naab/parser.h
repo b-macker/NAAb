@@ -134,6 +134,11 @@ private:
     void optionalSemicolon();  // Allow optional semicolon after statements
     std::string formatLocation(int line, int column);
     std::string formatError(const std::string& msg, const lexer::Token& token);
+    void synchronize();  // Panic-mode recovery: skip to next top-level keyword
+
+    // Error recovery state
+    std::vector<std::string> parse_errors_;  // Collected errors during recovery
+    bool had_error_ = false;
 
     // Phase 2.1: Parser context helpers for enhanced error hints
     void updateParserContext();

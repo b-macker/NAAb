@@ -404,6 +404,26 @@ void Parser::optionalSemicolon() {
     match(lexer::TokenType::SEMICOLON);  // Optional semicolon for compatibility
 }
 
+void Parser::synchronize() {
+    // Skip tokens until we find a top-level keyword boundary
+    while (!isAtEnd()) {
+        auto type = current().type;
+        if (type == lexer::TokenType::USE ||
+            type == lexer::TokenType::IMPORT ||
+            type == lexer::TokenType::EXPORT ||
+            type == lexer::TokenType::STRUCT ||
+            type == lexer::TokenType::ENUM ||
+            type == lexer::TokenType::INTERFACE ||
+            type == lexer::TokenType::FUNCTION ||
+            type == lexer::TokenType::ASYNC ||
+            type == lexer::TokenType::RUNTIME ||
+            type == lexer::TokenType::MAIN) {
+            return;  // Found a sync point
+        }
+        advance();
+    }
+}
+
 // Helper: format location string with optional filename
 std::string Parser::formatLocation(int line, int column) {
     if (!filename_.empty()) {
@@ -465,10 +485,14 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
     std::vector<std::unique_ptr<ast::StructDecl>> structs;
     std::vector<std::unique_ptr<ast::EnumDecl>> enums;  // Phase 2.4.3
     std::vector<std::unique_ptr<ast::InterfaceDecl>> interfaces;  // Phase 6
+    std::vector<std::unique_ptr<ast::RuntimeDeclStmt>> runtime_decls;  // S11: Top-level runtime
 
     // Parse module imports, exports, structs, and functions (Phase 3.1)
+    // S10: Panic-mode recovery — collect multiple errors instead of stopping at first
     while (!isAtEnd()) {
         skipNewlines();
+
+        try {
 
         if (check(lexer::TokenType::USE)) {
             // Lookahead: block import or module import?
@@ -503,6 +527,10 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         }
         else if (check(lexer::TokenType::INTERFACE)) {
             interfaces.push_back(parseInterfaceDecl());
+        }
+        else if (check(lexer::TokenType::RUNTIME)) {
+            // S11: Allow runtime declarations at top level
+            runtime_decls.push_back(parseRuntimeDeclStmt());
         }
         else if (check(lexer::TokenType::FUNCTION) || check(lexer::TokenType::ASYNC)) {
             functions.push_back(parseFunctionDecl());
@@ -611,7 +639,31 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
             break;
         }
 
+        } catch (const ParseError& e) {
+            // S10: Collect error and recover
+            parse_errors_.push_back(e.what());
+            had_error_ = true;
+            synchronize();
+        } catch (const std::runtime_error& e) {
+            parse_errors_.push_back(e.what());
+            had_error_ = true;
+            synchronize();
+        }
+
         skipNewlines();
+    }
+
+    // S10: If we collected errors, throw them all together
+    if (had_error_) {
+        std::string combined;
+        for (size_t i = 0; i < parse_errors_.size(); ++i) {
+            if (i > 0) combined += "\n\n";
+            combined += parse_errors_[i];
+        }
+        if (parse_errors_.size() > 1) {
+            combined = fmt::format("[{} errors found]\n\n{}", parse_errors_.size(), combined);
+        }
+        throw ParseError(combined);
     }
 
     // Create final program with all components
@@ -639,6 +691,9 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
     }
     for (auto& iface : interfaces) {
         program->addInterface(std::move(iface));
+    }
+    for (auto& rd : runtime_decls) {
+        program->addRuntimeDecl(std::move(rd));
     }
 
     return program;
