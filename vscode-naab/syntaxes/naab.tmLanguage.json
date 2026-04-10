@@ -14,11 +14,11 @@
       "patterns": [
         {
           "name": "keyword.control.naab",
-          "match": "\\b(if|else|for|while|return|break|continue|match)\\b"
+          "match": "\\b(if|else|for|while|return|break|continue|match|switch)\\b"
         },
         {
           "name": "keyword.other.naab",
-          "match": "\\b(let|fn|struct|enum|use|import|export|try|catch|throw|main)\\b"
+          "match": "\\b(let|const|fn|function|async|await|struct|enum|interface|use|import|export|try|catch|throw|finally|main|runtime|new|in|as|yield)\\b"
         },
         {
           "name": "constant.language.naab",

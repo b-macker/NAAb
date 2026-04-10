@@ -9,44 +9,132 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
-    name: Build Release Binary
+  build-linux-x86_64:
+    name: Linux x86_64
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            libsqlite3-dev \
-            python3-dev \
-            libssl-dev \
-            libffi-dev \
-            libcurl4-openssl-dev \
-            pkg-config
-
+          sudo apt-get install -y cmake ninja-build libsqlite3-dev python3-dev \
+            libssl-dev libffi-dev libcurl4-openssl-dev pkg-config
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang -j$(nproc)
-          strip build/naab-lang
-
-      - name: Generate checksums
+          ninja -C build naab-lang naab-gov -j$(nproc)
+          strip build/naab-lang build/naab-gov
+      - name: Package
         run: |
           cd build
-          sha256sum naab-lang > naab-lang.sha256
+          tar czf naab-linux-x86_64.tar.gz naab-lang naab-gov
+          sha256sum naab-linux-x86_64.tar.gz > naab-linux-x86_64.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: build/naab-linux-x86_64.tar.gz*
 
-      - name: Create GitHub Release
+  build-linux-aarch64:
+    name: Linux aarch64
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libsqlite3-dev python3-dev \
+            libssl-dev libffi-dev libcurl4-openssl-dev pkg-config
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang naab-gov -j$(nproc)
+          strip build/naab-lang build/naab-gov
+      - name: Package
+        run: |
+          cd build
+          tar czf naab-linux-aarch64.tar.gz naab-lang naab-gov
+          sha256sum naab-linux-aarch64.tar.gz > naab-linux-aarch64.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64
+          path: build/naab-linux-aarch64.tar.gz*
+
+  build-macos:
+    name: macOS arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: brew install cmake ninja openssl@3 sqlite3 pkg-config curl
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja \
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+          ninja -C build naab-lang naab-gov -j$(sysctl -n hw.ncpu)
+          strip build/naab-lang build/naab-gov
+      - name: Package
+        run: |
+          cd build
+          tar czf naab-macos-arm64.tar.gz naab-lang naab-gov
+          shasum -a 256 naab-macos-arm64.tar.gz > naab-macos-arm64.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: build/naab-macos-arm64.tar.gz*
+
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          choco install cmake ninja -y
+          vcpkg install sqlite3 openssl curl --triplet x64-windows
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja ^
+            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+          ninja -C build naab-lang naab-gov -j%NUMBER_OF_PROCESSORS%
+      - name: Package
+        shell: pwsh
+        run: |
+          cd build
+          Compress-Archive -Path naab-lang.exe,naab-gov.exe -DestinationPath naab-windows-x86_64.zip
+          Get-FileHash naab-windows-x86_64.zip -Algorithm SHA256 | Format-List | Out-File naab-windows-x86_64.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: build/naab-windows-x86_64.zip*
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-linux-x86_64, build-linux-aarch64, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/naab-lang
-            build/naab-lang.sha256
+            naab-linux-x86_64.tar.gz
+            naab-linux-x86_64.tar.gz.sha256
+            naab-linux-aarch64.tar.gz
+            naab-linux-aarch64.tar.gz.sha256
+            naab-macos-arm64.tar.gz
+            naab-macos-arm64.tar.gz.sha256
+            naab-windows-x86_64.zip
+            naab-windows-x86_64.zip.sha256
           generate_release_notes: true

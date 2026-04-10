@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-09
+
+### Added
+- **String interpolation** — `f"Hello {name}"` and `"Hello ${name}"` syntax
+- **for-in with index** — `for (i, item) in arr { }` binds both index and value
+- **switch keyword** — alias for `match` expression
+- **--quiet/-q flag** — suppresses governance info messages for scripting use
+- **--strict flag** — alias for `--strict-types`
+- **Multi-line error context** — parser errors show 2-3 source lines with caret
+- **Parser error recovery** — reports multiple errors instead of stopping at first
+- **Top-level runtime declarations** — `runtime py = python.start()` at file scope
+- **Pre-built release binaries** — Linux (x86_64, aarch64), macOS (arm64), Windows (x86_64)
+- **INSTALL.md** — installation guide (binary download and build from source)
+- **naab-gov CLI** — standalone governance linting and scanning tool
+
+### Fixed
+- **SQLite NULL column crash** — `safeColumnText()` guards all `sqlite3_column_text()` calls
+- **Thread pool double-init race** — replaced double-check pattern with `std::call_once`
+- **Module cache thread safety** — added `std::shared_mutex` for concurrent access
+- **popen FILE* leak** — wrapped in RAII `unique_ptr<FILE, pclose>`
+- **Governance telemetry file leak** — RAII wrapper for fopen/flock/fclose
+- **Debugger source locations** — `CallFrame.source_location` now uses real file:line info
+
+### Security
+- 60+ security fixes across R5-R24 audit rounds
+- Windows subprocess hardening (Job Objects, handle narrowing, Ctrl-C handler)
+- Lockfile HMAC-SHA256 signatures, fail-closed verification
+- REST API per-request timeout, body size limits, constant-time auth
+- Environment variable injection blocking (LD_PRELOAD, PATH, etc.)
+
 ## [0.8.1] - 2026-04-03
 
 ### Fixed
