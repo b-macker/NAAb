@@ -35,17 +35,16 @@ main {
 
     // Lambdas
     let nums = [1, 2, 3, 4, 5]
-    let doubled = array.map(nums, fn(x) { return x * 2 })
+    let doubled = array.map_fn(nums, fn(x) { return x * 2 })
     print(f"Doubled: {doubled}")
 
-    let evens = array.filter(nums, fn(x) { return x % 2 == 0 })
+    let evens = array.filter_fn(nums, fn(x) { return x % 2 == 0 })
     print(f"Evens: {evens}")
 
-    // Pipeline operator
-    let result = [5, 3, 8, 1, 9]
-        |> array.sort
-        |> array.reverse
-    print(f"Sorted desc: {result}")
+    // Array operations
+    let result = array.sort([5, 3, 8, 1, 9])
+    let reversed = array.reverse(result)
+    print(f"Sorted desc: {reversed}")
 
     // Null coalesce
     let config = {}

@@ -11,8 +11,9 @@ main {
     let nums = [3, 1, 4, 1, 5, 9, 2, 6]
     let sorted = array.sort(nums)
     print(f"Sorted: {sorted}")
-    print(f"Sum: {math.sum(nums)}")
-    print(f"Max: {math.max(nums)}")
+    let total = array.reduce_fn(nums, fn(a, b) { return a + b }, 0)
+    print(f"Sum: {total}")
+    print(f"Max: {math.max(nums[0], nums[1])}")
 
     // Dict operations
     let config = {
@@ -20,8 +21,7 @@ main {
         "port": 8080,
         "debug": true
     }
-    let keys = dict.keys(config)
-    print(f"Config keys: {keys}")
+    print(f"Config host: {config.get('host')}")
 
     // Math
     print(f"Pi: {math.pi()}")

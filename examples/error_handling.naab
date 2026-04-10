@@ -8,11 +8,11 @@ function divide(a: int, b: int): float {
 }
 
 function parse_number(s: string): int {
-    let result = string.to_int(s)
-    if result == null {
+    try {
+        return int(s)
+    } catch (e) {
         throw f"Cannot parse '{s}' as integer"
     }
-    return result
 }
 
 main {

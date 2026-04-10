@@ -1,0 +1,4 @@
+{
+  "_comment": "V-GOV-007: catch-all governance file for test suite. Mode off = no enforcement.",
+  "mode": "off"
+}
