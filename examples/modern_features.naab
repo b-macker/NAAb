@@ -1,0 +1,61 @@
+// Example: Modern NAAb features
+
+function double(x: int): int {
+    return x * 2
+}
+
+main {
+    // String interpolation
+    let name = "NAAb"
+    let version = "0.9.0"
+    print(f"Welcome to {name} v{version}!")
+
+    // For-in with index
+    let fruits = ["apple", "banana", "cherry"]
+    for (i, fruit) in fruits {
+        print(f"  {i}: {fruit}")
+    }
+
+    // Destructuring
+    let [a, b, c] = [10, 20, 30]
+    print(f"Destructured: {a}, {b}, {c}")
+
+    let {host, port} = {"host": "localhost", "port": 8080}
+    print(f"Server: {host}:{port}")
+
+    // Switch (alias for match)
+    let status = 200
+    let message = switch status {
+        200 => "OK",
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        _ => "Unknown"
+    }
+    print(f"HTTP {status}: {message}")
+
+    // Lambdas
+    let nums = [1, 2, 3, 4, 5]
+    let doubled = array.map(nums, fn(x) { return x * 2 })
+    print(f"Doubled: {doubled}")
+
+    let evens = array.filter(nums, fn(x) { return x % 2 == 0 })
+    print(f"Evens: {evens}")
+
+    // Pipeline operator
+    let result = [5, 3, 8, 1, 9]
+        |> array.sort
+        |> array.reverse
+    print(f"Sorted desc: {result}")
+
+    // Null coalesce
+    let config = {}
+    let timeout = config.get("timeout") ?? 30
+    print(f"Timeout: {timeout}")
+
+    // Ranges
+    let sum = 0
+    for i in 1..=100 {
+        sum = sum + i
+    }
+    print(f"Sum 1..100: {sum}")
+}

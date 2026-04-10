@@ -1,0 +1,16 @@
+// Benchmark: Recursive Fibonacci
+// Tests: function call overhead, recursion, integer arithmetic
+
+function fib(n: int): int {
+    if n <= 1 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+main {
+    let start = time.now_millis()
+    let result = fib(30)
+    let elapsed = time.now_millis() - start
+    print(f"fib(30) = {result}, elapsed: {elapsed}ms")
+}

@@ -1,0 +1,22 @@
+// Benchmark: String operations
+// Tests: concatenation, interpolation, stdlib string methods
+
+main {
+    let start = time.now_millis()
+
+    let result = ""
+    for i in 0..10000 {
+        result = f"item_{i}"
+    }
+
+    let elapsed = time.now_millis() - start
+    print(f"10K string interpolations, elapsed: {elapsed}ms")
+
+    start = time.now_millis()
+    let arr = []
+    for i in 0..10000 {
+        arr.push(f"element_{i}")
+    }
+    elapsed = time.now_millis() - start
+    print(f"10K array pushes, elapsed: {elapsed}ms, length: {arr.length()}")
+}

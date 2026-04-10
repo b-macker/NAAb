@@ -1,0 +1,51 @@
+// Example: Error handling patterns in NAAb
+
+function divide(a: int, b: int): float {
+    if b == 0 {
+        throw "Division by zero"
+    }
+    return a / b
+}
+
+function parse_number(s: string): int {
+    let result = string.to_int(s)
+    if result == null {
+        throw f"Cannot parse '{s}' as integer"
+    }
+    return result
+}
+
+main {
+    // Basic try-catch
+    try {
+        let result = divide(10, 0)
+        print(f"Result: {result}")
+    } catch (e) {
+        print(f"Caught: {e}")
+    }
+
+    // Try-catch-finally
+    try {
+        let n = parse_number("abc")
+        print(f"Parsed: {n}")
+    } catch (e) {
+        print(f"Parse error: {e}")
+    } finally {
+        print("Cleanup done")
+    }
+
+    // Nested error handling
+    try {
+        let nums = ["1", "2", "bad", "4"]
+        for (i, s) in nums {
+            try {
+                let n = parse_number(s)
+                print(f"  [{i}] = {n}")
+            } catch (e) {
+                print(f"  [{i}] skipped: {e}")
+            }
+        }
+    } catch (e) {
+        print(f"Unexpected: {e}")
+    }
+}

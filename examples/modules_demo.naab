@@ -1,0 +1,42 @@
+// Example: Module imports and stdlib usage
+
+main {
+    // String operations
+    let greeting = "Hello, World!"
+    print(f"Upper: {greeting.upper()}")
+    print(f"Contains 'World': {greeting.contains('World')}")
+    print(f"Replace: {greeting.replace('World', 'NAAb')}")
+
+    // Array operations
+    let nums = [3, 1, 4, 1, 5, 9, 2, 6]
+    let sorted = array.sort(nums)
+    print(f"Sorted: {sorted}")
+    print(f"Sum: {math.sum(nums)}")
+    print(f"Max: {math.max(nums)}")
+
+    // Dict operations
+    let config = {
+        "host": "localhost",
+        "port": 8080,
+        "debug": true
+    }
+    let keys = dict.keys(config)
+    print(f"Config keys: {keys}")
+
+    // Math
+    print(f"Pi: {math.pi()}")
+    print(f"sqrt(144): {math.sqrt(144)}")
+    print(f"abs(-42): {math.abs(-42)}")
+
+    // JSON
+    let data = {"name": "NAAb", "version": "0.9.0"}
+    let json_str = json.stringify(data)
+    print(f"JSON: {json_str}")
+    let parsed = json.parse(json_str)
+    print(f"Parsed name: {parsed.get('name')}")
+
+    // Time
+    let now = time.now()
+    print(f"Unix timestamp: {now}")
+    print(f"Formatted: {time.format_timestamp(now, '%Y-%m-%d %H:%M:%S')}")
+}

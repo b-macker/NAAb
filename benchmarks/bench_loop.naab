@@ -1,0 +1,14 @@
+// Benchmark: Loop performance
+// Tests: for-in iteration, array operations, integer arithmetic
+
+main {
+    let start = time.now_millis()
+
+    let sum = 0
+    for i in 0..1000000 {
+        sum = sum + i
+    }
+
+    let elapsed = time.now_millis() - start
+    print(f"sum(0..1M) = {sum}, elapsed: {elapsed}ms")
+}

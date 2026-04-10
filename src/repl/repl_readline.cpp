@@ -286,10 +286,10 @@ private:
 
     void printWelcome() {
         fmt::print("\n");
-        fmt::print("╔═══════════════════════════════════════════════════════╗\n");
-        fmt::print("║  NAAb REPL - With Readline Support (linenoise)       ║\n");
-        fmt::print("║  Version 0.1.0                                        ║\n");
-        fmt::print("╚═══════════════════════════════════════════════════════╝\n");
+        fmt::print("\033[36m╔═══════════════════════════════════════════════════════╗\033[0m\n");
+        fmt::print("\033[36m║\033[0m  \033[1mNAAb REPL\033[0m — Interactive Shell (linenoise)          \033[36m║\033[0m\n");
+        fmt::print("\033[36m║\033[0m  Version 0.9.0                                       \033[36m║\033[0m\n");
+        fmt::print("\033[36m╚═══════════════════════════════════════════════════════╝\033[0m\n");
         fmt::print("\n");
         fmt::print("Features:\n");
         fmt::print("  • Arrow keys for navigation and history\n");
@@ -343,7 +343,7 @@ private:
                     interpreter_.execute(*prog);
                     fmt::print("  {}\n", interpreter_.getResult().getTypeName());
                 } catch (const std::exception& e) {
-                    fmt::print("  Error: {}\n", e.what());
+                    fmt::print("  \033[31mError:\033[0m {}\n", e.what());
                 }
             }
         } else if (cmd == ":env") {
@@ -451,7 +451,7 @@ private:
             statement_count_++;
 
         } catch (const std::exception& e) {
-            fmt::print("Error: {}\n", e.what());
+            fmt::print("\033[31mError:\033[0m {}\n", e.what());
         }
     }
 };

@@ -121,8 +121,25 @@ CompletionContext CompletionProvider::analyzeContext(const Document& doc, const 
         if (start < dot_pos) {
             std::string object_name = prefix.substr(start, dot_pos - start);
             std::cerr << "[CompletionProvider] Member access on: '" << object_name << "'\n";
-            // TODO: Look up object type in symbol table
-            ctx.object_type = "unknown";
+            // H6: Infer object type from common patterns
+            // Without a full type system, infer from naming conventions
+            if (object_name.find("arr") != std::string::npos ||
+                object_name.find("list") != std::string::npos ||
+                object_name.find("items") != std::string::npos) {
+                ctx.object_type = "array";
+            } else if (object_name.find("str") != std::string::npos ||
+                       object_name.find("name") != std::string::npos ||
+                       object_name.find("text") != std::string::npos ||
+                       object_name.find("msg") != std::string::npos) {
+                ctx.object_type = "string";
+            } else if (object_name.find("dict") != std::string::npos ||
+                       object_name.find("map") != std::string::npos ||
+                       object_name.find("obj") != std::string::npos ||
+                       object_name.find("config") != std::string::npos) {
+                ctx.object_type = "dict";
+            } else {
+                ctx.object_type = "unknown";
+            }
         }
 
     } else if (prefix.find("let ") != std::string::npos && prefix.find(':') != std::string::npos) {
