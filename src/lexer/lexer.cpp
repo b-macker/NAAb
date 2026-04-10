@@ -30,6 +30,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"break", TokenType::BREAK},
     {"continue", TokenType::CONTINUE},
     {"match", TokenType::MATCH},
+    {"switch", TokenType::MATCH},  // U4: switch is an alias for match
     {"try", TokenType::TRY},       // Phase 4.1
     {"catch", TokenType::CATCH},   // Phase 4.1
     {"throw", TokenType::THROW},   // Phase 4.1

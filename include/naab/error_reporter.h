@@ -119,6 +119,10 @@ public:
     // Report error using ErrorContext (Phase 4.1)
     void reportFromContext(const ErrorContext& ctx, Severity severity = Severity::Error);
 
+    // U7: Public access for source context in parser errors
+    bool hasSource() const { return !source_lines_.empty(); }
+    std::string getSourceLine(size_t line) const;
+
 private:
     std::vector<Diagnostic> diagnostics_;
     std::string source_code_;
@@ -126,7 +130,6 @@ private:
     std::vector<std::string> source_lines_;
 
     void cacheSourceLines();
-    std::string getSourceLine(size_t line) const;
     std::string formatWithContext(const Diagnostic& diag) const;
     std::string severityToString(Severity sev) const;
     std::string severityToColor(Severity sev) const;

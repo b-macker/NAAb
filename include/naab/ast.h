@@ -426,16 +426,21 @@ public:
           rest_index_(rest_index) {}
 
     const std::string& getVar() const { return var_; }
+    const std::string& getIndexVar() const { return index_var_; }
+    bool hasIndex() const { return !index_var_.empty(); }
     Expr* getIter() const { return iter_.get(); }
     Stmt* getBody() const { return body_.get(); }
     const std::vector<std::string>& getDestructureNames() const { return destructure_names_; }
     bool isDestructuring() const { return !destructure_names_.empty(); }
     int getRestIndex() const { return rest_index_; }
 
+    void setIndexVar(const std::string& idx) { index_var_ = idx; }
+
     void accept(ASTVisitor& visitor) override;
 
 private:
     std::string var_;
+    std::string index_var_;  // U2: for (i, item) in arr — index variable
     std::unique_ptr<Expr> iter_;
     std::unique_ptr<Stmt> body_;
     std::vector<std::string> destructure_names_;  // empty = normal, non-empty = destructuring

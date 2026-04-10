@@ -336,6 +336,7 @@ int main(int argc, char** argv) {
     bool global_explain = false;
     bool global_debug = false;
     bool global_no_color = false;
+    bool global_quiet = false;
     bool global_strict_types = false;
     bool global_use_vm = true;  // VM is default since Phase 16
     bool global_governance_dashboard = false;
@@ -393,7 +394,10 @@ int main(int argc, char** argv) {
         } else if (arg == "--no-color") {
             global_no_color = true;
             command_arg_index++;
-        } else if (arg == "--strict-types") {
+        } else if (arg == "--quiet" || arg == "-q") {
+            global_quiet = true;
+            command_arg_index++;
+        } else if (arg == "--strict-types" || arg == "--strict") {
             global_strict_types = true;
             command_arg_index++;
         } else if (arg == "--agent-id" && command_arg_index + 1 < argc) {
@@ -614,7 +618,7 @@ int main(int argc, char** argv) {
                 governance_baseline_save = true;
             } else if (arg == "--env" && i + 1 < argc) {
                 governance_env = argv[++i];
-            } else if (arg == "--strict-types") {
+            } else if (arg == "--strict-types" || arg == "--strict") {
                 strict_types = true;
             } else if (arg == "--vm") {
                 use_vm = true;
@@ -1093,19 +1097,23 @@ int main(int argc, char** argv) {
                         fflush(stderr);
                         return 4;
                     }
-                    fprintf(stderr,
-                        "[governance] Warning: No govern.json found in '%s' or any parent directory.\n"
-                        "  Running WITHOUT governance restrictions.\n"
-                        "  To enforce governance, create a govern.json or use --require-governance.\n",
-                        script_dir.string().c_str());
+                    if (!global_quiet) {
+                        fprintf(stderr,
+                            "[governance] Warning: No govern.json found in '%s' or any parent directory.\n"
+                            "  Running WITHOUT governance restrictions.\n"
+                            "  To enforce governance, create a govern.json or use --require-governance.\n",
+                            script_dir.string().c_str());
+                    }
                 }
                 if (gov_loaded) {
                     auto mode = vm_governance.getMode();
                     std::string mode_str = (mode == naab::governance::GovernanceMode::ENFORCE) ? "enforce"
                                          : (mode == naab::governance::GovernanceMode::AUDIT)   ? "audit"
                                          : "off";
-                    fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
-                            vm_governance.getLoadedPath().c_str(), mode_str.c_str());
+                    if (!global_quiet) {
+                        fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
+                                vm_governance.getLoadedPath().c_str(), mode_str.c_str());
+                    }
                     if (governance_override) vm_governance.setOverrideEnabled(true);
                     // Agent identity and telemetry
                     vm_governance.setAgentId(agent_id);

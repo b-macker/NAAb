@@ -1943,10 +1943,14 @@ void Interpreter::visit(ast::ForStmt& node) {
             // Use <= for inclusive ranges, < for exclusive
             if (inclusive) {
                 size_t iter_count = 0;
+                int range_idx = 0;
                 for (int i = start; i <= end_val; i++) {
                     if (governance_ && governance_->isActive()) {
                         std::string err = governance_->checkLoopIterations(++iter_count);
                         if (!err.empty()) throw std::runtime_error(err);
+                    }
+                    if (node.hasIndex()) {
+                        current_env_->define(node.getIndexVar(), NaabVal::makeInt(range_idx++));
                     }
                     current_env_->define(node.getVar(), NaabVal::makeInt(i));
                     node.getBody()->accept(*this);
@@ -1962,10 +1966,14 @@ void Interpreter::visit(ast::ForStmt& node) {
                 }
             } else {
                 size_t iter_count = 0;
+                int range_idx = 0;
                 for (int i = start; i < end_val; i++) {
                     if (governance_ && governance_->isActive()) {
                         std::string err = governance_->checkLoopIterations(++iter_count);
                         if (!err.empty()) throw std::runtime_error(err);
+                    }
+                    if (node.hasIndex()) {
+                        current_env_->define(node.getIndexVar(), NaabVal::makeInt(range_idx++));
                     }
                     current_env_->define(node.getVar(), NaabVal::makeInt(i));
                     node.getBody()->accept(*this);
@@ -2017,6 +2025,10 @@ void Interpreter::visit(ast::ForStmt& node) {
             if (governance_ && governance_->isActive()) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
+            }
+            // U2: Define index variable if present
+            if (node.hasIndex()) {
+                current_env_->define(node.getIndexVar(), NaabVal::makeInt(static_cast<int>(idx)));
             }
             defineLoopVar(list[idx]);
             node.getBody()->accept(*this);

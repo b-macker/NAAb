@@ -1154,6 +1154,7 @@ void Compiler::visit(ast::ForStmt& node) {
 
     // Now the loop variable(s) are on the stack as locals
     beginScope();
+
     if (node.isDestructuring()) {
         for (auto& name : node.getDestructureNames()) {
             addLocal(name);
@@ -1161,6 +1162,18 @@ void Compiler::visit(ast::ForStmt& node) {
         }
     } else {
         addLocal(node.getVar());
+        markInitialized();
+    }
+
+    // U2: If index variable requested, push current index (idx - 1, since ITER_NEXT already incremented)
+    if (node.hasIndex()) {
+        int idx_slot = resolveLocal(current_, "__iter_idx__");
+        emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(idx_slot), line);
+        emitOp(OpCode::OP_CONST, line);
+        int one_idx = makeConstant(interpreter::NaabVal::makeInt(1));
+        currentChunk().code.back() = encodeWide(OpCode::OP_CONST, static_cast<uint32_t>(one_idx));
+        emitOp(OpCode::OP_SUB, line);
+        addLocal(node.getIndexVar());
         markInitialized();
     }
 

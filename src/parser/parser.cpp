@@ -433,8 +433,29 @@ std::string Parser::formatLocation(int line, int column) {
 }
 
 std::string Parser::formatError(const std::string& msg, const lexer::Token& token) {
-    return fmt::format("Parse error {}: {}\n  Got: '{}'",
+    std::string base = fmt::format("Parse error {}: {}\n  Got: '{}'",
                       formatLocation(token.line, token.column), msg, token.value);
+
+    // U7: Add source context if available
+    if (error_reporter_.hasSource() && token.line > 0) {
+        base += "\n";
+        size_t start_line = (token.line > 2) ? token.line - 2 : 1;
+        size_t end_line = token.line + 1;
+        size_t line_num_width = std::to_string(end_line).length();
+        for (size_t i = start_line; i <= end_line; ++i) {
+            std::string src_line = error_reporter_.getSourceLine(i);
+            if (src_line.empty() && i > token.line) break;
+            bool is_err = (i == token.line);
+            base += fmt::format("  {} {:>{}} | {}\n",
+                is_err ? ">" : " ", i, line_num_width, src_line);
+            if (is_err && token.column > 0) {
+                base += fmt::format("    {:>{}}   {:>{}}^\n",
+                    "", line_num_width, "", token.column - 1);
+            }
+        }
+    }
+
+    return base;
 }
 
 // ============================================================================
@@ -1543,6 +1564,42 @@ std::unique_ptr<ast::ForStmt> Parser::parseForStmt() {
         return std::make_unique<ast::ForStmt>(
             std::move(names), std::move(iterable), std::move(body),
             rest_index, ast::SourceLocation(start.line, start.column));
+    }
+
+    // U2: Check for (i, item) in arr — index+value form
+    // If we have parens and see IDENT, IDENT ) in, it's index+value
+    std::string index_var;
+    if (has_parens) {
+        size_t saved = pos_;
+        auto& first = current();
+        if (isAllowedNameToken(first.type)) {
+            std::string maybe_idx = first.value;
+            advance();
+            if (match(lexer::TokenType::COMMA)) {
+                auto& second = current();
+                if (isAllowedNameToken(second.type)) {
+                    std::string maybe_val = second.value;
+                    advance();
+                    if (check(lexer::TokenType::RPAREN)) {
+                        advance();  // consume )
+                        if (check(lexer::TokenType::IN)) {
+                            // Confirmed: for (i, item) in arr
+                            index_var = maybe_idx;
+                            expect(lexer::TokenType::IN, "Expected 'in'");
+                            auto iterable = parseExpression();
+                            skipNewlines();
+                            auto body = parseStatement();
+                            auto stmt = std::make_unique<ast::ForStmt>(
+                                maybe_val, std::move(iterable), std::move(body),
+                                ast::SourceLocation(start.line, start.column));
+                            stmt->setIndexVar(maybe_idx);
+                            return stmt;
+                        }
+                    }
+                }
+            }
+        }
+        pos_ = saved;  // Not index+value, backtrack
     }
 
     // Accept identifiers and common keywords as loop variable names
