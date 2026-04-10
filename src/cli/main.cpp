@@ -1080,6 +1080,7 @@ int main(int argc, char** argv) {
                 }
             }
 
+            size_t vm_allocation_count = 0;  // S7: capture VM alloc count for --gc-stats
             if (use_vm) {
                 // Governance: discover and load govern.json BEFORE compilation
                 // (compiler needs it for pre-flight taint analysis)
@@ -1399,6 +1400,7 @@ int main(int argc, char** argv) {
                         vm_governance.saveGovernanceBaseline();
                     }
                 }
+                vm_allocation_count = bytecode_vm.getAllocationCount();
             } else {
                 // V-LSP-005: lint-only gate for tree-walker path.
                 if (lint_only) {
@@ -1472,8 +1474,9 @@ int main(int argc, char** argv) {
             }
 
             if (gc_stats) {
+                size_t alloc_count = use_vm ? vm_allocation_count : interpreter.getAllocationCount();
                 fmt::print("[GC] Allocations tracked: {}, Collections run: {}\n",
-                           interpreter.getAllocationCount(),
+                           alloc_count,
                            interpreter.getGCCollectionCount());
             }
 

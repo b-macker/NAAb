@@ -343,6 +343,7 @@ public:
     void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
     governance::GovernanceEngine* getGovernance() const { return governance_; }
     void setGCThreshold(size_t t) { gc_threshold_ = t; }  // V-RT-008
+    size_t getAllocationCount() const { return allocation_count_; }
 
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
@@ -431,6 +432,7 @@ private:
     std::unique_ptr<interpreter::CycleDetector> gc_detector_;
     size_t gc_instruction_count_ = 0;
     size_t gc_threshold_ = 5000;
+    size_t allocation_count_ = 0;  // S7: track heap allocations for --gc-stats
 
     // Core dispatch loop
     interpreter::NaabVal run();

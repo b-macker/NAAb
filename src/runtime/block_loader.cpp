@@ -17,6 +17,14 @@
 namespace naab {
 namespace runtime {
 
+// S1: safely extract column text, returning empty string on NULL.
+// sqlite3_column_text() returns NULL for SQL NULL or corruption — constructing
+// std::string from NULL is UB (SIGSEGV).
+static std::string safeColumnText(sqlite3_stmt* stmt, int col) {
+    const unsigned char* text = sqlite3_column_text(stmt, col);
+    return text ? reinterpret_cast<const char*>(text) : "";
+}
+
 // PIMPL implementation to hide SQLite3 details
 class BlockLoader::Impl {
 public:
@@ -48,15 +56,6 @@ public:
         if (db_) {
             sqlite3_close(db_);
         }
-    }
-
-    // V-REG-001: safely extract column text, returning empty string on NULL.
-    // sqlite3_column_text() returns NULL if the column value is SQL NULL or if
-    // the database is corrupted. Constructing std::string from a NULL pointer is
-    // undefined behavior and causes SIGSEGV.
-    static std::string safeColumnText(sqlite3_stmt* stmt, int col) {
-        const unsigned char* text = sqlite3_column_text(stmt, col);
-        return text ? reinterpret_cast<const char*>(text) : "";
     }
 
     BlockMetadata parseRow(sqlite3_stmt* stmt) {
@@ -96,8 +95,8 @@ public:
         meta.avg_execution_ms = sqlite3_column_double(stmt, 23);
         meta.max_memory_mb = sqlite3_column_int(stmt, 24);
 
-        const char* perf_tier = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 25));
-        meta.performance_tier = perf_tier ? perf_tier : "medium";
+        std::string perf_tier = safeColumnText(stmt, 25);
+        meta.performance_tier = perf_tier.empty() ? "medium" : perf_tier;
 
         meta.success_rate_percent = sqlite3_column_int(stmt, 26);
         meta.avg_tokens_saved = sqlite3_column_int(stmt, 27);
@@ -313,13 +312,13 @@ std::vector<BlockMetadata> BlockLoader::getTopBlocksByUsage(int limit) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         BlockMetadata meta;
-        meta.block_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        meta.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        meta.language = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        meta.category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        meta.subcategory = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        meta.file_path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
-        meta.code_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        meta.block_id = safeColumnText(stmt, 0);
+        meta.name = safeColumnText(stmt, 1);
+        meta.language = safeColumnText(stmt, 2);
+        meta.category = safeColumnText(stmt, 3);
+        meta.subcategory = safeColumnText(stmt, 4);
+        meta.file_path = safeColumnText(stmt, 5);
+        meta.code_hash = safeColumnText(stmt, 6);
         meta.token_count = sqlite3_column_int(stmt, 7);
         meta.times_used = sqlite3_column_int(stmt, 8);
 
@@ -345,9 +344,9 @@ std::map<std::string, int> BlockLoader::getLanguageStats() {
     }
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        std::string language = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        std::string language = safeColumnText(stmt, 0);
         int count = sqlite3_column_int(stmt, 1);
-        stats[language] = count;
+        if (!language.empty()) stats[language] = count;
     }
 
     sqlite3_finalize(stmt);
@@ -453,8 +452,8 @@ std::vector<std::pair<std::string, std::string>> BlockLoader::getTopCombinations
     sqlite3_bind_int(stmt, 1, limit);
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        std::string block1 = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        std::string block2 = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        std::string block1 = safeColumnText(stmt, 0);
+        std::string block2 = safeColumnText(stmt, 1);
         combinations.push_back({block1, block2});
     }
 

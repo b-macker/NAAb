@@ -732,6 +732,7 @@ interpreter::NaabVal VM::run() {
                 if (a.isString() || b.isString()) {
                     // String concatenation with auto-coercion (must be before double check)
                     push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
+                    allocation_count_++;
                 } else if (a.isInt() && b.isInt()) {
                     int32_t av = static_cast<int32_t>(a.asInt()), bv = static_cast<int32_t>(b.asInt());
                     // Overflow check
@@ -1663,6 +1664,7 @@ interpreter::NaabVal VM::run() {
                 }
 
                 push(interpreter::NaabVal::makeVMClosure(std::move(new_closure)));
+                allocation_count_++;
             }
                 VM_NEXT();
 
@@ -1690,6 +1692,7 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < count; i++) pop();
                 push(interpreter::NaabVal::makeList(std::move(elems)));
+                allocation_count_++;
                 if (governance_) peekTaint(0) = list_taint;
             }
                 VM_NEXT();
@@ -1711,6 +1714,7 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < count * 2; i++) pop();
                 push(interpreter::NaabVal::makeDict(std::move(entries)));
+                allocation_count_++;
                 if (governance_) peekTaint(0) = dict_taint;
             }
                 VM_NEXT();
