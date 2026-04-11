@@ -625,9 +625,19 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     };
     const std::string canon_n = normSep(canon);
 
+    // V-GOV-022: Path prefix match with directory boundary validation.
+    // Ensures /data/safe doesn't match /data/safe_malicious.
+    auto pathPrefixMatch = [](const std::string& path, const std::string& prefix) -> bool {
+        if (path.find(prefix) != 0) return false;
+        // Exact match or next char is '/' (directory boundary)
+        return path.size() == prefix.size() ||
+               prefix.back() == '/' ||
+               path[prefix.size()] == '/';
+    };
+
     // Layer 1: Base filesystem blocked_paths (deny wins)
     for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
-        if (canon_n.find(normSep(bp)) == 0) {
+        if (pathPrefixMatch(canon_n, normSep(bp))) {
             return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                 formatError(EnforcementLevel::HARD,
                     "File path blocked by governance: " + filepath,
@@ -643,7 +653,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     if (!rules_.capabilities.filesystem.allowed_paths.empty()) {
         bool base_allowed = false;
         for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
-            if (canon_n.find(normSep(ap)) == 0) {
+            if (pathPrefixMatch(canon_n, normSep(ap))) {
                 base_allowed = true;
                 break;
             }
@@ -665,7 +675,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         if (role.name == agent_id_) {
             // Agent blocked_paths
             for (const auto& bp : role.blocked_paths) {
-                if (canon_n.find(normSep(bp)) == 0) {
+                if (pathPrefixMatch(canon_n, normSep(bp))) {
                     return enforce("agent_role.path", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             "Agent '" + agent_id_ + "' blocked from path: " + filepath,
@@ -680,7 +690,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
             if (!role.allowed_paths.empty()) {
                 bool agent_allowed = false;
                 for (const auto& ap : role.allowed_paths) {
-                    if (canon_n.find(normSep(ap)) == 0) {
+                    if (pathPrefixMatch(canon_n, normSep(ap))) {
                         agent_allowed = true;
                         break;
                     }
@@ -754,7 +764,7 @@ std::string GovernanceEngine::checkCallDepth(size_t current_depth) {
 
 std::string GovernanceEngine::checkArraySize(size_t size) {
     if (rules_.max_array_size > 0 &&
-        static_cast<int>(size) > rules_.max_array_size) {
+        size > static_cast<size_t>(rules_.max_array_size)) {
         return enforce("limits.array_size", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 fmt::format("Array size {} exceeds limit of {}",

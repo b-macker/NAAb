@@ -158,9 +158,12 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         future_val->func_name = func->name;  // BUG-K: for return contract check at await
         auto taint_flag = future_val->return_tainted;  // shared_ptr copy for lifetime safety
 
-        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, parent_counters, taint_flag]() -> NaabVal {
+        // V-CONC-005: Shallow-copy global env to avoid data race on shared map.
+        // Async functions get a snapshot of globals — writes don't propagate back.
+        auto global_copy = global->shallowCopy();
+        auto shared_future = std::async(std::launch::async, [body, func_env, global_copy, func_name, gov_path, parent_taint, parent_counters, taint_flag]() -> NaabVal {
             Interpreter async_interp;
-            async_interp.setGlobalEnv(global);
+            async_interp.setGlobalEnv(global_copy);
 
             // BUG-I fix: Load governance in async interpreter from same config
             if (!gov_path.empty()) {

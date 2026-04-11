@@ -419,6 +419,15 @@ public:
     const std::unordered_map<std::string, NaabVal>& getValues() const { return values_; }
     std::shared_ptr<Environment> getParent() const { return parent_; }
 
+    // V-CONC-005: Shallow copy of this env's values into a new independent env.
+    // Used by async to avoid sharing mutable state across threads.
+    std::shared_ptr<Environment> shallowCopy() const {
+        auto copy = std::make_shared<Environment>();
+        copy->values_ = values_;  // copy the map
+        // Don't copy parent_ — async gets a flat snapshot of globals
+        return copy;
+    }
+
     // Exported structs from this module (Week 7)
     std::unordered_map<std::string, std::shared_ptr<StructDef>> exported_structs_;
 

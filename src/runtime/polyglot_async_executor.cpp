@@ -798,12 +798,23 @@ std::vector<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeParallel(
         throw;
     }
 
-    // Collect results
+    // V-ASYNC-005: Collect results, draining ALL futures even if one throws.
+    // Prevents abandoned tasks from running uncontrolled in the background.
     std::vector<ffi::AsyncCallbackResult> results;
     results.reserve(futures.size());
+    std::exception_ptr first_error;
 
     for (size_t i = 0; i < futures.size(); ++i) {
-        results.push_back(futures[i].get());
+        try {
+            results.push_back(futures[i].get());
+        } catch (...) {
+            if (!first_error) first_error = std::current_exception();
+            // Continue draining remaining futures
+        }
+    }
+
+    if (first_error) {
+        std::rethrow_exception(first_error);
     }
 
     security::AuditLogger::log(
