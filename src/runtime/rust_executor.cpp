@@ -37,14 +37,16 @@ static std::filesystem::path getRustSafeTempDir() {
 // V-RCE-005/V-RCE-006: pre-compilation scanner — reject dangerous Rust compile-time directives.
 // V-RCE-006 adds raw-string bypass coverage (include_str!(r#"/etc/..."#)).
 static bool isRustSourceSafe(const std::string& code, std::string& reason) {
-    // Double-quoted absolute path: include_str!("/etc/...")
-    std::regex abs_include_dq(R"(include_(?:str|bytes)!\s*\(\s*"/)");
+    // V-RCE-009: Match include_str/include_bytes with optional spaces before !,
+    // and any bracket type: (), {}, []. Also handles raw strings.
+    // Double-quoted absolute path
+    std::regex abs_include_dq(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*"/)");
     if (std::regex_search(code, abs_include_dq)) {
         reason = "include_str!/include_bytes! with absolute paths not permitted in polyglot Rust blocks";
         return false;
     }
-    // V-RCE-006: raw-string absolute path: include_str!(r#"/etc/..."#) or r"/etc/..."
-    std::regex abs_include_raw(R"(include_(?:str|bytes)!\s*\(\s*r#*"/)");
+    // Raw-string absolute path: r#"/etc/..."# or r"/etc/..."
+    std::regex abs_include_raw(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*r#*"/)");
     if (std::regex_search(code, abs_include_raw)) {
         reason = "include_str!/include_bytes! with absolute paths (raw string) not permitted in polyglot Rust blocks";
         return false;

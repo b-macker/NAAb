@@ -7,12 +7,31 @@
 #include <fstream>
 #include <sstream>
 #include <thread>
+#include <regex>
 #include <fmt/core.h>
+#include <sys/stat.h>  // V-RCE-010: chmod
 
 namespace naab {
 namespace runtime {
 
 std::atomic<int> NimExecutor::temp_file_counter_(0);
+
+// V-RCE-011: Nim compile-time escape scanner.
+// Nim's staticExec/gorge/gorgeEx run shell commands at compile time;
+// slurp/staticRead read files at compile time.
+static bool isNimSourceSafe(const std::string& code, std::string& reason) {
+    std::regex compile_exec(R"(\b(?:staticExec|gorge|gorgeEx)\s*\()");
+    if (std::regex_search(code, compile_exec)) {
+        reason = "staticExec/gorge/gorgeEx not permitted in polyglot Nim blocks (compile-time shell execution)";
+        return false;
+    }
+    std::regex compile_read(R"(\b(?:slurp|staticRead)\s*\()");
+    if (std::regex_search(code, compile_read)) {
+        reason = "slurp/staticRead not permitted in polyglot Nim blocks (compile-time file read)";
+        return false;
+    }
+    return true;
+}
 
 NimExecutor::NimExecutor() {}
 
@@ -103,14 +122,24 @@ bool NimExecutor::execute(const std::string& code) {
         throw std::runtime_error("Nim execution denied by sandbox");
     }
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_nim_" << thread_id << "_" << counter;
+    // V-RCE-011: Source safety check
+    std::string unsafe_reason;
+    if (!isNimSourceSafe(code, unsafe_reason)) {
+        fmt::print("[ERROR] Nim source rejected: {}\n", unsafe_reason);
+        return false;
+    }
 
-    std::filesystem::path temp_nim = temp_dir / (filename_base.str() + ".nim");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_bin");
+    // V-RCE-010: mkdtemp for secure temp directory
+    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_nim_XXXXXX").string();
+    char* raw_dir = mkdtemp(tmpl.data());
+    if (!raw_dir) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return false;
+    }
+    chmod(raw_dir, 0700);
+    std::filesystem::path compile_dir(raw_dir);
+    std::filesystem::path temp_nim = compile_dir / "src.nim";
+    std::filesystem::path temp_bin = compile_dir / "bin";
 
     try {
         std::string nim_code = wrapNimCode(code, false);
@@ -182,14 +211,22 @@ interpreter::NaabVal NimExecutor::executeWithReturn(
         throw std::runtime_error("Nim execution denied by sandbox");
     }
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_nim_" << thread_id << "_" << counter;
+    // V-RCE-011: Source safety check
+    std::string unsafe_reason2;
+    if (!isNimSourceSafe(code, unsafe_reason2)) {
+        return interpreter::NaabVal::makeString("Error: " + unsafe_reason2);
+    }
 
-    std::filesystem::path temp_nim = temp_dir / (filename_base.str() + "_ret.nim");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_ret_bin");
+    // V-RCE-010: mkdtemp for secure temp directory
+    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_nim_XXXXXX").string();
+    char* raw_dir2 = mkdtemp(tmpl2.data());
+    if (!raw_dir2) {
+        return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
+    }
+    chmod(raw_dir2, 0700);
+    std::filesystem::path compile_dir2(raw_dir2);
+    std::filesystem::path temp_nim = compile_dir2 / "src.nim";
+    std::filesystem::path temp_bin = compile_dir2 / "bin";
 
     try {
         std::string nim_code = wrapNimCode(code, true);

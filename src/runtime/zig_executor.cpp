@@ -6,12 +6,31 @@
 #include <fstream>
 #include <sstream>
 #include <thread>
+#include <regex>
 #include <fmt/core.h>
+#include <sys/stat.h>  // V-RCE-010: chmod
 
 namespace naab {
 namespace runtime {
 
 std::atomic<int> ZigExecutor::temp_file_counter_(0);
+
+// V-RCE-011: Zig compile-time escape scanner.
+// @embedFile reads files at compile time; @import can import system files.
+static bool isZigSourceSafe(const std::string& code, std::string& reason) {
+    std::regex embed_file(R"(@embedFile\s*\()");
+    if (std::regex_search(code, embed_file)) {
+        reason = "@embedFile not permitted in polyglot Zig blocks (compile-time file read)";
+        return false;
+    }
+    // @cImport + @cInclude can pull in system headers
+    std::regex c_import(R"(@cImport\s*\()");
+    if (std::regex_search(code, c_import)) {
+        reason = "@cImport not permitted in polyglot Zig blocks (compile-time C header inclusion)";
+        return false;
+    }
+    return true;
+}
 
 ZigExecutor::ZigExecutor() {}
 
@@ -94,14 +113,24 @@ bool ZigExecutor::execute(const std::string& code) {
         throw std::runtime_error("Zig execution denied by sandbox");
     }
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_zig_" << thread_id << "_" << counter;
+    // V-RCE-011: Source safety check
+    std::string unsafe_reason;
+    if (!isZigSourceSafe(code, unsafe_reason)) {
+        fmt::print("[ERROR] Zig source rejected: {}\n", unsafe_reason);
+        return false;
+    }
 
-    std::filesystem::path temp_zig = temp_dir / (filename_base.str() + ".zig");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_bin");
+    // V-RCE-010: mkdtemp for secure temp directory
+    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_zig_XXXXXX").string();
+    char* raw_dir = mkdtemp(tmpl.data());
+    if (!raw_dir) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return false;
+    }
+    chmod(raw_dir, 0700);
+    std::filesystem::path compile_dir(raw_dir);
+    std::filesystem::path temp_zig = compile_dir / "src.zig";
+    std::filesystem::path temp_bin = compile_dir / "bin";
 
     try {
         std::string zig_code = wrapZigCode(code, false);
@@ -173,14 +202,22 @@ interpreter::NaabVal ZigExecutor::executeWithReturn(
         throw std::runtime_error("Zig execution denied by sandbox");
     }
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_zig_" << thread_id << "_" << counter;
+    // V-RCE-011: Source safety check
+    std::string unsafe_reason2;
+    if (!isZigSourceSafe(code, unsafe_reason2)) {
+        return interpreter::NaabVal::makeString("Error: " + unsafe_reason2);
+    }
 
-    std::filesystem::path temp_zig = temp_dir / (filename_base.str() + "_ret.zig");
-    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_ret_bin");
+    // V-RCE-010: mkdtemp for secure temp directory
+    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_zig_XXXXXX").string();
+    char* raw_dir2 = mkdtemp(tmpl2.data());
+    if (!raw_dir2) {
+        return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
+    }
+    chmod(raw_dir2, 0700);
+    std::filesystem::path compile_dir2(raw_dir2);
+    std::filesystem::path temp_zig = compile_dir2 / "src.zig";
+    std::filesystem::path temp_bin = compile_dir2 / "bin";
 
     try {
         std::string zig_code = wrapZigCode(code, true);

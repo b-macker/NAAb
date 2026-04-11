@@ -376,10 +376,10 @@ public:
                     }
                 }
 
-                // V-DOS-005 (R25): rate limit check — after auth so unauthenticated
-                // requests are rejected before consuming rate tokens.
-                std::string rate_key = req.get_header_value("X-API-Key");
-                if (rate_key.empty()) rate_key = req.remote_addr;
+                // V-DOS-008: Use the authenticated identity for rate limiting,
+                // not the spoofable X-API-Key header. If auth is configured,
+                // use the configured api_key (single identity); otherwise remote_addr.
+                std::string rate_key = api_key.empty() ? req.remote_addr : api_key;
                 if (!checkRateLimit(rate_key)) {
                     res.status = 429;
                     res.set_header("Retry-After", "1");

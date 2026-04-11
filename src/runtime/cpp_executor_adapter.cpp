@@ -116,14 +116,33 @@ std::atomic<int> CppExecutorAdapter::temp_file_counter_(0);
 // V-RCE-006 hardens the original scanner to catch angle-bracket includes and line-splice
 // obfuscation that bypassed the R16 regex.
 static bool isCppSourceSafe(const std::string& code, std::string& reason) {
-    // V-RCE-006: pre-process line continuations so "#inc\<newline>lude" collapses to "#include"
+    // V-RCE-008: Strip CRLF (\r) so line-splicing works for Windows line endings,
+    // then collapse line continuations, then strip C-style block comments.
     std::string processed;
     processed.reserve(code.size());
-    for (size_t i = 0; i < code.size(); i++) {
-        if (code[i] == '\\' && i + 1 < code.size() && code[i + 1] == '\n') {
+    // Step 1: strip \r (CRLF → LF)
+    for (char c : code) {
+        if (c != '\r') processed += c;
+    }
+    // Step 2: collapse line continuations (\<newline>)
+    std::string spliced;
+    spliced.reserve(processed.size());
+    for (size_t i = 0; i < processed.size(); i++) {
+        if (processed[i] == '\\' && i + 1 < processed.size() && processed[i + 1] == '\n') {
             i++;  // drop both the backslash and the newline
         } else {
-            processed += code[i];
+            spliced += processed[i];
+        }
+    }
+    // Step 3: strip C-style block comments (/* ... */)
+    processed.clear();
+    for (size_t i = 0; i < spliced.size(); i++) {
+        if (i + 1 < spliced.size() && spliced[i] == '/' && spliced[i + 1] == '*') {
+            i += 2;
+            while (i + 1 < spliced.size() && !(spliced[i] == '*' && spliced[i + 1] == '/')) i++;
+            if (i + 1 < spliced.size()) i++;  // skip closing */
+        } else {
+            processed += spliced[i];
         }
     }
 

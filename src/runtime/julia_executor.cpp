@@ -7,6 +7,7 @@
 #include <sstream>
 #include <thread>
 #include <fmt/core.h>
+#include <sys/stat.h>  // V-RCE-010: chmod
 
 namespace naab {
 namespace runtime {
@@ -102,13 +103,16 @@ bool JuliaExecutor::execute(const std::string& code) {
         throw std::runtime_error("Julia execution denied by sandbox");
     }
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_julia_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_jl = temp_dir / (filename_base.str() + ".jl");
+    // V-RCE-010: mkdtemp for secure temp directory
+    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_julia_XXXXXX").string();
+    char* raw_dir = mkdtemp(tmpl.data());
+    if (!raw_dir) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return false;
+    }
+    chmod(raw_dir, 0700);
+    std::filesystem::path compile_dir(raw_dir);
+    std::filesystem::path temp_jl = compile_dir / "src.jl";
 
     try {
         std::string julia_code = wrapJuliaCode(code, false);
@@ -161,13 +165,15 @@ interpreter::NaabVal JuliaExecutor::executeWithReturn(
         throw std::runtime_error("Julia execution denied by sandbox");
     }
 
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_julia_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_jl = temp_dir / (filename_base.str() + "_ret.jl");
+    // V-RCE-010: mkdtemp for secure temp directory
+    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_julia_XXXXXX").string();
+    char* raw_dir2 = mkdtemp(tmpl2.data());
+    if (!raw_dir2) {
+        return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
+    }
+    chmod(raw_dir2, 0700);
+    std::filesystem::path compile_dir2(raw_dir2);
+    std::filesystem::path temp_jl = compile_dir2 / "src.jl";
 
     try {
         std::string julia_code = wrapJuliaCode(code, true);

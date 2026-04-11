@@ -6,6 +6,7 @@
 #include <sstream>
 #include <thread>
 #include <fmt/core.h>
+#include <sys/stat.h>  // V-RCE-010: chmod
 
 namespace naab {
 namespace runtime {
@@ -18,15 +19,17 @@ CSharpExecutor::CSharpExecutor() {
 }
 
 bool CSharpExecutor::execute(const std::string& code) {
-    // Create unique temp files for thread-safe parallel execution
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_cs_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_cs = temp_dir / (filename_base.str() + "_src.cs");
-    std::filesystem::path temp_exe = temp_dir / (filename_base.str() + "_bin.exe");
+    // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory
+    std::string tmpl = (std::filesystem::temp_directory_path() / "naab_cs_XXXXXX").string();
+    char* raw_dir = mkdtemp(tmpl.data());
+    if (!raw_dir) {
+        fmt::print("[ERROR] Failed to create secure temp directory\n");
+        return false;
+    }
+    chmod(raw_dir, 0700);
+    std::filesystem::path compile_dir(raw_dir);
+    std::filesystem::path temp_cs = compile_dir / "src.cs";
+    std::filesystem::path temp_exe = compile_dir / "bin.exe";
 
     try {
         // Write code to temp file
@@ -96,15 +99,16 @@ bool CSharpExecutor::execute(const std::string& code) {
 interpreter::NaabVal CSharpExecutor::executeWithReturn(
     const std::string& code) {
 
-    // Create unique temp files for thread-safe parallel execution
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    auto thread_id = std::this_thread::get_id();
-    int counter = temp_file_counter_.fetch_add(1);
-    std::ostringstream filename_base;
-    filename_base << "naab_cs_" << thread_id << "_" << counter;
-
-    std::filesystem::path temp_cs = temp_dir / (filename_base.str() + "_ret_src.cs");
-    std::filesystem::path temp_exe = temp_dir / (filename_base.str() + "_ret_bin.exe");
+    // V-RCE-010: mkdtemp for exclusive, unpredictable temp directory
+    std::string tmpl2 = (std::filesystem::temp_directory_path() / "naab_cs_XXXXXX").string();
+    char* raw_dir2 = mkdtemp(tmpl2.data());
+    if (!raw_dir2) {
+        return interpreter::NaabVal::makeString("Error: Failed to create secure temp directory");
+    }
+    chmod(raw_dir2, 0700);
+    std::filesystem::path compile_dir2(raw_dir2);
+    std::filesystem::path temp_cs = compile_dir2 / "src.cs";
+    std::filesystem::path temp_exe = compile_dir2 / "bin.exe";
 
     try {
         // Phase 2.3: Multi-line support - wrap code if needed
