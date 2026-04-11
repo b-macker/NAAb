@@ -21,6 +21,7 @@
 #    include <openssl/md5.h>
 #    include <openssl/sha.h>
 #    include <openssl/evp.h>
+#    include <openssl/rand.h>
 #    define HAS_OPENSSL
 #  endif
 #endif
@@ -157,14 +158,14 @@ interpreter::NaabVal CryptoModule::call(
             "0123456789"
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz";
+        static constexpr size_t charset_len = sizeof(charset) - 1;
 
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, sizeof(charset) - 2);
-
+        // V-API-005: Use CSPRNG via generate_random_bytes
+        std::string random = generate_random_bytes(length);
         std::string result;
+        result.reserve(length);
         for (int i = 0; i < length; ++i) {
-            result += charset[dis(gen)];
+            result += charset[static_cast<unsigned char>(random[i]) % charset_len];
         }
         return makeString(result);
     }
@@ -195,14 +196,15 @@ interpreter::NaabVal CryptoModule::call(
         std::string a = getString(args[0]);
         std::string b = getString(args[1]);
 
-        if (a.length() != b.length()) {
-            return makeBool(false);
-        }
-
-        // Constant-time comparison
+        // V-API-003: Branchless constant-time comparison — no early return on
+        // length mismatch to prevent length-disclosure timing attacks.
         volatile unsigned char result = 0;
-        for (size_t i = 0; i < a.length(); ++i) {
-            result |= a[i] ^ b[i];
+        size_t len = b.length();
+        result |= static_cast<unsigned char>(a.length() != len);
+        for (size_t i = 0; i < len; i++) {
+            unsigned char ca = (i < a.length()) ? static_cast<unsigned char>(a[i])
+                                                 : static_cast<unsigned char>(b[i]);
+            result |= (ca ^ static_cast<unsigned char>(b[i]));
         }
         return makeBool(result == 0);
     }
@@ -433,15 +435,25 @@ static std::string hex_decode(const std::string& input) {
     return output;
 }
 
+// V-API-005: Use CSPRNG instead of mt19937 for cryptographic randomness
 static std::string generate_random_bytes(size_t length) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 255);
-
-    std::string result;
-    for (size_t i = 0; i < length; ++i) {
-        result += static_cast<char>(dis(gen));
+    std::string result(length, '\0');
+#ifdef HAS_OPENSSL
+    if (RAND_bytes(reinterpret_cast<unsigned char*>(result.data()), static_cast<int>(length)) != 1) {
+        throw std::runtime_error("CSPRNG failure: RAND_bytes failed");
     }
+#else
+    // POSIX fallback: read from /dev/urandom
+    FILE* f = fopen("/dev/urandom", "rb");
+    if (!f) {
+        throw std::runtime_error("CSPRNG failure: cannot open /dev/urandom");
+    }
+    size_t read = fread(result.data(), 1, length, f);
+    fclose(f);
+    if (read != length) {
+        throw std::runtime_error("CSPRNG failure: short read from /dev/urandom");
+    }
+#endif
     return result;
 }
 

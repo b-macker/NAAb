@@ -790,7 +790,9 @@ std::vector<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeParallel(
             const auto& [language, code, args] = blocks[i];
             futures.push_back(executeAsync(language, code, args, timeout));
         }
-    } catch (const std::runtime_error& e) {
+    } catch (...) {
+        // V-ASYNC-006: catch all exceptions (including std::bad_alloc) to ensure
+        // already-submitted futures are drained before rethrowing.
         // Drain already-submitted futures so their tasks are not abandoned
         for (auto& f : futures) {
             try { f.get(); } catch (...) {}

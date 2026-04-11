@@ -20,12 +20,14 @@ std::atomic<int> NimExecutor::temp_file_counter_(0);
 // Nim's staticExec/gorge/gorgeEx run shell commands at compile time;
 // slurp/staticRead read files at compile time.
 static bool isNimSourceSafe(const std::string& code, std::string& reason) {
-    std::regex compile_exec(R"(\b(?:staticExec|gorge|gorgeEx)\s*\()");
+    // V-RCE-012: Match without requiring parentheses — Nim allows
+    // parenthesis-less invocation (command syntax): slurp "/etc/passwd"
+    std::regex compile_exec(R"(\b(?:staticExec|gorge|gorgeEx)\b)");
     if (std::regex_search(code, compile_exec)) {
         reason = "staticExec/gorge/gorgeEx not permitted in polyglot Nim blocks (compile-time shell execution)";
         return false;
     }
-    std::regex compile_read(R"(\b(?:slurp|staticRead)\s*\()");
+    std::regex compile_read(R"(\b(?:slurp|staticRead)\b)");
     if (std::regex_search(code, compile_read)) {
         reason = "slurp/staticRead not permitted in polyglot Nim blocks (compile-time file read)";
         return false;

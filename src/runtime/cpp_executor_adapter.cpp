@@ -164,6 +164,19 @@ static bool isCppSourceSafe(const std::string& code, std::string& reason) {
         reason = "#pragma GCC plugin is not permitted in polyglot C++ blocks";
         return false;
     }
+    // V-RCE-013: Reject macro-based #include evasion.
+    // Block #include with a macro identifier (not a string/angle literal).
+    std::regex macro_include(R"(#\s*include\s+[A-Za-z_][A-Za-z_0-9]*)");
+    if (std::regex_search(processed, macro_include)) {
+        reason = "#include with macro expansion is not permitted in polyglot C++ blocks";
+        return false;
+    }
+    // Block #define whose value contains a path-like include target
+    std::regex define_path(R"(#\s*define\s+\w+\s+[<"]/)");
+    if (std::regex_search(processed, define_path)) {
+        reason = "#define with absolute path value is not permitted in polyglot C++ blocks";
+        return false;
+    }
     return true;
 }
 

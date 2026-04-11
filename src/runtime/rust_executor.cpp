@@ -51,6 +51,14 @@ static bool isRustSourceSafe(const std::string& code, std::string& reason) {
         reason = "include_str!/include_bytes! with absolute paths (raw string) not permitted in polyglot Rust blocks";
         return false;
     }
+    // V-RCE-014: Reject include_str!/include_bytes! with nested macro composition.
+    // If the first token after the bracket is not a string literal (" or r#"),
+    // it's a macro like concat!() — reject it.
+    std::regex include_macro(R"(include_(?:str|bytes)\s*!\s*[\(\{\[]\s*[a-z_])");
+    if (std::regex_search(code, include_macro)) {
+        reason = "include_str!/include_bytes! with macro composition not permitted in polyglot Rust blocks";
+        return false;
+    }
     return true;
 }
 

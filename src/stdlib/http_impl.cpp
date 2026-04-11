@@ -17,11 +17,22 @@ namespace stdlib {
 // HTTP Module Implementation using libcurl
 // ============================================================================
 
-// Callback for writing response data
+// V-DOS-010: Maximum HTTP response size (25 MB)
+static constexpr size_t MAX_HTTP_RESPONSE_BYTES = 25 * 1024 * 1024;
+
+// Bounded write sink — aborts transfer if response exceeds MAX_HTTP_RESPONSE_BYTES
+struct BoundedResponseSink {
+    std::string* buffer;
+    size_t max_size;
+};
+
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t total_size = size * nmemb;
-    std::string* buffer = static_cast<std::string*>(userp);
-    buffer->append(static_cast<char*>(contents), total_size);
+    auto* sink = static_cast<BoundedResponseSink*>(userp);
+    if (sink->buffer->size() + total_size > sink->max_size) {
+        return 0;  // Signal curl to abort (CURLE_WRITE_ERROR)
+    }
+    sink->buffer->append(static_cast<char*>(contents), total_size);
     return total_size;
 }
 
@@ -144,9 +155,10 @@ interpreter::NaabVal performRequest(
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
-    // Set write callback
+    // Set write callback with bounded sink (V-DOS-010)
+    BoundedResponseSink sink{&response_body, MAX_HTTP_RESPONSE_BYTES};
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
 
     // Set header callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
@@ -158,6 +170,11 @@ interpreter::NaabVal performRequest(
     // Follow redirects
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+
+    // V-SSRF-001: Restrict protocols to http/https only — prevents redirect-based
+    // SSRF to file://, gopher://, dict://, etc.
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
 
     // SSL/TLS settings
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);

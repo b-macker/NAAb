@@ -130,8 +130,15 @@ interpreter::NaabVal jsonToValue(const json& j) {
     return interpreter::NaabVal::makeNull();
 }
 
-// Helper: Convert NaabVal to nlohmann::json
-json valueToJson(const interpreter::NaabVal& val) {
+// V-DOS-009: Maximum JSON serialization depth
+static constexpr int MAX_JSON_DEPTH = 64;
+
+// Helper: Convert NaabVal to nlohmann::json with depth + cycle guards
+json valueToJson(const interpreter::NaabVal& val, int depth = 0,
+                 std::unordered_set<const void*>* visited = nullptr) {
+    if (depth > MAX_JSON_DEPTH) {
+        throw std::runtime_error("json.stringify(): maximum nesting depth exceeded (64)");
+    }
     if (val.isNull()) {
         return nullptr;
     } else if (val.isInt()) {
@@ -143,16 +150,31 @@ json valueToJson(const interpreter::NaabVal& val) {
     } else if (val.isString()) {
         return val.asString();
     } else if (val.isList()) {
+        // Cycle detection for containers
+        const void* ptr = val.toLegacy().get();
+        std::unordered_set<const void*> local_visited;
+        if (!visited) visited = &local_visited;
+        if (ptr && !visited->insert(ptr).second) {
+            throw std::runtime_error("json.stringify(): circular reference detected");
+        }
         json arr = json::array();
         for (const auto& item : val.asListConst()) {
-            arr.push_back(valueToJson(item));
+            arr.push_back(valueToJson(item, depth + 1, visited));
         }
+        if (ptr) visited->erase(ptr);
         return arr;
     } else if (val.isDict()) {
+        const void* ptr = val.toLegacy().get();
+        std::unordered_set<const void*> local_visited;
+        if (!visited) visited = &local_visited;
+        if (ptr && !visited->insert(ptr).second) {
+            throw std::runtime_error("json.stringify(): circular reference detected");
+        }
         json obj = json::object();
         for (const auto& [key, value] : val.asDictConst()) {
-            obj[key] = valueToJson(value);
+            obj[key] = valueToJson(value, depth + 1, visited);
         }
+        if (ptr) visited->erase(ptr);
         return obj;
     } else if (val.isStructVal()) {
         json obj = json::object();
@@ -163,7 +185,7 @@ json valueToJson(const interpreter::NaabVal& val) {
             for (size_t i = 0; i < fields.size() && i < values.size(); ++i) {
                 const std::string& field_name = fields[i].name;
                 if (!values[i].isNull()) {
-                    obj[field_name] = valueToJson(values[i]);
+                    obj[field_name] = valueToJson(values[i], depth + 1, visited);
                 } else {
                     obj[field_name] = nullptr;
                 }
@@ -184,6 +206,20 @@ interpreter::NaabVal JSONModule::parse(
     std::string json_str = args[0].toString();
 
     try {
+        // V-DOS-009: depth guard before parse to prevent stack overflow DoS
+        {
+            int depth = 0;
+            bool in_string = false, escape_next = false;
+            for (unsigned char c : json_str) {
+                if (escape_next) { escape_next = false; continue; }
+                if (c == '\\' && in_string) { escape_next = true; continue; }
+                if (c == '"') { in_string = !in_string; continue; }
+                if (!in_string) {
+                    if (c == '{' || c == '[') { if (++depth > 128) throw std::runtime_error("json.parse(): maximum nesting depth exceeded"); }
+                    else if (c == '}' || c == ']') { if (depth > 0) --depth; }
+                }
+            }
+        }
         // Parse JSON using nlohmann/json
         json j = json::parse(json_str);
 
