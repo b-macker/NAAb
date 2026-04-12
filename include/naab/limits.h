@@ -69,6 +69,16 @@ public:
         : std::runtime_error(msg) {}
 };
 
+// V-DOS-014: Thrown by process.exit() instead of calling std::exit() directly.
+// CLI mode catches this and calls _exit(code); embedded/server mode treats it
+// as a normal exception, preventing host process termination.
+class ExitException : public std::runtime_error {
+public:
+    int exit_code;
+    explicit ExitException(int code)
+        : std::runtime_error("process.exit(" + std::to_string(code) + ")"), exit_code(code) {}
+};
+
 // ============================================================================
 // Validation Functions
 // ============================================================================

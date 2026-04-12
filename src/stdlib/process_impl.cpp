@@ -8,6 +8,7 @@
 #include "naab/subprocess_helpers.h"
 #include "naab/sandbox.h"
 #include "naab/platform.h"
+#include "naab/limits.h"
 #include <unordered_set>
 #include <unordered_map>
 #include <stdexcept>
@@ -90,8 +91,10 @@ interpreter::NaabVal ProcessModule::call(
                 code = static_cast<int>(args[0].asDouble());
             }
         }
-        std::exit(code);
-        // NOTREACHED
+        // V-DOS-014: Throw ExitException instead of calling std::exit() directly.
+        // CLI mode catches this and calls _exit(code); embedded/server mode
+        // treats it as a normal exception, preventing host process termination.
+        throw naab::limits::ExitException(code);
     }
 
     if (function_name == "kill") {

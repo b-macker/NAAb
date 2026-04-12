@@ -43,6 +43,7 @@
 #include "naab/logger.h"
 #include "naab/sandbox.h"
 #include "naab/resource_limits.h"
+#include "naab/limits.h"
 #include "naab/stdlib.h"  // For setPipeMode()
 #include "naab/governance.h"  // For governance report CLI flags
 #include "naab/scanner.h"    // For --scan command
@@ -1528,6 +1529,11 @@ int main(int argc, char** argv) {
             fflush(stderr);
             _exit(0);
 
+        } catch (const naab::limits::ExitException& e) {
+            // V-DOS-014: process.exit() throws ExitException instead of std::exit()
+            fflush(stdout);
+            fflush(stderr);
+            _exit(e.exit_code);
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it
             // V-ERR-002: sanitize before displaying to prevent sensitive data leakage

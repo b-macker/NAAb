@@ -220,6 +220,9 @@ public:
     std::shared_ptr<vm::VMClosure>& asVMClosure();
     const std::shared_ptr<vm::VMClosure>& asVMClosureConst() const;
 
+    // V-CONC-006: Deep copy for thread isolation — recursively duplicates containers
+    NaabVal deepCopy(int depth = 0) const;
+
     // ========================================================================
     // Conversion methods (match Value API)
     // ========================================================================

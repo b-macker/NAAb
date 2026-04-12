@@ -177,6 +177,13 @@ json valueToJson(const interpreter::NaabVal& val, int depth = 0,
         if (ptr) visited->erase(ptr);
         return obj;
     } else if (val.isStructVal()) {
+        // V-DOS-013: Cycle detection for structs (mirrors List/Dict pattern)
+        const void* ptr = val.toLegacy().get();
+        std::unordered_set<const void*> local_visited;
+        if (!visited) visited = &local_visited;
+        if (ptr && !visited->insert(ptr).second) {
+            throw std::runtime_error("json.stringify(): circular reference detected");
+        }
         json obj = json::object();
         auto& sv = val.asStructConst();
         if (sv && sv->definition) {
@@ -191,6 +198,7 @@ json valueToJson(const interpreter::NaabVal& val, int depth = 0,
                 }
             }
         }
+        if (ptr) visited->erase(ptr);
         return obj;
     }
     return "<unsupported>";

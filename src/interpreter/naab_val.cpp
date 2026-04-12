@@ -273,6 +273,48 @@ const std::shared_ptr<vm::VMClosure>& NaabVal::asVMClosureConst() const {
 }
 
 // ============================================================================
+// V-CONC-006: Deep copy for async thread isolation
+// ============================================================================
+
+NaabVal NaabVal::deepCopy(int depth) const {
+    if (depth > 64) return *this;  // Prevent stack overflow on cyclic refs
+    if (isNull() || isBool() || isInt() || isDouble() || isString()) {
+        return *this;  // Scalars are value types or immutable — safe to share
+    }
+    if (isList()) {
+        std::vector<NaabVal> new_list;
+        new_list.reserve(asListConst().size());
+        for (const auto& item : asListConst()) {
+            new_list.push_back(item.deepCopy(depth + 1));
+        }
+        return makeList(std::move(new_list));
+    }
+    if (isDict()) {
+        std::unordered_map<std::string, NaabVal> new_dict;
+        for (const auto& [k, v] : asDictConst()) {
+            new_dict[k] = v.deepCopy(depth + 1);
+        }
+        return makeDict(std::move(new_dict));
+    }
+    if (isStructVal()) {
+        auto& sv = asStructConst();
+        if (sv && sv->definition) {
+            auto new_sv = std::make_shared<StructValue>();
+            new_sv->definition = sv->definition;  // Share definition (immutable)
+            new_sv->field_values.reserve(sv->field_values.size());
+            for (const auto& fv : sv->field_values) {
+                new_sv->field_values.push_back(fv.deepCopy(depth + 1));
+            }
+            NaabVal result;
+            result = fromLegacy(std::make_shared<Value>(new_sv));
+            return result;
+        }
+    }
+    // Functions, closures, futures, etc. — share by reference (immutable or thread-local)
+    return *this;
+}
+
+// ============================================================================
 // Conversion methods
 // ============================================================================
 

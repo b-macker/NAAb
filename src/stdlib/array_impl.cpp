@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <memory>
+#include "naab/limits.h"
 #include <sstream>
 
 namespace naab {
@@ -80,6 +81,8 @@ interpreter::NaabVal ArrayModule::call(
             throw std::runtime_error(
                 "Type error: Expected array, got " + args[0].getTypeName());
         }
+        // V-GOV-023: enforce array size limits on native push
+        limits::checkArraySize(args[0].asList().size() + 1);
         args[0].asList().push_back(args[1]);
         return args[0];
     }
@@ -163,6 +166,8 @@ interpreter::NaabVal ArrayModule::call(
             throw std::runtime_error(
                 "Type error: Expected array, got " + args[0].getTypeName());
         }
+        // V-GOV-023: enforce array size limits on native unshift
+        limits::checkArraySize(args[0].asList().size() + 1);
         args[0].asList().insert(args[0].asList().begin(), args[1]);
         return args[0];
     }
@@ -439,12 +444,28 @@ interpreter::NaabVal ArrayModule::call(
 
         if (args.size() == 2 && evaluator_) {
             // Sort with comparator function
+            // V-UB-001: Wrap in try/catch to prevent UB from exceptions mid-sort,
+            // and validate return type to maintain strict weak ordering.
             auto comp_fn = args[1];
+            bool sort_error = false;
             std::sort(arr.begin(), arr.end(),
-                [this, &comp_fn](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
-                    auto res = evaluator_(comp_fn, {a, b});
-                    return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                [this, &comp_fn, &sort_error](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                    if (sort_error) return false;  // Consistent ordering after error
+                    try {
+                        auto res = evaluator_(comp_fn, {a, b});
+                        if (res.isInt()) return res.asInt() < 0;
+                        if (res.isDouble()) return res.asDouble() < 0;
+                        sort_error = true;
+                        return false;
+                    } catch (...) {
+                        sort_error = true;
+                        return false;
+                    }
                 });
+            if (sort_error) {
+                throw std::runtime_error(
+                    "array.sort() comparator must return a number (negative, zero, or positive)");
+            }
         } else {
             // Default sort using value comparison
             std::sort(arr.begin(), arr.end(),

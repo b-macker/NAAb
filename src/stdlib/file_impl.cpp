@@ -327,6 +327,10 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "write");
+        // V-RCE-020: Resolve symlinks to prevent sandbox escape via directory creation
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "write");
+        path = safe_path;
         bool recursive = true;  // Default to recursive for convenience
 
         if (args.size() == 2) {

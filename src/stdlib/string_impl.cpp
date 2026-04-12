@@ -13,6 +13,9 @@
 #include <sstream>
 #include <unordered_set>
 
+// V-DOS-011: Maximum string result size (64 MB)
+static constexpr size_t MAX_STRING_RESULT_BYTES = 64 * 1024 * 1024;
+
 namespace naab {
 namespace stdlib {
 
@@ -232,8 +235,14 @@ interpreter::NaabVal StringModule::call(
         }
         if (count == 0) return makeString("");
 
+        // V-DOS-011: Bound allocation size
+        size_t result_size = s.length() * static_cast<size_t>(count);
+        if (result_size > MAX_STRING_RESULT_BYTES) {
+            throw std::runtime_error("repeat() result exceeds maximum string size (64 MB)");
+        }
+
         std::string result;
-        result.reserve(s.length() * count);
+        result.reserve(result_size);
         for (int i = 0; i < count; ++i) {
             result += s;
         }
@@ -255,6 +264,10 @@ interpreter::NaabVal StringModule::call(
             }
         }
         if (static_cast<int>(s.length()) >= width) return makeString(s);
+        // V-DOS-011: Bound allocation size
+        if (static_cast<size_t>(width) > MAX_STRING_RESULT_BYTES) {
+            throw std::runtime_error("pad_right() width exceeds maximum string size (64 MB)");
+        }
         s.append(width - s.length(), fill[0]);
         return makeString(s);
     }
@@ -274,6 +287,10 @@ interpreter::NaabVal StringModule::call(
             }
         }
         if (static_cast<int>(s.length()) >= width) return makeString(s);
+        // V-DOS-011: Bound allocation size
+        if (static_cast<size_t>(width) > MAX_STRING_RESULT_BYTES) {
+            throw std::runtime_error("pad_left() width exceeds maximum string size (64 MB)");
+        }
         return makeString(std::string(width - s.length(), fill[0]) + s);
     }
 

@@ -350,8 +350,14 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
                                    EnforcementLevel level) {
     std::string cat = rule_name.substr(0, rule_name.find('.'));
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
+    // V-CONC-007: mutex-guard concurrent access from async threads
+    std::lock_guard<std::mutex> lock(results_mutex_);
     check_results_.push_back({rule_name, level, true, "", cat, "",
                               current_check_line_, current_check_file_, cwes, owasps});
+    // V-GOV-024: cap telemetry to prevent unbounded memory growth
+    if (check_results_.size() > MAX_CHECK_RESULTS) {
+        check_results_.erase(check_results_.begin());
+    }
 }
 
 std::string GovernanceEngine::enforce(
@@ -364,8 +370,16 @@ std::string GovernanceEngine::enforce(
     std::string sev = (level == EnforcementLevel::HARD) ? "critical" :
                       (level == EnforcementLevel::SOFT) ? "high" : "medium";
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
-    check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
-                              current_check_line_, current_check_file_, cwes, owasps});
+    {
+        // V-CONC-007: mutex-guard concurrent access from async threads
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
+                                  current_check_line_, current_check_file_, cwes, owasps});
+        // V-GOV-024: cap telemetry
+        if (check_results_.size() > MAX_CHECK_RESULTS) {
+            check_results_.erase(check_results_.begin());
+        }
+    }
 
     // Audit mode: never block, just log
     if (rules_.mode == GovernanceMode::AUDIT) {

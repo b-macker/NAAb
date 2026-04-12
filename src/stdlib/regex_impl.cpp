@@ -138,16 +138,26 @@ interpreter::NaabVal RegexModule::call(
         std::string text = getString(args[0]);
         std::string pattern = getString(args[1]);
 
+        // V-DOS-012: Use SafeRegex for ReDoS protection
         try {
-            std::regex re(pattern);
+            auto& safe_regex = regex_safety::getGlobalSafeRegex();
             std::vector<std::string> parts;
-            std::sregex_token_iterator begin(text.begin(), text.end(), re, -1);
-            std::sregex_token_iterator end;
-
-            for (auto it = begin; it != end; ++it) {
-                parts.push_back(it->str());
+            std::string remaining = text;
+            std::smatch match;
+            while (safe_regex.safeSearch(remaining, pattern, match)) {
+                parts.push_back(match.prefix().str());
+                remaining = match.suffix().str();
+                if (match[0].length() == 0) {
+                    // Zero-length match: take one char to avoid infinite loop
+                    if (!remaining.empty()) {
+                        parts.push_back(remaining.substr(0, 1));
+                        remaining = remaining.substr(1);
+                    } else {
+                        break;
+                    }
+                }
             }
-
+            parts.push_back(remaining);
             return makeStringArray(parts);
         } catch (const std::regex_error& e) {
             throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
@@ -162,10 +172,11 @@ interpreter::NaabVal RegexModule::call(
         std::string text = getString(args[0]);
         std::string pattern = getString(args[1]);
 
+        // V-DOS-012: Use SafeRegex for ReDoS protection
         try {
-            std::regex re(pattern);
+            auto& safe_regex = regex_safety::getGlobalSafeRegex();
             std::smatch match;
-            if (std::regex_search(text, match, re)) {
+            if (safe_regex.safeSearch(text, pattern, match)) {
                 std::vector<std::string> groups;
                 for (size_t i = 0; i < match.size(); ++i) {
                     groups.push_back(match[i].str());
@@ -186,20 +197,25 @@ interpreter::NaabVal RegexModule::call(
         std::string text = getString(args[0]);
         std::string pattern = getString(args[1]);
 
+        // V-DOS-012: Use SafeRegex for ReDoS protection
         try {
-            std::regex re(pattern);
+            auto& safe_regex = regex_safety::getGlobalSafeRegex();
             std::vector<interpreter::NaabVal> all_groups;
-            auto begin = std::sregex_iterator(text.begin(), text.end(), re);
-            auto end = std::sregex_iterator();
-
-            for (std::sregex_iterator i = begin; i != end; ++i) {
+            std::string remaining = text;
+            std::smatch match;
+            while (safe_regex.safeSearch(remaining, pattern, match)) {
                 std::vector<std::string> groups;
-                for (size_t j = 0; j < i->size(); ++j) {
-                    groups.push_back((*i)[j].str());
+                for (size_t j = 0; j < match.size(); ++j) {
+                    groups.push_back(match[j].str());
                 }
                 all_groups.push_back(makeStringArray(groups));
+                if (match[0].length() == 0) {
+                    if (!remaining.empty()) remaining = remaining.substr(1);
+                    else break;
+                } else {
+                    remaining = match.suffix().str();
+                }
             }
-
             return makeArray(all_groups);
         } catch (const std::regex_error& e) {
             throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
@@ -232,10 +248,14 @@ interpreter::NaabVal RegexModule::call(
         }
         std::string pattern = getString(args[0]);
 
+        // V-DOS-012: Use SafeRegex analyzePattern for ReDoS check + syntax validation
         try {
-            std::regex re(pattern);
+            auto& safe_regex = regex_safety::getGlobalSafeRegex();
+            safe_regex.analyzePattern(pattern);
+            std::regex re(pattern);  // Validate syntax
+            (void)re;
             return makeBool(true);
-        } catch (const std::regex_error&) {
+        } catch (...) {
             return makeBool(false);
         }
     }
@@ -247,9 +267,10 @@ interpreter::NaabVal RegexModule::call(
         }
         std::string pattern = getString(args[0]);
 
+        // V-DOS-012: Use SafeRegex analyzePattern for ReDoS protection
         try {
-            std::regex re(pattern);
-            // In C++, we can't return a compiled regex object, so return the pattern string
+            auto& safe_regex = regex_safety::getGlobalSafeRegex();
+            safe_regex.analyzePattern(pattern);
             return makeString(pattern);
         } catch (const std::regex_error& e) {
             throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));

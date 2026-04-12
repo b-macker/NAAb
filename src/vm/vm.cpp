@@ -2716,7 +2716,11 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             auto module_resolver_ptr = module_resolver_;
             auto governance_ptr = governance_;
             std::string file = fn->source_file;
-            auto globals_copy = globals_;  // copy globals for async VM
+            // V-CONC-006: Deep-copy globals to isolate async thread from shared containers
+            std::unordered_map<std::string, interpreter::NaabVal> globals_copy;
+            for (auto& [k, v] : globals_) {
+                globals_copy[k] = v.deepCopy();
+            }
 
             auto future_val = std::make_shared<interpreter::FutureValue>();
             future_val->description = "async fn " + fn->name;
