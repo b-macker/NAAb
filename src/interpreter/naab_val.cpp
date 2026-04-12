@@ -276,42 +276,72 @@ const std::shared_ptr<vm::VMClosure>& NaabVal::asVMClosureConst() const {
 // V-CONC-006: Deep copy for async thread isolation
 // ============================================================================
 
-NaabVal NaabVal::deepCopy(int depth) const {
-    if (depth > 64) return *this;  // Prevent stack overflow on cyclic refs
+NaabVal NaabVal::deepCopy(int depth, std::unordered_set<const void*>* visited) const {
+    if (depth > 64) {
+        throw std::runtime_error(
+            "Async error: nested structure exceeds maximum depth (64)\n\n"
+            "  The value being copied for async execution is nested more than 64 levels deep.\n\n"
+            "  Help:\n"
+            "  - Flatten the structure before passing it to an async block\n"
+            "  - Extract only the data you need at a shallow depth\n"
+        );
+    }
     if (isNull() || isBool() || isInt() || isDouble() || isString()) {
         return *this;  // Scalars are value types or immutable — safe to share
     }
+
+    // V-CONC-006: Cycle detection via visited pointer set
+    std::unordered_set<const void*> local_visited;
+    if (!visited) visited = &local_visited;
+    const void* ptr = static_cast<const void*>(asHeap());
+    if (ptr && !visited->insert(ptr).second) {
+        throw std::runtime_error(
+            "Async error: circular reference detected during value copy\n\n"
+            "  A container references itself, which cannot be safely copied for async execution.\n"
+            "  Async tasks require independent copies of all captured data.\n\n"
+            "  Help:\n"
+            "  - Break the cycle before passing data to an async block\n"
+            "  - Copy only the fields you need into a flat structure\n\n"
+            "  Example:\n"
+            "    ✗ Wrong: let a = []; a.push(a); async { use a }\n"
+            "    ✓ Right: let a = [1, 2, 3]; async { use a }\n"
+        );
+    }
+
+    NaabVal copy_result;
     if (isList()) {
         std::vector<NaabVal> new_list;
         new_list.reserve(asListConst().size());
         for (const auto& item : asListConst()) {
-            new_list.push_back(item.deepCopy(depth + 1));
+            new_list.push_back(item.deepCopy(depth + 1, visited));
         }
-        return makeList(std::move(new_list));
-    }
-    if (isDict()) {
+        copy_result = makeList(std::move(new_list));
+    } else if (isDict()) {
         std::unordered_map<std::string, NaabVal> new_dict;
         for (const auto& [k, v] : asDictConst()) {
-            new_dict[k] = v.deepCopy(depth + 1);
+            new_dict[k] = v.deepCopy(depth + 1, visited);
         }
-        return makeDict(std::move(new_dict));
-    }
-    if (isStructVal()) {
+        copy_result = makeDict(std::move(new_dict));
+    } else if (isStructVal()) {
         auto& sv = asStructConst();
         if (sv && sv->definition) {
             auto new_sv = std::make_shared<StructValue>();
             new_sv->definition = sv->definition;  // Share definition (immutable)
             new_sv->field_values.reserve(sv->field_values.size());
             for (const auto& fv : sv->field_values) {
-                new_sv->field_values.push_back(fv.deepCopy(depth + 1));
+                new_sv->field_values.push_back(fv.deepCopy(depth + 1, visited));
             }
-            NaabVal result;
-            result = fromLegacy(std::make_shared<Value>(new_sv));
-            return result;
+            copy_result = fromLegacy(std::make_shared<Value>(new_sv));
+        } else {
+            copy_result = *this;
         }
+    } else {
+        // Functions, closures, futures, etc. — share by reference (immutable or thread-local)
+        copy_result = *this;
     }
-    // Functions, closures, futures, etc. — share by reference (immutable or thread-local)
-    return *this;
+
+    if (ptr) visited->erase(ptr);  // Allow same object in different branches
+    return copy_result;
 }
 
 // ============================================================================

@@ -1917,7 +1917,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 }
 
 // Phase 2.2: Serialize a value for injection into target language
-std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::string& language, int depth) {
+std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::string& language, int depth, std::unordered_set<const void*>* visited) {
     // V-VM-002: prevent unbounded recursion on deeply-nested structures
     if (depth > 64) {
         throw std::runtime_error(
@@ -1926,6 +1926,11 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             "  Flatten the structure before passing it to a polyglot block.\n"
         );
     }
+
+    // V-DOS-015: Cycle detection for container types
+    std::unordered_set<const void*> local_visited;
+    if (!visited) visited = &local_visited;
+
     if (nval.isNull()) {
         // Null/void — language-specific null literals
         if (language == "python") return "None";
@@ -1996,13 +2001,28 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
     // List - language-specific array serialization
     if (nval.isList()) {
         const auto& list = nval.asListConst();
+        // V-DOS-015: Track list pointer for cycle detection
+        const void* list_ptr = static_cast<const void*>(&list);
+        if (!visited->insert(list_ptr).second) {
+            throw std::runtime_error(
+                "Serialization error: circular reference detected in polyglot binding\n\n"
+                "  A container (list or dict) references itself, creating an infinite loop.\n"
+                "  Polyglot blocks cannot serialize cyclic structures.\n\n"
+                "  Help:\n"
+                "  - Break the cycle before passing data to a polyglot block\n"
+                "  - Copy the relevant fields into a new, non-cyclic structure\n\n"
+                "  Example:\n"
+                "    ✗ Wrong: let a = []; a.push(a)  // self-referencing\n"
+                "    ✓ Right: let a = [1, 2, 3]      // flat structure\n"
+            );
+        }
 
         // PHP: array() syntax
         if (language == "php") {
             std::string result = "array(";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language, depth + 1);
+                result += serializeValueForLanguage(list[i], language, depth + 1, visited);
             }
             result += ")";
             return result;
@@ -2013,7 +2033,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "vec![";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language, depth + 1);
+                result += serializeValueForLanguage(list[i], language, depth + 1, visited);
             }
             result += "]";
             return result;
@@ -2024,7 +2044,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "[]interface{}{";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language, depth + 1);
+                result += serializeValueForLanguage(list[i], language, depth + 1, visited);
             }
             result += "}";
             return result;
@@ -2035,7 +2055,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "new System.Collections.Generic.List<object>{";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language, depth + 1);
+                result += serializeValueForLanguage(list[i], language, depth + 1, visited);
             }
             result += "}";
             return result;
@@ -2048,7 +2068,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
                 // Serialize all as strings for simplicity
-                auto elem_str = serializeValueForLanguage(list[i], language, depth + 1);
+                auto elem_str = serializeValueForLanguage(list[i], language, depth + 1, visited);
                 result += elem_str;
             }
             result += "}";
@@ -2060,7 +2080,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "@[";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language, depth + 1);
+                result += serializeValueForLanguage(list[i], language, depth + 1, visited);
             }
             result += "]";
             return result;
@@ -2070,7 +2090,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
         std::string result = "[";
         for (size_t i = 0; i < list.size(); i++) {
             if (i > 0) result += ", ";
-            result += serializeValueForLanguage(list[i], language, depth + 1);
+            result += serializeValueForLanguage(list[i], language, depth + 1, visited);
         }
         result += "]";
         return result;
@@ -2079,6 +2099,21 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
     // Dict - language-specific serialization
     if (nval.isDict()) {
         const auto& dict = nval.asDictConst();
+        // V-DOS-015: Track dict pointer for cycle detection
+        const void* dict_ptr = static_cast<const void*>(&dict);
+        if (!visited->insert(dict_ptr).second) {
+            throw std::runtime_error(
+                "Serialization error: circular reference detected in polyglot binding\n\n"
+                "  A container (list or dict) references itself, creating an infinite loop.\n"
+                "  Polyglot blocks cannot serialize cyclic structures.\n\n"
+                "  Help:\n"
+                "  - Break the cycle before passing data to a polyglot block\n"
+                "  - Copy the relevant fields into a new, non-cyclic structure\n\n"
+                "  Example:\n"
+                "    ✗ Wrong: let a = []; a.push(a)  // self-referencing\n"
+                "    ✓ Right: let a = [1, 2, 3]      // flat structure\n"
+            );
+        }
 
         // FIX-2: Helper to escape dict keys (prevents broken/injectable code in target languages)
         auto escapeKey = [](const std::string& k) -> std::string {
@@ -2101,7 +2136,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language, depth + 1);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language, depth + 1, visited);
             }
             result += "}";
             return result;
@@ -2114,7 +2149,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language, depth + 1);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language, depth + 1, visited);
             }
             result += ")";
             return result;
@@ -2127,7 +2162,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language, depth + 1);
+                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language, depth + 1, visited);
             }
             result += "}";
             return result;
@@ -2176,7 +2211,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
         for (const auto& [key, val] : dict) {
             if (!first) result += ", ";
             first = false;
-            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language, depth + 1);
+            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language, depth + 1, visited);
         }
         result += "}";
         return result;
@@ -2191,7 +2226,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             if (!first) result += ", ";
             first = false;
             const auto& field = struct_val->definition->fields[i];
-            result += "\"" + field.name + "\": " + serializeValueForLanguage(struct_val->field_values[i], language, depth + 1);
+            result += "\"" + field.name + "\": " + serializeValueForLanguage(struct_val->field_values[i], language, depth + 1, visited);
         }
         result += "}";
         return result;

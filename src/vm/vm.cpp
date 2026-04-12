@@ -15,6 +15,7 @@
 #include "naab/js_executor_adapter.h"
 #include "naab/cpp_executor_adapter.h"
 #include "naab/resource_limits.h"
+#include "naab/limits.h"
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -1678,6 +1679,8 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_LIST): {
                 int count = static_cast<int>(arg);
+                // V-GOV-023: Enforce governance array size limit on literal lists
+                naab::limits::checkArraySize(count);
                 // Taint: list is tainted if ANY element is tainted
                 bool list_taint = false;
                 if (governance_) {
@@ -1699,6 +1702,8 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_DICT): {
                 int count = static_cast<int>(arg);
+                // V-GOV-023: Enforce governance array size limit on literal dicts
+                naab::limits::checkArraySize(count);
                 // Taint: dict is tainted if ANY value is tainted
                 bool dict_taint = false;
                 if (governance_) {
@@ -2096,6 +2101,8 @@ interpreter::NaabVal VM::run() {
                     runtimeError("OP_STRUCT_NEW: expected struct definition dict");
                 }
                 auto& src = def.asDictConst();
+                // V-GOV-023: Enforce governance array size limit on struct creation
+                naab::limits::checkArraySize(src.size());
                 std::unordered_map<std::string, interpreter::NaabVal> instance(src.begin(), src.end());
                 push(interpreter::NaabVal::makeDict(std::move(instance)));
             }

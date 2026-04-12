@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace naab {
@@ -221,7 +222,7 @@ public:
     const std::shared_ptr<vm::VMClosure>& asVMClosureConst() const;
 
     // V-CONC-006: Deep copy for thread isolation — recursively duplicates containers
-    NaabVal deepCopy(int depth = 0) const;
+    NaabVal deepCopy(int depth = 0, std::unordered_set<const void*>* visited = nullptr) const;
 
     // ========================================================================
     // Conversion methods (match Value API)

@@ -715,7 +715,7 @@ private:
     void defineBuiltins();
     std::shared_ptr<Environment> loadAndExecuteModule(const std::string& module_path);  // Phase 3.1
     NaabVal copyValue(NaabVal value);  // Phase 2.1: Deep copy for value parameters
-    std::string serializeValueForLanguage(NaabVal value, const std::string& language, int depth = 0);  // Phase 2.2: Serialize value for target language
+    std::string serializeValueForLanguage(NaabVal value, const std::string& language, int depth = 0, std::unordered_set<const void*>* visited = nullptr);  // Phase 2.2: Serialize value for target language
 
     // File context management for relative imports
     void pushFileContext(const std::filesystem::path& file_path);
