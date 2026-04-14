@@ -564,6 +564,19 @@ std::vector<Token> Lexer::tokenize() {
 
             std::string language = readIdentifier();
 
+            // Check for common mistake: parentheses instead of brackets for binding
+            if (currentChar() && *currentChar() == '(') {
+                throw std::runtime_error(
+                    "Polyglot variable binding uses square brackets, not parentheses at line " + std::to_string(line_) + "\n\n"
+                    "  \xE2\x9C\x97 Wrong: <<" + language + "(data)\n"
+                    "  \xE2\x9C\x93 Right: <<" + language + "[data]\n\n"
+                    "  Multiple variables:\n"
+                    "    <<" + language + "[var1, var2] -> JSON\n"
+                    "    # code using var1 and var2\n"
+                    "    >>\n"
+                );
+            }
+
             // Phase 2.2: Check for optional variable binding list [var1, var2]
             std::string var_list;
             if (currentChar() && *currentChar() == '[') {

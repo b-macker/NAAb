@@ -17,9 +17,10 @@ fn testWrongSyntax() {
     let x = 10
     let y = 20
 
-    // ISSUE 2: Wrong variable list syntax
-    // Should suggest: <<python[x, y] ...>>
-    let result = <<python(x, y)
+    // ISSUE 2: Wrong variable list syntax — now caught at lex time
+    // <<python(x, y) gives clear error: "use square brackets, not parentheses"
+    // Using correct syntax here since the old wrong syntax is now a lex error
+    let result = <<python[x, y]
     x + y
     >>
 }

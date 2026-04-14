@@ -2948,6 +2948,29 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                "    ✗ Wrong: if a || b { ... }\n"
                "    ✓ Right: if a or b { ... }\n";
     }
+    // Check if this is -> JSON placed after >> (common LLM mistake)
+    else if (tok.type == lexer::TokenType::ARROW) {
+        if (pos_ > 0 && pos_ < tokens_.size()) {
+            bool near_block = false;
+            for (size_t back = 1; back <= 3 && back <= pos_; back++) {
+                if (tokens_[pos_ - back].type == lexer::TokenType::INLINE_CODE) {
+                    near_block = true;
+                    break;
+                }
+            }
+            if (near_block) {
+                hint = "\n\n  The '-> JSON' bridge must be in the block header, not after '>>'.\n\n"
+                       "  \xE2\x9C\x97 Wrong:\n"
+                       "    <<python[data]\n"
+                       "    print(json.dumps(result))\n"
+                       "    >> -> JSON\n\n"
+                       "  \xE2\x9C\x93 Right:\n"
+                       "    <<python[data] -> JSON\n"
+                       "    print(json.dumps(result))\n"
+                       "    >>\n";
+            }
+        }
+    }
     // FIX 28: Check if this could be orphaned code after premature >> block close
     else if (tok.type == lexer::TokenType::NUMBER || tok.type == lexer::TokenType::IDENTIFIER) {
         // Check if there's a >> nearby that might have closed a polyglot block early

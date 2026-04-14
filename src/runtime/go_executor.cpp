@@ -33,6 +33,11 @@ std::string GoExecutor::wrapGoCode(const std::string& code, bool for_return) {
         return code;
     }
 
+    // If code has func main(), user wrote their own structure — just prepend package main
+    if (code.find("func main()") != std::string::npos) {
+        return "package main\n" + code;
+    }
+
     std::vector<std::string> lines;
     std::istringstream stream(code);
     std::string line;
@@ -40,10 +45,31 @@ std::string GoExecutor::wrapGoCode(const std::string& code, bool for_return) {
         lines.push_back(line);
     }
 
+    // Build grouped import block based on packages used in code
+    std::string imports = "import (\n\t\"fmt\"\n";
+    if (code.find("time.") != std::string::npos) imports += "\t\"time\"\n";
+    if (code.find("strings.") != std::string::npos) imports += "\t\"strings\"\n";
+    if (code.find("strconv.") != std::string::npos) imports += "\t\"strconv\"\n";
+    if (code.find("math.") != std::string::npos || code.find("math/") != std::string::npos) imports += "\t\"math\"\n";
+    if (code.find("json.") != std::string::npos) imports += "\t\"encoding/json\"\n";
+    if (code.find("sha256.") != std::string::npos) imports += "\t\"crypto/sha256\"\n";
+    if (code.find("hex.") != std::string::npos) imports += "\t\"encoding/hex\"\n";
+    if (code.find("regexp.") != std::string::npos) imports += "\t\"regexp\"\n";
+    if (code.find("sort.") != std::string::npos) imports += "\t\"sort\"\n";
+    imports += ")\n";
+
+    // Helper: check if a line is a user import statement (skip when wrapping)
+    auto isImportLine = [](const std::string& l) -> bool {
+        auto pos = l.find_first_not_of(" \t");
+        if (pos == std::string::npos) return false;
+        return l.substr(pos, 7) == "import ";
+    };
+
     if (!for_return) {
         // For execute(): wrap in package main + func main
-        std::string wrapped = "package main\nimport \"fmt\"\nfunc main() {\n\t_ = fmt.Sprintf(\"\")\n";
+        std::string wrapped = "package main\n" + imports + "func main() {\n\t_ = fmt.Sprintf(\"\")\n";
         for (const auto& l : lines) {
+            if (isImportLine(l)) continue;  // Skip user imports — already auto-added
             wrapped += "\t" + l + "\n";
         }
         wrapped += "}\n";
@@ -69,11 +95,11 @@ std::string GoExecutor::wrapGoCode(const std::string& code, bool for_return) {
         if (s != std::string::npos) {
             expr = expr.substr(s);
         }
-        return "package main\nimport \"fmt\"\nfunc main() {\n\tfmt.Println(" + expr + ")\n}\n";
+        return "package main\n" + imports + "func main() {\n\tfmt.Println(" + expr + ")\n}\n";
     }
 
     // Multi-line: wrap in main, print last expression
-    std::string wrapped = "package main\nimport \"fmt\"\nfunc main() {\n";
+    std::string wrapped = "package main\n" + imports + "func main() {\n";
     for (size_t i = 0; i < lines.size(); i++) {
         if (static_cast<int>(i) == last_line_idx) {
             std::string trimmed = lines[i];
@@ -83,6 +109,7 @@ std::string GoExecutor::wrapGoCode(const std::string& code, bool for_return) {
                 wrapped += "\tfmt.Println(" + trimmed + ")\n";
             }
         } else {
+            if (isImportLine(lines[i])) continue;  // Skip user imports
             wrapped += "\t" + lines[i] + "\n";
         }
     }
