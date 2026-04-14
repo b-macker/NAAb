@@ -345,6 +345,26 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         (language == "go" || language == "php" ||
          language == "typescript" || language == "ts")) {
         final_code = injectDeclarationsAfterHeaders(var_declarations, code, language);
+    } else if (!var_declarations.empty() && language == "rust") {
+        // Rust: let statements must be inside fn main(), not at module scope.
+        // If user code has fn main(), inject after its opening brace.
+        // Otherwise, the executor will wrap in fn main() and vars will be inside.
+        auto main_pos = code.find("fn main()");
+        if (main_pos == std::string::npos) main_pos = code.find("fn main (");
+        if (main_pos != std::string::npos) {
+            // Find the opening { after fn main()
+            auto brace_pos = code.find('{', main_pos);
+            if (brace_pos != std::string::npos) {
+                final_code = code.substr(0, brace_pos + 1) + "\n" +
+                             var_declarations +
+                             code.substr(brace_pos + 1);
+            } else {
+                final_code = var_declarations + code;
+            }
+        } else {
+            // No fn main() — executor will wrap; prepend is fine (will end up inside fn main)
+            final_code = var_declarations + code;
+        }
     } else {
         final_code = var_declarations + code;
     }
