@@ -499,17 +499,15 @@ interpreter::NaabVal ArrayModule::call(
         return makeBool(false);
     }
 
-    // Common LLM mistakes: map/filter/reduce without _fn suffix
-    if (function_name == "map" || function_name == "filter" || function_name == "reduce") {
-        std::string correct = function_name + "_fn";
-        throw std::runtime_error(
-            "Unknown array function: " + function_name + "\n\n"
-            "  Help: NAAb uses '" + correct + "' instead of '" + function_name + "'.\n"
-            "  Higher-order array functions require the _fn suffix.\n\n"
-            "  Example:\n"
-            "    fn double(x: int) -> int { return x * 2 }\n"
-            "    let doubled = array." + correct + "([1, 2, 3], double)\n"
-        );
+    // Aliases: map/filter/reduce -> map_fn/filter_fn/reduce_fn
+    if (function_name == "map") {
+        return call("map_fn", args);
+    }
+    if (function_name == "filter") {
+        return call("filter_fn", args);
+    }
+    if (function_name == "reduce") {
+        return call("reduce_fn", args);
     }
 
     if (function_name == "append" || function_name == "add") {

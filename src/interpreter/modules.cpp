@@ -13,6 +13,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/struct_registry.h"
 #include <fmt/core.h>
+#include <unordered_map>
 #include <filesystem>
 
 namespace naab {
@@ -73,10 +74,36 @@ void Interpreter::visit(ast::UseStatement& node) {
             return;
         }
     } else {
-        fmt::print("[ERROR] Block not found: {}\n", node.getBlockId());
-        fmt::print("[ERROR] Checked BlockRegistry ({} blocks) and BlockLoader (unavailable)\n",
-                   block_registry.blockCount());
-        return;
+        std::string error_msg = fmt::format("Module not found: {}", node.getBlockId());
+
+        // Check if it's close to a stdlib module name
+        static const std::vector<std::string> stdlib_names = {
+            "io", "json", "string", "array", "math", "file", "http",
+            "time", "regex", "crypto", "csv", "env", "collections",
+            "log", "uuid", "validate", "process"
+        };
+        for (const auto& sn : stdlib_names) {
+            if (module_name == sn) {
+                error_msg += fmt::format("\n\n  Did you mean the built-in '{}' module?\n"
+                    "    use {}    // stdlib", sn, sn);
+                break;
+            }
+        }
+
+        // Check common aliases from other languages
+        static const std::unordered_map<std::string, std::string> module_aliases = {
+            {"fs", "file"}, {"os", "env"}, {"re", "regex"},
+            {"console", "io"}, {"path", "file"}, {"sys", "env"},
+            {"random", "math"}, {"datetime", "time"}, {"net", "http"},
+        };
+        auto alias_it = module_aliases.find(module_name);
+        if (alias_it != module_aliases.end()) {
+            error_msg += fmt::format("\n\n  Did you mean: use {}\n"
+                "  NAAb's '{}' module provides this functionality.",
+                alias_it->second, alias_it->second);
+        }
+
+        throw std::runtime_error(error_msg);
     }
 
     try {
@@ -476,6 +503,20 @@ void Interpreter::visit(ast::ImportStmt& node) {
                 break;
             }
         }
+
+        // Check common aliases from other languages
+        static const std::unordered_map<std::string, std::string> module_aliases = {
+            {"fs", "file"}, {"os", "env"}, {"re", "regex"},
+            {"console", "io"}, {"path", "file"}, {"sys", "env"},
+            {"random", "math"}, {"datetime", "time"}, {"net", "http"},
+        };
+        auto alias_it = module_aliases.find(bare_name);
+        if (alias_it != module_aliases.end()) {
+            error_msg += fmt::format("\n\n  Did you mean: use {}\n"
+                "  NAAb's '{}' module provides this functionality.",
+                alias_it->second, alias_it->second);
+        }
+
         throw std::runtime_error(error_msg);
     }
 

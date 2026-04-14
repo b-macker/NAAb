@@ -796,7 +796,17 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
         auto& path_token = current();
         module_path = path_token.value;
         advance();
-        expect(lexer::TokenType::AS, "Expected 'as' after module path");
+        if (!match(lexer::TokenType::AS)) {
+            auto& tok = current();
+            throw ParseError(formatError(
+                "Expected 'as' after module path.\n\n"
+                "  NAAb has two import styles:\n"
+                "    use file              // built-in modules (preferred)\n"
+                "    import \"./path\" as mod  // file imports require 'as'\n\n"
+                "  Built-in modules: math, string, array, file, json, io,\n"
+                "    env, time, regex, crypto, log, uuid, validate, process\n",
+                tok));
+        }
         wildcard_alias = parseAliasName();
         is_wildcard = true;  // Import whole module as single name
     }
@@ -1148,7 +1158,13 @@ std::unique_ptr<ast::StructDecl> Parser::parseStructDecl() {
     skipNewlines();
     while (!match(lexer::TokenType::RBRACE)) {
         auto& field_name_token = expect(lexer::TokenType::IDENTIFIER, "Expected field name");
-        expect(lexer::TokenType::COLON, "Expected ':' after field name");
+        if (!match(lexer::TokenType::COLON)) {
+            auto& tok = current();
+            throw ParseError(formatError(
+                "Expected ':' after field name in struct.\n\n"
+                "  Example: struct Point { x: int, y: int }\n",
+                tok));
+        }
 
         auto field_type = parseType();
 
@@ -1693,7 +1709,13 @@ std::unique_ptr<ast::TryStmt> Parser::parseTryStmt() {
     auto try_body = parseCompoundStmt();
 
     skipNewlines();
-    expect(lexer::TokenType::CATCH, "Expected 'catch' after try block");
+    if (!match(lexer::TokenType::CATCH)) {
+        auto& tok = current();
+        throw ParseError(formatError(
+            "Expected 'catch' after try block.\n\n"
+            "  Example: try { riskyCode() } catch (e) { print(e) }\n",
+            tok));
+    }
 
     // Parse catch (error_name) { ... }
     // Check for common mistake: catch e instead of catch (e)
@@ -3144,7 +3166,13 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
             guard = parseLogicalOr();
         }
 
-        expect(lexer::TokenType::FAT_ARROW, "Expected '=>' after match pattern");
+        if (!match(lexer::TokenType::FAT_ARROW)) {
+            auto& tok = current();
+            std::string hint = "Expected '=>' after match pattern.\n\n"
+                "  Match arms use '=>', not ':' or '->'.\n"
+                "  Example: match x { 1 => \"one\", _ => \"other\" }\n";
+            throw ParseError(formatError(hint, tok));
+        }
         skipNewlines();
 
         // HELPER: throw-in-match-arm detection

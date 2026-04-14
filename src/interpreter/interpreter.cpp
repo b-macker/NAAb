@@ -427,6 +427,14 @@ NaabVal Environment::get(const std::string& name) {
     } else if (name == "append" || name == "extend") {
         error_msg += "\n\n  NAAb arrays use push() instead of '" + name + "':\n"
                      "    my_array.push(item)\n";
+    } else if (name == "spawn" || name == "task") {
+        error_msg += "\n\n  NAAb uses 'async function' for concurrent tasks:\n"
+                     "    async function myTask() { ... }\n"
+                     "    let future = myTask()\n"
+                     "    let result = await future\n";
+    } else if (name == "wait" || name == "wait_all" || name == "waitAll") {
+        error_msg += "\n\n  NAAb uses 'await' keyword, not wait()/wait_all():\n"
+                     "    let result = await future\n";
     } else if (name == "format" || name == "sprintf" || name == "printf") {
         error_msg += "\n\n  NAAb uses string concatenation with + operator:\n"
                      "    let msg = \"Hello \" + name + \"!\"\n"

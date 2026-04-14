@@ -103,6 +103,10 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
         if (!ResourceLimiter::posix_timer_cancel_.load(std::memory_order_relaxed)) {
+            // Set global_shutdown_ first so isTimeoutTriggered() returns true
+            // even if the signal is not delivered immediately (e.g. tight loops
+            // on Android/Termux where SIGALRM may stay pending).
+            ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
             pthread_kill(tid, SIGALRM);
         }
     }).detach();

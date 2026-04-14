@@ -2479,6 +2479,18 @@ interpreter::NaabVal VM::run() {
 
                 auto resolved = module_resolver_->resolve(module_path, current_dir);
                 if (!resolved) {
+                    // Check common aliases from other languages
+                    static const std::unordered_map<std::string, std::string> module_aliases = {
+                        {"fs", "file"}, {"os", "env"}, {"re", "regex"},
+                        {"console", "io"}, {"path", "file"}, {"sys", "env"},
+                        {"random", "math"}, {"datetime", "time"}, {"net", "http"},
+                    };
+                    auto alias_it = module_aliases.find(bare_name);
+                    if (alias_it != module_aliases.end()) {
+                        runtimeError("Module not found: %s\n\n  Did you mean: use %s\n"
+                            "  NAAb's '%s' module provides this functionality.",
+                            module_path.c_str(), alias_it->second.c_str(), alias_it->second.c_str());
+                    }
                     runtimeError("Module not found: %s", module_path.c_str());
                 }
 
@@ -3651,6 +3663,16 @@ std::string VM::getVariableHelper(const std::string& name) const {
     if (name == "append" || name == "extend") {
         return "\n  NAAb arrays use push() instead of '" + name + "':\n"
                "    my_array.push(item)\n";
+    }
+    if (name == "spawn" || name == "task") {
+        return "\n  NAAb uses 'async function' for concurrent tasks:\n"
+               "    async function myTask() { ... }\n"
+               "    let future = myTask()\n"
+               "    let result = await future\n";
+    }
+    if (name == "wait" || name == "wait_all" || name == "waitAll") {
+        return "\n  NAAb uses 'await' keyword, not wait()/wait_all():\n"
+               "    let result = await future\n";
     }
     if (name == "format" || name == "sprintf" || name == "printf") {
         return "\n  NAAb uses string concatenation with + operator:\n"
