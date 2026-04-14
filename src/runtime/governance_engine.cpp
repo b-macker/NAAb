@@ -639,6 +639,17 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     };
     const std::string canon_n = normSep(canon);
 
+    // V-GOV-025: Canonicalize config paths the same way as the filepath.
+    // Without this, relative paths like "./output" in govern.json won't match
+    // the canonicalized absolute filepath, causing false rejections.
+    auto canonAndNorm = [&normSep](const std::string& p) -> std::string {
+        try {
+            return normSep(std::filesystem::weakly_canonical(p).string());
+        } catch (...) {
+            return normSep(p);
+        }
+    };
+
     // V-GOV-022: Path prefix match with directory boundary validation.
     // Ensures /data/safe doesn't match /data/safe_malicious.
     auto pathPrefixMatch = [](const std::string& path, const std::string& prefix) -> bool {
@@ -651,7 +662,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
 
     // Layer 1: Base filesystem blocked_paths (deny wins)
     for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
-        if (pathPrefixMatch(canon_n, normSep(bp))) {
+        if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
             return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                 formatError(EnforcementLevel::HARD,
                     "File path blocked by governance: " + filepath,
@@ -667,16 +678,22 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     if (!rules_.capabilities.filesystem.allowed_paths.empty()) {
         bool base_allowed = false;
         for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
-            if (pathPrefixMatch(canon_n, normSep(ap))) {
+            if (pathPrefixMatch(canon_n, canonAndNorm(ap))) {
                 base_allowed = true;
                 break;
             }
         }
         if (!base_allowed) {
+            // V-GOV-025: Show resolved paths to help diagnose mismatches
+            std::string resolved_list;
+            for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
+                if (!resolved_list.empty()) resolved_list += ", ";
+                resolved_list += canonAndNorm(ap);
+            }
             return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                 formatError(EnforcementLevel::HARD,
                     "File path not in allowed paths: " + filepath,
-                    "",
+                    "Resolved to: " + canon_n + "\n  Allowed (resolved): " + resolved_list,
                     "capabilities.filesystem.allowed_paths does not match",
                     "Only paths matching the allowed list are accessible",
                     "file." + mode + "(\"" + filepath + "\", ...)",
@@ -689,7 +706,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         if (role.name == agent_id_) {
             // Agent blocked_paths
             for (const auto& bp : role.blocked_paths) {
-                if (pathPrefixMatch(canon_n, normSep(bp))) {
+                if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
                     return enforce("agent_role.path", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             "Agent '" + agent_id_ + "' blocked from path: " + filepath,
@@ -704,7 +721,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
             if (!role.allowed_paths.empty()) {
                 bool agent_allowed = false;
                 for (const auto& ap : role.allowed_paths) {
-                    if (pathPrefixMatch(canon_n, normSep(ap))) {
+                    if (pathPrefixMatch(canon_n, canonAndNorm(ap))) {
                         agent_allowed = true;
                         break;
                     }

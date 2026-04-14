@@ -784,10 +784,10 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             bool has_valid_result = json_parsed || (!result_.isNull() && !result_.isString());
             if (!has_valid_result) {
                 std::ostringstream oss;
-                oss << "Block contract violation: <<" << language << " -> JSON>> expected a JSON return value, "
-                    << "but no valid JSON was found in stdout.\n\n"
-                    << "  The '-> JSON' header means the block MUST output valid JSON.\n"
-                    << "  The last printed line must be a JSON string — not a bare value.\n\n"
+                oss << "Block contract violation: <<" << language << " -> JSON>> expected JSON output on stdout, "
+                    << "but no valid JSON was found.\n\n"
+                    << "  The '-> JSON' header means the block MUST print valid JSON to stdout.\n"
+                    << "  The last printed line must be a JSON string — not a bare value or return.\n\n"
                     << "  Common mistakes:\n"
                     << "  - Printing a bare number/string without JSON formatting\n"
                     << "  - Using 'return' instead of 'print' (polyglot uses stdout, not return)\n"
@@ -1707,10 +1707,10 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 bool has_valid_result = par_json_parsed;
                 if (!has_valid_result) {
                     std::ostringstream oss;
-                    oss << "Block contract violation: <<" << lang_str << " -> JSON>> expected a JSON return value, "
-                        << "but no valid JSON was found in stdout.\n\n"
-                        << "  The '-> JSON' header means the block MUST output valid JSON.\n"
-                        << "  The last printed line must be a JSON string.\n\n";
+                    oss << "Block contract violation: <<" << lang_str << " -> JSON>> expected JSON output on stdout, "
+                        << "but no valid JSON was found.\n\n"
+                        << "  The '-> JSON' header means the block MUST print valid JSON to stdout.\n"
+                        << "  The last printed line must be a JSON string — not a bare value or return.\n\n";
                     if (lang_str == "python") {
                         oss << "  \xE2\x9C\x93 Right:\n"
                             << "    <<python -> JSON\n"

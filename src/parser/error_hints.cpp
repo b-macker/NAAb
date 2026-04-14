@@ -88,9 +88,19 @@ bool ErrorHints::looksLikeUnquotedDictKey(const ParserContext& ctx) {
 }
 
 bool ErrorHints::looksLikeJavaScriptImport(const ParserContext& ctx) {
-    // Pattern: "import" keyword (instead of "use")
-    if (ctx.current_token) {
-        return ctx.current_token->value == "import";
+    // V-GOV-025: Only fire for JS-style patterns (import IDENTIFIER from "...").
+    // Don't fire for valid NAAb: import "path" as name / import * / import { ... }
+    if (ctx.current_token && ctx.current_token->value == "import") {
+        if (ctx.next_token) {
+            // Valid NAAb import starts with STRING, STAR, or LBRACE after 'import'
+            auto nt = ctx.next_token->type;
+            if (nt == lexer::TokenType::STRING ||
+                nt == lexer::TokenType::STAR ||
+                nt == lexer::TokenType::LBRACE) {
+                return false;  // Valid NAAb import syntax
+            }
+            return true;  // Bare identifier after import = JS-style
+        }
     }
     return false;
 }
@@ -180,14 +190,18 @@ std::vector<std::string> ErrorHints::hintForReservedKeyword(const std::string& n
 std::vector<std::string> ErrorHints::hintForIncorrectImport(const ParserContext& ctx) {
     (void)ctx;  // Unused parameter
     return {
-        "NAAb uses 'use' for imports, not 'import'.",
+        "NAAb supports two import styles:",
         "",
-        "Did you mean:",
-        "    use io  // ✅ For stdlib",
-        "    use my_module as mod  // ✅ For custom modules",
+        "  For file modules:",
+        "    import \"./path.naab\" as mod",
+        "    import * as utils from \"./utils.naab\"",
         "",
-        "Instead of:",
-        "    import io from \"std\"  // ❌ Not JavaScript!",
+        "  For stdlib modules:",
+        "    use math",
+        "    use io",
+        "",
+        "  JavaScript-style imports don't work:",
+        "    import React from \"react\"  // not supported",
     };
 }
 
