@@ -2783,10 +2783,20 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
     // Built-in functions stored as "__builtin__:name" marker strings
     if (callee.isString() && callee.asString().substr(0, 12) == "__builtin__:") {
         std::string name = callee.asString().substr(12);
-        // Check arg taint for sanitizer detection
+        // Check arg taint for sanitizer detection and sink enforcement
         bool any_arg_tainted = false;
         for (int i = 0; i < argc; i++) {
             if (peekTaint(i)) { any_arg_tainted = true; break; }
+        }
+        // Taint sink check for print/println — governance may list "print" as a sink
+        if (any_arg_tainted && governance_ && governance_->isActive() &&
+            (name == "print" || name == "println")) {
+            auto& cf = frames_[frame_count_-1];
+            int gov_line = cf.function->chunk.getLine(
+                static_cast<int>(cf.ip - cf.function->chunk.code.data()));
+            std::string terr = governance_->checkTaintedSink(
+                "(print-arg)", "print", current_file_, gov_line);
+            if (!terr.empty()) runtimeError("%s", terr.c_str());
         }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
         interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);

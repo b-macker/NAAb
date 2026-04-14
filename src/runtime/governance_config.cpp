@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 1-1727
 
 #include "naab/governance.h"
+#include "naab/limits.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
 #include "naab/analyzer/task_pattern_detector.h"
@@ -529,6 +530,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (d.contains("dict_size")) rules_.limits.data.dict_size = d["dict_size"].get<int>();
             if (d.contains("string_length")) rules_.limits.data.string_length = d["string_length"].get<int>();
             if (d.contains("nesting_depth")) rules_.limits.data.nesting_depth = d["nesting_depth"].get<int>();
+            if (d.contains("max_json_depth")) {
+                int jd = d["max_json_depth"].get<int>();
+                rules_.limits.data.nesting_depth = jd;  // alias: max_json_depth -> nesting_depth
+                naab::limits::setMaxJsonDepth(jd);
+            }
             if (d.contains("output_size")) rules_.limits.data.output_size = d["output_size"].get<int>();
         }
         if (lim.contains("code") && lim["code"].is_object()) {

@@ -1608,6 +1608,17 @@ std::unique_ptr<ast::ForStmt> Parser::parseForStmt() {
     if (isAllowedNameToken(var_tok.type)) {
         var = var_tok.value;
         advance();
+    } else if (var_tok.type == lexer::TokenType::LET ||
+               var_tok.value == "var" || var_tok.value == "int" ||
+               var_tok.value == "const" || var_tok.value == "auto") {
+        throw ParseError(formatError(
+            "NAAb uses Python-style for loops, not C/JavaScript-style.\n\n"
+            "  \xE2\x9C\x97 Wrong:  for (let i = 0; i < 10; i++)\n"
+            "  \xE2\x9C\x93 Right:  for i in range(0, 10) { ... }\n\n"
+            "  More examples:\n"
+            "    for item in array { ... }\n"
+            "    for (i, item) in array { ... }  // with index\n",
+            var_tok));
     } else {
         throw ParseError(formatError(
             formatUnexpectedNameError(var_tok, "loop variable"),

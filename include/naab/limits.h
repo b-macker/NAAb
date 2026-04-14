@@ -53,6 +53,14 @@ constexpr size_t MAX_DICT_SIZE = 1000000;  // 1 million entries
 // Maximum string length
 constexpr size_t MAX_STRING_LENGTH = 100 * 1024 * 1024;  // 100MB
 
+// Maximum JSON nesting depth (default 64, overridden by governance max_json_depth)
+inline int& getMaxJsonDepth() {
+    static int depth = 64;
+    return depth;
+}
+
+inline void setMaxJsonDepth(int d) { if (d > 0) getMaxJsonDepth() = d; }
+
 // ============================================================================
 // Exception Types
 // ============================================================================

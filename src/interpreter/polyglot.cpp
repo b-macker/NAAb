@@ -1114,7 +1114,13 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "  Common causes:\n"
                 << "  - Missing colons after if/for/def/class\n"
                 << "  - Unclosed parentheses or brackets\n"
-                << "  - Python 3 syntax required (print is a function)\n\n";
+                << "  - Python 3 syntax required (print is a function)\n";
+            // Check if user wrapped code in curly braces (common LLM mistake)
+            auto first_non_ws = final_code.find_first_not_of(" \t\n");
+            if (first_non_ws != std::string::npos && final_code[first_non_ws] == '{') {
+                oss << "  - Don't wrap polyglot code in { }. Code between << and >> is sent directly to Python.\n";
+            }
+            oss << "\n";
             if (!return_type.empty() && (error_msg.find("does not match") != std::string::npos ||
                 error_msg.find("unexpected") != std::string::npos)) {
                 oss << "  Tip: With -> JSON, multi-line expressions can cause issues.\n"

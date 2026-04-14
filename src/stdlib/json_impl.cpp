@@ -3,6 +3,7 @@
 
 #include "naab/stdlib.h"
 #include "naab/interpreter.h"
+#include "naab/limits.h"
 #include "naab/utils/string_utils.h"
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
@@ -131,13 +132,16 @@ interpreter::NaabVal jsonToValue(const json& j) {
 }
 
 // V-DOS-009: Maximum JSON serialization depth
-static constexpr int MAX_JSON_DEPTH = 64;
+// Default depth 64, overridden by governance max_json_depth via limits::setMaxJsonDepth()
+static constexpr int DEFAULT_JSON_DEPTH = 64;
 
 // Helper: Convert NaabVal to nlohmann::json with depth + cycle guards
 json valueToJson(const interpreter::NaabVal& val, int depth = 0,
                  std::unordered_set<const void*>* visited = nullptr) {
-    if (depth > MAX_JSON_DEPTH) {
-        throw std::runtime_error("json.stringify(): maximum nesting depth exceeded (64)");
+    int max_depth = naab::limits::getMaxJsonDepth();
+    if (depth > max_depth) {
+        throw std::runtime_error(fmt::format(
+            "json.stringify(): maximum nesting depth exceeded ({})", max_depth));
     }
     if (val.isNull()) {
         return nullptr;
@@ -223,7 +227,7 @@ interpreter::NaabVal JSONModule::parse(
                 if (c == '\\' && in_string) { escape_next = true; continue; }
                 if (c == '"') { in_string = !in_string; continue; }
                 if (!in_string) {
-                    if (c == '{' || c == '[') { if (++depth > 128) throw std::runtime_error("json.parse(): maximum nesting depth exceeded"); }
+                    if (c == '{' || c == '[') { int md = naab::limits::getMaxJsonDepth(); if (++depth > md * 2) throw std::runtime_error(fmt::format("json.parse(): maximum nesting depth exceeded ({})", md * 2)); }
                     else if (c == '}' || c == ']') { if (depth > 0) --depth; }
                 }
             }

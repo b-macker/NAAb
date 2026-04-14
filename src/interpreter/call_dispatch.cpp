@@ -2528,6 +2528,15 @@ void Interpreter::visit(ast::CallExpr& node) {
 
     // Built-in functions
     if (func_name == "print") {
+        // Taint sink check — governance may list "print" as a sink
+        if (governance_ && governance_->isActive()) {
+            for (size_t i = 0; i < node.getArgs().size(); ++i) {
+                std::string terr = checkExpressionTaintedSink(
+                    node.getArgs()[i].get(), "print",
+                    current_file_, node.getLocation().line);
+                if (!terr.empty()) throw std::runtime_error(terr);
+            }
+        }
         for (size_t i = 0; i < args.size(); i++) {
             if (i > 0) std::cout << " ";
             std::cout << args[i].toString();
