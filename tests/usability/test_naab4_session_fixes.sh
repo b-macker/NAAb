@@ -45,5 +45,27 @@ grep -q '"mkdir"' "$SRC/stdlib/file_impl.cpp"
 check $? "file.mkdir() alias exists"
 
 echo ""
+echo "--- Cross-session generalizations ---"
+
+# T6: Go variable injection — detects func main() for brace injection
+grep -q 'language == "go"' "$SRC/interpreter/polyglot.cpp" && \
+grep -A5 'language == "go"' "$SRC/interpreter/polyglot.cpp" | grep -q 'func main()'
+check $? "Go var injection detects func main()"
+
+# T7: C++ variable injection — detects int main( for brace injection
+grep -q 'language == "cpp"' "$SRC/interpreter/polyglot.cpp" && \
+grep -A5 'language == "cpp"' "$SRC/interpreter/polyglot.cpp" | grep -q 'int main('
+check $? "C++ var injection detects int main("
+
+# T8: Parser -> FORMAT hint is dynamic (not hardcoded JSON)
+grep -q 'fmt = "FORMAT"' "$SRC/parser/parser.cpp"
+check $? "Parser -> hint uses dynamic format name"
+
+# T9: No more 'is the return value' in polyglot help messages
+COUNT=$(grep -c 'is the return value' "$SRC/interpreter/polyglot.cpp")
+[ "$COUNT" -eq 0 ]
+check $? "No 'is the return value' in polyglot error messages (found: $COUNT)"
+
+echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $FAIL

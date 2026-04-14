@@ -342,7 +342,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     // Phase 2.2/12: Inject variable declarations with header awareness
     std::string final_code;
     if (!var_declarations.empty() &&
-        (language == "go" || language == "php" ||
+        (language == "php" ||
          language == "typescript" || language == "ts")) {
         final_code = injectDeclarationsAfterHeaders(var_declarations, code, language);
     } else if (!var_declarations.empty() && language == "rust") {
@@ -363,6 +363,44 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             }
         } else {
             // No fn main() — executor will wrap; prepend is fine (will end up inside fn main)
+            final_code = var_declarations + code;
+        }
+    } else if (!var_declarations.empty() && language == "go") {
+        // Go: var declarations must be inside func main(), not at package scope.
+        // injectDeclarationsAfterHeaders puts them after imports but outside func main().
+        // If user code has func main(), inject after its opening brace instead.
+        auto main_pos = code.find("func main()");
+        if (main_pos == std::string::npos) main_pos = code.find("func main (");
+        if (main_pos != std::string::npos) {
+            auto brace_pos = code.find('{', main_pos);
+            if (brace_pos != std::string::npos) {
+                final_code = code.substr(0, brace_pos + 1) + "\n" +
+                             var_declarations +
+                             code.substr(brace_pos + 1);
+            } else {
+                final_code = injectDeclarationsAfterHeaders(var_declarations, code, language);
+            }
+        } else {
+            // No func main() — Go executor will wrap; use header-aware injection
+            final_code = injectDeclarationsAfterHeaders(var_declarations, code, language);
+        }
+    } else if (!var_declarations.empty() &&
+               (language == "cpp" || language == "c++" || language == "c")) {
+        // C/C++: const auto declarations must be inside main(), not at file scope.
+        // If user code has int main(, inject after its opening brace.
+        auto main_pos = code.find("int main(");
+        if (main_pos == std::string::npos) main_pos = code.find("int main (");
+        if (main_pos != std::string::npos) {
+            auto brace_pos = code.find('{', main_pos);
+            if (brace_pos != std::string::npos) {
+                final_code = code.substr(0, brace_pos + 1) + "\n" +
+                             var_declarations +
+                             code.substr(brace_pos + 1);
+            } else {
+                final_code = var_declarations + code;
+            }
+        } else {
+            // No int main() — C++ executor will wrap; prepend is fine
             final_code = var_declarations + code;
         }
     } else {
@@ -1086,11 +1124,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     << "    json.dumps(result)\n"
                     << "    >>\n";
             } else {
-                oss << "  Tip: The last expression in the block is the return value.\n"
-                    << "  For multi-line blocks, put the result on the last line:\n"
+                oss << "  Tip: The block captures stdout output as its result.\n"
+                    << "  For multi-line blocks, print the result on the last line:\n"
                     << "    let r = <<python\n"
                     << "    x = compute()\n"
-                    << "    x  # this value is returned to NAAb\n"
+                    << "    print(x)  # stdout output is captured by NAAb\n"
                     << "    >>\n";
             }
         }
@@ -1140,7 +1178,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "  For multi-line blocks:\n"
                 << "    let x = <<javascript\n"
                 << "    let result = someComputation();\n"
-                << "    result   // last expression is the return value\n"
+                << "    console.log(result)   // stdout output is captured by NAAb\n"
                 << "    >>\n";
         }
         // TypeScript syntax errors (tsx/tsc)
@@ -1908,7 +1946,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
             else if (lang_str == "python" && error_msg.find("SyntaxError") != std::string::npos) {
                 oss << "\n  Help: Python syntax error. Check colons, brackets, and Python 3 syntax.\n"
-                    << "  The last expression in the block is the return value.\n";
+                    << "  Print output to stdout — NAAb captures stdout as the block result.\n";
             }
             else if (error_msg.find("ModuleNotFoundError") != std::string::npos ||
                      error_msg.find("ImportError") != std::string::npos) {

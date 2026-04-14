@@ -2959,13 +2959,18 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                 }
             }
             if (near_block) {
-                hint = "\n\n  The '-> JSON' bridge must be in the block header, not after '>>'.\n\n"
+                // Peek at next token to show the actual format name (JSON, CSV, XML, etc.)
+                std::string fmt = "FORMAT";
+                if (pos_ + 1 < tokens_.size() && tokens_[pos_ + 1].type == lexer::TokenType::IDENTIFIER) {
+                    fmt = tokens_[pos_ + 1].value;
+                }
+                hint = "\n\n  The '-> " + fmt + "' bridge must be in the block header, not after '>>'.\n\n"
                        "  \xE2\x9C\x97 Wrong:\n"
                        "    <<python[data]\n"
                        "    print(json.dumps(result))\n"
-                       "    >> -> JSON\n\n"
+                       "    >> -> " + fmt + "\n\n"
                        "  \xE2\x9C\x93 Right:\n"
-                       "    <<python[data] -> JSON\n"
+                       "    <<python[data] -> " + fmt + "\n"
                        "    print(json.dumps(result))\n"
                        "    >>\n";
             }
