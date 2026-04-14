@@ -1681,6 +1681,10 @@ interpreter::NaabVal VM::run() {
                 int count = static_cast<int>(arg);
                 // V-GOV-023: Enforce governance array size limit on literal lists
                 naab::limits::checkArraySize(count);
+                if (governance_ && governance_->isActive()) {
+                    std::string gerr = governance_->checkArraySize(count);
+                    if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                }
                 // Taint: list is tainted if ANY element is tainted
                 bool list_taint = false;
                 if (governance_) {
@@ -1704,6 +1708,10 @@ interpreter::NaabVal VM::run() {
                 int count = static_cast<int>(arg);
                 // V-GOV-023: Enforce governance array size limit on literal dicts
                 naab::limits::checkArraySize(count);
+                if (governance_ && governance_->isActive()) {
+                    std::string gerr = governance_->checkArraySize(count);
+                    if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                }
                 // Taint: dict is tainted if ANY value is tainted
                 bool dict_taint = false;
                 if (governance_) {
@@ -2103,6 +2111,10 @@ interpreter::NaabVal VM::run() {
                 auto& src = def.asDictConst();
                 // V-GOV-023: Enforce governance array size limit on struct creation
                 naab::limits::checkArraySize(src.size());
+                if (governance_ && governance_->isActive()) {
+                    std::string gerr = governance_->checkArraySize(src.size());
+                    if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                }
                 std::unordered_map<std::string, interpreter::NaabVal> instance(src.begin(), src.end());
                 push(interpreter::NaabVal::makeDict(std::move(instance)));
             }

@@ -955,7 +955,31 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
     auto start = current();
     bool is_async = match(lexer::TokenType::ASYNC);
 
-    expect(lexer::TokenType::FUNCTION, "Expected 'function'");
+    if (!match(lexer::TokenType::FUNCTION)) {
+        auto& tok = current();
+        if (is_async) {
+            std::string hint;
+            if (tok.type == lexer::TokenType::LBRACE) {
+                hint = "NAAb does not support async blocks. Use an async function instead.\n\n"
+                       "  \xE2\x9C\x97 Wrong:  async { code }\n"
+                       "  \xE2\x9C\x93 Right:  async function myTask() { code }\n"
+                       "            let result = await myTask()\n";
+            } else if (tok.type == lexer::TokenType::IDENTIFIER) {
+                hint = "To call a function asynchronously, declare it with 'async function'.\n\n"
+                       "  \xE2\x9C\x97 Wrong:  async " + tok.value + "(...)\n"
+                       "  \xE2\x9C\x93 Right:  async function " + tok.value + "(...) { ... }\n"
+                       "            let future = " + tok.value + "(...)\n"
+                       "            let result = await future\n";
+            } else {
+                hint = "'async' must be followed by 'function' to declare an async function.\n\n"
+                       "  Example:\n"
+                       "    async function fetchData(url) { ... }\n"
+                       "    let result = await fetchData(url)\n";
+            }
+            throw ParseError(formatError(hint, tok));
+        }
+        throw ParseError(formatError("Expected 'function'", tok));
+    }
 
     // Detect 'function main()' or 'func main()' pattern - suggest 'main { ... }' syntax
     if (check(lexer::TokenType::MAIN)) {

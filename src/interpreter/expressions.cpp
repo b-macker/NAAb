@@ -1119,6 +1119,11 @@ void Interpreter::visit(ast::DictExpr& node) {
         auto val = eval(*val_expr);
         dict[key.toString()] = val;
     }
+    // Governance array/dict size check on literals
+    if (governance_ && governance_->isActive()) {
+        std::string err = governance_->checkArraySize(dict.size());
+        if (!err.empty()) throw std::runtime_error(err);
+    }
     result_ = NaabVal::makeDict(std::move(dict));
 
     // Phase 3.2: Track allocation for automatic GC
@@ -1129,6 +1134,11 @@ void Interpreter::visit(ast::ListExpr& node) {
     std::vector<NaabVal> list;
     for (auto& elem : node.getElements()) {
         list.push_back(eval(*elem));
+    }
+    // Governance array size check on literals
+    if (governance_ && governance_->isActive()) {
+        std::string err = governance_->checkArraySize(list.size());
+        if (!err.empty()) throw std::runtime_error(err);
     }
     result_ = NaabVal::makeList(std::move(list));
 
