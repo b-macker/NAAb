@@ -3,6 +3,7 @@
 // Mathematical functions and constants
 //
 
+#define _USE_MATH_DEFINES
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
 #include "naab/utils/string_utils.h"
