@@ -10,8 +10,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cmath>
-#include <dirent.h>
-#include <sys/stat.h>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -155,25 +154,20 @@ public:
         int indexed_count = 0;
 
         // Scan all language directories
-        DIR* dir = opendir(blocks_path.c_str());
-        if (!dir) {
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        for (const auto& entry : fs::directory_iterator(blocks_path, ec)) {
+            if (ec) break;
+            auto name = entry.path().filename().string();
+            if (name[0] == '.') continue;
+            if (entry.is_directory()) {
+                indexed_count += scanLanguageDirectory(entry.path().string(), name);
+            }
+        }
+        if (ec) {
             fmt::print("[ERROR] Failed to open blocks directory: {}\n", blocks_path);
             return 0;
         }
-
-        struct dirent* entry;
-        while ((entry = readdir(dir)) != nullptr) {
-            if (entry->d_name[0] == '.') continue;
-
-            std::string lang_name = entry->d_name;
-            std::string lang_dir = blocks_path + "/" + lang_name;
-
-            struct stat st;
-            if (stat(lang_dir.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
-                indexed_count += scanLanguageDirectory(lang_dir, lang_name);
-            }
-        }
-        closedir(dir);
 
         // Commit transaction
         sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr);
@@ -183,28 +177,21 @@ public:
     }
 
     int scanLanguageDirectory(const std::string& lang_dir, const std::string& language) {
+        namespace fs = std::filesystem;
         int count = 0;
+        std::error_code ec;
 
-        DIR* dir = opendir(lang_dir.c_str());
-        if (!dir) return 0;
+        for (const auto& entry : fs::directory_iterator(lang_dir, ec)) {
+            if (ec) break;
+            auto filename = entry.path().filename().string();
+            if (filename[0] == '.') continue;
+            if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".json") continue;
+            if (!entry.is_regular_file()) continue;
 
-        struct dirent* entry;
-        while ((entry = readdir(dir)) != nullptr) {
-            if (entry->d_name[0] == '.') continue;
-
-            std::string filename = entry->d_name;
-            if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".json") {
-                continue;
-            }
-
-            std::string file_path = lang_dir + "/" + filename;
-
-            // Parse and index the block
-            if (indexBlockFile(file_path, language)) {
+            if (indexBlockFile(entry.path().string(), language)) {
                 count++;
             }
         }
-        closedir(dir);
 
         return count;
     }
