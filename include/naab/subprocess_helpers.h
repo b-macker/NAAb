@@ -3,7 +3,12 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <unistd.h>     // For pid_t
+#ifndef _WIN32
+#  include <unistd.h>     // For pid_t
+#else
+#  include <process.h>
+   typedef int pid_t;
+#endif
 
 namespace naab {
 namespace runtime {

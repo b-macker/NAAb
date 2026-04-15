@@ -10,7 +10,11 @@
 #include <string>
 #include <vector>
 #include <mutex>
-#include <unistd.h>  // pid_t
+#ifndef _WIN32
+#  include <unistd.h>  // pid_t
+#else
+   typedef int pid_t;
+#endif
 
 namespace naab {
 namespace runtime {
