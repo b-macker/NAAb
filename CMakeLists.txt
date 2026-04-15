@@ -443,37 +443,44 @@ message(STATUS "  ✓ Bytecode VM (compiler + virtual machine)")
 # QuickJS library for JavaScript execution
 # Build from source if pre-built .a doesn't exist (e.g., CI on different architecture)
 set(QUICKJS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27")
-# The QuickJS make build generates a file named `version` (no extension) containing
-# the raw date string "2021-03-27".  On Windows that file ends up in an include-path
-# directory and some translation units try to compile it as C++, producing:
-#   version:1:1: error: expected unqualified-id before numeric constant
-# Overwrite it with a valid C comment so compilation always succeeds.
-file(WRITE "${QUICKJS_DIR}/version" "/* QuickJS version: 2021-03-27 */\n")
-if(EXISTS "${QUICKJS_DIR}/libquickjs.a")
-    add_library(quickjs STATIC IMPORTED)
-    set_target_properties(quickjs PROPERTIES
-        IMPORTED_LOCATION "${QUICKJS_DIR}/libquickjs.a"
-    )
-    target_include_directories(quickjs INTERFACE "${QUICKJS_DIR}")
+# QuickJS uses POSIX APIs (sys/time.h, etc.) and cannot compile under MSVC.
+if(NOT MSVC)
+    # The QuickJS make build generates a file named `version` (no extension) containing
+    # the raw date string "2021-03-27".  On Windows that file ends up in an include-path
+    # directory and some translation units try to compile it as C++, producing:
+    #   version:1:1: error: expected unqualified-id before numeric constant
+    # Overwrite it with a valid C comment so compilation always succeeds.
+    file(WRITE "${QUICKJS_DIR}/version" "/* QuickJS version: 2021-03-27 */\n")
+    if(EXISTS "${QUICKJS_DIR}/libquickjs.a")
+        add_library(quickjs STATIC IMPORTED)
+        set_target_properties(quickjs PROPERTIES
+            IMPORTED_LOCATION "${QUICKJS_DIR}/libquickjs.a"
+        )
+        target_include_directories(quickjs INTERFACE "${QUICKJS_DIR}")
+    else()
+        add_library(quickjs STATIC
+            ${QUICKJS_DIR}/quickjs.c
+            ${QUICKJS_DIR}/quickjs-libc.c
+            ${QUICKJS_DIR}/libregexp.c
+            ${QUICKJS_DIR}/libunicode.c
+            ${QUICKJS_DIR}/cutils.c
+            ${QUICKJS_DIR}/libbf.c
+        )
+        target_include_directories(quickjs PUBLIC "${QUICKJS_DIR}")
+        target_compile_definitions(quickjs PRIVATE
+            _GNU_SOURCE
+            CONFIG_VERSION="2021-03-27"
+            CONFIG_BIGNUM
+        )
+        # Suppress warnings from third-party C code
+        target_compile_options(quickjs PRIVATE -w)
+    endif()
+    set(HAVE_QUICKJS TRUE)
+    message(STATUS "  ✓ QuickJS library")
 else()
-    add_library(quickjs STATIC
-        ${QUICKJS_DIR}/quickjs.c
-        ${QUICKJS_DIR}/quickjs-libc.c
-        ${QUICKJS_DIR}/libregexp.c
-        ${QUICKJS_DIR}/libunicode.c
-        ${QUICKJS_DIR}/cutils.c
-        ${QUICKJS_DIR}/libbf.c
-    )
-    target_include_directories(quickjs PUBLIC "${QUICKJS_DIR}")
-    target_compile_definitions(quickjs PRIVATE
-        _GNU_SOURCE
-        CONFIG_VERSION="2021-03-27"
-        CONFIG_BIGNUM
-    )
-    # Suppress warnings from third-party C code
-    target_compile_options(quickjs PRIVATE -w)
+    set(HAVE_QUICKJS FALSE)
+    message(STATUS "  ✗ QuickJS library (skipped on MSVC — POSIX-only)")
 endif()
-message(STATUS "  ✓ QuickJS library")
 
 # Runtime + block loader
 set(NAAB_RUNTIME_SOURCES
@@ -522,6 +529,15 @@ set(NAAB_RUNTIME_SOURCES
 
 )
 
+# QuickJS-dependent sources (JS executor, cross-language bridge)
+if(NOT HAVE_QUICKJS)
+    list(REMOVE_ITEM NAAB_RUNTIME_SOURCES
+        src/runtime/js_executor.cpp
+        src/runtime/js_executor_adapter.cpp
+        src/runtime/cross_language_bridge.cpp
+    )
+endif()
+
 # Add Python executor if pybind11 is available
 if(HAVE_PYBIND11)
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_c_wrapper.c)  # Pure C API wrapper (5x faster, no CFI crashes)
@@ -546,11 +562,14 @@ target_link_libraries(naab_runtime
     absl::statusor
     fmt::fmt
     SQLite::SQLite3
-    quickjs
     naab_security        # Phase 1: Security hardening
     tomlplusplus::tomlplusplus
     curl
 )
+if(HAVE_QUICKJS)
+    target_link_libraries(naab_runtime quickjs)
+    target_compile_definitions(naab_runtime PRIVATE HAVE_QUICKJS=1)
+endif()
 if(WIN32)
     target_link_libraries(naab_runtime ws2_32 shell32 dl)
 else()
@@ -1244,6 +1263,7 @@ message(STATUS "  ✓ LSP integration test (Phase 4.1)")
 # )
 message(STATUS "  ⚠ Composition validator test (Phase 2.4) - DISABLED (needs refactoring)")
 
+if(HAVE_QUICKJS)
 # Cross-Language Integration Test (Simple - QuickJS only)
 add_executable(test_cross_language_simple
     tests/test_cross_language_simple.cpp
@@ -1298,6 +1318,7 @@ target_include_directories(test_cross_language_performance PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27
 )
 message(STATUS "  ✓ Cross-language performance benchmarks")
+endif() # HAVE_QUICKJS
 
 # End-to-End Example 1: Web Scraper (Disabled - file missing)
 # add_executable(example_web_scraper

@@ -22,6 +22,13 @@
 #  include <unistd.h>     // For fork, execvp, dup2, unlink, getpid, _exit
 #  include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
 #  include <sys/resource.h> // For getrlimit, RLIMIT_AS
+#  include <signal.h>     // For kill()
+#  ifdef __APPLE__
+#    include <crt_externs.h>
+#    define environ (*_NSGetEnviron())
+#  else
+     extern char **environ;
+#  endif
 #else
 #  define WIN32_LEAN_AND_MEAN
 #  define NOMINMAX
