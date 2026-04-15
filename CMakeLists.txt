@@ -547,6 +547,29 @@ if(HAVE_PYBIND11)
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor_adapter.cpp)
 endif()
 
+# POSIX-only executor sources (use fork/execvp/mkdtemp/dlfcn — no Windows equivalent)
+if(WIN32)
+    list(REMOVE_ITEM NAAB_RUNTIME_SOURCES
+        src/runtime/cpp_executor.cpp
+        src/runtime/cpp_executor_adapter.cpp
+        src/runtime/cpp_block_interface.cpp
+        src/runtime/csharp_executor.cpp
+        src/runtime/go_executor.cpp
+        src/runtime/julia_executor.cpp
+        src/runtime/nim_executor.cpp
+        src/runtime/rust_executor.cpp
+        src/runtime/rust_ffi_bridge.cpp
+        src/runtime/zig_executor.cpp
+        src/runtime/shell_executor.cpp
+        src/runtime/generic_subprocess_executor.cpp
+        src/runtime/subprocess_helpers.cpp
+        src/runtime/persistent_process_executor.cpp
+        src/runtime/persistent_shell_executor.cpp
+        src/runtime/node_persistent_executor.cpp
+        src/runtime/persistent_ruby_executor.cpp
+    )
+endif()
+
 # Platform implementation (POSIX vs Windows)
 if(WIN32)
     list(APPEND NAAB_RUNTIME_SOURCES src/platform/platform_win32.cpp)
