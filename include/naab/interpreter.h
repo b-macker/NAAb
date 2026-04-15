@@ -8,7 +8,9 @@
 #include "naab/naab_val.h"
 #include <stdexcept>
 #include "naab/stdlib.h"
+#ifndef _WIN32
 #include "naab/cpp_executor.h"
+#endif
 #include "naab/language_registry.h"
 #include "naab/debugger.h"
 #include "naab/module_resolver.h"  // Phase 3.1
@@ -597,8 +599,10 @@ private:
     // Phase 4.4: Block pair tracking for usage analytics
     std::string last_executed_block_id_;
 
+#ifndef _WIN32
     // C++ block execution
     std::unique_ptr<runtime::CppExecutor> cpp_executor_;
+#endif
 
     // Standard library
     std::unique_ptr<stdlib::StdLib> stdlib_;
