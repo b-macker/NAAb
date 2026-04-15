@@ -3,14 +3,14 @@
 #include <string>
 #include <vector>
 #include <map>
-#ifndef _WIN32
-#  include <unistd.h>     // For pid_t
-#else
+#if defined(_MSC_VER)
 #  include <process.h>
 #  ifndef _PID_T_DEFINED
 #    define _PID_T_DEFINED
      typedef int pid_t;
 #  endif
+#else
+#  include <unistd.h>     // For pid_t
 #endif
 
 namespace naab {
