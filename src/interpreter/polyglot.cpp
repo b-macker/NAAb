@@ -8,13 +8,17 @@
 #include "naab/interpreter.h"
 #include "naab/logger.h"
 #include "naab/language_registry.h"
+#ifndef _WIN32
 #include "naab/shell_executor.h"
+#endif
 #include "naab/sandbox.h"
 #include "naab/resource_limits.h"
 #include "naab/source_mapper.h"
 #include "naab/json_result_parser.h"
 #include "naab/polyglot_dependency_analyzer.h"
+#ifndef _WIN32
 #include "naab/polyglot_async_executor.h"
+#endif
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
@@ -1457,6 +1461,14 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         snapshots.push_back(std::move(snapshot));
     }
 
+#ifdef _WIN32
+    // Windows: no parallel polyglot executor — execute all blocks sequentially
+    for (size_t i = 0; i < group.parallel_blocks.size(); ++i) {
+        const auto& block = group.parallel_blocks[i];
+        auto* stmt = block.statement;
+        stmt->accept(*this);
+    }
+#else
     // Step 2: Prepare code for each block with variable bindings
     std::vector<std::tuple<
         polyglot::PolyglotAsyncExecutor::Language,
@@ -1978,6 +1990,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
     }
 
     gc_suspended_ = false;
+#endif // !_WIN32
 }
 
 // Phase 2.2: Serialize a value for injection into target language
