@@ -13,7 +13,10 @@
 #ifndef _WIN32
 #  include <unistd.h>  // pid_t
 #else
-   typedef int pid_t;
+#  ifndef _PID_T_DEFINED
+#    define _PID_T_DEFINED
+     typedef int pid_t;
+#  endif
 #endif
 
 namespace naab {
