@@ -714,7 +714,7 @@ target_link_libraries(naab_stdlib
     fmt::fmt
     spdlog::spdlog
     absl::strings
-    curl
+    ${NAAB_CURL_LIB}
     naab_security  # For SafeRegex ReDoS protection
     naab_runtime   # For process module subprocess execution
 )
