@@ -218,6 +218,15 @@ else()
 endif()
 
 # OpenSSL for crypto functions
+find_package(CURL QUIET)
+if(CURL_FOUND)
+    set(NAAB_CURL_LIB CURL::libcurl)
+    message(STATUS "  ✓ CURL ${CURL_VERSION_STRING}")
+else()
+    set(NAAB_CURL_LIB curl)
+    message(STATUS "  ⚠ CURL package not found, trying -lcurl")
+endif()
+
 find_package(OpenSSL QUIET)
 if(OPENSSL_FOUND)
     message(STATUS "  ✓ OpenSSL ${OPENSSL_VERSION} (crypto stdlib functions)")
@@ -587,7 +596,7 @@ target_link_libraries(naab_runtime
     SQLite::SQLite3
     naab_security        # Phase 1: Security hardening
     tomlplusplus::tomlplusplus
-    curl
+    ${NAAB_CURL_LIB}
 )
 if(HAVE_QUICKJS)
     target_link_libraries(naab_runtime quickjs)
@@ -664,7 +673,7 @@ target_include_directories(naab_packages PRIVATE
 target_link_libraries(naab_packages
     fmt::fmt
     tomlplusplus::tomlplusplus
-    curl
+    ${NAAB_CURL_LIB}
 )
 if(OpenSSL_FOUND)
     target_link_libraries(naab_packages OpenSSL::SSL OpenSSL::Crypto)
