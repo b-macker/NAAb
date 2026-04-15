@@ -8,8 +8,10 @@
 #include "naab/logger.h"
 #include "naab/language_registry.h"
 #include "naab/block_registry.h"
+#ifndef _MSC_VER
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
+#endif
 #include "naab/stdlib_new_modules.h"
 #include "naab/struct_registry.h"
 #include <fmt/core.h>
@@ -113,21 +115,19 @@ void Interpreter::visit(ast::UseStatement& node) {
         // Phase 7: Create appropriate executor for this block
         std::shared_ptr<BlockValue> block_value;
 
+#ifndef _MSC_VER
         if (metadata.language == "cpp" || metadata.language == "c++") {
             // C++ blocks: Create dedicated executor instance per block
-            // Each C++ block compiles to a separate .so file
             LOG_DEBUG("[INFO] Creating dedicated C++ executor for block...\n");
             auto cpp_exec = std::make_unique<runtime::CppExecutorAdapter>();
-
-            // Use BLOCK_LIBRARY mode to compile to shared library (no wrapping)
             if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
                 fmt::print("[ERROR] Failed to compile/execute C++ block code\n");
                 return;
             }
-
             block_value = std::make_shared<BlockValue>(metadata, code, std::move(cpp_exec));
-
-        } else {
+        } else
+#endif
+        {
             // Other languages (JS, Python, etc.): Use shared executor from registry
             // These languages share runtime context across blocks
             auto& registry = runtime::LanguageRegistry::instance();
@@ -147,8 +147,7 @@ void Interpreter::visit(ast::UseStatement& node) {
 
             LOG_DEBUG("[INFO] Executing block with shared {} executor...\n", metadata.language);
 
-            // For JavaScript blocks, use BLOCK_LIBRARY mode (no IIFE wrapping)
-            // This allows block functions to be defined in global scope and callable via callFunction()
+#ifndef _MSC_VER
             if (metadata.language == "javascript") {
                 auto* js_exec = dynamic_cast<runtime::JsExecutorAdapter*>(executor);
                 if (js_exec) {
@@ -161,8 +160,6 @@ void Interpreter::visit(ast::UseStatement& node) {
                     return;
                 }
             } else if (metadata.language == "cpp" || metadata.language == "c++") {
-                // For C++ blocks, use BLOCK_LIBRARY mode (compile to shared library)
-                // This allows extern "C" functions to be compiled correctly and callable via FFI
                 auto* cpp_exec = dynamic_cast<runtime::CppExecutorAdapter*>(executor);
                 if (cpp_exec) {
                     if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
@@ -173,7 +170,9 @@ void Interpreter::visit(ast::UseStatement& node) {
                     fmt::print("[ERROR] Executor is not a CppExecutorAdapter\n");
                     return;
                 }
-            } else {
+            } else
+#endif
+            {
                 // Other languages use default execute()
                 if (!executor->execute(code)) {
                     fmt::print("[ERROR] Failed to execute block code\n");

@@ -556,8 +556,9 @@ if(HAVE_PYBIND11)
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor_adapter.cpp)
 endif()
 
-# POSIX-only executor sources (use fork/execvp/mkdtemp/dlfcn — no Windows equivalent)
-if(WIN32)
+# POSIX-only executor sources (use fork/execvp/mkdtemp/dlfcn — no MSVC equivalent)
+# Note: MinGW (MSYS2) CAN compile these via POSIX compatibility layer, so guard with MSVC only
+if(MSVC)
     list(REMOVE_ITEM NAAB_RUNTIME_SOURCES
         src/runtime/cpp_executor.cpp
         src/runtime/cpp_executor_adapter.cpp
@@ -571,12 +572,13 @@ if(WIN32)
         src/runtime/zig_executor.cpp
         src/runtime/shell_executor.cpp
         src/runtime/generic_subprocess_executor.cpp
-        src/runtime/subprocess_helpers.cpp
         src/runtime/persistent_process_executor.cpp
         src/runtime/persistent_shell_executor.cpp
         src/runtime/node_persistent_executor.cpp
         src/runtime/persistent_ruby_executor.cpp
+        src/runtime/polyglot_async_executor.cpp
     )
+    # Keep subprocess_helpers.cpp — it has a Windows CreateProcess implementation
 endif()
 
 # Platform implementation (POSIX vs Windows)

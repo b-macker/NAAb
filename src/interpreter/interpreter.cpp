@@ -9,15 +9,19 @@
 #include "naab/language_registry.h"
 #include "naab/block_registry.h"
 #include "naab/logger.h"  // Logging system
+#ifndef _MSC_VER
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
-#include "naab/python_executor_adapter.h"
 #include "naab/shell_executor.h"  // Polyglot: Issue #2 - Shell environment variables
+#endif
+#include "naab/python_executor_adapter.h"
 #include "naab/stdlib_new_modules.h"  // For ArrayModule type
 #include "naab/struct_registry.h"
 #include "cycle_detector.h"  // Phase 3.2: Garbage collection
 #include "naab/polyglot_dependency_analyzer.h"  // Parallel polyglot execution
+#ifndef _MSC_VER
 #include "naab/polyglot_async_executor.h"  // Parallel polyglot execution
+#endif
 #include "naab/sandbox.h"  // Enterprise security: Sandbox isolation
 #include "naab/resource_limits.h"  // Enterprise security: Resource limits
 #include "naab/source_mapper.h"  // Phase 12: Polyglot error mapping
@@ -539,9 +543,11 @@ Interpreter::Interpreter()
     fmt::print(stderr, "[WARN] Python support not available (Python blocks disabled)\n");
 #endif
 
+#ifndef _MSC_VER
     // Initialize C++ executor
     cpp_executor_ = std::make_unique<runtime::CppExecutor>();
     LOG_DEBUG("[INFO] C++ executor initialized\n");
+#endif
 
     // Initialize standard library
     stdlib_ = std::make_unique<stdlib::StdLib>();

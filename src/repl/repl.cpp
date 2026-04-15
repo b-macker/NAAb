@@ -7,8 +7,10 @@
 #include "naab/paths.h"
 #include "naab/repl_commands.h"
 #include "naab/language_registry.h"
+#ifndef _MSC_VER
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
+#endif
 #include <fmt/core.h>
 #include <iostream>
 #include <string>
@@ -338,11 +340,13 @@ int main() {
     // Phase 7c: Initialize language executors
     auto& registry = naab::runtime::LanguageRegistry::instance();
 
+#ifndef _MSC_VER
     registry.registerExecutor("cpp",
         std::make_unique<naab::runtime::CppExecutorAdapter>());
 
     registry.registerExecutor("javascript",
         std::make_unique<naab::runtime::JsExecutorAdapter>());
+#endif
 
     // Start REPL
     naab::repl::run_repl();

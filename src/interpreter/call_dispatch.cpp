@@ -12,7 +12,9 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/struct_registry.h"
 #include "naab/error_helpers.h"
+#ifndef _MSC_VER
 #include "naab/js_executor_adapter.h"
+#endif
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
@@ -491,6 +493,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     try {
                         bool is_js = (rt.language == "javascript" || rt.language == "js");
                         if (is_js) {
+#ifndef _MSC_VER
                             // For JS: Use BLOCK_LIBRARY mode for global scope persistence
                             auto* js_adapter = dynamic_cast<runtime::JsExecutorAdapter*>(rt.executor.get());
                             if (js_adapter) {
@@ -498,14 +501,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                                     js_adapter->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY);
                                     result_ = NaabVal::makeNull();
                                 } else {
-                                    // For expressions: evaluate directly in global scope
-                                    // executeWithReturn wraps in parens for single expr, which
-                                    // accesses globals since QuickJS context is shared
                                     result_ = js_adapter->executeWithReturn(code);
                                 }
                             } else {
                                 result_ = rt.executor->executeWithReturn(code);
                             }
+#else
+                            result_ = rt.executor->executeWithReturn(code);
+#endif
                         } else if (is_statement) {
                             // Statement mode: no return value
                             rt.executor->execute(code);

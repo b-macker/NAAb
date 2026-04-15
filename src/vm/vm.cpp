@@ -12,8 +12,10 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/sandbox.h"
 #include "naab/error_helpers.h"
+#ifndef _MSC_VER
 #include "naab/js_executor_adapter.h"
 #include "naab/cpp_executor_adapter.h"
+#endif
 #include "naab/resource_limits.h"
 #include "naab/limits.h"
 #include <algorithm>
@@ -1514,6 +1516,7 @@ interpreter::NaabVal VM::run() {
                             interpreter::NaabVal result;
                             bool is_js = (rt.language == "javascript" || rt.language == "js");
                             if (is_js) {
+#ifndef _MSC_VER
                                 auto* js_adapter = dynamic_cast<runtime::JsExecutorAdapter*>(rt.executor);
                                 if (js_adapter) {
                                     if (is_statement) {
@@ -1525,6 +1528,9 @@ interpreter::NaabVal VM::run() {
                                 } else {
                                     result = rt.executor->executeWithReturn(code);
                                 }
+#else
+                                result = rt.executor->executeWithReturn(code);
+#endif
                             } else if (is_statement) {
                                 rt.executor->execute(code);
                                 result = interpreter::NaabVal::makeNull();
@@ -1576,11 +1582,13 @@ interpreter::NaabVal VM::run() {
                     auto& block = obj.asBlock();
                     auto* executor = block->getExecutor();
                     if (executor) {
+#ifndef _MSC_VER
                         // Restore C++ block ID for multi-block executor sharing
                         if (!block->cpp_block_id.empty()) {
                             auto* cpp_exec = dynamic_cast<runtime::CppExecutorAdapter*>(executor);
                             if (cpp_exec) cpp_exec->setCurrentBlockId(block->cpp_block_id);
                         }
+#endif
                         std::vector<interpreter::NaabVal> arg_vec;
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
                         for (int i = 0; i < static_cast<int>(argc); i++) {
