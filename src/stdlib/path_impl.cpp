@@ -7,6 +7,8 @@
 #include "naab/interpreter.h"
 #include "naab/utils/string_utils.h"
 #include <filesystem>
+#include <sstream>
+#include <stdexcept>
 #include <unordered_set>
 
 namespace fs = std::filesystem;
