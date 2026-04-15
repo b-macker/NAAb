@@ -4,6 +4,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
+
+# Skip on Windows (MSYS2/MinGW) — polyglot executors and taint tracking differ
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]]; then
+    echo "  SKIP: multi-agent governance tests (Windows)"
+    exit 0
+fi
+
 PASS=0
 FAIL=0
 TEST_DIR="${HOME}/.naab_multiagent_test_$$"

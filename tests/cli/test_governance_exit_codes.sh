@@ -4,6 +4,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
+
+# Skip on Windows (MSYS2/MinGW) — polyglot executors not available
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]]; then
+    echo "  SKIP: governance exit code tests (Windows — no polyglot executors)"
+    exit 0
+fi
+
 PASS=0
 FAIL=0
 
