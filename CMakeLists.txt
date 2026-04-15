@@ -9,6 +9,7 @@ project(naab_lang
 
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(Threads REQUIRED)
 include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -607,7 +608,7 @@ endif()
 if(WIN32)
     target_link_libraries(naab_runtime ws2_32 shell32)
 else()
-    target_link_libraries(naab_runtime dl pthread m)
+    target_link_libraries(naab_runtime dl Threads::Threads m)
 endif()
 
 # Add libffi if available
@@ -738,7 +739,7 @@ target_link_libraries(naab_rest_api
     naab_runtime
     fmt::fmt
     spdlog::spdlog
-    pthread
+    Threads::Threads
 )
 message(STATUS "  ✓ REST API library (Phase 4.7)")
 
