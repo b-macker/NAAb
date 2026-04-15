@@ -79,7 +79,7 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 | **Governance Engine** | 50+ checks, 3-tier policy engine (hard / soft / advisory), `govern.json` config |
 | **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
 | **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
-| **Standard Library** | 14 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, bolo |
+| **Standard Library** | 19 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, log, uuid, validate, process, io, bolo |
 | **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline, destructuring |
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
 | **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
@@ -458,7 +458,7 @@ main {
 
 ## Standard Library
 
-14 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
+19 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
 
 ```naab
 main {
@@ -626,7 +626,7 @@ Source Code (.naab)
 
 - **95,000+** lines of C++17
 - **398** regression tests, **331** mono test assertions
-- **14** standard library modules with **204** error messages
+- **19** standard library modules with **204** error messages
 - Bytecode VM default (~8x faster), tree-walker via `--tree-walk`
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 

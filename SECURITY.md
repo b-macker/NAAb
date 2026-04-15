@@ -1,23 +1,21 @@
 # Security Policy
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-04-14
 **Version:** 1.0
 
 ## Our Commitment
 
 The NAAb Language project takes security seriously. We are committed to maintaining the security and privacy of our users, and we actively work to identify and fix security vulnerabilities.
 
+Over 24 security hardening rounds (R1–R24), 60+ findings have been identified and fixed across the interpreter, VM, governance engine, package manager, LSP, REST API, and stdlib. Key areas include: taint propagation, shell injection prevention, resource limits, symlink/TOCTOU protection, and lockfile integrity (HMAC-SHA256).
+
 ## Supported Versions
 
 | Version | Supported          | Security Updates |
 | ------- | ------------------ | ---------------- |
-| 0.8.x   | :white_check_mark: | Yes (current) |
-| 0.7.x   | :white_check_mark: | Critical fixes only |
-| < 0.7   | :x:                | No               |
-
-**Note:** Once 1.0 is released, we will maintain security updates for:
-- Current major version (1.x): Full support
-- Previous major version: Critical security fixes only
+| 1.0.x   | :white_check_mark: | Yes (current) |
+| 0.9.x   | :white_check_mark: | Critical fixes only |
+| < 0.9   | :x:                | No               |
 
 ## Reporting a Vulnerability
 

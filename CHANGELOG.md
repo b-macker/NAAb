@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-14
+
+### Added
+- array.map()/filter()/reduce() aliases (no _fn suffix needed)
+- Module name aliases (fs→file, os→env, re→regex) with "Did you mean?" hints
+- spawn/wait/wait_all → async function hints for common concurrency patterns
+- Package integrity verification (SHA-256 hashes in naab.lock)
+- Unpinned git dependency security warnings
+
+### Fixed
+- Tree-walker timeout on Android/Termux (global_shutdown_ set from timer thread)
+- Package manager shell injection (system()→fork/execvp)
+- Package manager silent failures (installAll reporting with summary)
+- Subcommand flag parsing (naab install --verbose no longer treated as package name)
+- 6 parser expect() messages upgraded with examples and suggestions
+
+### Security
+- V-PKG-001: Shell injection in extractTarball eliminated (fork/execvp)
+- V-PKG-002: SHA-256 integrity hash verification for downloaded packages
+- parseSpec validates against shell metacharacters (';|`$()&)
+
 ## [0.9.0] - 2026-04-09
 
 ### Added

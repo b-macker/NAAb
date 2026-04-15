@@ -172,14 +172,18 @@ Bare `json.dumps(data)` as the last expression also works (auto-wrapped in `prin
 
 ### array (dot-notation works: arr.push(4))
 push, pop, shift, unshift, length, contains, find, first, last,
-join, reverse, sort, slice_arr, map_fn, filter_fn, reduce_fn
+join, reverse, sort, slice_arr, map, filter, reduce, map_fn, filter_fn, reduce_fn
 
-**GOTCHA**: map_fn, filter_fn, reduce_fn do NOT work with dot notation!
+Both dot-notation aliases and module syntax work:
 ```naab
-// WRONG: arr.filter_fn(fn(x) { return x > 5 })
-// RIGHT:
-array.filter_fn(arr, fn(x) { return x > 5 })
+// Dot-notation aliases (preferred):
+array.map(arr, fn(x) { return x * 2 })
+array.filter(arr, fn(x) { return x > 5 })
+array.reduce(arr, fn(acc, x) { return acc + x }, 0)
+
+// Original _fn variants also work:
 array.map_fn(arr, fn(x) { return x * 2 })
+array.filter_fn(arr, fn(x) { return x > 5 })
 array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)
 ```
 
@@ -204,6 +208,9 @@ length, char_at, index_of, substring, reverse, repeat, pad_left, pad_right
 
 ### math
 abs, floor, ceil, round, min, max, pow, sqrt, random, sin, cos, PI, E
+- `math.random()` — float in [0.0, 1.0)
+- `math.random(max)` — int in [0, max)
+- `math.random(min, max)` — int in [min, max)
 Both `math.PI` and `math.pi` work (case-insensitive). Same for `math.E`/`math.e`.
 
 ### json
@@ -243,20 +250,48 @@ random_bytes, random_string, random_int,
 base64_encode, base64_decode, hex_encode, hex_decode,
 compare_digest, generate_token, hash_password
 
+### log (auto-leveled logging)
+debug, warn, log, set_level, get_level, set_format, set_output
+- `log.debug("msg")`, `log.warn("msg")`, `log.log("msg")`
+- `log.set_level("debug"|"info"|"warn"|"error")`
+
+### uuid
+v4, v5, nil, is_valid
+- `uuid.v4()` — random UUID
+- `uuid.v5(namespace, name)` — deterministic UUID
+- `uuid.is_valid(str)` — boolean check
+
+### validate
+email, url, ip, ipv6, int_range, not_empty, length, matches, is_int, is_float, is_string
+- `validate.email("user@example.com")` — returns true/false
+- `validate.url("https://...")` — validates URL format
+- `validate.int_range(val, min, max)` — range check
+
+### process
+run, exit, kill, getpid
+- `process.run("command")` — execute shell command, returns {stdout, stderr, exit_code}
+- `process.exit(code)` — exit with code
+- `process.getpid()` — current process ID
+
+### path
+join, dirname, basename, extension, resolve, is_absolute, normalize, exists
+- `path.join("dir", "file.txt")` — OS-aware path joining
+- `path.dirname("/a/b/c")` → `"/a/b"`
+- `path.extension("file.txt")` → `".txt"`
+
+### http
+get, post, put, delete, head, patch, call
+- `http.get(url)` — returns response dict {status, body, headers}
+- `http.post(url, body)` — POST request
+- `http.call(method, url, options)` — generic request
+
 ## Functions That Do NOT Exist (use alternatives)
-- `math.random()` — use `crypto.random_int(min, max)` with `use crypto` (inclusive range)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
 - `array.concat(a, b)` — use `a + b`
 - `array.flat()` — not available, manually iterate
 - `string.match()` — use `regex.search()` or `regex.matches()` with `use regex`
 - `dict.update()` — use `dict.merge(other)` or `dict.put(key, val)` individually
-
-## Random Numbers
-NAAb does NOT have `math.random()`. Use crypto module:
-- `crypto.random_int(min, max)` — random integer in [min, max] range (inclusive)
-- `crypto.random_string(length)` — random alphanumeric string
-- `crypto.random_bytes(length)` — random bytes
-Requires `use crypto`.
+- `dict.clear()` — not available, reassign to empty dict: `my_dict = {}`
 
 ## Pipeline Operator
 ```naab
