@@ -7,9 +7,7 @@
 #include <fmt/core.h>
 #include <nlohmann/json.hpp>
 
-// Use POSIX directory operations for Android compatibility
-#include <dirent.h>
-#include <sys/stat.h>
+#include <filesystem>
 
 // V-RT-004: block source integrity verification via SHA-256
 #ifdef HAVE_OPENSSL
@@ -169,62 +167,36 @@ std::vector<std::string> BlockRegistry::supportedLanguages() const {
 }
 
 void BlockRegistry::scanDirectory(const std::string& base_path) {
-    DIR* dir = opendir(base_path.c_str());
-    if (!dir) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    for (const auto& entry : fs::directory_iterator(base_path, ec)) {
+        if (ec) break;
+        auto name = entry.path().filename().string();
+        if (name[0] == '.') continue;
+
+        if (entry.is_directory()) {
+            std::string language = name;
+            if (language == "c++") language = "cpp";
+            scanLanguageDirectory(entry.path().string(), language);
+        }
+    }
+    if (ec) {
         fmt::print("[ERROR] Failed to open blocks directory: {}\n", base_path);
-        return;
     }
-
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        // Skip . and ..
-        if (entry->d_name[0] == '.') {
-            continue;
-        }
-
-        std::string entry_name = entry->d_name;
-        std::string full_path = base_path + "/" + entry_name;
-
-        // Check if it's a directory
-        struct stat st;
-        if (stat(full_path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
-            // This is a language directory (e.g., "cpp", "javascript", "c++")
-            std::string language = entry_name;
-
-            // Normalize c++ to cpp
-            if (language == "c++") {
-                language = "cpp";
-            }
-
-            // Scanning language directory (silent)
-            scanLanguageDirectory(full_path, language);
-        }
-    }
-
-    closedir(dir);
 }
 
 void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std::string& language) {
-    DIR* dir = opendir(lang_dir.c_str());
-    if (!dir) {
-        fmt::print("[ERROR] Failed to open language directory: {}\n", lang_dir);
-        return;
-    }
-
+    namespace fs = std::filesystem;
+    std::error_code ec;
     int blocks_found = 0;
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        // Skip . and ..
-        if (entry->d_name[0] == '.') {
-            continue;
-        }
 
-        std::string filename = entry->d_name;
-        std::string full_path = lang_dir + "/" + filename;
+    for (const auto& dir_entry : fs::directory_iterator(lang_dir, ec)) {
+        if (ec) break;
+        auto filename = dir_entry.path().filename().string();
+        if (filename[0] == '.') continue;
+        std::string full_path = dir_entry.path().string();
 
-        // Check if it's a regular file
-        struct stat st;
-        if (stat(full_path.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+        if (dir_entry.is_regular_file()) {
             // Check if it's a JSON block file
             if (filename.size() > 5 && filename.substr(filename.size() - 5) == ".json") {
                 // Parse JSON block metadata
@@ -356,8 +328,10 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
         }
     }
 
-    closedir(dir);
     // Found blocks (silent)
+    if (ec) {
+        fmt::print("[ERROR] Failed to open language directory: {}\n", lang_dir);
+    }
 }
 
 std::string BlockRegistry::extractBlockId(const std::string& filename) const {
@@ -409,31 +383,25 @@ std::string BlockRegistry::readFile(const std::string& file_path) const {
 }
 
 bool BlockRegistry::loadCache(const std::string& base_path) {
+    namespace fs = std::filesystem;
     std::string cache_path = base_path + "/.block_cache.json";
 
-    struct stat cache_stat;
-    if (stat(cache_path.c_str(), &cache_stat) != 0) {
-        return false;  // No cache file
-    }
+    std::error_code ec;
+    auto cache_time = fs::last_write_time(cache_path, ec);
+    if (ec) return false;  // No cache file
 
     // Check if any language directory is newer than cache
-    DIR* dir = opendir(base_path.c_str());
-    if (!dir) return false;
-
-    time_t cache_time = cache_stat.st_mtime;
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_name[0] == '.') continue;
-        std::string full_path = base_path + "/" + entry->d_name;
-        struct stat dir_stat;
-        if (stat(full_path.c_str(), &dir_stat) == 0 && S_ISDIR(dir_stat.st_mode)) {
-            if (dir_stat.st_mtime > cache_time) {
-                closedir(dir);
+    for (const auto& entry : fs::directory_iterator(base_path, ec)) {
+        if (ec) return false;
+        auto name = entry.path().filename().string();
+        if (name[0] == '.') continue;
+        if (entry.is_directory()) {
+            auto dir_time = fs::last_write_time(entry.path(), ec);
+            if (!ec && dir_time > cache_time) {
                 return false;  // Directory modified after cache
             }
         }
     }
-    closedir(dir);
 
     // Load cache
     try {
