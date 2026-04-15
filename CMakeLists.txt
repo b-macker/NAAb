@@ -802,7 +802,12 @@ target_link_libraries(naab-gov
     naab_parser
     naab_interpreter   # governance_engine.cpp references g_current_interpreter
     naab_security
+    naab_interpreter   # repeated: naab_security back-references NaabVal
     naab_scanner
+    naab_semantic
+    naab_stdlib
+    spdlog::spdlog
+    naab_runtime
     fmt::fmt
 )
 install(TARGETS naab-gov DESTINATION ${CMAKE_INSTALL_BINDIR})

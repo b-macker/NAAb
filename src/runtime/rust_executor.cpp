@@ -16,6 +16,7 @@
 #include <thread>
 #include <cstdlib>
 #include <sys/stat.h>
+#include <unistd.h>
 
 namespace naab {
 namespace runtime {

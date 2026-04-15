@@ -16,6 +16,7 @@
 #include <dlfcn.h>
 #include <cstdlib>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #ifdef HAVE_LIBFFI
 #include <ffi.h>

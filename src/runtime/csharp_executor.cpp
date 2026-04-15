@@ -7,6 +7,7 @@
 #include <thread>
 #include <fmt/core.h>
 #include <sys/stat.h>  // V-RCE-010: chmod
+#include <unistd.h>
 
 namespace naab {
 namespace runtime {
