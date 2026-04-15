@@ -556,9 +556,9 @@ if(HAVE_PYBIND11)
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor_adapter.cpp)
 endif()
 
-# POSIX-only executor sources (use fork/execvp/mkdtemp/dlfcn — no MSVC equivalent)
-# Note: MinGW (MSYS2) CAN compile these via POSIX compatibility layer, so guard with MSVC only
-if(MSVC)
+# POSIX-only executor sources (use fork/execvp/mkdtemp/dlfcn — no Windows equivalent)
+# Both MSVC and MinGW lack these POSIX APIs natively
+if(WIN32)
     list(REMOVE_ITEM NAAB_RUNTIME_SOURCES
         src/runtime/cpp_executor.cpp
         src/runtime/cpp_executor_adapter.cpp

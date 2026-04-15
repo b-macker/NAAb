@@ -12,7 +12,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/struct_registry.h"
 #include "naab/error_helpers.h"
-#ifndef _MSC_VER
+#ifndef _WIN32
 #include "naab/js_executor_adapter.h"
 #endif
 #include <fmt/core.h>
@@ -493,7 +493,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     try {
                         bool is_js = (rt.language == "javascript" || rt.language == "js");
                         if (is_js) {
-#ifndef _MSC_VER
+#ifndef _WIN32
                             // For JS: Use BLOCK_LIBRARY mode for global scope persistence
                             auto* js_adapter = dynamic_cast<runtime::JsExecutorAdapter*>(rt.executor.get());
                             if (js_adapter) {

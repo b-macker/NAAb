@@ -7,7 +7,7 @@
 #include "naab/paths.h"
 #include "naab/repl_commands.h"
 #include "naab/language_registry.h"
-#ifndef _MSC_VER
+#ifndef _WIN32
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #endif
@@ -340,7 +340,7 @@ int main() {
     // Phase 7c: Initialize language executors
     auto& registry = naab::runtime::LanguageRegistry::instance();
 
-#ifndef _MSC_VER
+#ifndef _WIN32
     registry.registerExecutor("cpp",
         std::make_unique<naab::runtime::CppExecutorAdapter>());
 

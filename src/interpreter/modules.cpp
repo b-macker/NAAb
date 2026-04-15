@@ -8,7 +8,7 @@
 #include "naab/logger.h"
 #include "naab/language_registry.h"
 #include "naab/block_registry.h"
-#ifndef _MSC_VER
+#ifndef _WIN32
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #endif
@@ -115,7 +115,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         // Phase 7: Create appropriate executor for this block
         std::shared_ptr<BlockValue> block_value;
 
-#ifndef _MSC_VER
+#ifndef _WIN32
         if (metadata.language == "cpp" || metadata.language == "c++") {
             // C++ blocks: Create dedicated executor instance per block
             LOG_DEBUG("[INFO] Creating dedicated C++ executor for block...\n");
@@ -147,7 +147,7 @@ void Interpreter::visit(ast::UseStatement& node) {
 
             LOG_DEBUG("[INFO] Executing block with shared {} executor...\n", metadata.language);
 
-#ifndef _MSC_VER
+#ifndef _WIN32
             if (metadata.language == "javascript") {
                 auto* js_exec = dynamic_cast<runtime::JsExecutorAdapter*>(executor);
                 if (js_exec) {

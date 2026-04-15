@@ -27,7 +27,7 @@
 #include "naab/block_registry.h"
 #include "naab/block_loader.h"
 #include "naab/composition_validator.h"
-#ifndef _MSC_VER
+#ifndef _WIN32
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #ifdef HAVE_PYBIND11
@@ -46,7 +46,7 @@
 #include "naab/persistent_shell_executor.h"
 #include "naab/node_persistent_executor.h"
 #include "naab/persistent_ruby_executor.h"
-#endif // !_MSC_VER
+#endif // !_WIN32
 #include "naab/rest_api.h"
 #include "naab/manifest.h"
 #include "naab/logger.h"
@@ -117,7 +117,7 @@ naab::security::SandboxConfig createEnterpriseConfig() {
 
 // Phase 7c: Initialize language registry with available executors
 void initialize_executors() {
-#ifndef _MSC_VER
+#ifndef _WIN32
     auto& registry = naab::runtime::LanguageRegistry::instance();
 
     // Register C++ executor
@@ -191,7 +191,7 @@ void initialize_executors() {
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("typescript", "tsx {}", ".ts"));
     registry.registerExecutor("ts",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("ts", "tsx {}", ".ts"));
-#endif // !_MSC_VER
+#endif // !_WIN32
 }
 
 std::string read_file(const std::string& filename) {
@@ -1324,7 +1324,7 @@ int main(int argc, char** argv) {
                         auto* executor = lang_registry.getExecutor(metadata.language);
                         if (executor) {
                             // Execute block code to define functions in executor context
-#ifndef _MSC_VER
+#ifndef _WIN32
                             if (metadata.language == "javascript") {
                                 auto* js_exec = dynamic_cast<naab::runtime::JsExecutorAdapter*>(executor);
                                 if (js_exec) js_exec->execute(code, naab::runtime::JsExecutionMode::BLOCK_LIBRARY);
@@ -1338,7 +1338,7 @@ int main(int argc, char** argv) {
                             }
                             auto block_value = std::make_shared<naab::interpreter::BlockValue>(
                                 metadata, code, executor);
-#ifndef _MSC_VER
+#ifndef _WIN32
                             // Store C++ block ID for multi-block executor sharing
                             if (metadata.language == "cpp" || metadata.language == "c++") {
                                 auto* cpp_exec = dynamic_cast<naab::runtime::CppExecutorAdapter*>(executor);
