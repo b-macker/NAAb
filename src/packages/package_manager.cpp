@@ -12,6 +12,10 @@
 #include <algorithm>
 #include <cstdlib>
 #include <openssl/sha.h>
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -226,6 +230,9 @@ bool PackageManager::downloadFromGitHub(const std::string& owner, const std::str
                    file_size / (1024 * 1024));
     }
 
+    // Compute integrity hash before extraction (V-PKG-002)
+    last_download_hash_ = computeSHA256(tarball_path);
+
     // Extract tarball
     if (!extractTarball(tarball_path, dest_dir)) {
         fs::remove(tarball_path);
@@ -242,14 +249,36 @@ bool PackageManager::extractTarball(const std::string& tarball_path, const std::
     std::string temp_dir = dest_dir + ".extracting";
     fs::create_directories(temp_dir);
 
-    // Extract using tar command
-    std::string cmd = fmt::format("tar xzf '{}' -C '{}' 2>/dev/null", tarball_path, temp_dir);
+    // Extract using tar — fork/exec to avoid shell injection (V-PKG-001)
+#ifndef _WIN32
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child: exec tar directly, no shell involved
+        execlp("tar", "tar", "xzf", tarball_path.c_str(), "-C", temp_dir.c_str(), nullptr);
+        _exit(127);
+    } else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+            fs::remove_all(temp_dir);
+            last_error_ = "Failed to extract tarball (is 'tar' installed?)";
+            return false;
+        }
+    } else {
+        fs::remove_all(temp_dir);
+        last_error_ = "Failed to fork for tarball extraction";
+        return false;
+    }
+#else
+    // Windows: use system() with validated paths (parseSpec rejects metacharacters)
+    std::string cmd = fmt::format("tar xzf \"{}\" -C \"{}\" 2>NUL", tarball_path, temp_dir);
     int ret = std::system(cmd.c_str());
     if (ret != 0) {
         fs::remove_all(temp_dir);
         last_error_ = "Failed to extract tarball (is 'tar' installed?)";
         return false;
     }
+#endif
 
     // GitHub tarballs extract to owner-repo-hash/ — find the single subdirectory
     std::string extracted_subdir;
@@ -335,6 +364,17 @@ PackageManager::ParsedSpec PackageManager::parseSpec(const std::string& spec) co
         // No owner specified — assume naab-community
         result.owner = "naab-community";
         result.repo = s;
+    }
+
+    // V-PKG-001: Reject shell metacharacters in owner/repo/version
+    for (const auto& s : {result.owner, result.repo, result.version}) {
+        for (char c : s) {
+            if (c == '\'' || c == '"' || c == ';' || c == '|' || c == '&' ||
+                c == '$' || c == '`' || c == '(' || c == ')' || c == '<' ||
+                c == '>' || c == '\n' || c == '\r' || c == ' ' || c == '\t') {
+                return ParsedSpec{};  // empty = invalid
+            }
+        }
     }
 
     return result;
@@ -512,6 +552,27 @@ bool PackageManager::install(const std::string& spec) {
         }
     }
 
+    // V-PKG-002: Verify integrity against lockfile if entry exists
+    if (!last_download_hash_.empty()) {
+        for (const auto& existing : lock_.packages) {
+            if (existing.name == pkg_name && !existing.integrity.empty()) {
+                if (existing.integrity != last_download_hash_) {
+                    fs::remove_all(pkg_dir);
+                    last_error_ = fmt::format(
+                        "Integrity check failed for {}!\n"
+                        "  Expected: {}\n"
+                        "  Got:      {}\n\n"
+                        "  The package content has changed since it was locked.\n"
+                        "  This could indicate a supply chain attack.\n"
+                        "  To accept the new version, delete naab.lock and re-run install.",
+                        pkg_name, existing.integrity, last_download_hash_);
+                    return false;
+                }
+                break;
+            }
+        }
+    }
+
     // Read package info
     auto pkg_info = readPackageInfo(pkg_dir);
     if (pkg_info.name.empty()) pkg_info.name = pkg_name;
@@ -551,12 +612,13 @@ bool PackageManager::install(const std::string& spec) {
     // Update naab.toml
     addToManifest(pkg_name, parsed.owner + "/" + parsed.repo, pkg_info.version);
 
-    // Update lockfile
+    // Update lockfile with integrity hash (V-PKG-002)
     PackageLockEntry entry;
     entry.name = pkg_name;
     entry.version = pkg_info.version;
     entry.source = "github:" + parsed.owner + "/" + parsed.repo;
     entry.commit = ref;
+    entry.integrity = last_download_hash_;
 
     // Remove existing entry for this package
     lock_.packages.erase(

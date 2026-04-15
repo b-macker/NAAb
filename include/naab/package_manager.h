@@ -76,6 +76,7 @@ private:
     std::string modules_dir_;       // project_dir_/naab_modules/
     PackageLock lock_;
     std::string last_error_;
+    std::string last_download_hash_;  // SHA-256 of last downloaded tarball
 
     // GitHub operations
     bool downloadFromGitHub(const std::string& owner, const std::string& repo,
