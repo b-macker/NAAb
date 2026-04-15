@@ -1706,7 +1706,7 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         if (language == "python") {
             // Check for JS comment style in Python (// not stripped by Python comment rules)
             try {
-                std::regex re("^\\s*//\\s+", std::regex::multiline);
+                std::regex re("(^|\\n)\\s*//\\s+");
                 std::smatch match;
                 if (std::regex_search(code_clean, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
@@ -1720,7 +1720,7 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         } else if (language == "javascript" || language == "js") {
             // Check for Python comment style in JS (# not stripped by JS comment rules)
             try {
-                std::regex re("^\\s*#\\s+", std::regex::multiline);
+                std::regex re("(^|\\n)\\s*#\\s+");
                 std::smatch match;
                 if (std::regex_search(code_clean, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
