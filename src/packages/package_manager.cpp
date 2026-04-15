@@ -585,27 +585,71 @@ bool PackageManager::installAll() {
             return true;
         }
 
+        int installed = 0;
+        int skipped = 0;
+
         for (auto& [key, val] : *deps) {
             std::string name = std::string(key);
             std::string github;
             std::string version;
 
-            if (val.is_table()) {
+            if (val.is_string()) {
+                // Simple form: "user/repo" = ">= 0.5.0" or "user/repo" = "1.0.0"
+                // Treat the key as the package spec (owner/repo)
+                version = val.as_string()->get();
+                // Strip version operators
+                while (!version.empty() && (version[0] == '>' || version[0] == '=' ||
+                       version[0] == '<' || version[0] == '^' || version[0] == '~' ||
+                       version[0] == ' ')) {
+                    version = version.substr(1);
+                }
+                // name is already "user/repo"
+                github = name;
+            } else if (val.is_table()) {
                 auto& t = *val.as_table();
                 github = t["github"].value_or("");
                 version = t["version"].value_or("");
                 if (!version.empty() && (version[0] == '^' || version[0] == '~'))
                     version = version.substr(1);
+
+                // Handle git URL dependencies
+                std::string git_url = t["git"].value_or("");
+                if (!git_url.empty() && github.empty()) {
+                    std::string ref = t["ref"].value_or("");
+                    std::string tag = t["tag"].value_or("");
+                    std::string commit = t["commit"].value_or("");
+                    if (ref.empty() && tag.empty() && commit.empty()) {
+                        fmt::print(stderr, "  ⚠ Security warning: dependency '{}' uses an unpinned git URL\n"
+                            "    URL: {}\n"
+                            "    Fix: Add a 'commit', 'tag', or 'ref' field to pin the version:\n"
+                            "      \"{}\" = {{ git = \"{}\", commit = \"abc123...\" }}\n",
+                            name, git_url, name, git_url);
+                    }
+                    fmt::print(stderr, "  Skipped '{}': git URL dependencies not yet supported\n", name);
+                    skipped++;
+                    continue;
+                }
             }
 
-            if (github.empty()) continue;
+            if (github.empty()) {
+                fmt::print(stderr, "  Skipped '{}': no github source specified\n", name);
+                skipped++;
+                continue;
+            }
 
             std::string spec = github;
             if (!version.empty()) spec += "@" + version;
 
-            install(spec);
+            if (!install(spec)) {
+                fmt::print(stderr, "  Failed to install '{}': {}\n", name, last_error_);
+                skipped++;
+            } else {
+                installed++;
+            }
         }
 
+        fmt::print("Install complete: {} installed, {} skipped\n", installed, skipped);
+        fflush(stdout);
         return true;
     } catch (const std::exception& e) {
         last_error_ = fmt::format("Failed to parse naab.toml: {}", e.what());

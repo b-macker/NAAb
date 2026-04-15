@@ -3330,8 +3330,22 @@ int main(int argc, char** argv) {
         // ================================================================
         naab::packages::PackageManager pm(".");
 
-        if (argc < 3) {
-            // No args → install all from naab.toml
+        // Collect positional args (package specs), skip flags
+        std::vector<std::string> specs;
+        for (int i = 2; i < argc; i++) {
+            std::string a = argv[i];
+            if (a.rfind("--", 0) == 0 || a.rfind("-", 0) == 0) {
+                // Skip known flags silently; warn on unknown
+                if (a != "--verbose" && a != "-v" && a != "--governance-verbose") {
+                    fmt::print(stderr, "Warning: Unknown flag '{}' ignored\n", a);
+                }
+                continue;
+            }
+            specs.push_back(a);
+        }
+
+        if (specs.empty()) {
+            // No positional args → install all from naab.toml
             if (pm.installAll()) {
                 // installAll prints its own output
             } else {
@@ -3340,13 +3354,14 @@ int main(int argc, char** argv) {
                 _exit(1);
             }
         } else {
-            std::string spec = argv[2];
-            if (pm.install(spec)) {
-                // install prints its own output
-            } else {
-                fmt::print(stderr, "Error: {}\n", pm.getLastError());
-                fflush(stderr);
-                _exit(1);
+            for (const auto& spec : specs) {
+                if (pm.install(spec)) {
+                    // install prints its own output
+                } else {
+                    fmt::print(stderr, "Error: {}\n", pm.getLastError());
+                    fflush(stderr);
+                    _exit(1);
+                }
             }
         }
 
