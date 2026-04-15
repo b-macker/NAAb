@@ -5,14 +5,15 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
 
-# Skip on Windows (MSYS2/MinGW) — polyglot executors not available
+# Detect Windows (MSYS2/MinGW) — some tests need polyglot executors
+IS_WINDOWS=false
 if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]]; then
-    echo "  SKIP: governance exit code tests (Windows — no polyglot executors)"
-    exit 0
+    IS_WINDOWS=true
 fi
 
 PASS=0
 FAIL=0
+SKIP=0
 
 check() {
     local desc="$1"
@@ -24,6 +25,12 @@ check() {
         echo "  FAIL: $desc"
         FAIL=$((FAIL + 1))
     fi
+}
+
+skip() {
+    local desc="$1"
+    echo "  SKIP: $desc"
+    SKIP=$((SKIP + 1))
 }
 
 # Temp directory (Termux: no /tmp)
@@ -63,12 +70,15 @@ check "Exit 1: runtime throw without governance" '[ "$EXIT_CODE" = "1" ]'
 
 # ============================================================================
 # Test 3: Exit code 3 — HARD governance block (blocked language)
+# Requires shell polyglot executor — skip on Windows
 # ============================================================================
-HARD_DIR="${TEST_DIR}/hard_block"
-mkdir -p "$HARD_DIR"
+if $IS_WINDOWS; then
+    skip "Exit 3: HARD governance block (needs shell executor)"
+else
+    HARD_DIR="${TEST_DIR}/hard_block"
+    mkdir -p "$HARD_DIR"
 
-# govern.json blocks shell language (HARD by default)
-cat > "${HARD_DIR}/govern.json" << 'EOF'
+    cat > "${HARD_DIR}/govern.json" << 'EOF'
 {
     "version": "3.0",
     "mode": "enforce",
@@ -78,8 +88,7 @@ cat > "${HARD_DIR}/govern.json" << 'EOF'
 }
 EOF
 
-# Script uses shell polyglot block — governance HARD-blocks it
-cat > "${HARD_DIR}/hard_block.naab" << 'NAAB'
+    cat > "${HARD_DIR}/hard_block.naab" << 'NAAB'
 main {
     let r = <<shell
 echo "this is blocked"
@@ -88,9 +97,10 @@ echo "this is blocked"
 }
 NAAB
 
-EXIT_CODE=0
-"$NAAB_BIN" "${HARD_DIR}/hard_block.naab" > /dev/null 2>&1 || EXIT_CODE=$?
-check "Exit 3: HARD governance block (blocked language)" '[ "$EXIT_CODE" = "3" ]'
+    EXIT_CODE=0
+    "$NAAB_BIN" "${HARD_DIR}/hard_block.naab" > /dev/null 2>&1 || EXIT_CODE=$?
+    check "Exit 3: HARD governance block (blocked language)" '[ "$EXIT_CODE" = "3" ]'
+fi
 
 # ============================================================================
 # Test 4: Exit code 3 does NOT occur for permitted language
@@ -108,7 +118,6 @@ cat > "${PERMIT_DIR}/govern.json" << 'EOF'
 }
 EOF
 
-# Script uses no polyglot at all — no governance violation
 cat > "${PERMIT_DIR}/ok.naab" << 'NAAB'
 main { print("permitted") }
 NAAB
@@ -119,12 +128,15 @@ check "Exit 0: governance loaded but no violation → still 0" '[ "$EXIT_CODE" =
 
 # ============================================================================
 # Test 5: Exit code 2 — quality gate failure
+# Requires javascript polyglot executor (QuickJS not built on WIN32)
 # ============================================================================
-QG_DIR="${TEST_DIR}/quality_gate"
-mkdir -p "$QG_DIR"
+if $IS_WINDOWS; then
+    skip "Exit 2: quality gate failure (needs JS executor)"
+else
+    QG_DIR="${TEST_DIR}/quality_gate"
+    mkdir -p "$QG_DIR"
 
-# govern.json: custom advisory rule + quality gate that fails when any advisory fires
-cat > "${QG_DIR}/govern.json" << 'EOF'
+    cat > "${QG_DIR}/govern.json" << 'EOF'
 {
     "version": "3.0",
     "mode": "enforce",
@@ -151,10 +163,7 @@ cat > "${QG_DIR}/govern.json" << 'EOF'
 }
 EOF
 
-# Script with marker inside a JS block — advisory rule fires (block source scan),
-# script completes, then quality gate evaluates and fails → exit 2
-# QuickJS is embedded in naab-lang on all platforms (no fork/pipe needed).
-cat > "${QG_DIR}/qgate.naab" << 'NAAB'
+    cat > "${QG_DIR}/qgate.naab" << 'NAAB'
 main {
     let r = <<javascript
 // QUALITY_GATE_TEST_MARKER
@@ -164,9 +173,10 @@ r = "done"
 }
 NAAB
 
-EXIT_CODE=0
-"$NAAB_BIN" "${QG_DIR}/qgate.naab" > /dev/null 2>&1 || EXIT_CODE=$?
-check "Exit 2: quality gate failure (advisory_violations > 0)" '[ "$EXIT_CODE" = "2" ]'
+    EXIT_CODE=0
+    "$NAAB_BIN" "${QG_DIR}/qgate.naab" > /dev/null 2>&1 || EXIT_CODE=$?
+    check "Exit 2: quality gate failure (advisory_violations > 0)" '[ "$EXIT_CODE" = "2" ]'
+fi
 
 # ============================================================================
 # Test 6: Exit code 4 — invalid sandbox level (config error)
@@ -177,5 +187,5 @@ check "Exit 4: invalid sandbox-level config error" '[ "$EXIT_CODE" = "4" ]'
 
 # ============================================================================
 echo ""
-echo "Governance exit code tests: $PASS passed, $FAIL failed"
+echo "Governance exit code tests: $PASS passed, $FAIL failed, $SKIP skipped"
 [ "$FAIL" -eq 0 ]

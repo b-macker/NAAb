@@ -38,3 +38,26 @@ jobs:
 
       - name: Run tests
         run: bash run-all-tests.sh
+
+  build-msvc:
+    name: MSVC Build Check
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies via vcpkg
+        run: vcpkg install sqlite3 openssl curl --triplet x64-windows
+
+      - name: Build with MSVC
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja ^
+            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake ^
+            -DENABLE_HARDENING=OFF ^
+            -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
+          ninja -C build naab-lang naab-gov -j%NUMBER_OF_PROCESSORS%

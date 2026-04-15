@@ -48,9 +48,9 @@ jobs:
         shell: msys2 {0}
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
 
-      - name: Build naab-lang and libnaab
+      - name: Build naab-lang, naab-gov, and libnaab
         shell: msys2 {0}
-        run: cmake --build build --target naab-lang libnaab -j4
+        run: cmake --build build --target naab-lang naab-gov libnaab -j4
 
       - name: Debug — verify executable and DLL deps
         shell: msys2 {0}
