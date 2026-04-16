@@ -1,0 +1,13 @@
+use debug
+
+main {
+    let clean_var = "hello"
+    print("clean_var tainted: " + string(debug.is_tainted("clean_var")))
+
+    let x = 42
+    print("x tainted: " + string(debug.is_tainted("x")))
+
+    print("nonexistent tainted: " + string(debug.is_tainted("nonexistent")))
+
+    print("is_tainted works")
+}

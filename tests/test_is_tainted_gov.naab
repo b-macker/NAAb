@@ -1,0 +1,16 @@
+use debug
+use io
+
+main {
+    let clean = "safe"
+    print("clean tainted: " + string(debug.is_tainted("clean")))
+
+    # io.read_line is a taint source in govern.json
+    let user_input = io.read_line("enter: ")
+    print("user_input tainted: " + string(debug.is_tainted("user_input")))
+
+    let derived = user_input + " extra"
+    print("derived tainted: " + string(debug.is_tainted("derived")))
+
+    print("is_tainted governance test done")
+}

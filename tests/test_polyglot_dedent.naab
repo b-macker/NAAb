@@ -1,0 +1,56 @@
+function level_one() {
+    function level_two() {
+        let x = 10
+        let y = 20
+        let result = <<python[x, y]
+a = x + y
+b = a * 2
+result = str(b)
+>>
+        return result
+    }
+    return level_two()
+}
+
+function test_in_if() {
+    let val = "0"
+    let x = 42
+    if x > 0 {
+        <<python[x]
+result = str(x * 2)
+>>
+        val = result
+    }
+    return val
+}
+
+main {
+    print("=== Polyglot Dedent Tests ===")
+
+    let r1 = level_one()
+    print("Nested function result: " + string(r1))
+
+    # Simpler test — just check no IndentationError
+    let a = 5
+    if a > 0 {
+        if a > 1 {
+            <<python[a]
+x = a * 10
+print("Deep indent python: " + str(x))
+result = str(x)
+>>
+            print("  PASS: no IndentationError at depth 3")
+        }
+    }
+
+    # Python block in for loop
+    for i in 0..2 {
+        let n = i + 1
+        <<python[n]
+print("  loop iter " + str(n) + ": squared=" + str(n*n))
+>>
+    }
+    print("  PASS: no IndentationError in for loop")
+
+    print("ALL DEDENT TESTS PASS")
+}

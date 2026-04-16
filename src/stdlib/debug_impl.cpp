@@ -4,6 +4,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/governance.h"
 #include "naab/utils/error_formatter.h"
 #include <sstream>
 #include <iomanip>
@@ -242,7 +243,7 @@ bool DebugModule::hasFunction(const std::string& name) const {
            name == "assert" || name == "trace" || name == "keys" ||
            name == "values" || name == "diff" || name == "timer" ||
            name == "env" || name == "stack" || name == "watch" ||
-           name == "snapshot" || name == "compare";
+           name == "snapshot" || name == "compare" || name == "is_tainted";
 }
 
 interpreter::NaabVal DebugModule::call(
@@ -595,6 +596,21 @@ interpreter::NaabVal DebugModule::call(
         );
     }
 
+    if (function_name == "is_tainted") {
+        if (args.size() != 1) {
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "debug.is_tainted", {"var_name"}, 1, static_cast<int>(args.size()))
+            );
+        }
+        if (!args[0].isString()) {
+            throw std::runtime_error(
+                "debug.is_tainted requires a string argument (variable name)\n\n"
+                "  Example: debug.is_tainted(\"user_input\")\n");
+        }
+        return interpreter::NaabVal::makeBool(checkTainted(args[0].asString()));
+    }
+
     // Generic fallback with full function list
     throw std::runtime_error(
         "Unknown debug function: " + function_name + "\n\n"
@@ -613,7 +629,15 @@ interpreter::NaabVal DebugModule::call(
         "    debug.watch(label, val)     Track value changes\n"
         "    debug.snapshot(label)       Capture scope state\n"
         "    debug.compare(l1, l2)       Diff two snapshots\n"
+        "    debug.is_tainted(var)       Check if variable is tainted\n"
     );
+}
+
+bool DebugModule::checkTainted(const std::string& var_name) {
+    if (!g_debug_interpreter) return false;
+    auto* gov = g_debug_interpreter->getGovernance();
+    if (!gov) return false;
+    return gov->isTainted(var_name);
 }
 
 } // namespace stdlib

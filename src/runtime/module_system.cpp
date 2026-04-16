@@ -19,7 +19,8 @@ namespace modules {
 static bool isStdlibModule(const std::string& module_path) {
     static const std::unordered_set<std::string> stdlib_modules = {
         "io", "json", "string", "array", "math", "file", "http",
-        "time", "regex", "crypto", "csv", "env", "collections", "core", "console", "process"
+        "time", "regex", "crypto", "csv", "env", "collections", "core", "console", "process",
+        "uuid", "path", "log", "validate", "dict"
     };
     return stdlib_modules.count(module_path) > 0;
 }

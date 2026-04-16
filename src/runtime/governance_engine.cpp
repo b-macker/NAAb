@@ -1272,12 +1272,17 @@ std::string GovernanceEngine::evaluateQualityGate() const {
         else if (cond.metric == "total_checks") value = static_cast<int>(check_results_.size());
         else continue;
 
+        // Quality gate conditions use FAIL-WHEN semantics for inequality
+        // operators: "advisory_violations > 0" means "fail when violations
+        // exceed 0". The == operator is special: "hard_violations == 0"
+        // means "require exactly 0" (fail when NOT equal).
         bool failed = false;
         if (cond.op == ">" && value > cond.threshold) failed = true;
         else if (cond.op == ">=" && value >= cond.threshold) failed = true;
         else if (cond.op == "<" && value < cond.threshold) failed = true;
         else if (cond.op == "<=" && value <= cond.threshold) failed = true;
-        else if (cond.op == "==" && value == cond.threshold) failed = true;
+        else if (cond.op == "==" && value != cond.threshold) failed = true;
+        else if (cond.op == "!=" && value == cond.threshold) failed = true;
 
         if (failed) {
             return fmt::format(

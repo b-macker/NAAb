@@ -1,0 +1,22 @@
+use debug
+
+main {
+    let d = {"x": 10, "y": 20, "z": 30}
+    print("type: " + debug.type(d))
+
+    print("--- for key in dict ---")
+    let key_count = 0
+    for key in d {
+        print("  key: " + string(key))
+        key_count = key_count + 1
+    }
+    print("key_count: " + string(key_count))
+
+    print("--- for [k,v] in dict ---")
+    let val_sum = 0
+    for [k, v] in d {
+        print("  " + string(k) + " = " + string(v))
+        val_sum = val_sum + v
+    }
+    print("val_sum: " + string(val_sum))
+}

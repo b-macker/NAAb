@@ -827,7 +827,8 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "scores?\\s*=\\s*\\[\\s*(?:0\\.\\d+,?\\s*){3,}\\]",
 
     // Hardcoded numeric results (suspicious in analysis functions)
-    "(?:score|accuracy|precision|recall|f1|confidence|probability|similarity|distance|weight)\\s*=\\s*(?:0\\.\\d+|[1-5]\\.\\d)\\s*(?:#|//|$)",
+    // Only flag suspiciously precise values (0.85, 0.92, etc.), NOT common initializers (0.0, 0.5, 1.0)
+    "(?:score|accuracy|precision|recall|f1|confidence|probability|similarity|distance|weight)\\s*=\\s*0\\.[1-9]\\d{1,}\\s*(?:#|//|$)",
 
     // Degenerate implementations
     "for\\s+\\w+\\s+in\\s+\\w+\\s*\\{\\s*\\}",

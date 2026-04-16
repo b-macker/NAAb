@@ -173,6 +173,9 @@ public:
 
     // Give debug module access to interpreter for scope inspection
     static void setInterpreter(interpreter::Interpreter* interp);
+
+    // Check if a variable name is tainted by governance taint tracking
+    static bool checkTainted(const std::string& var_name);
 };
 
 // BOLO Governance Module
