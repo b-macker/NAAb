@@ -61,6 +61,48 @@ function test_has_key() {
     return [passed, total]
 }
 
+function test_get() {
+    let passed = 0
+    let total = 0
+
+    let d = {"a": 1, "b": 2}
+
+    total = total + 1
+    if dict.get(d, "a") == 1 { passed = passed + 1 }
+    else { io.println("[FAIL] dict.get existing key") }
+
+    total = total + 1
+    if dict.get(d, "missing") == null { passed = passed + 1 }
+    else { io.println("[FAIL] dict.get missing key should be null") }
+
+    total = total + 1
+    if dict.get_or(d, "a", 99) == 1 { passed = passed + 1 }
+    else { io.println("[FAIL] dict.get_or existing key") }
+
+    total = total + 1
+    if dict.get_or(d, "missing", 99) == 99 { passed = passed + 1 }
+    else { io.println("[FAIL] dict.get_or missing key should return default") }
+
+    return [passed, total]
+}
+
+function test_dot_has_key() {
+    let passed = 0
+    let total = 0
+
+    let d = {"x": 10, "y": 20}
+
+    total = total + 1
+    if d.has_key("x") { passed = passed + 1 }
+    else { io.println("[FAIL] d.has_key true case") }
+
+    total = total + 1
+    if d.has_key("z") == false { passed = passed + 1 }
+    else { io.println("[FAIL] d.has_key false case") }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -76,6 +118,14 @@ main {
     let r3 = test_has_key()
     total_passed = total_passed + r3[0]
     total_tests = total_tests + r3[1]
+
+    let r4 = test_get()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_dot_has_key()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
 
     io.println("stdlib/dict: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
     if total_passed != total_tests { throw "stdlib test failures" }
