@@ -14,7 +14,7 @@ namespace stdlib {
 
 bool DictModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "keys", "values", "has_key"
+        "keys", "values", "has_key", "get", "get_or"
     };
     return functions.count(name) > 0;
 }
@@ -66,8 +66,36 @@ interpreter::NaabVal DictModule::call(
         return interpreter::NaabVal::makeBool(d.count(args[1].asString()) > 0);
     }
 
+    if (function_name == "get") {
+        if (args.size() != 2 || !args[0].isDict()) {
+            throw std::runtime_error(
+                "dict.get requires (dict, key) arguments\n\n"
+                "  Example: let v = dict.get(my_dict, \"key\")  // returns null if missing\n"
+            );
+        }
+        const auto& d = args[0].asDictConst();
+        std::string key = args[1].toString();
+        auto it = d.find(key);
+        if (it != d.end()) return it->second;
+        return interpreter::NaabVal::makeNull();
+    }
+
+    if (function_name == "get_or") {
+        if (args.size() != 3 || !args[0].isDict()) {
+            throw std::runtime_error(
+                "dict.get_or requires (dict, key, default) arguments\n\n"
+                "  Example: let v = dict.get_or(my_dict, \"key\", 0)\n"
+            );
+        }
+        const auto& d = args[0].asDictConst();
+        std::string key = args[1].toString();
+        auto it = d.find(key);
+        if (it != d.end()) return it->second;
+        return args[2];
+    }
+
     throw std::runtime_error("Unknown dict function: " + function_name + "\n\n"
-        "  Available: keys, values, has_key\n");
+        "  Available: keys, values, has_key, get, get_or\n");
 }
 
 } // namespace stdlib

@@ -580,7 +580,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     }
                     return;
                 }
-                if (method_name == "has" || method_name == "contains" || method_name == "containsKey") {
+                if (method_name == "has" || method_name == "has_key" || method_name == "contains" || method_name == "containsKey") {
                     if (args.empty()) throw std::runtime_error("dict.has() requires 1 argument (key)");
                     result_ = NaabVal::makeBool(dict.find(args[0].toString()) != dict.end());
                     return;
@@ -1432,7 +1432,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 return;
             }
-            if (method_name == "has" || method_name == "contains" || method_name == "containsKey") {
+            if (method_name == "has" || method_name == "has_key" || method_name == "contains" || method_name == "containsKey") {
                 if (args.empty()) throw std::runtime_error("dict.has() requires 1 argument (key)");
                 auto key = args[0].toString();
                 result_ = NaabVal::makeBool(dict.find(key) != dict.end());

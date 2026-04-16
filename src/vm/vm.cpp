@@ -2041,6 +2041,13 @@ interpreter::NaabVal VM::run() {
                     sub_block->member_path = name;
                     push(interpreter::NaabVal::makeBlock(sub_block));
                 } else {
+                    // DX: suggest function call form for common property-style access
+                    if (name == "length" || name == "size") {
+                        runtimeError("Cannot access member '%s' on %s\n\n"
+                                     "  Help: Use %s() as a method call instead:\n"
+                                     "    let n = my_value.length()\n",
+                                     name.c_str(), obj.getTypeName().c_str(), name.c_str());
+                    }
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
                 }
@@ -3357,7 +3364,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             if (argc >= 2) return args[1]; // default value
             return interpreter::NaabVal::makeNull();
         }
-        if (method == "has" || method == "contains" || method == "containsKey") {
+        if (method == "has" || method == "has_key" || method == "contains" || method == "containsKey") {
             if (argc < 1) runtimeError("has() requires 1 argument");
             return interpreter::NaabVal::makeBool(dict.count(args[0].toString()) > 0);
         }
