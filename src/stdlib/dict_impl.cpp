@@ -14,7 +14,7 @@ namespace stdlib {
 
 bool DictModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "keys", "values", "has_key", "get", "get_or"
+        "keys", "values", "has_key", "get", "get_or", "merge", "entries", "size"
     };
     return functions.count(name) > 0;
 }
@@ -94,8 +94,51 @@ interpreter::NaabVal DictModule::call(
         return args[2];
     }
 
+    if (function_name == "merge") {
+        if (args.size() != 2 || !args[0].isDict() || !args[1].isDict()) {
+            throw std::runtime_error(
+                "dict.merge requires (dict, dict) arguments\n\n"
+                "  Example: let combined = dict.merge(d1, d2)\n"
+            );
+        }
+        auto copy = args[0].asDict();
+        for (const auto& [k, v] : args[1].asDictConst()) {
+            copy[k] = v;
+        }
+        return interpreter::NaabVal::makeDict(std::move(copy));
+    }
+
+    if (function_name == "entries") {
+        if (args.size() != 1 || !args[0].isDict()) {
+            throw std::runtime_error(
+                "dict.entries requires a single dict argument\n\n"
+                "  Example: let pairs = dict.entries(my_dict)  // [[k1,v1], [k2,v2]]\n"
+            );
+        }
+        const auto& d = args[0].asDictConst();
+        std::vector<interpreter::NaabVal> entries;
+        entries.reserve(d.size());
+        for (const auto& [k, v] : d) {
+            std::vector<interpreter::NaabVal> pair;
+            pair.push_back(interpreter::NaabVal::makeString(k));
+            pair.push_back(v);
+            entries.push_back(interpreter::NaabVal::makeList(std::move(pair)));
+        }
+        return interpreter::NaabVal::makeList(std::move(entries));
+    }
+
+    if (function_name == "size") {
+        if (args.size() != 1 || !args[0].isDict()) {
+            throw std::runtime_error(
+                "dict.size requires a single dict argument\n\n"
+                "  Example: let n = dict.size(my_dict)\n"
+            );
+        }
+        return interpreter::NaabVal::makeInt(static_cast<int>(args[0].asDictConst().size()));
+    }
+
     throw std::runtime_error("Unknown dict function: " + function_name + "\n\n"
-        "  Available: keys, values, has_key, get, get_or\n");
+        "  Available: keys, values, has_key, get, get_or, merge, entries, size\n");
 }
 
 } // namespace stdlib

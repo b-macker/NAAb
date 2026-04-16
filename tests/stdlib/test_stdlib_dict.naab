@@ -103,6 +103,73 @@ function test_dot_has_key() {
     return [passed, total]
 }
 
+function test_merge() {
+    let passed = 0
+    let total = 0
+
+    let d1 = {"a": 1, "b": 2}
+    let d2 = {"c": 3, "d": 4}
+    let merged = dict.merge(d1, d2)
+
+    total = total + 1
+    if dict.size(merged) == 4 { passed = passed + 1 }
+    else { io.println("[FAIL] merge size: expected 4") }
+
+    total = total + 1
+    if dict.has_key(merged, "a") { passed = passed + 1 }
+    else { io.println("[FAIL] merge contains a") }
+
+    total = total + 1
+    if dict.has_key(merged, "c") { passed = passed + 1 }
+    else { io.println("[FAIL] merge contains c") }
+
+    // d2 overwrites d1
+    let o1 = {"x": 1}
+    let o2 = {"x": 99}
+    let ov = dict.merge(o1, o2)
+
+    total = total + 1
+    if dict.get(ov, "x") == 99 { passed = passed + 1 }
+    else { io.println("[FAIL] merge overwrite: expected 99") }
+
+    return [passed, total]
+}
+
+function test_entries() {
+    let passed = 0
+    let total = 0
+
+    let d = {"a": 1, "b": 2}
+    let e = dict.entries(d)
+
+    total = total + 1
+    if array.length(e) == 2 { passed = passed + 1 }
+    else { io.println("[FAIL] entries length: expected 2") }
+
+    // Each entry is a [key, value] pair
+    total = total + 1
+    let first = e[0]
+    if array.length(first) == 2 { passed = passed + 1 }
+    else { io.println("[FAIL] entry pair length: expected 2") }
+
+    return [passed, total]
+}
+
+function test_size() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if dict.size({}) == 0 { passed = passed + 1 }
+    else { io.println("[FAIL] empty dict size") }
+
+    total = total + 1
+    if dict.size({"a": 1, "b": 2, "c": 3}) == 3 { passed = passed + 1 }
+    else { io.println("[FAIL] dict size 3") }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -126,6 +193,18 @@ main {
     let r5 = test_dot_has_key()
     total_passed = total_passed + r5[0]
     total_tests = total_tests + r5[1]
+
+    let r6 = test_merge()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_entries()
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_size()
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
 
     io.println("stdlib/dict: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
     if total_passed != total_tests { throw "stdlib test failures" }
