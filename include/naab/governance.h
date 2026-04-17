@@ -1720,6 +1720,7 @@ private:
     std::string agent_id_ = "anonymous";
     std::string current_check_file_;    // Set by setCheckContext() for report tracking
     int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
+    std::unordered_set<std::string> emitted_advisories_;  // Dedup advisory warnings
     std::unordered_set<std::string> taint_set_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint

@@ -1131,7 +1131,11 @@ void Compiler::visit(ast::ForStmt& node) {
     // When > 0 and iterable is dict, OP_GET_ITER produces [key,value] pairs
     int destruct_vars = node.isDestructuring()
         ? static_cast<int>(node.getDestructureNames().size()) : 0;
-    emitWide(OpCode::OP_GET_ITER, static_cast<uint32_t>(destruct_vars), line);
+    // Bit 23: flag that parens index form was used (for dict DX warning)
+    // Lower 16 bits: destructure var count
+    uint32_t iter_flag = static_cast<uint32_t>(destruct_vars);
+    if (node.hasIndex()) iter_flag |= 0x800000u;
+    emitWide(OpCode::OP_GET_ITER, iter_flag, line);
 
     // The iterator state occupies 2 stack slots: [list, index]
     // Reserve as anonymous locals so the stack accounting is correct

@@ -1862,6 +1862,12 @@ interpreter::NaabVal VM::run() {
                     push(iterable);
                     push(interpreter::NaabVal::makeInt(0));
                 } else if (iterable.isDict()) {
+                    // DX warning: for (i, k) in dict gives (index, key), not (key, value)
+                    if (arg & 0x800000u) {
+                        fprintf(stderr, "[warning] for (i, k) in dict gives (index, key), not (key, value). "
+                                        "Use for [k, v] in dict instead.\n");
+                    }
+                    uint32_t dict_arg = arg & 0x7FFFFFu;  // strip flag bit, keep lower 23 bits
                     auto& dict = iterable.asDictConst();
                     // Check for generator wrapper dict
                     auto gen_it = dict.find("__is_generator__");
@@ -1890,8 +1896,8 @@ interpreter::NaabVal VM::run() {
                         }
                     }
                     // Regular dict iteration
-                    // arg > 0 means destructuring: produce [key, value] pairs
-                    if (arg > 0) {
+                    // dict_arg > 0 means destructuring: produce [key, value] pairs
+                    if (dict_arg > 0) {
                         std::vector<interpreter::NaabVal> pairs;
                         pairs.reserve(dict.size());
                         for (auto& kv : dict) {

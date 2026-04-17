@@ -2007,7 +2007,12 @@ void Interpreter::visit(ast::ForStmt& node) {
         }
 
         // Not a range — iterate as dict (over keys, or destructure [key, val])
+        if (node.hasIndex()) {
+            fprintf(stderr, "[warning] for (i, k) in dict gives (index, key), not (key, value). "
+                            "Use for [k, v] in dict instead. (line %d)\n", node.getLocation().line);
+        }
         size_t iter_count = 0;
+        int dict_idx = 0;
         for (const auto& [key, val] : dict) {
             if (governance_ && governance_->isActive()) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
@@ -2021,7 +2026,11 @@ void Interpreter::visit(ast::ForStmt& node) {
                 defineLoopVar(NaabVal::makeList(std::move(pair)));
             } else {
                 current_env_->define(node.getVar(), NaabVal::makeString(key));
+                if (node.hasIndex()) {
+                    current_env_->define(node.getIndexVar(), NaabVal::makeInt(dict_idx));
+                }
             }
+            dict_idx++;
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) { breaking_ = false; break; }

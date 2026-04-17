@@ -2183,8 +2183,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                     // Reference parameter: pass the shared_ptr directly (share the value)
                     func_env->define(func->params[i], args[i]);
                 } else {
-                    // Value parameter: copy the value (default behavior)
-                    func_env->define(func->params[i], copyValue(args[i]));
+                    // Pass by shared reference (matches VM behavior)
+                    func_env->define(func->params[i], args[i]);
                 }
             }
 

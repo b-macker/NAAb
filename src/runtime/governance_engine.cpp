@@ -405,7 +405,9 @@ std::string GovernanceEngine::enforce(
             return violation_message;
 
         case EnforcementLevel::ADVISORY:
-            fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+            if (emitted_advisories_.insert(rule_name).second) {
+                fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+            }
             return "";  // Don't block
     }
     return "";
@@ -1090,6 +1092,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
     // Reset
     dup_call_summary_.clear();
     ptc_functions_.clear();
+    emitted_advisories_.clear();
     advisory_count_ = 0;
     advisory_suppressed_ = 0;
 }
