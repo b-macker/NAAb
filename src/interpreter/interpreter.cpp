@@ -1650,6 +1650,33 @@ void Interpreter::visit(ast::IfExpr& node) {
     // last_value_ is set by whichever branch expression was evaluated
 }
 
+void Interpreter::visit(ast::TryCatchExpr& node) {
+    try {
+        node.getTryExpr()->accept(*this);
+        // result_ now holds try expression value
+    } catch (NaabError& e) {
+        // Bind error to catch variable in new scope
+        NaabVal error_val = e.getValue();
+        if (error_val.isNull()) {
+            error_val = NaabVal::makeString(e.getMessage());
+        }
+        auto catch_env = std::make_shared<Environment>(current_env_);
+        catch_env->define(node.getErrorName(), error_val);
+        auto saved = current_env_;
+        current_env_ = catch_env;
+        node.getCatchExpr()->accept(*this);
+        current_env_ = saved;
+    } catch (const std::exception& ex) {
+        auto error_val = NaabVal::makeString(ex.what());
+        auto catch_env = std::make_shared<Environment>(current_env_);
+        catch_env->define(node.getErrorName(), error_val);
+        auto saved = current_env_;
+        current_env_ = catch_env;
+        node.getCatchExpr()->accept(*this);
+        current_env_ = saved;
+    }
+}
+
 void Interpreter::visit(ast::MatchExpr& node) {
     auto subject = eval(*node.getSubject());
 

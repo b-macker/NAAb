@@ -2669,27 +2669,9 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return inline_expr;
     }
 
-    // HELPER: try-as-expression detection — NAAb's try is a statement, not an expression
+    // Try-catch expression: try { expr } catch (e) { expr }
     if (check(lexer::TokenType::TRY)) {
-        throw ParseError(formatError(
-            "NAAb's 'try' is a statement, not an expression\n\n"
-            "  It cannot be used on the right side of 'let' or in expressions.\n\n"
-            "  \xE2\x9C\x97 Wrong:\n"
-            "    let x = try { file.read(\"config.json\") } catch (e) { \"{}\" }\n\n"
-            "  \xE2\x9C\x93 Right:\n"
-            "    let x = \"{}\"\n"
-            "    try {\n"
-            "        x = file.read(\"config.json\")\n"
-            "    } catch (e) { }\n\n"
-            "  Or use a wrapper function:\n"
-            "    fn safe_read(path, fallback) {\n"
-            "        let result = fallback\n"
-            "        try { result = file.read(path) } catch (e) { }\n"
-            "        return result\n"
-            "    }\n"
-            "    let x = safe_read(\"config.json\", \"{}\")\n",
-            current()
-        ));
+        return parseTryCatchExpr();
     }
 
     // HELPER: throw-as-expression detection — NAAb's throw is a statement, not an expression
@@ -3109,6 +3091,44 @@ std::unique_ptr<ast::Expr> Parser::parseIfExpr() {
     );
 }
 
+// Try-catch expression: try { expr } catch (e) { expr }
+std::unique_ptr<ast::Expr> Parser::parseTryCatchExpr() {
+    auto start = current();
+    expect(lexer::TokenType::TRY, "Expected 'try'");
+    skipNewlines();
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after try");
+    skipNewlines();
+
+    auto try_expr = parseExpression();
+    skipNewlines();
+
+    expect(lexer::TokenType::RBRACE, "Expected '}' after try expression");
+    skipNewlines();
+
+    expect(lexer::TokenType::CATCH, "try expression requires a 'catch' branch");
+    skipNewlines();
+
+    expect(lexer::TokenType::LPAREN, "Expected '(' after catch");
+    std::string error_name = current().value;
+    expect(lexer::TokenType::IDENTIFIER, "Expected error variable name");
+    expect(lexer::TokenType::RPAREN, "Expected ')' after error variable");
+    skipNewlines();
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after catch(e)");
+    skipNewlines();
+
+    auto catch_expr = parseExpression();
+    skipNewlines();
+
+    expect(lexer::TokenType::RBRACE, "Expected '}' after catch expression");
+
+    return std::make_unique<ast::TryCatchExpr>(
+        std::move(try_expr), error_name, std::move(catch_expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
+}
+
 // Await expression: await expr
 std::unique_ptr<ast::Expr> Parser::parseAwaitExpr() {
     auto start = current();
@@ -3195,28 +3215,6 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
                 "    match format {\n"
                 "        \"json\" => json.stringify(data)\n"
                 "        _ => \"error: unknown format\"\n"
-                "    }\n",
-                current()
-            ));
-        }
-
-        // HELPER: try-in-match-arm detection
-        if (check(lexer::TokenType::TRY)) {
-            throw ParseError(formatError(
-                "NAAb's 'try' is a statement, not an expression\n\n"
-                "  'try' cannot be used inside match arms (which expect expressions).\n\n"
-                "  \xE2\x9C\x97 Wrong:\n"
-                "    match value {\n"
-                "        \"file\" => try { file.read(\"x\") } catch (e) { \"\" }\n"
-                "    }\n\n"
-                "  \xE2\x9C\x93 Right:\n"
-                "    fn safe_read(path) {\n"
-                "        let result = \"\"\n"
-                "        try { result = file.read(path) } catch (e) { }\n"
-                "        return result\n"
-                "    }\n"
-                "    match value {\n"
-                "        \"file\" => safe_read(\"x\")\n"
                 "    }\n",
                 current()
             ));

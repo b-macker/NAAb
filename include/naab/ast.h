@@ -24,6 +24,7 @@ class LambdaExpr;
 class MatchExpr;
 class AwaitExpr;
 class YieldExpr;
+class TryCatchExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -88,6 +89,7 @@ enum class NodeKind {
     MatchExpr,            // Match expression: match value { pattern => expr, ... }
     AwaitExpr,            // Await expression: await future_expr
     YieldExpr,            // Yield expression: yield value (generators)
+    TryCatchExpr,         // Try expression: try { expr } catch (e) { expr }
 };
 
 class ASTNode {
@@ -1065,6 +1067,31 @@ private:
     std::unique_ptr<Expr> else_expr_;
 };
 
+// Try-catch expression: try { expr } catch (e) { expr }
+class TryCatchExpr : public Expr {
+public:
+    TryCatchExpr(std::unique_ptr<Expr> try_expr,
+                 std::string error_name,
+                 std::unique_ptr<Expr> catch_expr,
+                 SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::TryCatchExpr, loc),
+          try_expr_(std::move(try_expr)),
+          error_name_(std::move(error_name)),
+          catch_expr_(std::move(catch_expr)) {}
+
+    Expr* getTryExpr() const { return try_expr_.get(); }
+    const std::string& getErrorName() const { return error_name_; }
+    Expr* getCatchExpr() const { return catch_expr_.get(); }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> try_expr_;
+    std::string error_name_;
+    std::unique_ptr<Expr> catch_expr_;
+};
+
 // Lambda expression: function(params) -> type { body }
 // Also: func(params) { body }, def(params) { body }, fn(params) { body }
 class LambdaExpr : public Expr {
@@ -1318,6 +1345,10 @@ public:
     virtual void visit(YieldExpr& node) {
         (void)node;
         throw std::runtime_error("YieldExpr not supported by this visitor");
+    }
+    virtual void visit(TryCatchExpr& node) {
+        (void)node;
+        throw std::runtime_error("TryCatchExpr not supported by this visitor");
     }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {

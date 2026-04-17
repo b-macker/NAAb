@@ -120,6 +120,7 @@ private:
     std::unique_ptr<ast::Expr> parsePostfix();
     std::unique_ptr<ast::Expr> parsePrimary();
     std::unique_ptr<ast::Expr> parseIfExpr();
+    std::unique_ptr<ast::Expr> parseTryCatchExpr();
     std::unique_ptr<ast::Expr> parseMatchExpr();
     std::unique_ptr<ast::Expr> parseAwaitExpr();
     std::unique_ptr<ast::Expr> parseYieldExpr();

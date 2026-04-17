@@ -1,0 +1,33 @@
+use json
+
+fn risky() {
+    throw "oops"
+}
+
+main {
+    # Happy path
+    let x = try { 42 } catch (e) { -1 }
+    print("happy: " + string(x))
+
+    # Error path
+    let y = try { risky() } catch (e) { -1 }
+    print("error: " + string(y))
+
+    # With error variable
+    let z = try { risky() } catch (e) { e }
+    print("msg: " + string(z))
+
+    # Nested in let
+    let config = try { json.parse("invalid") } catch (e) { {} }
+    print("config: " + string(config))
+
+    # In match arm
+    let val = 1
+    let r = match val {
+        1 => try { risky() } catch (e) { "caught" }
+        _ => "other"
+    }
+    print("match: " + r)
+
+    print("try-expr OK")
+}

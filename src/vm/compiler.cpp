@@ -940,6 +940,42 @@ void Compiler::visit(ast::IfExpr& node) {
     patchJump(end_jump);
 }
 
+void Compiler::visit(ast::TryCatchExpr& node) {
+    int line = node.getLocation().line;
+
+    // OP_TRY_BEGIN [catch_offset]
+    int try_begin = emitJump(OpCode::OP_TRY_BEGIN, line);
+
+    // Try expression — leaves value on stack
+    node.getTryExpr()->accept(*this);
+
+    // OP_TRY_END — pop exception handler
+    emitOp(OpCode::OP_TRY_END, line);
+
+    // Jump over catch block
+    int skip_catch = emitJump(OpCode::OP_JUMP, line);
+
+    // Catch block — exception value is on stack (pushed by VM on throw)
+    patchJump(try_begin);
+
+    // Bind error to local so catch expression can reference it
+    beginScope();
+    addLocal(node.getErrorName());
+    markInitialized();
+    // Stack: [..., error_val(local)]
+
+    // Catch expression — leaves value on stack
+    node.getCatchExpr()->accept(*this);
+    // Stack: [..., error_val(local), catch_result]
+
+    // Move catch_result under the local, then endScope pops the local
+    emitOp(OpCode::OP_SWAP, line);
+    endScope();  // pops error_val local
+    // Stack: [..., catch_result]
+
+    patchJump(skip_catch);
+}
+
 // Finding G fix: UseStatement is the block-loading form (use BLOCK-xyz).
 // The old silent no-op caused confusing crashes later; throw at compile time instead.
 // ModuleUseStmt (use math) is fully supported — see visit(ast::ModuleUseStmt&).
