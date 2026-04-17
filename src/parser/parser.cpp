@@ -3386,7 +3386,7 @@ ast::Type Parser::parseBaseType() {
             // Collection aliases
             {"Map", "dict"}, {"HashMap", "dict"}, {"Dictionary", "dict"},
             {"Dict", "dict"}, {"Record", "dict"},
-            {"List", "list"}, {"Array", "list"}, {"Vec", "list"},
+            {"List", "list"}, {"Array", "list"}, {"array", "list"}, {"Vec", "list"},
             {"Vector", "list"}, {"Slice", "list"},
             // Special types
             {"Double", "float"}, {"Number", "float"},
