@@ -3084,7 +3084,16 @@ VM::importModule(const std::string& module_path) {
         if (val.isString()) {
             const std::string& sv = val.asString();
             if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") continue;
-            if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") continue;
+            if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
+                    // Only filter prelude modules (every VM already has them)
+                    // Let non-prelude use bindings (csv, regex, uuid, etc.) propagate
+                    static const std::unordered_set<std::string> prelude = {
+                        "array", "dict", "io", "file", "debug", "bolo", "env",
+                        "math", "json", "http", "crypto", "time", "os"
+                    };
+                    std::string mod_name = sv.substr(18);
+                    if (prelude.count(mod_name)) continue;
+                }
         }
         (*exports)[name] = val;
     }
