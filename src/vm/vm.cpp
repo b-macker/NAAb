@@ -1862,10 +1862,13 @@ interpreter::NaabVal VM::run() {
                     push(iterable);
                     push(interpreter::NaabVal::makeInt(0));
                 } else if (iterable.isDict()) {
-                    // DX warning: for (i, k) in dict gives (index, key), not (key, value)
+                    // for (k, v) in dict is not supported in VM — use [k, v] instead
                     if (arg & 0x800000u) {
-                        fprintf(stderr, "[warning] for (i, k) in dict gives (index, key), not (key, value). "
-                                        "Use for [k, v] in dict instead.\n");
+                        runtimeError("for (k, v) in dict is not supported — use for [k, v] in dict instead.\n\n"
+                                     "  The bracket form [k, v] correctly binds key and value:\n"
+                                     "    for [k, v] in my_dict {\n"
+                                     "        print(k + \" = \" + string(v))\n"
+                                     "    }");
                     }
                     uint32_t dict_arg = arg & 0x7FFFFFu;  // strip flag bit, keep lower 23 bits
                     auto& dict = iterable.asDictConst();

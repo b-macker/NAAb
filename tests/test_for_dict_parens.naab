@@ -1,0 +1,15 @@
+main {
+    let d = {"a": 1, "b": 2, "c": 3}
+
+    # Bracket form (always worked)
+    for [k, v] in d {
+        print("[" + k + "] = " + string(v))
+    }
+
+    # Simple form
+    for k in d {
+        print("key: " + k)
+    }
+
+    print("for-dict OK")
+}
