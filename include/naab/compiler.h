@@ -157,6 +157,7 @@ private:
     void visit(ast::InlineCodeExpr& node) override;
     void visit(ast::IfExpr& node) override;
     void visit(ast::TryCatchExpr& node) override;
+    void visit(ast::ThrowExpr& node) override;
     void visit(ast::LambdaExpr& node) override;
     void visit(ast::MatchExpr& node) override;
     void visit(ast::AwaitExpr& node) override;

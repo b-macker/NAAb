@@ -52,8 +52,7 @@ EXPECTED_ERROR_TESTS["test_reserved_keyword_error.naab"]=1
 EXPECTED_ERROR_TESTS["test_sys_hint.naab"]=1
 EXPECTED_ERROR_TESTS["test_variable_binding_error.naab"]=1
 EXPECTED_ERROR_TESTS["parser_errors_test.naab"]=1
-# Gorilla test #4 helper error tests
-EXPECTED_ERROR_TESTS["test_try_expression_error.naab"]=1
+# Gorilla test #4 helper error tests (try-expr now valid since 3809f25d)
 EXPECTED_ERROR_TESTS["test_throw_expression_error.naab"]=1
 EXPECTED_ERROR_TESTS["test_throw_match_error.naab"]=1
 EXPECTED_ERROR_TESTS["test_string_match_error.naab"]=1

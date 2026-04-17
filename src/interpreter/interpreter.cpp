@@ -1650,6 +1650,11 @@ void Interpreter::visit(ast::IfExpr& node) {
     // last_value_ is set by whichever branch expression was evaluated
 }
 
+void Interpreter::visit(ast::ThrowExpr& node) {
+    auto val = eval(*node.getExpr());
+    throw NaabException(val);
+}
+
 void Interpreter::visit(ast::TryCatchExpr& node) {
     try {
         node.getTryExpr()->accept(*this);

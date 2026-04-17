@@ -2674,17 +2674,9 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return parseTryCatchExpr();
     }
 
-    // HELPER: throw-as-expression detection — NAAb's throw is a statement, not an expression
+    // Throw expression: throw expr (diverges, valid in expression position)
     if (check(lexer::TokenType::THROW)) {
-        throw ParseError(formatError(
-            "NAAb's 'throw' is a statement, not an expression\n\n"
-            "  It cannot be used on the right side of 'let' or in expressions.\n\n"
-            "  \xE2\x9C\x97 Wrong:\n"
-            "    let x = throw \"error\"\n\n"
-            "  \xE2\x9C\x93 Right:\n"
-            "    throw \"error\"    // throw is a standalone statement\n",
-            current()
-        ));
+        return parseThrowExpr();
     }
 
     // Identifier (and keywords used as variable names like 'config', 'init', 'module', etc.)
@@ -3129,6 +3121,17 @@ std::unique_ptr<ast::Expr> Parser::parseTryCatchExpr() {
     );
 }
 
+// Throw expression: throw expr (diverges, valid in expression position)
+std::unique_ptr<ast::Expr> Parser::parseThrowExpr() {
+    auto start = current();
+    expect(lexer::TokenType::THROW, "Expected 'throw'");
+    auto expr = parseLogicalOr();
+    return std::make_unique<ast::ThrowExpr>(
+        std::move(expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
+}
+
 // Await expression: await expr
 std::unique_ptr<ast::Expr> Parser::parseAwaitExpr() {
     auto start = current();
@@ -3194,31 +3197,6 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
             throw ParseError(formatError(hint, tok));
         }
         skipNewlines();
-
-        // HELPER: throw-in-match-arm detection
-        if (check(lexer::TokenType::THROW)) {
-            throw ParseError(formatError(
-                "NAAb's 'throw' is a statement, not an expression\n\n"
-                "  'throw' cannot be used inside match arms (which expect expressions).\n\n"
-                "  \xE2\x9C\x97 Wrong:\n"
-                "    match format {\n"
-                "        \"json\" => json.stringify(data)\n"
-                "        _ => throw \"Unknown format: \" + format\n"
-                "    }\n\n"
-                "  \xE2\x9C\x93 Right (use if/else with throw):\n"
-                "    fn format_report(data, format) {\n"
-                "        if format == \"json\" { return json.stringify(data) }\n"
-                "        if format == \"text\" { return generate_text(data) }\n"
-                "        throw \"Unknown format: \" + format\n"
-                "    }\n\n"
-                "  Or use a default value:\n"
-                "    match format {\n"
-                "        \"json\" => json.stringify(data)\n"
-                "        _ => \"error: unknown format\"\n"
-                "    }\n",
-                current()
-            ));
-        }
 
         // Use parseLogicalOr for body to avoid greedy newline consumption
         auto body = parseLogicalOr();

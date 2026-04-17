@@ -25,6 +25,7 @@ class MatchExpr;
 class AwaitExpr;
 class YieldExpr;
 class TryCatchExpr;
+class ThrowExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -90,6 +91,7 @@ enum class NodeKind {
     AwaitExpr,            // Await expression: await future_expr
     YieldExpr,            // Yield expression: yield value (generators)
     TryCatchExpr,         // Try expression: try { expr } catch (e) { expr }
+    ThrowExpr,            // Throw expression: throw expr (diverges, never returns)
 };
 
 class ASTNode {
@@ -1092,6 +1094,22 @@ private:
     std::unique_ptr<Expr> catch_expr_;
 };
 
+// Throw expression: throw expr (diverges, valid in expression position)
+class ThrowExpr : public Expr {
+public:
+    explicit ThrowExpr(std::unique_ptr<Expr> expr,
+                       SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::ThrowExpr, loc), expr_(std::move(expr)) {}
+
+    Expr* getExpr() const { return expr_.get(); }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> expr_;
+};
+
 // Lambda expression: function(params) -> type { body }
 // Also: func(params) { body }, def(params) { body }, fn(params) { body }
 class LambdaExpr : public Expr {
@@ -1349,6 +1367,10 @@ public:
     virtual void visit(TryCatchExpr& node) {
         (void)node;
         throw std::runtime_error("TryCatchExpr not supported by this visitor");
+    }
+    virtual void visit(ThrowExpr& node) {
+        (void)node;
+        throw std::runtime_error("ThrowExpr not supported by this visitor");
     }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {

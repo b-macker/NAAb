@@ -193,6 +193,10 @@ void TryCatchExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void ThrowExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void LambdaExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }

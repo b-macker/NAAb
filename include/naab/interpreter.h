@@ -474,6 +474,7 @@ public:
     void visit(ast::IfStmt& node) override;
     void visit(ast::IfExpr& node) override;
     void visit(ast::TryCatchExpr& node) override;
+    void visit(ast::ThrowExpr& node) override;
     void visit(ast::MatchExpr& node) override;
     void visit(ast::AwaitExpr& node) override;
     void visit(ast::YieldExpr& node) override;

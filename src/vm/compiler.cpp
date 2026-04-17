@@ -1355,6 +1355,12 @@ void Compiler::visit(ast::ThrowStmt& node) {
     emitOp(OpCode::OP_THROW, line);
 }
 
+void Compiler::visit(ast::ThrowExpr& node) {
+    int line = node.getLocation().line;
+    node.getExpr()->accept(*this);
+    emitOp(OpCode::OP_THROW, line);
+}
+
 void Compiler::visit(ast::ModuleUseStmt& node) {
     int line = node.getLocation().line;
     std::string module_path = node.getModulePath();

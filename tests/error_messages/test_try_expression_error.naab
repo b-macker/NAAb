@@ -1,5 +1,6 @@
-// Test: try-as-expression should produce a helpful error
-// Expected: FAIL (parse error with guidance)
+// Test: try-as-expression is now supported (was error before 3809f25d)
+// Expected: PASS (valid expression)
 main {
     let x = try { 42 } catch (e) { 0 }
+    print("try-expr: " + string(x))
 }

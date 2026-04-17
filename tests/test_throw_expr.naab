@@ -1,0 +1,28 @@
+fn check_value(x) {
+    let result = match x {
+        1 => "one"
+        2 => "two"
+        _ => throw "unknown: " + string(x)
+    }
+    return result
+}
+
+main {
+    # Match arm with throw - happy path
+    let a = check_value(1)
+    print("a: " + a)
+
+    # Match arm with throw - error path caught
+    let b = try { check_value(99) } catch (e) { "caught: " + string(e) }
+    print("b: " + b)
+
+    # Throw in if-expression else branch
+    let c = try { if true { 42 } else { throw "unreachable" } } catch (e) { -1 }
+    print("c: " + string(c))
+
+    # Standalone throw still works (statement form)
+    let d = try { throw "standalone" } catch (e) { "ok: " + string(e) }
+    print("d: " + d)
+
+    print("throw-expr OK")
+}
