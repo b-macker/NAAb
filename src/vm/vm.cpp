@@ -3477,6 +3477,13 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         }
     }
 
+    if (obj.isNull()) {
+        runtimeError("Cannot call method '%s' on null\n\n"
+                     "  Hint: The value may be null from env.get() or dict access.\n"
+                     "  Use ?? to provide a default: value ?? \"fallback\"\n"
+                     "  Or use env.get(key, default) for environment variables.",
+                     method.c_str());
+    }
     runtimeError("Cannot call method '%s' on %s", method.c_str(), obj.getTypeName().c_str());
 }
 

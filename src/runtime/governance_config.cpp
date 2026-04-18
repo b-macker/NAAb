@@ -140,6 +140,16 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
         if (s == "soft")     return {true, EnforcementLevel::SOFT};
         if (s == "advisory") return {true, EnforcementLevel::ADVISORY};
     }
+    if (value.is_object()) {
+        bool enabled = value.value("enabled", true);
+        EnforcementLevel level = EnforcementLevel::HARD;
+        if (value.contains("level")) {
+            std::string s = value["level"].get<std::string>();
+            if (s == "soft") level = EnforcementLevel::SOFT;
+            else if (s == "advisory") level = EnforcementLevel::ADVISORY;
+        }
+        return {enabled, level};
+    }
     return {false, EnforcementLevel::HARD};
 }
 
@@ -350,6 +360,25 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.restrict_dangerous_calls = enabled;
                 rules_.dangerous_calls_level = level;
             }
+        }
+        // Allow no_secrets/no_placeholders/no_hardcoded_results under restrictions (alias for code_quality)
+        if (res.contains("no_secrets")) {
+            auto [en, lv] = parseEnforcementLevel(res["no_secrets"]);
+            rules_.no_secrets = en; rules_.no_secrets_level = lv;
+            rules_.code_quality.no_secrets.enabled = en;
+            rules_.code_quality.no_secrets.level = lv;
+        }
+        if (res.contains("no_placeholders")) {
+            auto [en, lv] = parseEnforcementLevel(res["no_placeholders"]);
+            rules_.no_placeholders = en; rules_.no_placeholders_level = lv;
+            rules_.code_quality.no_placeholders.enabled = en;
+            rules_.code_quality.no_placeholders.level = lv;
+        }
+        if (res.contains("no_hardcoded_results")) {
+            auto [en, lv] = parseEnforcementLevel(res["no_hardcoded_results"]);
+            rules_.no_hardcoded_results = en; rules_.no_hardcoded_results_level = lv;
+            rules_.code_quality.no_hardcoded_results.enabled = en;
+            rules_.code_quality.no_hardcoded_results.level = lv;
         }
     }
 
@@ -1601,11 +1630,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
 // minimum enforcement levels. An LLM could write govern.json with all
 // checks set to "advisory" (warn-only) to bypass quality gates.
 void GovernanceEngine::enforceMinimumLevels() {
-    // Helper: elevate advisory to soft for anti-evasion checks
-    auto elevate = [](auto& cfg, const char* name) {
+    // Helper: silently elevate advisory to soft for anti-evasion checks
+    // (documented behavior — no per-run warning noise)
+    auto elevate = [](auto& cfg, const char* /*name*/) {
         if (cfg.enabled && cfg.level == EnforcementLevel::ADVISORY) {
-            fprintf(stderr, "[governance] WARNING: %s was set to advisory — "
-                    "elevating to soft (minimum for anti-evasion checks)\n", name);
             cfg.level = EnforcementLevel::SOFT;
         }
     };

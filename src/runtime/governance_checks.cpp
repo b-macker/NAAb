@@ -1294,10 +1294,12 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     auto& il_cfg = rules_.code_quality.no_incomplete_logic;
     auto& ph_cfg = rules_.code_quality.no_placeholders;
 
-    // Skip if all checks disabled (but still allow complexity_floor and plugins if enabled)
+    // Skip if all checks disabled (but still allow complexity_floor, secrets, PII, and plugins if enabled)
     auto& cf_cfg_early = rules_.code_quality.complexity_floor;
     bool has_plugins = !rules_.governance_plugins.empty();
-    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled && !has_plugins) return "";
+    bool has_secrets = rules_.code_quality.no_secrets.enabled;
+    bool has_pii = rules_.code_quality.no_pii.enabled;
+    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled && !has_plugins && !has_secrets && !has_pii) return "";
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
     // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
@@ -1318,6 +1320,16 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     if (il_cfg.enabled) {
         err = checkIncompleteLogic(stripped, line);
+        if (!err.empty()) return err;
+    }
+
+    // Secrets/PII checks — use RAW source (secrets CAN be in string literals)
+    if (rules_.code_quality.no_secrets.enabled) {
+        err = checkSecrets(source_code, line);
+        if (!err.empty()) return err;
+    }
+    if (rules_.code_quality.no_pii.enabled) {
+        err = checkPii(source_code, line);
         if (!err.empty()) return err;
     }
 
@@ -2315,18 +2327,24 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int l
 std::string GovernanceEngine::checkImports(const std::string& language,
                                             const std::string& code, int line) {
     auto& cfg = rules_.restrictions.imports;
-    if (!cfg.enabled) return "";
+
+    // Check per-language config even if restrictions.imports is not enabled
+    auto it = rules_.languages.per_language.find(language);
+    bool has_per_lang = (it != rules_.languages.per_language.end() &&
+                         (!it->second.imports.blocked.empty() || !it->second.banned_imports.empty()));
+    if (!cfg.enabled && !has_per_lang) return "";
 
     // Build import patterns for this language
     std::vector<std::string> blocked;
-    if (cfg.blocked.count(language)) blocked = cfg.blocked.at(language);
-    if (cfg.blocked.count("any")) {
-        auto& any = cfg.blocked.at("any");
-        blocked.insert(blocked.end(), any.begin(), any.end());
+    if (cfg.enabled) {
+        if (cfg.blocked.count(language)) blocked = cfg.blocked.at(language);
+        if (cfg.blocked.count("any")) {
+            auto& any = cfg.blocked.at("any");
+            blocked.insert(blocked.end(), any.begin(), any.end());
+        }
     }
 
     // Also check per-language config
-    auto it = rules_.languages.per_language.find(language);
     if (it != rules_.languages.per_language.end()) {
         auto& lc = it->second;
         for (const auto& b : lc.imports.blocked) blocked.push_back(b);
@@ -2344,9 +2362,11 @@ std::string GovernanceEngine::checkImports(const std::string& language,
         try {
             std::regex re(pat, std::regex::icase);
             if (std::regex_search(code, re)) {
-                return enforce("restrictions.imports", cfg.level,
-                    formatError(cfg.level, fmt::format("Blocked import in {} block: \"{}\"", language, imp),
-                        line > 0 ? fmt::format("line {}", line) : "", "restrictions.imports",
+                auto level = cfg.enabled ? cfg.level : EnforcementLevel::HARD;
+                return enforce("restrictions.imports", level,
+                    formatError(level, fmt::format("Blocked import in {} block: \"{}\"", language, imp),
+                        line > 0 ? fmt::format("line {}", line) : "",
+                        cfg.enabled ? "restrictions.imports" : fmt::format("languages.per_language.{}.imports.blocked", language),
                         fmt::format("The import \"{}\" is blocked by governance", imp), "", ""));
             }
         } catch (const std::regex_error&) {}
@@ -2365,7 +2385,19 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
 
     for (const auto& func : lc.banned_functions) {
         try {
-            std::regex re(func, std::regex::icase);
+            // Escape regex metacharacters so entries like "curl |" are treated as literals
+            std::string escaped;
+            for (char c : func) {
+                if (std::string("\\^$.|?*+()[]{}").find(c) != std::string::npos)
+                    escaped += '\\';
+                escaped += c;
+            }
+            // For multi-word patterns, require word boundary or end-of-string after match
+            // to prevent "rm -rf /" from matching "rm -rf /tmp/safe"
+            if (func.find(' ') != std::string::npos) {
+                escaped += "(?:\\s|$)";
+            }
+            std::regex re(escaped, std::regex::icase);
             if (std::regex_search(code, re)) {
                 return enforce("languages.per_language.banned_functions", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,

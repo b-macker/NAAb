@@ -1809,6 +1809,7 @@ private:
     mutable std::mutex results_mutex_;  // V-CONC-007: Thread-safe check_results_ access
     static constexpr size_t MAX_CHECK_RESULTS = 10000;  // V-GOV-024: Cap telemetry entries
     std::string agent_id_ = "anonymous";
+    std::string active_env_;            // Set by applyEnvironment()
     std::string current_check_file_;    // Set by setCheckContext() for report tracking
     int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_set<std::string> emitted_advisories_;  // Dedup advisory warnings

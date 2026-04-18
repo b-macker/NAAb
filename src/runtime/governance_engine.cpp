@@ -87,7 +87,7 @@ namespace governance {
 // ============================================================================
 
 static const std::vector<SecretPattern> SECRET_PATTERNS = {
-    {"sk-[a-zA-Z0-9]{32,}",             "OpenAI API Key", "critical"},
+    {"sk-[a-zA-Z0-9\\-_]{32,}",         "OpenAI API Key", "critical"},
     {"sk-ant-[a-zA-Z0-9\\-]{20,}",      "Anthropic API Key", "critical"},
     {"ghp_[a-zA-Z0-9]{36,}",            "GitHub Personal Access Token", "critical"},
     {"gho_[a-zA-Z0-9]{36,}",            "GitHub OAuth Token", "critical"},
@@ -1202,8 +1202,6 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
 // ============================================================================
 
 void GovernanceEngine::printDashboard() const {
-    if (check_results_.empty()) return;
-
     int passed = 0, blocked = 0;
     std::map<std::string, int> block_counts;
     for (const auto& r : check_results_) {
@@ -1227,6 +1225,14 @@ void GovernanceEngine::printDashboard() const {
 
     fprintf(stderr, "\n─── Agent Governance Summary ───\n");
     fprintf(stderr, "Agent:      %s\n", agent_id_.c_str());
+    // Show active config context
+    std::string mode_str = (rules_.mode == GovernanceMode::ENFORCE) ? "enforce"
+                         : (rules_.mode == GovernanceMode::AUDIT) ? "audit" : "off";
+    std::string config_line = "Mode:       " + mode_str;
+    if (!active_env_.empty()) config_line += " | Env: " + active_env_;
+    if (!rules_.sandbox_level_config.empty() && rules_.sandbox_level_config != "unrestricted")
+        config_line += " | Sandbox: " + rules_.sandbox_level_config;
+    fprintf(stderr, "%s\n", config_line.c_str());
     fprintf(stderr, "Checks:     %d passed, %d blocked\n", passed, blocked);
     if (!top_rule.empty())
         fprintf(stderr, "Top block:  %s (%d violation%s)\n",
@@ -1422,7 +1428,13 @@ void GovernanceEngine::applyEnvironment(const std::string& env_name) {
         }
         // Additional dot-path overrides can be added as needed
     }
+    active_env_ = env_name;
     fprintf(stderr, "[governance] Applied environment: %s\n", env_name.c_str());
+    if (rules_.verbose) {
+        for (const auto& [key, value] : it->second) {
+            fprintf(stderr, "[governance]   %s = %s\n", key.c_str(), value.c_str());
+        }
+    }
 }
 
 // ============================================================================

@@ -798,7 +798,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         check.level = level == "hard" ? EnforcementLevel::HARD :
                      level == "soft" ? EnforcementLevel::SOFT :
                                       EnforcementLevel::ADVISORY;
-        check.passed = false;
+        check.passed = (level == "advisory");  // advisory suggestions aren't failures
         check.message = message;
         check.category = "polyglot";
         check.severity = result.improvement_percent > 50 ? "high" :

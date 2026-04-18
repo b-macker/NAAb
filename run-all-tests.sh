@@ -559,6 +559,19 @@ echo "════════════════════════�
 echo "  naab-gov Governance CLI Tests"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
+# --- Governance Enforcement Tests ---
+GOV_ENFORCE_SCRIPT="tests/governance/test_governance_enforcement.sh"
+if [ -f "$GOV_ENFORCE_SCRIPT" ]; then
+    if bash "$GOV_ENFORCE_SCRIPT" "$NAAB_BIN" 2>&1; then
+        echo "  test_governance_enforcement.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_enforcement.sh")
+    fi
+else
+    echo "  test_governance_enforcement.sh: not found, skipping"
+fi
+
 GOV_SCRIPT="tests/cli/test_naab_gov.sh"
 if [ -f "$GOV_SCRIPT" ]; then
     if bash "$GOV_SCRIPT" 2>&1; then

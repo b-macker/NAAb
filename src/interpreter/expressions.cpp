@@ -62,6 +62,12 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         } else {
             result_ = left_val;
         }
+        // Propagate taint through ?? — if LHS expression is tainted, result is tainted
+        if (governance_ && governance_->isActive()) {
+            if (expressionContainsTaint(static_cast<ast::Expr*>(&node))) {
+                governance_->setLastReturnTainted(true);
+            }
+        }
         return;
     }
 
