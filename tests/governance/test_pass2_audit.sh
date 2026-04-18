@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test_pass2_audit.sh — Governance Pass 2: Post-Execution Validation Audit
-set -euo pipefail
+set -uo pipefail
+# Note: no set -e — tests check exit codes and output patterns manually
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
@@ -60,7 +61,7 @@ echo "done"
     print(result)
 }
 EOF
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_determ.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_determ.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "Determinism"; then
     ok "determinism audit detects date command"
 else
@@ -80,7 +81,7 @@ print(random.randint(1, 100))
     print(result)
 }
 EOF
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_random.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_random.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "random function"; then
     ok "determinism audit detects random in python"
 else
@@ -99,7 +100,7 @@ print(2 + 2)
     print(result)
 }
 EOF
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_pure.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_pure.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "Determinism"; then
     fail "pure math should not trigger determinism"
     echo "    Got: $OUTPUT"
@@ -110,7 +111,7 @@ fi
 # ---------------------------------------------------------------------------
 # Test 5: Resource usage reported
 # ---------------------------------------------------------------------------
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_determ.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_determ.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "Resource Usage"; then
     ok "resource usage section in report"
 else
@@ -135,7 +136,7 @@ echo "hello"
     print(b)
 }
 EOF
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_multi.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_multi.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "2 blocks executed"; then
     ok "multi-block: correct block count"
 else
@@ -177,7 +178,7 @@ echo $user_data
     print(result)
 }
 EOF
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_taint.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_taint.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "Taint.*tracking.*violation\|taint flow\|runtime"; then
     ok "taint flow audit — tainted var reaches shell sink"
 else
@@ -196,7 +197,7 @@ date
     print(x)
 }
 EOF
-OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_auto.naab 2>&1)
+OUTPUT=$(cd "$WORK_DIR" && "$NAAB" test_auto.naab 2>&1 || true)
 if echo "$OUTPUT" | grep -q "Governance"; then
     ok "pass 2 runs automatically without flags"
 else
