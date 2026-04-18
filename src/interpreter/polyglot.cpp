@@ -953,6 +953,20 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             governance_->logPolyglotExecution(language, bound_vars, duration_us,
                                               current_file_, node.getLocation().line,
                                               runtime_ver);
+
+            // Pass 2: Record polyglot execution for post-execution audit
+            governance::PolyglotExecutionRecord rec;
+            rec.language = language;
+            rec.runtime_version = runtime_ver;
+            rec.source_line = node.getLocation().line;
+            rec.duration_us = duration_us;
+            rec.file = current_file_;
+            rec.bound_vars = bound_vars;
+            rec.captured_output = captured;
+            rec.final_code = final_code;
+            rec.contract_verified = json_parsed;
+            if (executor) rec.exit_code = executor->getLastExitCode();
+            governance_->addPolyglotExecution(rec);
         }
 
     } catch (const std::exception& e) {

@@ -171,6 +171,56 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         else if (mode == "off")   rules_.mode = GovernanceMode::OFF;
     }
 
+    // Governance behavior settings (govern.json alternative to CLI flags)
+    if (j.contains("governance") && j["governance"].is_object()) {
+        auto& gov = j["governance"];
+        if (gov.contains("verbose")) rules_.verbose = gov["verbose"].get<bool>();
+        if (gov.contains("dashboard")) rules_.dashboard = gov["dashboard"].get<bool>();
+        if (gov.contains("baseline_save")) rules_.baseline_save = gov["baseline_save"].get<bool>();
+        if (gov.contains("override")) rules_.allow_override = gov["override"].get<bool>();
+        if (gov.contains("lint_only")) rules_.lint_only_config = gov["lint_only"].get<bool>();
+        if (gov.contains("record_baselines")) rules_.record_baselines = gov["record_baselines"].get<bool>();
+        if (gov.contains("check_baselines")) rules_.check_baselines = gov["check_baselines"].get<bool>();
+        if (gov.contains("quiet")) rules_.quiet_config = gov["quiet"].get<bool>();
+        if (gov.contains("no_color")) rules_.no_color_config = gov["no_color"].get<bool>();
+        if (gov.contains("report_json")) rules_.report_json = gov["report_json"].get<std::string>();
+        if (gov.contains("report_sarif")) rules_.report_sarif = gov["report_sarif"].get<std::string>();
+        if (gov.contains("report_junit")) rules_.report_junit = gov["report_junit"].get<std::string>();
+        if (gov.contains("telemetry")) rules_.telemetry_path = gov["telemetry"].get<std::string>();
+        if (gov.contains("agent_id")) rules_.agent_id_config = gov["agent_id"].get<std::string>();
+        if (gov.contains("default_env")) rules_.default_env = gov["default_env"].get<std::string>();
+        if (gov.contains("strict_types")) rules_.strict_types_config = gov["strict_types"].get<bool>();
+        if (gov.contains("gc_threshold")) rules_.runtime.gc_threshold = gov["gc_threshold"].get<size_t>();
+        if (gov.contains("gc_stats")) rules_.runtime.gc_stats = gov["gc_stats"].get<bool>();
+        if (gov.contains("sandbox_level")) rules_.sandbox_level_config = gov["sandbox_level"].get<std::string>();
+    }
+
+    // Runtime limits section
+    if (j.contains("runtime") && j["runtime"].is_object()) {
+        auto& rt = j["runtime"];
+        if (rt.contains("timeout")) rules_.runtime.timeout = rt["timeout"].get<int>();
+        if (rt.contains("memory_limit")) rules_.runtime.memory_limit = rt["memory_limit"].get<size_t>();
+        if (rt.contains("gc_threshold")) rules_.runtime.gc_threshold = rt["gc_threshold"].get<size_t>();
+        if (rt.contains("gc_stats")) rules_.runtime.gc_stats = rt["gc_stats"].get<bool>();
+    }
+
+    // Security section
+    if (j.contains("security") && j["security"].is_object()) {
+        auto& sec = j["security"];
+        if (sec.contains("sandbox_level")) rules_.sandbox_level_config = sec["sandbox_level"].get<std::string>();
+        if (sec.contains("allow_network")) rules_.allow_network_config = sec["allow_network"].get<bool>();
+        if (sec.contains("strict_types")) rules_.strict_types_config = sec["strict_types"].get<bool>();
+    }
+
+    // API section
+    if (j.contains("api") && j["api"].is_object()) {
+        auto& api = j["api"];
+        if (api.contains("key")) rules_.api.key = api["key"].get<std::string>();
+        if (api.contains("timeout")) rules_.api.timeout = api["timeout"].get<int>();
+        if (api.contains("rate_limit")) rules_.api.rate_limit = api["rate_limit"].get<int>();
+        if (api.contains("max_body")) rules_.api.max_body = api["max_body"].get<size_t>();
+    }
+
     // Languages
     if (j.contains("languages")) {
         auto& lang = j["languages"];
@@ -1060,6 +1110,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (out.contains("max_advisories")) rules_.output.max_advisories = out["max_advisories"].get<int>();
         if (out.contains("advisory_summary")) rules_.output.advisory_summary = out["advisory_summary"].get<bool>();
+        if (out.contains("quiet")) rules_.quiet_config = out["quiet"].get<bool>();
+        if (out.contains("no_color")) rules_.no_color_config = out["no_color"].get<bool>();
     }
 
     // V3 Audit (expanded)
@@ -1594,6 +1646,8 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels();
+
+        // Schema key validation is done by caller (main.cpp) where --no-governance is known
 
         // FIX-DX-15: Schema validation warnings
         // Warn about sanitizer patterns prone to false positives

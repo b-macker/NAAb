@@ -1244,6 +1244,47 @@ struct GovernanceRules {
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
 
+    // --- Governance behavior (configurable via govern.json or CLI flags) ---
+    // CLI flags override these when present.
+    bool verbose = false;           // --governance-verbose
+    bool dashboard = false;         // --governance-dashboard
+    bool baseline_save = false;     // --governance-baseline-save
+    bool allow_override = false;    // --governance-override
+    bool lint_only_config = false;  // --lint-only
+    bool record_baselines = false;  // --governance-record-baselines
+    bool check_baselines = false;   // --governance-check-baselines
+    bool quiet_config = false;      // --quiet / -q
+    bool no_color_config = false;   // --no-color
+    std::string report_json;        // --governance-report
+    std::string report_sarif;       // --governance-sarif
+    std::string report_junit;       // --governance-junit
+    std::string telemetry_path;     // --governance-telemetry
+    std::string agent_id_config;    // --agent-id (empty = use default "anonymous")
+    std::string default_env;        // --env
+
+    // --- Runtime limits (configurable via govern.json "runtime" section) ---
+    struct RuntimeConfig {
+        int timeout = 30;
+        size_t memory_limit = 0;     // 0 = unlimited
+        size_t gc_threshold = 5000;
+        bool gc_stats = false;
+    };
+    RuntimeConfig runtime;
+
+    // --- Security (configurable via govern.json "security" section) ---
+    std::string sandbox_level_config;  // restricted/standard/elevated/unrestricted
+    bool allow_network_config = false; // --allow-network
+    bool strict_types_config = false;  // --strict-types
+
+    // --- API settings (configurable via govern.json "api" section) ---
+    struct ApiConfig {
+        std::string key;
+        int timeout = 10;
+        int rate_limit = 0;          // 0 = unlimited
+        size_t max_body = 1048576;   // 1 MiB
+    };
+    ApiConfig api;
+
     // --- Legacy flat fields (kept for backward compatibility) ---
     std::unordered_set<std::string> allowed_languages;
     std::unordered_set<std::string> blocked_languages;
@@ -1327,6 +1368,49 @@ struct AuditEntry {
 
 // ============================================================================
 // Pattern Database Types
+// ============================================================================
+// Pass 2: Post-Execution Audit Records
+// ============================================================================
+
+struct PolyglotExecutionRecord {
+    std::string language;
+    std::string runtime_version;
+    int source_line = 0;
+    int64_t duration_us = 0;
+    std::string file;
+    std::vector<std::string> bound_vars;
+    std::string captured_output;
+    std::string captured_stderr;
+    std::string final_code;         // actual code sent to executor
+    bool contract_verified = false;
+    int exit_code = 0;
+};
+
+struct TaintFlowRecord {
+    std::string var_name;
+    std::string source_type;  // "user_input", "polyglot_output", "env_var"
+    std::string sink_type;    // "shell_exec", "file_write", "" if no sink reached
+    std::string decision;     // "blocked", "allowed", "sanitized"
+    std::string file;
+    int line = 0;
+};
+
+struct SideEffectRecord {
+    std::string type;    // "file_write", "file_delete", "env_set", "env_delete", "shell_exec", "network"
+    std::string detail;  // path, var name, command, URL
+    std::string file;
+    int line = 0;
+};
+
+struct CrossBlockFlow {
+    int from_block_line = 0;
+    std::string from_language;
+    int to_block_line = 0;
+    std::string to_language;
+    std::vector<std::string> vars;  // variables that flowed
+    bool sanitized = false;
+};
+
 // ============================================================================
 
 struct DangerousPattern {
@@ -1670,6 +1754,13 @@ public:
                           const std::string& file = "",
                           int line = 0);
 
+    // --- Pass 2: Post-Execution Audit ---
+    void addPolyglotExecution(const PolyglotExecutionRecord& record);
+    void addTaintFlow(const TaintFlowRecord& flow);
+    void addSideEffect(const std::string& type, const std::string& detail,
+                       const std::string& file, int line);
+    void runPostExecutionAudit();
+
     // --- Taint Tracking ---
     void markTainted(const std::string& var_name);
     void clearTaint(const std::string& var_name);
@@ -1737,6 +1828,25 @@ private:
     std::vector<std::pair<std::string, int>> ptc_functions_; // polyglot try/catch: {name, line}
     int advisory_count_ = 0;
     int advisory_suppressed_ = 0;
+
+    // Pass 2: Post-execution audit data
+    std::vector<PolyglotExecutionRecord> polyglot_executions_;
+    std::vector<TaintFlowRecord> taint_flows_;
+    std::vector<SideEffectRecord> side_effects_;
+    std::vector<CrossBlockFlow> cross_block_flows_;
+
+    // Pass 2: Sub-audit functions
+    void auditPolyglotOutputs();
+    void auditTaintFlows();
+    void auditDeterminism();
+    void auditSemanticCorrectness();
+    void auditCrossBlockFlows();
+    void auditSideEffects();
+    std::string computeCoverageReport() const;
+    void printValidationReport();
+    std::string checkDeterminism(const std::string& language, const std::string& code, int line);
+    std::string checkOutputEntropy(const std::string& output, int line);
+    std::string checkErrorDumps(const std::string& output, int line);
 
     // Rate limiters
     RateLimiter polyglot_rate_;

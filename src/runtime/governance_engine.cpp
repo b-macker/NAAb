@@ -1517,5 +1517,381 @@ void GovernanceEngine::checkRuntimeVersions(const std::string& language,
     }
 }
 
+// ============================================================================
+// Pass 2: Post-Execution Validation Audit
+// ============================================================================
+
+void GovernanceEngine::addPolyglotExecution(const PolyglotExecutionRecord& record) {
+    polyglot_executions_.push_back(record);
+
+    // Cross-block flow detection: check if any bound_vars were output by a previous block
+    if (polyglot_executions_.size() > 1) {
+        for (size_t prev = 0; prev < polyglot_executions_.size() - 1; ++prev) {
+            const auto& prev_rec = polyglot_executions_[prev];
+            for (const auto& var : record.bound_vars) {
+                // If this var was output by a previous block, record a cross-block flow
+                if (!prev_rec.captured_output.empty()) {
+                    CrossBlockFlow flow;
+                    flow.from_block_line = prev_rec.source_line;
+                    flow.from_language = prev_rec.language;
+                    flow.to_block_line = record.source_line;
+                    flow.to_language = record.language;
+                    flow.vars.push_back(var);
+                    flow.sanitized = !isTainted(var);
+                    cross_block_flows_.push_back(flow);
+                    break;  // One flow record per previous block
+                }
+            }
+        }
+    }
+}
+
+void GovernanceEngine::addTaintFlow(const TaintFlowRecord& flow) {
+    taint_flows_.push_back(flow);
+}
+
+void GovernanceEngine::addSideEffect(const std::string& type, const std::string& detail,
+                                      const std::string& file, int line) {
+    side_effects_.push_back({type, detail, file, line});
+}
+
+void GovernanceEngine::runPostExecutionAudit() {
+    if (!active_) return;
+
+    auditPolyglotOutputs();
+    auditTaintFlows();
+    auditDeterminism();
+    auditSemanticCorrectness();
+    auditCrossBlockFlows();
+    auditSideEffects();
+    printValidationReport();
+}
+
+void GovernanceEngine::auditPolyglotOutputs() {
+    for (const auto& rec : polyglot_executions_) {
+        if (rec.captured_output.empty()) continue;
+
+        // Check for secrets in output
+        std::string err = checkSecrets(rec.captured_output, rec.source_line);
+        if (!err.empty()) {
+            check_results_.push_back({"pass2.output_secrets", EnforcementLevel::ADVISORY,
+                false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
+                "pass2_output", "medium", rec.source_line, rec.file, {}, {}});
+        }
+
+        // Check for PII in output
+        err = checkPii(rec.captured_output, rec.source_line);
+        if (!err.empty()) {
+            check_results_.push_back({"pass2.output_pii", EnforcementLevel::ADVISORY,
+                false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
+                "pass2_output", "medium", rec.source_line, rec.file, {}, {}});
+        }
+
+        // Check for high-entropy output (possible leaked credentials)
+        err = checkOutputEntropy(rec.captured_output, rec.source_line);
+        if (!err.empty()) {
+            check_results_.push_back({"pass2.output_entropy", EnforcementLevel::ADVISORY,
+                false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
+                "pass2_output", "low", rec.source_line, rec.file, {}, {}});
+        }
+
+        // Check for error dumps in output
+        err = checkErrorDumps(rec.captured_output, rec.source_line);
+        if (!err.empty()) {
+            check_results_.push_back({"pass2.output_error_dump", EnforcementLevel::ADVISORY,
+                false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
+                "pass2_output", "low", rec.source_line, rec.file, {}, {}});
+        }
+
+        // Wire the polyglot_output plugin trigger (designed but never invoked until now)
+        if (!in_plugin_check_) {
+            checkPluginRules("polyglot_output", {
+                {"output", interpreter::NaabVal::makeString(rec.captured_output)},
+                {"language", interpreter::NaabVal::makeString(rec.language)},
+                {"source_file", interpreter::NaabVal::makeString(rec.file)},
+                {"line", interpreter::NaabVal::makeInt(rec.source_line)},
+                {"duration_us", interpreter::NaabVal::makeInt(static_cast<int>(rec.duration_us))},
+                {"exit_code", interpreter::NaabVal::makeInt(rec.exit_code)},
+            }, rec.source_line);
+        }
+    }
+}
+
+void GovernanceEngine::auditTaintFlows() {
+    // Taint flows are already accumulated via addTaintFlow() calls from checkTaintedSink()
+    // Pass 2 just records a summary finding
+    if (taint_flows_.empty()) return;
+
+    int blocked = 0, allowed = 0, sanitized = 0;
+    for (const auto& f : taint_flows_) {
+        if (f.decision == "blocked" || f.decision == "BLOCKED") blocked++;
+        else if (f.decision == "allowed" || f.decision == "ALLOWED") allowed++;
+        else if (f.decision == "sanitized" || f.decision == "SANITIZED") sanitized++;
+    }
+
+    std::string msg = std::to_string(taint_flows_.size()) + " taint flow(s): " +
+        std::to_string(blocked) + " blocked, " +
+        std::to_string(allowed) + " allowed, " +
+        std::to_string(sanitized) + " sanitized";
+
+    check_results_.push_back({"pass2.taint_summary", EnforcementLevel::ADVISORY,
+        allowed == 0, msg, "pass2_taint", allowed > 0 ? "high" : "low",
+        0, "", {}, {}});
+}
+
+void GovernanceEngine::auditDeterminism() {
+    for (const auto& rec : polyglot_executions_) {
+        std::string err = checkDeterminism(rec.language, rec.final_code, rec.source_line);
+        if (!err.empty()) {
+            check_results_.push_back({"pass2.determinism", EnforcementLevel::ADVISORY,
+                false, rec.language + " L" + std::to_string(rec.source_line) + ": " + err,
+                "pass2_determinism", "low", rec.source_line, rec.file, {}, {}});
+        }
+    }
+}
+
+void GovernanceEngine::auditSemanticCorrectness() {
+    for (const auto& rec : polyglot_executions_) {
+        // Empty output check: only meaningful when output was expected to be captured
+        // Many executors write to stdout directly (not captured), so this only fires
+        // when captured_output is empty AND we have no contract verification AND no result
+        // Skip: captured output depends on executor implementation
+        // Only report for blocks with explicit return contracts
+        // (empty captured_output on subprocess executors is normal)
+
+        // Non-zero exit code
+        if (rec.exit_code != 0) {
+            check_results_.push_back({"pass2.exit_code", EnforcementLevel::ADVISORY,
+                false, rec.language + " L" + std::to_string(rec.source_line) +
+                ": subprocess exited with code " + std::to_string(rec.exit_code),
+                "pass2_semantic", "medium", rec.source_line, rec.file, {}, {}});
+        }
+
+        // Contract verification result
+        if (rec.contract_verified) {
+            check_results_.push_back({"pass2.contract", EnforcementLevel::ADVISORY,
+                true, rec.language + " L" + std::to_string(rec.source_line) +
+                ": -> JSON contract verified",
+                "pass2_semantic", "low", rec.source_line, rec.file, {}, {}});
+        }
+    }
+}
+
+void GovernanceEngine::auditCrossBlockFlows() {
+    if (cross_block_flows_.empty()) return;
+
+    int unsanitized = 0;
+    for (const auto& f : cross_block_flows_) {
+        if (!f.sanitized) unsanitized++;
+    }
+
+    if (unsanitized > 0) {
+        check_results_.push_back({"pass2.cross_block_taint", EnforcementLevel::ADVISORY,
+            false, std::to_string(unsanitized) + " cross-block data flow(s) without sanitization",
+            "pass2_cross_block", "medium", 0, "", {}, {}});
+    }
+}
+
+void GovernanceEngine::auditSideEffects() {
+    // Side effects are informational — recorded for the report, not violations
+    // No check_results_ added unless there's something suspicious
+}
+
+std::string GovernanceEngine::computeCoverageReport() const {
+    std::map<std::string, std::pair<int, int>> category_stats;  // {total, failed}
+    for (const auto& cr : check_results_) {
+        auto& stats = category_stats[cr.category];
+        stats.first++;
+        if (!cr.passed) stats.second++;
+    }
+
+    int total_rules = static_cast<int>(check_results_.size());
+    int exercised = 0;
+    int pass1 = 0, pass2 = 0;
+    for (const auto& cr : check_results_) {
+        exercised++;
+        if (cr.category.find("pass2") == 0) pass2++;
+        else pass1++;
+    }
+
+    return std::to_string(exercised) + "/" + std::to_string(total_rules) +
+           " governance rules exercised (pass 1: " + std::to_string(pass1) +
+           ", pass 2: " + std::to_string(pass2) + ")";
+}
+
+void GovernanceEngine::printValidationReport() {
+    // Count pass 2 findings
+    int pass2_checks = 0, pass2_findings = 0;
+    std::vector<const CheckResult*> pass2_results;
+    for (const auto& cr : check_results_) {
+        if (cr.category.find("pass2") == 0) {
+            pass2_checks++;
+            if (!cr.passed) pass2_findings++;
+            pass2_results.push_back(&cr);
+        }
+    }
+
+    // Count pass 1 stats
+    int pass1_checks = 0, pass1_hard = 0, pass1_soft = 0, pass1_advisory = 0;
+    for (const auto& cr : check_results_) {
+        if (cr.category.find("pass2") != 0) {
+            pass1_checks++;
+            if (!cr.passed) {
+                if (cr.level == EnforcementLevel::HARD) pass1_hard++;
+                else if (cr.level == EnforcementLevel::SOFT) pass1_soft++;
+                else pass1_advisory++;
+            }
+        }
+    }
+
+    // Compact mode: no pass 2 findings
+    if (pass2_findings == 0) {
+        fmt::print(stderr, "-- Governance: PASS ({} static, {} runtime, 0 violations) --\n",
+                   pass1_checks, pass2_checks);
+        return;
+    }
+
+    // Full report
+    fmt::print(stderr, "--- Governance Validation -----------------------------------------------\n");
+
+    // Static Analysis summary
+    fmt::print(stderr, "  Static Analysis (pre-execution):\n");
+    int pass1_passed = pass1_checks - pass1_hard - pass1_soft - pass1_advisory;
+    fmt::print(stderr, "    {} checks run: {} passed, {} hard, {} soft, {} advisory\n",
+               pass1_checks, pass1_passed, pass1_hard, pass1_soft, pass1_advisory);
+
+    // Polyglot Output Audit
+    if (!polyglot_executions_.empty()) {
+        std::map<std::string, int> lang_counts;
+        for (const auto& rec : polyglot_executions_) lang_counts[rec.language]++;
+        fmt::print(stderr, "\n  Polyglot Output Audit:\n");
+        std::string langs;
+        for (const auto& [lang, count] : lang_counts) {
+            if (!langs.empty()) langs += ", ";
+            langs += lang + " (" + std::to_string(count) + ")";
+        }
+        fmt::print(stderr, "    {} blocks executed: {}\n",
+                   polyglot_executions_.size(), langs);
+
+        for (const auto* cr : pass2_results) {
+            if (cr->category == "pass2_output" && !cr->passed) {
+                fmt::print(stderr, "    ! [advisory] {}\n", cr->message);
+            }
+        }
+    }
+
+    // Taint Flow Audit
+    if (!taint_flows_.empty()) {
+        fmt::print(stderr, "\n  Taint Flow Audit:\n");
+        for (const auto* cr : pass2_results) {
+            if (cr->category == "pass2_taint") {
+                fmt::print(stderr, "    {}\n", cr->message);
+            }
+        }
+        for (const auto& f : taint_flows_) {
+            std::string icon = (f.decision == "BLOCKED" || f.decision == "blocked") ? "OK" : "!";
+            fmt::print(stderr, "    {} {} -> {}: {}\n",
+                       icon, f.var_name,
+                       f.sink_type.empty() ? "(no sink)" : f.sink_type,
+                       f.decision);
+        }
+    }
+
+    // Cross-Block Data Flow
+    if (!cross_block_flows_.empty()) {
+        int crossings = 0;
+        for (const auto& f : cross_block_flows_) {
+            if (f.from_language != f.to_language) crossings++;
+        }
+        fmt::print(stderr, "\n  Cross-Block Data Flow:\n");
+        fmt::print(stderr, "    {} block-to-block flows, {} language boundary crossings\n",
+                   cross_block_flows_.size(), crossings);
+        for (const auto* cr : pass2_results) {
+            if (cr->category == "pass2_cross_block" && !cr->passed) {
+                fmt::print(stderr, "    ! [advisory] {}\n", cr->message);
+            }
+        }
+    }
+
+    // Determinism
+    bool has_determinism = false;
+    for (const auto* cr : pass2_results) {
+        if (cr->category == "pass2_determinism" && !cr->passed) {
+            if (!has_determinism) {
+                fmt::print(stderr, "\n  Determinism:\n");
+                has_determinism = true;
+            }
+            fmt::print(stderr, "    ! {}\n", cr->message);
+        }
+    }
+
+    // Resource Usage
+    if (!polyglot_executions_.empty()) {
+        int64_t total_us = 0;
+        std::map<std::string, int64_t> lang_time;
+        for (const auto& rec : polyglot_executions_) {
+            total_us += rec.duration_us;
+            lang_time[rec.language] += rec.duration_us;
+        }
+        fmt::print(stderr, "\n  Resource Usage:\n");
+        std::string time_breakdown;
+        for (const auto& [lang, us] : lang_time) {
+            if (!time_breakdown.empty()) time_breakdown += ", ";
+            time_breakdown += lang + ": " + std::to_string(us / 1000) + "ms";
+        }
+        fmt::print(stderr, "    Polyglot: {}ms total ({})\n", total_us / 1000, time_breakdown);
+    }
+
+    // Side Effects
+    if (!side_effects_.empty()) {
+        std::map<std::string, int> effect_counts;
+        for (const auto& se : side_effects_) effect_counts[se.type]++;
+        fmt::print(stderr, "\n  Side Effects:\n");
+        for (const auto& [type, count] : effect_counts) {
+            fmt::print(stderr, "    {} {}: {}\n", count, type,
+                       count == 1 ? side_effects_.front().detail : "(multiple)");
+        }
+    }
+
+    // Semantic Correctness
+    {
+        int contracts_verified = 0, contracts_total = 0;
+        bool any_empty = false;
+        for (const auto* cr : pass2_results) {
+            if (cr->category == "pass2_semantic") {
+                if (cr->rule_name == "pass2.contract") {
+                    contracts_total++;
+                    if (cr->passed) contracts_verified++;
+                }
+                if (cr->rule_name == "pass2.empty_output") any_empty = true;
+            }
+        }
+        if (contracts_total > 0 || any_empty) {
+            fmt::print(stderr, "\n  Semantic Correctness:\n");
+            if (contracts_total > 0) {
+                fmt::print(stderr, "    {}/{} contracts verified (-> JSON)\n",
+                           contracts_verified, contracts_total);
+            }
+            if (any_empty) {
+                for (const auto* cr : pass2_results) {
+                    if (cr->rule_name == "pass2.empty_output" && !cr->passed) {
+                        fmt::print(stderr, "    ! [advisory] {}\n", cr->message);
+                    }
+                }
+            }
+        }
+    }
+
+    // Coverage
+    fmt::print(stderr, "\n  Coverage:\n    {}\n", computeCoverageReport());
+
+    // Verdict
+    int total_violations = pass1_hard + pass1_soft + pass2_findings;
+    std::string verdict = total_violations == 0 ? "PASS" : "FINDINGS";
+    fmt::print(stderr, "\n  Verdict: {} ({} hard, {} soft, {} advisory, {} runtime)\n",
+               verdict, pass1_hard, pass1_soft, pass1_advisory, pass2_findings);
+    fmt::print(stderr, "-------------------------------------------------------------------------\n");
+}
+
 } // namespace governance
 } // namespace naab

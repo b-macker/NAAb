@@ -1,7 +1,7 @@
 {
-  "version": "4.0",
+  "version": "5.0",
   "mode": "enforce",
-  "description": "NAAb Governance v4.0 — Complete Template (all sections, all options)",
+  "description": "NAAb Governance v5.0 — Complete Template (all sections, all options)",
 
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
@@ -1324,5 +1324,59 @@
       "mode": "enforce",
       "output.file_output.report_sarif": "governance.sarif"
     }
-  }
+  },
+
+  "_comment_governance": "Governance behavior — replaces CLI flags like --governance-verbose, --governance-dashboard, etc. CLI flags override when present.",
+  "governance": {
+    "verbose": false,
+    "dashboard": false,
+    "quiet": false,
+    "override": false,
+    "lint_only": false,
+    "baseline_save": false,
+    "record_baselines": false,
+    "check_baselines": false,
+    "strict_types": false,
+    "gc_threshold": 5000,
+    "gc_stats": false,
+    "sandbox_level": "unrestricted",
+    "agent_id": "anonymous",
+    "default_env": "",
+    "telemetry": "",
+    "report_json": "",
+    "report_sarif": "",
+    "report_junit": "",
+    "no_color": false
+  },
+
+  "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
+  "runtime": {
+    "timeout": 30,
+    "memory_limit": 0,
+    "gc_threshold": 5000,
+    "gc_stats": false
+  },
+
+  "_comment_security": "Security posture. CLI flags (--sandbox-level, --allow-network, --strict-types) override when present.",
+  "security": {
+    "sandbox_level": "unrestricted",
+    "allow_network": false,
+    "strict_types": false
+  },
+
+  "_comment_api": "REST API server settings (naab-lang api). CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "api": {
+    "key": "",
+    "timeout": 10,
+    "rate_limit": 0,
+    "max_body": 1048576
+  },
+
+  "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match.",
+  "runtime_versions": [
+    { "language": "python", "required": "3.10", "level": "advisory" },
+    { "language": "javascript", "required": "18", "level": "advisory" }
+  ],
+
+  "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }

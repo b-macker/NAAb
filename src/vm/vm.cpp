@@ -27,6 +27,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <chrono>
 #include <unordered_set>
 
 namespace naab {
@@ -2193,9 +2194,10 @@ interpreter::NaabVal VM::run() {
                 }
 
                 // Governance: check polyglot block
+                int polyglot_gov_line = CURRENT_CHUNK().getLine(
+                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                 if (governance_) {
-                    int gov_line = CURRENT_CHUNK().getLine(
-                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                    int gov_line = polyglot_gov_line;
                     governance_->setCheckContext(current_file_, gov_line);
                     std::string err = governance_->checkPolyglotBlock(
                         language, raw_code, current_file_, gov_line,
@@ -2357,6 +2359,7 @@ interpreter::NaabVal VM::run() {
                 }
 
                 // Execute via language executor
+                auto polyglot_exec_start = std::chrono::steady_clock::now();
                 try {
                     interpreter::NaabVal result = executor->executeWithReturn(final_code);
 
@@ -2417,6 +2420,23 @@ interpreter::NaabVal VM::run() {
                     // so we conservatively taint all cross-language return values.
                     if (governance_ && governance_->isActive()) {
                         peekTaint(0) = true;
+
+                        // Pass 2: Record polyglot execution for post-execution audit
+                        auto polyglot_exec_end = std::chrono::steady_clock::now();
+                        int64_t duration_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                            polyglot_exec_end - polyglot_exec_start).count();
+                        governance::PolyglotExecutionRecord rec;
+                        rec.language = language;
+                        rec.runtime_version = executor->getRuntimeVersion();
+                        rec.source_line = polyglot_gov_line;
+                        rec.duration_us = duration_us;
+                        rec.file = current_file_;
+                        rec.bound_vars = bound_var_names;
+                        rec.captured_output = captured;
+                        rec.final_code = final_code;
+                        rec.contract_verified = json_parsed;
+                        rec.exit_code = executor->getLastExitCode();
+                        governance_->addPolyglotExecution(rec);
                     }
                 } catch (const std::exception& e) {
                     runtimeError("Polyglot %s error: %s", language.c_str(), e.what());

@@ -1119,6 +1119,17 @@ int main(int argc, char** argv) {
                     }
                 }
                 if (gov_loaded) {
+                    // Schema validation warnings (only when governance is active)
+                    if (!no_governance) {
+                        auto schema_warnings = vm_governance.validateSchema(vm_governance.getLoadedPath());
+                        for (const auto& w : schema_warnings) {
+                            fprintf(stderr, "%s\n", w.c_str());
+                        }
+                    }
+                    // Apply govern.json behavior settings, then let CLI flags override
+                    const auto& rules = vm_governance.getRules();
+                    // Check quiet early so it suppresses the "Loaded" message
+                    if (rules.quiet_config && !global_quiet) global_quiet = true;
                     auto mode = vm_governance.getMode();
                     std::string mode_str = (mode == naab::governance::GovernanceMode::ENFORCE) ? "enforce"
                                          : (mode == naab::governance::GovernanceMode::AUDIT)   ? "audit"
@@ -1127,9 +1138,34 @@ int main(int argc, char** argv) {
                         fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
                                 vm_governance.getLoadedPath().c_str(), mode_str.c_str());
                     }
+                    if (rules.verbose && !governance_verbose) governance_verbose = true;
+                    if (rules.dashboard && !governance_dashboard) governance_dashboard = true;
+                    if (rules.baseline_save && !governance_baseline_save) governance_baseline_save = true;
+                    if (rules.allow_override && !governance_override) governance_override = true;
+                    if (rules.lint_only_config && !lint_only) lint_only = true;
+                    // Category A: remaining governance behavior
+                    if (rules.record_baselines && !governance_record_baselines) governance_record_baselines = true;
+                    if (rules.check_baselines && !governance_check_baselines) governance_check_baselines = true;
+                    // quiet already applied above (before Loaded message)
+                    if (rules.no_color_config && !no_color) no_color = true;
+                    if (!rules.report_json.empty() && governance_report_json.empty()) governance_report_json = rules.report_json;
+                    if (!rules.report_sarif.empty() && governance_report_sarif.empty()) governance_report_sarif = rules.report_sarif;
+                    if (!rules.report_junit.empty() && governance_report_junit.empty()) governance_report_junit = rules.report_junit;
+                    if (!rules.default_env.empty() && governance_env.empty()) governance_env = rules.default_env;
+                    // Category B: runtime limits
+                    if (rules.runtime.timeout != 30 && timeout == 30) timeout = rules.runtime.timeout;
+                    if (rules.runtime.memory_limit > 0 && memory_limit == 512) memory_limit = rules.runtime.memory_limit;
+                    if (rules.runtime.gc_threshold != 5000 && gc_threshold == 5000) gc_threshold = rules.runtime.gc_threshold;
+                    if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
+                    // Category C: security
+                    if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") sandbox_level = rules.sandbox_level_config;
+                    if (rules.allow_network_config) {} // allow_network wired through capabilities
+                    if (rules.strict_types_config && !strict_types) strict_types = true;
                     if (governance_override) vm_governance.setOverrideEnabled(true);
                     // Agent identity and telemetry
+                    if (!rules.agent_id_config.empty() && agent_id == "anonymous") agent_id = rules.agent_id_config;
                     vm_governance.setAgentId(agent_id);
+                    if (!rules.telemetry_path.empty() && governance_telemetry_path.empty()) governance_telemetry_path = rules.telemetry_path;
                     if (!governance_telemetry_path.empty()) {
                         auto& rules = vm_governance.getMutableRules();
                         rules.telemetry_output.enabled = true;
@@ -1386,6 +1422,11 @@ int main(int argc, char** argv) {
                     fmt::print(stderr, "{}", report.toString());
                 }
 
+                // Pass 2: Post-execution validation audit (VM path)
+                if (vm_governance.isActive() && !no_governance) {
+                    vm_governance.runPostExecutionAudit();
+                }
+
                 // Print governance dashboard summary
                 if (governance_dashboard && vm_governance.isActive()) {
                     vm_governance.printDashboard();
@@ -1448,6 +1489,24 @@ int main(int argc, char** argv) {
                     auto* gov = interpreter.getGovernance();
                     if (gov) gov->writeReports();
                     throw;  // Re-throw to outer catch
+                }
+
+                // Apply govern.json behavior settings for tree-walker
+                // (governance loads during execute(), so settings available now)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->isActive()) {
+                        const auto& r = gov->getRules();
+                        if (r.verbose && !governance_verbose) governance_verbose = true;
+                        if (r.dashboard && !governance_dashboard) governance_dashboard = true;
+                        if (r.baseline_save && !governance_baseline_save) governance_baseline_save = true;
+                    }
+                }
+
+                // Pass 2: Post-execution validation audit (tree-walker path)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->isActive()) gov->runPostExecutionAudit();
                 }
 
                 // Print governance dashboard summary
@@ -2388,7 +2447,19 @@ int main(int argc, char** argv) {
         unsigned int api_timeout = 10; // V-API-004 (R24): default 10s
         unsigned int api_rate_limit = 0; // V-DOS-005 (R25): 0 = disabled
 
-        // Scan all argv for api flags (port is positional arg 2 if numeric)
+        // Load govern.json API defaults from CWD
+        {
+            naab::governance::GovernanceEngine api_gov;
+            if (api_gov.discoverAndLoad(std::filesystem::current_path().string())) {
+                const auto& rules = api_gov.getRules();
+                if (!rules.api.key.empty() && api_key.empty()) api_key = rules.api.key;
+                if (rules.api.timeout != 10 && api_timeout == 10) api_timeout = static_cast<unsigned int>(rules.api.timeout);
+                if (rules.api.rate_limit > 0 && api_rate_limit == 0) api_rate_limit = static_cast<unsigned int>(rules.api.rate_limit);
+                if (rules.api.max_body != 1048576 && max_body == 1048576) max_body = rules.api.max_body;
+            }
+        }
+
+        // Scan all argv for api flags — CLI overrides govern.json
         for (int i = 2; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--api-key" && i + 1 < argc) {

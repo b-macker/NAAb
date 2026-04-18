@@ -2784,7 +2784,10 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "restrictions", "code_quality", "custom_rules", "scopes",
         "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
         "contracts", "baselines", "project_context", "scanner",
-        "governance_plugins"
+        "governance_plugins", "governance",
+        "taint_tracking", "quality_gate", "governance_baseline",
+        "environments", "runtime_versions", "agent_roles", "telemetry",
+        "runtime", "security", "api"
     };
 
     try {
@@ -2962,6 +2965,9 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     // Log the decision
     logTaintDecision(var_name, "BLOCKED", sink_type, file, line);
 
+    // Pass 2: Record taint flow for post-execution audit
+    taint_flows_.push_back({var_name, "", sink_type, "BLOCKED", file, line});
+
     std::string msg = "Taint tracking violation: variable '" + var_name +
                       "' contains untrusted data and reached sink '" + sink_type +
                       "' without sanitization";
@@ -3010,6 +3016,97 @@ void GovernanceEngine::validateScopePatterns(const std::vector<std::string>& fun
                        scope.glob_pattern);
         }
     }
+}
+
+// ============================================================================
+// Pass 2: Determinism, Output Entropy, Error Dump Checks
+// ============================================================================
+
+std::string GovernanceEngine::checkDeterminism(const std::string& language,
+                                                const std::string& code, int line) {
+    static const std::vector<std::pair<std::string, std::string>> patterns = {
+        // Random
+        {R"(\brandom\b)", "random function"},
+        {R"(\brand\s*\()", "rand() call"},
+        {R"(Math\.random\(\))", "Math.random()"},
+        {R"(\$RANDOM\b)", "shell $RANDOM"},
+        {R"(\bshuffle\b)", "shuffle function"},
+        // Time
+        {R"(\btime\s*\()", "time() call"},
+        {R"(datetime\.now)", "datetime.now()"},
+        {R"(Date\.now\(\))", "Date.now()"},
+        {R"(\bdate\b)", "date command"},
+        {R"(clock\s*\()", "clock() call"},
+        {R"(Time\.now)", "Time.now"},
+        // UUID
+        {R"(\buuid)", "UUID generation"},
+        {R"(randomUUID)", "crypto.randomUUID()"},
+        // Network
+        {R"(requests\.get)", "HTTP request"},
+        {R"(\bfetch\s*\()", "fetch() call"},
+        {R"(\bcurl\b)", "curl command"},
+        {R"(\bwget\b)", "wget command"},
+        // Process
+        {R"(\bgetpid\b)", "getpid()"},
+        {R"(\$\$)", "shell PID"},
+        // Temp files
+        {R"(\bmktemp\b)", "mktemp"},
+        {R"(\btmpfile\b)", "tmpfile()"},
+        // Entropy sources
+        {R"(/dev/u?random)", "/dev/urandom"},
+    };
+
+    for (const auto& [pat, desc] : patterns) {
+        try {
+            std::regex re(pat, std::regex::ECMAScript);
+            if (std::regex_search(code, re)) {
+                return "uses " + desc + " (non-deterministic)";
+            }
+        } catch (...) {
+            // Skip broken regex
+        }
+    }
+    return "";
+}
+
+std::string GovernanceEngine::checkOutputEntropy(const std::string& output, int line) {
+    // Check each line for high-entropy strings (possible leaked credentials)
+    std::istringstream stream(output);
+    std::string line_str;
+    while (std::getline(stream, line_str)) {
+        if (line_str.size() < 16) continue;  // Too short to be meaningful
+        double entropy = calculateEntropy(line_str);
+        if (entropy > 4.5) {
+            return "high-entropy output (entropy=" +
+                   fmt::format("{:.1f}", entropy) + ", possible credential leak)";
+        }
+    }
+    return "";
+}
+
+std::string GovernanceEngine::checkErrorDumps(const std::string& output, int line) {
+    static const std::vector<std::pair<std::string, std::string>> patterns = {
+        {R"(Traceback \(most recent call last\))", "Python traceback"},
+        {R"(at [\w\.]+\([\w\.]+:\d+\))", "Java/JS stack trace"},
+        {R"(\bpanic:)", "Go/Rust panic"},
+        {R"(Segmentation fault)", "segfault"},
+        {R"(core dumped)", "core dump"},
+        {R"(FATAL ERROR)", "fatal error"},
+        {R"(undefined reference)", "linker error"},
+        {R"(error\[E\d+\])", "Rust compiler error"},
+    };
+
+    for (const auto& [pat, desc] : patterns) {
+        try {
+            std::regex re(pat, std::regex::ECMAScript);
+            if (std::regex_search(output, re)) {
+                return "error dump detected: " + desc;
+            }
+        } catch (...) {
+            // Skip broken regex
+        }
+    }
+    return "";
 }
 
 } // namespace governance

@@ -1129,6 +1129,37 @@ else
     echo "  test_vm_gc_rt008.sh: not found, skipping"
 fi
 
+# --- Governance Pass 2: Post-Execution Audit ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance Pass 2: Post-Execution Audit"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PASS2_SCRIPT="tests/governance/test_pass2_audit.sh"
+if [ -f "$PASS2_SCRIPT" ]; then
+    if bash "$PASS2_SCRIPT" 2>&1; then
+        echo "  test_pass2_audit.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pass2_audit.sh")
+    fi
+else
+    echo "  test_pass2_audit.sh: not found, skipping"
+fi
+
+# Govern.json config tests (v5)
+GOV_CONFIG_SCRIPT="tests/governance/test_govern_json_config.sh"
+if [ -f "$GOV_CONFIG_SCRIPT" ]; then
+    if bash "$GOV_CONFIG_SCRIPT" > /dev/null 2>&1; then
+        echo "  test_govern_json_config.sh: ALL PASSED"
+    else
+        echo "  test_govern_json_config.sh: SOME FAILURES"
+        FAILED_TESTS+=("test_govern_json_config.sh")
+    fi
+else
+    echo "  test_govern_json_config.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"
