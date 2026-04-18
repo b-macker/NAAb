@@ -7,9 +7,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
 
-# Skip on platforms without shell/python executors (Windows CI)
-if ! which python3 >/dev/null 2>&1 && ! which python >/dev/null 2>&1; then
-    echo "  test_pass2_audit.sh: SKIPPED (no python executor)"
+# Skip on platforms without working polyglot executors (Windows CI)
+# Check if naab-lang can actually execute a python block (pybind11 must be built)
+PROBE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pass2_probe_XXXXXX")
+cat > "$PROBE_DIR/govern.json" <<'EOF'
+{"version":"5.0","mode":"off"}
+EOF
+cat > "$PROBE_DIR/probe.naab" <<'EOF'
+main { let x = <<python
+print("ok")
+>>
+print(x) }
+EOF
+PROBE_OUT=$("$NAAB" --no-governance "$PROBE_DIR/probe.naab" 2>&1 || true)
+rm -rf "$PROBE_DIR"
+if echo "$PROBE_OUT" | grep -q "No executor found\|not available"; then
+    echo "  test_pass2_audit.sh: SKIPPED (no python/shell executor on this platform)"
     exit 0
 fi
 
