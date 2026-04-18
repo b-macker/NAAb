@@ -6,6 +6,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${1:-$SCRIPT_DIR/../../build/naab-lang}"
 NAAB="$(cd "$(dirname "$NAAB")" && pwd)/$(basename "$NAAB")"
+
+# Skip on platforms without shell/python executors (Windows CI)
+if ! which python3 >/dev/null 2>&1 && ! which python >/dev/null 2>&1; then
+    echo "  test_pass2_audit.sh: SKIPPED (no python executor)"
+    exit 0
+fi
+
 PASS=0; FAIL=0; TOTAL=0
 
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); }
