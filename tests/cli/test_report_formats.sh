@@ -40,13 +40,29 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 # --- Generate reports from a file with governance violations ---
-VIOLATION_FILE="${SCRIPT_DIR}/../../tests/governance_v3/test_v3_secret_detection.naab"
+# Use a dedicated violation file with SOFT-level checks so the program completes
+# and reports are actually written (HARD blocks exit before report generation).
 SARIF_OUT="$TEST_DIR/test.sarif"
 JUNIT_OUT="$TEST_DIR/test.xml"
 JSON_OUT="$TEST_DIR/test.json"
 
+cat > "$TEST_DIR/govern.json" <<'GOVEOF'
+{"version":"5.0","mode":"enforce","code_quality":{"no_placeholders":{"enabled":true,"level":"soft"},"no_secrets":{"enabled":true,"level":"soft"}}}
+GOVEOF
+cat > "$TEST_DIR/violations.naab" <<'NAABEOF'
+main {
+    let x = <<python
+# TODO: fix this placeholder
+# FIXME: another one
+result = 42
+print(result)
+>>
+    print(x)
+}
+NAABEOF
+
 echo "--- Generating reports from violation file ---"
-"$NAAB_BIN" run "$VIOLATION_FILE" \
+"$NAAB_BIN" "$TEST_DIR/violations.naab" \
     --governance-sarif "$SARIF_OUT" \
     --governance-junit "$JUNIT_OUT" \
     --governance-report "$JSON_OUT" \
