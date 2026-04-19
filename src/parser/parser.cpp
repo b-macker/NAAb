@@ -752,10 +752,18 @@ std::unique_ptr<ast::UseStatement> Parser::parseUseStatement() {
         );
     }
 
-    expect(lexer::TokenType::AS, "Expected 'as'");
-
-    auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected identifier");
-    std::string alias = alias_token.value;
+    std::string alias;
+    if (match(lexer::TokenType::AS)) {
+        auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected identifier");
+        alias = alias_token.value;
+    } else {
+        // Derive alias from path: "./foo/bar" → "bar", "BLOCK-xyz" → "xyz"
+        alias = block_id;
+        auto last_slash = alias.find_last_of('/');
+        if (last_slash != std::string::npos) alias = alias.substr(last_slash + 1);
+        auto dot = alias.find_last_of('.');
+        if (dot != std::string::npos) alias = alias.substr(0, dot);
+    }
 
     optionalSemicolon();  // Allow optional semicolon after use statement
 

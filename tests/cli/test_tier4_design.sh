@@ -191,6 +191,35 @@ main {
 EOF
 check_output "use './path' works in VM" "Hello, World" "$TD/use_path.naab"
 
+# use without as — auto-alias from filename
+cat > "$TD/use_no_alias.naab" << 'EOF'
+use "./mymod"
+main {
+    print(mymod.greet("Auto"))
+}
+EOF
+check_output "use './path' without as — auto-alias" "Hello, Auto" "$TD/use_no_alias.naab"
+
+# --- and/or keyword value return ---
+echo ""
+echo "--- and/or Keyword Value Return ---"
+
+cat > "$TD/or_keyword.naab" << 'EOF'
+main {
+    let x = null or "default"
+    print(x)
+}
+EOF
+check_output "or keyword returns value" "default" "$TD/or_keyword.naab"
+
+cat > "$TD/and_keyword.naab" << 'EOF'
+main {
+    let x = 1 and 2
+    print(x)
+}
+EOF
+check_output "and keyword returns value" "2" "$TD/and_keyword.naab"
+
 # --- Summary ---
 echo ""
 TOTAL=$((PASS + FAIL))

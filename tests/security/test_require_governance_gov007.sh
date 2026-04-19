@@ -22,6 +22,26 @@ done
 WORK_DIR=$(mktemp -d "$TMP_BASE/naab_gov007.XXXXXX") || { echo "mktemp failed"; exit 1; }
 trap 'rm -rf "$WORK_DIR"' EXIT
 
+# Clean stale govern.json from ancestor directories — other tests may leave
+# them in $TMPDIR, which discoverAndLoad() finds when walking upward.
+STALE_GOVS=()
+check_dir="$TMP_BASE"
+while [ "$check_dir" != "/" ] && [ -n "$check_dir" ]; do
+    if [ -f "$check_dir/govern.json" ]; then
+        STALE_GOVS+=("$check_dir/govern.json")
+        mv "$check_dir/govern.json" "$check_dir/govern.json.gov007bak"
+    fi
+    check_dir=$(dirname "$check_dir")
+done
+# Restore backed-up govern.json files on exit
+restore_govs() {
+    for f in "${STALE_GOVS[@]}"; do
+        [ -f "${f}.gov007bak" ] && mv "${f}.gov007bak" "$f"
+    done
+    rm -rf "$WORK_DIR"
+}
+trap restore_govs EXIT
+
 echo "=== V-GOV-007: Fail-Closed Default Governance ==="
 
 # Minimal NAAb script — just prints hello (no polyglot, no special operations)
