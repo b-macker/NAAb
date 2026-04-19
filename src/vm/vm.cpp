@@ -2715,7 +2715,9 @@ interpreter::NaabVal VM::run() {
                 if (val.isFuture()) {
                     auto& future_val = val.asFuture();
                     try {
-                        push(future_val->future.get());
+                        // Deep-copy result so main VM owns all handles
+                        // (async VM's handles may be freed after it exits)
+                        push(future_val->future.get().deepCopy());
                     } catch (const std::exception& e) {
                         runtimeError("Await error: %s failed\n  Cause: %s",
                                      future_val->description.c_str(), e.what());
@@ -2839,9 +2841,13 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
 
         // Async function: spawn on separate thread, return FutureValue
         if (fn->is_async) {
-            // Collect args from stack
+            // Collect args from stack — deep-copy for thread isolation
             interpreter::NaabVal* args_start = stack_top_ - argc;
-            std::vector<interpreter::NaabVal> args(args_start, stack_top_);
+            std::vector<interpreter::NaabVal> args;
+            args.reserve(argc);
+            for (int i = 0; i < argc; i++) {
+                args.push_back(args_start[i].deepCopy());
+            }
 
             // Deep-copy closure with pre-closed upvalues for the async thread.
             // Upvalue locations point into THIS VM's stack, which is invalid
@@ -2852,8 +2858,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             closed_upvalues.reserve(orig_closure->upvalues.size());
             for (auto& uv : orig_closure->upvalues) {
                 auto new_uv = std::make_shared<ObjUpvalue>();
-                // Copy the current value (from stack or already-closed)
-                new_uv->closed = *uv->location;
+                // Deep-copy the current value for thread isolation
+                new_uv->closed = uv->location->deepCopy();
                 new_uv->location = &new_uv->closed;  // self-referencing
                 new_uv->is_open = false;              // Mark as closed!
                 new_uv->tainted = uv->tainted;
@@ -2861,9 +2867,10 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             }
             auto closure_copy = std::make_shared<VMClosure>(
                 orig_closure->function, std::move(closed_upvalues));
-            auto stdlib_ptr = stdlib_;
-            auto module_resolver_ptr = module_resolver_;
-            auto governance_ptr = governance_;
+            // V-CONC-007: Async VMs get their own StdLib instance to avoid
+            // accessing the main thread's stack-local StdLib after scope exit.
+            // Governance and module_resolver are also not shared (not thread-safe).
+            auto async_stdlib = std::make_shared<stdlib::StdLib>();
             std::string file = fn->source_file;
             // V-CONC-006: Deep-copy globals to isolate async thread from shared containers
             std::unordered_map<std::string, interpreter::NaabVal> globals_copy;
@@ -2875,16 +2882,22 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             future_val->description = "async fn " + fn->name;
             future_val->func_name = fn->name;
 
+            interpreter::NaabVal::enterAsyncVM();
             auto shared_future = std::async(std::launch::async,
-                [closure_copy, args, stdlib_ptr, module_resolver_ptr, governance_ptr, file, globals_copy]() -> interpreter::NaabVal {
+                [closure_copy, args, async_stdlib, file, globals_copy]() -> interpreter::NaabVal {
                     VM async_vm;
-                    async_vm.setStdlib(stdlib_ptr);
-                    async_vm.setModuleResolver(module_resolver_ptr);
-                    async_vm.setGovernance(governance_ptr);
+                    async_vm.setStdlib(async_stdlib.get());
                     async_vm.setCurrentFile(file);
                     async_vm.setGlobals(globals_copy);
-                    return async_vm.callNaabFunction(
-                        interpreter::NaabVal::makeVMClosure(closure_copy), args);
+                    try {
+                        auto result = async_vm.callNaabFunction(
+                            interpreter::NaabVal::makeVMClosure(closure_copy), args);
+                        interpreter::NaabVal::exitAsyncVM();
+                        return result;
+                    } catch (...) {
+                        interpreter::NaabVal::exitAsyncVM();
+                        throw;
+                    }
                 }).share();
 
             future_val->future = shared_future;

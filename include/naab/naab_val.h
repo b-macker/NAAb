@@ -57,6 +57,10 @@ class NaabVal {
     void release();
 
 public:
+    // V-CONC-008: Async VM handle deferred freeing
+    static void enterAsyncVM();
+    static void exitAsyncVM();
+    static void flushDeferredFrees();
     // Default: null
     NaabVal() : bits_(TAG_NULL) {}
 

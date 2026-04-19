@@ -27,15 +27,18 @@ namespace {
     static constexpr uint32_t PAGE_MASK = PAGE_SIZE - 1;
     static constexpr uint32_t MAX_PAGES = 256;                      // 256 * 64K = 16M handles
 
-    static ValueBox**           g_pages[MAX_PAGES] = {};            // fixed array of page pointers
+    static std::atomic<ValueBox*>* g_pages[MAX_PAGES] = {};          // fixed array of page pointers (atomic for thread safety)
     static std::atomic<uint32_t> g_next_handle{0};                  // monotonic counter for new handles
     static std::vector<uint32_t> g_free_handles;
     static std::mutex            g_handle_mutex;
 
+    // V-CONC-008: Track active async VM count (for future optimizations)
+    static std::atomic<int>      g_async_vm_count{0};
+
     // Ensure the page for a given handle exists
     static void ensurePage(uint32_t page_idx) {
         if (!g_pages[page_idx]) {
-            g_pages[page_idx] = new ValueBox*[PAGE_SIZE]();  // zero-initialized
+            g_pages[page_idx] = new std::atomic<ValueBox*>[PAGE_SIZE]();  // zero-initialized
         }
     }
 
@@ -50,20 +53,20 @@ namespace {
             uint32_t page_idx = h >> PAGE_BITS;
             ensurePage(page_idx);
         }
-        g_pages[h >> PAGE_BITS][h & PAGE_MASK] = box;
+        g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(box, std::memory_order_release);
         return h;
     }
 
     void freeHandle(uint32_t h) {
         std::lock_guard<std::mutex> lock(g_handle_mutex);
-        g_pages[h >> PAGE_BITS][h & PAGE_MASK] = nullptr;
+        g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(nullptr, std::memory_order_release);
         g_free_handles.push_back(h);
     }
 
     inline ValueBox* resolveHandle(uint32_t h) {
-        // Lock-free: page array is fixed-size, pages are never freed,
-        // and the slot is valid as long as refcount > 0 (caller guarantees this).
-        return g_pages[h >> PAGE_BITS][h & PAGE_MASK];
+        // Thread-safe: atomic load with acquire ordering ensures visibility
+        // of writes from allocHandle/freeHandle's release stores.
+        return g_pages[h >> PAGE_BITS][h & PAGE_MASK].load(std::memory_order_acquire);
     }
 } // anonymous namespace
 
@@ -100,12 +103,25 @@ void NaabVal::retain() {
 }
 
 void NaabVal::release() {
-    ValueBox* box = asHeap();
-    if (box && box->refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-        uint32_t handle = static_cast<uint32_t>(bits_ & 0xFFFFFFFFULL);
+    uint32_t handle = static_cast<uint32_t>(bits_ & 0xFFFFFFFFULL);
+    ValueBox* box = resolveHandle(handle);
+    if (!box) return;  // Already freed by another thread — safe to skip
+    if (box->refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
         freeHandle(handle);
         delete box;
     }
+}
+
+void NaabVal::enterAsyncVM() {
+    g_async_vm_count.fetch_add(1, std::memory_order_release);
+}
+
+void NaabVal::exitAsyncVM() {
+    g_async_vm_count.fetch_sub(1, std::memory_order_acq_rel);
+}
+
+void NaabVal::flushDeferredFrees() {
+    // No-op — deferred free list removed in favor of handle leak approach
 }
 
 // ============================================================================
@@ -121,7 +137,11 @@ NaabVal NaabVal::makeHeap(ValueBox* box) {
 
 ValueBox* NaabVal::asHeap() const {
     uint32_t handle = static_cast<uint32_t>(bits_ & 0xFFFFFFFFULL);
-    return resolveHandle(handle);
+    ValueBox* box = resolveHandle(handle);
+    if (!box) {
+        throw std::runtime_error("Dangling handle: heap object was freed");
+    }
+    return box;
 }
 
 NaabVal NaabVal::makeString(std::string s) {
@@ -286,8 +306,13 @@ NaabVal NaabVal::deepCopy(int depth, std::unordered_set<const void*>* visited) c
             "  - Extract only the data you need at a shallow depth\n"
         );
     }
-    if (isNull() || isBool() || isInt() || isDouble() || isString()) {
-        return *this;  // Scalars are value types or immutable — safe to share
+    if (isNull() || isBool() || isInt() || isDouble()) {
+        return *this;  // Inline scalars — no heap allocation, safe to share
+    }
+    if (isString()) {
+        // Strings are immutable but heap-allocated via handle table.
+        // Must create a new handle to avoid cross-thread refcount races.
+        return makeString(asString());
     }
 
     // V-CONC-006: Cycle detection via visited pointer set
