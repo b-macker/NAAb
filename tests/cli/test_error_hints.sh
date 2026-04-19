@@ -57,8 +57,8 @@ check "string.charAt() suggests .char_at()" "char_at" "$TD/str_charat.naab"
 echo 'main { let a = [1,2,3]; print(a.len()) }' > "$TD/list_len.naab"
 check "list.len() suggests .length()" "length" "$TD/list_len.naab"
 
-echo 'main { let a = [1,2]; a.forEach(fn(x) { print(x) }) }' > "$TD/list_foreach.naab"
-check "list.forEach() suggests for...in" "for.*in" "$TD/list_foreach.naab"
+echo 'main { let a = [1,2]; a.each(fn(x) { print(x) }) }' > "$TD/list_each.naab"
+check "list.each() shows available methods" "Available list methods" "$TD/list_each.naab"
 
 echo 'main { let d = {"a": 1}; print(d.len()) }' > "$TD/dict_len.naab"
 check "dict.len() suggests .size()" "size" "$TD/dict_len.naab"

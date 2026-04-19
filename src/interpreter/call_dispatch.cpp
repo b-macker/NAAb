@@ -831,6 +831,20 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = obj_val;
                     return;
                 }
+                if (method_name == "insert") {
+                    if (args.size() < 2) throw std::runtime_error("array.insert() requires 2 arguments (index, value)");
+                    int idx = args[0].toInt();
+                    if (idx < 0) idx += static_cast<int>(arr.size());
+                    if (idx < 0 || idx > static_cast<int>(arr.size()))
+                        throw std::runtime_error("Insert index " + std::to_string(idx) + " out of bounds");
+                    arr.insert(arr.begin() + idx, args[1]);
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = NaabVal::makeNull();
+                    return;
+                }
                 if (method_name == "find") {
                     if (args.empty()) throw std::runtime_error("array.find() requires 1 argument (predicate function)");
                     for (const auto& item : arr) {
@@ -1737,6 +1751,20 @@ void Interpreter::visit(ast::CallExpr& node) {
                     current_env_->set(obj_id->getName(), obj);
                 }
                 result_ = obj;
+                return;
+            }
+            if (method_name == "insert") {
+                if (args.size() < 2) throw std::runtime_error("array.insert() requires 2 arguments (index, value)");
+                int idx = args[0].toInt();
+                if (idx < 0) idx += static_cast<int>(arr.size());
+                if (idx < 0 || idx > static_cast<int>(arr.size()))
+                    throw std::runtime_error("Insert index " + std::to_string(idx) + " out of bounds");
+                arr.insert(arr.begin() + idx, args[1]);
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = NaabVal::makeNull();
                 return;
             }
             if (method_name == "find") {

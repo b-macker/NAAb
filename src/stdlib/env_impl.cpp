@@ -89,7 +89,7 @@ static std::unordered_map<std::string, std::string> parseEnvFile(const std::stri
 
 bool EnvModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "get", "set_var", "has", "delete_var", "get_all",
+        "get", "set_var", "set", "has", "delete_var", "get_all",
         "load_dotenv", "parse_env_file", "get_int", "get_float", "get_bool",
         "get_args",  // ISS-028: Command-line arguments access
         "list"
@@ -124,7 +124,7 @@ interpreter::NaabVal EnvModule::call(
     }
 
     // Function 2: set_var - Set environment variable
-    if (function_name == "set_var") {
+    if (function_name == "set_var" || function_name == "set") {
         if (args.size() != 2) {
             throw std::runtime_error("set_var() takes exactly 2 arguments (key, value)");
         }
@@ -387,11 +387,11 @@ interpreter::NaabVal EnvModule::call(
             "  Example: let val = env.get(\"HOME\")\n"
         );
     }
-    if (function_name == "set" || function_name == "setenv" || function_name == "setEnv" || function_name == "put") {
+    if (function_name == "setenv" || function_name == "setEnv" || function_name == "put") {
         throw std::runtime_error(
             "Unknown env function: " + function_name + "\n\n"
-            "  Did you mean: env.set_var()?\n"
-            "  Example: env.set_var(\"MY_KEY\", \"my_value\")\n"
+            "  Did you mean: env.set() or env.set_var()?\n"
+            "  Example: env.set(\"MY_KEY\", \"my_value\")\n"
         );
     }
 

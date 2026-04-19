@@ -3321,6 +3321,38 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             for (int i = 0; i < count; i++) result += s;
             return interpreter::NaabVal::makeString(std::move(result));
         }
+        if (method == "find") {
+            if (argc < 1) runtimeError("find() requires 1 argument");
+            auto pos = s.find(args[0].toString());
+            return interpreter::NaabVal::makeInt(pos == std::string::npos ? -1 : static_cast<int>(pos));
+        }
+        if (method == "pad_left") {
+            if (argc < 1 || argc > 2) runtimeError("pad_left() takes 1-2 arguments (width[, fill_char])");
+            int width = args[0].toInt();
+            char fill = ' ';
+            if (argc == 2) {
+                auto fs = args[1].toString();
+                if (fs.length() != 1) runtimeError("pad_left() fill_char must be exactly 1 character");
+                fill = fs[0];
+            }
+            if (static_cast<int>(s.length()) < width) {
+                return interpreter::NaabVal::makeString(std::string(width - s.length(), fill) + s);
+            }
+            return interpreter::NaabVal::makeString(s);
+        }
+        if (method == "pad_right") {
+            if (argc < 1 || argc > 2) runtimeError("pad_right() takes 1-2 arguments (width[, fill_char])");
+            int width = args[0].toInt();
+            char fill = ' ';
+            if (argc == 2) {
+                auto fs = args[1].toString();
+                if (fs.length() != 1) runtimeError("pad_right() fill_char must be exactly 1 character");
+                fill = fs[0];
+            }
+            std::string result = s;
+            if (static_cast<int>(result.length()) < width) result.append(width - result.length(), fill);
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
         // Common misspellings and camelCase→snake_case hints
         if (method == "len") {
             runtimeError("Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?");
@@ -3347,9 +3379,10 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                      "  Available string methods:\n"
                      "    .length(), .upper(), .lower(), .trim(), .split(delim),\n"
                      "    .contains(str), .starts_with(str), .ends_with(str),\n"
-                     "    .indexOf(str), .index_of(str), .substring(start, end),\n"
+                     "    .indexOf(str), .index_of(str), .find(str),\n"
+                     "    .substring(start, end), .slice(start, end),\n"
                      "    .replace(old, new), .char_at(i), .repeat(n), .reverse(),\n"
-                     "    .isEmpty()\n", method.c_str());
+                     "    .pad_left(width, char), .pad_right(width, char), .isEmpty()\n", method.c_str());
     }
 
     // List methods
@@ -3487,6 +3520,30 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             list.insert(list.begin(), args[0]);
             return interpreter::NaabVal::makeInt(static_cast<int>(list.size()));
         }
+        if (method == "find") {
+            if (argc < 1) runtimeError("find() requires 1 argument (predicate function)");
+            for (const auto& item : list) {
+                auto res = callNaabFunction(args[0], {item});
+                if (res.toBool()) return item;
+            }
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "for_each" || method == "forEach") {
+            if (argc < 1) runtimeError("forEach() requires 1 argument (function)");
+            for (const auto& item : list) {
+                callNaabFunction(args[0], {item});
+            }
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "insert") {
+            if (argc < 2) runtimeError("insert() requires 2 arguments (index, value)");
+            int idx = args[0].toInt();
+            if (idx < 0) idx += static_cast<int>(list.size());
+            if (idx < 0 || idx > static_cast<int>(list.size()))
+                runtimeError("Insert index %d out of bounds", idx);
+            list.insert(list.begin() + idx, args[1]);
+            return interpreter::NaabVal::makeNull();
+        }
         // Common misspellings
         if (method == "len") {
             runtimeError("Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?");
@@ -3497,20 +3554,15 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         if (method == "includes") {
             runtimeError("Unknown method: .includes()\n  Did you mean: .contains()?");
         }
-        if (method == "forEach") {
-            runtimeError("Unknown method: .forEach()\n  NAAb uses for...in loops:\n    for item in myArray { print(item) }");
-        }
         if (method == "findIndex") {
             runtimeError("Unknown method: .findIndex()\n  Did you mean: .indexOf()?");
-        }
-        if (method == "insert") {
-            runtimeError("Unknown method: .insert()\n  Did you mean: .push()? NAAb lists only append to the end.");
         }
         runtimeError("List has no method '%s'\n\n"
                      "  Available list methods:\n"
                      "    .length(), .size(), .push(item), .pop(), .shift(), .unshift(item),\n"
                      "    .get(i), .contains(item), .indexOf(item), .join(sep),\n"
                      "    .reverse(), .sort(), .slice(start, end), .first(), .last(),\n"
+                     "    .find(fn), .forEach(fn), .insert(i, item),\n"
                      "    .isEmpty(), .flat(), .unique(), .clone()\n", method.c_str());
     }
 
