@@ -7,7 +7,7 @@
 set -e
 
 NAAB_BIN="${NAAB_BIN:-./build/naab-lang}"
-TMPDIR="${TMPDIR:-$HOME/.naab_prop_tmp}"
+TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_prop_XXXXXX")
 mkdir -p "$TMPDIR"
 
 PASSED=0

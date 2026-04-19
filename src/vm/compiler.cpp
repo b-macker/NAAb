@@ -663,6 +663,15 @@ void Compiler::visit(ast::BinaryExpr& node) {
     }
 
     if (node.getOp() == ast::BinaryOp::Or) {
+        // Compile-time hint: detect likely null-coalesce intent (x || "default")
+        if (auto* rhs = dynamic_cast<ast::LiteralExpr*>(node.getRight())) {
+            if (rhs->getLiteralKind() != ast::LiteralKind::Bool) {
+                fprintf(stderr, "[hint] || always returns boolean in NAAb. "
+                        "Did you mean ?? (null coalesce)?\n"
+                        "  x || \"value\" -> true/false (boolean)\n"
+                        "  x ?? \"value\" -> \"value\" if x is null\n");
+            }
+        }
         node.getLeft()->accept(*this);
         int jump = emitJump(OpCode::OP_JUMP_IF_TRUE, line);
         emitOp(OpCode::OP_POP, line);

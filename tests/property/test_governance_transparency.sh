@@ -6,7 +6,7 @@
 set -e
 
 NAAB_BIN="${NAAB_BIN:-./build/naab-lang}"
-TMPDIR="${TMPDIR:-$HOME/.naab_prop_tmp}"
+TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_prop_XXXXXX")
 mkdir -p "$TMPDIR"
 # V-GOV-007: provide govern.json so fail-closed default doesn't block the "with governance" runs.
 # mode:off means governance is loaded (satisfying require_governance) but isActive()=false,

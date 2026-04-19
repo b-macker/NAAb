@@ -3198,6 +3198,13 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
         }
         skipNewlines();
 
+        // Hint: { } after => will be parsed as a dict literal, not a block
+        if (check(lexer::TokenType::LBRACE)) {
+            fprintf(stderr, "[hint] Match arms are expressions, not blocks. "
+                    "'{ }' after => will be parsed as a dict literal.\n"
+                    "  If you need statements, wrap in a function call.\n");
+        }
+
         // Use parseLogicalOr for body to avoid greedy newline consumption
         auto body = parseLogicalOr();
         skipNewlines();

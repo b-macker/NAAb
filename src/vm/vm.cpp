@@ -343,7 +343,59 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
         }
         return interpreter::NaabVal::makeNull();
     }
-    runtimeError("Unknown built-in function '%s'", name.c_str());
+    // Targeted hints for commonly misused function names
+    if (name == "parseInt" || name == "parseFloat" || name == "Number") {
+        runtimeError("Unknown function '%s'\n\n"
+                     "  Use NAAb type conversion functions:\n"
+                     "    int(\"42\")     // instead of parseInt(\"42\")\n"
+                     "    float(\"3.14\") // instead of parseFloat(\"3.14\")\n", name.c_str());
+    }
+    if (name == "toString" || name == "str") {
+        runtimeError("Unknown function '%s'\n\n"
+                     "  Use NAAb type conversion:\n"
+                     "    string(42)    // instead of toString(42)\n", name.c_str());
+    }
+    if (name == "sleep") {
+        runtimeError("Unknown function 'sleep'\n\n"
+                     "  'sleep' is in the time module, not a global function:\n"
+                     "    import time\n"
+                     "    time.sleep(1.0)  // sleep for 1 second\n");
+    }
+    if (name == "exit") {
+        runtimeError("Unknown function 'exit'\n\n"
+                     "  NAAb has no exit() function.\n"
+                     "  To stop: return from functions, or let main block end.\n");
+    }
+    if (name == "error") {
+        runtimeError("Unknown function 'error'\n\n"
+                     "  To print errors: print(\"ERROR: something went wrong\")\n"
+                     "  To throw an error: throw \"something went wrong\"\n");
+    }
+    if (name == "keys" || name == "values") {
+        runtimeError("Unknown function '%s'\n\n"
+                     "  '%s' is a method on dicts, not a global function:\n"
+                     "    myDict.%s()  // correct\n", name.c_str(), name.c_str(), name.c_str());
+    }
+    if (name == "push" || name == "append" || name == "pop") {
+        runtimeError("Unknown function '%s'\n\n"
+                     "  '%s' is a method on arrays, not a global function:\n"
+                     "    myArray.%s(item)  // correct\n", name.c_str(), name.c_str(), name.c_str());
+    }
+    if (name == "forEach") {
+        runtimeError("Unknown function 'forEach'\n\n"
+                     "  NAAb uses for-in loops instead of forEach:\n"
+                     "    for item in myArray { print(item) }\n");
+    }
+    if (name == "map" || name == "filter" || name == "reduce") {
+        runtimeError("Unknown function '%s'\n\n"
+                     "  NAAb has array.%s_fn (NOT a global function):\n"
+                     "    array.map_fn(arr, fn(x) { return x * 2 })\n"
+                     "    array.filter_fn(arr, fn(x) { return x > 5 })\n"
+                     "    array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)\n", name.c_str(), name.c_str());
+    }
+    runtimeError("Unknown built-in function '%s'\n\n"
+                 "  Common builtins: print, len, type, typeof, int, float, string, bool\n"
+                 "  For stdlib functions, use module.function() (e.g., array.push())\n", name.c_str());
 }
 
 // ============================================================================
@@ -1765,7 +1817,29 @@ interpreter::NaabVal VM::run() {
                     std::string key = index.toString();
                     auto it = dict.find(key);
                     if (it == dict.end()) {
-                        runtimeError("Key '%s' not found in dict", key.c_str());
+                        std::ostringstream oss;
+                        oss << "Key error: Dictionary key not found\n\n";
+                        oss << "  Key: \"" << key << "\"\n";
+                        if (dict.empty()) {
+                            oss << "  Dictionary is empty\n";
+                        } else {
+                            oss << "  Available keys: ";
+                            size_t count = 0;
+                            for (const auto& pair : dict) {
+                                if (count > 0) oss << ", ";
+                                oss << "\"" << pair.first << "\"";
+                                if (++count >= 10) { oss << "..."; break; }
+                            }
+                            oss << "\n";
+                        }
+                        oss << "\n  Help:\n";
+                        oss << "  - Use dict.get(\"" << key << "\") for safe access (returns null if missing)\n";
+                        oss << "  - Use dict.get(\"" << key << "\", default_value) to provide a default\n";
+                        oss << "  - Use dict.has(\"" << key << "\") to check before accessing\n\n";
+                        oss << "  Example:\n";
+                        oss << "    \xE2\x9C\x97 Throws: d[\"" << key << "\"]\n";
+                        oss << "    \xE2\x9C\x93 Safe:   d.get(\"" << key << "\", \"default\")\n";
+                        runtimeError("%s", oss.str().c_str());
                     }
                     push(it->second);
                 } else if (obj.isString()) {
@@ -3247,7 +3321,35 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             for (int i = 0; i < count; i++) result += s;
             return interpreter::NaabVal::makeString(std::move(result));
         }
-        runtimeError("String has no method '%s'", method.c_str());
+        // Common misspellings and camelCase→snake_case hints
+        if (method == "len") {
+            runtimeError("Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?");
+        }
+        if (method == "charAt") {
+            runtimeError("Unknown method: .charAt()\n  Did you mean: .char_at()? NAAb uses snake_case.");
+        }
+        if (method == "startsWith") {
+            runtimeError("Unknown method: .startsWith()\n  Did you mean: .starts_with()? NAAb uses snake_case.");
+        }
+        if (method == "endsWith") {
+            runtimeError("Unknown method: .endsWith()\n  Did you mean: .ends_with()? NAAb uses snake_case.");
+        }
+        if (method == "toUpperCase") {
+            runtimeError("Unknown method: .toUpperCase()\n  Did you mean: .upper()?");
+        }
+        if (method == "toLowerCase") {
+            runtimeError("Unknown method: .toLowerCase()\n  Did you mean: .lower()?");
+        }
+        if (method == "strip") {
+            runtimeError("Unknown method: .strip()\n  Did you mean: .trim()?");
+        }
+        runtimeError("String has no method '%s'\n\n"
+                     "  Available string methods:\n"
+                     "    .length(), .upper(), .lower(), .trim(), .split(delim),\n"
+                     "    .contains(str), .starts_with(str), .ends_with(str),\n"
+                     "    .indexOf(str), .index_of(str), .substring(start, end),\n"
+                     "    .replace(old, new), .char_at(i), .repeat(n), .reverse(),\n"
+                     "    .isEmpty()\n", method.c_str());
     }
 
     // List methods
@@ -3385,7 +3487,31 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             list.insert(list.begin(), args[0]);
             return interpreter::NaabVal::makeInt(static_cast<int>(list.size()));
         }
-        runtimeError("List has no method '%s'", method.c_str());
+        // Common misspellings
+        if (method == "len") {
+            runtimeError("Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?");
+        }
+        if (method == "append") {
+            runtimeError("Unknown method: .append()\n  Did you mean: .push()?");
+        }
+        if (method == "includes") {
+            runtimeError("Unknown method: .includes()\n  Did you mean: .contains()?");
+        }
+        if (method == "forEach") {
+            runtimeError("Unknown method: .forEach()\n  NAAb uses for...in loops:\n    for item in myArray { print(item) }");
+        }
+        if (method == "findIndex") {
+            runtimeError("Unknown method: .findIndex()\n  Did you mean: .indexOf()?");
+        }
+        if (method == "insert") {
+            runtimeError("Unknown method: .insert()\n  Did you mean: .push()? NAAb lists only append to the end.");
+        }
+        runtimeError("List has no method '%s'\n\n"
+                     "  Available list methods:\n"
+                     "    .length(), .size(), .push(item), .pop(), .shift(), .unshift(item),\n"
+                     "    .get(i), .contains(item), .indexOf(item), .join(sep),\n"
+                     "    .reverse(), .sort(), .slice(start, end), .first(), .last(),\n"
+                     "    .isEmpty(), .flat(), .unique(), .clone()\n", method.c_str());
     }
 
     // Dict methods
@@ -3464,7 +3590,24 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             for (auto& [k, v] : args[0].asDict()) copy[k] = v;
             return interpreter::NaabVal::makeDict(std::move(copy));
         }
-        runtimeError("Dict has no method '%s'", method.c_str());
+        // Common misspellings
+        if (method == "len") {
+            runtimeError("Unknown method: .len()\n  Did you mean: .size()?");
+        }
+        if (method == "set") {
+            runtimeError("Unknown method: .set()\n  Did you mean: .put(key, value)?");
+        }
+        if (method == "delete") {
+            runtimeError("Unknown method: .delete()\n  Did you mean: .remove(key)?");
+        }
+        if (method == "containsKey") {
+            runtimeError("Unknown method: .containsKey()\n  Did you mean: .has(key)?");
+        }
+        runtimeError("Dict has no method '%s'\n\n"
+                     "  Available dict methods:\n"
+                     "    .size(), .get(key), .get(key, default), .has(key),\n"
+                     "    .put(key, value), .remove(key), .keys(), .values(),\n"
+                     "    .entries(), .isEmpty(), .clone(), .merge(other)\n", method.c_str());
     }
 
     // Block method calls: dispatch to executor->callFunction

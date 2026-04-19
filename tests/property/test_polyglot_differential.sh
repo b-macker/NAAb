@@ -11,7 +11,7 @@
 set -e
 
 NAAB_BIN="${NAAB_BIN:-./build/naab-lang}"
-TMPDIR="${TMPDIR:-$HOME/.naab_diff_tmp}"
+TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_diff_XXXXXX")
 mkdir -p "$TMPDIR"
 
 PASSED=0

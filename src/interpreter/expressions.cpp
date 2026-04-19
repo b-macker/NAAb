@@ -82,14 +82,13 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         auto right = eval(*node.getRight());
         result_ = NaabVal::makeBool(right.toBool());
 
-        // Hint: detect likely null-coalesce intent (null || "value")
-        if (left.isNull() &&
-            !right.isBool() &&
-            !right.isNull()) {
+        // Hint: detect likely null-coalesce intent (x || "value")
+        // Fires when both operands are non-boolean (e.g., string || string, null || string)
+        if (!left.isBool() && !right.isBool() && !right.isNull()) {
             fprintf(stderr, "[hint] || always returns boolean in NAAb. "
                     "Did you mean ?? (null coalesce)?\n"
-                    "  null || \"value\" -> true (boolean)\n"
-                    "  null ?? \"value\" -> \"value\" (the actual value)\n");
+                    "  x || \"value\" -> true/false (boolean)\n"
+                    "  x ?? \"value\" -> \"value\" if x is null\n");
         }
         return;
     }
