@@ -3198,11 +3198,26 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
         }
         skipNewlines();
 
-        // Hint: { } after => will be parsed as a dict literal, not a block
+        // Detect block-like content after => { and throw clear error
         if (check(lexer::TokenType::LBRACE)) {
-            fprintf(stderr, "[hint] Match arms are expressions, not blocks. "
-                    "'{ }' after => will be parsed as a dict literal.\n"
-                    "  If you need statements, wrap in a function call.\n");
+            auto after = peek(1).type;
+            if (after == lexer::TokenType::LET ||
+                after == lexer::TokenType::IF ||
+                after == lexer::TokenType::FOR ||
+                after == lexer::TokenType::WHILE ||
+                after == lexer::TokenType::RETURN ||
+                after == lexer::TokenType::TRY ||
+                after == lexer::TokenType::BREAK ||
+                after == lexer::TokenType::CONTINUE ||
+                after == lexer::TokenType::FUNCTION) {
+                throw ParseError(formatError(
+                    "Match arms are expressions, not blocks.\n\n"
+                    "  \xE2\x9C\x97 Wrong:  1 => { let x = 2; x }\n"
+                    "  \xE2\x9C\x93 Right:  1 => compute_value()\n\n"
+                    "  To return a dict literal, use quoted string keys:\n"
+                    "  \xE2\x9C\x93 Right:  1 => {\"key\": \"value\"}\n",
+                    current()));
+            }
         }
 
         // Use parseLogicalOr for body to avoid greedy newline consumption

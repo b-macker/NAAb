@@ -79,20 +79,19 @@ echo "--- Logical OR Hint ---"
 echo 'main { let x = null; let y = x || "default"; print(y) }' > "$TD/or_hint.naab"
 check "|| with string RHS hints about ??" "null coalesce" "$TD/or_hint.naab"
 
-# --- Phase 5: Match arm { } warning ---
+# --- Phase 5: Match arm { } block detection ---
 echo ""
-echo "--- Match Arm Warning ---"
+echo "--- Match Arm Block Detection ---"
 cat > "$TD/match_brace.naab" << 'EOF'
 main {
     let x = 1
     let r = match x {
-        1 => {"result": "one"}
-        _ => {"result": "other"}
+        1 => { let y = 2; y }
+        _ => 0
     }
-    print(r)
 }
 EOF
-check "match arm { } warns about dict literal" "dict literal" "$TD/match_brace.naab"
+check "match arm { let ... } gives clear error" "expressions, not blocks" "$TD/match_brace.naab"
 
 # --- Summary ---
 echo ""
