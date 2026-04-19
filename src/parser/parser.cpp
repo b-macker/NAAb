@@ -2715,7 +2715,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             );
         }
 
-        // HELPER: Detect struct literal without 'new' keyword
+        // Struct literal without 'new' keyword — new is optional
         // Pattern: IdentifierName { field: value } (uppercase first letter suggests struct)
         if (check(lexer::TokenType::LBRACE) && !name.empty() &&
             name[0] >= 'A' && name[0] <= 'Z') {
@@ -2723,14 +2723,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             if (pos_ + 2 < tokens_.size() &&
                 tokens_[pos_ + 1].type == lexer::TokenType::IDENTIFIER &&
                 tokens_[pos_ + 2].type == lexer::TokenType::COLON) {
-                throw ParseError(
-                    "Struct literal requires 'new' keyword\n\n"
-                    "  Got: " + name + " { field: value }\n"
-                    "  Expected: new " + name + " { field: value }\n\n"
-                    "  Example:\n"
-                    "    \xE2\x9C\x97 Wrong: let p = " + name + " { x: 1, y: 2 }\n"
-                    "    \xE2\x9C\x93 Right: let p = new " + name + " { x: 1, y: 2 }\n"
-                );
+                return parseStructLiteral(name);
             }
         }
 

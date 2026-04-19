@@ -663,15 +663,6 @@ void Compiler::visit(ast::BinaryExpr& node) {
     }
 
     if (node.getOp() == ast::BinaryOp::Or) {
-        // Compile-time hint: detect likely null-coalesce intent (x || "default")
-        if (auto* rhs = dynamic_cast<ast::LiteralExpr*>(node.getRight())) {
-            if (rhs->getLiteralKind() != ast::LiteralKind::Bool) {
-                fprintf(stderr, "[hint] || always returns boolean in NAAb. "
-                        "Did you mean ?? (null coalesce)?\n"
-                        "  x || \"value\" -> true/false (boolean)\n"
-                        "  x ?? \"value\" -> \"value\" if x is null\n");
-            }
-        }
         node.getLeft()->accept(*this);
         int jump = emitJump(OpCode::OP_JUMP_IF_TRUE, line);
         emitOp(OpCode::OP_POP, line);
@@ -989,7 +980,17 @@ void Compiler::visit(ast::TryCatchExpr& node) {
 // The old silent no-op caused confusing crashes later; throw at compile time instead.
 // ModuleUseStmt (use math) is fully supported — see visit(ast::ModuleUseStmt&).
 void Compiler::visit(ast::UseStatement& node) {
-    (void)node;
+    std::string block_id = node.getBlockId();
+    // File path imports — compile like ModuleUseStmt via OP_IMPORT
+    if (block_id.find("./") == 0 || block_id.find("../") == 0) {
+        int line = node.getLocation().line;
+        int path_idx = makeConstant(interpreter::NaabVal::makeString(block_id));
+        emitWide(OpCode::OP_IMPORT, static_cast<uint32_t>(path_idx), line);
+        int name_idx = identifierConstant(node.getAlias());
+        emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(name_idx), line);
+        return;
+    }
+    // Block-loading syntax — not supported in VM
     throw std::runtime_error(
         "Compiler error: 'use BLOCK-...' block-loading syntax is not supported in VM mode.\n\n"
         "  For stdlib modules use:   use math\n"

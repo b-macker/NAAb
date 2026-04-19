@@ -73,11 +73,11 @@ echo "--- Built-in Function Hints ---"
 echo 'main { let x = parseInt("42") }' > "$TD/parseint.naab"
 check "parseInt() suggests int()" "int(" "$TD/parseint.naab"
 
-# --- Phase 4: Compile-time || warning ---
+# --- Phase 4: || returns values (JS-style) ---
 echo ""
-echo "--- Logical OR Hint ---"
-echo 'main { let x = null; let y = x || "default"; print(y) }' > "$TD/or_hint.naab"
-check "|| with string RHS hints about ??" "null coalesce" "$TD/or_hint.naab"
+echo "--- Logical OR Value Return ---"
+echo 'main { let x = null; let y = x || "default"; print(y) }' > "$TD/or_value.naab"
+check "|| returns RHS value when LHS falsy" "default" "$TD/or_value.naab"
 
 # --- Phase 5: Match arm { } block detection ---
 echo ""

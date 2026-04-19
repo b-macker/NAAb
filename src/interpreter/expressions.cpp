@@ -45,13 +45,12 @@ void Interpreter::visit(ast::BinaryExpr& node) {
     if (node.getOp() == ast::BinaryOp::And) {
         auto left = eval(*node.getLeft());
         if (!left.toBool()) {
-            // Short-circuit: left is false, so result is false without evaluating right
-            result_ = NaabVal::makeBool(false);
+            // Short-circuit: left is falsy, return it (JS-style)
+            result_ = left;
             return;
         }
-        // Left is true, now evaluate right
-        auto right = eval(*node.getRight());
-        result_ = NaabVal::makeBool(right.toBool());
+        // Left is truthy, return right operand (JS-style)
+        result_ = eval(*node.getRight());
         return;
     }
 
@@ -74,22 +73,12 @@ void Interpreter::visit(ast::BinaryExpr& node) {
     if (node.getOp() == ast::BinaryOp::Or) {
         auto left = eval(*node.getLeft());
         if (left.toBool()) {
-            // Short-circuit: left is true, so result is true without evaluating right
-            result_ = NaabVal::makeBool(true);
+            // Short-circuit: left is truthy, return it (JS-style)
+            result_ = left;
             return;
         }
-        // Left is false, now evaluate right
-        auto right = eval(*node.getRight());
-        result_ = NaabVal::makeBool(right.toBool());
-
-        // Hint: detect likely null-coalesce intent (x || "value")
-        // Fires when both operands are non-boolean (e.g., string || string, null || string)
-        if (!left.isBool() && !right.isBool() && !right.isNull()) {
-            fprintf(stderr, "[hint] || always returns boolean in NAAb. "
-                    "Did you mean ?? (null coalesce)?\n"
-                    "  x || \"value\" -> true/false (boolean)\n"
-                    "  x ?? \"value\" -> \"value\" if x is null\n");
-        }
+        // Left is falsy, return right operand (JS-style)
+        result_ = eval(*node.getRight());
         return;
     }
 
