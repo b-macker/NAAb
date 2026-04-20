@@ -2841,6 +2841,11 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
 
         // Async function: spawn on separate thread, return FutureValue
         if (fn->is_async) {
+            // Disable handle recycling BEFORE any deepCopy() calls —
+            // otherwise a completing async VM could re-enable recycling
+            // and allocHandle() could reuse handles still owned by this VM.
+            interpreter::NaabVal::enterAsyncVM();
+
             // Collect args from stack — deep-copy for thread isolation
             interpreter::NaabVal* args_start = stack_top_ - argc;
             std::vector<interpreter::NaabVal> args;
@@ -2882,22 +2887,33 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             future_val->description = "async fn " + fn->name;
             future_val->func_name = fn->name;
 
-            interpreter::NaabVal::enterAsyncVM();
             auto shared_future = std::async(std::launch::async,
-                [closure_copy, args, async_stdlib, file, globals_copy]() -> interpreter::NaabVal {
-                    VM async_vm;
-                    async_vm.setStdlib(async_stdlib.get());
-                    async_vm.setCurrentFile(file);
-                    async_vm.setGlobals(globals_copy);
-                    try {
-                        auto result = async_vm.callNaabFunction(
-                            interpreter::NaabVal::makeVMClosure(closure_copy), args);
-                        interpreter::NaabVal::exitAsyncVM();
-                        return result;
-                    } catch (...) {
-                        interpreter::NaabVal::exitAsyncVM();
-                        throw;
+                [closure_copy, args, async_stdlib, file, globals_copy]() mutable -> interpreter::NaabVal {
+                    interpreter::NaabVal safe_result;
+                    {
+                        VM async_vm;
+                        async_vm.setStdlib(async_stdlib.get());
+                        async_vm.setCurrentFile(file);
+                        async_vm.setGlobals(globals_copy);
+                        try {
+                            auto result = async_vm.callNaabFunction(
+                                interpreter::NaabVal::makeVMClosure(closure_copy), args);
+                            safe_result = result.deepCopy();
+                        } catch (...) {
+                            // Destroy all captured NaabVals before re-enabling recycling
+                            globals_copy.clear();
+                            args.clear();
+                            closure_copy.reset();
+                            interpreter::NaabVal::exitAsyncVM();
+                            throw;
+                        }
                     }
+                    // Destroy all captured NaabVals BEFORE exitAsyncVM re-enables handle recycling
+                    globals_copy.clear();
+                    args.clear();
+                    closure_copy.reset();
+                    interpreter::NaabVal::exitAsyncVM();
+                    return safe_result;
                 }).share();
 
             future_val->future = shared_future;

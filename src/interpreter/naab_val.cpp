@@ -507,6 +507,9 @@ void NaabVal::forEachHeapValue(std::function<void(NaabVal)> callback) {
         val.bits_ = TAG_HEAP | static_cast<uint64_t>(h);
         box->refcount.fetch_add(1, std::memory_order_relaxed);  // retain
         callback(val);
+        // val's destructor calls release(), callback's copy (by value) also
+        // calls release() — net effect: the two releases balance the one
+        // manual retain + one copy-constructor retain.
     }
 }
 
