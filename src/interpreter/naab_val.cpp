@@ -16,6 +16,11 @@ namespace interpreter {
 // ARM64 Android uses tagged pointers (TBI/MTE) — raw pointer bits don't fit
 // in a 48-bit NaN payload without losing the tag byte. The handle table avoids
 // storing raw pointers entirely; we store a small integer handle instead.
+//
+// Thread safety: each thread gets its own handle range via ThreadAllocator.
+// Freed handles are recycled only within the same thread — no cross-thread
+// reuse eliminates TOCTOU races in release(). The global page table is shared
+// for reads (resolveHandle is lock-free).
 // ============================================================================
 
 namespace {
@@ -27,40 +32,70 @@ namespace {
     static constexpr uint32_t PAGE_MASK = PAGE_SIZE - 1;
     static constexpr uint32_t MAX_PAGES = 256;                      // 256 * 64K = 16M handles
 
-    static std::atomic<ValueBox*>* g_pages[MAX_PAGES] = {};          // fixed array of page pointers (atomic for thread safety)
-    static std::atomic<uint32_t> g_next_handle{0};                  // monotonic counter for new handles
-    static std::vector<uint32_t> g_free_handles;
-    static std::mutex            g_handle_mutex;
+    static std::atomic<ValueBox*>* g_pages[MAX_PAGES] = {};          // global page table (shared for reads)
 
-    // V-CONC-008: Track active async VM count (for future optimizations)
-    static std::atomic<int>      g_async_vm_count{0};
+    // Thread-local handle allocator: each thread gets its own 64K-handle range.
+    // Freed handles are recycled only within the same thread.
+    static constexpr uint32_t RANGE_SIZE = 65536;                    // handles per thread range
+    static std::atomic<uint32_t> g_next_range{0};                   // global range counter
+    static std::mutex g_page_mutex;                                  // protects ensurePage only
 
-    // Ensure the page for a given handle exists
+    struct ThreadAllocator {
+        uint32_t range_start;
+        uint32_t range_end;
+        uint32_t next_handle;
+        std::vector<uint32_t> free_handles;
+    };
+
+    static thread_local ThreadAllocator* tl_allocator = nullptr;
+
+    static ThreadAllocator* getOrCreateAllocator() {
+        if (!tl_allocator) {
+            tl_allocator = new ThreadAllocator();
+            uint32_t range_id = g_next_range.fetch_add(1, std::memory_order_relaxed);
+            tl_allocator->range_start = range_id * RANGE_SIZE;
+            tl_allocator->range_end = tl_allocator->range_start + RANGE_SIZE;
+            tl_allocator->next_handle = tl_allocator->range_start;
+        }
+        return tl_allocator;
+    }
+
+    // Ensure the page for a given handle exists (thread-safe)
     static void ensurePage(uint32_t page_idx) {
         if (!g_pages[page_idx]) {
-            g_pages[page_idx] = new std::atomic<ValueBox*>[PAGE_SIZE]();  // zero-initialized
+            std::lock_guard<std::mutex> lock(g_page_mutex);
+            if (!g_pages[page_idx]) {  // double-check after acquiring lock
+                g_pages[page_idx] = new std::atomic<ValueBox*>[PAGE_SIZE]();
+            }
         }
     }
 
     uint32_t allocHandle(ValueBox* box) {
-        std::lock_guard<std::mutex> lock(g_handle_mutex);
+        auto* alloc = getOrCreateAllocator();
         uint32_t h;
-        if (!g_free_handles.empty()) {
-            h = g_free_handles.back();
-            g_free_handles.pop_back();
+        if (!alloc->free_handles.empty()) {
+            h = alloc->free_handles.back();
+            alloc->free_handles.pop_back();
         } else {
-            h = g_next_handle.fetch_add(1, std::memory_order_relaxed);
-            uint32_t page_idx = h >> PAGE_BITS;
-            ensurePage(page_idx);
+            h = alloc->next_handle++;
+            if (h >= alloc->range_end) {
+                // Exhausted this range, get a new one
+                uint32_t range_id = g_next_range.fetch_add(1, std::memory_order_relaxed);
+                alloc->range_start = range_id * RANGE_SIZE;
+                alloc->range_end = alloc->range_start + RANGE_SIZE;
+                alloc->next_handle = alloc->range_start + 1;
+                h = alloc->range_start;
+            }
+            ensurePage(h >> PAGE_BITS);
         }
         g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(box, std::memory_order_release);
         return h;
     }
 
     void freeHandle(uint32_t h) {
-        std::lock_guard<std::mutex> lock(g_handle_mutex);
         g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(nullptr, std::memory_order_release);
-        g_free_handles.push_back(h);
+        auto* alloc = getOrCreateAllocator();
+        alloc->free_handles.push_back(h);
     }
 
     inline ValueBox* resolveHandle(uint32_t h) {
@@ -113,15 +148,15 @@ void NaabVal::release() {
 }
 
 void NaabVal::enterAsyncVM() {
-    g_async_vm_count.fetch_add(1, std::memory_order_release);
+    // No-op: thread-local allocators eliminate cross-thread handle reuse
 }
 
 void NaabVal::exitAsyncVM() {
-    g_async_vm_count.fetch_sub(1, std::memory_order_acq_rel);
+    // No-op: thread-local allocators eliminate cross-thread handle reuse
 }
 
 void NaabVal::flushDeferredFrees() {
-    // No-op — deferred free list removed in favor of handle leak approach
+    // No-op: thread-local allocators handle recycling per-thread
 }
 
 // ============================================================================
@@ -361,8 +396,15 @@ NaabVal NaabVal::deepCopy(int depth, std::unordered_set<const void*>* visited) c
             copy_result = *this;
         }
     } else {
-        // Functions, closures, futures, etc. — share by reference (immutable or thread-local)
-        copy_result = *this;
+        // Functions, closures, futures, etc. — create a new handle wrapping the
+        // same underlying Value. Gives the copy independent refcounting so async
+        // cleanup won't affect the original's handle.
+        auto* box = asHeap();
+        if (box && box->shared_value) {
+            copy_result = fromLegacy(box->shared_value);
+        } else {
+            copy_result = *this;
+        }
     }
 
     if (ptr) visited->erase(ptr);  // Allow same object in different branches
@@ -494,13 +536,14 @@ int NaabVal::getHeapRefCount() const {
 }
 
 void NaabVal::forEachHeapValue(std::function<void(NaabVal)> callback) {
-    // Iterate all live entries in the handle table.
-    // g_next_handle is the high-water mark — no handles exist above it.
-    uint32_t max_handle = g_next_handle.load(std::memory_order_relaxed);
+    // Iterate all live entries across all thread-local ranges.
+    // g_next_range * RANGE_SIZE is the high-water mark.
+    uint32_t max_range = g_next_range.load(std::memory_order_relaxed);
+    uint32_t max_handle = max_range * RANGE_SIZE;
     for (uint32_t h = 0; h < max_handle; ++h) {
         uint32_t page_idx = h >> PAGE_BITS;
         if (!g_pages[page_idx]) continue;  // Page not allocated
-        ValueBox* box = g_pages[page_idx][h & PAGE_MASK];
+        ValueBox* box = g_pages[page_idx][h & PAGE_MASK].load(std::memory_order_acquire);
         if (!box) continue;  // Freed handle
         // Create a NaabVal from this handle (bumps refcount temporarily)
         NaabVal val;
