@@ -642,6 +642,122 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
+# --- T24: --drift-baseline-save blocked when in blocked_flags ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+main { print(foo()) }
+NAAB_EOF
+
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": { "enabled": true, "level": "hard" }
+  },
+  "integrity": {
+    "blocked_flags": ["--drift-baseline-save"]
+  }
+}
+EOF
+
+OUTPUT=$("$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "blocked.*drift-baseline-save\|prohibited\|drift-baseline-save.*locked"; then
+  pass "T24: --drift-baseline-save blocked by integrity.blocked_flags"
+else
+  fail "T24: expected block for blocked flag (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T25: Signed baseline passes verification ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function alpha(x) { return x + 1 }
+function beta(x) { return x + 2 }
+main { print(alpha(1) + beta(2)) }
+NAAB_EOF
+
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": { "enabled": true, "level": "hard" }
+  }
+}
+EOF
+
+# Save baseline with key (auto-signs)
+export NAAB_GOVERN_KEY="test-secret-key-12345"
+"$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
+
+# Verify .sig was created
+if [ -f "$WORK_DIR/.naab/drift-baseline.json.sig" ]; then
+  # Run with key — should pass
+  OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+  RC=$?
+  if [ $RC -eq 0 ]; then
+    pass "T25: signed baseline passes verification"
+  else
+    fail "T25: signed baseline should pass (rc=$RC)"
+    echo "    Output: $(echo "$OUTPUT" | head -8)"
+  fi
+else
+  fail "T25: .sig file not created"
+fi
+
+# --- T26: Tampered baseline (modified after signing) blocked ---
+# Tamper with the baseline file
+echo '{"tampered": true}' >> "$WORK_DIR/.naab/drift-baseline.json"
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "signature.*mismatch\|tampered\|modified since.*signed"; then
+  pass "T26: tampered baseline blocked (signature mismatch)"
+else
+  fail "T26: expected block for tampered baseline (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+unset NAAB_GOVERN_KEY
+
+# --- T27: .sig exists but no key → fail-closed ---
+# .sig still exists from T25, but key is now unset
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "not set\|cannot verify"; then
+  pass "T27: missing key with .sig present → fail-closed"
+else
+  fail "T27: expected fail-closed when key absent but .sig exists (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T28: Unsigned mode (no key, no sig) still works ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": { "enabled": true, "level": "hard" }
+  }
+}
+EOF
+
+# Save baseline without key (no signing)
+"$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
+
+# No .sig file should exist
+if [ ! -f "$WORK_DIR/.naab/drift-baseline.json.sig" ]; then
+  OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+  RC=$?
+  if [ $RC -eq 0 ]; then
+    pass "T28: unsigned mode works (backward compat)"
+  else
+    fail "T28: unsigned mode should pass (rc=$RC)"
+    echo "    Output: $(echo "$OUTPUT" | head -8)"
+  fi
+else
+  fail "T28: .sig should not exist without key"
+fi
+
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed, $FAILED failed ==="
 exit $FAILED

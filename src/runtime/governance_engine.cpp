@@ -7,6 +7,8 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/crypto_utils.h"
+#include "naab/secure_file.h"
 #include "naab/ast.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
@@ -1603,6 +1605,119 @@ std::string GovernanceEngine::resolveDriftBaselinePath() const {
     return bp;
 }
 
+// --- Integrity: HMAC signature verification ---
+
+static const char* GOVERN_KEY_ENV = "NAAB_GOVERN_KEY";
+static const char* FINGERPRINT_DOMAIN = "NAAB_FINGERPRINT";
+
+std::string GovernanceEngine::getKeyFingerprint() {
+    const char* key = std::getenv(GOVERN_KEY_ENV);
+    if (!key || !*key) return "";
+    std::string hmac = security::CryptoUtils::hmacSha256(FINGERPRINT_DOMAIN, key);
+    return hmac.substr(hmac.size() > 8 ? hmac.size() - 8 : 0);
+}
+
+bool GovernanceEngine::signFile(const std::string& file_path) {
+    const char* key = std::getenv(GOVERN_KEY_ENV);
+    if (!key || !*key) {
+        fprintf(stderr, "[governance] Error: %s not set — cannot sign %s\n",
+                GOVERN_KEY_ENV, file_path.c_str());
+        return false;
+    }
+    std::ifstream ifs(file_path);
+    if (!ifs.is_open()) {
+        fprintf(stderr, "[governance] Error: cannot read %s for signing\n", file_path.c_str());
+        return false;
+    }
+    std::string content((std::istreambuf_iterator<char>(ifs)),
+                         std::istreambuf_iterator<char>());
+    ifs.close();
+
+    std::string sig = security::CryptoUtils::hmacSha256(content, key);
+    std::string sig_path = file_path + ".sig";
+    if (!security::writeFileSecure(sig_path, sig)) {
+        fprintf(stderr, "[governance] Error: failed to write signature %s\n", sig_path.c_str());
+        return false;
+    }
+    fprintf(stderr, "[governance] Signed: %s (fingerprint: %s)\n",
+            file_path.c_str(), getKeyFingerprint().c_str());
+    return true;
+}
+
+bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
+    std::string sig_path = file_path + ".sig";
+    bool sig_exists = std::filesystem::exists(sig_path);
+    const char* key = std::getenv(GOVERN_KEY_ENV);
+    bool have_key = key && *key;
+
+    // No signature file → check if signature is required
+    if (!sig_exists) {
+        if (rules_.integrity.require_signature) {
+            fprintf(stderr,
+                "[governance] INTEGRITY BLOCK: Signature required but missing for %s\n"
+                "  This file is protected by HMAC signing. Only a human with the signing key\n"
+                "  can authorize changes. This is by design — do not attempt to work around it.\n"
+                "  The project owner must run: naab-lang --sign-governance (or --sign-baseline)\n"
+                "  with NAAB_GOVERN_KEY set to update this file.\n",
+                file_path.c_str());
+            return false;
+        }
+        return true;  // Unsigned mode — backward compatible
+    }
+
+    // Signature file exists but no key → fail-closed (someone signed it, we must verify)
+    if (!have_key) {
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: %s is HMAC-signed but NAAB_GOVERN_KEY is not set.\n"
+            "  This governance configuration is locked by the project owner. You cannot modify,\n"
+            "  bypass, or override it without the signing key. This is intentional — the file,\n"
+            "  its settings, and its baselines are tamper-protected. Do not attempt to delete,\n"
+            "  edit, or recreate these files. Only the project owner can authorize changes.\n"
+            "  Continue working within the existing governance rules.\n",
+            file_path.c_str());
+        return false;
+    }
+
+    // Read file content
+    std::ifstream ifs(file_path);
+    if (!ifs.is_open()) return false;
+    std::string content((std::istreambuf_iterator<char>(ifs)),
+                         std::istreambuf_iterator<char>());
+    ifs.close();
+
+    // Read stored signature
+    std::ifstream sig_ifs(sig_path);
+    if (!sig_ifs.is_open()) return false;
+    std::string stored_sig((std::istreambuf_iterator<char>(sig_ifs)),
+                            std::istreambuf_iterator<char>());
+    sig_ifs.close();
+    // Trim whitespace from stored sig
+    while (!stored_sig.empty() && (stored_sig.back() == '\n' || stored_sig.back() == '\r'))
+        stored_sig.pop_back();
+
+    // Compute expected HMAC and compare
+    std::string expected = security::CryptoUtils::hmacSha256(content, key);
+    if (!security::CryptoUtils::constantTimeCompare(expected, stored_sig)) {
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: %s has been modified since it was signed.\n"
+            "  The HMAC signature does not match the file contents. This file is protected —\n"
+            "  any modification without the signing key is detected and blocked. Do not attempt\n"
+            "  to edit, recreate, or work around this file. Ask the project owner to re-sign\n"
+            "  after making authorized changes.\n",
+            file_path.c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool GovernanceEngine::isBlockedFlag(const std::string& flag) const {
+    for (const auto& blocked : rules_.integrity.blocked_flags) {
+        if (flag == blocked) return true;
+    }
+    return false;
+}
+
 std::string GovernanceEngine::checkDriftDetection(
     const std::string& filename, const DriftMetrics& current)
 {
@@ -1624,8 +1739,18 @@ std::string GovernanceEngine::checkDriftDetection(
         return "";  // No baseline yet — skip
     }
 
+    ifs.close();
+
+    // Verify baseline signature before trusting content
+    if (!verifyFileSignature(resolved)) {
+        std::string msg = "Drift baseline signature verification failed: " + resolved;
+        enforce("drift_detection.integrity", cfg.level, msg);
+        return "[governance] Drift detection FAILED:\n  " + msg + "\n";
+    }
+
+    std::ifstream ifs2(resolved);
     nlohmann::json baseline;
-    try { baseline = nlohmann::json::parse(ifs); }
+    try { baseline = nlohmann::json::parse(ifs2); }
     catch (...) { return ""; }
 
     // Find this file in the baseline
@@ -1922,6 +2047,20 @@ void GovernanceEngine::saveDriftBaseline(
     if (cfg.baseline_path.empty()) return;
     std::string resolved = resolveDriftBaselinePath();
 
+    // Integrity: if a .sig sidecar exists, key is required to re-save
+    std::string sig_path = resolved + ".sig";
+    if (std::filesystem::exists(sig_path)) {
+        const char* key = std::getenv(GOVERN_KEY_ENV);
+        if (!key || !*key) {
+            fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: Cannot overwrite signed baseline %s\n"
+            "  This drift baseline is HMAC-signed. Only the project owner with NAAB_GOVERN_KEY\n"
+            "  can save a new baseline. This is by design — do not attempt to work around it.\n",
+            resolved.c_str());
+            return;
+        }
+    }
+
     // Load existing baseline (to preserve other files' entries)
     nlohmann::json baseline;
     {
@@ -1997,6 +2136,12 @@ void GovernanceEngine::saveDriftBaseline(
         ofs << baseline.dump(2) << "\n";
         fprintf(stderr, "[governance] Drift baseline saved for '%s' to %s\n",
                 key.c_str(), resolved.c_str());
+        ofs.close();
+        // Auto-sign if key is available
+        const char* gk = std::getenv(GOVERN_KEY_ENV);
+        if (gk && *gk) {
+            signFile(resolved);
+        }
     }
 }
 

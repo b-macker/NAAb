@@ -1056,6 +1056,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // Integrity config
+    if (j.contains("integrity") && j["integrity"].is_object()) {
+        auto& ic = j["integrity"];
+        if (ic.contains("require_signature")) rules_.integrity.require_signature = ic["require_signature"].get<bool>();
+        if (ic.contains("blocked_flags") && ic["blocked_flags"].is_array()) {
+            for (auto& f : ic["blocked_flags"]) {
+                rules_.integrity.blocked_flags.push_back(f.get<std::string>());
+            }
+        }
+    }
+
     // V3 Custom Rules
     if (j.contains("custom_rules") && j["custom_rules"].is_array()) {
         for (auto& cr : j["custom_rules"]) {
@@ -1718,6 +1729,12 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels();
+
+        // Integrity: verify govern.json signature
+        if (!verifyFileSignature(path)) {
+            g_governance_hard_block = true;
+            return false;
+        }
 
         // Schema key validation is done by caller (main.cpp) where --no-governance is known
 

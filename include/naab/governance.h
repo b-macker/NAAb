@@ -1285,6 +1285,12 @@ struct GovernanceRules {
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
 
+    // Integrity: HMAC signing of govern.json and drift baselines
+    struct IntegrityConfig {
+        bool require_signature = false;
+        std::vector<std::string> blocked_flags;
+    } integrity;
+
     // --- Governance behavior (configurable via govern.json or CLI flags) ---
     // CLI flags override these when present.
     bool verbose = false;           // --governance-verbose
@@ -1774,6 +1780,12 @@ public:
     void saveDriftBaseline(const std::string& filename,
                            const DriftMetrics& metrics) const;
     std::string resolveDriftBaselinePath() const;
+
+    // Integrity: HMAC signature verification
+    bool verifyFileSignature(const std::string& file_path) const;
+    static bool signFile(const std::string& file_path);
+    bool isBlockedFlag(const std::string& flag) const;
+    static std::string getKeyFingerprint();
 
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);

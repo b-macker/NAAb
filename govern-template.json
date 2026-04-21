@@ -629,6 +629,12 @@
     }
   },
 
+  "_comment_integrity": "HMAC signing of govern.json and drift baselines. Set NAAB_GOVERN_KEY env var to enable. blocked_flags prevents LLMs from using dangerous CLI flags.",
+  "integrity": {
+    "require_signature": false,
+    "blocked_flags": ["--drift-baseline-save", "--governance-override"]
+  },
+
   "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
   "contracts": {
     "level": "soft",

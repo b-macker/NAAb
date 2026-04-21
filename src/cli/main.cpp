@@ -451,6 +451,32 @@ int main(int argc, char** argv) {
             // V-LSP-005: parse + governance pre-flight without executing user code
             global_lint_only = true;
             command_arg_index++;
+        } else if (arg == "--sign-governance") {
+            // Sign govern.json with NAAB_GOVERN_KEY
+            naab::governance::GovernanceEngine gov;
+            std::string gov_path;
+            if (command_arg_index + 1 < argc && argv[command_arg_index + 1][0] != '-') {
+                gov_path = argv[++command_arg_index];
+            } else {
+                // Discover govern.json from CWD
+                gov.discoverAndLoad(".");
+                gov_path = gov.getLoadedPath();
+            }
+            if (gov_path.empty()) {
+                fprintf(stderr, "Error: No govern.json found to sign\n");
+                return 4;
+            }
+            return naab::governance::GovernanceEngine::signFile(gov_path) ? 0 : 1;
+        } else if (arg == "--sign-baseline") {
+            // Sign drift baseline with NAAB_GOVERN_KEY
+            naab::governance::GovernanceEngine gov;
+            gov.discoverAndLoad(".");
+            std::string bp = gov.resolveDriftBaselinePath();
+            if (bp.empty()) {
+                fprintf(stderr, "Error: No drift baseline path configured\n");
+                return 4;
+            }
+            return naab::governance::GovernanceEngine::signFile(bp) ? 0 : 1;
         } else if (arg == "--") {
             // V-LSP-004: end-of-flags sentinel — everything after is positional
             command_arg_index++;
@@ -1107,6 +1133,16 @@ int main(int argc, char** argv) {
                 auto abs_file = std::filesystem::absolute(filename);
                 auto script_dir = abs_file.parent_path();
                 bool gov_loaded = vm_governance.discoverAndLoad(script_dir.string());
+                // Integrity: if signature verification failed, hard block immediately
+                if (!gov_loaded && naab::governance::g_governance_hard_block) {
+                    fprintf(stderr,
+                        "[governance] INTEGRITY BLOCK: Governance configuration is tamper-protected and\n"
+                        "  cannot be loaded without the correct signing key. Execution is blocked.\n"
+                        "  This is by design — do not attempt to modify, delete, or recreate govern.json\n"
+                        "  or its .sig file. Only the project owner can authorize changes.\n");
+                    fflush(stderr);
+                    _exit(3);
+                }
                 if (!gov_loaded && !no_governance) {
                     if (require_governance) {
                         fmt::print(stderr,
@@ -1193,6 +1229,31 @@ int main(int argc, char** argv) {
                             rules.output.file_output.report_sarif = governance_report_sarif;
                         if (!governance_report_junit.empty())
                             rules.output.file_output.report_junit = governance_report_junit;
+                    }
+                }
+
+                // Integrity: check for blocked CLI flags (bypassed when NAAB_GOVERN_KEY is set — authorized user)
+                const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
+                bool _has_govern_key = _govern_key && *_govern_key;
+                if (gov_loaded && vm_governance.isActive() && !_has_govern_key) {
+                    auto checkBlocked = [&](const std::string& flag, bool was_used) {
+                        if (was_used && vm_governance.isBlockedFlag(flag)) {
+                            fprintf(stderr,
+                                "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
+                                "  This flag is listed in integrity.blocked_flags in govern.json. Only the\n"
+                                "  project owner with NAAB_GOVERN_KEY can use this flag. This is by design.\n"
+                                "  Continue working within the existing governance rules.\n",
+                                flag.c_str());
+                            naab::governance::g_governance_hard_block = true;
+                        }
+                    };
+                    checkBlocked("--drift-baseline-save", drift_baseline_save);
+                    checkBlocked("--governance-override", governance_override);
+                    checkBlocked("--governance-baseline-save", governance_baseline_save);
+                    if (naab::governance::g_governance_hard_block) {
+                        if (vm_governance.isActive()) vm_governance.writeReports();
+                        fflush(stdout); fflush(stderr);
+                        _exit(3);
                     }
                 }
 
