@@ -1048,6 +1048,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Gate 8: Test function regression
             if (dd.contains("check_test_functions")) rules_.code_quality.drift_detection.check_test_functions = dd["check_test_functions"].get<bool>();
             if (dd.contains("max_test_loss")) rules_.code_quality.drift_detection.max_test_loss = dd["max_test_loss"].get<double>();
+            // Gate 9: Function name stability
+            if (dd.contains("check_function_names")) rules_.code_quality.drift_detection.check_function_names = dd["check_function_names"].get<bool>();
+            if (dd.contains("max_function_name_loss")) rules_.code_quality.drift_detection.max_function_name_loss = dd["max_function_name_loss"].get<double>();
         }
     }
 

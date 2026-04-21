@@ -1871,6 +1871,34 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 9: Function name stability — catches rename-and-gut attacks
+    if (cfg.check_function_names && prev.contains("function_names") && prev["function_names"].is_array()) {
+        int baseline_count = static_cast<int>(prev["function_names"].size());
+        if (baseline_count > 0) {
+            std::unordered_set<std::string> current_set(
+                current.function_names.begin(), current.function_names.end());
+            std::vector<std::string> deleted;
+            for (const auto& fn : prev["function_names"]) {
+                std::string name = fn.get<std::string>();
+                if (current_set.find(name) == current_set.end()) {
+                    deleted.push_back(name);
+                    fprintf(stderr, "[governance] Drift: function '%s' was renamed or deleted\n", name.c_str());
+                }
+            }
+            double loss = static_cast<double>(deleted.size()) / baseline_count;
+            if (loss > cfg.max_function_name_loss) {
+                std::string msg = fmt::format(
+                    "Drift: function names lost {:.0f}% ({} of {} baseline names missing). Max allowed: {:.0f}%",
+                    loss * 100.0, deleted.size(), baseline_count,
+                    cfg.max_function_name_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.function_names", cfg.level, msg);
+            } else {
+                recordPass("drift_detection.function_names", cfg.level);
+            }
+        }
+    }
+
     if (violations.empty()) return "";
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";

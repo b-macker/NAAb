@@ -539,6 +539,56 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
+# --- T20: Function name stability — rename-and-gut detected ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function alpha(x) { return x + 1 }
+function beta(x) { return x + 2 }
+function gamma(x) { return x + 3 }
+main { print(alpha(1) + beta(2) + gamma(3)) }
+NAAB_EOF
+
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "check_function_names": true,
+      "max_function_name_loss": 0.5
+    }
+  }
+}
+EOF
+
+"$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
+
+# Now rename 2 of 3 functions (keep count the same, but names change)
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function alpha(x) { return x + 1 }
+function probe_one(x) { return x }
+function probe_two(x) { return x }
+main { print(alpha(1)) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "function names lost"; then
+  pass "T20: function name stability — rename-and-gut detected"
+else
+  fail "T20: expected block for function name loss (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T21: Specific renamed function reported ---
+if echo "$OUTPUT" | grep -qi "beta.*renamed\|beta.*deleted"; then
+  pass "T21: specific renamed function 'beta' reported"
+else
+  fail "T21: expected specific function rename message"
+  echo "    Output: $(echo "$OUTPUT" | grep -i 'drift')"
+fi
+
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed, $FAILED failed ==="
 exit $FAILED

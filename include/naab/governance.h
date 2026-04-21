@@ -761,6 +761,9 @@ struct CodeQualityConfig {
         // Gate 8: Test function regression
         bool check_test_functions = true;
         double max_test_loss = 0.0;
+        // Gate 9: Function name stability — block when baseline function names disappear
+        bool check_function_names = true;
+        double max_function_name_loss = 0.5;
     } drift_detection;
 };
 

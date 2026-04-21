@@ -622,7 +622,9 @@
       "check_struct_fields": true,
       "max_field_loss": 0.5,
       "check_test_functions": true,
-      "max_test_loss": 0.0
+      "max_test_loss": 0.0,
+      "check_function_names": true,
+      "max_function_name_loss": 0.5
     }
   },
 
