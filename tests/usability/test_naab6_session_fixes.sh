@@ -36,7 +36,7 @@ grep -A10 'visit(ast::DictExpr' "$SRC/interpreter/expressions.cpp" | grep -q 'go
 check $? "Tree-walker DictExpr has governance array size check"
 
 # T4: Runtime — array literal blocked when governance max_array_size exceeded
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_arr_gov_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_arr_gov_XXXXXX")
 mkdir -p "$WORK_DIR"
 cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {
@@ -73,7 +73,7 @@ grep -q 'async blocks.*async function' "$SRC/parser/parser.cpp"
 check $? "Parser has async block hint"
 
 # T6: Runtime — async { } gives helpful error
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_async_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_async_XXXXXX")
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     async {
@@ -90,7 +90,7 @@ fi
 rm -rf "$WORK_DIR"
 
 # T7: Runtime — async taskName() gives helpful error
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_async2_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_async2_XXXXXX")
 cat > "$WORK_DIR/test.naab" << 'EOF'
 function myTask() {
     print("hello")

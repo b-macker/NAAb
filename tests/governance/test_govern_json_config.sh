@@ -11,7 +11,7 @@ TOTAL=0
 pass() { PASSED=$((PASSED + 1)); TOTAL=$((TOTAL + 1)); echo "  PASS: $1"; }
 fail() { FAILED=$((FAILED + 1)); TOTAL=$((TOTAL + 1)); echo "  FAIL: $1"; }
 
-WORK_DIR=$(mktemp -d "$TMPDIR/test_gov_config_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test_gov_config_XXXXXX")
 trap "rm -rf $WORK_DIR" EXIT
 
 # Simple test program

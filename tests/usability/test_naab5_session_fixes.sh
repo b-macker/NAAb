@@ -46,7 +46,7 @@ grep -q 'getMaxJsonDepth' "$SRC/stdlib/json_impl.cpp"
 check $? "json_impl.cpp uses governance-configured depth"
 
 # T5: Runtime — json.stringify respects governance depth limit
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_json_depth_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_json_depth_XXXXXX")
 mkdir -p "$WORK_DIR"
 cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {
@@ -88,7 +88,7 @@ grep -q 'Python-style for loops' "$SRC/parser/parser.cpp"
 check $? "Parser has C-style for loop hint"
 
 # T7: Runtime — for (let i = 0; ...) gives helpful error
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_for_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_for_XXXXXX")
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     for (let i = 0; i < 10; i = i + 1) {

@@ -40,7 +40,7 @@ grep -A5 'canonAndNorm' "$SRC/runtime/governance_engine.cpp" | grep -q 'weakly_c
 check $? "canonAndNorm uses weakly_canonical"
 
 # T4: Runtime — relative allowed_paths work with file operations
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_gov025_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_gov025_XXXXXX")
 mkdir -p "$WORK_DIR/output"
 cat > "$WORK_DIR/govern.json" << 'GOVEOF'
 {

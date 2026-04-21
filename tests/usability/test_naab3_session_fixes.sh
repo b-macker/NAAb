@@ -32,7 +32,7 @@ grep -q 'block header' "$SRC/parser/parser.cpp"
 check $? "Hint explains -> JSON goes in block header"
 
 # T3: Runtime — >> -> JSON gives helpful error
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_json_hint_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_json_hint_XXXXXX")
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     let x = <<python
@@ -79,7 +79,7 @@ grep -q 'square brackets.*not parentheses' "$SRC/lexer/lexer.cpp"
 check $? "Lexer has () binding error with guidance"
 
 # T10: Runtime — <<python(x) gives clear error
-WORK_DIR=$(mktemp -d "$TMPDIR/naab_paren_XXXXXX")
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_paren_XXXXXX")
 cat > "$WORK_DIR/test.naab" << 'EOF'
 main {
     let x = 10;
