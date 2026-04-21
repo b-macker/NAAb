@@ -45,6 +45,7 @@ namespace {
         uint32_t range_end;
         uint32_t next_handle;
         std::vector<uint32_t> free_handles;
+        std::vector<std::pair<uint32_t,uint32_t>> all_ranges;  // All ranges this thread owns
     };
 
     static thread_local ThreadAllocator* tl_allocator = nullptr;
@@ -56,6 +57,7 @@ namespace {
             tl_allocator->range_start = range_id * RANGE_SIZE;
             tl_allocator->range_end = tl_allocator->range_start + RANGE_SIZE;
             tl_allocator->next_handle = tl_allocator->range_start;
+            tl_allocator->all_ranges.push_back({tl_allocator->range_start, tl_allocator->range_end});
         }
         return tl_allocator;
     }
@@ -84,6 +86,7 @@ namespace {
                 alloc->range_start = range_id * RANGE_SIZE;
                 alloc->range_end = alloc->range_start + RANGE_SIZE;
                 alloc->next_handle = alloc->range_start + 1;
+                alloc->all_ranges.push_back({alloc->range_start, alloc->range_end});
                 h = alloc->range_start;
             }
             ensurePage(h >> PAGE_BITS);
@@ -93,6 +96,12 @@ namespace {
     }
 
     void freeHandle(uint32_t h) {
+#ifdef NAAB_HANDLE_TRACE
+        fprintf(stderr, "[HANDLE-FREE] h=%u thread=%p range=%u-%u\n",
+                h, (void*)pthread_self(),
+                tl_allocator ? tl_allocator->range_start : 0u,
+                tl_allocator ? tl_allocator->range_end : 0u);
+#endif
         g_pages[h >> PAGE_BITS][h & PAGE_MASK].store(nullptr, std::memory_order_release);
         auto* alloc = getOrCreateAllocator();
         alloc->free_handles.push_back(h);
@@ -142,8 +151,23 @@ void NaabVal::release() {
     ValueBox* box = resolveHandle(handle);
     if (!box) return;  // Already freed by another thread — safe to skip
     if (box->refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-        freeHandle(handle);
-        delete box;
+        // Only free if this handle is in our thread's range(s).
+        // Cross-thread shared handles (e.g., CompiledFunction constants accessed
+        // by async VMs) must NOT be freed by non-owning threads — doing so nulls
+        // the page table entry causing "Dangling handle" on the owning thread.
+        auto* alloc = getOrCreateAllocator();
+        bool is_mine = false;
+        for (auto& [rs, re] : alloc->all_ranges) {
+            if (handle >= rs && handle < re) { is_mine = true; break; }
+        }
+        if (is_mine) {
+            freeHandle(handle);
+            delete box;
+        } else {
+            // Cross-range: restore refcount, don't free.
+            // The owning thread will free it when its last reference drops.
+            box->refcount.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 }
 
@@ -174,6 +198,12 @@ ValueBox* NaabVal::asHeap() const {
     uint32_t handle = static_cast<uint32_t>(bits_ & 0xFFFFFFFFULL);
     ValueBox* box = resolveHandle(handle);
     if (!box) {
+#ifdef NAAB_HANDLE_TRACE
+        uint32_t h_range = handle / RANGE_SIZE;
+        uint32_t my_range = tl_allocator ? tl_allocator->range_start / RANGE_SIZE : 999;
+        fprintf(stderr, "[DANGLING] h=%u h_range=%u my_range=%u thread=%p\n",
+                handle, h_range, my_range, (void*)pthread_self());
+#endif
         throw std::runtime_error("Dangling handle: heap object was freed");
     }
     return box;
