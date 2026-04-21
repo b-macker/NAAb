@@ -589,6 +589,59 @@ else
   echo "    Output: $(echo "$OUTPUT" | grep -i 'drift')"
 fi
 
+# --- T22: Baseline tamper protection — missing baseline blocked when require_baseline=true ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+main { print(foo()) }
+NAAB_EOF
+
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "require_baseline": true
+    }
+  }
+}
+EOF
+
+# Do NOT save baseline — it should fail-closed
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "baseline.*missing\|baseline.*deleted"; then
+  pass "T22: missing baseline blocked when require_baseline=true"
+else
+  fail "T22: expected block for missing baseline (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T23: require_baseline=false still allows missing baseline (backward compat) ---
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "require_baseline": false
+    }
+  }
+}
+EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 0 ]; then
+  pass "T23: missing baseline allowed when require_baseline=false"
+else
+  fail "T23: expected pass with require_baseline=false (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed, $FAILED failed ==="
 exit $FAILED

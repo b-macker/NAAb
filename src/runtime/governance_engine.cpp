@@ -1612,7 +1612,17 @@ std::string GovernanceEngine::checkDriftDetection(
     // Load baseline
     std::string resolved = resolveDriftBaselinePath();
     std::ifstream ifs(resolved);
-    if (!ifs.is_open()) return "";  // No baseline yet — skip
+    if (!ifs.is_open()) {
+        // Gate 10: fail-closed when baseline is required but missing (tamper protection)
+        if (cfg.require_baseline) {
+            std::string msg = "Drift baseline missing or deleted: " + resolved +
+                              ". Re-run with --drift-baseline-save to initialize.";
+            fprintf(stderr, "[governance] %s\n", msg.c_str());
+            enforce("drift_detection.require_baseline", cfg.level, msg);
+            return "[governance] Drift detection FAILED:\n  " + msg + "\n";
+        }
+        return "";  // No baseline yet — skip
+    }
 
     nlohmann::json baseline;
     try { baseline = nlohmann::json::parse(ifs); }

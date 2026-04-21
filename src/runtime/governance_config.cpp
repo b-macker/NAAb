@@ -1051,6 +1051,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Gate 9: Function name stability
             if (dd.contains("check_function_names")) rules_.code_quality.drift_detection.check_function_names = dd["check_function_names"].get<bool>();
             if (dd.contains("max_function_name_loss")) rules_.code_quality.drift_detection.max_function_name_loss = dd["max_function_name_loss"].get<double>();
+            // Gate 10: Baseline tamper protection
+            if (dd.contains("require_baseline")) rules_.code_quality.drift_detection.require_baseline = dd["require_baseline"].get<bool>();
         }
     }
 

@@ -764,6 +764,8 @@ struct CodeQualityConfig {
         // Gate 9: Function name stability — block when baseline function names disappear
         bool check_function_names = true;
         double max_function_name_loss = 0.5;
+        // Gate 10: Baseline tamper protection — fail-closed when baseline is missing
+        bool require_baseline = false;
     } drift_detection;
 };
 
