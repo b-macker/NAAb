@@ -24,6 +24,7 @@
 #include "naab/naab_val.h"
 
 namespace naab {
+namespace ast { class Program; }  // Forward declaration for drift detection
 namespace governance {
 
 // ============================================================================
@@ -726,6 +727,41 @@ struct CodeQualityConfig {
     DuplicateCallsConfig duplicate_calls;
     PolyglotTryCatchConfig polyglot_try_catch;
     SemanticChecksConfig semantic_checks;
+
+    // Drift detection: block execution when a rewrite loses significant functionality
+    struct DriftDetectionConfig {
+        bool enabled = false;
+        EnforcementLevel level = EnforcementLevel::HARD;
+        std::string baseline_path = ".naab/drift-baseline.json";
+        double max_function_loss = 0.5;   // Block if >50% functions disappear
+        double max_loc_loss = 0.6;        // Block if >60% LOC disappears
+        double max_export_loss = 0.0;     // Block if ANY export disappears
+        double max_struct_loss = 0.5;     // Block if >50% structs disappear
+        bool auto_save = false;           // If true, auto-update baseline after pass
+        // Gate 1: Signature stability
+        bool check_signatures = true;
+        double max_param_loss = 0.5;
+        // Gate 2: Import regression
+        bool check_imports = true;
+        double max_import_loss = 0.5;
+        // Gate 3: Complexity regression (per-function)
+        bool check_complexity = true;
+        double max_complexity_loss = 0.6;
+        // Gate 4: Comment inflation
+        bool check_comment_ratio = true;
+        double max_comment_ratio = 0.5;
+        // Gate 5: Dead export gate (no baseline needed)
+        bool check_hollow_exports = true;
+        // Gate 6: Polyglot regression
+        bool check_polyglot = true;
+        double max_polyglot_loss = 0.5;
+        // Gate 7: Struct field stability
+        bool check_struct_fields = true;
+        double max_field_loss = 0.5;
+        // Gate 8: Test function regression
+        bool check_test_functions = true;
+        double max_test_loss = 0.0;
+    } drift_detection;
 };
 
 // ============================================================================
@@ -1249,6 +1285,7 @@ struct GovernanceRules {
     bool verbose = false;           // --governance-verbose
     bool dashboard = false;         // --governance-dashboard
     bool baseline_save = false;     // --governance-baseline-save
+    bool drift_baseline_save = false; // --drift-baseline-save
     bool allow_override = false;    // --governance-override
     bool lint_only_config = false;  // --lint-only
     bool record_baselines = false;  // --governance-record-baselines
@@ -1705,6 +1742,33 @@ public:
     // Feature 4: Governance baseline regression detection
     void saveGovernanceBaseline() const;
     std::string checkGovernanceBaseline() const;  // empty = no regression
+
+    // Drift detection: structural regression gate
+    struct DriftMetrics {
+        int functions = 0;
+        int exports = 0;
+        int structs = 0;
+        int loc = 0;
+        bool has_main = false;
+        std::vector<std::string> function_names;
+        std::vector<std::string> export_names;
+        std::map<std::string, int> param_counts;         // Gate 1: per-function param count
+        std::vector<std::string> imports;                 // Gate 2: use statement module names
+        std::map<std::string, int> complexity_scores;     // Gate 3: per-function complexity
+        int comment_lines = 0;                            // Gate 4: comment line count
+        int code_lines = 0;                               // Gate 4: code line count
+        int polyglot_blocks = 0;                          // Gate 6: polyglot block count
+        std::vector<std::string> polyglot_languages;      // Gate 6: unique languages used
+        std::map<std::string, std::vector<std::string>> struct_fields;  // Gate 7: per-struct field names
+        std::vector<std::string> test_functions;           // Gate 8: test_* function names
+    };
+    static DriftMetrics collectDriftMetrics(const ast::Program& program,
+                                            const std::string& source);
+    std::string checkDriftDetection(const std::string& filename,
+                                    const DriftMetrics& current);
+    void saveDriftBaseline(const std::string& filename,
+                           const DriftMetrics& metrics) const;
+    std::string resolveDriftBaselinePath() const;
 
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);

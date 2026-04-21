@@ -1010,6 +1010,45 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (ptc.contains("enabled")) rules_.code_quality.polyglot_try_catch.enabled = ptc["enabled"].get<bool>();
             if (ptc.contains("max_entries")) rules_.code_quality.polyglot_try_catch.max_entries = ptc["max_entries"].get<int>();
         }
+
+        // Drift detection: structural regression gate
+        if (cq.contains("drift_detection") && cq["drift_detection"].is_object()) {
+            auto& dd = cq["drift_detection"];
+            rules_.code_quality.drift_detection.enabled = dd.value("enabled", false);
+            if (dd.contains("level")) {
+                auto [en, lv] = parseEnforcementLevel(dd["level"]);
+                rules_.code_quality.drift_detection.level = lv;
+            }
+            if (dd.contains("baseline_path")) rules_.code_quality.drift_detection.baseline_path = dd["baseline_path"].get<std::string>();
+            if (dd.contains("max_function_loss")) rules_.code_quality.drift_detection.max_function_loss = dd["max_function_loss"].get<double>();
+            if (dd.contains("max_loc_loss")) rules_.code_quality.drift_detection.max_loc_loss = dd["max_loc_loss"].get<double>();
+            if (dd.contains("max_export_loss")) rules_.code_quality.drift_detection.max_export_loss = dd["max_export_loss"].get<double>();
+            if (dd.contains("max_struct_loss")) rules_.code_quality.drift_detection.max_struct_loss = dd["max_struct_loss"].get<double>();
+            if (dd.contains("auto_save")) rules_.code_quality.drift_detection.auto_save = dd["auto_save"].get<bool>();
+            // Gate 1: Signature stability
+            if (dd.contains("check_signatures")) rules_.code_quality.drift_detection.check_signatures = dd["check_signatures"].get<bool>();
+            if (dd.contains("max_param_loss")) rules_.code_quality.drift_detection.max_param_loss = dd["max_param_loss"].get<double>();
+            // Gate 2: Import regression
+            if (dd.contains("check_imports")) rules_.code_quality.drift_detection.check_imports = dd["check_imports"].get<bool>();
+            if (dd.contains("max_import_loss")) rules_.code_quality.drift_detection.max_import_loss = dd["max_import_loss"].get<double>();
+            // Gate 3: Complexity regression
+            if (dd.contains("check_complexity")) rules_.code_quality.drift_detection.check_complexity = dd["check_complexity"].get<bool>();
+            if (dd.contains("max_complexity_loss")) rules_.code_quality.drift_detection.max_complexity_loss = dd["max_complexity_loss"].get<double>();
+            // Gate 4: Comment inflation
+            if (dd.contains("check_comment_ratio")) rules_.code_quality.drift_detection.check_comment_ratio = dd["check_comment_ratio"].get<bool>();
+            if (dd.contains("max_comment_ratio")) rules_.code_quality.drift_detection.max_comment_ratio = dd["max_comment_ratio"].get<double>();
+            // Gate 5: Dead export
+            if (dd.contains("check_hollow_exports")) rules_.code_quality.drift_detection.check_hollow_exports = dd["check_hollow_exports"].get<bool>();
+            // Gate 6: Polyglot regression
+            if (dd.contains("check_polyglot")) rules_.code_quality.drift_detection.check_polyglot = dd["check_polyglot"].get<bool>();
+            if (dd.contains("max_polyglot_loss")) rules_.code_quality.drift_detection.max_polyglot_loss = dd["max_polyglot_loss"].get<double>();
+            // Gate 7: Struct field stability
+            if (dd.contains("check_struct_fields")) rules_.code_quality.drift_detection.check_struct_fields = dd["check_struct_fields"].get<bool>();
+            if (dd.contains("max_field_loss")) rules_.code_quality.drift_detection.max_field_loss = dd["max_field_loss"].get<double>();
+            // Gate 8: Test function regression
+            if (dd.contains("check_test_functions")) rules_.code_quality.drift_detection.check_test_functions = dd["check_test_functions"].get<bool>();
+            if (dd.contains("max_test_loss")) rules_.code_quality.drift_detection.max_test_loss = dd["max_test_loss"].get<double>();
+        }
     }
 
     // V3 Custom Rules

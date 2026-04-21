@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/ast.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
 #include "naab/analyzer/task_pattern_detector.h"
@@ -1390,6 +1391,575 @@ std::string GovernanceEngine::checkGovernanceBaseline() const {
     msg += fmt::format("  Baseline from: {}\n",
         prev.contains("timestamp") ? prev["timestamp"].get<std::string>() : "unknown");
     return msg;
+}
+
+// ============================================================================
+// Drift Detection: Structural Regression Gate
+// ============================================================================
+
+// Helper: extract function body source from full source using brace matching
+static std::string extractFunctionBody(const std::string& source, int start_line) {
+    // Find the start_line in source
+    int current_line = 1;
+    size_t pos = 0;
+    while (current_line < start_line && pos < source.size()) {
+        if (source[pos] == '\n') current_line++;
+        pos++;
+    }
+    // Find the opening { of the function body
+    size_t brace_start = source.find('{', pos);
+    if (brace_start == std::string::npos) return "";
+    // Match braces to find the end
+    int depth = 1;
+    size_t i = brace_start + 1;
+    bool in_string = false;
+    char string_char = 0;
+    while (i < source.size() && depth > 0) {
+        char c = source[i];
+        if (in_string) {
+            if (c == '\\') { i++; } // skip escaped char
+            else if (c == string_char) { in_string = false; }
+        } else {
+            if (c == '"' || c == '\'') { in_string = true; string_char = c; }
+            else if (c == '{') depth++;
+            else if (c == '}') depth--;
+        }
+        if (depth > 0) i++;
+    }
+    if (depth != 0) return "";
+    return source.substr(brace_start + 1, i - brace_start - 1);
+}
+
+// Helper: count comment and code lines
+static void countCommentCodeLines(const std::string& source, int& comment_lines, int& code_lines) {
+    comment_lines = 0;
+    code_lines = 0;
+    bool in_block_comment = false;
+    std::istringstream stream(source);
+    std::string line;
+    while (std::getline(stream, line)) {
+        // Trim leading whitespace
+        size_t first = line.find_first_not_of(" \t\r");
+        if (first == std::string::npos) continue; // blank line
+        std::string trimmed = line.substr(first);
+
+        if (in_block_comment) {
+            comment_lines++;
+            if (trimmed.find("*/") != std::string::npos) in_block_comment = false;
+            continue;
+        }
+        if (trimmed.rfind("//", 0) == 0 || trimmed.rfind("#", 0) == 0) {
+            comment_lines++;
+        } else if (trimmed.rfind("/*", 0) == 0) {
+            comment_lines++;
+            if (trimmed.find("*/") == std::string::npos) in_block_comment = true;
+        } else {
+            code_lines++;
+        }
+    }
+}
+
+// Helper: count polyglot blocks and languages
+static void countPolyglotBlocks(const std::string& source, int& block_count,
+                                 std::vector<std::string>& languages) {
+    block_count = 0;
+    languages.clear();
+    static const std::vector<std::string> known_langs = {
+        "python", "javascript", "js", "go", "nim", "rust", "cpp", "csharp",
+        "ruby", "php", "shell", "bash", "zig", "julia"
+    };
+    std::set<std::string> seen_langs;
+    size_t pos = 0;
+    while (pos < source.size()) {
+        size_t found = source.find("<<", pos);
+        if (found == std::string::npos) break;
+        // Skip <<= (compound assignment)
+        if (found + 2 < source.size() && source[found + 2] == '=') {
+            pos = found + 3;
+            continue;
+        }
+        // Extract the word after <<
+        size_t lang_start = found + 2;
+        size_t lang_end = lang_start;
+        while (lang_end < source.size() && (std::isalpha(source[lang_end]) || source[lang_end] == '_')) {
+            lang_end++;
+        }
+        std::string lang = source.substr(lang_start, lang_end - lang_start);
+        // Convert to lowercase
+        std::transform(lang.begin(), lang.end(), lang.begin(), ::tolower);
+        for (const auto& kl : known_langs) {
+            if (lang == kl) {
+                block_count++;
+                if (seen_langs.insert(lang).second) {
+                    languages.push_back(lang);
+                }
+                break;
+            }
+        }
+        pos = lang_end;
+    }
+}
+
+GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
+    const ast::Program& program, const std::string& source)
+{
+    DriftMetrics m;
+    m.loc = static_cast<int>(std::count(source.begin(), source.end(), '\n')) + 1;
+    m.has_main = program.getMainBlock() != nullptr;
+    m.functions = static_cast<int>(program.getFunctions().size());
+    m.exports = static_cast<int>(program.getExports().size());
+    m.structs = static_cast<int>(program.getStructs().size());
+
+    for (const auto& fn : program.getFunctions()) {
+        if (!fn) continue;
+        m.function_names.push_back(fn->getName());
+        // Gate 1: param counts
+        m.param_counts[fn->getName()] = static_cast<int>(fn->getParams().size());
+        // Gate 8: test functions
+        if (fn->getName().rfind("test_", 0) == 0) {
+            m.test_functions.push_back(fn->getName());
+        }
+        // Gate 3: complexity scores — extract body and analyze
+        int start_line = fn->getLocation().line;
+        if (start_line > 0) {
+            std::string body = extractFunctionBody(source, start_line);
+            if (!body.empty()) {
+                try {
+                    analyzer::SyntacticAnalyzer sa;
+                    auto profile = sa.analyze(body);
+                    m.complexity_scores[fn->getName()] = profile.complexity_score;
+                } catch (...) {
+                    // Can't analyze — skip
+                }
+            }
+        }
+    }
+    // Also check exported functions for param counts, test names, complexity
+    for (const auto& ex : program.getExports()) {
+        if (!ex || !ex->getFunctionDecl()) continue;
+        auto* fd = ex->getFunctionDecl();
+        m.export_names.push_back(fd->getName());
+        if (m.param_counts.find(fd->getName()) == m.param_counts.end()) {
+            m.param_counts[fd->getName()] = static_cast<int>(fd->getParams().size());
+        }
+        if (fd->getName().rfind("test_", 0) == 0) {
+            // Avoid duplicates
+            if (std::find(m.test_functions.begin(), m.test_functions.end(), fd->getName()) == m.test_functions.end()) {
+                m.test_functions.push_back(fd->getName());
+            }
+        }
+        // Complexity for exported functions
+        if (m.complexity_scores.find(fd->getName()) == m.complexity_scores.end()) {
+            int start_line = fd->getLocation().line;
+            if (start_line > 0) {
+                std::string body = extractFunctionBody(source, start_line);
+                if (!body.empty()) {
+                    try {
+                        analyzer::SyntacticAnalyzer sa;
+                        auto profile = sa.analyze(body);
+                        m.complexity_scores[fd->getName()] = profile.complexity_score;
+                    } catch (...) {}
+                }
+            }
+        }
+    }
+
+    // Gate 2: imports (both block imports and module uses)
+    for (const auto& imp : program.getImports()) {
+        if (imp) m.imports.push_back(imp->getBlockId());
+    }
+    for (const auto& mu : program.getModuleUses()) {
+        if (mu) m.imports.push_back(mu->getModulePath());
+    }
+
+    // Gate 4: comment/code lines
+    countCommentCodeLines(source, m.comment_lines, m.code_lines);
+
+    // Gate 6: polyglot blocks
+    countPolyglotBlocks(source, m.polyglot_blocks, m.polyglot_languages);
+
+    // Gate 7: struct fields
+    for (const auto& s : program.getStructs()) {
+        if (!s) continue;
+        std::vector<std::string> fields;
+        for (const auto& f : s->getFields()) {
+            fields.push_back(f.name);
+        }
+        m.struct_fields[s->getName()] = fields;
+    }
+
+    return m;
+}
+
+// Resolve drift baseline path relative to govern.json directory
+std::string GovernanceEngine::resolveDriftBaselinePath() const {
+    const auto& bp = rules_.code_quality.drift_detection.baseline_path;
+    if (bp.empty()) return bp;
+    std::filesystem::path p(bp);
+    if (p.is_absolute()) return bp;
+    if (!loaded_path_.empty()) {
+        return (std::filesystem::path(loaded_path_).parent_path() / p).string();
+    }
+    return bp;
+}
+
+std::string GovernanceEngine::checkDriftDetection(
+    const std::string& filename, const DriftMetrics& current)
+{
+    const auto& cfg = rules_.code_quality.drift_detection;
+    if (!cfg.enabled) return "";
+
+    // Load baseline
+    std::string resolved = resolveDriftBaselinePath();
+    std::ifstream ifs(resolved);
+    if (!ifs.is_open()) return "";  // No baseline yet — skip
+
+    nlohmann::json baseline;
+    try { baseline = nlohmann::json::parse(ifs); }
+    catch (...) { return ""; }
+
+    // Find this file in the baseline
+    std::string key = std::filesystem::path(filename).filename().string();
+    if (!baseline.contains("files") || !baseline["files"].contains(key)) {
+        return "";  // New file, no baseline entry
+    }
+
+    auto& prev = baseline["files"][key];
+    std::vector<std::string> violations;
+
+    // Helper: check metric loss
+    auto checkLoss = [&](const char* name, int current_val, const char* json_key,
+                         double max_loss) {
+        if (!prev.contains(json_key)) return;
+        int baseline_val = prev[json_key].get<int>();
+        if (baseline_val == 0) return;  // Can't lose what you didn't have
+        double loss = 1.0 - (static_cast<double>(current_val) / baseline_val);
+        if (loss > max_loss) {
+            std::string msg = fmt::format(
+                "Drift: {} dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                name, loss * 100.0, baseline_val, current_val, max_loss * 100.0);
+            violations.push_back(msg);
+            enforce(std::string("drift_detection.") + name, cfg.level, msg);
+        } else {
+            recordPass(std::string("drift_detection.") + name, cfg.level);
+        }
+    };
+
+    checkLoss("functions", current.functions, "functions", cfg.max_function_loss);
+    checkLoss("loc", current.loc, "loc", cfg.max_loc_loss);
+    checkLoss("exports", current.exports, "exports", cfg.max_export_loss);
+    checkLoss("structs", current.structs, "structs", cfg.max_struct_loss);
+
+    // Report specific deleted functions/exports
+    if (prev.contains("function_names") && prev["function_names"].is_array()) {
+        std::unordered_set<std::string> current_set(
+            current.function_names.begin(), current.function_names.end());
+        for (const auto& name : prev["function_names"]) {
+            std::string fn = name.get<std::string>();
+            if (current_set.find(fn) == current_set.end()) {
+                std::string msg = fmt::format("Drift: function '{}' was deleted", fn);
+                // Info-level — the metric check above handles enforcement
+                fprintf(stderr, "[governance] %s\n", msg.c_str());
+            }
+        }
+    }
+
+    if (prev.contains("export_names") && prev["export_names"].is_array()) {
+        std::unordered_set<std::string> current_set(
+            current.export_names.begin(), current.export_names.end());
+        for (const auto& name : prev["export_names"]) {
+            std::string ex = name.get<std::string>();
+            if (current_set.find(ex) == current_set.end()) {
+                std::string msg = fmt::format("Drift: exported function '{}' was deleted (API regression)", ex);
+                fprintf(stderr, "[governance] %s\n", msg.c_str());
+            }
+        }
+    }
+
+    // Gate 1: Signature stability — param count per function
+    if (cfg.check_signatures && prev.contains("param_counts") && prev["param_counts"].is_object()) {
+        for (auto& [fn_name, baseline_count] : prev["param_counts"].items()) {
+            int bcount = baseline_count.get<int>();
+            if (bcount == 0) continue;
+            auto it = current.param_counts.find(fn_name);
+            if (it == current.param_counts.end()) continue; // function deleted — handled by Gate 0
+            int ccount = it->second;
+            double loss = 1.0 - (static_cast<double>(ccount) / bcount);
+            if (loss > cfg.max_param_loss) {
+                std::string msg = fmt::format(
+                    "Drift: function '{}' params dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    fn_name, loss * 100.0, bcount, ccount, cfg.max_param_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.signatures", cfg.level, msg);
+            }
+        }
+        if (violations.empty() || violations.back().find("params") == std::string::npos) {
+            recordPass("drift_detection.signatures", cfg.level);
+        }
+    }
+
+    // Gate 2: Import regression
+    if (cfg.check_imports && prev.contains("imports") && prev["imports"].is_array()) {
+        auto& prev_imports = prev["imports"];
+        int baseline_count = static_cast<int>(prev_imports.size());
+        if (baseline_count > 0) {
+            std::unordered_set<std::string> current_set(current.imports.begin(), current.imports.end());
+            std::vector<std::string> deleted;
+            for (const auto& imp : prev_imports) {
+                std::string name = imp.get<std::string>();
+                if (current_set.find(name) == current_set.end()) {
+                    deleted.push_back(name);
+                    fprintf(stderr, "[governance] Drift: import '%s' was removed\n", name.c_str());
+                }
+            }
+            double loss = static_cast<double>(deleted.size()) / baseline_count;
+            if (loss > cfg.max_import_loss) {
+                std::string msg = fmt::format(
+                    "Drift: imports dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    loss * 100.0, baseline_count, static_cast<int>(current.imports.size()),
+                    cfg.max_import_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.imports", cfg.level, msg);
+            } else {
+                recordPass("drift_detection.imports", cfg.level);
+            }
+        }
+    }
+
+    // Gate 3: Complexity regression (per-function)
+    if (cfg.check_complexity && prev.contains("complexity_scores") && prev["complexity_scores"].is_object()) {
+        for (auto& [fn_name, baseline_score] : prev["complexity_scores"].items()) {
+            int bscore = baseline_score.get<int>();
+            if (bscore < 10) continue; // skip trivial functions
+            auto it = current.complexity_scores.find(fn_name);
+            if (it == current.complexity_scores.end()) continue; // function deleted — handled elsewhere
+            int cscore = it->second;
+            double loss = 1.0 - (static_cast<double>(cscore) / bscore);
+            if (loss > cfg.max_complexity_loss) {
+                std::string msg = fmt::format(
+                    "Drift: function '{}' complexity dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    fn_name, loss * 100.0, bscore, cscore, cfg.max_complexity_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.complexity", cfg.level, msg);
+            }
+        }
+    }
+
+    // Gate 4: Comment inflation
+    if (cfg.check_comment_ratio && prev.contains("code_lines")) {
+        int baseline_code = prev["code_lines"].get<int>();
+        if (baseline_code > 0 && current.code_lines + current.comment_lines > 0) {
+            double current_ratio = static_cast<double>(current.comment_lines) /
+                                   (current.code_lines + current.comment_lines);
+            double code_loss = 1.0 - (static_cast<double>(current.code_lines) / baseline_code);
+            // Both conditions must be true: high comment ratio AND code loss >30%
+            if (current_ratio > cfg.max_comment_ratio && code_loss > 0.3) {
+                std::string msg = fmt::format(
+                    "Drift: comment ratio {:.0f}% (max {:.0f}%) with {:.0f}% code loss — probable logic replacement with comments",
+                    current_ratio * 100.0, cfg.max_comment_ratio * 100.0, code_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.comment_ratio", cfg.level, msg);
+            } else {
+                recordPass("drift_detection.comment_ratio", cfg.level);
+            }
+        }
+    }
+
+    // Gate 5: Dead export gate (no baseline needed — static check on current file)
+    if (cfg.check_hollow_exports) {
+        for (const auto& exp_name : current.export_names) {
+            auto it = current.complexity_scores.find(exp_name);
+            auto pit = current.param_counts.find(exp_name);
+            if (it != current.complexity_scores.end() && pit != current.param_counts.end()) {
+                int score = it->second;
+                int params = pit->second;
+                if (score == 0 && params > 0) {
+                    std::string msg = fmt::format(
+                        "Drift: exported function '{}' has {} params but complexity score {} — hollow export",
+                        exp_name, params, score);
+                    violations.push_back(msg);
+                    enforce("drift_detection.hollow_exports", cfg.level, msg);
+                }
+            }
+        }
+    }
+
+    // Gate 6: Polyglot regression
+    if (cfg.check_polyglot && prev.contains("polyglot_blocks")) {
+        int baseline_blocks = prev["polyglot_blocks"].get<int>();
+        if (baseline_blocks > 0) {
+            double loss = 1.0 - (static_cast<double>(current.polyglot_blocks) / baseline_blocks);
+            if (loss > cfg.max_polyglot_loss) {
+                std::string msg = fmt::format(
+                    "Drift: polyglot blocks dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    loss * 100.0, baseline_blocks, current.polyglot_blocks,
+                    cfg.max_polyglot_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.polyglot", cfg.level, msg);
+            } else {
+                recordPass("drift_detection.polyglot", cfg.level);
+            }
+        }
+        // Report specific languages removed
+        if (prev.contains("polyglot_languages") && prev["polyglot_languages"].is_array()) {
+            std::unordered_set<std::string> current_langs(
+                current.polyglot_languages.begin(), current.polyglot_languages.end());
+            for (const auto& lang : prev["polyglot_languages"]) {
+                std::string l = lang.get<std::string>();
+                if (current_langs.find(l) == current_langs.end()) {
+                    fprintf(stderr, "[governance] Drift: polyglot language '%s' was removed\n", l.c_str());
+                }
+            }
+        }
+    }
+
+    // Gate 7: Struct field stability
+    if (cfg.check_struct_fields && prev.contains("struct_fields") && prev["struct_fields"].is_object()) {
+        for (auto& [struct_name, baseline_fields] : prev["struct_fields"].items()) {
+            if (!baseline_fields.is_array()) continue;
+            int bcount = static_cast<int>(baseline_fields.size());
+            if (bcount == 0) continue;
+            auto it = current.struct_fields.find(struct_name);
+            if (it == current.struct_fields.end()) continue; // struct deleted — handled by Gate 0
+            int ccount = static_cast<int>(it->second.size());
+            double loss = 1.0 - (static_cast<double>(ccount) / bcount);
+            if (loss > cfg.max_field_loss) {
+                std::string msg = fmt::format(
+                    "Drift: struct '{}' fields dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    struct_name, loss * 100.0, bcount, ccount, cfg.max_field_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.struct_fields", cfg.level, msg);
+                // Report specific deleted fields
+                std::unordered_set<std::string> current_fields(it->second.begin(), it->second.end());
+                for (const auto& f : baseline_fields) {
+                    std::string fname = f.get<std::string>();
+                    if (current_fields.find(fname) == current_fields.end()) {
+                        fprintf(stderr, "[governance] Drift: struct '%s' field '%s' was deleted\n",
+                                struct_name.c_str(), fname.c_str());
+                    }
+                }
+            }
+        }
+    }
+
+    // Gate 8: Test function regression
+    if (cfg.check_test_functions && prev.contains("test_functions") && prev["test_functions"].is_array()) {
+        int baseline_tests = static_cast<int>(prev["test_functions"].size());
+        if (baseline_tests > 0) {
+            std::unordered_set<std::string> current_set(
+                current.test_functions.begin(), current.test_functions.end());
+            std::vector<std::string> deleted;
+            for (const auto& t : prev["test_functions"]) {
+                std::string name = t.get<std::string>();
+                if (current_set.find(name) == current_set.end()) {
+                    deleted.push_back(name);
+                    fprintf(stderr, "[governance] Drift: test function '%s' was deleted\n", name.c_str());
+                }
+            }
+            double loss = static_cast<double>(deleted.size()) / baseline_tests;
+            if (loss > cfg.max_test_loss) {
+                std::string msg = fmt::format(
+                    "Drift: test functions dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    loss * 100.0, baseline_tests,
+                    static_cast<int>(current.test_functions.size()),
+                    cfg.max_test_loss * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.test_functions", cfg.level, msg);
+            } else {
+                recordPass("drift_detection.test_functions", cfg.level);
+            }
+        }
+    }
+
+    if (violations.empty()) return "";
+    std::string result = "[governance] Drift detection FAILED:\n";
+    for (const auto& v : violations) result += "  " + v + "\n";
+    return result;
+}
+
+void GovernanceEngine::saveDriftBaseline(
+    const std::string& filename, const DriftMetrics& metrics) const
+{
+    const auto& cfg = rules_.code_quality.drift_detection;
+    if (cfg.baseline_path.empty()) return;
+    std::string resolved = resolveDriftBaselinePath();
+
+    // Load existing baseline (to preserve other files' entries)
+    nlohmann::json baseline;
+    {
+        std::ifstream ifs(resolved);
+        if (ifs.is_open()) {
+            try { baseline = nlohmann::json::parse(ifs); }
+            catch (...) { baseline = nlohmann::json::object(); }
+        }
+    }
+
+    // Ensure structure
+    if (!baseline.contains("version")) baseline["version"] = 1;
+    if (!baseline.contains("files")) baseline["files"] = nlohmann::json::object();
+
+    // Timestamp
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char ts[32];
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+    baseline["timestamp"] = std::string(ts);
+
+    // Save metrics for this file
+    std::string key = std::filesystem::path(filename).filename().string();
+    nlohmann::json entry;
+    entry["functions"] = metrics.functions;
+    entry["exports"] = metrics.exports;
+    entry["structs"] = metrics.structs;
+    entry["loc"] = metrics.loc;
+    entry["has_main"] = metrics.has_main;
+    entry["function_names"] = metrics.function_names;
+    entry["export_names"] = metrics.export_names;
+    // Gate 1: param counts
+    entry["param_counts"] = nlohmann::json::object();
+    for (const auto& [fn, count] : metrics.param_counts) {
+        entry["param_counts"][fn] = count;
+    }
+    // Gate 2: imports
+    entry["imports"] = metrics.imports;
+    // Gate 3: complexity scores
+    entry["complexity_scores"] = nlohmann::json::object();
+    for (const auto& [fn, score] : metrics.complexity_scores) {
+        entry["complexity_scores"][fn] = score;
+    }
+    // Gate 4: comment/code lines
+    entry["comment_lines"] = metrics.comment_lines;
+    entry["code_lines"] = metrics.code_lines;
+    // Gate 6: polyglot
+    entry["polyglot_blocks"] = metrics.polyglot_blocks;
+    entry["polyglot_languages"] = metrics.polyglot_languages;
+    // Gate 7: struct fields
+    entry["struct_fields"] = nlohmann::json::object();
+    for (const auto& [sname, fields] : metrics.struct_fields) {
+        entry["struct_fields"][sname] = fields;
+    }
+    // Gate 8: test functions
+    entry["test_functions"] = metrics.test_functions;
+    baseline["files"][key] = entry;
+    baseline["version"] = 2;
+
+    // Write
+    std::filesystem::path p(resolved);
+    if (p.has_parent_path())
+        std::filesystem::create_directories(p.parent_path());
+
+    std::ofstream ofs(resolved);
+    if (ofs.is_open()) {
+        ofs << baseline.dump(2) << "\n";
+        fprintf(stderr, "[governance] Drift baseline saved for '%s' to %s\n",
+                key.c_str(), resolved.c_str());
+    }
 }
 
 // ============================================================================

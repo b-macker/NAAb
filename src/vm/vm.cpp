@@ -717,8 +717,10 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_POPN): {
                 uint8_t n = decodeA(instruction);
-                stack_top_ -= n;
-                taint_top_ -= n;
+                // Release each value properly (prevents handle leaks)
+                for (uint8_t i = 0; i < n; i++) {
+                    pop();
+                }
             }
                 VM_NEXT();
 
@@ -1329,13 +1331,23 @@ interpreter::NaabVal VM::run() {
                 }
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
+                    // Clear stale slots to release handles
+                    interpreter::NaabVal* old_top = stack_top_;
                     stack_top_ = frame->slots;
+                    for (auto* p = stack_top_; p < old_top; p++)
+                        *p = interpreter::NaabVal();
                     syncTaintTop();
                     push(result);
                     peekTaint(0) = return_tainted;
                     return result;
                 }
-                stack_top_ = frame->slots;
+                {
+                    // Clear stale slots to release handles
+                    interpreter::NaabVal* old_top = stack_top_;
+                    stack_top_ = frame->slots;
+                    for (auto* p = stack_top_; p < old_top; p++)
+                        *p = interpreter::NaabVal();
+                }
                 syncTaintTop();
                 push(std::move(result));
                 peekTaint(0) = return_tainted;
@@ -1367,12 +1379,20 @@ interpreter::NaabVal VM::run() {
                 }
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
+                    interpreter::NaabVal* old_top = stack_top_;
                     stack_top_ = frame->slots;
+                    for (auto* p = stack_top_; p < old_top; p++)
+                        *p = interpreter::NaabVal();
                     syncTaintTop();
                     push(interpreter::NaabVal::makeNull());
                     return interpreter::NaabVal::makeNull();
                 }
-                stack_top_ = frame->slots;
+                {
+                    interpreter::NaabVal* old_top = stack_top_;
+                    stack_top_ = frame->slots;
+                    for (auto* p = stack_top_; p < old_top; p++)
+                        *p = interpreter::NaabVal();
+                }
                 syncTaintTop();
                 push(interpreter::NaabVal::makeNull());
                 frame = &frames_[frame_count_ - 1];
@@ -1465,6 +1485,9 @@ interpreter::NaabVal VM::run() {
 
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
+                        // Clear stale slots before adjusting stack pointer
+                        for (int si = 0; si < argc + 1; si++)
+                            *(stack_top_ - 1 - si) = interpreter::NaabVal();
                         stack_top_ -= (argc + 1);
                         syncTaintTop();
                         push(std::move(result));
@@ -1489,6 +1512,8 @@ interpreter::NaabVal VM::run() {
                             full_method_name = mod + "." + method;
                             interpreter::NaabVal* args_ptr = stack_top_ - argc;
                             interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
+                            for (int si = 0; si < argc + 1; si++)
+                                *(stack_top_ - 1 - si) = interpreter::NaabVal();
                             stack_top_ -= (argc + 1);
                             syncTaintTop();
                             push(std::move(result));
@@ -1522,6 +1547,8 @@ interpreter::NaabVal VM::run() {
                             code = code_val.asString();
                         } else {
                             // Result of an already-executed polyglot block — use directly
+                            for (int si = 0; si < argc + 1; si++)
+                                *(stack_top_ - 1 - si) = interpreter::NaabVal();
                             stack_top_ -= (argc + 1);
                             syncTaintTop();
                             push(std::move(code_val));
@@ -1590,6 +1617,8 @@ interpreter::NaabVal VM::run() {
                             } else {
                                 result = rt.executor->executeWithReturn(code);
                             }
+                            for (int si = 0; si < argc + 1; si++)
+                                *(stack_top_ - 1 - si) = interpreter::NaabVal();
                             stack_top_ -= (argc + 1);
                             syncTaintTop();
                             push(std::move(result));
@@ -1648,6 +1677,8 @@ interpreter::NaabVal VM::run() {
                             arg_vec.push_back(args_ptr[i]);
                         }
                         interpreter::NaabVal result = executor->callFunction(method, arg_vec);
+                        for (int si = 0; si < argc + 1; si++)
+                            *(stack_top_ - 1 - si) = interpreter::NaabVal();
                         stack_top_ -= (argc + 1);
                         syncTaintTop();
                         push(std::move(result));
@@ -1675,7 +1706,9 @@ interpreter::NaabVal VM::run() {
 
                     interpreter::NaabVal* args_ptr = stack_top_ - argc;
                     interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
-                    // Pop args + object
+                    // Clear stale slots, then pop args + object
+                    for (int si = 0; si < argc + 1; si++)
+                        *(stack_top_ - 1 - si) = interpreter::NaabVal();
                     stack_top_ -= (argc + 1);
                     syncTaintTop();
                     push(std::move(result));
@@ -2831,6 +2864,92 @@ interpreter::NaabVal VM::run() {
 }
 
 // ============================================================================
+// Async thread isolation: deep-copy CompiledFunction tree
+// ============================================================================
+
+// Recursively deep-copies a CompiledFunction and all nested functions
+// referenced by VMClosure constants. This ensures the async thread has
+// its own handles for all constants, preventing cross-thread handle sharing.
+static void deepCopyFunctionTree(
+    CompiledFunction* src,
+    std::unordered_map<CompiledFunction*, CompiledFunction*>& cache,
+    std::vector<std::unique_ptr<CompiledFunction>>& owned)
+{
+    if (cache.count(src)) return;
+    auto copy = std::make_unique<CompiledFunction>();
+    CompiledFunction* copy_ptr = copy.get();
+    cache[src] = copy_ptr;
+
+    // Copy plain data fields
+    copy->name = src->name;
+    copy->arity = src->arity;
+    copy->max_arity = src->max_arity;
+    copy->local_count = src->local_count;
+    copy->upvalues = src->upvalues;  // UpvalueDesc is plain data
+    copy->param_types = src->param_types;
+    copy->return_type = src->return_type;
+    copy->is_generator = src->is_generator;
+    copy->is_async = src->is_async;
+    copy->source_file = src->source_file;
+    copy->source_line = src->source_line;
+    copy->local_names = src->local_names;
+
+    // Copy chunk: opcodes and line info are plain data
+    copy->chunk.code = src->chunk.code;
+    copy->chunk.lines = src->chunk.lines;
+    copy->chunk.source_file = src->chunk.source_file;
+
+    // Deep-copy default parameter chunks (constants need deep copy)
+    copy->default_chunks.reserve(src->default_chunks.size());
+    for (const auto& dc : src->default_chunks) {
+        if (dc.has_value()) {
+            Chunk dc_copy;
+            dc_copy.code = dc->code;
+            dc_copy.lines = dc->lines;
+            dc_copy.source_file = dc->source_file;
+            dc_copy.constants.reserve(dc->constants.size());
+            for (const auto& c : dc->constants) {
+                dc_copy.constants.push_back(c.deepCopy());
+            }
+            copy->default_chunks.push_back(std::move(dc_copy));
+        } else {
+            copy->default_chunks.push_back(std::nullopt);
+        }
+    }
+
+    // First pass: recursively copy nested functions found in constants
+    for (const auto& c : src->chunk.constants) {
+        if (c.isVMClosure()) {
+            auto& closure = c.asVMClosureConst();
+            if (closure && closure->function) {
+                deepCopyFunctionTree(closure->function, cache, owned);
+            }
+        }
+    }
+
+    // Second pass: deep-copy constants, replacing CompiledFunction* refs
+    copy->chunk.constants.reserve(src->chunk.constants.size());
+    for (const auto& c : src->chunk.constants) {
+        if (c.isVMClosure()) {
+            auto& orig_cl = c.asVMClosureConst();
+            if (orig_cl && orig_cl->function && cache.count(orig_cl->function)) {
+                auto new_cl = std::make_shared<VMClosure>(
+                    cache[orig_cl->function],
+                    orig_cl->upvalues);  // upvalues are shared_ptr, refcounted
+                copy->chunk.constants.push_back(
+                    interpreter::NaabVal::makeVMClosure(std::move(new_cl)));
+            } else {
+                copy->chunk.constants.push_back(c.deepCopy());
+            }
+        } else {
+            copy->chunk.constants.push_back(c.deepCopy());
+        }
+    }
+
+    owned.push_back(std::move(copy));
+}
+
+// ============================================================================
 // Function calls
 // ============================================================================
 
@@ -2865,8 +2984,15 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 new_uv->tainted = uv->tainted;
                 closed_upvalues.push_back(std::move(new_uv));
             }
+            // Deep-copy the CompiledFunction tree so async thread has its own
+            // handles for all constants — prevents cross-thread handle sharing.
+            std::unordered_map<CompiledFunction*, CompiledFunction*> fn_cache;
+            std::vector<std::unique_ptr<CompiledFunction>> async_owned_fns;
+            deepCopyFunctionTree(orig_closure->function, fn_cache, async_owned_fns);
+            CompiledFunction* fn_copy = fn_cache[orig_closure->function];
+
             auto closure_copy = std::make_shared<VMClosure>(
-                orig_closure->function, std::move(closed_upvalues));
+                fn_copy, std::move(closed_upvalues));
             // V-CONC-007: Async VMs get their own StdLib instance to avoid
             // accessing the main thread's stack-local StdLib after scope exit.
             // Governance and module_resolver are also not shared (not thread-safe).
@@ -2885,7 +3011,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // Thread-local handle allocators ensure each async thread gets its
             // own handle range — no cross-thread handle reuse, no TOCTOU race.
             auto shared_future = std::async(std::launch::async,
-                [closure_copy, args, async_stdlib, file, globals_copy]() mutable -> interpreter::NaabVal {
+                [closure_copy, args, async_stdlib, file, globals_copy,
+                 owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
                     interpreter::NaabVal safe_result;
                     {
                         VM async_vm;
@@ -2901,6 +3028,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 }).share();
 
             future_val->future = shared_future;
+            for (int si = 0; si < argc + 1; si++)
+                *(stack_top_ - 1 - si) = interpreter::NaabVal();
             stack_top_ -= (argc + 1);  // Pop args + callee
             syncTaintTop();
             push(interpreter::NaabVal::makeFuture(future_val));
@@ -2920,6 +3049,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // Store the closure in the generator for later use
             // We'll eagerly run it at iteration time via callNaabFunction
 
+            for (int si = 0; si < argc + 1; si++)
+                *(stack_top_ - 1 - si) = interpreter::NaabVal();
             stack_top_ -= (argc + 1);  // Pop args + callee
             syncTaintTop();
             // Return the callee+args bundled — we'll eagerly collect yields when iterated
@@ -2955,7 +3086,9 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
         }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
         interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);
-        // Pop args + callee
+        // Clear stale slots, then pop args + callee
+        for (int si = 0; si < argc + 1; si++)
+            *(stack_top_ - 1 - si) = interpreter::NaabVal();
         stack_top_ -= (argc + 1);
         syncTaintTop();
         push(std::move(result));
@@ -3000,6 +3133,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
         }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
         interpreter::NaabVal result = callBuiltinFunction(mod_name, argc, args_ptr);
+        for (int si = 0; si < argc + 1; si++)
+            *(stack_top_ - 1 - si) = interpreter::NaabVal();
         stack_top_ -= (argc + 1);
         syncTaintTop();
         push(std::move(result));
@@ -3024,6 +3159,8 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 args.push_back(args_start[i]);
             }
             interpreter::NaabVal result = executor->callFunction(block->member_path, args);
+            for (int si = 0; si < argc + 1; si++)
+                *(stack_top_ - 1 - si) = interpreter::NaabVal();
             stack_top_ -= (argc + 1);
             syncTaintTop();
             push(std::move(result));
@@ -3119,7 +3256,10 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     // Set up the call
     auto& closure = fn.asVMClosure();
     if (!callFunction(closure.get(), static_cast<int>(args.size()))) {
+        interpreter::NaabVal* old_top = stack_top_;
         stack_top_ = saved_stack_top;
+        for (auto* p = stack_top_; p < old_top; p++)
+            *p = interpreter::NaabVal();
         runtimeError("callNaabFunction: failed to call function");
     }
 
@@ -3134,8 +3274,13 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     stop_frame_count_ = saved_stop;
 
     // Restore stack to before the call — the result is returned by value,
-    // not left on the stack
-    stack_top_ = saved_stack_top;
+    // not left on the stack. Clear stale slots to release handles.
+    {
+        interpreter::NaabVal* old_top = stack_top_;
+        stack_top_ = saved_stack_top;
+        for (auto* p = stack_top_; p < old_top; p++)
+            *p = interpreter::NaabVal();
+    }
     syncTaintTop();
     --run_depth_;
     return result;

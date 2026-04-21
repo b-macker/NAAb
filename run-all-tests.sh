@@ -1175,6 +1175,19 @@ else
     echo "  test_govern_json_config.sh: not found, skipping"
 fi
 
+# Drift detection tests
+DRIFT_SCRIPT="tests/governance/test_drift_detection.sh"
+if [ -f "$DRIFT_SCRIPT" ]; then
+    if bash "$DRIFT_SCRIPT" 2>&1; then
+        echo "  test_drift_detection.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_drift_detection.sh")
+    fi
+else
+    echo "  test_drift_detection.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

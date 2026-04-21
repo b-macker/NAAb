@@ -355,6 +355,7 @@ int main(int argc, char** argv) {
     std::string global_agent_id = "anonymous";
     std::string global_governance_telemetry;
     bool global_governance_baseline_save = false;
+    bool global_drift_baseline_save = false;
     std::string global_governance_env;
     std::string global_sandbox_level = "unrestricted";  // Default: full language power
     int command_arg_index = 1;  // Index of the actual command/file in argv
@@ -420,6 +421,9 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--governance-baseline-save") {
             global_governance_baseline_save = true;
+            command_arg_index++;
+        } else if (arg == "--drift-baseline-save") {
+            global_drift_baseline_save = true;
             command_arg_index++;
         } else if (arg == "--env" && command_arg_index + 1 < argc) {
             global_governance_env = argv[++command_arg_index];
@@ -559,6 +563,7 @@ int main(int argc, char** argv) {
         bool governance_record_baselines = false;
         bool governance_check_baselines = false;
         bool governance_baseline_save = global_governance_baseline_save;
+        bool drift_baseline_save = global_drift_baseline_save;
         std::string governance_env = global_governance_env;
         size_t gc_threshold = global_gc_threshold;
         bool   gc_stats     = global_gc_stats;
@@ -628,6 +633,8 @@ int main(int argc, char** argv) {
                 governance_check_baselines = true;
             } else if (arg == "--governance-baseline-save") {
                 governance_baseline_save = true;
+            } else if (arg == "--drift-baseline-save") {
+                drift_baseline_save = true;
             } else if (arg == "--env" && i + 1 < argc) {
                 governance_env = argv[++i];
             } else if (arg == "--strict-types" || arg == "--strict") {
@@ -1197,6 +1204,33 @@ int main(int argc, char** argv) {
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                 }
 
+                // Drift detection: check structural metrics against baseline
+                if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
+                    auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                        *program, source);
+                    std::string drift_err = vm_governance.checkDriftDetection(filename, drift_metrics);
+                    if (!drift_err.empty()) {
+                        fprintf(stderr, "%s", drift_err.c_str());
+                    }
+                    if (drift_baseline_save || vm_governance.getRules().code_quality.drift_detection.auto_save) {
+                        vm_governance.saveDriftBaseline(filename, drift_metrics);
+                    }
+                } else if (drift_baseline_save && gov_loaded) {
+                    // Save baseline even if drift_detection not enabled in config
+                    auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                        *program, source);
+                    vm_governance.saveDriftBaseline(filename, drift_metrics);
+                }
+
+                // Drift detection hard block — skip execution
+                if (naab::governance::g_governance_hard_block) {
+                    if (vm_governance.isActive()) {
+                        vm_governance.writeReports();
+                    }
+                    fflush(stdout); fflush(stderr);
+                    _exit(3);
+                }
+
                 // Bytecode VM path — compiler gets governance for pre-flight taint analysis
                 naab::vm::Compiler bc_compiler;
                 if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
@@ -1484,6 +1518,37 @@ int main(int argc, char** argv) {
                     _exit(naab::governance::g_governance_hard_block ? 3 : 0);
                 }
 
+                // Drift detection (tree-walker path — pre-execute)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->getRules().code_quality.drift_detection.enabled) {
+                        auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                            *program, source);
+                        std::string drift_err = gov->checkDriftDetection(filename, drift_metrics);
+                        if (!drift_err.empty()) {
+                            fprintf(stderr, "%s", drift_err.c_str());
+                        }
+                        if (drift_baseline_save || gov->getRules().code_quality.drift_detection.auto_save) {
+                            gov->saveDriftBaseline(filename, drift_metrics);
+                        }
+                    } else if (drift_baseline_save) {
+                        auto* gov2 = interpreter.getGovernance();
+                        if (gov2) {
+                            auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
+                                *program, source);
+                            gov2->saveDriftBaseline(filename, drift_metrics);
+                        }
+                    }
+                }
+
+                // Drift detection hard block — skip execution
+                if (naab::governance::g_governance_hard_block) {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov) gov->writeReports();
+                    fflush(stdout); fflush(stderr);
+                    _exit(3);
+                }
+
                 // Inner try-catch: write governance reports before re-throwing.
                 // The interpreter is alive here, so we can safely access it.
                 // Finding A fix: arm SIGALRM for tree-walker execution (mirrors VM path above).
@@ -1555,6 +1620,7 @@ int main(int argc, char** argv) {
                         }
                     }
                 }
+
             }
 
             if (gc_stats) {
@@ -1639,10 +1705,16 @@ int main(int argc, char** argv) {
 
     } else if (command == "parse") {
         if (argc < 3) {
-            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
-            return 1;
+            fmt::print("Usage: naab-lang parse <file.naab>\n");
+            fmt::print("  Parse a .naab file and display AST summary.\n");
+            return 0;
         }
         std::string filename = argv[2];
+        if (filename == "--help" || filename == "-h") {
+            fmt::print("Usage: naab-lang parse <file.naab>\n");
+            fmt::print("  Parse a .naab file and display AST summary.\n");
+            return 0;
+        }
 
         try {
             std::string source = read_file(filename);
@@ -1665,10 +1737,16 @@ int main(int argc, char** argv) {
 
     } else if (command == "check") {
         if (argc < 3) {
-            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
-            return 1;
+            fmt::print("Usage: naab-lang check <file.naab>\n");
+            fmt::print("  Type-check a .naab file without executing it.\n");
+            return 0;
         }
         std::string filename = argv[2];
+        if (filename == "--help" || filename == "-h") {
+            fmt::print("Usage: naab-lang check <file.naab>\n");
+            fmt::print("  Type-check a .naab file without executing it.\n");
+            return 0;
+        }
 
         try {
             // Read and parse
@@ -1705,9 +1783,8 @@ int main(int argc, char** argv) {
     } else if (command == "fmt") {
         // Phase 4.2: Auto-formatter command
         if (argc < 3) {
-            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
-            fmt::print("Usage: naab-lang fmt [--check] [--config=path] <file.naab>\n");
-            return 1;
+            fmt::print("Usage: naab-lang fmt [--check] [--diff] [--config=path] <file.naab>\n");
+            return 0;
         }
 
         // Parse flags
@@ -1718,7 +1795,13 @@ int main(int argc, char** argv) {
 
         for (int i = 2; i < argc; ++i) {
             std::string arg(argv[i]);
-            if (arg == "--check") {
+            if (arg == "--help" || arg == "-h") {
+                fmt::print("Usage: naab-lang fmt [--check] [--diff] [--config=path] <file.naab>\n");
+                fmt::print("  Format a .naab file in-place.\n");
+                fmt::print("  --check   Check formatting without modifying\n");
+                fmt::print("  --diff    Show diff without modifying\n");
+                return 0;
+            } else if (arg == "--check") {
                 check_only = true;
             } else if (arg == "--diff") {
                 show_diff = true;

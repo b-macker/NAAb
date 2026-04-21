@@ -598,6 +598,31 @@
     "polyglot_try_catch": {
       "enabled": true,
       "max_entries": 3
+    },
+    "drift_detection": {
+      "enabled": false,
+      "level": "hard",
+      "baseline_path": ".naab/drift-baseline.json",
+      "max_function_loss": 0.5,
+      "max_loc_loss": 0.6,
+      "max_export_loss": 0.0,
+      "max_struct_loss": 0.5,
+      "auto_save": false,
+      "check_signatures": true,
+      "max_param_loss": 0.5,
+      "check_imports": true,
+      "max_import_loss": 0.5,
+      "check_complexity": true,
+      "max_complexity_loss": 0.6,
+      "check_comment_ratio": true,
+      "max_comment_ratio": 0.5,
+      "check_hollow_exports": true,
+      "check_polyglot": true,
+      "max_polyglot_loss": 0.5,
+      "check_struct_fields": true,
+      "max_field_loss": 0.5,
+      "check_test_functions": true,
+      "max_test_loss": 0.0
     }
   },
 

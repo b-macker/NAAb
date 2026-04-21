@@ -9,7 +9,7 @@ PASS=0; FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-WORKDIR="${HOME}/.naab/test_symlink_f_$$"
+WORKDIR=$(mktemp -d "$TMPDIR/naab_test_symlink_f_XXXXXX")
 mkdir -p "$WORKDIR"
 cleanup() { rm -rf "$WORKDIR"; }
 trap cleanup EXIT

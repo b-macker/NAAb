@@ -17,7 +17,7 @@ check() {
     fi
 }
 
-TMPDIR_NAAB="${HOME}/.naab_sec_exit_test_$$"
+TMPDIR_NAAB=$(mktemp -d "$TMPDIR/naab_sec_exit_test_XXXXXX")
 mkdir -p "$TMPDIR_NAAB"
 cleanup() { rm -rf "$TMPDIR_NAAB"; }
 trap cleanup EXIT

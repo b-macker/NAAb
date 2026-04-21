@@ -164,15 +164,15 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
-        std::string safe_path = resolveCanonical(path);
-        if (safe_path != path) checkFileSandbox(safe_path, "read");
 #ifndef _WIN32
-        // Finding F fix: use O_NOFOLLOW when sandbox is active to close the TOCTOU
-        // window between checkFileSandbox and the actual open syscall.
+        // Finding F fix: use O_NOFOLLOW on the ORIGINAL path to reject symlinks
+        // at the final component BEFORE canonicalization resolves them away.
         if (security::ScopedSandbox::getCurrent()) {
-            return interpreter::NaabVal::makeString(readFileNoFollow(safe_path));
+            return interpreter::NaabVal::makeString(readFileNoFollow(path));
         }
 #endif
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
         std::ifstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
@@ -189,6 +189,14 @@ interpreter::NaabVal FileModule::call(
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
         checkFileSandbox(path, "write");
+#ifndef _WIN32
+        // Finding F fix: O_NOFOLLOW on ORIGINAL path to reject symlinks
+        // before canonicalization resolves them away.
+        if (security::ScopedSandbox::getCurrent()) {
+            writeFileNoFollow(path, content, false);
+            return interpreter::NaabVal::makeNull();
+        }
+#endif
         std::string safe_path = resolveCanonical(path);
         if (safe_path != path) checkFileSandbox(safe_path, "write");
 
@@ -206,14 +214,6 @@ interpreter::NaabVal FileModule::call(
                 );
             }
         }
-
-#ifndef _WIN32
-        // Finding F fix: O_NOFOLLOW when sandbox is active
-        if (security::ScopedSandbox::getCurrent()) {
-            writeFileNoFollow(safe_path, content, false);
-            return interpreter::NaabVal::makeNull();
-        }
-#endif
         std::ofstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error(
@@ -234,6 +234,15 @@ interpreter::NaabVal FileModule::call(
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
         checkFileSandbox(path, "write");
+
+#ifndef _WIN32
+        // Finding F fix: O_NOFOLLOW BEFORE canonicalization — canonical resolves symlinks
+        if (security::ScopedSandbox::getCurrent()) {
+            writeFileNoFollow(path, content, true);
+            return interpreter::NaabVal::makeNull();
+        }
+#endif
+
         std::string safe_path = resolveCanonical(path);
         if (safe_path != path) checkFileSandbox(safe_path, "write");
 
@@ -251,14 +260,6 @@ interpreter::NaabVal FileModule::call(
                 );
             }
         }
-
-#ifndef _WIN32
-        // Finding F fix: O_NOFOLLOW when sandbox is active
-        if (security::ScopedSandbox::getCurrent()) {
-            writeFileNoFollow(safe_path, content, true);
-            return interpreter::NaabVal::makeNull();
-        }
-#endif
         std::ofstream file(safe_path, std::ios::app);
         if (!file.is_open()) {
             throw std::runtime_error(
