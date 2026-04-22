@@ -1521,7 +1521,7 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
         if (fn->getName().rfind("test_", 0) == 0) {
             m.test_functions.push_back(fn->getName());
         }
-        // Gate 3: complexity scores — extract body and analyze
+        // Gate 3: complexity scores + Gate 11: body hash — extract body and analyze
         int start_line = fn->getLocation().line;
         if (start_line > 0) {
             std::string body = extractFunctionBody(source, start_line);
@@ -1530,9 +1530,9 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                     analyzer::SyntacticAnalyzer sa;
                     auto profile = sa.analyze(body);
                     m.complexity_scores[fn->getName()] = profile.complexity_score;
-                } catch (...) {
-                    // Can't analyze — skip
-                }
+                } catch (...) {}
+                // Gate 11: SHA-256 of function body
+                m.body_hashes[fn->getName()] = security::CryptoUtils::sha256(body);
             }
         }
     }
@@ -1550,7 +1550,7 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                 m.test_functions.push_back(fd->getName());
             }
         }
-        // Complexity for exported functions
+        // Complexity + body hash for exported functions
         if (m.complexity_scores.find(fd->getName()) == m.complexity_scores.end()) {
             int start_line = fd->getLocation().line;
             if (start_line > 0) {
@@ -1561,6 +1561,9 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                         auto profile = sa.analyze(body);
                         m.complexity_scores[fd->getName()] = profile.complexity_score;
                     } catch (...) {}
+                    if (m.body_hashes.find(fd->getName()) == m.body_hashes.end()) {
+                        m.body_hashes[fd->getName()] = security::CryptoUtils::sha256(body);
+                    }
                 }
             }
         }
@@ -2033,6 +2036,36 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 11: Function body hash — detect rewrites that game structural metrics
+    if (cfg.check_body_hash && prev.contains("body_hashes") && prev["body_hashes"].is_object()) {
+        std::vector<std::string> changed;
+        for (auto& [fn_name, baseline_hash] : prev["body_hashes"].items()) {
+            auto it = current.body_hashes.find(fn_name);
+            if (it == current.body_hashes.end()) continue;  // function deleted — handled by other gates
+            std::string expected = baseline_hash.get<std::string>();
+            if (it->second != expected) {
+                changed.push_back(fn_name);
+                fprintf(stderr, "[governance] Drift: function '%s' body has been rewritten (hash mismatch)\n",
+                        fn_name.c_str());
+            }
+        }
+        if (!changed.empty()) {
+            std::string fn_list;
+            for (size_t i = 0; i < changed.size(); i++) {
+                if (i > 0) fn_list += ", ";
+                fn_list += "'" + changed[i] + "'";
+            }
+            std::string msg = fmt::format(
+                "Drift: {} function(s) rewritten: {}. Body hash mismatch — the function code has changed. "
+                "Structural metrics (complexity, LOC) can be gamed, but content hashes cannot.",
+                changed.size(), fn_list);
+            violations.push_back(msg);
+            enforce("drift_detection.body_hash", cfg.level, msg);
+        } else {
+            recordPass("drift_detection.body_hash", cfg.level);
+        }
+    }
+
     if (violations.empty()) return "";
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";
@@ -2122,6 +2155,11 @@ void GovernanceEngine::saveDriftBaseline(
     }
     // Gate 8: test functions
     entry["test_functions"] = metrics.test_functions;
+    // Gate 11: function body hashes
+    entry["body_hashes"] = nlohmann::json::object();
+    for (const auto& [fn, hash] : metrics.body_hashes) {
+        entry["body_hashes"][fn] = hash;
+    }
     baseline["files"][key] = entry;
     baseline["version"] = 2;
 

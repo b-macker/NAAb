@@ -37,7 +37,8 @@ cat > "$WORK_DIR/govern.json" << 'EOF'
       "max_function_loss": 0.5,
       "max_loc_loss": 0.6,
       "max_export_loss": 0.0,
-      "max_struct_loss": 0.5
+      "max_struct_loss": 0.5,
+      "check_body_hash": false
     }
   }
 }
@@ -756,6 +757,75 @@ if [ ! -f "$WORK_DIR/.naab/drift-baseline.json.sig" ]; then
   fi
 else
   fail "T28: .sig should not exist without key"
+fi
+
+# --- T29: Body hash detects function rewrite (metric stuffing attack) ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "check_body_hash": true
+    }
+  }
+}
+EOF
+
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function foo() {
+    let x = 1
+    let y = 2
+    return x + y
+}
+main { print(foo()) }
+NAAB_EOF
+
+# Save baseline
+"$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
+
+# Rewrite function body (same name, same complexity pattern, different code)
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function foo() {
+    let a = 99
+    let b = 88
+    return a - b
+}
+main { print(foo()) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "body.*hash\|rewritten"; then
+  pass "T29: body hash detects function rewrite (metric stuffing blocked)"
+else
+  fail "T29: expected body hash mismatch block (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T30: Body hash passes when function unchanged ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function bar() {
+    let x = 10
+    return x * 2
+}
+main { print(bar()) }
+NAAB_EOF
+
+# Save baseline
+"$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
+
+# Run same file — should pass
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 0 ]; then
+  pass "T30: body hash passes when function unchanged"
+else
+  fail "T30: expected pass for unchanged function (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
 echo ""

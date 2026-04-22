@@ -766,6 +766,8 @@ struct CodeQualityConfig {
         double max_function_name_loss = 0.5;
         // Gate 10: Baseline tamper protection — fail-closed when baseline is missing
         bool require_baseline = false;
+        // Gate 11: Function body hash — detect rewrites that game structural metrics
+        bool check_body_hash = true;
     } drift_detection;
 };
 
@@ -1772,6 +1774,7 @@ public:
         std::vector<std::string> polyglot_languages;      // Gate 6: unique languages used
         std::map<std::string, std::vector<std::string>> struct_fields;  // Gate 7: per-struct field names
         std::vector<std::string> test_functions;           // Gate 8: test_* function names
+        std::map<std::string, std::string> body_hashes;    // Gate 11: SHA-256 of function bodies
     };
     static DriftMetrics collectDriftMetrics(const ast::Program& program,
                                             const std::string& source);

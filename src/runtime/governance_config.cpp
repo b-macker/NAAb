@@ -1053,6 +1053,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (dd.contains("max_function_name_loss")) rules_.code_quality.drift_detection.max_function_name_loss = dd["max_function_name_loss"].get<double>();
             // Gate 10: Baseline tamper protection
             if (dd.contains("require_baseline")) rules_.code_quality.drift_detection.require_baseline = dd["require_baseline"].get<bool>();
+            // Gate 11: Function body hash
+            if (dd.contains("check_body_hash")) rules_.code_quality.drift_detection.check_body_hash = dd["check_body_hash"].get<bool>();
         }
     }
 

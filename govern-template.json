@@ -625,7 +625,8 @@
       "max_test_loss": 0.0,
       "check_function_names": true,
       "max_function_name_loss": 0.5,
-      "require_baseline": false
+      "require_baseline": false,
+      "check_body_hash": true
     }
   },
 
