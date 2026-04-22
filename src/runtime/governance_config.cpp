@@ -1055,6 +1055,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (dd.contains("require_baseline")) rules_.code_quality.drift_detection.require_baseline = dd["require_baseline"].get<bool>();
             // Gate 11: Function body hash
             if (dd.contains("check_body_hash")) rules_.code_quality.drift_detection.check_body_hash = dd["check_body_hash"].get<bool>();
+            // Gate 12: Parameter utilization
+            if (dd.contains("check_param_utilization")) rules_.code_quality.drift_detection.check_param_utilization = dd["check_param_utilization"].get<bool>();
+            if (dd.contains("min_param_utilization")) rules_.code_quality.drift_detection.min_param_utilization = dd["min_param_utilization"].get<double>();
         }
     }
 

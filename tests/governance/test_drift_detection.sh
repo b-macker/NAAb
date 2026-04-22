@@ -828,6 +828,69 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
+# --- T31: Parameter utilization — function ignoring params blocked ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "check_body_hash": false,
+      "check_param_utilization": true,
+      "min_param_utilization": 0.5
+    }
+  }
+}
+EOF
+
+# Save baseline with good version first
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function process(a, b, c, d) {
+    let sum = a + b + c + d
+    return sum
+}
+main { print(process(1, 2, 3, 4)) }
+NAAB_EOF
+"$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
+
+# Now rewrite to ignore most params
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function process(a, b, c, d) {
+    return a
+}
+main { print(process(1, 2, 3, 4)) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "underutilize\|param.*utilization"; then
+  pass "T31: param utilization blocks function ignoring 75% of params"
+else
+  fail "T31: expected param utilization block (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T32: Parameter utilization — function using all params passes ---
+rm -rf "$WORK_DIR/.naab"
+cat > "$WORK_DIR/test.naab" << 'NAAB_EOF'
+function compute(a, b, c) {
+    let sum = a + b + c
+    return sum
+}
+main { print(compute(1, 2, 3)) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 0 ]; then
+  pass "T32: param utilization passes when all params used"
+else
+  fail "T32: expected pass for full param usage (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed, $FAILED failed ==="
 exit $FAILED

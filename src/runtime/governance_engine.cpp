@@ -1533,6 +1533,18 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                 } catch (...) {}
                 // Gate 11: SHA-256 of function body
                 m.body_hashes[fn->getName()] = security::CryptoUtils::sha256(body);
+                // Gate 12: Parameter utilization — count how many params appear in body
+                const auto& params = fn->getParams();
+                if (!params.empty()) {
+                    int used = 0;
+                    for (const auto& p : params) {
+                        if (!p.name.empty() && body.find(p.name) != std::string::npos) {
+                            used++;
+                        }
+                    }
+                    m.param_utilization[fn->getName()] =
+                        static_cast<double>(used) / params.size();
+                }
             }
         }
     }
@@ -1563,6 +1575,19 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                     } catch (...) {}
                     if (m.body_hashes.find(fd->getName()) == m.body_hashes.end()) {
                         m.body_hashes[fd->getName()] = security::CryptoUtils::sha256(body);
+                    }
+                    // Gate 12: param utilization for exports
+                    if (m.param_utilization.find(fd->getName()) == m.param_utilization.end()) {
+                        const auto& params = fd->getParams();
+                        if (!params.empty()) {
+                            int used = 0;
+                            for (const auto& p : params) {
+                                if (!p.name.empty() && body.find(p.name) != std::string::npos)
+                                    used++;
+                            }
+                            m.param_utilization[fd->getName()] =
+                                static_cast<double>(used) / params.size();
+                        }
                     }
                 }
             }
@@ -2066,6 +2091,44 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 12: Parameter utilization — detect functions that drop param usage vs baseline
+    if (cfg.check_param_utilization && prev.contains("param_utilization") && prev["param_utilization"].is_object()) {
+        std::vector<std::string> degraded;
+        for (auto& [fn_name, baseline_util] : prev["param_utilization"].items()) {
+            auto it = current.param_utilization.find(fn_name);
+            if (it == current.param_utilization.end()) continue;  // deleted — handled elsewhere
+            double prev_util = baseline_util.get<double>();
+            if (it->second < prev_util && it->second < cfg.min_param_utilization) {
+                degraded.push_back(fn_name);
+                fprintf(stderr, "[governance] Drift: function '%s' param utilization dropped from %.0f%% to %.0f%%\n",
+                        fn_name.c_str(), prev_util * 100.0, it->second * 100.0);
+            }
+        }
+        // Also check new functions (not in baseline) against absolute threshold
+        for (const auto& [fn_name, util] : current.param_utilization) {
+            if (!prev["param_utilization"].contains(fn_name) && util < cfg.min_param_utilization) {
+                degraded.push_back(fn_name);
+                fprintf(stderr, "[governance] Drift: new function '%s' uses only %.0f%% of its parameters\n",
+                        fn_name.c_str(), util * 100.0);
+            }
+        }
+        if (!degraded.empty()) {
+            std::string fn_list;
+            for (size_t i = 0; i < degraded.size(); i++) {
+                if (i > 0) fn_list += ", ";
+                fn_list += "'" + degraded[i] + "'";
+            }
+            std::string msg = fmt::format(
+                "Drift: {} function(s) degraded parameter utilization: {}. "
+                "Functions must reference at least {:.0f}% of declared parameters.",
+                degraded.size(), fn_list, cfg.min_param_utilization * 100.0);
+            violations.push_back(msg);
+            enforce("drift_detection.param_utilization", cfg.level, msg);
+        } else {
+            recordPass("drift_detection.param_utilization", cfg.level);
+        }
+    }
+
     if (violations.empty()) return "";
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";
@@ -2159,6 +2222,11 @@ void GovernanceEngine::saveDriftBaseline(
     entry["body_hashes"] = nlohmann::json::object();
     for (const auto& [fn, hash] : metrics.body_hashes) {
         entry["body_hashes"][fn] = hash;
+    }
+    // Gate 12: parameter utilization
+    entry["param_utilization"] = nlohmann::json::object();
+    for (const auto& [fn, util] : metrics.param_utilization) {
+        entry["param_utilization"][fn] = util;
     }
     baseline["files"][key] = entry;
     baseline["version"] = 2;

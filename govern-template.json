@@ -626,7 +626,9 @@
       "check_function_names": true,
       "max_function_name_loss": 0.5,
       "require_baseline": false,
-      "check_body_hash": true
+      "check_body_hash": true,
+      "check_param_utilization": true,
+      "min_param_utilization": 0.5
     }
   },
 

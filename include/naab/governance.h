@@ -768,6 +768,9 @@ struct CodeQualityConfig {
         bool require_baseline = false;
         // Gate 11: Function body hash — detect rewrites that game structural metrics
         bool check_body_hash = true;
+        // Gate 12: Parameter utilization — detect functions that ignore their inputs
+        bool check_param_utilization = true;
+        double min_param_utilization = 0.5;  // At least 50% of params must be referenced
     } drift_detection;
 };
 
@@ -1775,6 +1778,7 @@ public:
         std::map<std::string, std::vector<std::string>> struct_fields;  // Gate 7: per-struct field names
         std::vector<std::string> test_functions;           // Gate 8: test_* function names
         std::map<std::string, std::string> body_hashes;    // Gate 11: SHA-256 of function bodies
+        std::map<std::string, double> param_utilization;   // Gate 12: fraction of params used in body
     };
     static DriftMetrics collectDriftMetrics(const ast::Program& program,
                                             const std::string& source);
