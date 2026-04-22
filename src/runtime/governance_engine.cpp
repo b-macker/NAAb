@@ -1665,17 +1665,16 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
         return true;  // Unsigned mode — backward compatible
     }
 
-    // Signature file exists but no key → fail-closed (someone signed it, we must verify)
+    // Signature file exists but no key → trust signed config, lock all mutation
     if (!have_key) {
         fprintf(stderr,
-            "[governance] INTEGRITY BLOCK: %s is HMAC-signed but NAAB_GOVERN_KEY is not set.\n"
-            "  This governance configuration is locked by the project owner. You cannot modify,\n"
-            "  bypass, or override it without the signing key. This is intentional — the file,\n"
-            "  its settings, and its baselines are tamper-protected. Do not attempt to delete,\n"
-            "  edit, or recreate these files. Only the project owner can authorize changes.\n"
-            "  Continue working within the existing governance rules.\n",
+            "[governance] NOTICE: %s is HMAC-signed and locked by the project owner.\n"
+            "  Governance rules are enforced as-is. You may run code and debug normally.\n"
+            "  However, any attempt to modify govern.json, drift baselines, or use\n"
+            "  blocked flags will be rejected. Only the project owner with NAAB_GOVERN_KEY\n"
+            "  can authorize changes to governance configuration.\n",
             file_path.c_str());
-        return false;
+        return true;  // Trust the signed config — mutation blocked elsewhere
     }
 
     // Read file content

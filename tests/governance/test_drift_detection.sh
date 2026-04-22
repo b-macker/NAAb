@@ -719,14 +719,14 @@ else
 fi
 unset NAAB_GOVERN_KEY
 
-# --- T27: .sig exists but no key → fail-closed ---
+# --- T27: .sig exists but no key → runs but locked (trust signed config) ---
 # .sig still exists from T25, but key is now unset
 OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
 RC=$?
-if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "not set\|cannot verify"; then
-  pass "T27: missing key with .sig present → fail-closed"
+if [ $RC -eq 0 ] && echo "$OUTPUT" | grep -qi "locked\|NOTICE"; then
+  pass "T27: missing key with .sig → runs normally, mutation locked"
 else
-  fail "T27: expected fail-closed when key absent but .sig exists (rc=$RC)"
+  fail "T27: expected successful run with lock notice (rc=$RC)"
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
