@@ -67,8 +67,14 @@ interpreter::NaabVal PyExecutorAdapter::executeWithReturn(
                        "    Access them with: os.environ['NAAB_INTERPRETER_PATH']\n\n");
         } else if (error_msg.find("SyntaxError") != std::string::npos) {
             fmt::print("\n  Hint: Python syntax error in polyglot block.\n"
+                       "  - Line numbers in the error may be OFFSET by variable bindings.\n"
+                       "    NAAb prepends bound variables (e.g. <<python[var1]) as Python\n"
+                       "    assignments before your code. If the error line doesn't match\n"
+                       "    your code, subtract the number of bound variables.\n"
+                       "  - If binding a large JSON string, the serialized value may contain\n"
+                       "    characters that break Python parsing. Try json.loads() instead\n"
+                       "    of binding complex data directly.\n"
                        "  - Check for NAAb string interpolation conflicts ($ characters)\n"
-                       "  - f-strings with curly braces work fine in <<python blocks\n"
                        "  - For complex Python, use an external .py script via <<sh\n\n");
         } else if (error_msg.find("NameError") != std::string::npos) {
             fmt::print("\n  Hint: Python variable not defined.\n"

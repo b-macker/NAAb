@@ -2411,6 +2411,26 @@ interpreter::NaabVal VM::run() {
                 // Handle -> JSON return type for Python
                 if (!return_type.empty() && language == "python") {
                     // Auto-wrap last bare expression in print()
+                    // Supports multi-line expressions (e.g., print(json.dumps({\n...\n})))
+                    auto bracketDepth = [](const std::string& s) -> int {
+                        int depth = 0;
+                        bool in_string = false;
+                        char string_char = 0;
+                        for (size_t j = 0; j < s.size(); ++j) {
+                            char c = s[j];
+                            if (in_string) {
+                                if (c == '\\' && j + 1 < s.size()) { ++j; continue; }
+                                if (c == string_char) in_string = false;
+                                continue;
+                            }
+                            if (c == '"' || c == '\'') { in_string = true; string_char = c; continue; }
+                            if (c == '#') break;
+                            if (c == '(' || c == '[' || c == '{') ++depth;
+                            else if (c == ')' || c == ']' || c == '}') --depth;
+                        }
+                        return depth;
+                    };
+
                     std::istringstream iss(final_code);
                     std::string line;
                     std::vector<std::string> fc_lines;
@@ -2422,13 +2442,45 @@ interpreter::NaabVal VM::run() {
                         trimmed = trimmed.substr(start);
                         if (trimmed[0] == '#') continue;
                         if (trimmed.substr(0, 7) == "import " || trimmed.substr(0, 5) == "from ") continue;
-                        if (trimmed.substr(0, 6) == "print(") break;
+                        if (trimmed.substr(0, 6) == "print(" || trimmed.substr(0, 7) == "print (") break;
                         if (trimmed.find('=') != std::string::npos && trimmed.find("==") == std::string::npos
-                            && trimmed.find("!=") == std::string::npos) break;
+                            && trimmed.find("!=") == std::string::npos && trimmed.find(">=") == std::string::npos
+                            && trimmed.find("<=") == std::string::npos) break;
                         if (trimmed.substr(0, 3) == "if " || trimmed.substr(0, 4) == "for "
-                            || trimmed.substr(0, 6) == "while " || trimmed.substr(0, 4) == "def ") break;
-                        std::string leading = fc_lines[li].substr(0, start);
-                        fc_lines[li] = leading + "print(" + trimmed + ")";
+                            || trimmed.substr(0, 6) == "while " || trimmed.substr(0, 4) == "def "
+                            || trimmed.substr(0, 6) == "class " || trimmed.substr(0, 4) == "try:"
+                            || trimmed.substr(0, 7) == "except:" || trimmed.substr(0, 7) == "except "
+                            || trimmed.substr(0, 4) == "with ") break;
+
+                        int end_depth = bracketDepth(trimmed);
+                        if (end_depth < 0) {
+                            // Multi-line expression — walk backwards to find start
+                            int cumulative_depth = end_depth;
+                            int expr_start = li;
+                            for (int j = li - 1; j >= 0 && cumulative_depth < 0; --j) {
+                                std::string jtrimmed = fc_lines[j];
+                                size_t jstart = jtrimmed.find_first_not_of(" \t");
+                                if (jstart == std::string::npos) continue;
+                                cumulative_depth += bracketDepth(jtrimmed.substr(jstart));
+                                expr_start = j;
+                            }
+                            // Check if expr_start already has print()
+                            std::string es_trimmed = fc_lines[expr_start];
+                            size_t es_start = es_trimmed.find_first_not_of(" \t");
+                            if (es_start != std::string::npos) es_trimmed = es_trimmed.substr(es_start);
+                            if (es_trimmed.substr(0, 6) != "print(" && es_trimmed.substr(0, 7) != "print (") {
+                                size_t sstart = fc_lines[expr_start].find_first_not_of(" \t");
+                                std::string leading = (sstart != std::string::npos)
+                                    ? fc_lines[expr_start].substr(0, sstart) : "";
+                                std::string strimmed = (sstart != std::string::npos)
+                                    ? fc_lines[expr_start].substr(sstart) : fc_lines[expr_start];
+                                fc_lines[expr_start] = leading + "print(" + strimmed;
+                                fc_lines[li] = fc_lines[li] + ")";
+                            }
+                        } else {
+                            std::string leading = fc_lines[li].substr(0, start);
+                            fc_lines[li] = leading + "print(" + trimmed + ")";
+                        }
                         break;
                     }
                     final_code.clear();

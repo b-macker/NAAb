@@ -1695,8 +1695,58 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                         || trimmed.substr(0, 6) == "class " || trimmed.substr(0, 4) == "try:"
                         || trimmed.substr(0, 7) == "except:" || trimmed.substr(0, 7) == "except "
                         || trimmed.substr(0, 4) == "with ") break;
-                    std::string leading = lines[i].substr(0, start);
-                    lines[i] = leading + "print(" + trimmed + ")";
+
+                    // Helper: count bracket depth on a line
+                    auto bracketDepth = [](const std::string& s) -> int {
+                        int depth = 0;
+                        bool in_string = false;
+                        char string_char = 0;
+                        for (size_t j = 0; j < s.size(); ++j) {
+                            char c = s[j];
+                            if (in_string) {
+                                if (c == '\\' && j + 1 < s.size()) { ++j; continue; }
+                                if (c == string_char) in_string = false;
+                                continue;
+                            }
+                            if (c == '"' || c == '\'') { in_string = true; string_char = c; continue; }
+                            if (c == '#') break;
+                            if (c == '(' || c == '[' || c == '{') ++depth;
+                            else if (c == ')' || c == ']' || c == '}') --depth;
+                        }
+                        return depth;
+                    };
+
+                    int end_depth = bracketDepth(trimmed);
+                    if (end_depth < 0) {
+                        // Multi-line expression — walk backwards to find start
+                        int cumulative_depth = end_depth;
+                        int expr_start = i;
+                        for (int j = i - 1; j >= 0 && cumulative_depth < 0; --j) {
+                            std::string jtrimmed = lines[j];
+                            size_t jstart = jtrimmed.find_first_not_of(" \t");
+                            if (jstart == std::string::npos) continue;
+                            cumulative_depth += bracketDepth(jtrimmed.substr(jstart));
+                            expr_start = j;
+                        }
+                        // Check if expr_start already has print()
+                        std::string es_trimmed = lines[expr_start];
+                        size_t es_start = es_trimmed.find_first_not_of(" \t");
+                        if (es_start != std::string::npos) {
+                            es_trimmed = es_trimmed.substr(es_start);
+                        }
+                        if (es_trimmed.substr(0, 6) != "print(" && es_trimmed.substr(0, 7) != "print (") {
+                            size_t sstart = lines[expr_start].find_first_not_of(" \t");
+                            std::string leading = (sstart != std::string::npos)
+                                ? lines[expr_start].substr(0, sstart) : "";
+                            std::string strimmed = (sstart != std::string::npos)
+                                ? lines[expr_start].substr(sstart) : lines[expr_start];
+                            lines[expr_start] = leading + "print(" + strimmed;
+                            lines[i] = lines[i] + ")";
+                        }
+                    } else {
+                        std::string leading = lines[i].substr(0, start);
+                        lines[i] = leading + "print(" + trimmed + ")";
+                    }
                     break;
                 }
                 final_code.clear();

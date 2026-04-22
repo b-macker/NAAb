@@ -202,33 +202,91 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                 // Execute all statements (assignments, imports, etc.)
                 PyObject* exec_result = PyRun_String(statements.c_str(), Py_file_input, globals, globals);
                 if (!exec_result) {
+                    // The naive split may have broken a multi-line expression
+                    // (e.g., print(json.dumps({\n...\n})) split at the closing line).
+                    // Check if it's a SyntaxError — if so, fall back to executing
+                    // the ENTIRE code as Py_file_input instead of split exec+eval.
                     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
-                    std::string error_msg = "Unknown Python error";
-                    if (ptype && pvalue) {
-                        PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
-                        PyObject* str_exc = PyObject_Str(pvalue);
-                        if (type_name && str_exc) {
-                            error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
-                        } else if (str_exc) {
-                            const char* err = PyUnicode_AsUTF8(str_exc);
-                            if (err) error_msg = err;
-                        }
-                        Py_XDECREF(type_name);
-                        Py_XDECREF(str_exc);
-                    } else if (pvalue) {
-                        PyObject* str_exc = PyObject_Str(pvalue);
-                        if (str_exc) {
-                            const char* err = PyUnicode_AsUTF8(str_exc);
-                            if (err) error_msg = err;
-                            Py_DECREF(str_exc);
-                        }
-                    }
+                    bool split_syntax_error = ptype && PyErr_GivenExceptionMatches(ptype, PyExc_SyntaxError);
                     Py_XDECREF(ptype);
                     Py_XDECREF(pvalue);
                     Py_XDECREF(ptraceback);
-                    restoreStdoutOnly();
-                    python_c_gil_release(gil_handle);
-                    throw std::runtime_error("Python execution error: " + error_msg);
+
+                    if (split_syntax_error) {
+                        // Naive split broke the code — execute entire code as file
+                        exec_result = PyRun_String(code.c_str(), Py_file_input, globals, globals);
+                        if (!exec_result) {
+                            PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+                            std::string error_msg = "Unknown Python error";
+                            if (ptype && pvalue) {
+                                PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
+                                PyObject* str_exc = PyObject_Str(pvalue);
+                                if (type_name && str_exc) {
+                                    error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
+                                } else if (str_exc) {
+                                    const char* err = PyUnicode_AsUTF8(str_exc);
+                                    if (err) error_msg = err;
+                                }
+                                Py_XDECREF(type_name);
+                                Py_XDECREF(str_exc);
+                            } else if (pvalue) {
+                                PyObject* str_exc = PyObject_Str(pvalue);
+                                if (str_exc) {
+                                    const char* err = PyUnicode_AsUTF8(str_exc);
+                                    if (err) error_msg = err;
+                                    Py_DECREF(str_exc);
+                                }
+                            }
+                            Py_XDECREF(ptype);
+                            Py_XDECREF(pvalue);
+                            Py_XDECREF(ptraceback);
+                            restoreStdoutOnly();
+                            python_c_gil_release(gil_handle);
+                            throw std::runtime_error("Python execution error: " + error_msg);
+                        }
+                        Py_DECREF(exec_result);
+
+                        // Whole-code exec succeeded — return captured stdout
+                        std::string captured = captureAndRestoreStdout();
+                        python_c_gil_release(gil_handle);
+                        if (!captured.empty()) {
+                            return std::make_shared<interpreter::Value>(captured);
+                        }
+                        return std::make_shared<interpreter::Value>();
+                    }
+
+                    // Not a SyntaxError — real error in the statements
+                    // Re-run to get clean error message
+                    exec_result = PyRun_String(statements.c_str(), Py_file_input, globals, globals);
+                    if (!exec_result) {
+                        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+                        std::string error_msg = "Unknown Python error";
+                        if (ptype && pvalue) {
+                            PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
+                            PyObject* str_exc = PyObject_Str(pvalue);
+                            if (type_name && str_exc) {
+                                error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
+                            } else if (str_exc) {
+                                const char* err = PyUnicode_AsUTF8(str_exc);
+                                if (err) error_msg = err;
+                            }
+                            Py_XDECREF(type_name);
+                            Py_XDECREF(str_exc);
+                        } else if (pvalue) {
+                            PyObject* str_exc = PyObject_Str(pvalue);
+                            if (str_exc) {
+                                const char* err = PyUnicode_AsUTF8(str_exc);
+                                if (err) error_msg = err;
+                                Py_DECREF(str_exc);
+                            }
+                        }
+                        Py_XDECREF(ptype);
+                        Py_XDECREF(pvalue);
+                        Py_XDECREF(ptraceback);
+                        restoreStdoutOnly();
+                        python_c_gil_release(gil_handle);
+                        throw std::runtime_error("Python execution error: " + error_msg);
+                    }
                 }
                 Py_DECREF(exec_result);
 
