@@ -30,6 +30,7 @@ namespace stdlib {
 // V-SC-002: NAAb-internal secrets must not be readable by user scripts.
 static const std::unordered_set<std::string> NAAB_INTERNAL_ENV_VARS = {
     "NAAB_LOCK_KEY",
+    "NAAB_GOVERN_KEY",
 };
 
 // V-RCE-001: Variables that can hijack loader/runtime behavior in polyglot subprocesses.

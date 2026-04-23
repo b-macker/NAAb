@@ -1070,6 +1070,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Gate 17: Polyglot content regression
             if (dd.contains("check_polyglot_content")) rules_.code_quality.drift_detection.check_polyglot_content = dd["check_polyglot_content"].get<bool>();
             if (dd.contains("max_polyglot_shrink")) rules_.code_quality.drift_detection.max_polyglot_shrink = dd["max_polyglot_shrink"].get<double>();
+            // Gate 0 extension: Function gain detection
+            if (dd.contains("max_function_gain")) rules_.code_quality.drift_detection.max_function_gain = dd["max_function_gain"].get<double>();
+            // Gate 18: New function detection
+            if (dd.contains("check_new_functions")) rules_.code_quality.drift_detection.check_new_functions = dd["check_new_functions"].get<bool>();
         }
     }
 

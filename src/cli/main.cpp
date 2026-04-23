@@ -839,6 +839,53 @@ int main(int argc, char** argv) {
             if (!ec) filename = abs.string();
         }
 
+        // Pre-flight: blocked_flags enforcement for BOTH execution paths
+        // Must run before interpreter.disableGovernance() which skips tree-walker governance entirely
+        {
+            naab::governance::GovernanceEngine preflight_gov;
+            auto abs_file = std::filesystem::absolute(filename);
+            auto script_dir = abs_file.parent_path();
+            bool pf_loaded = preflight_gov.discoverAndLoad(script_dir.string());
+
+            if (!pf_loaded && naab::governance::g_governance_hard_block) {
+                fprintf(stderr,
+                    "[governance] INTEGRITY BLOCK: Governance configuration is tamper-protected.\n"
+                    "  Execution is blocked. Only the project owner can authorize changes.\n");
+                fflush(stderr);
+                _exit(3);
+            }
+
+            if (pf_loaded && preflight_gov.isActive()) {
+                const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
+                bool _has_govern_key = _govern_key && *_govern_key;
+                if (!_has_govern_key) {
+                    auto checkBlocked = [&](const std::string& flag, bool was_used) {
+                        if (was_used && preflight_gov.isBlockedFlag(flag)) {
+                            fprintf(stderr,
+                                "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
+                                "  This flag is listed in integrity.blocked_flags in govern.json.\n"
+                                "  Help: Remove '%s' from your command and run again without it.\n"
+                                "  This restriction cannot be bypassed — do NOT attempt to modify\n"
+                                "  govern.json or its .sig file. Work within the existing governance rules.\n",
+                                flag.c_str(), flag.c_str());
+                            naab::governance::g_governance_hard_block = true;
+                        }
+                    };
+                    checkBlocked("--no-governance", no_governance);
+                    checkBlocked("--tree-walk", !use_vm);
+                    checkBlocked("--drift-baseline-save", drift_baseline_save);
+                    checkBlocked("--governance-override", governance_override);
+                    checkBlocked("--governance-baseline-save", governance_baseline_save);
+                    if (naab::governance::g_governance_hard_block) {
+                        fflush(stdout); fflush(stderr);
+                        _exit(3);
+                    }
+                }
+            }
+            // Reset for actual governance loading in VM/tree-walker path
+            naab::governance::g_governance_hard_block = false;
+        }
+
         try {
             // Read source file
             std::string source = read_file(filename);
@@ -1250,6 +1297,7 @@ int main(int argc, char** argv) {
                     checkBlocked("--drift-baseline-save", drift_baseline_save);
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
+                    checkBlocked("--no-governance", no_governance);
                     if (naab::governance::g_governance_hard_block) {
                         if (vm_governance.isActive()) vm_governance.writeReports();
                         fflush(stdout); fflush(stderr);

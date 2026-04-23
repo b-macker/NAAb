@@ -737,6 +737,7 @@ struct CodeQualityConfig {
         double max_loc_loss = 0.6;        // Block if >60% LOC disappears
         double max_export_loss = 0.0;     // Block if ANY export disappears
         double max_struct_loss = 0.5;     // Block if >50% structs disappear
+        double max_function_gain = 0.5;   // Block if >50% more functions than baseline
         bool auto_save = false;           // If true, auto-update baseline after pass
         // Gate 1: Signature stability
         bool check_signatures = true;
@@ -783,6 +784,8 @@ struct CodeQualityConfig {
         // Gate 17: Polyglot content regression — detect polyglot block simplification
         bool check_polyglot_content = false;
         double max_polyglot_shrink = 0.5;  // Block if polyglot LOC drops >50%
+        // Gate 18: New function detection — flag functions added since baseline
+        bool check_new_functions = false;  // opt-in (like gates 13-17)
     } drift_detection;
 };
 
@@ -1808,6 +1811,8 @@ public:
 
     // Integrity: HMAC signature verification
     bool verifyFileSignature(const std::string& file_path) const;
+    bool verifyContentSignature(const std::string& file_path,
+                                 const std::string& content) const;
     static bool signFile(const std::string& file_path);
     bool isBlockedFlag(const std::string& flag) const;
     static std::string getKeyFingerprint();

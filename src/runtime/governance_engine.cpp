@@ -1818,6 +1818,48 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
     return true;
 }
 
+bool GovernanceEngine::verifyContentSignature(
+    const std::string& file_path, const std::string& content) const
+{
+    std::string sig_path = file_path + ".sig";
+    bool sig_exists = std::filesystem::exists(sig_path);
+    const char* key = std::getenv(GOVERN_KEY_ENV);
+    bool have_key = key && *key;
+
+    if (!sig_exists) {
+        if (rules_.integrity.require_signature) {
+            fprintf(stderr,
+                "[governance] INTEGRITY BLOCK: Signature required but missing for %s\n"
+                "  This file is protected by HMAC signing. Only a human with the signing key\n"
+                "  can authorize changes.\n",
+                file_path.c_str());
+            return false;
+        }
+        return true;
+    }
+    if (!have_key) {
+        return true;  // Trust signed config — mutation blocked elsewhere
+    }
+    // Read .sig
+    std::ifstream sig_ifs(sig_path);
+    if (!sig_ifs.is_open()) return false;
+    std::string stored_sig((std::istreambuf_iterator<char>(sig_ifs)),
+                            std::istreambuf_iterator<char>());
+    sig_ifs.close();
+    while (!stored_sig.empty() && (stored_sig.back() == '\n' || stored_sig.back() == '\r'))
+        stored_sig.pop_back();
+
+    std::string expected = security::CryptoUtils::hmacSha256(content, key);
+    if (!security::CryptoUtils::constantTimeCompare(expected, stored_sig)) {
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: %s has been modified since it was signed.\n"
+            "  The HMAC signature does not match the file contents.\n",
+            file_path.c_str());
+        return false;
+    }
+    return true;
+}
+
 bool GovernanceEngine::isBlockedFlag(const std::string& flag) const {
     for (const auto& blocked : rules_.integrity.blocked_flags) {
         if (flag == blocked) return true;
@@ -1846,18 +1888,21 @@ std::string GovernanceEngine::checkDriftDetection(
         return "";  // No baseline yet — skip
     }
 
+    // Read baseline into memory ONCE (TOCTOU fix: no re-read after verify)
+    std::string baseline_content((std::istreambuf_iterator<char>(ifs)),
+                                  std::istreambuf_iterator<char>());
     ifs.close();
 
-    // Verify baseline signature before trusting content
-    if (!verifyFileSignature(resolved)) {
+    // Verify baseline signature on the in-memory content
+    if (!verifyContentSignature(resolved, baseline_content)) {
         std::string msg = "Drift baseline signature verification failed: " + resolved;
         enforce("drift_detection.integrity", cfg.level, msg);
         return "[governance] Drift detection FAILED:\n  " + msg + "\n";
     }
 
-    std::ifstream ifs2(resolved);
+    // Parse the SAME content (no re-read — eliminates TOCTOU window)
     nlohmann::json baseline;
-    try { baseline = nlohmann::json::parse(ifs2); }
+    try { baseline = nlohmann::json::parse(baseline_content); }
     catch (...) { return ""; }
 
     // Find this file in the baseline
@@ -1896,8 +1941,11 @@ std::string GovernanceEngine::checkDriftDetection(
         double loss = 1.0 - (static_cast<double>(current_val) / baseline_val);
         if (loss > max_loss) {
             std::string msg = fmt::format(
-                "Drift: {} dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
-                name, loss * 100.0, baseline_val, current_val, max_loss * 100.0);
+                "Drift: {} dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                "  Help: Restore the removed {} to match the baseline. Do NOT attempt to\n"
+                "  edit drift-baseline.json manually — it is HMAC-signed and tamper-detected.\n"
+                "  Only the project owner with NAAB_GOVERN_KEY can re-baseline after authorized changes.",
+                name, loss * 100.0, baseline_val, current_val, max_loss * 100.0, name);
             violations.push_back(msg);
             enforce(std::string("drift_detection.") + name, cfg.level, msg);
         } else {
@@ -1909,6 +1957,27 @@ std::string GovernanceEngine::checkDriftDetection(
     checkLoss("loc", current.loc, "loc", cfg.max_loc_loss);
     checkLoss("exports", current.exports, "exports", cfg.max_export_loss);
     checkLoss("structs", current.structs, "structs", cfg.max_struct_loss);
+
+    // Gate 0 extension: function gain detection — blocks function duplication/injection
+    auto checkGain = [&](const char* name, int current_val, const char* json_key,
+                         double max_gain) {
+        if (!prev.contains(json_key)) return;
+        int baseline_val = prev[json_key].get<int>();
+        if (baseline_val == 0) return;
+        double gain = (static_cast<double>(current_val) / baseline_val) - 1.0;
+        if (gain > max_gain) {
+            std::string msg = fmt::format(
+                "Drift: {} count grew {:.0f}% ({} -> {}). Max allowed gain: {:.0f}%\n"
+                "  Help: Remove the extra functions you added. The baseline expects {} {}.\n"
+                "  Adding new functions to governed code requires re-baselining by the project owner.\n"
+                "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                name, gain * 100.0, baseline_val, current_val, max_gain * 100.0,
+                baseline_val, name);
+            violations.push_back(msg);
+            enforce("drift_detection.function_gain", cfg.level, msg);
+        }
+    };
+    checkGain("functions", current.functions, "functions", cfg.max_function_gain);
 
     // Report specific deleted functions/exports
     if (prev.contains("function_names") && prev["function_names"].is_array()) {
@@ -1947,8 +2016,12 @@ std::string GovernanceEngine::checkDriftDetection(
             double loss = 1.0 - (static_cast<double>(ccount) / bcount);
             if (loss > cfg.max_param_loss) {
                 std::string msg = fmt::format(
-                    "Drift: function '{}' params dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
-                    fn_name, loss * 100.0, bcount, ccount, cfg.max_param_loss * 100.0);
+                    "Drift: function '{}' params dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                    "  Help: Restore the removed parameters to function '{}'. The baseline recorded\n"
+                    "  {} params but only {} remain. Do NOT remove function parameters from governed\n"
+                    "  code without re-baselining. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    fn_name, loss * 100.0, bcount, ccount, cfg.max_param_loss * 100.0,
+                    fn_name, bcount, ccount);
                 violations.push_back(msg);
                 enforce("drift_detection.signatures", cfg.level, msg);
             }
@@ -1974,10 +2047,19 @@ std::string GovernanceEngine::checkDriftDetection(
             }
             double loss = static_cast<double>(deleted.size()) / baseline_count;
             if (loss > cfg.max_import_loss) {
+                std::string del_list;
+                for (size_t i = 0; i < deleted.size(); i++) {
+                    if (i > 0) del_list += ", ";
+                    del_list += "'" + deleted[i] + "'";
+                }
                 std::string msg = fmt::format(
-                    "Drift: imports dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    "Drift: imports dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                    "  Removed imports: {}\n"
+                    "  Help: Re-add the removed imports. The baseline requires these imports to be\n"
+                    "  present. Do NOT remove imports from governed code.\n"
+                    "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
                     loss * 100.0, baseline_count, static_cast<int>(current.imports.size()),
-                    cfg.max_import_loss * 100.0);
+                    cfg.max_import_loss * 100.0, del_list);
                 violations.push_back(msg);
                 enforce("drift_detection.imports", cfg.level, msg);
             } else {
@@ -1997,8 +2079,11 @@ std::string GovernanceEngine::checkDriftDetection(
             double loss = 1.0 - (static_cast<double>(cscore) / bscore);
             if (loss > cfg.max_complexity_loss) {
                 std::string msg = fmt::format(
-                    "Drift: function '{}' complexity dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
-                    fn_name, loss * 100.0, bscore, cscore, cfg.max_complexity_loss * 100.0);
+                    "Drift: function '{}' complexity dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                    "  Help: Restore the original logic in '{}'. The function body has been simplified\n"
+                    "  beyond what governance allows. Re-add the conditionals, loops, or branching\n"
+                    "  that were removed. Do NOT stub functions or replace logic with pass-through code.",
+                    fn_name, loss * 100.0, bscore, cscore, cfg.max_complexity_loss * 100.0, fn_name);
                 violations.push_back(msg);
                 enforce("drift_detection.complexity", cfg.level, msg);
             }
@@ -2015,7 +2100,10 @@ std::string GovernanceEngine::checkDriftDetection(
             // Independent check: comment ratio alone exceeds max_comment_only_ratio
             if (current_ratio > cfg.max_comment_only_ratio) {
                 std::string msg = fmt::format(
-                    "Drift: comment ratio {:.0f}% exceeds {:.0f}% — file is predominantly comments",
+                    "Drift: comment ratio {:.0f}% exceeds {:.0f}% — file is predominantly comments.\n"
+                    "  Help: This file is {:.0f}% comments (max {:.0f}%). Replace comments with actual\n"
+                    "  code logic. Comments alone cannot substitute for implementation.",
+                    current_ratio * 100.0, cfg.max_comment_only_ratio * 100.0,
                     current_ratio * 100.0, cfg.max_comment_only_ratio * 100.0);
                 violations.push_back(msg);
                 enforce("drift_detection.comment_ratio", EnforcementLevel::ADVISORY, msg);
@@ -2023,8 +2111,12 @@ std::string GovernanceEngine::checkDriftDetection(
             // Combined check: high comment ratio AND code loss >30%
             else if (current_ratio > cfg.max_comment_ratio && code_loss > 0.3) {
                 std::string msg = fmt::format(
-                    "Drift: comment ratio {:.0f}% (max {:.0f}%) with {:.0f}% code loss — probable logic replacement with comments",
-                    current_ratio * 100.0, cfg.max_comment_ratio * 100.0, code_loss * 100.0);
+                    "Drift: comment ratio {:.0f}% (max {:.0f}%) with {:.0f}% code loss.\n"
+                    "  Help: Code has been replaced with comments. The baseline had {} code lines,\n"
+                    "  now only {}. Restore the original code — do NOT replace logic with comments.\n"
+                    "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    current_ratio * 100.0, cfg.max_comment_ratio * 100.0, code_loss * 100.0,
+                    baseline_code, current.code_lines);
                 violations.push_back(msg);
                 enforce("drift_detection.comment_ratio", cfg.level, msg);
             } else {
@@ -2043,8 +2135,11 @@ std::string GovernanceEngine::checkDriftDetection(
                 int params = pit->second;
                 if (score < cfg.min_hollow_export_complexity && params > 0) {
                     std::string msg = fmt::format(
-                        "Drift: exported function '{}' has {} params but complexity score {} — hollow export",
-                        exp_name, params, score);
+                        "Drift: exported function '{}' has {} params but complexity score {} (min required: {}) — hollow export.\n"
+                        "  Help: Add real logic to '{}' — conditionals, loops, or branching. Empty wrapper\n"
+                        "  functions that accept parameters but do nothing are not permitted in governed code.",
+                        exp_name, params, score, cfg.min_hollow_export_complexity,
+                        exp_name);
                     violations.push_back(msg);
                     enforce("drift_detection.hollow_exports", cfg.level, msg);
                 }
@@ -2056,27 +2151,38 @@ std::string GovernanceEngine::checkDriftDetection(
     if (cfg.check_polyglot && prev.contains("polyglot_blocks")) {
         int baseline_blocks = prev["polyglot_blocks"].get<int>();
         if (baseline_blocks > 0) {
+            // Collect removed languages first (used in both stderr and violation message)
+            std::vector<std::string> removed_langs;
+            if (prev.contains("polyglot_languages") && prev["polyglot_languages"].is_array()) {
+                std::unordered_set<std::string> current_langs(
+                    current.polyglot_languages.begin(), current.polyglot_languages.end());
+                for (const auto& lang : prev["polyglot_languages"]) {
+                    std::string l = lang.get<std::string>();
+                    if (current_langs.find(l) == current_langs.end()) {
+                        removed_langs.push_back(l);
+                        fprintf(stderr, "[governance] Drift: polyglot language '%s' was removed\n", l.c_str());
+                    }
+                }
+            }
             double loss = 1.0 - (static_cast<double>(current.polyglot_blocks) / baseline_blocks);
             if (loss > cfg.max_polyglot_loss) {
+                std::string lang_list;
+                for (size_t i = 0; i < removed_langs.size(); i++) {
+                    if (i > 0) lang_list += ", ";
+                    lang_list += "'" + removed_langs[i] + "'";
+                }
                 std::string msg = fmt::format(
-                    "Drift: polyglot blocks dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    "Drift: polyglot blocks dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                    "  Removed languages: {}\n"
+                    "  Help: Re-add the removed polyglot blocks. Do NOT strip polyglot analysis\n"
+                    "  from governed code. Do NOT edit drift-baseline.json — it is HMAC-signed.",
                     loss * 100.0, baseline_blocks, current.polyglot_blocks,
-                    cfg.max_polyglot_loss * 100.0);
+                    cfg.max_polyglot_loss * 100.0,
+                    lang_list.empty() ? "(unknown)" : lang_list);
                 violations.push_back(msg);
                 enforce("drift_detection.polyglot", cfg.level, msg);
             } else {
                 recordPass("drift_detection.polyglot", cfg.level);
-            }
-        }
-        // Report specific languages removed
-        if (prev.contains("polyglot_languages") && prev["polyglot_languages"].is_array()) {
-            std::unordered_set<std::string> current_langs(
-                current.polyglot_languages.begin(), current.polyglot_languages.end());
-            for (const auto& lang : prev["polyglot_languages"]) {
-                std::string l = lang.get<std::string>();
-                if (current_langs.find(l) == current_langs.end()) {
-                    fprintf(stderr, "[governance] Drift: polyglot language '%s' was removed\n", l.c_str());
-                }
             }
         }
     }
@@ -2092,20 +2198,31 @@ std::string GovernanceEngine::checkDriftDetection(
             int ccount = static_cast<int>(it->second.size());
             double loss = 1.0 - (static_cast<double>(ccount) / bcount);
             if (loss > cfg.max_field_loss) {
-                std::string msg = fmt::format(
-                    "Drift: struct '{}' fields dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
-                    struct_name, loss * 100.0, bcount, ccount, cfg.max_field_loss * 100.0);
-                violations.push_back(msg);
-                enforce("drift_detection.struct_fields", cfg.level, msg);
-                // Report specific deleted fields
+                // Collect deleted field names
+                std::vector<std::string> deleted_fields;
                 std::unordered_set<std::string> current_fields(it->second.begin(), it->second.end());
                 for (const auto& f : baseline_fields) {
                     std::string fname = f.get<std::string>();
                     if (current_fields.find(fname) == current_fields.end()) {
+                        deleted_fields.push_back(fname);
                         fprintf(stderr, "[governance] Drift: struct '%s' field '%s' was deleted\n",
                                 struct_name.c_str(), fname.c_str());
                     }
                 }
+                std::string field_list;
+                for (size_t i = 0; i < deleted_fields.size(); i++) {
+                    if (i > 0) field_list += ", ";
+                    field_list += "'" + deleted_fields[i] + "'";
+                }
+                std::string msg = fmt::format(
+                    "Drift: struct '{}' fields dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                    "  Deleted fields: {}\n"
+                    "  Help: Re-add the deleted fields to struct '{}'. Do NOT remove struct fields\n"
+                    "  from governed code. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    struct_name, loss * 100.0, bcount, ccount, cfg.max_field_loss * 100.0,
+                    field_list, struct_name);
+                violations.push_back(msg);
+                enforce("drift_detection.struct_fields", cfg.level, msg);
             }
         }
     }
@@ -2126,11 +2243,19 @@ std::string GovernanceEngine::checkDriftDetection(
             }
             double loss = static_cast<double>(deleted.size()) / baseline_tests;
             if (loss > cfg.max_test_loss) {
+                std::string del_list;
+                for (size_t i = 0; i < deleted.size(); i++) {
+                    if (i > 0) del_list += ", ";
+                    del_list += "'" + deleted[i] + "'";
+                }
                 std::string msg = fmt::format(
-                    "Drift: test functions dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%",
+                    "Drift: test functions dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
+                    "  Deleted tests: {}\n"
+                    "  Help: Re-add the deleted test functions. Test removal is not permitted in\n"
+                    "  governed code. Do NOT edit drift-baseline.json — it is HMAC-signed.",
                     loss * 100.0, baseline_tests,
                     static_cast<int>(current.test_functions.size()),
-                    cfg.max_test_loss * 100.0);
+                    cfg.max_test_loss * 100.0, del_list);
                 violations.push_back(msg);
                 enforce("drift_detection.test_functions", cfg.level, msg);
             } else {
@@ -2155,10 +2280,19 @@ std::string GovernanceEngine::checkDriftDetection(
             }
             double loss = static_cast<double>(deleted.size()) / baseline_count;
             if (loss > cfg.max_function_name_loss) {
+                std::string del_list;
+                for (size_t i = 0; i < deleted.size(); i++) {
+                    if (i > 0) del_list += ", ";
+                    del_list += "'" + deleted[i] + "'";
+                }
                 std::string msg = fmt::format(
-                    "Drift: function names lost {:.0f}% ({} of {} baseline names missing). Max allowed: {:.0f}%",
+                    "Drift: function names lost {:.0f}% ({} of {} baseline names missing). Max allowed: {:.0f}%\n"
+                    "  Missing functions: {}\n"
+                    "  Help: Restore the missing function names. Renaming or deleting functions is\n"
+                    "  detected. The baseline expects these exact names.\n"
+                    "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
                     loss * 100.0, deleted.size(), baseline_count,
-                    cfg.max_function_name_loss * 100.0);
+                    cfg.max_function_name_loss * 100.0, del_list);
                 violations.push_back(msg);
                 enforce("drift_detection.function_names", cfg.level, msg);
             } else {
@@ -2176,7 +2310,9 @@ std::string GovernanceEngine::checkDriftDetection(
             std::string expected = baseline_hash.get<std::string>();
             if (it->second != expected) {
                 changed.push_back(fn_name);
-                fprintf(stderr, "[governance] Drift: function '%s' body has been rewritten (hash mismatch)\n",
+                fprintf(stderr, "[governance] Drift: function '%s' body has been rewritten (hash mismatch).\n"
+                        "  Restore the EXACT original code for this function. The governance engine\n"
+                        "  hashes function bodies with SHA-256 — any change is detected.\n",
                         fn_name.c_str());
             }
         }
@@ -2187,8 +2323,12 @@ std::string GovernanceEngine::checkDriftDetection(
                 fn_list += "'" + changed[i] + "'";
             }
             std::string msg = fmt::format(
-                "Drift: {} function(s) rewritten: {}. Body hash mismatch — the function code has changed. "
-                "Structural metrics (complexity, LOC) can be gamed, but content hashes cannot.",
+                "Drift: {} function(s) rewritten: {}. Body hash mismatch — the function code has changed.\n"
+                "  Help: Restore each listed function to its EXACT original code. Content hashes (SHA-256)\n"
+                "  detect ANY modification — even whitespace or comment changes. You cannot work around\n"
+                "  this by editing drift-baseline.json (it is HMAC-signed and tamper-detected).\n"
+                "  The ONLY paths forward are: (1) restore the original code, or (2) ask the project\n"
+                "  owner with NAAB_GOVERN_KEY to re-baseline after reviewing your changes.",
                 changed.size(), fn_list);
             violations.push_back(msg);
             enforce("drift_detection.body_hash", cfg.level, msg);
@@ -2206,7 +2346,10 @@ std::string GovernanceEngine::checkDriftDetection(
             double prev_util = baseline_util.get<double>();
             if (it->second < prev_util && it->second < cfg.min_param_utilization) {
                 degraded.push_back(fn_name);
-                fprintf(stderr, "[governance] Drift: function '%s' param utilization dropped from %.0f%% to %.0f%%\n",
+                fprintf(stderr, "[governance] Drift: function '%s' param utilization dropped from %.0f%% to %.0f%%.\n"
+                        "  Each declared parameter must appear as a standalone word in the function body.\n"
+                        "  Use the parameter directly (e.g., 'print(param)') — substring matches inside\n"
+                        "  other variable names do not count.\n",
                         fn_name.c_str(), prev_util * 100.0, it->second * 100.0);
             }
         }
@@ -2214,7 +2357,10 @@ std::string GovernanceEngine::checkDriftDetection(
         for (const auto& [fn_name, util] : current.param_utilization) {
             if (!prev["param_utilization"].contains(fn_name) && util < cfg.min_param_utilization) {
                 degraded.push_back(fn_name);
-                fprintf(stderr, "[governance] Drift: new function '%s' uses only %.0f%% of its parameters\n",
+                fprintf(stderr, "[governance] Drift: new function '%s' uses only %.0f%% of its parameters.\n"
+                        "  Each declared parameter must appear as a standalone word in the function body.\n"
+                        "  The governance engine uses word-boundary matching — 'data' does not count as\n"
+                        "  using parameter 'd'. Use the parameter directly: e.g., print(param_name).\n",
                         fn_name.c_str(), util * 100.0);
             }
         }
@@ -2225,8 +2371,10 @@ std::string GovernanceEngine::checkDriftDetection(
                 fn_list += "'" + degraded[i] + "'";
             }
             std::string msg = fmt::format(
-                "Drift: {} function(s) degraded parameter utilization: {}. "
-                "Functions must reference at least {:.0f}% of declared parameters.",
+                "Drift: {} function(s) degraded parameter utilization: {}.\n"
+                "  Functions must reference at least {:.0f}% of declared parameters as standalone\n"
+                "  words in the body. Fix: use each parameter directly (e.g., 'let x = param_name').\n"
+                "  The body is extracted from the opening '{{' to the closing '}}' of the function.",
                 degraded.size(), fn_list, cfg.min_param_utilization * 100.0);
             violations.push_back(msg);
             enforce("drift_detection.param_utilization", cfg.level, msg);
@@ -2238,14 +2386,18 @@ std::string GovernanceEngine::checkDriftDetection(
     // Gate 13: Config presence — fail-closed if govern.json removed since baseline
     if (cfg.check_config_presence && prev.contains("config_present") && prev["config_present"].get<bool>()) {
         if (!current.config_present) {
-            std::string msg = "Drift: govern.json was present at baseline time but is now missing. "
-                              "Config removal is not allowed — restore govern.json to proceed.";
+            std::string msg = "Drift: govern.json was present at baseline time but is now missing.\n"
+                              "  Help: Restore govern.json to its original location. Governance config\n"
+                              "  removal is blocked. Do NOT delete govern.json — it controls project\n"
+                              "  integrity settings.";
             violations.push_back(msg);
             enforce("drift_detection.config_presence", EnforcementLevel::HARD, msg);
         } else if (prev.contains("config_hash") && !prev["config_hash"].get<std::string>().empty()) {
             if (current.config_hash != prev["config_hash"].get<std::string>()) {
-                std::string msg = "Drift: govern.json has been modified since baseline. "
-                                  "Config changes require re-baselining with NAAB_GOVERN_KEY.";
+                std::string msg = "Drift: govern.json has been modified since baseline.\n"
+                                  "  Help: Restore govern.json to its baseline state. Config changes require\n"
+                                  "  the project owner to re-baseline with NAAB_GOVERN_KEY.\n"
+                                  "  Do NOT modify govern.json without authorization.";
                 violations.push_back(msg);
                 enforce("drift_detection.config_presence", cfg.level, msg);
             } else {
@@ -2274,8 +2426,11 @@ std::string GovernanceEngine::checkDriftDetection(
     // Gate 16: Signature presence — fail-closed if .sig removed since baseline
     if (cfg.check_signature_presence && prev.contains("signature_present") && prev["signature_present"].get<bool>()) {
         if (!current.signature_present) {
-            std::string msg = "Drift: govern.json.sig was present at baseline time but is now missing. "
-                              "Signature removal is not allowed — re-sign with NAAB_GOVERN_KEY.";
+            std::string msg = "Drift: govern.json.sig was present at baseline time but is now missing.\n"
+                              "  Help: The govern.json.sig file was removed. Re-sign govern.json using:\n"
+                              "    naab-lang --sign-governance\n"
+                              "  This requires NAAB_GOVERN_KEY. Do NOT delete .sig files — they protect\n"
+                              "  config integrity.";
             violations.push_back(msg);
             enforce("drift_detection.signature_presence", EnforcementLevel::HARD, msg);
         } else {
@@ -2317,9 +2472,40 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 18: New function detection — flag functions added since baseline
+    if (cfg.check_new_functions && prev.contains("function_names") && prev["function_names"].is_array()) {
+        std::unordered_set<std::string> baseline_set;
+        for (const auto& fn : prev["function_names"])
+            baseline_set.insert(fn.get<std::string>());
+        std::vector<std::string> new_funcs;
+        for (const auto& fn : current.function_names) {
+            if (baseline_set.find(fn) == baseline_set.end())
+                new_funcs.push_back(fn);
+        }
+        if (!new_funcs.empty()) {
+            std::string fn_list;
+            for (size_t i = 0; i < new_funcs.size(); i++) {
+                if (i > 0) fn_list += ", ";
+                fn_list += "'" + new_funcs[i] + "'";
+            }
+            std::string msg = fmt::format(
+                "Drift: {} new function(s) added since baseline: {}.\n"
+                "  Help: Remove the new functions, or ask the project owner with NAAB_GOVERN_KEY\n"
+                "  to re-baseline after reviewing your additions. New functions in governed code\n"
+                "  must be explicitly authorized. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                new_funcs.size(), fn_list);
+            violations.push_back(msg);
+            enforce("drift_detection.new_functions", cfg.level, msg);
+        }
+    }
+
     if (violations.empty()) return "";
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";
+    result += "\n  To resolve: restore the governed code to match the baseline, or ask the\n"
+              "  project owner (with NAAB_GOVERN_KEY) to re-baseline after authorized changes.\n"
+              "  Do NOT attempt to edit drift-baseline.json or its .sig file — they are\n"
+              "  HMAC-signed and any tampering is detected and blocked.\n";
     return result;
 }
 

@@ -1371,6 +1371,292 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
+# =====================================================================
+# T44-T45: Gate 18 — New function detection
+# =====================================================================
+WORK_DIR_23=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g18_XXXXXX")
+trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23" EXIT
+
+cat > "$WORK_DIR_23/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "check_new_functions": true
+    }
+  }
+}
+EOF
+
+cat > "$WORK_DIR_23/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+main { print(foo() + bar()) }
+NAAB_EOF
+
+"$NAAB" --drift-baseline-save "$WORK_DIR_23/test.naab" > /dev/null 2>&1
+
+# Add a new function
+cat > "$WORK_DIR_23/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+function injected() { return 99 }
+main { print(foo() + bar() + injected()) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR_23/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "new function.*injected"; then
+  pass "T44: Gate 18 — new function 'injected' detected and blocked"
+else
+  fail "T44: expected new function detection block (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# T45: No new functions — should pass
+cat > "$WORK_DIR_23/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+main { print(foo() + bar()) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR_23/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 0 ]; then
+  pass "T45: Gate 18 — no new functions passes"
+else
+  fail "T45: expected pass when no new functions (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# =====================================================================
+# T46-T47: Gate 0 extension — Function gain detection
+# =====================================================================
+WORK_DIR_24=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g0gain_XXXXXX")
+trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24" EXIT
+
+cat > "$WORK_DIR_24/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "code_quality": {
+    "drift_detection": {
+      "enabled": true,
+      "level": "hard",
+      "max_function_gain": 0.5
+    }
+  }
+}
+EOF
+
+cat > "$WORK_DIR_24/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+main { print(foo() + bar()) }
+NAAB_EOF
+
+"$NAAB" --drift-baseline-save "$WORK_DIR_24/test.naab" > /dev/null 2>&1
+
+# Add 3 new functions (150% gain, exceeds 50% threshold)
+cat > "$WORK_DIR_24/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+function dup1() { return 3 }
+function dup2() { return 4 }
+function dup3() { return 5 }
+main { print(foo() + bar() + dup1() + dup2() + dup3()) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR_24/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "grew\|gain"; then
+  pass "T46: Gate 0 — function gain 150% detected (threshold 50%)"
+else
+  fail "T46: expected function gain block (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# T47: Small gain within threshold (1 extra = 50%, at threshold boundary)
+cat > "$WORK_DIR_24/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+main { print(foo() + bar()) }
+NAAB_EOF
+
+"$NAAB" --drift-baseline-save "$WORK_DIR_24/test.naab" > /dev/null 2>&1
+
+# Add 1 function (50% gain = at threshold, should pass since > not >=)
+cat > "$WORK_DIR_24/test.naab" << 'NAAB_EOF'
+function foo() { return 1 }
+function bar() { return 2 }
+function extra() { return 3 }
+main { print(foo() + bar() + extra()) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" "$WORK_DIR_24/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 0 ]; then
+  pass "T47: Gate 0 — function gain 50% at threshold passes"
+else
+  fail "T47: expected pass for gain at threshold (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# =====================================================================
+# T48-T49: Pre-flight blocked_flags — --no-governance and --tree-walk
+# =====================================================================
+WORK_DIR_25=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_blocked_XXXXXX")
+trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24 $WORK_DIR_25" EXIT
+
+cat > "$WORK_DIR_25/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "integrity": {
+    "blocked_flags": ["--no-governance", "--tree-walk"]
+  }
+}
+EOF
+
+cat > "$WORK_DIR_25/test.naab" << 'NAAB_EOF'
+function hello() { return "hello" }
+main { print(hello()) }
+NAAB_EOF
+
+OUTPUT=$("$NAAB" --no-governance "$WORK_DIR_25/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "INTEGRITY BLOCK.*--no-governance"; then
+  pass "T48: --no-governance blocked by integrity.blocked_flags"
+else
+  fail "T48: expected --no-governance to be blocked (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+OUTPUT=$("$NAAB" --tree-walk "$WORK_DIR_25/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "INTEGRITY BLOCK.*--tree-walk"; then
+  pass "T49: --tree-walk blocked by integrity.blocked_flags"
+else
+  fail "T49: expected --tree-walk to be blocked (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+
+# --- T50: NAAB_GOVERN_KEY blocked from env.get() (V-SC-006) ---
+WORK_DIR_26=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T50_XXXXXX")
+cat > "$WORK_DIR_26/test.naab" << 'NAAB_EOF'
+main {
+    let key = env.get("NAAB_GOVERN_KEY")
+    if key == null {
+        print("BLOCKED")
+    } else {
+        print("LEAKED")
+    }
+}
+NAAB_EOF
+cat > "$WORK_DIR_26/govern.json" << 'EOF'
+{"version":"1.0.0","project_name":"t50","mode":"enforce","code_quality":{}}
+EOF
+export NAAB_GOVERN_KEY="test-secret-key-12345"
+OUTPUT=$("$NAAB" "$WORK_DIR_26/test.naab" 2>&1)
+RC=$?
+unset NAAB_GOVERN_KEY
+if echo "$OUTPUT" | grep -q "BLOCKED"; then
+  pass "T50: env.get(\"NAAB_GOVERN_KEY\") blocked by NAAB_INTERNAL_ENV_VARS"
+else
+  fail "T50: expected BLOCKED but got: $(echo "$OUTPUT" | head -3)"
+fi
+rm -rf "$WORK_DIR_26"
+
+# --- T51: NAAB_GOVERN_KEY scrubbed from shell polyglot subprocess (V-SC-006) ---
+WORK_DIR_27=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T51_XXXXXX")
+cat > "$WORK_DIR_27/test.naab" << 'NAAB_EOF'
+main {
+    let result = <<shell
+echo "$NAAB_GOVERN_KEY"
+>>
+    if result == null || result == "" || result == "\n" {
+        print("SCRUBBED")
+    } else {
+        print("LEAKED")
+    }
+}
+NAAB_EOF
+cat > "$WORK_DIR_27/govern.json" << 'EOF'
+{"version":"1.0.0","project_name":"t51","mode":"enforce","capabilities":{"process":{"allow_spawn":true,"allowed_commands":["echo","sh"]}},"code_quality":{}}
+EOF
+export NAAB_GOVERN_KEY="test-secret-key-12345"
+OUTPUT=$("$NAAB" "$WORK_DIR_27/test.naab" 2>&1)
+RC=$?
+unset NAAB_GOVERN_KEY
+if echo "$OUTPUT" | grep -q "SCRUBBED"; then
+  pass "T51: NAAB_GOVERN_KEY scrubbed from shell polyglot subprocess"
+elif echo "$OUTPUT" | grep -q "LEAKED"; then
+  fail "T51: NAAB_GOVERN_KEY leaked to shell subprocess"
+  echo "    Output: $(echo "$OUTPUT" | head -5)"
+else
+  # Key was scrubbed (empty output), but NAAb returned null/empty differently
+  # Check that the output does NOT contain the actual key value
+  if echo "$OUTPUT" | grep -q "test-secret-key-12345"; then
+    fail "T51: NAAB_GOVERN_KEY value found in output"
+    echo "    Output: $(echo "$OUTPUT" | head -5)"
+  else
+    pass "T51: NAAB_GOVERN_KEY scrubbed from shell polyglot subprocess"
+  fi
+fi
+rm -rf "$WORK_DIR_27"
+
+# --- T52: Gate 1 violation includes Help text ---
+WORK_DIR_28=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T52_XXXXXX")
+cat > "$WORK_DIR_28/test.naab" << 'NAAB_EOF'
+function process(a, b, c, d) { return a + b + c + d }
+main { print(process(1, 2, 3, 4)) }
+NAAB_EOF
+cat > "$WORK_DIR_28/govern.json" << 'EOF'
+{"version":"1.0.0","project_name":"t52","mode":"enforce","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_signatures":true,"max_param_loss":0.3}}}
+EOF
+"$NAAB" --drift-baseline-save "$WORK_DIR_28/test.naab" > /dev/null 2>&1
+# Now gut params
+cat > "$WORK_DIR_28/test.naab" << 'NAAB_EOF'
+function process(a) { return a }
+main { print(process(1)) }
+NAAB_EOF
+OUTPUT=$("$NAAB" "$WORK_DIR_28/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -q "Help:.*Restore the removed parameters"; then
+  pass "T52: Gate 1 violation includes Help text with restore guidance"
+else
+  fail "T52: expected Help text in Gate 1 violation (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+rm -rf "$WORK_DIR_28"
+
+# --- T53: Gate 2 violation includes deleted import names ---
+WORK_DIR_29=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T53_XXXXXX")
+cat > "$WORK_DIR_29/test.naab" << 'NAAB_EOF'
+use math
+use string
+use array
+main { print(math.abs(-1)) }
+NAAB_EOF
+cat > "$WORK_DIR_29/govern.json" << 'EOF'
+{"version":"1.0.0","project_name":"t53","mode":"enforce","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_imports":true,"max_import_loss":0.0}}}
+EOF
+"$NAAB" --drift-baseline-save "$WORK_DIR_29/test.naab" > /dev/null 2>&1
+# Remove imports
+cat > "$WORK_DIR_29/test.naab" << 'NAAB_EOF'
+use math
+main { print(math.abs(-1)) }
+NAAB_EOF
+OUTPUT=$("$NAAB" "$WORK_DIR_29/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -q "Removed imports:"; then
+  pass "T53: Gate 2 violation includes deleted import names"
+else
+  fail "T53: expected deleted import names in violation (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -8)"
+fi
+rm -rf "$WORK_DIR_29"
+
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed, $FAILED failed ==="
 exit $FAILED

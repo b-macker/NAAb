@@ -295,6 +295,10 @@ static std::string runNaabGovernance(const std::string& naab_path,
     }
 
     if (pid == 0) {
+        // V-SC-006: scrub NAAb internal secrets from child environment
+        unsetenv("NAAB_GOVERN_KEY");
+        unsetenv("NAAB_LOCK_KEY");
+
         // Child: redirect stdout+stderr to pipe write end, then exec
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);

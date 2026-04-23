@@ -206,33 +206,38 @@ int execute_subprocess_with_pipes(
         cmdline += quoteArg(arg);
     }
 
-    // Build custom environment block if requested (double-null-terminated)
+    // V-SC-006: Always build a filtered environment block to scrub NAAb secrets.
+    // Even when no custom env vars are requested, we must prevent NAAB_GOVERN_KEY
+    // and NAAB_LOCK_KEY from leaking to child subprocesses.
     std::vector<char> env_block;
     LPVOID env_ptr = nullptr;
-    if (env && !env->empty()) {
-        // Start with current process environment
+    {
+        // Start with current process environment, filtering secrets
         LPCH cur_env = ::GetEnvironmentStringsA();
         if (cur_env) {
             for (LPCH p = cur_env; *p; ) {
                 std::string entry(p);
                 p += entry.size() + 1;
-                // Skip keys that we're overriding
                 size_t eq = entry.find('=');
                 if (eq != std::string::npos) {
                     std::string key = entry.substr(0, eq);
-                    if (env->count(key) == 0) {
-                        for (char c : entry) env_block.push_back(c);
-                        env_block.push_back('\0');
-                    }
+                    // Scrub NAAb internal secrets from child environment
+                    if (key == "NAAB_GOVERN_KEY" || key == "NAAB_LOCK_KEY") continue;
+                    // Skip keys that custom env overrides
+                    if (env && !env->empty() && env->count(key) > 0) continue;
+                    for (char c : entry) env_block.push_back(c);
+                    env_block.push_back('\0');
                 }
             }
             ::FreeEnvironmentStringsA(cur_env);
         }
-        // Add custom vars
-        for (const auto& pair : *env) {
-            std::string entry = pair.first + "=" + pair.second;
-            for (char c : entry) env_block.push_back(c);
-            env_block.push_back('\0');
+        // Add custom vars if any
+        if (env && !env->empty()) {
+            for (const auto& pair : *env) {
+                std::string entry = pair.first + "=" + pair.second;
+                for (char c : entry) env_block.push_back(c);
+                env_block.push_back('\0');
+            }
         }
         env_block.push_back('\0');  // Double-null terminator
         env_ptr = env_block.data();
@@ -447,6 +452,11 @@ int execute_subprocess_with_pipes(
     }
 
     if (pid == 0) {
+        // Scrub NAAb internal secrets from child environment (V-SC-006)
+        // unsetenv() only affects this child's copy after fork — parent is unaffected
+        unsetenv("NAAB_GOVERN_KEY");
+        unsetenv("NAAB_LOCK_KEY");
+
         // Child process: redirect stdout/stderr to temp files
         FILE* out = fopen(stdout_tmp.c_str(), "w");
         FILE* err = fopen(stderr_tmp.c_str(), "w");
