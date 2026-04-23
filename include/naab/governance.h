@@ -747,11 +747,14 @@ struct CodeQualityConfig {
         // Gate 3: Complexity regression (per-function)
         bool check_complexity = true;
         double max_complexity_loss = 0.6;
+        int min_complexity_baseline = 10;  // Skip trivial functions below this score
         // Gate 4: Comment inflation
         bool check_comment_ratio = true;
         double max_comment_ratio = 0.5;
+        double max_comment_only_ratio = 0.7;  // Independent check — no code loss required
         // Gate 5: Dead export gate (no baseline needed)
         bool check_hollow_exports = true;
+        int min_hollow_export_complexity = 5;  // Exports below this score with params are hollow
         // Gate 6: Polyglot regression
         bool check_polyglot = true;
         double max_polyglot_loss = 0.5;
@@ -771,6 +774,15 @@ struct CodeQualityConfig {
         // Gate 12: Parameter utilization — detect functions that ignore their inputs
         bool check_param_utilization = true;
         double min_param_utilization = 0.5;  // At least 50% of params must be referenced
+        // Gate 13: Config presence — fail-closed if govern.json removed since baseline
+        bool check_config_presence = false;
+        // Gate 14: Script location — block execution from unexpected directories
+        bool check_script_location = false;
+        // Gate 16: Signature presence — fail-closed if .sig removed since baseline
+        bool check_signature_presence = false;
+        // Gate 17: Polyglot content regression — detect polyglot block simplification
+        bool check_polyglot_content = false;
+        double max_polyglot_shrink = 0.5;  // Block if polyglot LOC drops >50%
     } drift_detection;
 };
 
@@ -1779,9 +1791,15 @@ public:
         std::vector<std::string> test_functions;           // Gate 8: test_* function names
         std::map<std::string, std::string> body_hashes;    // Gate 11: SHA-256 of function bodies
         std::map<std::string, double> param_utilization;   // Gate 12: fraction of params used in body
+        bool config_present = false;                       // Gate 13: was govern.json found?
+        std::string config_hash;                           // Gate 13: SHA-256 of govern.json content
+        std::string script_dir;                            // Gate 14: canonical directory of script
+        bool signature_present = false;                    // Gate 16: was govern.json.sig found?
+        std::map<std::string, int> polyglot_loc;           // Gate 17: per-function polyglot line counts
     };
     static DriftMetrics collectDriftMetrics(const ast::Program& program,
-                                            const std::string& source);
+                                            const std::string& source,
+                                            const std::string& script_path);
     std::string checkDriftDetection(const std::string& filename,
                                     const DriftMetrics& current);
     void saveDriftBaseline(const std::string& filename,

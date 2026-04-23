@@ -1268,7 +1268,7 @@ int main(int argc, char** argv) {
                 // Drift detection: check structural metrics against baseline
                 if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
                     auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                        *program, source);
+                        *program, source, filename);
                     std::string drift_err = vm_governance.checkDriftDetection(filename, drift_metrics);
                     if (!drift_err.empty()) {
                         fprintf(stderr, "%s", drift_err.c_str());
@@ -1279,7 +1279,7 @@ int main(int argc, char** argv) {
                 } else if (drift_baseline_save && gov_loaded) {
                     // Save baseline even if drift_detection not enabled in config
                     auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                        *program, source);
+                        *program, source, filename);
                     vm_governance.saveDriftBaseline(filename, drift_metrics);
                 }
 
@@ -1584,7 +1584,7 @@ int main(int argc, char** argv) {
                     auto* gov = interpreter.getGovernance();
                     if (gov && gov->getRules().code_quality.drift_detection.enabled) {
                         auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                            *program, source);
+                            *program, source, filename);
                         std::string drift_err = gov->checkDriftDetection(filename, drift_metrics);
                         if (!drift_err.empty()) {
                             fprintf(stderr, "%s", drift_err.c_str());
@@ -1596,7 +1596,7 @@ int main(int argc, char** argv) {
                         auto* gov2 = interpreter.getGovernance();
                         if (gov2) {
                             auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
-                                *program, source);
+                                *program, source, filename);
                             gov2->saveDriftBaseline(filename, drift_metrics);
                         }
                     }

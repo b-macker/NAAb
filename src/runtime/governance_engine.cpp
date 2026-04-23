@@ -1502,11 +1502,61 @@ static void countPolyglotBlocks(const std::string& source, int& block_count,
     }
 }
 
+// Word-boundary aware search for Gate 12 param utilization.
+// Prevents param "a" from matching inside "data", "array", etc.
+static bool containsWord(const std::string& text, const std::string& word) {
+    size_t pos = 0;
+    while ((pos = text.find(word, pos)) != std::string::npos) {
+        bool left_ok = (pos == 0 || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_'));
+        bool right_ok = (pos + word.size() >= text.size() ||
+                         (!std::isalnum(static_cast<unsigned char>(text[pos + word.size()])) && text[pos + word.size()] != '_'));
+        if (left_ok && right_ok) return true;
+        pos += word.size();
+    }
+    return false;
+}
+
 GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
-    const ast::Program& program, const std::string& source)
+    const ast::Program& program, const std::string& source,
+    const std::string& script_path)
 {
     DriftMetrics m;
     m.loc = static_cast<int>(std::count(source.begin(), source.end(), '\n')) + 1;
+
+    // Gate 14: Record script's canonical directory
+    try {
+        m.script_dir = std::filesystem::canonical(
+            std::filesystem::path(script_path).parent_path()
+        ).string();
+    } catch (...) {
+        // If canonical fails (e.g., path doesn't exist), use parent_path as-is
+        m.script_dir = std::filesystem::path(script_path).parent_path().string();
+    }
+
+    // Gate 13 + 16: Check for govern.json and .sig relative to script directory
+    {
+        namespace fs = std::filesystem;
+        fs::path dir(m.script_dir);
+        while (true) {
+            fs::path candidate = dir / "govern.json";
+            if (fs::exists(candidate)) {
+                m.config_present = true;
+                try {
+                    std::ifstream ifs(candidate.string());
+                    std::string content((std::istreambuf_iterator<char>(ifs)),
+                                        std::istreambuf_iterator<char>());
+                    m.config_hash = security::CryptoUtils::sha256(content);
+                } catch (...) {}
+                // Gate 16: check for .sig sidecar
+                fs::path sig_path = candidate.string() + ".sig";
+                m.signature_present = fs::exists(sig_path);
+                break;
+            }
+            fs::path parent = dir.parent_path();
+            if (parent == dir) break;  // reached filesystem root
+            dir = parent;
+        }
+    }
     m.has_main = program.getMainBlock() != nullptr;
     m.functions = static_cast<int>(program.getFunctions().size());
     m.exports = static_cast<int>(program.getExports().size());
@@ -1538,12 +1588,27 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                 if (!params.empty()) {
                     int used = 0;
                     for (const auto& p : params) {
-                        if (!p.name.empty() && body.find(p.name) != std::string::npos) {
+                        if (!p.name.empty() && containsWord(body, p.name)) {
                             used++;
                         }
                     }
                     m.param_utilization[fn->getName()] =
                         static_cast<double>(used) / params.size();
+                }
+                // Gate 17: polyglot LOC — count lines inside <<lang ... >> blocks
+                {
+                    int poly_lines = 0;
+                    size_t ppos = 0;
+                    while ((ppos = body.find("<<", ppos)) != std::string::npos) {
+                        if (ppos + 2 < body.size() && body[ppos + 2] == '=') { ppos += 3; continue; }
+                        size_t block_end = body.find("\n>>", ppos);
+                        if (block_end != std::string::npos) {
+                            for (size_t j = ppos; j < block_end; ++j)
+                                if (body[j] == '\n') poly_lines++;
+                            ppos = block_end + 3;
+                        } else break;
+                    }
+                    if (poly_lines > 0) m.polyglot_loc[fn->getName()] = poly_lines;
                 }
             }
         }
@@ -1582,12 +1647,27 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                         if (!params.empty()) {
                             int used = 0;
                             for (const auto& p : params) {
-                                if (!p.name.empty() && body.find(p.name) != std::string::npos)
+                                if (!p.name.empty() && containsWord(body, p.name))
                                     used++;
                             }
                             m.param_utilization[fd->getName()] =
                                 static_cast<double>(used) / params.size();
                         }
+                    }
+                    // Gate 17: polyglot LOC for exports
+                    if (m.polyglot_loc.find(fd->getName()) == m.polyglot_loc.end()) {
+                        int poly_lines = 0;
+                        size_t ppos = 0;
+                        while ((ppos = body.find("<<", ppos)) != std::string::npos) {
+                            if (ppos + 2 < body.size() && body[ppos + 2] == '=') { ppos += 3; continue; }
+                            size_t block_end = body.find("\n>>", ppos);
+                            if (block_end != std::string::npos) {
+                                for (size_t j = ppos; j < block_end; ++j)
+                                    if (body[j] == '\n') poly_lines++;
+                                ppos = block_end + 3;
+                            } else break;
+                        }
+                        if (poly_lines > 0) m.polyglot_loc[fd->getName()] = poly_lines;
                     }
                 }
             }
@@ -1783,6 +1863,24 @@ std::string GovernanceEngine::checkDriftDetection(
     // Find this file in the baseline
     std::string key = std::filesystem::path(filename).filename().string();
     if (!baseline.contains("files") || !baseline["files"].contains(key)) {
+        // Gate 10 extension: if require_baseline is true, block unbaselined files
+        // This prevents creating parallel ungoverned copies (e.g., script_v14.naab)
+        if (cfg.require_baseline) {
+            bool baseline_save_blocked = false;
+            for (const auto& bf : rules_.integrity.blocked_flags) {
+                if (bf == "--drift-baseline-save") { baseline_save_blocked = true; break; }
+            }
+            std::string advice = baseline_save_blocked
+                ? "Ask the project owner (with NAAB_GOVERN_KEY) to baseline this file."
+                : "Run with --drift-baseline-save to add it, or modify the existing baselined script.";
+            std::string msg = fmt::format(
+                "Drift: '{}' has no baseline entry. When require_baseline is enabled, "
+                "all scripts must be baselined before execution. {}",
+                key, advice);
+            fprintf(stderr, "[governance] %s\n", msg.c_str());
+            enforce("drift_detection.require_baseline", cfg.level, msg);
+            return "[governance] Drift detection FAILED:\n  " + msg + "\n";
+        }
         return "";  // New file, no baseline entry
     }
 
@@ -1892,7 +1990,7 @@ std::string GovernanceEngine::checkDriftDetection(
     if (cfg.check_complexity && prev.contains("complexity_scores") && prev["complexity_scores"].is_object()) {
         for (auto& [fn_name, baseline_score] : prev["complexity_scores"].items()) {
             int bscore = baseline_score.get<int>();
-            if (bscore < 10) continue; // skip trivial functions
+            if (bscore < cfg.min_complexity_baseline) continue; // skip trivial functions
             auto it = current.complexity_scores.find(fn_name);
             if (it == current.complexity_scores.end()) continue; // function deleted — handled elsewhere
             int cscore = it->second;
@@ -1914,8 +2012,16 @@ std::string GovernanceEngine::checkDriftDetection(
             double current_ratio = static_cast<double>(current.comment_lines) /
                                    (current.code_lines + current.comment_lines);
             double code_loss = 1.0 - (static_cast<double>(current.code_lines) / baseline_code);
-            // Both conditions must be true: high comment ratio AND code loss >30%
-            if (current_ratio > cfg.max_comment_ratio && code_loss > 0.3) {
+            // Independent check: comment ratio alone exceeds max_comment_only_ratio
+            if (current_ratio > cfg.max_comment_only_ratio) {
+                std::string msg = fmt::format(
+                    "Drift: comment ratio {:.0f}% exceeds {:.0f}% — file is predominantly comments",
+                    current_ratio * 100.0, cfg.max_comment_only_ratio * 100.0);
+                violations.push_back(msg);
+                enforce("drift_detection.comment_ratio", EnforcementLevel::ADVISORY, msg);
+            }
+            // Combined check: high comment ratio AND code loss >30%
+            else if (current_ratio > cfg.max_comment_ratio && code_loss > 0.3) {
                 std::string msg = fmt::format(
                     "Drift: comment ratio {:.0f}% (max {:.0f}%) with {:.0f}% code loss — probable logic replacement with comments",
                     current_ratio * 100.0, cfg.max_comment_ratio * 100.0, code_loss * 100.0);
@@ -1935,7 +2041,7 @@ std::string GovernanceEngine::checkDriftDetection(
             if (it != current.complexity_scores.end() && pit != current.param_counts.end()) {
                 int score = it->second;
                 int params = pit->second;
-                if (score == 0 && params > 0) {
+                if (score < cfg.min_hollow_export_complexity && params > 0) {
                     std::string msg = fmt::format(
                         "Drift: exported function '{}' has {} params but complexity score {} — hollow export",
                         exp_name, params, score);
@@ -2129,6 +2235,88 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 13: Config presence — fail-closed if govern.json removed since baseline
+    if (cfg.check_config_presence && prev.contains("config_present") && prev["config_present"].get<bool>()) {
+        if (!current.config_present) {
+            std::string msg = "Drift: govern.json was present at baseline time but is now missing. "
+                              "Config removal is not allowed — restore govern.json to proceed.";
+            violations.push_back(msg);
+            enforce("drift_detection.config_presence", EnforcementLevel::HARD, msg);
+        } else if (prev.contains("config_hash") && !prev["config_hash"].get<std::string>().empty()) {
+            if (current.config_hash != prev["config_hash"].get<std::string>()) {
+                std::string msg = "Drift: govern.json has been modified since baseline. "
+                                  "Config changes require re-baselining with NAAB_GOVERN_KEY.";
+                violations.push_back(msg);
+                enforce("drift_detection.config_presence", cfg.level, msg);
+            } else {
+                recordPass("drift_detection.config_presence", cfg.level);
+            }
+        } else {
+            recordPass("drift_detection.config_presence", cfg.level);
+        }
+    }
+
+    // Gate 14: Script location — block execution from unexpected directories
+    if (cfg.check_script_location && prev.contains("script_dir") && !prev["script_dir"].get<std::string>().empty()) {
+        std::string baseline_dir = prev["script_dir"].get<std::string>();
+        if (current.script_dir != baseline_dir) {
+            std::string msg = fmt::format(
+                "Drift: script running from '{}' but baseline expects '{}'. "
+                "Script relocation is not allowed — run from the original project directory.",
+                current.script_dir, baseline_dir);
+            violations.push_back(msg);
+            enforce("drift_detection.script_location", EnforcementLevel::HARD, msg);
+        } else {
+            recordPass("drift_detection.script_location", cfg.level);
+        }
+    }
+
+    // Gate 16: Signature presence — fail-closed if .sig removed since baseline
+    if (cfg.check_signature_presence && prev.contains("signature_present") && prev["signature_present"].get<bool>()) {
+        if (!current.signature_present) {
+            std::string msg = "Drift: govern.json.sig was present at baseline time but is now missing. "
+                              "Signature removal is not allowed — re-sign with NAAB_GOVERN_KEY.";
+            violations.push_back(msg);
+            enforce("drift_detection.signature_presence", EnforcementLevel::HARD, msg);
+        } else {
+            recordPass("drift_detection.signature_presence", cfg.level);
+        }
+    }
+
+    // Gate 17: Polyglot content regression — detect polyglot block simplification
+    if (cfg.check_polyglot_content && prev.contains("polyglot_loc") && prev["polyglot_loc"].is_object()) {
+        std::vector<std::string> shrunk;
+        for (auto& [fn_name, baseline_loc] : prev["polyglot_loc"].items()) {
+            auto it = current.polyglot_loc.find(fn_name);
+            if (it == current.polyglot_loc.end()) continue;
+            int prev_loc = baseline_loc.get<int>();
+            if (prev_loc > 0) {
+                double ratio = static_cast<double>(it->second) / prev_loc;
+                if (ratio < (1.0 - cfg.max_polyglot_shrink)) {
+                    shrunk.push_back(fn_name);
+                    fprintf(stderr, "[governance] Drift: function '%s' polyglot LOC dropped from %d to %d\n",
+                            fn_name.c_str(), prev_loc, it->second);
+                }
+            }
+        }
+        if (!shrunk.empty()) {
+            std::string fn_list;
+            for (size_t i = 0; i < shrunk.size(); i++) {
+                if (i > 0) fn_list += ", ";
+                fn_list += "'" + shrunk[i] + "'";
+            }
+            std::string msg = fmt::format(
+                "Drift: {} function(s) show polyglot block shrinkage: {}. "
+                "Polyglot code cannot shrink by more than {:.0f}% — this may indicate "
+                "real analysis was replaced with trivial stubs.",
+                shrunk.size(), fn_list, cfg.max_polyglot_shrink * 100.0);
+            violations.push_back(msg);
+            enforce("drift_detection.polyglot_content", cfg.level, msg);
+        } else {
+            recordPass("drift_detection.polyglot_content", cfg.level);
+        }
+    }
+
     if (violations.empty()) return "";
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";
@@ -2227,6 +2415,18 @@ void GovernanceEngine::saveDriftBaseline(
     entry["param_utilization"] = nlohmann::json::object();
     for (const auto& [fn, util] : metrics.param_utilization) {
         entry["param_utilization"][fn] = util;
+    }
+    // Gate 13: config presence + hash
+    entry["config_present"] = metrics.config_present;
+    entry["config_hash"] = metrics.config_hash;
+    // Gate 14: script directory
+    entry["script_dir"] = metrics.script_dir;
+    // Gate 16: signature presence
+    entry["signature_present"] = metrics.signature_present;
+    // Gate 17: polyglot LOC per function
+    entry["polyglot_loc"] = nlohmann::json::object();
+    for (const auto& [fn, loc] : metrics.polyglot_loc) {
+        entry["polyglot_loc"][fn] = loc;
     }
     baseline["files"][key] = entry;
     baseline["version"] = 2;

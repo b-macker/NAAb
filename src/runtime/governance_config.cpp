@@ -1034,11 +1034,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Gate 3: Complexity regression
             if (dd.contains("check_complexity")) rules_.code_quality.drift_detection.check_complexity = dd["check_complexity"].get<bool>();
             if (dd.contains("max_complexity_loss")) rules_.code_quality.drift_detection.max_complexity_loss = dd["max_complexity_loss"].get<double>();
+            if (dd.contains("min_complexity_baseline")) rules_.code_quality.drift_detection.min_complexity_baseline = dd["min_complexity_baseline"].get<int>();
             // Gate 4: Comment inflation
             if (dd.contains("check_comment_ratio")) rules_.code_quality.drift_detection.check_comment_ratio = dd["check_comment_ratio"].get<bool>();
             if (dd.contains("max_comment_ratio")) rules_.code_quality.drift_detection.max_comment_ratio = dd["max_comment_ratio"].get<double>();
+            if (dd.contains("max_comment_only_ratio")) rules_.code_quality.drift_detection.max_comment_only_ratio = dd["max_comment_only_ratio"].get<double>();
             // Gate 5: Dead export
             if (dd.contains("check_hollow_exports")) rules_.code_quality.drift_detection.check_hollow_exports = dd["check_hollow_exports"].get<bool>();
+            if (dd.contains("min_hollow_export_complexity")) rules_.code_quality.drift_detection.min_hollow_export_complexity = dd["min_hollow_export_complexity"].get<int>();
             // Gate 6: Polyglot regression
             if (dd.contains("check_polyglot")) rules_.code_quality.drift_detection.check_polyglot = dd["check_polyglot"].get<bool>();
             if (dd.contains("max_polyglot_loss")) rules_.code_quality.drift_detection.max_polyglot_loss = dd["max_polyglot_loss"].get<double>();
@@ -1058,6 +1061,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Gate 12: Parameter utilization
             if (dd.contains("check_param_utilization")) rules_.code_quality.drift_detection.check_param_utilization = dd["check_param_utilization"].get<bool>();
             if (dd.contains("min_param_utilization")) rules_.code_quality.drift_detection.min_param_utilization = dd["min_param_utilization"].get<double>();
+            // Gate 13: Config presence
+            if (dd.contains("check_config_presence")) rules_.code_quality.drift_detection.check_config_presence = dd["check_config_presence"].get<bool>();
+            // Gate 14: Script location
+            if (dd.contains("check_script_location")) rules_.code_quality.drift_detection.check_script_location = dd["check_script_location"].get<bool>();
+            // Gate 16: Signature presence
+            if (dd.contains("check_signature_presence")) rules_.code_quality.drift_detection.check_signature_presence = dd["check_signature_presence"].get<bool>();
+            // Gate 17: Polyglot content regression
+            if (dd.contains("check_polyglot_content")) rules_.code_quality.drift_detection.check_polyglot_content = dd["check_polyglot_content"].get<bool>();
+            if (dd.contains("max_polyglot_shrink")) rules_.code_quality.drift_detection.max_polyglot_shrink = dd["max_polyglot_shrink"].get<double>();
         }
     }
 
