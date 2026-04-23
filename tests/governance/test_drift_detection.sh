@@ -1335,7 +1335,7 @@ else
 fi
 
 # --- T43: Gate 12 — param named "a" should not match inside "data" ---
-WORK_DIR_22=$(mktemp -d "$TMPDIR/naab_drift_t43.XXXXXX")
+WORK_DIR_22=$(mktemp -d "${TMPDIR:-/tmp}/naab_drift_t43.XXXXXX")
 cp "$GOVERN_JSON" "$WORK_DIR_22/govern.json"
 cp "$GOVERN_SIG" "$WORK_DIR_22/govern.json.sig" 2>/dev/null || true
 
