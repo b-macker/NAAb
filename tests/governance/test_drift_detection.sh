@@ -737,15 +737,15 @@ fi
 "$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
 unset NAAB_GOVERN_KEY
 
-# --- T27: .sig exists but no key → runs normally (trust signed config) ---
+# --- T27: .sig exists but no key → HARD block (V-SC-007 fail-closed) ---
 # .sig still exists from T25, but key is now unset
-# verifyContentSignature() returns true without key (line 1841) — trusts signed baseline
+# V-SC-007: verifyContentSignature() now returns false when .sig exists without key
 OUTPUT=$("$NAAB" "$WORK_DIR/test.naab" 2>&1)
 RC=$?
-if [ $RC -eq 0 ]; then
-  pass "T27: missing key with .sig → runs normally"
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "INTEGRITY BLOCK"; then
+  pass "T27: missing key with .sig → correctly blocked (fail-closed)"
 else
-  fail "T27: expected successful run (rc=$RC)"
+  fail "T27: expected exit 3 with INTEGRITY BLOCK (rc=$RC)"
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 
@@ -1183,23 +1183,32 @@ cat > "$WORK_DIR_19/govern.json" << 'EOF'
 }
 EOF
 
-# Create a fake .sig file to simulate signed config
-echo "fakesig" > "$WORK_DIR_19/govern.json.sig"
+# V-SC-007: Need NAAB_GOVERN_KEY to work with signed govern.json
+export NAAB_GOVERN_KEY="test-key-t39"
 
 cat > "$WORK_DIR_19/test.naab" << 'NAAB_EOF'
 function hello() { return "world" }
 main { print(hello()) }
 NAAB_EOF
 
-# Save baseline (sig present)
+# Sign govern.json properly with the test key
+python3 -c "
+import hmac, hashlib
+with open('$WORK_DIR_19/govern.json') as f: c = f.read()
+sig = hmac.new(b'test-key-t39', c.encode(), hashlib.sha256).hexdigest()
+with open('$WORK_DIR_19/govern.json.sig', 'w') as f: f.write(sig)
+"
+
+# Save baseline (sig present, key set)
 "$NAAB" --drift-baseline-save "$WORK_DIR_19/test.naab" > /dev/null 2>&1
 
-# Remove .sig — should fail-closed
+# Remove .sig — should fail-closed (check_signature_presence)
 rm "$WORK_DIR_19/govern.json.sig"
+unset NAAB_GOVERN_KEY
 
 OUTPUT=$("$NAAB" "$WORK_DIR_19/test.naab" 2>&1)
 RC=$?
-if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "sig.*missing\|signature.*missing\|signature_presence"; then
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "sig.*missing\|signature.*missing\|signature_presence\|INTEGRITY BLOCK"; then
   pass "T39: Gate 16 — signature file removal blocks execution"
 else
   fail "T39: expected sig removal block (rc=$RC)"
@@ -1208,7 +1217,15 @@ fi
 
 # --- T40: Gate 16 — Signature present passes ---
 rm -rf "$WORK_DIR_19/.naab"
-echo "fakesig" > "$WORK_DIR_19/govern.json.sig"
+export NAAB_GOVERN_KEY="test-key-t39"
+
+# Re-sign govern.json
+python3 -c "
+import hmac, hashlib
+with open('$WORK_DIR_19/govern.json') as f: c = f.read()
+sig = hmac.new(b'test-key-t39', c.encode(), hashlib.sha256).hexdigest()
+with open('$WORK_DIR_19/govern.json.sig', 'w') as f: f.write(sig)
+"
 
 "$NAAB" --drift-baseline-save "$WORK_DIR_19/test.naab" > /dev/null 2>&1
 
@@ -1220,6 +1237,7 @@ else
   fail "T40: expected pass with sig present (rc=$RC)"
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
+unset NAAB_GOVERN_KEY
 
 # --- T41: Gate 17 — Polyglot block shrinkage blocks ---
 WORK_DIR_21=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g17_XXXXXX")

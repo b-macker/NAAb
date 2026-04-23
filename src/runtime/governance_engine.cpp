@@ -1773,16 +1773,15 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
         return true;  // Unsigned mode — backward compatible
     }
 
-    // Signature file exists but no key → trust signed config, lock all mutation
+    // V-SC-007: Signature file exists but no key → fail closed.
+    // Without the key we cannot verify the HMAC — refuse to trust the file.
     if (!have_key) {
         fprintf(stderr,
-            "[governance] NOTICE: %s is HMAC-signed and locked by the project owner.\n"
-            "  Governance rules are enforced as-is. You may run code and debug normally.\n"
-            "  However, any attempt to modify govern.json, drift baselines, or use\n"
-            "  blocked flags will be rejected. Only the project owner with NAAB_GOVERN_KEY\n"
-            "  can authorize changes to governance configuration.\n",
+            "[governance] INTEGRITY BLOCK: %s.sig exists but NAAB_GOVERN_KEY is not set.\n"
+            "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n"
+            "  Set NAAB_GOVERN_KEY to verify, or contact the project owner.\n",
             file_path.c_str());
-        return true;  // Trust the signed config — mutation blocked elsewhere
+        return false;
     }
 
     // Read file content
@@ -1837,8 +1836,14 @@ bool GovernanceEngine::verifyContentSignature(
         }
         return true;
     }
+    // V-SC-007: Signature file exists but no key → fail closed.
     if (!have_key) {
-        return true;  // Trust signed config — mutation blocked elsewhere
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: %s.sig exists but NAAB_GOVERN_KEY is not set.\n"
+            "  This baseline is HMAC-signed. Without the key, the signature cannot be verified.\n"
+            "  Set NAAB_GOVERN_KEY to verify, or contact the project owner.\n",
+            file_path.c_str());
+        return false;
     }
     // Read .sig
     std::ifstream sig_ifs(sig_path);
@@ -1915,9 +1920,15 @@ std::string GovernanceEngine::checkDriftDetection(
             for (const auto& bf : rules_.integrity.blocked_flags) {
                 if (bf == "--drift-baseline-save") { baseline_save_blocked = true; break; }
             }
-            std::string advice = baseline_save_blocked
-                ? "Ask the project owner (with NAAB_GOVERN_KEY) to baseline this file."
-                : "Run with --drift-baseline-save to add it, or modify the existing baselined script.";
+            std::string advice;
+            const char* rb_key = std::getenv(GOVERN_KEY_ENV);
+            if (rb_key && *rb_key) {
+                advice = "To baseline this file: naab-lang --drift-baseline-save " + filename;
+            } else if (baseline_save_blocked) {
+                advice = "Ask the project owner (with NAAB_GOVERN_KEY) to baseline this file.";
+            } else {
+                advice = "Run with --drift-baseline-save to add it, or modify the existing baselined script.";
+            }
             std::string msg = fmt::format(
                 "Drift: '{}' has no baseline entry. When require_baseline is enabled, "
                 "all scripts must be baselined before execution. {}",
@@ -2322,14 +2333,22 @@ std::string GovernanceEngine::checkDriftDetection(
                 if (i > 0) fn_list += ", ";
                 fn_list += "'" + changed[i] + "'";
             }
+            const char* bh_key = std::getenv(GOVERN_KEY_ENV);
+            std::string help_text;
+            if (bh_key && *bh_key) {
+                help_text = "  Help: Body hashes (SHA-256) detect ANY modification — even whitespace changes.\n"
+                            "  If these changes are intentional, re-baseline with:\n"
+                            "    naab-lang --drift-baseline-save " + filename;
+            } else {
+                help_text = "  Help: Restore each listed function to its EXACT original code. Content hashes (SHA-256)\n"
+                            "  detect ANY modification — even whitespace or comment changes. You cannot work around\n"
+                            "  this by editing drift-baseline.json (it is HMAC-signed and tamper-detected).\n"
+                            "  The ONLY paths forward are: (1) restore the original code, or (2) ask the project\n"
+                            "  owner with NAAB_GOVERN_KEY to re-baseline after reviewing your changes.";
+            }
             std::string msg = fmt::format(
-                "Drift: {} function(s) rewritten: {}. Body hash mismatch — the function code has changed.\n"
-                "  Help: Restore each listed function to its EXACT original code. Content hashes (SHA-256)\n"
-                "  detect ANY modification — even whitespace or comment changes. You cannot work around\n"
-                "  this by editing drift-baseline.json (it is HMAC-signed and tamper-detected).\n"
-                "  The ONLY paths forward are: (1) restore the original code, or (2) ask the project\n"
-                "  owner with NAAB_GOVERN_KEY to re-baseline after reviewing your changes.",
-                changed.size(), fn_list);
+                "Drift: {} function(s) rewritten: {}. Body hash mismatch — the function code has changed.\n{}",
+                changed.size(), fn_list, help_text);
             violations.push_back(msg);
             enforce("drift_detection.body_hash", cfg.level, msg);
         } else {
@@ -2394,10 +2413,18 @@ std::string GovernanceEngine::checkDriftDetection(
             enforce("drift_detection.config_presence", EnforcementLevel::HARD, msg);
         } else if (prev.contains("config_hash") && !prev["config_hash"].get<std::string>().empty()) {
             if (current.config_hash != prev["config_hash"].get<std::string>()) {
-                std::string msg = "Drift: govern.json has been modified since baseline.\n"
-                                  "  Help: Restore govern.json to its baseline state. Config changes require\n"
-                                  "  the project owner to re-baseline with NAAB_GOVERN_KEY.\n"
-                                  "  Do NOT modify govern.json without authorization.";
+                const char* cfg_key = std::getenv(GOVERN_KEY_ENV);
+                std::string cfg_help;
+                if (cfg_key && *cfg_key) {
+                    cfg_help = "  Help: govern.json was modified. To accept the new config, re-baseline with:\n"
+                               "    naab-lang --drift-baseline-save " + filename + "\n"
+                               "  Then re-sign govern.json: naab-lang --sign-governance";
+                } else {
+                    cfg_help = "  Help: Restore govern.json to its baseline state. Config changes require\n"
+                               "  the project owner to re-baseline with NAAB_GOVERN_KEY.\n"
+                               "  Do NOT modify govern.json without authorization.";
+                }
+                std::string msg = "Drift: govern.json has been modified since baseline.\n" + cfg_help;
                 violations.push_back(msg);
                 enforce("drift_detection.config_presence", cfg.level, msg);
             } else {
@@ -2502,10 +2529,20 @@ std::string GovernanceEngine::checkDriftDetection(
     if (violations.empty()) return "";
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";
-    result += "\n  To resolve: restore the governed code to match the baseline, or ask the\n"
-              "  project owner (with NAAB_GOVERN_KEY) to re-baseline after authorized changes.\n"
-              "  Do NOT attempt to edit drift-baseline.json or its .sig file — they are\n"
-              "  HMAC-signed and any tampering is detected and blocked.\n";
+
+    // Owner-aware footer: if the signing key is present, show actionable commands
+    // instead of adversary-facing "ask the project owner" language
+    const char* owner_key = std::getenv(GOVERN_KEY_ENV);
+    if (owner_key && *owner_key) {
+        result += "\n  You have NAAB_GOVERN_KEY set. To accept these changes as the new baseline:\n"
+                  "    naab-lang --drift-baseline-save " + filename + "\n"
+                  "  This will update and re-sign the drift baseline.\n";
+    } else {
+        result += "\n  To resolve: restore the governed code to match the baseline, or ask the\n"
+                  "  project owner (with NAAB_GOVERN_KEY) to re-baseline after authorized changes.\n"
+                  "  Do NOT attempt to edit drift-baseline.json or its .sig file — they are\n"
+                  "  HMAC-signed and any tampering is detected and blocked.\n";
+    }
     return result;
 }
 
