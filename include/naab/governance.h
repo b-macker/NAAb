@@ -1307,7 +1307,7 @@ struct GovernanceRules {
 
     // Integrity: HMAC signing of govern.json and drift baselines
     struct IntegrityConfig {
-        bool require_signature = false;
+        // V-SC-008: require_signature removed — NAAB_GOVERN_KEY presence is the sole authority.
         std::vector<std::string> blocked_flags;
     } integrity;
 

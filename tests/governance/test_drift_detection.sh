@@ -703,8 +703,11 @@ cat > "$WORK_DIR/govern.json" << 'EOF'
 }
 EOF
 
-# Save baseline with key (auto-signs)
+# V-SC-008: Sign govern.json first (key presence requires all .sig files)
 export NAAB_GOVERN_KEY="test-secret-key-12345"
+"$NAAB" --sign-governance "$WORK_DIR/govern.json" > /dev/null 2>&1
+
+# Save baseline with key (auto-signs)
 "$NAAB" --drift-baseline-save "$WORK_DIR/test.naab" > /dev/null 2>&1
 
 # Verify .sig was created
@@ -748,6 +751,9 @@ else
   fail "T27: expected exit 3 with INTEGRITY BLOCK (rc=$RC)"
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
+
+# V-SC-008: Remove stale .sig from T25 signing — subsequent tests are unsigned mode
+rm -f "$WORK_DIR/govern.json.sig"
 
 # --- T28: Unsigned mode (no key, no sig) still works ---
 rm -rf "$WORK_DIR/.naab"
@@ -1592,7 +1598,9 @@ NAAB_EOF
 cat > "$WORK_DIR_26/govern.json" << 'EOF'
 {"version":"1.0.0","project_name":"t50","mode":"enforce","code_quality":{}}
 EOF
+# V-SC-008: Must sign govern.json when key is set
 export NAAB_GOVERN_KEY="test-secret-key-12345"
+"$NAAB" --sign-governance "$WORK_DIR_26/govern.json" > /dev/null 2>&1
 OUTPUT=$("$NAAB" "$WORK_DIR_26/test.naab" 2>&1)
 RC=$?
 unset NAAB_GOVERN_KEY
@@ -1620,7 +1628,9 @@ NAAB_EOF
 cat > "$WORK_DIR_27/govern.json" << 'EOF'
 {"version":"1.0.0","project_name":"t51","mode":"enforce","capabilities":{"process":{"allow_spawn":true,"allowed_commands":["echo","sh"]}},"code_quality":{}}
 EOF
+# V-SC-008: Must sign govern.json when key is set
 export NAAB_GOVERN_KEY="test-secret-key-12345"
+"$NAAB" --sign-governance "$WORK_DIR_27/govern.json" > /dev/null 2>&1
 OUTPUT=$("$NAAB" "$WORK_DIR_27/test.naab" 2>&1)
 RC=$?
 unset NAAB_GOVERN_KEY

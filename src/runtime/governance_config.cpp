@@ -1080,7 +1080,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Integrity config
     if (j.contains("integrity") && j["integrity"].is_object()) {
         auto& ic = j["integrity"];
-        if (ic.contains("require_signature")) rules_.integrity.require_signature = ic["require_signature"].get<bool>();
+        // V-SC-008: require_signature removed — NAAB_GOVERN_KEY presence is the sole authority.
+        // The field is silently ignored if present in govern.json for backward compatibility.
         if (ic.contains("blocked_flags") && ic["blocked_flags"].is_array()) {
             for (auto& f : ic["blocked_flags"]) {
                 rules_.integrity.blocked_flags.push_back(f.get<std::string>());

@@ -39,7 +39,6 @@
         " chairman": "Governing_Body"
     },
     "provenance": {
-        "track_identity": true,
-        "require_signature": false
+        "track_identity": true
     }
 }

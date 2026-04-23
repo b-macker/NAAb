@@ -1758,19 +1758,19 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
     const char* key = std::getenv(GOVERN_KEY_ENV);
     bool have_key = key && *key;
 
-    // No signature file → check if signature is required
+    // V-SC-008: No signature file — key presence controls whether signatures are required.
+    // This removes the circular dependency where govern.json's require_signature controlled
+    // its own protection. The environment variable is the sole trust anchor.
     if (!sig_exists) {
-        if (rules_.integrity.require_signature) {
+        if (have_key) {
             fprintf(stderr,
-                "[governance] INTEGRITY BLOCK: Signature required but missing for %s\n"
-                "  This file is protected by HMAC signing. Only a human with the signing key\n"
-                "  can authorize changes. This is by design — do not attempt to work around it.\n"
-                "  The project owner must run: naab-lang --sign-governance (or --sign-baseline)\n"
-                "  with NAAB_GOVERN_KEY set to update this file.\n",
+                "[governance] INTEGRITY BLOCK: %s.sig missing but NAAB_GOVERN_KEY is set.\n"
+                "  When the signing key is present, all governance files must be signed.\n"
+                "  Sign with: naab-lang --sign-governance (or --sign-baseline)\n",
                 file_path.c_str());
             return false;
         }
-        return true;  // Unsigned mode — backward compatible
+        return true;  // Unsigned mode — no key, no sig, backward compatible
     }
 
     // V-SC-007: Signature file exists but no key → fail closed.
@@ -1825,12 +1825,13 @@ bool GovernanceEngine::verifyContentSignature(
     const char* key = std::getenv(GOVERN_KEY_ENV);
     bool have_key = key && *key;
 
+    // V-SC-008: Key presence controls signature requirement (same as verifyFileSignature)
     if (!sig_exists) {
-        if (rules_.integrity.require_signature) {
+        if (have_key) {
             fprintf(stderr,
-                "[governance] INTEGRITY BLOCK: Signature required but missing for %s\n"
-                "  This file is protected by HMAC signing. Only a human with the signing key\n"
-                "  can authorize changes.\n",
+                "[governance] INTEGRITY BLOCK: %s.sig missing but NAAB_GOVERN_KEY is set.\n"
+                "  When the signing key is present, all governance files must be signed.\n"
+                "  Sign with: naab-lang --sign-baseline\n",
                 file_path.c_str());
             return false;
         }
