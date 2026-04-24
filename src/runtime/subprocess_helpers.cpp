@@ -222,7 +222,7 @@ int execute_subprocess_with_pipes(
                 if (eq != std::string::npos) {
                     std::string key = entry.substr(0, eq);
                     // Scrub NAAb internal secrets from child environment
-                    if (key == "NAAB_GOVERN_KEY" || key == "NAAB_LOCK_KEY") continue;
+                    if (key == "NAAB_GOVERN_KEY" || key == "NAAB_LOCK_KEY" || key == "NAAB_SIGNING_KEY") continue;
                     // Skip keys that custom env overrides
                     if (env && !env->empty() && env->count(key) > 0) continue;
                     for (char c : entry) env_block.push_back(c);
@@ -456,6 +456,7 @@ int execute_subprocess_with_pipes(
         // unsetenv() only affects this child's copy after fork — parent is unaffected
         unsetenv("NAAB_GOVERN_KEY");
         unsetenv("NAAB_LOCK_KEY");
+        unsetenv("NAAB_SIGNING_KEY");
 
         // Child process: redirect stdout/stderr to temp files
         FILE* out = fopen(stdout_tmp.c_str(), "w");

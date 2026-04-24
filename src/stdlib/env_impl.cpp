@@ -31,6 +31,7 @@ namespace stdlib {
 static const std::unordered_set<std::string> NAAB_INTERNAL_ENV_VARS = {
     "NAAB_LOCK_KEY",
     "NAAB_GOVERN_KEY",
+    "NAAB_SIGNING_KEY",   // V-SC-009: Ed25519 private key path
 };
 
 // V-RCE-001: Variables that can hijack loader/runtime behavior in polyglot subprocesses.

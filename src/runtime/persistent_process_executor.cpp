@@ -83,6 +83,7 @@ bool PersistentProcessExecutor::start() {
         // V-SC-006: Scrub NAAb internal secrets from child environment
         unsetenv("NAAB_GOVERN_KEY");
         unsetenv("NAAB_LOCK_KEY");
+        unsetenv("NAAB_SIGNING_KEY");
 
         // Close unused pipe ends
         close(stdin_pipe[1]);   // Parent's write end

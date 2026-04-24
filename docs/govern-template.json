@@ -632,9 +632,8 @@
     }
   },
 
-  "_comment_integrity": "HMAC signing of govern.json and drift baselines. Set NAAB_GOVERN_KEY env var to enable. blocked_flags prevents LLMs from using dangerous CLI flags.",
+  "_comment_integrity": "Ed25519 signing of govern.json and drift baselines. Run naab-lang --keygen to generate keys. Set NAAB_SIGNING_KEY env var to sign. blocked_flags prevents LLMs from using dangerous CLI flags.",
   "integrity": {
-    "require_signature": false,
     "blocked_flags": ["--drift-baseline-save", "--governance-override"]
   },
 

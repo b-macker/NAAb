@@ -55,6 +55,9 @@
 #include "naab/limits.h"
 #include "naab/stdlib.h"  // For setPipeMode()
 #include "naab/governance.h"  // For governance report CLI flags
+#include "naab/crypto_utils.h"   // V-SC-009: Ed25519 keygen
+#include "naab/trust_store.h"    // V-SC-009: Trust store management
+#include "naab/secure_file.h"    // V-SC-009: Secure file writes
 #include "naab/scanner.h"    // For --scan command
 #include "naab/lockfile.h"   // For --lock / --lock-check flags (Phase 8.4)
 #include "governance_init.h"  // For naab-lang init --governance
@@ -451,8 +454,81 @@ int main(int argc, char** argv) {
             // V-LSP-005: parse + governance pre-flight without executing user code
             global_lint_only = true;
             command_arg_index++;
+        } else if (arg == "--signing-key" && command_arg_index + 1 < argc) {
+            // V-SC-009: Override NAAB_SIGNING_KEY for this invocation
+            setenv("NAAB_SIGNING_KEY", argv[++command_arg_index], 1);
+            command_arg_index++;
+        } else if (arg == "--keygen") {
+            // V-SC-009: Generate Ed25519 keypair and install public key to trust store
+            std::string private_pem, public_pem;
+            if (!naab::security::CryptoUtils::ed25519Keygen(private_pem, public_pem)) {
+                fprintf(stderr, "Error: Ed25519 key generation failed\n");
+                return 1;
+            }
+            // Determine output path for private key
+            std::string priv_path = "naab-signing-key.pem";
+            if (command_arg_index + 1 < argc && argv[command_arg_index + 1][0] != '-') {
+                priv_path = argv[++command_arg_index];
+            }
+            // Write private key — born with 0600 permissions (no world-readable window)
+            if (!naab::security::writeFileSecure(priv_path, private_pem)) {
+                fprintf(stderr, "Error: Failed to write private key to %s\n", priv_path.c_str());
+                return 1;
+            }
+            chmod(priv_path.c_str(), 0600);
+
+            // Install public key to trust store
+            if (!naab::security::TrustStore::installKey(public_pem)) {
+                fprintf(stderr, "Error: Failed to install public key to trust store\n");
+                return 1;
+            }
+            std::string fp = naab::security::CryptoUtils::ed25519Fingerprint(public_pem);
+            fprintf(stderr, "Ed25519 keypair generated:\n"
+                            "  Private key: %s (keep secret — never commit!)\n"
+                            "  Public key:  %s/%s.pub\n"
+                            "  Fingerprint: %s\n\n"
+                            "To sign governance files:\n"
+                            "  export NAAB_SIGNING_KEY=%s\n"
+                            "  naab-lang --sign-governance\n",
+                    priv_path.c_str(),
+                    naab::security::TrustStore::getStorePath().c_str(),
+                    fp.c_str(), fp.c_str(), priv_path.c_str());
+            return 0;
+        } else if (arg == "--trust-key" && command_arg_index + 1 < argc) {
+            // V-SC-009: Install a public key PEM into the trust store
+            std::string pub_path = argv[++command_arg_index];
+            std::ifstream pf(pub_path);
+            if (!pf.is_open()) {
+                fprintf(stderr, "Error: Cannot read public key file: %s\n", pub_path.c_str());
+                return 1;
+            }
+            std::string pub_pem((std::istreambuf_iterator<char>(pf)),
+                                 std::istreambuf_iterator<char>());
+            pf.close();
+            if (!naab::security::TrustStore::installKey(pub_pem)) {
+                fprintf(stderr, "Error: Failed to install key (invalid PEM or I/O error)\n");
+                return 1;
+            }
+            std::string fp = naab::security::CryptoUtils::ed25519Fingerprint(pub_pem);
+            fprintf(stderr, "Trusted key installed: %s (fingerprint: %s)\n",
+                    pub_path.c_str(), fp.c_str());
+            return 0;
+        } else if (arg == "--list-keys") {
+            // V-SC-009: List installed trusted keys
+            auto fingerprints = naab::security::TrustStore::listKeyFingerprints();
+            if (fingerprints.empty()) {
+                fprintf(stderr, "No trusted keys installed. Trust store: %s\n",
+                        naab::security::TrustStore::getStorePath().c_str());
+            } else {
+                fprintf(stdout, "Trusted keys in %s:\n",
+                        naab::security::TrustStore::getStorePath().c_str());
+                for (const auto& fp : fingerprints) {
+                    fprintf(stdout, "  %s\n", fp.c_str());
+                }
+            }
+            return 0;
         } else if (arg == "--sign-governance") {
-            // Sign govern.json with NAAB_GOVERN_KEY
+            // Sign govern.json (Ed25519 via NAAB_SIGNING_KEY, or legacy HMAC via NAAB_GOVERN_KEY)
             naab::governance::GovernanceEngine gov;
             std::string gov_path;
             if (command_arg_index + 1 < argc && argv[command_arg_index + 1][0] != '-') {
@@ -468,7 +544,7 @@ int main(int argc, char** argv) {
             }
             return naab::governance::GovernanceEngine::signFile(gov_path) ? 0 : 1;
         } else if (arg == "--sign-baseline") {
-            // Sign drift baseline with NAAB_GOVERN_KEY
+            // Sign drift baseline (Ed25519 via NAAB_SIGNING_KEY, or legacy HMAC via NAAB_GOVERN_KEY)
             naab::governance::GovernanceEngine gov;
             gov.discoverAndLoad(".");
             std::string bp = gov.resolveDriftBaselinePath();
@@ -857,8 +933,9 @@ int main(int argc, char** argv) {
 
             if (pf_loaded && preflight_gov.isActive()) {
                 const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
-                bool _has_govern_key = _govern_key && *_govern_key;
-                if (!_has_govern_key) {
+                const char* _signing_key = std::getenv("NAAB_SIGNING_KEY");
+                bool _has_authority = (_govern_key && *_govern_key) || (_signing_key && *_signing_key);
+                if (!_has_authority) {
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && preflight_gov.isBlockedFlag(flag)) {
                             fprintf(stderr,
@@ -1279,16 +1356,17 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // Integrity: check for blocked CLI flags (bypassed when NAAB_GOVERN_KEY is set — authorized user)
+                // Integrity: check for blocked CLI flags (bypassed when signing key is set — authorized user)
                 const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
-                bool _has_govern_key = _govern_key && *_govern_key;
-                if (gov_loaded && vm_governance.isActive() && !_has_govern_key) {
+                const char* _signing_key2 = std::getenv("NAAB_SIGNING_KEY");
+                bool _has_authority2 = (_govern_key && *_govern_key) || (_signing_key2 && *_signing_key2);
+                if (gov_loaded && vm_governance.isActive() && !_has_authority2) {
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && vm_governance.isBlockedFlag(flag)) {
                             fprintf(stderr,
                                 "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
                                 "  This flag is listed in integrity.blocked_flags in govern.json. Only the\n"
-                                "  project owner with NAAB_GOVERN_KEY can use this flag. This is by design.\n"
+                                "  project owner with a signing key can use this flag. This is by design.\n"
                                 "  Continue working within the existing governance rules.\n",
                                 flag.c_str());
                             naab::governance::g_governance_hard_block = true;

@@ -391,6 +391,7 @@ add_library(naab_security
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety
     src/runtime/ffi_async_callback.cpp       # Phase 1 Item 10: FFI async callback safety
     src/runtime/error_sanitizer.cpp          # V-ERR-002: error message redaction (wired R11)
+    src/runtime/trust_store.cpp              # V-SC-009: Ed25519 trust store for governance signing
 )
 target_include_directories(naab_security PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include

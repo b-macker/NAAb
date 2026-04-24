@@ -8,6 +8,7 @@
 
 #include "naab/governance.h"
 #include "naab/crypto_utils.h"
+#include "naab/trust_store.h"
 #include "naab/secure_file.h"
 #include "naab/ast.h"
 #include "naab/language_registry.h"
@@ -24,6 +25,7 @@
 #include <functional>
 #ifndef _WIN32
 #  include <sys/file.h>
+#  include <sys/stat.h>
 #endif
 #include <fmt/core.h>
 
@@ -1713,12 +1715,60 @@ std::string GovernanceEngine::resolveDriftBaselinePath() const {
     return bp;
 }
 
-// --- Integrity: HMAC signature verification ---
+// --- Integrity: signature verification (V-SC-009: Ed25519 + legacy HMAC) ---
 
 static const char* GOVERN_KEY_ENV = "NAAB_GOVERN_KEY";
+static const char* SIGNING_KEY_ENV = "NAAB_SIGNING_KEY";
 static const char* FINGERPRINT_DOMAIN = "NAAB_FINGERPRINT";
+static const char* SIG_PREFIX_ED25519 = "ed25519:";
+static const char* SIG_PREFIX_HMAC = "hmac:";
+
+// Detect signature type from .sig file content
+static std::string detectSignatureType(const std::string& sig) {
+    if (sig.rfind(SIG_PREFIX_ED25519, 0) == 0) return "ed25519";
+    if (sig.rfind(SIG_PREFIX_HMAC, 0) == 0) return "hmac";
+    return "legacy";  // raw hex, assume HMAC (backward compat)
+}
+
+// Trust store check. Cached per-process — safe because --keygen/--trust-key
+// always exit(0) immediately, so the cache is never stale during a run.
+static bool hasTrustStoreKeys() {
+    static int cached = -1;
+    if (cached < 0) cached = security::TrustStore::hasKeys() ? 1 : 0;
+    return cached == 1;
+}
+
+// Does the process have any signing capability?
+static bool hasSigningCapability() {
+    const char* sk = std::getenv(SIGNING_KEY_ENV);
+    if (sk && *sk) return true;
+    const char* gk = std::getenv(GOVERN_KEY_ENV);
+    return gk && *gk;
+}
+
+// Read private key PEM from NAAB_SIGNING_KEY path
+// Bounded read: Ed25519 PEM keys are <500 bytes; cap at 8KB to reject FIFOs/devices.
+static std::string readSigningKey() {
+    const char* sk_path = std::getenv(SIGNING_KEY_ENV);
+    if (!sk_path || !*sk_path) return "";
+    // Reject non-regular files (FIFOs, /dev/zero, etc.)
+    struct stat st;
+    if (lstat(sk_path, &st) != 0 || !S_ISREG(st.st_mode)) return "";
+    if (st.st_size > 8192) return "";  // Ed25519 PEM is <500 bytes
+    std::ifstream ifs(sk_path);
+    if (!ifs.is_open()) return "";
+    std::string pem((std::istreambuf_iterator<char>(ifs)),
+                     std::istreambuf_iterator<char>());
+    return pem;
+}
 
 std::string GovernanceEngine::getKeyFingerprint() {
+    // Ed25519 mode: fingerprint from NAAB_SIGNING_KEY
+    std::string sk_pem = readSigningKey();
+    if (!sk_pem.empty()) {
+        return security::CryptoUtils::ed25519Fingerprint(sk_pem);
+    }
+    // Legacy HMAC mode
     const char* key = std::getenv(GOVERN_KEY_ENV);
     if (!key || !*key) return "";
     std::string hmac = security::CryptoUtils::hmacSha256(FINGERPRINT_DOMAIN, key);
@@ -1726,12 +1776,7 @@ std::string GovernanceEngine::getKeyFingerprint() {
 }
 
 bool GovernanceEngine::signFile(const std::string& file_path) {
-    const char* key = std::getenv(GOVERN_KEY_ENV);
-    if (!key || !*key) {
-        fprintf(stderr, "[governance] Error: %s not set — cannot sign %s\n",
-                GOVERN_KEY_ENV, file_path.c_str());
-        return false;
-    }
+    // Read file content
     std::ifstream ifs(file_path);
     if (!ifs.is_open()) {
         fprintf(stderr, "[governance] Error: cannot read %s for signing\n", file_path.c_str());
@@ -1741,9 +1786,36 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
                          std::istreambuf_iterator<char>());
     ifs.close();
 
-    std::string sig = security::CryptoUtils::hmacSha256(content, key);
+    std::string sig_content;
+
+    // Try Ed25519 first (NAAB_SIGNING_KEY)
+    std::string sk_pem = readSigningKey();
+    if (!sk_pem.empty()) {
+        std::string b64_sig = security::CryptoUtils::ed25519Sign(content, sk_pem);
+        if (b64_sig.empty()) {
+            fprintf(stderr, "[governance] Error: Ed25519 signing failed for %s\n"
+                            "  Check that NAAB_SIGNING_KEY points to a valid Ed25519 private key PEM.\n",
+                    file_path.c_str());
+            return false;
+        }
+        sig_content = std::string(SIG_PREFIX_ED25519) + b64_sig;
+    } else {
+        // Legacy HMAC fallback
+        const char* key = std::getenv(GOVERN_KEY_ENV);
+        if (!key || !*key) {
+            fprintf(stderr, "[governance] Error: No signing key set — cannot sign %s\n"
+                            "  Set NAAB_SIGNING_KEY (Ed25519, recommended) or NAAB_GOVERN_KEY (legacy HMAC).\n"
+                            "  Generate keys with: naab-lang --keygen\n",
+                    file_path.c_str());
+            return false;
+        }
+        fprintf(stderr, "[governance] WARNING: Using legacy HMAC signing (deprecated).\n"
+                        "  Migrate to Ed25519: naab-lang --keygen\n");
+        sig_content = std::string(SIG_PREFIX_HMAC) + security::CryptoUtils::hmacSha256(content, key);
+    }
+
     std::string sig_path = file_path + ".sig";
-    if (!security::writeFileSecure(sig_path, sig)) {
+    if (!security::writeFileSecure(sig_path, sig_content)) {
         fprintf(stderr, "[governance] Error: failed to write signature %s\n", sig_path.c_str());
         return false;
     }
@@ -1752,17 +1824,33 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
     return true;
 }
 
-bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
+// V-SC-009: Unified signature verification (Ed25519 trust-anchored + HMAC legacy)
+bool GovernanceEngine::verifySignatureImpl(
+    const std::string& file_path, const std::string& content) const
+{
     std::string sig_path = file_path + ".sig";
-    bool sig_exists = std::filesystem::exists(sig_path);
-    const char* key = std::getenv(GOVERN_KEY_ENV);
-    bool have_key = key && *key;
+    bool have_trust_keys = hasTrustStoreKeys();
+    const char* hmac_key = std::getenv(GOVERN_KEY_ENV);
+    bool have_hmac_key = hmac_key && *hmac_key;
 
-    // V-SC-008: No signature file — key presence controls whether signatures are required.
-    // This removes the circular dependency where govern.json's require_signature controlled
-    // its own protection. The environment variable is the sole trust anchor.
+    // Open .sig directly to avoid TOCTOU race between exists() and open()
+    std::ifstream sig_ifs(sig_path);
+    bool sig_exists = sig_ifs.is_open();
+
+    // --- No .sig file ---
     if (!sig_exists) {
-        if (have_key) {
+        // Trust store has keys → BLOCK (core V-SC-009 security fix)
+        if (have_trust_keys) {
+            fprintf(stderr,
+                "[governance] INTEGRITY BLOCK: %s.sig missing but trusted Ed25519 keys are installed.\n"
+                "  When trusted keys exist in %s,\n"
+                "  all governance files must be signed.\n"
+                "  Sign with: naab-lang --sign-governance (or --sign-baseline)\n",
+                file_path.c_str(), security::TrustStore::getStorePath().c_str());
+            return false;
+        }
+        // V-SC-008 legacy: HMAC key set → BLOCK
+        if (have_hmac_key) {
             fprintf(stderr,
                 "[governance] INTEGRITY BLOCK: %s.sig missing but NAAB_GOVERN_KEY is set.\n"
                 "  When the signing key is present, all governance files must be signed.\n"
@@ -1770,12 +1858,64 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
                 file_path.c_str());
             return false;
         }
-        return true;  // Unsigned mode — no key, no sig, backward compatible
+        // No keys anywhere → unsigned mode (backward compat)
+        return true;
     }
 
-    // V-SC-007: Signature file exists but no key → fail closed.
-    // Without the key we cannot verify the HMAC — refuse to trust the file.
-    if (!have_key) {
+    // --- .sig exists: read and classify (capped at 4KB — Ed25519 sigs are ~96 bytes) ---
+    std::string stored_sig;
+    stored_sig.reserve(256);
+    char buf[4096];
+    sig_ifs.read(buf, sizeof(buf));
+    auto bytes_read = sig_ifs.gcount();
+    if (bytes_read <= 0) { sig_ifs.close(); return false; }
+    stored_sig.assign(buf, static_cast<size_t>(bytes_read));
+    sig_ifs.close();
+    while (!stored_sig.empty() && (stored_sig.back() == '\n' || stored_sig.back() == '\r'))
+        stored_sig.pop_back();
+
+    std::string sig_type = detectSignatureType(stored_sig);
+
+    if (sig_type == "ed25519") {
+        std::string b64_sig = stored_sig.substr(strlen(SIG_PREFIX_ED25519));
+
+        if (have_trust_keys) {
+            // Verify against each trusted key
+            auto keys = security::TrustStore::loadKeys();
+            for (const auto& [fingerprint, pem] : keys) {
+                if (security::CryptoUtils::ed25519Verify(content, b64_sig, pem)) {
+                    return true;  // Verified against a trusted key
+                }
+            }
+            fprintf(stderr,
+                "[governance] INTEGRITY BLOCK: %s signature does not match any trusted key.\n"
+                "  The Ed25519 signature was checked against %zu trusted key(s) — none matched.\n"
+                "  This file may have been signed with an untrusted key or tampered with.\n",
+                file_path.c_str(), keys.size());
+            return false;
+        }
+
+        // Ed25519 sig but no trust store keys → WARN, proceed unsigned
+        fprintf(stderr,
+            "[governance] WARNING: %s is Ed25519-signed but no trusted keys installed.\n"
+            "  Cannot verify signature. Install the public key: naab-lang --trust-key <pubkey.pem>\n",
+            file_path.c_str());
+        return true;
+    }
+
+    // HMAC signature (tagged or legacy)
+    if (have_trust_keys) {
+        // Trust store has Ed25519 keys but sig is HMAC → must re-sign
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: %s has legacy HMAC signature but Ed25519 trusted keys are installed.\n"
+            "  Re-sign with Ed25519: export NAAB_SIGNING_KEY=<path-to-private-key> && naab-lang --sign-governance\n",
+            file_path.c_str());
+        return false;
+    }
+
+    // Legacy HMAC verification (no trust store)
+    if (!have_hmac_key) {
+        // V-SC-007: .sig exists but no HMAC key → fail closed
         fprintf(stderr,
             "[governance] INTEGRITY BLOCK: %s.sig exists but NAAB_GOVERN_KEY is not set.\n"
             "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n"
@@ -1784,26 +1924,12 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
         return false;
     }
 
-    // Read file content
-    std::ifstream ifs(file_path);
-    if (!ifs.is_open()) return false;
-    std::string content((std::istreambuf_iterator<char>(ifs)),
-                         std::istreambuf_iterator<char>());
-    ifs.close();
+    std::string raw_sig = (sig_type == "hmac")
+        ? stored_sig.substr(strlen(SIG_PREFIX_HMAC))
+        : stored_sig;  // legacy: raw hex
 
-    // Read stored signature
-    std::ifstream sig_ifs(sig_path);
-    if (!sig_ifs.is_open()) return false;
-    std::string stored_sig((std::istreambuf_iterator<char>(sig_ifs)),
-                            std::istreambuf_iterator<char>());
-    sig_ifs.close();
-    // Trim whitespace from stored sig
-    while (!stored_sig.empty() && (stored_sig.back() == '\n' || stored_sig.back() == '\r'))
-        stored_sig.pop_back();
-
-    // Compute expected HMAC and compare
-    std::string expected = security::CryptoUtils::hmacSha256(content, key);
-    if (!security::CryptoUtils::constantTimeCompare(expected, stored_sig)) {
+    std::string expected = security::CryptoUtils::hmacSha256(content, hmac_key);
+    if (!security::CryptoUtils::constantTimeCompare(expected, raw_sig)) {
         fprintf(stderr,
             "[governance] INTEGRITY BLOCK: %s has been modified since it was signed.\n"
             "  The HMAC signature does not match the file contents. This file is protected —\n"
@@ -1817,53 +1943,19 @@ bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
     return true;
 }
 
+bool GovernanceEngine::verifyFileSignature(const std::string& file_path) const {
+    std::ifstream ifs(file_path);
+    if (!ifs.is_open()) return false;
+    std::string content((std::istreambuf_iterator<char>(ifs)),
+                         std::istreambuf_iterator<char>());
+    ifs.close();
+    return verifySignatureImpl(file_path, content);
+}
+
 bool GovernanceEngine::verifyContentSignature(
     const std::string& file_path, const std::string& content) const
 {
-    std::string sig_path = file_path + ".sig";
-    bool sig_exists = std::filesystem::exists(sig_path);
-    const char* key = std::getenv(GOVERN_KEY_ENV);
-    bool have_key = key && *key;
-
-    // V-SC-008: Key presence controls signature requirement (same as verifyFileSignature)
-    if (!sig_exists) {
-        if (have_key) {
-            fprintf(stderr,
-                "[governance] INTEGRITY BLOCK: %s.sig missing but NAAB_GOVERN_KEY is set.\n"
-                "  When the signing key is present, all governance files must be signed.\n"
-                "  Sign with: naab-lang --sign-baseline\n",
-                file_path.c_str());
-            return false;
-        }
-        return true;
-    }
-    // V-SC-007: Signature file exists but no key → fail closed.
-    if (!have_key) {
-        fprintf(stderr,
-            "[governance] INTEGRITY BLOCK: %s.sig exists but NAAB_GOVERN_KEY is not set.\n"
-            "  This baseline is HMAC-signed. Without the key, the signature cannot be verified.\n"
-            "  Set NAAB_GOVERN_KEY to verify, or contact the project owner.\n",
-            file_path.c_str());
-        return false;
-    }
-    // Read .sig
-    std::ifstream sig_ifs(sig_path);
-    if (!sig_ifs.is_open()) return false;
-    std::string stored_sig((std::istreambuf_iterator<char>(sig_ifs)),
-                            std::istreambuf_iterator<char>());
-    sig_ifs.close();
-    while (!stored_sig.empty() && (stored_sig.back() == '\n' || stored_sig.back() == '\r'))
-        stored_sig.pop_back();
-
-    std::string expected = security::CryptoUtils::hmacSha256(content, key);
-    if (!security::CryptoUtils::constantTimeCompare(expected, stored_sig)) {
-        fprintf(stderr,
-            "[governance] INTEGRITY BLOCK: %s has been modified since it was signed.\n"
-            "  The HMAC signature does not match the file contents.\n",
-            file_path.c_str());
-        return false;
-    }
-    return true;
+    return verifySignatureImpl(file_path, content);
 }
 
 bool GovernanceEngine::isBlockedFlag(const std::string& flag) const {
@@ -1922,11 +2014,10 @@ std::string GovernanceEngine::checkDriftDetection(
                 if (bf == "--drift-baseline-save") { baseline_save_blocked = true; break; }
             }
             std::string advice;
-            const char* rb_key = std::getenv(GOVERN_KEY_ENV);
-            if (rb_key && *rb_key) {
+            if (hasSigningCapability()) {
                 advice = "To baseline this file: naab-lang --drift-baseline-save " + filename;
             } else if (baseline_save_blocked) {
-                advice = "Ask the project owner (with NAAB_GOVERN_KEY) to baseline this file.";
+                advice = "Ask the project owner (with NAAB_SIGNING_KEY or NAAB_GOVERN_KEY) to baseline this file.";
             } else {
                 advice = "Run with --drift-baseline-save to add it, or modify the existing baselined script.";
             }
@@ -1955,8 +2046,8 @@ std::string GovernanceEngine::checkDriftDetection(
             std::string msg = fmt::format(
                 "Drift: {} dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
                 "  Help: Restore the removed {} to match the baseline. Do NOT attempt to\n"
-                "  edit drift-baseline.json manually — it is HMAC-signed and tamper-detected.\n"
-                "  Only the project owner with NAAB_GOVERN_KEY can re-baseline after authorized changes.",
+                "  edit drift-baseline.json manually — it is signed and tamper-detected.\n"
+                "  Only the project owner (with signing key) can re-baseline after authorized changes.",
                 name, loss * 100.0, baseline_val, current_val, max_loss * 100.0, name);
             violations.push_back(msg);
             enforce(std::string("drift_detection.") + name, cfg.level, msg);
@@ -1982,7 +2073,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 "Drift: {} count grew {:.0f}% ({} -> {}). Max allowed gain: {:.0f}%\n"
                 "  Help: Remove the extra functions you added. The baseline expects {} {}.\n"
                 "  Adding new functions to governed code requires re-baselining by the project owner.\n"
-                "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                "  Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                 name, gain * 100.0, baseline_val, current_val, max_gain * 100.0,
                 baseline_val, name);
             violations.push_back(msg);
@@ -2031,7 +2122,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "Drift: function '{}' params dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
                     "  Help: Restore the removed parameters to function '{}'. The baseline recorded\n"
                     "  {} params but only {} remain. Do NOT remove function parameters from governed\n"
-                    "  code without re-baselining. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  code without re-baselining. Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     fn_name, loss * 100.0, bcount, ccount, cfg.max_param_loss * 100.0,
                     fn_name, bcount, ccount);
                 violations.push_back(msg);
@@ -2069,7 +2160,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "  Removed imports: {}\n"
                     "  Help: Re-add the removed imports. The baseline requires these imports to be\n"
                     "  present. Do NOT remove imports from governed code.\n"
-                    "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     loss * 100.0, baseline_count, static_cast<int>(current.imports.size()),
                     cfg.max_import_loss * 100.0, del_list);
                 violations.push_back(msg);
@@ -2126,7 +2217,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "Drift: comment ratio {:.0f}% (max {:.0f}%) with {:.0f}% code loss.\n"
                     "  Help: Code has been replaced with comments. The baseline had {} code lines,\n"
                     "  now only {}. Restore the original code — do NOT replace logic with comments.\n"
-                    "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     current_ratio * 100.0, cfg.max_comment_ratio * 100.0, code_loss * 100.0,
                     baseline_code, current.code_lines);
                 violations.push_back(msg);
@@ -2187,7 +2278,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "Drift: polyglot blocks dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
                     "  Removed languages: {}\n"
                     "  Help: Re-add the removed polyglot blocks. Do NOT strip polyglot analysis\n"
-                    "  from governed code. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  from governed code. Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     loss * 100.0, baseline_blocks, current.polyglot_blocks,
                     cfg.max_polyglot_loss * 100.0,
                     lang_list.empty() ? "(unknown)" : lang_list);
@@ -2230,7 +2321,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "Drift: struct '{}' fields dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
                     "  Deleted fields: {}\n"
                     "  Help: Re-add the deleted fields to struct '{}'. Do NOT remove struct fields\n"
-                    "  from governed code. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  from governed code. Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     struct_name, loss * 100.0, bcount, ccount, cfg.max_field_loss * 100.0,
                     field_list, struct_name);
                 violations.push_back(msg);
@@ -2264,7 +2355,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "Drift: test functions dropped {:.0f}% ({} -> {}). Max allowed: {:.0f}%\n"
                     "  Deleted tests: {}\n"
                     "  Help: Re-add the deleted test functions. Test removal is not permitted in\n"
-                    "  governed code. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  governed code. Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     loss * 100.0, baseline_tests,
                     static_cast<int>(current.test_functions.size()),
                     cfg.max_test_loss * 100.0, del_list);
@@ -2302,7 +2393,7 @@ std::string GovernanceEngine::checkDriftDetection(
                     "  Missing functions: {}\n"
                     "  Help: Restore the missing function names. Renaming or deleting functions is\n"
                     "  detected. The baseline expects these exact names.\n"
-                    "  Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                    "  Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                     loss * 100.0, deleted.size(), baseline_count,
                     cfg.max_function_name_loss * 100.0, del_list);
                 violations.push_back(msg);
@@ -2334,18 +2425,17 @@ std::string GovernanceEngine::checkDriftDetection(
                 if (i > 0) fn_list += ", ";
                 fn_list += "'" + changed[i] + "'";
             }
-            const char* bh_key = std::getenv(GOVERN_KEY_ENV);
             std::string help_text;
-            if (bh_key && *bh_key) {
+            if (hasSigningCapability()) {
                 help_text = "  Help: Body hashes (SHA-256) detect ANY modification — even whitespace changes.\n"
                             "  If these changes are intentional, re-baseline with:\n"
                             "    naab-lang --drift-baseline-save " + filename;
             } else {
                 help_text = "  Help: Restore each listed function to its EXACT original code. Content hashes (SHA-256)\n"
                             "  detect ANY modification — even whitespace or comment changes. You cannot work around\n"
-                            "  this by editing drift-baseline.json (it is HMAC-signed and tamper-detected).\n"
+                            "  this by editing drift-baseline.json (it is signed and tamper-detected).\n"
                             "  The ONLY paths forward are: (1) restore the original code, or (2) ask the project\n"
-                            "  owner with NAAB_GOVERN_KEY to re-baseline after reviewing your changes.";
+                            "  owner to re-baseline after reviewing your changes.";
             }
             std::string msg = fmt::format(
                 "Drift: {} function(s) rewritten: {}. Body hash mismatch — the function code has changed.\n{}",
@@ -2414,15 +2504,14 @@ std::string GovernanceEngine::checkDriftDetection(
             enforce("drift_detection.config_presence", EnforcementLevel::HARD, msg);
         } else if (prev.contains("config_hash") && !prev["config_hash"].get<std::string>().empty()) {
             if (current.config_hash != prev["config_hash"].get<std::string>()) {
-                const char* cfg_key = std::getenv(GOVERN_KEY_ENV);
                 std::string cfg_help;
-                if (cfg_key && *cfg_key) {
+                if (hasSigningCapability()) {
                     cfg_help = "  Help: govern.json was modified. To accept the new config, re-baseline with:\n"
                                "    naab-lang --drift-baseline-save " + filename + "\n"
                                "  Then re-sign govern.json: naab-lang --sign-governance";
                 } else {
                     cfg_help = "  Help: Restore govern.json to its baseline state. Config changes require\n"
-                               "  the project owner to re-baseline with NAAB_GOVERN_KEY.\n"
+                               "  the project owner to re-baseline and re-sign.\n"
                                "  Do NOT modify govern.json without authorization.";
                 }
                 std::string msg = "Drift: govern.json has been modified since baseline.\n" + cfg_help;
@@ -2457,7 +2546,7 @@ std::string GovernanceEngine::checkDriftDetection(
             std::string msg = "Drift: govern.json.sig was present at baseline time but is now missing.\n"
                               "  Help: The govern.json.sig file was removed. Re-sign govern.json using:\n"
                               "    naab-lang --sign-governance\n"
-                              "  This requires NAAB_GOVERN_KEY. Do NOT delete .sig files — they protect\n"
+                              "  This requires a signing key. Do NOT delete .sig files — they protect\n"
                               "  config integrity.";
             violations.push_back(msg);
             enforce("drift_detection.signature_presence", EnforcementLevel::HARD, msg);
@@ -2518,9 +2607,9 @@ std::string GovernanceEngine::checkDriftDetection(
             }
             std::string msg = fmt::format(
                 "Drift: {} new function(s) added since baseline: {}.\n"
-                "  Help: Remove the new functions, or ask the project owner with NAAB_GOVERN_KEY\n"
+                "  Help: Remove the new functions, or ask the project owner (with signing key)\n"
                 "  to re-baseline after reviewing your additions. New functions in governed code\n"
-                "  must be explicitly authorized. Do NOT edit drift-baseline.json — it is HMAC-signed.",
+                "  must be explicitly authorized. Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
                 new_funcs.size(), fn_list);
             violations.push_back(msg);
             enforce("drift_detection.new_functions", cfg.level, msg);
@@ -2533,16 +2622,15 @@ std::string GovernanceEngine::checkDriftDetection(
 
     // Owner-aware footer: if the signing key is present, show actionable commands
     // instead of adversary-facing "ask the project owner" language
-    const char* owner_key = std::getenv(GOVERN_KEY_ENV);
-    if (owner_key && *owner_key) {
-        result += "\n  You have NAAB_GOVERN_KEY set. To accept these changes as the new baseline:\n"
+    if (hasSigningCapability()) {
+        result += "\n  You have a signing key set. To accept these changes as the new baseline:\n"
                   "    naab-lang --drift-baseline-save " + filename + "\n"
                   "  This will update and re-sign the drift baseline.\n";
     } else {
         result += "\n  To resolve: restore the governed code to match the baseline, or ask the\n"
-                  "  project owner (with NAAB_GOVERN_KEY) to re-baseline after authorized changes.\n"
+                  "  project owner to re-baseline after authorized changes.\n"
                   "  Do NOT attempt to edit drift-baseline.json or its .sig file — they are\n"
-                  "  HMAC-signed and any tampering is detected and blocked.\n";
+                  "  signed and any tampering is detected and blocked.\n";
     }
     return result;
 }
@@ -2554,15 +2642,14 @@ void GovernanceEngine::saveDriftBaseline(
     if (cfg.baseline_path.empty()) return;
     std::string resolved = resolveDriftBaselinePath();
 
-    // Integrity: if a .sig sidecar exists, key is required to re-save
+    // Integrity: if a .sig sidecar exists, a signing key is required to re-save
     std::string sig_path = resolved + ".sig";
     if (std::filesystem::exists(sig_path)) {
-        const char* key = std::getenv(GOVERN_KEY_ENV);
-        if (!key || !*key) {
+        if (!hasSigningCapability()) {
             fprintf(stderr,
             "[governance] INTEGRITY BLOCK: Cannot overwrite signed baseline %s\n"
-            "  This drift baseline is HMAC-signed. Only the project owner with NAAB_GOVERN_KEY\n"
-            "  can save a new baseline. This is by design — do not attempt to work around it.\n",
+            "  This baseline is signed. Only the project owner with NAAB_SIGNING_KEY (Ed25519)\n"
+            "  or NAAB_GOVERN_KEY (legacy HMAC) can save a new baseline.\n",
             resolved.c_str());
             return;
         }
@@ -2666,9 +2753,8 @@ void GovernanceEngine::saveDriftBaseline(
         fprintf(stderr, "[governance] Drift baseline saved for '%s' to %s\n",
                 key.c_str(), resolved.c_str());
         ofs.close();
-        // Auto-sign if key is available
-        const char* gk = std::getenv(GOVERN_KEY_ENV);
-        if (gk && *gk) {
+        // Auto-sign if any signing key is available
+        if (hasSigningCapability()) {
             signFile(resolved);
         }
     }
