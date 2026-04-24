@@ -73,8 +73,21 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 4: format_timestamp - Format timestamp as string
     if (function_name == "format_timestamp") {
+        if (args.size() == 1) {
+            throw std::runtime_error(
+                "format_timestamp() requires 2 arguments: (timestamp, format_string)\n\n"
+                "  Got: time.format_timestamp(timestamp)\n"
+                "  Expected: time.format_timestamp(timestamp, format_string)\n\n"
+                "  Common format strings:\n"
+                "    \"%Y-%m-%d %H:%M:%S\"  →  2026-04-24 14:30:00\n"
+                "    \"%Y-%m-%d\"            →  2026-04-24\n"
+                "    \"%H:%M:%S\"            →  14:30:00\n\n"
+                "  Example:\n"
+                "    time.format_timestamp(time.now(), \"%Y-%m-%d %H:%M:%S\")\n"
+            );
+        }
         if (args.size() != 2) {
-            throw std::runtime_error("format_timestamp() takes exactly 2 arguments (timestamp, format)");
+            throw std::runtime_error("format_timestamp() takes exactly 2 arguments (timestamp, format_string)");
         }
         int timestamp = getInt(args[0]);
         std::string format = getString(args[1]);

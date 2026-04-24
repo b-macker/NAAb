@@ -694,7 +694,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
                     int idx = args[0].asInt();
                     if (idx < 0 || idx >= static_cast<int>(arr.size())) {
-                        throw std::runtime_error(fmt::format("Array index out of bounds: {} (size: {})", idx, arr.size()));
+                        // Return default if provided, else null (safe access like dict.get)
+                        if (args.size() >= 2) { result_ = args[1]; }
+                        else { result_ = NaabVal::makeNull(); }
+                        return;
                     }
                     result_ = arr[static_cast<size_t>(idx)];
                     return;
@@ -1619,7 +1622,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
                 int idx = args[0].asInt();
                 if (idx < 0 || idx >= static_cast<int>(arr.size())) {
-                    throw std::runtime_error(fmt::format("Array index out of bounds: {} (size: {})", idx, arr.size()));
+                    // Return default if provided, else null (safe access like dict.get)
+                    if (args.size() >= 2) { result_ = args[1]; }
+                    else { result_ = NaabVal::makeNull(); }
+                    return;
                 }
                 result_ = arr[idx];
                 return;

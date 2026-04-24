@@ -2120,10 +2120,23 @@ interpreter::NaabVal VM::run() {
                             if (git != globals_.end()) {
                                 push(git->second);
                             } else {
-                                runtimeError("Dict has no method '%s'", name.c_str());
+                                // Field not a method — suggest .get() for dict access
+                                runtimeError("Dict has no method '%s'\n\n"
+                                             "  This dict was originally a '%s' struct, but after JSON\n"
+                                             "  serialization it became a plain dict.\n\n"
+                                             "  Use .get() for field access on dicts:\n"
+                                             "    ✗ Wrong: obj.%s\n"
+                                             "    ✓ Right: obj.get(\"%s\")\n",
+                                             name.c_str(), sn_it->second.asString().c_str(),
+                                             name.c_str(), name.c_str());
                             }
                         } else {
-                            runtimeError("Key '%s' not found in dict", name.c_str());
+                            runtimeError("Key '%s' not found in dict\n\n"
+                                         "  Dicts use .get() for field access:\n"
+                                         "    ✗ Wrong: obj.%s\n"
+                                         "    ✓ Right: obj.get(\"%s\")\n"
+                                         "    ✓ Also:  obj.get(\"%s\", default_value)\n",
+                                         name.c_str(), name.c_str(), name.c_str(), name.c_str());
                         }
                     }
                 } else if (obj.isString()) {
@@ -3629,8 +3642,11 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         if (method == "get") {
             if (argc < 1) runtimeError("get() requires 1 argument");
             int idx = args[0].toInt();
-            if (idx < 0 || idx >= static_cast<int>(list.size()))
-                runtimeError("Index %d out of bounds (size %d)", idx, static_cast<int>(list.size()));
+            if (idx < 0 || idx >= static_cast<int>(list.size())) {
+                // Return default if provided, else null (safe access like dict.get)
+                if (argc >= 2) return args[1];
+                return interpreter::NaabVal::makeNull();
+            }
             return list[static_cast<size_t>(idx)];
         }
         if (method == "isEmpty") {
