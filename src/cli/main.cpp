@@ -54,6 +54,7 @@
 #include "naab/resource_limits.h"
 #include "naab/limits.h"
 #include "naab/stdlib.h"  // For setPipeMode()
+#include "naab/stdlib_new_modules.h"  // For EnvModule::setArgsProvider
 #include "naab/governance.h"  // For governance report CLI flags
 #include "naab/crypto_utils.h"   // V-SC-009: Ed25519 keygen
 #include "naab/trust_store.h"    // V-SC-009: Trust store management
@@ -1434,6 +1435,21 @@ int main(int argc, char** argv) {
                 bytecode_vm.setStdlib(&vm_stdlib);
                 bytecode_vm.setModuleResolver(&vm_module_resolver);
                 bytecode_vm.setCurrentFile(filename);
+
+                // ISS-028: Pass CLI args to VM env module
+                bytecode_vm.setScriptArgs(script_args);
+                auto env_module = vm_stdlib.getModule("env");
+                if (env_module) {
+                    auto* env_mod = dynamic_cast<naab::stdlib::EnvModule*>(env_module.get());
+                    if (env_mod) {
+                        env_mod->setArgsProvider(
+                            [&script_args]() -> std::vector<std::string> {
+                                return script_args;
+                            }
+                        );
+                    }
+                }
+
                 if (gov_loaded) {
                     if (governance_verbose) bytecode_vm.setGovernanceVerbose(true);
                     bytecode_vm.setGovernance(&vm_governance);
