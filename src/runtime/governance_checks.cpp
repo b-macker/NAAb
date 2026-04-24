@@ -2985,11 +2985,16 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     }
 
     // FIX-DX-1: PREFIX match for sink types (not substring)
+    // Auto-expand: file.append is equivalent to file.write for taint purposes
+    std::string effective_sink = sink_type;
+    if (sink_type == "file.append") effective_sink = "file.write";
     bool is_sink = false;
     for (const auto& s : rules_.taint_tracking.sinks) {
+        if (effective_sink.size() >= s.size() &&
+            effective_sink.compare(0, s.size(), s) == 0) { is_sink = true; break; }
+        // Also check the original sink_type for exact/prefix match
         if (sink_type.size() >= s.size() &&
             sink_type.compare(0, s.size(), s) == 0) { is_sink = true; break; }
-        // Also check exact match for dotted sinks like "env.set_var"
         if (sink_type == s) { is_sink = true; break; }
     }
     if (!is_sink) return "";

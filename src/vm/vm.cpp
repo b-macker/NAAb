@@ -1338,6 +1338,13 @@ interpreter::NaabVal VM::run() {
                         *p = interpreter::NaabVal();
                     syncTaintTop();
                     push(result);
+                    // Sanitizer functions clear taint on their return value
+                    if (return_tainted && governance_ && governance_->isActive()) {
+                        const std::string& fn_name = frame->function->name;
+                        if (!fn_name.empty() && governance_->isSanitizer(fn_name)) {
+                            return_tainted = false;
+                        }
+                    }
                     peekTaint(0) = return_tainted;
                     return result;
                 }
@@ -1350,6 +1357,13 @@ interpreter::NaabVal VM::run() {
                 }
                 syncTaintTop();
                 push(std::move(result));
+                // Sanitizer functions clear taint on their return value
+                if (return_tainted && governance_ && governance_->isActive()) {
+                    const std::string& fn_name = frames_[frame_count_].function->name;
+                    if (!fn_name.empty() && governance_->isSanitizer(fn_name)) {
+                        return_tainted = false;
+                    }
+                }
                 peekTaint(0) = return_tainted;
                 frame = &frames_[frame_count_ - 1];
             }
