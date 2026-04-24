@@ -4,15 +4,19 @@
 #include <fstream>
 #include <cstdlib>
 #include <cstdio>
-#include <sys/stat.h>
+#ifndef _WIN32
+#  include <sys/stat.h>
+#endif
 
 namespace naab {
 namespace security {
 
 std::string TrustStore::getStorePath() {
     const char* home = std::getenv("HOME");
+#ifdef _WIN32
+    if (!home || !*home) home = std::getenv("USERPROFILE");
+#endif
     if (!home || !*home) {
-        // Fallback for edge cases
         home = "/tmp";
     }
     return std::string(home) + "/.naab/trusted-keys";
@@ -49,14 +53,14 @@ std::vector<std::pair<std::string, std::string>> TrustStore::loadKeys() {
         auto fsize = entry.file_size(ec);
         if (ec || fsize > 8192) {
             fprintf(stderr, "[trust-store] WARNING: Key file too large or unreadable, skipping: %s\n",
-                    entry.path().c_str());
+                    entry.path().string().c_str());
             continue;
         }
 
         std::ifstream ifs(entry.path());
         if (!ifs.is_open()) {
             fprintf(stderr, "[trust-store] WARNING: Cannot read key file: %s\n",
-                    entry.path().c_str());
+                    entry.path().string().c_str());
             continue;
         }
         std::string pem((std::istreambuf_iterator<char>(ifs)),
@@ -66,7 +70,7 @@ std::vector<std::pair<std::string, std::string>> TrustStore::loadKeys() {
         std::string fp = CryptoUtils::ed25519Fingerprint(pem);
         if (fp.empty()) {
             fprintf(stderr, "[trust-store] WARNING: Invalid key file (not Ed25519 PEM): %s\n",
-                    entry.path().c_str());
+                    entry.path().string().c_str());
             continue;
         }
 
@@ -98,8 +102,10 @@ bool TrustStore::installKey(const std::string& public_key_pem) {
         return false;
     }
 
-    // Set directory permissions to 0755
+    // Set directory permissions to 0755 (POSIX only)
+#ifndef _WIN32
     chmod(store.c_str(), 0755);
+#endif
 
     // Write <fingerprint>.pub
     std::string key_path = store + "/" + fp + ".pub";
@@ -110,7 +116,9 @@ bool TrustStore::installKey(const std::string& public_key_pem) {
     }
     ofs << public_key_pem;
     ofs.close();
+#ifndef _WIN32
     chmod(key_path.c_str(), 0644);
+#endif
 
     // Create default.pub if it doesn't exist (first key installed)
     std::string default_path = store + "/default.pub";
@@ -119,7 +127,9 @@ bool TrustStore::installKey(const std::string& public_key_pem) {
         if (dfs.is_open()) {
             dfs << public_key_pem;
             dfs.close();
+#ifndef _WIN32
             chmod(default_path.c_str(), 0644);
+#endif
         }
     }
 
