@@ -16,6 +16,7 @@
 #include <regex>
 #include <chrono>
 #include <functional>
+#include <set>
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -1760,19 +1761,28 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         // Schema key validation is done by caller (main.cpp) where --no-governance is known
 
-        // FIX-DX-15: Schema validation warnings
-        // Warn about sanitizer patterns prone to false positives
-        for (const auto& san : rules_.taint_tracking.sanitizers) {
-            if (!san.empty() && san.back() == '(') {
-                fmt::print(stderr, "[WARN] Sanitizer '{}' ends with '(' — with prefix matching, "
-                           "names like 'sprint(' or 'print(' will also match if they start with '{}'. "
-                           "Consider using a prefix like 'sanitize_' instead.\n", san, san);
+        // FIX-DX-15: Schema validation warnings (only emit once per process)
+        static bool schema_warnings_emitted = false;
+        if (!schema_warnings_emitted) {
+            schema_warnings_emitted = true;
+            // Warn about sanitizer patterns prone to false positives
+            // Exempt well-known type-cast builtins (int(, float(, string(, bool()
+            static const std::set<std::string> builtin_casts = {
+                "int(", "float(", "string(", "bool("
+            };
+            for (const auto& san : rules_.taint_tracking.sanitizers) {
+                if (!san.empty() && san.back() == '(' &&
+                    builtin_casts.find(san) == builtin_casts.end()) {
+                    fmt::print(stderr, "[WARN] Sanitizer '{}' ends with '(' — with prefix matching, "
+                               "names like 'sprint(' or 'print(' will also match if they start with '{}'. "
+                               "Consider using a prefix like 'sanitize_' instead.\n", san, san);
+                }
             }
-        }
-        // Warn about empty scope patterns
-        for (const auto& scope : rules_.scopes) {
-            if (scope.glob_pattern.empty()) {
-                fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
+            // Warn about empty scope patterns
+            for (const auto& scope : rules_.scopes) {
+                if (scope.glob_pattern.empty()) {
+                    fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
+                }
             }
         }
 

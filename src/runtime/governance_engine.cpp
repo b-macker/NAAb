@@ -667,30 +667,16 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                path[prefix.size()] == '/';
     };
 
-    // Layer 1: Base filesystem blocked_paths (deny wins)
-    for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
-        if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
-            return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
-                formatError(EnforcementLevel::HARD,
-                    "File path blocked by governance: " + filepath,
-                    "",
-                    "capabilities.filesystem.blocked_paths contains \"" + bp + "\"",
-                    "This path is blocked by the project's governance configuration",
-                    "file." + mode + "(\"" + filepath + "\", ...)",
-                    "Use an allowed path instead"));
-        }
-    }
-
-    // Layer 2: Base filesystem allowed_paths (if non-empty, must match one)
+    // Layer 1: Check allowed_paths first (specific allow beats broad deny)
+    bool explicitly_allowed = false;
     if (!rules_.capabilities.filesystem.allowed_paths.empty()) {
-        bool base_allowed = false;
         for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
             if (pathPrefixMatch(canon_n, canonAndNorm(ap))) {
-                base_allowed = true;
+                explicitly_allowed = true;
                 break;
             }
         }
-        if (!base_allowed) {
+        if (!explicitly_allowed) {
             // V-GOV-025: Show resolved paths to help diagnose mismatches
             std::string resolved_list;
             for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
@@ -705,6 +691,23 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                     "Only paths matching the allowed list are accessible",
                     "file." + mode + "(\"" + filepath + "\", ...)",
                     "Use a path within the allowed directories"));
+        }
+    }
+
+    // Layer 2: blocked_paths — but skip if path is explicitly allowed
+    // (specific allow like "./data/" beats broad deny like "/")
+    if (!explicitly_allowed) {
+        for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
+            if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
+                return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        "File path blocked by governance: " + filepath,
+                        "",
+                        "capabilities.filesystem.blocked_paths contains \"" + bp + "\"",
+                        "This path is blocked by the project's governance configuration",
+                        "file." + mode + "(\"" + filepath + "\", ...)",
+                        "Use an allowed path instead"));
+            }
         }
     }
 

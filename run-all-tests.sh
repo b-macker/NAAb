@@ -4,6 +4,22 @@
 set -e
 
 NAAB_BIN="./build/naab-lang"
+
+# V-SC-009: Back up and clear trust store so unsigned test govern.json files work
+REAL_TRUST="$HOME/.naab/trusted-keys"
+TRUST_BAK=""
+if [ -d "$REAL_TRUST" ]; then
+  TRUST_BAK=$(mktemp -d "${TMPDIR:-/tmp}/trust_bak_run_XXXXXX")
+  mv "$REAL_TRUST" "$TRUST_BAK/trusted-keys"
+fi
+restore_trust_store() {
+  rm -rf "$REAL_TRUST"
+  if [ -n "$TRUST_BAK" ] && [ -d "$TRUST_BAK/trusted-keys" ]; then
+    mv "$TRUST_BAK/trusted-keys" "$REAL_TRUST"
+    rm -rf "$TRUST_BAK"
+  fi
+}
+trap 'restore_trust_store' EXIT
 TEST_DIRS=(
     "examples"
     "tests/bugs"
