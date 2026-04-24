@@ -679,18 +679,24 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         if (!explicitly_allowed) {
             // V-GOV-025: Show resolved paths to help diagnose mismatches
             std::string resolved_list;
+            std::string raw_list;
             for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
-                if (!resolved_list.empty()) resolved_list += ", ";
+                if (!resolved_list.empty()) { resolved_list += ", "; raw_list += ", "; }
                 resolved_list += canonAndNorm(ap);
+                raw_list += ap;
             }
+            // Show first allowed path as example
+            std::string example_path = rules_.capabilities.filesystem.allowed_paths.empty()
+                ? "allowed/path/file.txt"
+                : rules_.capabilities.filesystem.allowed_paths[0] + "file.txt";
             return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                 formatError(EnforcementLevel::HARD,
                     "File path not in allowed paths: " + filepath,
                     "Resolved to: " + canon_n + "\n  Allowed (resolved): " + resolved_list,
                     "capabilities.filesystem.allowed_paths does not match",
-                    "Only paths matching the allowed list are accessible",
+                    "Only paths under these directories are accessible: " + raw_list,
                     "file." + mode + "(\"" + filepath + "\", ...)",
-                    "Use a path within the allowed directories"));
+                    "file." + mode + "(\"" + example_path + "\", ...)"));
         }
     }
 

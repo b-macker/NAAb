@@ -389,6 +389,16 @@ interpreter::NaabVal EnvModule::call(
             "  Example: let val = env.get(\"HOME\")\n"
         );
     }
+    if (function_name == "args" || function_name == "arguments" ||
+        function_name == "get_arguments" || function_name == "argv" ||
+        function_name == "getArgs") {
+        throw std::runtime_error(
+            "Unknown env function: " + function_name + "\n\n"
+            "  Did you mean: env.get_args()?\n"
+            "  Example: let args = env.get_args()\n"
+            "  Note: Returns CLI arguments AFTER the script name.\n"
+        );
+    }
     if (function_name == "setenv" || function_name == "setEnv" || function_name == "put") {
         throw std::runtime_error(
             "Unknown env function: " + function_name + "\n\n"
