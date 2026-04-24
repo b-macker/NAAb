@@ -1736,13 +1736,17 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -5)"
 fi
 
-# --- T55: Private key has 0600 permissions ---
+# --- T55: Private key has 0600 permissions (POSIX only — Windows ignores mode) ---
 if [ -f "$PRIV_KEY" ]; then
-  PERMS=$(stat -c '%a' "$PRIV_KEY" 2>/dev/null || stat -f '%Lp' "$PRIV_KEY" 2>/dev/null)
-  if [ "$PERMS" = "600" ]; then
-    pass "T55: Private key file has 0600 permissions"
+  if [ "$(uname -o 2>/dev/null)" = "Msys" ] || [ "$(uname -o 2>/dev/null)" = "Cygwin" ]; then
+    pass "T55: Private key permission check skipped (Windows)"
   else
-    fail "T55: expected 0600 but got $PERMS"
+    PERMS=$(stat -c '%a' "$PRIV_KEY" 2>/dev/null || stat -f '%Lp' "$PRIV_KEY" 2>/dev/null)
+    if [ "$PERMS" = "600" ]; then
+      pass "T55: Private key file has 0600 permissions"
+    else
+      fail "T55: expected 0600 but got $PERMS"
+    fi
   fi
 else
   fail "T55: private key file not found"
