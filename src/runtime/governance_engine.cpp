@@ -1560,6 +1560,16 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
         }
     }
     m.has_main = program.getMainBlock() != nullptr;
+    // Gate 11b: Hash main{} body to prevent undetected modifications
+    if (m.has_main) {
+        int main_line = program.getMainBlock()->getLocation().line;
+        if (main_line > 0) {
+            std::string main_body = extractFunctionBody(source, main_line);
+            if (!main_body.empty()) {
+                m.main_body_hash = security::CryptoUtils::sha256(main_body);
+            }
+        }
+    }
     m.functions = static_cast<int>(program.getFunctions().size());
     m.exports = static_cast<int>(program.getExports().size());
     m.structs = static_cast<int>(program.getStructs().size());
@@ -2456,6 +2466,27 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 11b: Main block body hash — detect modifications to main{}
+    if (cfg.check_body_hash && prev.contains("main_body_hash") && prev["main_body_hash"].is_string()) {
+        std::string expected = prev["main_body_hash"].get<std::string>();
+        if (!expected.empty() && !current.main_body_hash.empty() && current.main_body_hash != expected) {
+            std::string help_text;
+            if (hasSigningCapability()) {
+                help_text = "  Help: If this change is intentional, re-baseline with:\n"
+                            "    naab-lang --drift-baseline-save " + filename;
+            } else {
+                help_text = "  Help: Restore main{} to its EXACT original code. Content hashes (SHA-256)\n"
+                            "  detect ANY modification — even whitespace or comment changes.";
+            }
+            std::string msg = fmt::format(
+                "Drift: main{{}} block has been rewritten (body hash mismatch).\n{}", help_text);
+            violations.push_back(msg);
+            enforce("drift_detection.body_hash", cfg.level, msg);
+        } else {
+            recordPass("drift_detection.main_body_hash", cfg.level);
+        }
+    }
+
     // Gate 12: Parameter utilization — detect functions that drop param usage vs baseline
     if (cfg.check_param_utilization && prev.contains("param_utilization") && prev["param_utilization"].is_object()) {
         std::vector<std::string> degraded;
@@ -2731,6 +2762,8 @@ void GovernanceEngine::saveDriftBaseline(
     for (const auto& [fn, hash] : metrics.body_hashes) {
         entry["body_hashes"][fn] = hash;
     }
+    // Gate 11b: main body hash
+    entry["main_body_hash"] = metrics.main_body_hash;
     // Gate 12: parameter utilization
     entry["param_utilization"] = nlohmann::json::object();
     for (const auto& [fn, util] : metrics.param_utilization) {

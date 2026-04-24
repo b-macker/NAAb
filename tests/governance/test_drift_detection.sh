@@ -1502,7 +1502,8 @@ cat > "$WORK_DIR_24/govern.json" << 'EOF'
     "drift_detection": {
       "enabled": true,
       "level": "hard",
-      "max_function_gain": 0.5
+      "max_function_gain": 0.5,
+      "check_body_hash": false
     }
   }
 }

@@ -1799,6 +1799,7 @@ public:
         std::string script_dir;                            // Gate 14: canonical directory of script
         bool signature_present = false;                    // Gate 16: was govern.json.sig found?
         std::map<std::string, int> polyglot_loc;           // Gate 17: per-function polyglot line counts
+        std::string main_body_hash;                        // Gate 11b: SHA-256 of main{} body
     };
     static DriftMetrics collectDriftMetrics(const ast::Program& program,
                                             const std::string& source,
