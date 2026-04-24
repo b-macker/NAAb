@@ -1401,19 +1401,9 @@ std::string GovernanceEngine::checkGovernanceBaseline() const {
 // Drift Detection: Structural Regression Gate
 // ============================================================================
 
-// Helper: extract function body source from full source using brace matching
-static std::string extractFunctionBody(const std::string& source, int start_line) {
-    // Find the start_line in source
-    int current_line = 1;
-    size_t pos = 0;
-    while (current_line < start_line && pos < source.size()) {
-        if (source[pos] == '\n') current_line++;
-        pos++;
-    }
-    // Find the opening { of the function body
-    size_t brace_start = source.find('{', pos);
-    if (brace_start == std::string::npos) return "";
-    // Match braces to find the end
+// Helper: extract brace-matched body starting from a position in source
+static std::string extractBraceBody(const std::string& source, size_t brace_start) {
+    if (brace_start >= source.size() || source[brace_start] != '{') return "";
     int depth = 1;
     size_t i = brace_start + 1;
     bool in_string = false;
@@ -1432,6 +1422,78 @@ static std::string extractFunctionBody(const std::string& source, int start_line
     }
     if (depth != 0) return "";
     return source.substr(brace_start + 1, i - brace_start - 1);
+}
+
+// Helper: extract function body source from full source using brace matching
+static std::string extractFunctionBody(const std::string& source, int start_line) {
+    // Find the start_line in source
+    int current_line = 1;
+    size_t pos = 0;
+    while (current_line < start_line && pos < source.size()) {
+        if (source[pos] == '\n') current_line++;
+        pos++;
+    }
+    // Find the opening { of the function body
+    size_t brace_start = source.find('{', pos);
+    if (brace_start == std::string::npos) return "";
+    return extractBraceBody(source, brace_start);
+}
+
+// Helper: extract main{} block body by searching for top-level "main" keyword
+static std::string extractMainBody(const std::string& source) {
+    // Search for "main" at the start of a line (after optional whitespace),
+    // followed by optional whitespace and "{"
+    size_t pos = 0;
+    while (pos < source.size()) {
+        // Find next "main" occurrence
+        size_t found = source.find("main", pos);
+        if (found == std::string::npos) return "";
+
+        // Check it's at line start (or start of file)
+        bool at_line_start = (found == 0);
+        if (!at_line_start && found > 0) {
+            // Everything before "main" on this line must be whitespace
+            size_t line_start = source.rfind('\n', found - 1);
+            line_start = (line_start == std::string::npos) ? 0 : line_start + 1;
+            bool all_ws = true;
+            for (size_t j = line_start; j < found; j++) {
+                if (source[j] != ' ' && source[j] != '\t') { all_ws = false; break; }
+            }
+            at_line_start = all_ws;
+        }
+
+        if (!at_line_start) { pos = found + 4; continue; }
+
+        // Check char before "main" is not alphanumeric (not part of another word)
+        if (found > 0) {
+            char before = source[found - 1];
+            if (std::isalnum(static_cast<unsigned char>(before)) || before == '_') {
+                pos = found + 4; continue;
+            }
+        }
+
+        // Check char after "main" is not alphanumeric
+        size_t after = found + 4;
+        if (after < source.size()) {
+            char c = source[after];
+            if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+                pos = found + 4; continue;
+            }
+        }
+
+        // Skip whitespace after "main" to find "{"
+        size_t brace = after;
+        while (brace < source.size() && (source[brace] == ' ' || source[brace] == '\t' ||
+               source[brace] == '\n' || source[brace] == '\r')) {
+            brace++;
+        }
+        if (brace < source.size() && source[brace] == '{') {
+            return extractBraceBody(source, brace);
+        }
+
+        pos = found + 4;
+    }
+    return "";
 }
 
 // Helper: count comment and code lines
@@ -1562,12 +1624,9 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
     m.has_main = program.getMainBlock() != nullptr;
     // Gate 11b: Hash main{} body to prevent undetected modifications
     if (m.has_main) {
-        int main_line = program.getMainBlock()->getLocation().line;
-        if (main_line > 0) {
-            std::string main_body = extractFunctionBody(source, main_line);
-            if (!main_body.empty()) {
-                m.main_body_hash = security::CryptoUtils::sha256(main_body);
-            }
+        std::string main_body = extractMainBody(source);
+        if (!main_body.empty()) {
+            m.main_body_hash = security::CryptoUtils::sha256(main_body);
         }
     }
     m.functions = static_cast<int>(program.getFunctions().size());

@@ -1214,18 +1214,13 @@ main { print(hello()) }
 NAAB_EOF
 
 # Sign govern.json properly with the test key
-python3 -c "
-import hmac, hashlib
-with open('$WORK_DIR_19/govern.json') as f: c = f.read()
-sig = hmac.new(b'test-key-t39', c.encode(), hashlib.sha256).hexdigest()
-with open('$WORK_DIR_19/govern.json.sig', 'w') as f: f.write(sig)
-"
+"$NAAB" --sign-governance "$WORK_DIR_19/govern.json" > /dev/null 2>&1
 
 # Save baseline (sig present, key set)
 "$NAAB" --drift-baseline-save "$WORK_DIR_19/test.naab" > /dev/null 2>&1
 
 # Remove .sig — should fail-closed (check_signature_presence)
-rm "$WORK_DIR_19/govern.json.sig"
+rm -f "$WORK_DIR_19/govern.json.sig"
 unset NAAB_GOVERN_KEY
 
 OUTPUT=$("$NAAB" "$WORK_DIR_19/test.naab" 2>&1)
@@ -1242,12 +1237,7 @@ rm -rf "$WORK_DIR_19/.naab"
 export NAAB_GOVERN_KEY="test-key-t39"
 
 # Re-sign govern.json
-python3 -c "
-import hmac, hashlib
-with open('$WORK_DIR_19/govern.json') as f: c = f.read()
-sig = hmac.new(b'test-key-t39', c.encode(), hashlib.sha256).hexdigest()
-with open('$WORK_DIR_19/govern.json.sig', 'w') as f: f.write(sig)
-"
+"$NAAB" --sign-governance "$WORK_DIR_19/govern.json" > /dev/null 2>&1
 
 "$NAAB" --drift-baseline-save "$WORK_DIR_19/test.naab" > /dev/null 2>&1
 
