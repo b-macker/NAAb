@@ -471,7 +471,7 @@ int main(int argc, char** argv) {
                 priv_path = argv[++command_arg_index];
             }
             // Write private key — born with 0600 permissions (no world-readable window)
-            if (!naab::security::writeFileSecure(priv_path, private_pem)) {
+            if (!naab::security::writeFileSecure(priv_path, private_pem, 0600)) {
                 fprintf(stderr, "Error: Failed to write private key to %s\n", priv_path.c_str());
                 return 1;
             }

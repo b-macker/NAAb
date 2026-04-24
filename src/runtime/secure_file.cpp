@@ -20,13 +20,14 @@ namespace security {
 
 #ifndef _WIN32
 
-bool writeFileSecure(const std::string& path, const std::string& content) {
+bool writeFileSecure(const std::string& path, const std::string& content,
+                     int mode) {
     // O_TRUNC replaces existing regular file contents.
     // O_NOFOLLOW makes open() fail with ELOOP if `path` is a symlink.
     // O_CLOEXEC prevents the fd from leaking across fork/exec.
     int fd = ::open(path.c_str(),
                     O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
-                    0644);
+                    static_cast<mode_t>(mode));
     if (fd < 0) return false;
 
     // Defense-in-depth: confirm the fd refers to a regular file, not e.g.
@@ -54,7 +55,8 @@ bool writeFileSecure(const std::string& path, const std::string& content) {
 
 #else // _WIN32
 
-bool writeFileSecure(const std::string& path, const std::string& content) {
+bool writeFileSecure(const std::string& path, const std::string& content,
+                     int /*mode*/) {
     // FILE_FLAG_OPEN_REPARSE_POINT: open the reparse point itself rather than
     // following it; combined with the reparse-point check below, this rejects
     // symlinks/junctions.

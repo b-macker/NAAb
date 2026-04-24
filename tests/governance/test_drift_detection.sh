@@ -20,16 +20,15 @@ if [ -d "$REAL_TRUST" ]; then
   TRUST_BAK=$(mktemp -d "${TMPDIR:-/tmp}/trust_bak_XXXXXX")
   mv "$REAL_TRUST" "$TRUST_BAK/trusted-keys"
 fi
-cleanup_trust() {
-  rm -rf "$WORK_DIR"
-  # Restore trust store on exit
+# Restore trust store — called by all trap handlers and at script end
+restore_trust_store() {
   rm -rf "$REAL_TRUST"
   if [ -n "$TRUST_BAK" ] && [ -d "$TRUST_BAK/trusted-keys" ]; then
     mv "$TRUST_BAK/trusted-keys" "$REAL_TRUST"
     rm -rf "$TRUST_BAK"
   fi
 }
-trap cleanup_trust EXIT
+trap 'rm -rf "$WORK_DIR"; restore_trust_store' EXIT
 
 echo "=== Test: Drift Detection Gate ==="
 
@@ -938,7 +937,7 @@ fi
 
 # --- T33: Gate 13 — Config presence: removing govern.json blocks execution ---
 WORK_DIR_13=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g13_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_13/govern.json" << 'EOF'
 {
@@ -1001,7 +1000,7 @@ fi
 
 # --- T34: Gate 13 — Unchanged config passes ---
 WORK_DIR_14=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g13b_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_14/govern.json" << 'EOF'
 {
@@ -1036,7 +1035,7 @@ fi
 # --- T35: Gate 14 — Script relocation blocks execution ---
 WORK_DIR_15=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g14_XXXXXX")
 WORK_DIR_15B=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g14b_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_15/govern.json" << 'EOF'
 {
@@ -1087,7 +1086,7 @@ fi
 
 # --- T37: Gate 3 — Complexity regression blocks ---
 WORK_DIR_17=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g3_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_17/govern.json" << 'EOF'
 {
@@ -1190,7 +1189,7 @@ fi
 
 # --- T39: Gate 16 — Signature file removal blocks ---
 WORK_DIR_19=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g16_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17 $WORK_DIR_19" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17 $WORK_DIR_19; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_19/govern.json" << 'EOF'
 {
@@ -1264,7 +1263,7 @@ unset NAAB_GOVERN_KEY
 
 # --- T41: Gate 17 — Polyglot block shrinkage blocks ---
 WORK_DIR_21=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g17_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17 $WORK_DIR_19 $WORK_DIR_21" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_17 $WORK_DIR_19 $WORK_DIR_21; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_21/govern.json" << 'EOF'
 {
@@ -1434,7 +1433,7 @@ fi
 # T44-T45: Gate 18 — New function detection
 # =====================================================================
 WORK_DIR_23=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g18_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_23/govern.json" << 'EOF'
 {
@@ -1494,7 +1493,7 @@ fi
 # T46-T47: Gate 0 extension — Function gain detection
 # =====================================================================
 WORK_DIR_24=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_g0gain_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_24/govern.json" << 'EOF'
 {
@@ -1566,7 +1565,7 @@ fi
 # T48-T49: Pre-flight blocked_flags — --no-governance and --tree-walk
 # =====================================================================
 WORK_DIR_25=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_blocked_XXXXXX")
-trap "rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24 $WORK_DIR_25" EXIT
+trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WORK_DIR_16 $WORK_DIR_17 $WORK_DIR_18 $WORK_DIR_19 $WORK_DIR_20 $WORK_DIR_21 $WORK_DIR_22 $WORK_DIR_23 $WORK_DIR_24 $WORK_DIR_25; restore_trust_store' EXIT
 
 cat > "$WORK_DIR_25/govern.json" << 'EOF'
 {
