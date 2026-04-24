@@ -12,7 +12,24 @@ pass() { PASSED=$((PASSED + 1)); TOTAL=$((TOTAL + 1)); echo "  PASS: $1"; }
 fail() { FAILED=$((FAILED + 1)); TOTAL=$((TOTAL + 1)); echo "  FAIL: $1"; }
 
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_XXXXXX")
-trap "rm -rf $WORK_DIR" EXIT
+
+# V-SC-009: Back up and clear trust store so T1-T53 run unsigned (no trust-store interference)
+REAL_TRUST="$HOME/.naab/trusted-keys"
+TRUST_BAK=""
+if [ -d "$REAL_TRUST" ]; then
+  TRUST_BAK=$(mktemp -d "${TMPDIR:-/tmp}/trust_bak_XXXXXX")
+  mv "$REAL_TRUST" "$TRUST_BAK/trusted-keys"
+fi
+cleanup_trust() {
+  rm -rf "$WORK_DIR"
+  # Restore trust store on exit
+  rm -rf "$REAL_TRUST"
+  if [ -n "$TRUST_BAK" ] && [ -d "$TRUST_BAK/trusted-keys" ]; then
+    mv "$TRUST_BAK/trusted-keys" "$REAL_TRUST"
+    rm -rf "$TRUST_BAK"
+  fi
+}
+trap cleanup_trust EXIT
 
 echo "=== Test: Drift Detection Gate ==="
 
@@ -1702,6 +1719,123 @@ else
   echo "    Output: $(echo "$OUTPUT" | head -8)"
 fi
 rm -rf "$WORK_DIR_29"
+
+# =====================================================================
+# T54-T61: Ed25519 Trust-Anchored Governance Signing (V-SC-009)
+# =====================================================================
+
+# --- T54: --keygen generates keypair and installs to trust store ---
+# Trust store was cleared at script start; T54-T61 create fresh keys
+WORK_DIR_T54=$(mktemp -d "${TMPDIR:-/tmp}/test_drift_T54_XXXXXX")
+PRIV_KEY="$WORK_DIR_T54/test-key.pem"
+OUTPUT=$("$NAAB" --keygen "$PRIV_KEY" 2>&1)
+RC=$?
+if [ $RC -eq 0 ] && [ -f "$PRIV_KEY" ] && echo "$OUTPUT" | grep -q "Ed25519 keypair generated"; then
+  pass "T54: --keygen generates keypair and prints instructions"
+else
+  fail "T54: keygen failed (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -5)"
+fi
+
+# --- T55: Private key has 0600 permissions ---
+if [ -f "$PRIV_KEY" ]; then
+  PERMS=$(stat -c '%a' "$PRIV_KEY" 2>/dev/null || stat -f '%Lp' "$PRIV_KEY" 2>/dev/null)
+  if [ "$PERMS" = "600" ]; then
+    pass "T55: Private key file has 0600 permissions"
+  else
+    fail "T55: expected 0600 but got $PERMS"
+  fi
+else
+  fail "T55: private key file not found"
+fi
+
+# --- T56: --list-keys shows the installed key ---
+OUTPUT=$("$NAAB" --list-keys 2>&1)
+RC=$?
+if [ $RC -eq 0 ] && echo "$OUTPUT" | grep -qE "[0-9a-f]{16}"; then
+  pass "T56: --list-keys shows installed key fingerprint"
+else
+  fail "T56: --list-keys failed (rc=$RC)"
+  echo "    Output: $OUTPUT"
+fi
+
+# --- T57: Ed25519 signing creates ed25519: prefixed .sig ---
+cat > "$WORK_DIR_T54/govern.json" << 'EOF'
+{"version":"1.0.0","project_name":"t57","mode":"enforce"}
+EOF
+NAAB_SIGNING_KEY="$PRIV_KEY" "$NAAB" --sign-governance "$WORK_DIR_T54/govern.json" > /dev/null 2>&1
+if [ -f "$WORK_DIR_T54/govern.json.sig" ]; then
+  SIG_CONTENT=$(cat "$WORK_DIR_T54/govern.json.sig")
+  if echo "$SIG_CONTENT" | grep -q "^ed25519:"; then
+    pass "T57: Ed25519 signing creates ed25519: prefixed .sig"
+  else
+    fail "T57: .sig missing ed25519: prefix: $SIG_CONTENT"
+  fi
+else
+  fail "T57: govern.json.sig not created"
+fi
+
+# --- T58: Ed25519 signed file passes verification (exit 0) ---
+cat > "$WORK_DIR_T54/test.naab" << 'NAAB_EOF'
+main { print("signed-ok") }
+NAAB_EOF
+OUTPUT=$(NAAB_SIGNING_KEY="$PRIV_KEY" "$NAAB" "$WORK_DIR_T54/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 0 ] && echo "$OUTPUT" | grep -q "signed-ok"; then
+  pass "T58: Ed25519 signed file passes verification"
+else
+  fail "T58: verification failed (rc=$RC)"
+  echo "    Output: $(echo "$OUTPUT" | head -5)"
+fi
+
+# --- T59: Trust store keys + missing .sig = BLOCK (v21 attack) ---
+rm -f "$WORK_DIR_T54/govern.json.sig"
+OUTPUT=$("$NAAB" "$WORK_DIR_T54/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ]; then
+  pass "T59: trust-keys + missing .sig = BLOCK (exit 3, v21 attack blocked)"
+else
+  fail "T59: expected exit 3 but got $RC"
+  echo "    Output: $(echo "$OUTPUT" | head -5)"
+fi
+
+# --- T60: HMAC .sig + trust store = BLOCK (requires re-signing) ---
+echo "hmac:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" > "$WORK_DIR_T54/govern.json.sig"
+OUTPUT=$("$NAAB" "$WORK_DIR_T54/test.naab" 2>&1)
+RC=$?
+if [ $RC -eq 3 ]; then
+  pass "T60: HMAC .sig + trust store = BLOCK (forces Ed25519 re-sign)"
+else
+  fail "T60: expected exit 3 but got $RC"
+  echo "    Output: $(echo "$OUTPUT" | head -5)"
+fi
+
+# --- T61: NAAB_SIGNING_KEY blocked from env.get() in user scripts ---
+cat > "$WORK_DIR_T54/test_env.naab" << 'NAAB_EOF'
+main {
+  let val = env.get("NAAB_SIGNING_KEY")
+  print(val)
+}
+NAAB_EOF
+# Re-sign govern.json for this test
+NAAB_SIGNING_KEY="$PRIV_KEY" "$NAAB" --sign-governance "$WORK_DIR_T54/govern.json" > /dev/null 2>&1
+OUTPUT=$(NAAB_SIGNING_KEY="$PRIV_KEY" "$NAAB" "$WORK_DIR_T54/test_env.naab" 2>&1)
+RC=$?
+if echo "$OUTPUT" | grep -qi "blocked\|restricted\|internal"; then
+  pass "T61: env.get(\"NAAB_SIGNING_KEY\") blocked by NAAB_INTERNAL_ENV_VARS"
+else
+  # Check it returns empty/null (also acceptable)
+  if echo "$OUTPUT" | grep -q "null" || [ -z "$(echo "$OUTPUT" | grep -v "^$" | grep -v "Governance")" ]; then
+    pass "T61: env.get(\"NAAB_SIGNING_KEY\") returns null (blocked)"
+  else
+    fail "T61: NAAB_SIGNING_KEY leaked: $(echo "$OUTPUT" | head -3)"
+  fi
+fi
+
+# Cleanup T54-T61 work dir (trust store restored by trap handler)
+rm -rf "$WORK_DIR_T54"
+# Clear trust store so it doesn't affect other test scripts that run after this one
+rm -rf "$REAL_TRUST"
 
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed, $FAILED failed ==="
