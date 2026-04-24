@@ -456,7 +456,7 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--signing-key" && command_arg_index + 1 < argc) {
             // V-SC-009: Override NAAB_SIGNING_KEY for this invocation
-            setenv("NAAB_SIGNING_KEY", argv[++command_arg_index], 1);
+            naab::platform::setenv("NAAB_SIGNING_KEY", argv[++command_arg_index], true);
             command_arg_index++;
         } else if (arg == "--keygen") {
             // V-SC-009: Generate Ed25519 keypair and install public key to trust store
