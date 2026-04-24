@@ -1752,9 +1752,18 @@ static std::string readSigningKey() {
     const char* sk_path = std::getenv(SIGNING_KEY_ENV);
     if (!sk_path || !*sk_path) return "";
     // Reject non-regular files (FIFOs, /dev/zero, etc.)
+#ifndef _WIN32
     struct stat st;
     if (lstat(sk_path, &st) != 0 || !S_ISREG(st.st_mode)) return "";
     if (st.st_size > 8192) return "";  // Ed25519 PEM is <500 bytes
+#else
+    // Windows: use filesystem to check regular file + size
+    std::error_code ec;
+    auto fstatus = std::filesystem::status(sk_path, ec);
+    if (ec || fstatus.type() != std::filesystem::file_type::regular) return "";
+    auto fsize = std::filesystem::file_size(sk_path, ec);
+    if (ec || fsize > 8192) return "";
+#endif
     std::ifstream ifs(sk_path);
     if (!ifs.is_open()) return "";
     std::string pem((std::istreambuf_iterator<char>(ifs)),

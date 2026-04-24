@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Error: Failed to write private key to %s\n", priv_path.c_str());
                 return 1;
             }
-            chmod(priv_path.c_str(), 0600);
+            // writeFileSecure() already creates with 0600 permissions
 
             // Install public key to trust store
             if (!naab::security::TrustStore::installKey(public_pem)) {

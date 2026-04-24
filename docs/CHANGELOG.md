@@ -5,6 +5,106 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.1.0] - 2026-04-23
+
+### Added
+- **Ed25519 trust-anchored governance signing (V-SC-009)** — asymmetric signing replaces HMAC-SHA256
+  - `--keygen [path]` generates Ed25519 keypair, installs public key to trust store
+  - `--signing-key <path>` specifies private key for signing operations
+  - `--trust-key <pubkey.pem>` installs a public key to the trust store
+  - `--list-keys` displays trusted key fingerprints
+  - External trust store at `~/.naab/trusted-keys/` (outside project sandbox)
+  - Signature format: `ed25519:<base64>` prefix for Ed25519, `hmac:<hex>` for tagged HMAC
+  - Legacy HMAC backward compatibility preserved with deprecation warning
+- **CryptoUtils Ed25519 primitives** — `ed25519Keygen`, `ed25519Sign`, `ed25519Verify`, `ed25519Fingerprint`, `toBase64`, `fromBase64`
+- **TrustStore class** — `trust_store.h/cpp` for managing Ed25519 public keys
+
+### Security
+- **V-SC-009: Trust store keys + missing .sig = BLOCK** — attacker sandboxed to project directory cannot bypass governance by deleting `.sig` files when trusted keys exist in `~/.naab/trusted-keys/`
+- **V-SC-009: HMAC .sig + trust store = BLOCK** — forces re-signing with Ed25519 when trust store is active
+- **V-SC-009: ed25519Verify rejects private keys** — only public keys accepted for verification
+- **V-SC-009: readSigningKey bounded read** — lstat + S_ISREG + 8KB cap prevents abuse
+- **V-SC-009: .sig file read capped at 4KB** — prevents memory abuse via crafted signature files
+- **V-SC-009: TOCTOU eliminated** — .sig opened directly, branch on is_open() instead of exists-then-open
+- **V-SC-009: Private key written via writeFileSecure()** — O_CREAT|O_WRONLY|O_EXCL with mode 0600
+- `NAAB_SIGNING_KEY` added to blocked env vars (env_impl.cpp) and subprocess scrubbing (subprocess_helpers.cpp, persistent_process_executor.cpp)
+
+### Changed
+- `signFile()` prefers Ed25519 (NAAB_SIGNING_KEY) over HMAC (NAAB_GOVERN_KEY) with deprecation warning
+- `verifySignatureImpl()` unified verification replaces duplicated logic in verifyFileSignature/verifyContentSignature
+- Owner-awareness messages updated: ~15 occurrences changed from HMAC-specific to generic signing references
+- govern-template.json updated: integrity comment changed from HMAC to Ed25519, `require_signature` field removed
+
+## [1.0.0] - 2026-04-14
+
+### Added
+- array.map()/filter()/reduce() aliases (no _fn suffix needed)
+- Module name aliases (fs→file, os→env, re→regex) with "Did you mean?" hints
+- spawn/wait/wait_all → async function hints for common concurrency patterns
+- Package integrity verification (SHA-256 hashes in naab.lock)
+- Unpinned git dependency security warnings
+
+### Fixed
+- Tree-walker timeout on Android/Termux (global_shutdown_ set from timer thread)
+- Package manager shell injection (system()→fork/execvp)
+- Package manager silent failures (installAll reporting with summary)
+- Subcommand flag parsing (naab install --verbose no longer treated as package name)
+- 6 parser expect() messages upgraded with examples and suggestions
+
+### Security
+- V-PKG-001: Shell injection in extractTarball eliminated (fork/execvp)
+- V-PKG-002: SHA-256 integrity hash verification for downloaded packages
+- parseSpec validates against shell metacharacters (';|`$()&)
+
+## [0.9.0] - 2026-04-09
+
+### Added
+- **String interpolation** — `f"Hello {name}"` and `"Hello ${name}"` syntax
+- **for-in with index** — `for (i, item) in arr { }` binds both index and value
+- **switch keyword** — alias for `match` expression
+- **--quiet/-q flag** — suppresses governance info messages for scripting use
+- **--strict flag** — alias for `--strict-types`
+- **Multi-line error context** — parser errors show 2-3 source lines with caret
+- **Parser error recovery** — reports multiple errors instead of stopping at first
+- **Top-level runtime declarations** — `runtime py = python.start()` at file scope
+- **Pre-built release binaries** — Linux (x86_64, aarch64), macOS (arm64), Windows (x86_64)
+- **INSTALL.md** — installation guide (binary download and build from source)
+- **naab-gov CLI** — standalone governance linting and scanning tool
+
+### Fixed
+- **SQLite NULL column crash** — `safeColumnText()` guards all `sqlite3_column_text()` calls
+- **Thread pool double-init race** — replaced double-check pattern with `std::call_once`
+- **Module cache thread safety** — added `std::shared_mutex` for concurrent access
+- **popen FILE* leak** — wrapped in RAII `unique_ptr<FILE, pclose>`
+- **Governance telemetry file leak** — RAII wrapper for fopen/flock/fclose
+- **Debugger source locations** — `CallFrame.source_location` now uses real file:line info
+
+### Security
+- 60+ security fixes across R5-R24 audit rounds
+- Windows subprocess hardening (Job Objects, handle narrowing, Ctrl-C handler)
+- Lockfile HMAC-SHA256 signatures, fail-closed verification
+- REST API per-request timeout, body size limits, constant-time auth
+- Environment variable injection blocking (LD_PRELOAD, PATH, etc.)
+
+## [0.8.1] - 2026-04-03
+
+### Fixed
+- **Windows CI** — `vm.cpp` `OP_POLYGLOT` handler preamble/postamble now guarded with `#ifdef HAVE_PYBIND11`, fixing Python `-> JSON` blocks in subprocess mode (Windows/no pybind11)
+- **Version sync** — all version strings across configs, docs, tests, and tooling synchronized to 0.8.1
+- **CI hardening** — `ci.yml` now runs full `run-all-tests.sh` suite with pybind11 installed
+
+## [0.8.0] - 2026-04-02
+
+### Added
+- **Windows portability** — full MSYS2/MinGW64 build support, `platform_win32.cpp`, `CreateProcess` subprocess executor, GitHub CI for Windows
+- **LSP enhancements** — codeAction, workspaceSymbol, rename refactoring (Sprint 8.3)
+- **Deterministic builds** — `naab.lock` lockfile via `--lock`/`--lock-check`/`--lock-path` flags (Sprint 8.4)
+- **Enterprise governance** — exit codes (0-4), quality gates, CWE/OWASP tags, baselines, environment selector, runtime versions
+- **New stdlib modules** — `log`, `uuid`, `validate`, `process`
+- **libnaab** static library and `naab-gov` standalone CLI
+
 ## [0.7.0] - 2026-03-30
 
 ### Added
