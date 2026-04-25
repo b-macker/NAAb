@@ -255,7 +255,8 @@ parse, stringify
 match, test, replace, split
 
 ### env
-get, set_var (NOT set — the function is set_var), list
+get, set_var (NOT set — the function is set_var), list,
+get_args (returns CLI arguments as string array — NOT a global `args` variable)
 
 ### io
 write, read_line, write_error
@@ -332,6 +333,38 @@ main {
 }
 ```
 
+Tests that create persistent data should clean up after themselves to stay idempotent:
+```naab
+fn test_crud() {
+    let passed = 0
+    let total = 0
+    total = total + 1
+    let item = storage.add_item("test-data")
+    if item != null { passed = passed + 1 }
+    storage.delete_item(item.get("id"))  // cleanup
+    return [passed, total]
+}
+```
+
+## CLI Arguments Pattern
+`args` is NOT a global variable. Use `env.get_args()`:
+```naab
+main {
+    let raw_args = env.get_args()
+    let args = []
+    if len(raw_args) == 0 {
+        let line = io.read_line()
+        if line != null and line != "" { args = line.split(" ") }
+    } else {
+        if raw_args[0].contains(".naab") {
+            for i in 1..len(raw_args) { args.push(raw_args[i]) }
+        } else { args = raw_args }
+    }
+    let cmd = args.get(0) ?? "help"
+    // args.get(N) returns null for out-of-bounds (safe access)
+}
+```
+
 ## Known Gotchas (avoid these mistakes)
 1. `array.push/pop/shift/unshift` MUTATE the original array
 2. Float-to-string uses trimmed format: `3.14` stays `"3.14"` (no trailing zeros)
@@ -373,7 +406,7 @@ main {
 35. Generators use eager collection: `yield` pushes values into a list, then `for-in` iterates that list. This means infinite generators will collect forever — always use a bound (e.g., `while a < limit`).
 36. Generator detection is automatic: any function containing `yield` (at any nesting depth) becomes a generator. No special keyword or annotation needed.
 37. `for x in gen_fn(args)` is the only way to consume a generator. Calling `gen_fn(args)` directly returns a GeneratorValue object, not the yielded values.
-38. `catch (e)` variable `e` is a dict `{"message": "...", "type": "PolyglotError"}` — use `e["message"]` to get the error string, NOT `e` directly with `string.contains()`.
+38. `catch (e)` variable `e` is a dict `{"message": "...", "type": "..."}`. Both `e.get("message")` and `e.message` work. Use `.get()` for safety if a key might be missing.
 39. Type annotations are enforced at runtime on ALL call paths: direct calls, pipeline (`|>`), callbacks (`array.map_fn`), lambda calls, and method dispatch. Generator params are also checked at creation time.
 40. Generator bodies that throw exceptions properly restore interpreter state (active_generator_, current_env_, returning_) — safe to catch and continue.
 41. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
@@ -381,6 +414,10 @@ main {
 43. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
 44. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
 45. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
+46. `args` is NOT a global variable — use `env.get_args()` to get CLI arguments as an array. See "CLI Arguments Pattern" section above.
+47. Structs become plain dicts after JSON round-trip (`json.stringify` → `json.parse`). Use `.get("field")` not `.field` on deserialized data. For type-safe reconstruction: `fn Task.from_dict(d) { return new Task { id: d.get("id"), ... } }`
+48. `array.get(index)` returns null on out-of-bounds (safe access). `array.get(index, default)` returns a default value. Use this for optional CLI args instead of `args[N]` which throws.
+49. Don't create identity sanitizer functions like `fn validate_x(data) { return data }` — governance detects these as bypasses. Sanitizers must actually validate or transform.
 
 ## Complexity Scoring (for governance)
 
@@ -404,13 +441,14 @@ Functions named `get_*`, `set_*`, `is_*`, `has_*`, `to_*`, `make_*`, `apply_*`,
 `manhattan`, `in_bounds`, `direction` have LOW threshold (score >= 3).
 
 Functions named `simulate_*`, `compute_*`, `calculate_*`, `process_*`, `analyze_*`
-need substantial logic (score >= 20-25, must have loops or conditionals).
+need substantial logic (score >= 12, must have loops or conditionals).
 
 Functions shorter than `min_lines_for_check` lines skip the floor entirely.
 
-Do NOT pad functions with `for i in 0..1 { }` or `for i in 0..2 { }` loops to pass
-complexity checks. Instead: add real logic — input validation, edge case handling,
-error recovery with try/catch.
+Do NOT pad functions with fake loops, identity pipelines (`x |> fn(r) { return r }`),
+or unused variables to pass complexity checks. Governance detects these patterns.
+Instead: add real logic — input validation, edge case handling, error recovery with
+try/catch, iteration over actual data.
 
 ## Contract Patterns
 

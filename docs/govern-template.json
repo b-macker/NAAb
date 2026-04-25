@@ -530,14 +530,14 @@
         {
           "names": ["analyze", "compute", "calculate", "process", "transform",
                     "evaluate", "optimize", "classify", "detect", "predict"],
-          "min_score": 25,
+          "min_score": 12,
           "require_branching_or_loops": true,
           "message": "Functions named analyze/compute/process must contain non-trivial logic"
         },
         {
           "names": ["sort", "search", "filter", "merge", "parse",
                     "serialize", "encode", "decode", "compress", "encrypt"],
-          "min_score": 20,
+          "min_score": 12,
           "require_branching_or_loops": true
         },
         {

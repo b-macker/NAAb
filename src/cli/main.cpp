@@ -1384,11 +1384,14 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // VM path: check NAAb source for secrets/PII (tree-walker does this in checkNaabFunctionBody)
+                // VM path: check NAAb source for secrets/PII/incomplete logic
+                // (tree-walker does this per-function in checkNaabFunctionBody)
                 if (gov_loaded && vm_governance.isActive()) {
                     std::string sec_err = vm_governance.checkSecrets(source, 0);
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                     sec_err = vm_governance.checkPii(source, 0);
+                    if (!sec_err.empty()) throw std::runtime_error(sec_err);
+                    sec_err = vm_governance.checkIncompleteLogic(source, 0);
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                 }
 
