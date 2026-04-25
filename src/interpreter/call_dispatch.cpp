@@ -576,6 +576,17 @@ void Interpreter::visit(ast::CallExpr& node) {
                     } else if (args.size() >= 2) {
                         result_ = args[1];
                     } else {
+                        // "Did you mean?" hint when key not found and similar keys exist
+                        if (!dict.empty()) {
+                            std::vector<std::string> keys;
+                            keys.reserve(dict.size());
+                            for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
+                            auto suggestion = naab::error::suggestDictKey(key, keys);
+                            if (!suggestion.empty()) {
+                                fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
+                                        key.c_str(), suggestion.c_str());
+                            }
+                        }
                         result_ = NaabVal::makeNull();
                     }
                     return;
@@ -1445,7 +1456,18 @@ void Interpreter::visit(ast::CallExpr& node) {
                 } else if (args.size() >= 2) {
                     result_ = args[1];  // default value
                 } else {
-                    result_ = NaabVal::makeNull();  // null
+                    // "Did you mean?" hint when key not found and similar keys exist
+                    if (!dict.empty()) {
+                        std::vector<std::string> keys;
+                        keys.reserve(dict.size());
+                        for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
+                        auto similar = naab::error::findSimilarStrings(key, keys, 2);
+                        if (!similar.empty()) {
+                            fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
+                                    key.c_str(), similar[0].c_str());
+                        }
+                    }
+                    result_ = NaabVal::makeNull();
                 }
                 return;
             }

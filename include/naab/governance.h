@@ -1101,6 +1101,7 @@ struct FunctionContract {
     int return_length_min = -1;        // -1 = not set
     int return_length_max = -1;
     bool return_not_null = false;
+    std::string return_matches;        // regex pattern the string return value must match
     std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
 };
 

@@ -3818,6 +3818,17 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             auto it = dict.find(key);
             if (it != dict.end()) return it->second;
             if (argc >= 2) return args[1]; // default value
+            // "Did you mean?" hint when key not found and similar keys exist
+            if (!dict.empty()) {
+                std::vector<std::string> keys;
+                keys.reserve(dict.size());
+                for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
+                auto suggestion = naab::error::suggestDictKey(key, keys);
+                if (!suggestion.empty()) {
+                    fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
+                            key.c_str(), suggestion.c_str());
+                }
+            }
             return interpreter::NaabVal::makeNull();
         }
         if (method == "has" || method == "has_key" || method == "contains" || method == "containsKey") {
@@ -4067,10 +4078,16 @@ std::string VM::getVariableHelper(const std::string& name) const {
                "    let result = fn(arg1, arg2)   // call directly\n"
                "    // or: myDict.funcName(arg1, arg2)";
     }
+    if (name == "args" || name == "argv" || name == "arguments" || name == "ARGV") {
+        return "\n  NAAb does not have a global '" + name + "' variable.\n"
+               "    Use env.get_args() to access command-line arguments:\n\n"
+               "    let args = env.get_args()\n"
+               "    let cmd = args.get(0) ?? \"help\"\n";
+    }
     if (name == "process" || name == "os" || name == "OS") {
         return "\n  NAAb does not have a '" + name + "' object.\n"
-               "    For environment variables: import env; env.get(\"PATH\")\n"
-               "    For command args: import env; let args = env.args()";
+               "    For environment variables: env.get(\"VAR_NAME\")\n"
+               "    For command-line arguments: let args = env.get_args()";
     }
     if (name == "this" || name == "self") {
         return "\n  NAAb does not use '" + name + "'. In structs, access fields directly:\n"

@@ -393,6 +393,10 @@ std::string GovernanceEngine::checkDeadCode(const std::string& code, int line) {
     static const std::vector<std::string> default_dead_patterns = {
         "if\\s+(?:True|1)\\s*:", "if\\s+(?:False|0)\\s*:",
         "except:\\s*(?:pass|\\.\\.\\.)\\s*$",
+        // NAAb commented-out code patterns (Gate 18: commented-out logic detection)
+        "//\\s*\\w+\\s*=\\s*(?:true|false|null|\\d|\")",   // // var = true/false/value (commented assignment)
+        "//\\s*\\w+\\.push\\(",                              // // arr.push(x) (commented mutation)
+        "//\\s*return\\s+\\w",                               // // return value (commented return)
     };
 
     auto& pats = cfg.patterns.empty() ? default_dead_patterns : cfg.patterns;
@@ -839,6 +843,12 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}",
     // NAAb identity/passthrough validation functions
     "fn\\s+(?:validate|check|verify|is_)\\w*\\([^)]*\\)\\s*\\{\\s*return\\s+true\\s*\\}",
+    // NAAb identity sanitizer: validate_*(param) { return param } — returns input unchanged
+    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*return\\s+\\1\\s*;?\\s*\\}",
+    // NAAb identity pipeline: x |> fn(param) { return param } — adds complexity points for nothing
+    "\\|>\\s*fn\\s*\\(\\s*\\w+\\s*\\)\\s*\\{\\s*return\\s+\\w+\\s*;?\\s*\\}",
+    // NAAb error sentinel: validate_*/check_* returning hardcoded error string instead of throwing
+    "fn\\s+(?:validate|check|verify)_\\w+\\([^)]*\\)\\s*\\{[^}]*return\\s+\"(?:invalid|error|failed|unknown|missing|bad|none)[^\"]*\"",
 
     // EVA-EXTRA-3: Numeric result fabrication patterns
     // Suspiciously precise hardcoded scores (LLMs love 0.85, 0.92, etc.)
@@ -925,6 +935,9 @@ std::string GovernanceEngine::checkFunctionContract(
                 vals += "\"" + v + "\"";
             }
             good_ex = "return one of: " + vals;
+        } else if (detail.find("match pattern") != std::string::npos) {
+            bad_ex = "return \"invalid-trace-id\"  // error sentinel, not real data";
+            good_ex = "if !valid { throw \"Invalid trace ID\" }\nreturn trace_id  // only valid values";
         } else if (detail.find("non-null") != std::string::npos) {
             bad_ex = "return null";
             good_ex = "return computed_value  // ensure non-null";
@@ -1027,6 +1040,20 @@ std::string GovernanceEngine::checkFunctionContract(
                      || result_str == "\"\"" || result_type == "null";
         if (empty) {
             return make_err("expected non-empty return value");
+        }
+    }
+
+    // return_matches (regex validation for string returns)
+    if (!contract.return_matches.empty() && result_type == "string") {
+        try {
+            std::regex re(contract.return_matches);
+            if (!std::regex_match(result_str, re)) {
+                return make_err(fmt::format(
+                    "return value \"{}\" does not match pattern /{}/",
+                    result_str, contract.return_matches));
+            }
+        } catch (const std::regex_error&) {
+            // Invalid regex in contract config — skip, don't crash
         }
     }
 

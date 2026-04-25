@@ -1544,6 +1544,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("return_length_min")) fc.return_length_min = fn_obj["return_length_min"].get<int>();
                 if (fn_obj.contains("return_length_max")) fc.return_length_max = fn_obj["return_length_max"].get<int>();
                 if (fn_obj.contains("return_not_null")) fc.return_not_null = fn_obj["return_not_null"].get<bool>();
+                if (fn_obj.contains("return_matches")) fc.return_matches = fn_obj["return_matches"].get<std::string>();
                 if (fn_obj.contains("params") && fn_obj["params"].is_array()) {
                     for (auto& p : fn_obj["params"]) fc.params.push_back(p.get<std::string>());
                 }

@@ -51,6 +51,13 @@ std::string checkCaseSensitivity(
 // Suggest corrections for keyword typos
 std::string suggestForKeywordTypo(const std::string& token);
 
+// Suggest similar dict key when dict.get() returns null.
+// Uses both Levenshtein distance AND substring containment for broader matching.
+// Returns empty string if no suggestion found.
+std::string suggestDictKey(
+    const std::string& requested_key,
+    const std::vector<std::string>& actual_keys);
+
 } // namespace error
 } // namespace naab
 

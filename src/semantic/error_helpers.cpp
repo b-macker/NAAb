@@ -252,5 +252,45 @@ std::string suggestForKeywordTypo(const std::string& token) {
     return "";
 }
 
+// Suggest a similar dict key using both Levenshtein distance and substring containment.
+// This catches typos ("servce" → "service") AND semantic near-misses ("environment" → "env_vars").
+std::string suggestDictKey(
+    const std::string& requested_key,
+    const std::vector<std::string>& actual_keys) {
+
+    if (actual_keys.empty() || requested_key.empty()) return "";
+
+    // 1. Try Levenshtein distance <= 2 (catches typos)
+    auto similar = findSimilarStrings(requested_key, actual_keys, 2);
+    if (!similar.empty()) return similar[0];
+
+    // 2. Try substring containment (catches "cache" when key is "cache_entries",
+    //    or "environment" when key is "env_vars" via prefix match)
+    std::string req_lower = requested_key;
+    std::transform(req_lower.begin(), req_lower.end(), req_lower.begin(), ::tolower);
+
+    for (const auto& key : actual_keys) {
+        std::string key_lower = key;
+        std::transform(key_lower.begin(), key_lower.end(), key_lower.begin(), ::tolower);
+
+        // requested is substring of actual key or vice versa (min 3 chars to avoid noise)
+        if (req_lower.size() >= 3 && key_lower.find(req_lower) != std::string::npos) return key;
+        if (key_lower.size() >= 3 && req_lower.find(key_lower) != std::string::npos) return key;
+    }
+
+    // 3. Try common prefix (at least 3 chars) — catches "env" matching "env_vars"
+    for (const auto& key : actual_keys) {
+        size_t prefix_len = 0;
+        size_t max_check = std::min(requested_key.size(), key.size());
+        for (size_t i = 0; i < max_check; ++i) {
+            if (std::tolower(requested_key[i]) == std::tolower(key[i])) prefix_len++;
+            else break;
+        }
+        if (prefix_len >= 3) return key;
+    }
+
+    return "";
+}
+
 } // namespace error
 } // namespace naab

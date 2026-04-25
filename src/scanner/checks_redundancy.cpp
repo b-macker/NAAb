@@ -486,27 +486,34 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 11b. unused_imports (NAAb)
     if (isEnabled(CAT, "unused_imports") && language == "naab") {
+        // Pattern 1: use <module>
         static const std::regex use_pat(R"(^\s*use\s+(\w+)\s*$)");
+        // Pattern 2: import "<path>" as <alias>
+        static const std::regex import_as_pat(R"(^\s*import\s+"[^"]+"\s+as\s+(\w+)\s*$)");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::smatch m;
+            std::string module_name;
             if (std::regex_search(lines[i], m, use_pat)) {
-                std::string module_name = m[1].str();
-                if (module_name == "debug") continue;
+                module_name = m[1].str();
+            } else if (std::regex_search(lines[i], m, import_as_pat)) {
+                module_name = m[1].str();
+            }
+            if (module_name.empty()) continue;
+            if (module_name == "debug") continue;
 
-                bool found = false;
-                std::regex usage_pat("\\b" + module_name + "\\.");
-                for (size_t j = 0; j < lines.size(); ++j) {
-                    if (j == i) continue;
-                    if (std::regex_search(lines[j], usage_pat)) {
-                        found = true;
-                        break;
-                    }
+            bool found = false;
+            std::regex usage_pat("\\b" + module_name + "\\.");
+            for (size_t j = 0; j < lines.size(); ++j) {
+                if (j == i) continue;
+                if (std::regex_search(lines[j], usage_pat)) {
+                    found = true;
+                    break;
                 }
-                if (!found) {
-                    addIssue(issues, filepath, i + 1, "unused_imports", CAT,
-                             fmt::format("Module '{}' imported but never used", module_name),
-                             trim(lines[i]), "Remove unused import", "advisory");
-                }
+            }
+            if (!found) {
+                addIssue(issues, filepath, i + 1, "unused_imports", CAT,
+                         fmt::format("Module '{}' imported but never used", module_name),
+                         trim(lines[i]), "Remove unused import", "advisory");
             }
         }
     }
