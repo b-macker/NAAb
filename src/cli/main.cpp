@@ -817,8 +817,15 @@ int main(int argc, char** argv) {
                     }
                     break;
                 } else {
-                    // Subsequent non-flags are script arguments
+                    // First script positional arg — from here, ALL remaining
+                    // args belong to the script. This prevents NAAb flags
+                    // (--profile, --verbose, etc.) from colliding with
+                    // identically-named script flags.
                     script_args.push_back(arg);
+                    for (++i; i < argc; ++i) {
+                        script_args.push_back(argv[i]);
+                    }
+                    break;
                 }
             }
         }
