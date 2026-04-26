@@ -809,13 +809,6 @@ int main(int argc, char** argv) {
                 if (filename.empty()) {
                     // First non-flag is the filename
                     filename = arg;
-                    // Once filename is found, all remaining args belong to the script.
-                    // This prevents NAAb flags (--profile, --verbose, etc.) from being
-                    // consumed when they are intended for the script.
-                    for (++i; i < argc; ++i) {
-                        script_args.push_back(argv[i]);
-                    }
-                    break;
                 } else {
                     // First script positional arg — from here, ALL remaining
                     // args belong to the script. This prevents NAAb flags
