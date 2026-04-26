@@ -2,9 +2,12 @@
 // Port from naab-q/src/checks/lang_naab.naab
 
 #include "naab/scanner.h"
+#include "naab/error_helpers.h"
 #include <regex>
 #include <algorithm>
+#include <fstream>
 #include <fmt/core.h>
+#include <nlohmann/json.hpp>
 
 namespace naab {
 namespace scanner {
@@ -22,7 +25,6 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                                    const std::string& content,
                                    std::vector<Issue>& issues) const {
     const std::string CAT = "lang_naab";
-
     bool is_module = content.find("main {") == std::string::npos &&
                      content.find("main{") == std::string::npos;
 
@@ -279,6 +281,77 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                     addIssue(issues, filepath, i + 1, "python_return_in_block", CAT,
                              "return in Python polyglot (SyntaxError)", s,
                              "Use print() or assign to bound variable");
+                }
+            }
+        }
+    }
+
+    // 11. dict_key_schema_check — pre-flight verification of dict.get() keys against actual JSON files
+    if (isEnabled(CAT, "dict_key_schema_check")) {
+        // Phase 1: Find json.parse(file.read("path")) patterns and map var → JSON keys
+        static const std::regex parse_read_pat(
+            R"!!(let\s+(\w+)\s*=\s*json\.parse\s*\(\s*file\.read\s*\(\s*"([^"]+)"\s*\))!!");
+        std::map<std::string, std::vector<std::string>> var_keys; // var name -> available keys
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = nb_trim(lines[i]);
+            std::smatch m;
+            if (std::regex_search(s, m, parse_read_pat)) {
+                std::string var_name = m[1].str();
+                std::string json_path = m[2].str();
+
+                // Resolve relative path from the scanned file's directory
+                std::string dir;
+                auto last_slash = filepath.rfind('/');
+                if (last_slash != std::string::npos) dir = filepath.substr(0, last_slash + 1);
+                std::string abs_path = (json_path[0] == '/') ? json_path : dir + json_path;
+
+                // Read and parse the JSON file
+                std::ifstream ifs(abs_path);
+                if (ifs.good()) {
+                    try {
+                        nlohmann::json j = nlohmann::json::parse(ifs);
+                        if (j.is_object()) {
+                            std::vector<std::string> keys;
+                            for (auto it = j.begin(); it != j.end(); ++it) {
+                                keys.push_back(it.key());
+                            }
+                            var_keys[var_name] = keys;
+                        }
+                    } catch (...) { /* malformed JSON — skip */ }
+                }
+            }
+        }
+
+        // Phase 2: Find var.get("key") calls and cross-reference against known keys
+        if (!var_keys.empty()) {
+            static const std::regex get_key_pat(R"!!((\w+)\.get\s*\(\s*"([^"]+)"\s*\))!!");
+            for (size_t i = 0; i < lines.size(); ++i) {
+                std::string s = nb_trim(lines[i]);
+                std::smatch m;
+                std::string::const_iterator search_start = s.cbegin();
+                while (std::regex_search(search_start, s.cend(), m, get_key_pat)) {
+                    std::string var_name = m[1].str();
+                    std::string req_key = m[2].str();
+                    auto it = var_keys.find(var_name);
+                    if (it != var_keys.end()) {
+                        const auto& keys = it->second;
+                        if (std::find(keys.begin(), keys.end(), req_key) == keys.end()) {
+                            // Key not found — suggest closest match
+                            auto similar = naab::error::findSimilarStrings(req_key, keys, 3);
+                            std::string hint = similar.empty()
+                                ? fmt::format("key \"{}\" not found in JSON", req_key)
+                                : fmt::format("key \"{}\" not in JSON — did you mean \"{}\"?", req_key, similar[0]);
+                            std::string avail;
+                            for (size_t k = 0; k < keys.size() && k < 8; ++k) {
+                                if (!avail.empty()) avail += ", ";
+                                avail += "\"" + keys[k] + "\"";
+                            }
+                            addIssue(issues, filepath, i + 1, "dict_key_schema_check", CAT,
+                                     hint, s, "Available keys: " + avail);
+                        }
+                    }
+                    search_start = m.suffix().first;
                 }
             }
         }

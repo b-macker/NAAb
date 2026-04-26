@@ -553,6 +553,7 @@ struct NoIncompleteLogicConfig {
     bool check_always_true_false = true;
     bool check_missing_validation = true;
     bool case_sensitive = false;
+    std::vector<std::string> suppressions;  // "category:file_glob" patterns to suppress
 };
 
 struct NoHallucinatedApisConfig {
@@ -1098,6 +1099,8 @@ struct FunctionContract {
     std::vector<std::string> return_one_of;
     bool return_non_empty = false;
     std::vector<std::string> return_keys;
+    bool return_keys_non_null = false;    // if true, all return_keys values must be non-null
+    bool return_keys_non_empty = false;   // if true, all return_keys values must be non-empty (not null/""/[]/{}
     int return_length_min = -1;        // -1 = not set
     int return_length_max = -1;
     bool return_not_null = false;
@@ -1612,7 +1615,7 @@ public:
 
     // LLM anti-drift checks
     std::string checkOversimplification(const std::string& code, int line = 0);
-    std::string checkIncompleteLogic(const std::string& code, int line = 0);
+    std::string checkIncompleteLogic(const std::string& code, int line = 0, const std::string& source_file = "");
     std::string checkHallucinatedApis(const std::string& language,
                                        const std::string& code, int line = 0);
     std::string checkSemanticIssues(const std::string& language,

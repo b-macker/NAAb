@@ -1398,7 +1398,7 @@ int main(int argc, char** argv) {
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                     sec_err = vm_governance.checkPii(source, 0);
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
-                    sec_err = vm_governance.checkIncompleteLogic(source, 0);
+                    sec_err = vm_governance.checkIncompleteLogic(source, 0, filename);
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                 }
 

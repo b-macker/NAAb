@@ -936,6 +936,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (val.contains("custom_patterns")) {
                     for (auto& p : val["custom_patterns"]) il.custom_patterns.push_back(p.get<std::string>());
                 }
+                if (val.contains("suppressions") && val["suppressions"].is_array()) {
+                    for (auto& s : val["suppressions"]) il.suppressions.push_back(s.get<std::string>());
+                }
             }
         }
 
@@ -1541,6 +1544,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("return_keys") && fn_obj["return_keys"].is_array()) {
                     for (auto& k : fn_obj["return_keys"]) fc.return_keys.push_back(k.get<std::string>());
                 }
+                if (fn_obj.contains("return_keys_non_null")) fc.return_keys_non_null = fn_obj["return_keys_non_null"].get<bool>();
+                if (fn_obj.contains("return_keys_non_empty")) fc.return_keys_non_empty = fn_obj["return_keys_non_empty"].get<bool>();
                 if (fn_obj.contains("return_length_min")) fc.return_length_min = fn_obj["return_length_min"].get<int>();
                 if (fn_obj.contains("return_length_max")) fc.return_length_max = fn_obj["return_length_max"].get<int>();
                 if (fn_obj.contains("return_not_null")) fc.return_not_null = fn_obj["return_not_null"].get<bool>();

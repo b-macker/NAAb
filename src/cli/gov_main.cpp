@@ -253,7 +253,7 @@ static int cmdScan(const std::vector<std::string>& args) {
     }
 
     std::string target_path;
-    std::string language;
+    std::string language = "auto";
     bool sarif_output = false;
 
     for (size_t i = 0; i < args.size(); ++i) {

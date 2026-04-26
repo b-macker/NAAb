@@ -849,6 +849,10 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "\\|>\\s*fn\\s*\\(\\s*\\w+\\s*\\)\\s*\\{\\s*return\\s+\\w+\\s*;?\\s*\\}",
     // NAAb error sentinel: validate_*/check_* returning hardcoded error string instead of throwing
     "fn\\s+(?:validate|check|verify)_\\w+\\([^)]*\\)\\s*\\{[^}]*return\\s+\"(?:invalid|error|failed|unknown|missing|bad|none)[^\"]*\"",
+    // NAAb copy-and-return identity sanitizer: validate_*(p) { let x = p; return x }
+    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*let\\s+(\\w+)\\s*=\\s*\\1\\s*;?\\s*return\\s+\\2\\s*;?\\s*\\}",
+    // NAAb multi-let copy-and-return: validate_*(p) { let a = p; let b = a; return b }
+    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*(?:let\\s+\\w+\\s*=\\s*\\w+\\s*;?\\s*){1,3}return\\s+\\w+\\s*;?\\s*\\}",
 
     // EVA-EXTRA-3: Numeric result fabrication patterns
     // Suspiciously precise hardcoded scores (LLMs love 0.85, 0.92, etc.)
@@ -857,7 +861,7 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "\\[\\s*(?:0\\.\\d+,\\s*){4,}\\]",
 };
 
-std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line) {
+std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file) {
     auto& cfg = rules_.code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
     auto& pats = cfg.patterns.empty() ? DEFAULT_INCOMPLETE_LOGIC_PATTERNS : cfg.patterns;
@@ -868,6 +872,28 @@ std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int 
 
     std::string found = searchPatterns(code, active_pats, !cfg.case_sensitive);
     if (!found.empty()) {
+        // Check suppressions: format is "file_glob" or "category:file_glob"
+        if (!cfg.suppressions.empty() && !source_file.empty()) {
+            std::string basename = source_file;
+            auto slash = basename.rfind('/');
+            if (slash != std::string::npos) basename = basename.substr(slash + 1);
+            for (const auto& s : cfg.suppressions) {
+                // Simple glob: *.naab, test_*.naab, validators.naab
+                std::string glob = s;
+                auto colon = s.find(':');
+                if (colon != std::string::npos) glob = s.substr(colon + 1);
+                // Match: exact match, or wildcard prefix match
+                if (glob == basename) { recordPass("code_quality.no_incomplete_logic", cfg.level); return ""; }
+                if (glob.size() > 1 && glob[0] == '*') {
+                    std::string suffix = glob.substr(1);
+                    if (basename.size() >= suffix.size() &&
+                        basename.compare(basename.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                        recordPass("code_quality.no_incomplete_logic", cfg.level);
+                        return "";
+                    }
+                }
+            }
+        }
         return enforce("code_quality.no_incomplete_logic", cfg.level,
             formatError(cfg.level, fmt::format("Incomplete logic detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_incomplete_logic",
@@ -938,6 +964,10 @@ std::string GovernanceEngine::checkFunctionContract(
         } else if (detail.find("match pattern") != std::string::npos) {
             bad_ex = "return \"invalid-trace-id\"  // error sentinel, not real data";
             good_ex = "if !valid { throw \"Invalid trace ID\" }\nreturn trace_id  // only valid values";
+        } else if (detail.find("return_keys_non_null") != std::string::npos ||
+                   detail.find("return_keys_non_empty") != std::string::npos) {
+            bad_ex = "return {\"services\": [], \"stats\": {}}  // keys present but empty";
+            good_ex = "return {\"services\": [real_data], \"stats\": {\"count\": n}}  // substantive values";
         } else if (detail.find("non-null") != std::string::npos) {
             bad_ex = "return null";
             good_ex = "return computed_value  // ensure non-null";
@@ -1065,6 +1095,33 @@ std::string GovernanceEngine::checkFunctionContract(
             std::string quoted_key = "\"" + key + "\":";
             if (result_str.find(quoted_key) == std::string::npos) {
                 return make_err(fmt::format("return dict missing required key '{}'", key));
+            }
+        }
+    }
+
+    // return_keys_non_null / return_keys_non_empty (value validation for dict keys)
+    if ((contract.return_keys_non_null || contract.return_keys_non_empty) &&
+        result_type == "dict" && !contract.return_keys.empty()) {
+        for (const auto& key : contract.return_keys) {
+            std::string quoted_key = "\"" + key + "\":";
+            auto pos = result_str.find(quoted_key);
+            if (pos == std::string::npos) continue; // already caught by return_keys
+            auto val_start = pos + quoted_key.size();
+            while (val_start < result_str.size() && result_str[val_start] == ' ') val_start++;
+            if (contract.return_keys_non_null) {
+                if (result_str.compare(val_start, 4, "null") == 0) {
+                    return make_err(fmt::format(
+                        "return dict key '{}' is null (return_keys_non_null requires non-null values)", key));
+                }
+            }
+            if (contract.return_keys_non_empty) {
+                if (result_str.compare(val_start, 4, "null") == 0 ||
+                    result_str.compare(val_start, 2, "[]") == 0 ||
+                    result_str.compare(val_start, 2, "{}") == 0 ||
+                    result_str.compare(val_start, 2, "\"\"") == 0) {
+                    return make_err(fmt::format(
+                        "return dict key '{}' is empty (return_keys_non_empty requires substantive values)", key));
+                }
             }
         }
     }
@@ -1346,7 +1403,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     }
 
     if (il_cfg.enabled) {
-        err = checkIncompleteLogic(stripped, line);
+        err = checkIncompleteLogic(stripped, line, source_file);
         if (!err.empty()) return err;
     }
 
