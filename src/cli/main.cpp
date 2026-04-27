@@ -944,7 +944,6 @@ int main(int argc, char** argv) {
                 const char* _signing_key = std::getenv("NAAB_SIGNING_KEY");
                 bool _has_authority = (_govern_key && *_govern_key) || (_signing_key && *_signing_key);
                 if (!_has_authority) {
-                    bool enforce_mode = (preflight_gov.getMode() == naab::governance::GovernanceMode::ENFORCE);
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && preflight_gov.isBlockedFlag(flag)) {
                             fprintf(stderr,
@@ -962,21 +961,10 @@ int main(int argc, char** argv) {
                     checkBlocked("--drift-baseline-save", drift_baseline_save);
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
-                    // Gap 13/16: Warn when bypassing enforce mode without signing authority
-                    if (enforce_mode && !naab::governance::g_governance_hard_block) {
-                        if (no_governance) {
-                            fprintf(stderr,
-                                "[governance] WARNING: --no-governance used with mode:enforce.\n"
-                                "  Governance is disabled. To block this, add \"--no-governance\" to\n"
-                                "  integrity.blocked_flags in govern.json.\n");
-                        }
-                        if (governance_override) {
-                            fprintf(stderr,
-                                "[governance] WARNING: --governance-override used with mode:enforce.\n"
-                                "  SOFT violations will be overridden. To block this, add \"--governance-override\"\n"
-                                "  to integrity.blocked_flags in govern.json.\n");
-                        }
-                    }
+                    // Gap 13/16: Projects should add --no-governance and --governance-override
+                    // to integrity.blocked_flags in govern.json to prevent bypass.
+                    // No implicit warning here — it fires for scripts in unrelated directories
+                    // that discover ~/govern.json via upward walk, breaking legitimate usage.
                     if (naab::governance::g_governance_hard_block) {
                         fflush(stdout); fflush(stderr);
                         _exit(3);
