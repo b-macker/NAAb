@@ -1586,6 +1586,22 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             for (const auto& s : tt["sinks"]) {
                 rules_.taint_tracking.sinks.push_back(s.get<std::string>());
             }
+            // Gap 5/9: Auto-expand sink equivalents — file.write and file.append
+            // are the same operation, so configuring one should include the other.
+            static const std::vector<std::pair<std::string, std::string>> sink_equivalents = {
+                {"file.write", "file.append"},
+                {"file.append", "file.write"}
+            };
+            for (const auto& [configured, equivalent] : sink_equivalents) {
+                bool has_configured = false, has_equivalent = false;
+                for (const auto& s : rules_.taint_tracking.sinks) {
+                    if (s == configured) has_configured = true;
+                    if (s == equivalent) has_equivalent = true;
+                }
+                if (has_configured && !has_equivalent) {
+                    rules_.taint_tracking.sinks.push_back(equivalent);
+                }
+            }
         }
         if (tt.contains("sanitizers") && tt["sanitizers"].is_array()) {
             for (const auto& s : tt["sanitizers"]) {

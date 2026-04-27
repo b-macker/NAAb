@@ -944,6 +944,7 @@ int main(int argc, char** argv) {
                 const char* _signing_key = std::getenv("NAAB_SIGNING_KEY");
                 bool _has_authority = (_govern_key && *_govern_key) || (_signing_key && *_signing_key);
                 if (!_has_authority) {
+                    bool enforce_mode = (preflight_gov.getMode() == naab::governance::GovernanceMode::ENFORCE);
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && preflight_gov.isBlockedFlag(flag)) {
                             fprintf(stderr,
@@ -961,6 +962,21 @@ int main(int argc, char** argv) {
                     checkBlocked("--drift-baseline-save", drift_baseline_save);
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
+                    // Gap 13/16: Warn when bypassing enforce mode without signing authority
+                    if (enforce_mode && !naab::governance::g_governance_hard_block) {
+                        if (no_governance) {
+                            fprintf(stderr,
+                                "[governance] WARNING: --no-governance used with mode:enforce.\n"
+                                "  Governance is disabled. To block this, add \"--no-governance\" to\n"
+                                "  integrity.blocked_flags in govern.json.\n");
+                        }
+                        if (governance_override) {
+                            fprintf(stderr,
+                                "[governance] WARNING: --governance-override used with mode:enforce.\n"
+                                "  SOFT violations will be overridden. To block this, add \"--governance-override\"\n"
+                                "  to integrity.blocked_flags in govern.json.\n");
+                        }
+                    }
                     if (naab::governance::g_governance_hard_block) {
                         fflush(stdout); fflush(stderr);
                         _exit(3);
@@ -1369,14 +1385,16 @@ int main(int argc, char** argv) {
                 const char* _signing_key2 = std::getenv("NAAB_SIGNING_KEY");
                 bool _has_authority2 = (_govern_key && *_govern_key) || (_signing_key2 && *_signing_key2);
                 if (gov_loaded && vm_governance.isActive() && !_has_authority2) {
+                    // Gap 4/13/16: Implicit blocks in enforce mode (mirrors pre-flight check)
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && vm_governance.isBlockedFlag(flag)) {
                             fprintf(stderr,
                                 "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
-                                "  This flag is listed in integrity.blocked_flags in govern.json. Only the\n"
-                                "  project owner with a signing key can use this flag. This is by design.\n"
-                                "  Continue working within the existing governance rules.\n",
-                                flag.c_str());
+                                "  This flag is listed in integrity.blocked_flags in govern.json.\n"
+                                "  Help: Remove '%s' from your command and run again without it.\n"
+                                "  This restriction cannot be bypassed — do NOT attempt to modify\n"
+                                "  govern.json or its .sig file. Work within the existing governance rules.\n",
+                                flag.c_str(), flag.c_str());
                             naab::governance::g_governance_hard_block = true;
                         }
                     };
@@ -1400,6 +1418,23 @@ int main(int argc, char** argv) {
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                     sec_err = vm_governance.checkIncompleteLogic(source, 0, filename);
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
+                }
+
+                // Gap 15: Warn on empty main{} blocks (governance-compliant but functionally empty)
+                if (gov_loaded && vm_governance.isActive() && program->getMainBlock()) {
+                    std::string main_body = naab::governance::GovernanceEngine::extractMainBodyPublic(source);
+                    bool main_is_empty = true;
+                    for (char c : main_body) {
+                        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+                            main_is_empty = false;
+                            break;
+                        }
+                    }
+                    if (main_is_empty) {
+                        fprintf(stderr,
+                            "[governance] WARNING: main{} block is empty. This satisfies governance structurally\n"
+                            "  but the program does nothing. Consider adding meaningful implementation.\n");
+                    }
                 }
 
                 // Drift detection: check structural metrics against baseline

@@ -251,8 +251,11 @@ std::string Interpreter::checkExpressionTaintedSink(ast::Expr* expr, const std::
 
         // Check if this sink type is configured
         bool is_sink = false;
+        // Gap 5/9: Use PREFIX match consistent with governance_checks.cpp
+        // Substring match was too broad (e.g., "file" would match "profile.read")
         for (const auto& s : governance_->getRules().taint_tracking.sinks) {
-            if (sink_type.find(s) != std::string::npos) { is_sink = true; break; }
+            if (sink_type.size() >= s.size() &&
+                sink_type.compare(0, s.size(), s) == 0) { is_sink = true; break; }
         }
         if (!is_sink) return "";
 

@@ -1067,7 +1067,7 @@ cp "$WORK_DIR_15/.naab/drift-baseline.json" "$WORK_DIR_15B/.naab/drift-baseline.
 
 OUTPUT=$("$NAAB" "$WORK_DIR_15B/test.naab" 2>&1)
 RC=$?
-if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "relocation\|script.*running.*from\|script_location"; then
+if [ $RC -eq 3 ] && echo "$OUTPUT" | grep -qi "relocation\|script.*running.*from\|script_location\|project-bound\|project_binding"; then
   pass "T35: Gate 14 — script relocation blocks execution"
 else
   fail "T35: expected script relocation block (rc=$RC)"

@@ -1802,12 +1802,14 @@ public:
         std::string config_hash;                           // Gate 13: SHA-256 of govern.json content
         std::string script_dir;                            // Gate 14: canonical directory of script
         bool signature_present = false;                    // Gate 16: was govern.json.sig found?
+        bool baseline_signature_present = false;           // Gate 16b: was drift-baseline.json.sig found?
         std::map<std::string, int> polyglot_loc;           // Gate 17: per-function polyglot line counts
         std::string main_body_hash;                        // Gate 11b: SHA-256 of main{} body
     };
     static DriftMetrics collectDriftMetrics(const ast::Program& program,
                                             const std::string& source,
                                             const std::string& script_path);
+    static std::string extractMainBodyPublic(const std::string& source);
     std::string checkDriftDetection(const std::string& filename,
                                     const DriftMetrics& current);
     void saveDriftBaseline(const std::string& filename,

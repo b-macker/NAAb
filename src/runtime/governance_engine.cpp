@@ -1589,6 +1589,10 @@ static bool containsWord(const std::string& text, const std::string& word) {
     return false;
 }
 
+std::string GovernanceEngine::extractMainBodyPublic(const std::string& source) {
+    return extractMainBody(source);
+}
+
 GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
     const ast::Program& program, const std::string& source,
     const std::string& script_path)
@@ -1620,9 +1624,18 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                                         std::istreambuf_iterator<char>());
                     m.config_hash = security::CryptoUtils::sha256(content);
                 } catch (...) {}
-                // Gate 16: check for .sig sidecar
+                // Gate 16: check for .sig sidecar (govern.json)
                 fs::path sig_path = candidate.string() + ".sig";
                 m.signature_present = fs::exists(sig_path);
+                // Gate 16b: check for drift-baseline.json.sig
+                // Check common baseline names in the govern.json directory
+                for (const char* bp : {"drift-baseline.json", "baseline.json"}) {
+                    fs::path baseline_sig = dir / (std::string(bp) + ".sig");
+                    if (fs::exists(baseline_sig)) {
+                        m.baseline_signature_present = true;
+                        break;
+                    }
+                }
                 break;
             }
             fs::path parent = dir.parent_path();
@@ -1946,6 +1959,17 @@ bool GovernanceEngine::verifySignatureImpl(
             return false;
         }
         // No keys anywhere → unsigned mode (backward compat)
+        // Gap 1: Warn once that governance files are unprotected without signing
+        {
+            static bool warned_unsigned = false;
+            if (!warned_unsigned) {
+                warned_unsigned = true;
+                fprintf(stderr,
+                    "[governance] WARNING: Governance files have no signatures and no signing keys are configured.\n"
+                    "  Files are unprotected in unsigned mode — any process with file access can modify them.\n"
+                    "  Recommendation: naab-lang --keygen && naab-lang --sign-governance\n");
+            }
+        }
         return true;
     }
 
@@ -2089,6 +2113,72 @@ std::string GovernanceEngine::checkDriftDetection(
     nlohmann::json baseline;
     try { baseline = nlohmann::json::parse(baseline_content); }
     catch (...) { return ""; }
+
+    // Gap 10: Self-referential trust fix — baseline is the trust anchor, not govern.json
+    // If baseline records that signing was configured or signatures were present,
+    // then signing capability MUST exist now. This prevents the attack where an adversary
+    // removes .sig files + keys + edits govern.json require_signature=false.
+    {
+        bool baseline_had_signing = false;
+        // Check root-level signing_configured flag
+        if (baseline.contains("signing_configured") && baseline["signing_configured"].get<bool>()) {
+            baseline_had_signing = true;
+        }
+        // Check per-file signature_present flags
+        if (!baseline_had_signing && baseline.contains("files")) {
+            for (auto& [fname, entry] : baseline["files"].items()) {
+                if (entry.contains("signature_present") && entry["signature_present"].get<bool>()) {
+                    baseline_had_signing = true;
+                    break;
+                }
+            }
+        }
+        if (baseline_had_signing && !hasTrustStoreKeys()) {
+            const char* hmac_key = std::getenv(GOVERN_KEY_ENV);
+            bool have_hmac = hmac_key && *hmac_key;
+            if (!have_hmac) {
+                std::string msg =
+                    "Drift baseline records that governance signing was previously configured, "
+                    "but no signing keys are currently available (no trusted Ed25519 keys, no NAAB_GOVERN_KEY). "
+                    "This may indicate tampering — signing keys should not disappear.\n"
+                    "  Fix: Install the trusted public key: naab-lang --trust-key <pubkey.pem>\n"
+                    "  Or restore NAAB_GOVERN_KEY environment variable.";
+                fprintf(stderr, "[governance] INTEGRITY BLOCK: %s\n", msg.c_str());
+                enforce("drift_detection.trust_anchor", EnforcementLevel::HARD, msg);
+                return "[governance] Drift detection FAILED:\n  " + msg + "\n";
+            }
+        }
+    }
+
+    // Gap 14: Validate project_root to prevent baseline substitution between projects
+    if (baseline.contains("project_root") && baseline["project_root"].is_string()) {
+        std::string baseline_root = baseline["project_root"].get<std::string>();
+        // Resolve current project root (directory containing govern.json)
+        std::string current_root;
+        {
+            namespace fs = std::filesystem;
+            fs::path dir(fs::path(filename).parent_path());
+            try { dir = fs::canonical(dir); } catch (...) {}
+            while (true) {
+                if (fs::exists(dir / "govern.json")) {
+                    current_root = dir.string();
+                    break;
+                }
+                fs::path parent = dir.parent_path();
+                if (parent == dir) break;
+                dir = parent;
+            }
+        }
+        if (!current_root.empty() && !baseline_root.empty() && current_root != baseline_root) {
+            std::string msg = fmt::format(
+                "Drift baseline was created for project '{}' but is being used in '{}'. "
+                "Baselines are project-bound and cannot be copied between projects.",
+                baseline_root, current_root);
+            fprintf(stderr, "[governance] INTEGRITY BLOCK: %s\n", msg.c_str());
+            enforce("drift_detection.project_binding", EnforcementLevel::HARD, msg);
+            return "[governance] Drift detection FAILED:\n  " + msg + "\n";
+        }
+    }
 
     // Find this file in the baseline
     std::string key = std::filesystem::path(filename).filename().string();
@@ -2663,6 +2753,21 @@ std::string GovernanceEngine::checkDriftDetection(
         }
     }
 
+    // Gate 16b: Baseline signature presence — fail-closed if drift-baseline.json.sig removed
+    if (cfg.check_signature_presence && prev.contains("baseline_signature_present") && prev["baseline_signature_present"].get<bool>()) {
+        if (!current.baseline_signature_present) {
+            std::string msg = "Drift: drift-baseline.json.sig was present at baseline time but is now missing.\n"
+                              "  Help: The baseline signature was removed. Re-sign the baseline using:\n"
+                              "    naab-lang --sign-baseline\n"
+                              "  This requires a signing key. Do NOT delete .sig files — they protect\n"
+                              "  baseline integrity.";
+            violations.push_back(msg);
+            enforce("drift_detection.baseline_signature_presence", EnforcementLevel::HARD, msg);
+        } else {
+            recordPass("drift_detection.baseline_signature_presence", cfg.level);
+        }
+    }
+
     // Gate 17: Polyglot content regression — detect polyglot block simplification
     if (cfg.check_polyglot_content && prev.contains("polyglot_loc") && prev["polyglot_loc"].is_object()) {
         std::vector<std::string> shrunk;
@@ -2790,6 +2895,27 @@ void GovernanceEngine::saveDriftBaseline(
     std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
     baseline["timestamp"] = std::string(ts);
 
+    // Gap 14: Record project root to prevent baseline substitution between projects
+    // Use the directory containing govern.json as the canonical project root
+    {
+        std::string govern_dir;
+        namespace fs = std::filesystem;
+        fs::path dir(fs::path(filename).parent_path());
+        try { dir = fs::canonical(dir); } catch (...) {}
+        while (true) {
+            if (fs::exists(dir / "govern.json")) {
+                govern_dir = dir.string();
+                break;
+            }
+            fs::path parent = dir.parent_path();
+            if (parent == dir) break;
+            dir = parent;
+        }
+        if (!govern_dir.empty()) {
+            baseline["project_root"] = govern_dir;
+        }
+    }
+
     // Save metrics for this file
     std::string key = std::filesystem::path(filename).filename().string();
     nlohmann::json entry;
@@ -2844,6 +2970,8 @@ void GovernanceEngine::saveDriftBaseline(
     entry["script_dir"] = metrics.script_dir;
     // Gate 16: signature presence
     entry["signature_present"] = metrics.signature_present;
+    // Gate 16b: baseline signature presence
+    entry["baseline_signature_present"] = metrics.baseline_signature_present;
     // Gate 17: polyglot LOC per function
     entry["polyglot_loc"] = nlohmann::json::object();
     for (const auto& [fn, loc] : metrics.polyglot_loc) {
@@ -2851,6 +2979,11 @@ void GovernanceEngine::saveDriftBaseline(
     }
     baseline["files"][key] = entry;
     baseline["version"] = 2;
+    // Gap 10: Record signing state as trust anchor — baseline becomes the authority
+    // on whether signing was ever configured, not govern.json (which is self-referential)
+    if (hasSigningCapability()) {
+        baseline["signing_configured"] = true;
+    }
 
     // Write
     std::filesystem::path p(resolved);
