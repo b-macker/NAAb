@@ -811,8 +811,9 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
                 "  NAAb has two import styles:\n"
                 "    use file              // built-in modules (preferred)\n"
                 "    import \"./path\" as mod  // file imports require 'as'\n\n"
-                "  Built-in modules: math, string, array, file, json, io,\n"
-                "    env, time, regex, crypto, log, uuid, validate, process\n",
+                "  Built-in modules: io, json, string, array, math, file, http,\n"
+                "    time, regex, crypto, csv, env, collections, path, dict,\n"
+                "    log, uuid, validate, process, debug\n",
                 tok));
         }
         wildcard_alias = parseAliasName();

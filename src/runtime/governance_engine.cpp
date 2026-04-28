@@ -2625,8 +2625,10 @@ std::string GovernanceEngine::checkDriftDetection(
                 help_text = "  Help: If this change is intentional, re-baseline with:\n"
                             "    naab-lang --drift-baseline-save " + filename;
             } else {
-                help_text = "  Help: Restore main{} to its EXACT original code. Content hashes (SHA-256)\n"
-                            "  detect ANY modification — even whitespace or comment changes.";
+                help_text = "  Help: If this change is intentional, re-baseline is required.\n"
+                            "  Run: naab-lang --drift-baseline-save " + filename + "\n"
+                            "  Note: Re-baselining requires signing authority (NAAB_SIGNING_KEY).\n"
+                            "  Otherwise, restore main{} to its original code.";
             }
             std::string msg = fmt::format(
                 "Drift: main{{}} block has been rewritten (body hash mismatch).\n{}", help_text);

@@ -2712,7 +2712,7 @@ interpreter::NaabVal VM::run() {
                     // Check common aliases from other languages
                     static const std::unordered_map<std::string, std::string> module_aliases = {
                         {"fs", "file"}, {"os", "env"}, {"re", "regex"},
-                        {"console", "io"}, {"path", "file"}, {"sys", "env"},
+                        {"console", "io"}, {"sys", "env"}, {"system", "process"},
                         {"random", "math"}, {"datetime", "time"}, {"net", "http"},
                     };
                     auto alias_it = module_aliases.find(bare_name);

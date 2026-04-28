@@ -99,7 +99,8 @@ std::string suggestForUndefinedVariable(
     // Check if it's a standard library module
     static const std::unordered_set<std::string> stdlib_modules = {
         "io", "json", "string", "array", "math", "file", "http",
-        "time", "regex", "crypto", "csv", "env", "collections", "core"
+        "time", "regex", "crypto", "csv", "env", "collections",
+        "path", "dict", "log", "uuid", "validate", "process", "debug"
     };
 
     if (stdlib_modules.count(var_name) > 0) {

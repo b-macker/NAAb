@@ -82,7 +82,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         static const std::vector<std::string> stdlib_names = {
             "io", "json", "string", "array", "math", "file", "http",
             "time", "regex", "crypto", "csv", "env", "collections",
-            "log", "uuid", "validate", "process"
+            "log", "uuid", "validate", "process", "path", "dict", "debug", "bolo"
         };
         for (const auto& sn : stdlib_names) {
             if (module_name == sn) {
@@ -95,7 +95,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         // Check common aliases from other languages
         static const std::unordered_map<std::string, std::string> module_aliases = {
             {"fs", "file"}, {"os", "env"}, {"re", "regex"},
-            {"console", "io"}, {"path", "file"}, {"sys", "env"},
+            {"console", "io"}, {"sys", "env"}, {"system", "process"},
             {"random", "math"}, {"datetime", "time"}, {"net", "http"},
         };
         auto alias_it = module_aliases.find(module_name);
@@ -273,6 +273,22 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
                     }
                 }
             }
+        }
+
+        // Check common aliases from other languages before giving up
+        static const std::unordered_map<std::string, std::string> use_aliases = {
+            {"fs", "file"}, {"os", "env"}, {"re", "regex"},
+            {"console", "io"}, {"sys", "env"}, {"system", "process"},
+            {"random", "math"}, {"datetime", "time"}, {"net", "http"},
+        };
+        auto alias_it = use_aliases.find(module_path);
+        if (alias_it != use_aliases.end()) {
+            throw std::runtime_error(
+                fmt::format("Failed to load module: {}\n\n"
+                    "  Did you mean: use {}\n"
+                    "  NAAb's '{}' module provides this functionality.",
+                    module_path, alias_it->second, alias_it->second)
+            );
         }
 
         throw std::runtime_error(
@@ -493,7 +509,8 @@ void Interpreter::visit(ast::ImportStmt& node) {
         // Check if it's close to a stdlib module name
         static const std::vector<std::string> stdlib_names = {
             "io", "json", "string", "array", "math", "file", "http",
-            "time", "regex", "crypto", "csv", "env", "collections"
+            "time", "regex", "crypto", "csv", "env", "collections",
+            "log", "uuid", "validate", "process", "path", "dict", "debug", "bolo"
         };
         for (const auto& stdlib_name : stdlib_names) {
             if (bare_name == stdlib_name) {
@@ -506,7 +523,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
         // Check common aliases from other languages
         static const std::unordered_map<std::string, std::string> module_aliases = {
             {"fs", "file"}, {"os", "env"}, {"re", "regex"},
-            {"console", "io"}, {"path", "file"}, {"sys", "env"},
+            {"console", "io"}, {"sys", "env"}, {"system", "process"},
             {"random", "math"}, {"datetime", "time"}, {"net", "http"},
         };
         auto alias_it = module_aliases.find(bare_name);

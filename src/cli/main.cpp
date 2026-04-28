@@ -949,9 +949,10 @@ int main(int argc, char** argv) {
                             fprintf(stderr,
                                 "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
                                 "  This flag is listed in integrity.blocked_flags in govern.json.\n"
-                                "  Help: Remove '%s' from your command and run again without it.\n"
-                                "  This restriction cannot be bypassed — do NOT attempt to modify\n"
-                                "  govern.json or its .sig file. Work within the existing governance rules.\n",
+                                "  Help: Remove '%s' from your command to proceed.\n"
+                                "  The project owner has restricted this flag to prevent governance bypass.\n"
+                                "  To modify governance settings, contact the project owner or use\n"
+                                "  a signing key (NAAB_SIGNING_KEY env var) if you have signing authority.\n",
                                 flag.c_str(), flag.c_str());
                             naab::governance::g_governance_hard_block = true;
                         }
@@ -1379,9 +1380,10 @@ int main(int argc, char** argv) {
                             fprintf(stderr,
                                 "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
                                 "  This flag is listed in integrity.blocked_flags in govern.json.\n"
-                                "  Help: Remove '%s' from your command and run again without it.\n"
-                                "  This restriction cannot be bypassed — do NOT attempt to modify\n"
-                                "  govern.json or its .sig file. Work within the existing governance rules.\n",
+                                "  Help: Remove '%s' from your command to proceed.\n"
+                                "  The project owner has restricted this flag to prevent governance bypass.\n"
+                                "  To modify governance settings, contact the project owner or use\n"
+                                "  a signing key (NAAB_SIGNING_KEY env var) if you have signing authority.\n",
                                 flag.c_str(), flag.c_str());
                             naab::governance::g_governance_hard_block = true;
                         }
