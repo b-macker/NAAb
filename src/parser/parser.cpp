@@ -360,7 +360,14 @@ const lexer::Token& Parser::expect(lexer::TokenType type, const std::string& msg
         throw ParseError(enhanced_msg);
     }
 
-    throw ParseError(formatError(msg, token));
+    std::string err = formatError(msg, token);
+    if (!hints.empty()) {
+        err += "\n";
+        for (const auto& hint : hints) {
+            err += "  " + hint + "\n";
+        }
+    }
+    throw ParseError(err);
 }
 
 // Helper function to handle '>' in nested generics (splits '>>' into two '>')

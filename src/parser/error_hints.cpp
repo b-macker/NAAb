@@ -105,9 +105,35 @@ bool ErrorHints::looksLikeJavaScriptImport(const ParserContext& ctx) {
     return false;
 }
 
+bool ErrorHints::looksLikeFatArrowInDict(const ParserContext& ctx) {
+    if (ctx.in_dict_literal && ctx.current_token) {
+        return ctx.current_token->type == lexer::TokenType::FAT_ARROW ||
+               ctx.current_token->value == "=>";
+    }
+    return false;
+}
+
 // ============================================================================
 // Hint Generators
 // ============================================================================
+
+std::vector<std::string> ErrorHints::hintForFatArrowInDict(const ParserContext& ctx) {
+    (void)ctx;
+    return {
+        "Found '=>' inside what the parser sees as a dict literal.",
+        "This usually means a match expression's body was parsed as a dict.",
+        "",
+        "Match arms are expressions, not blocks:",
+        "    match x { 1 => \"one\", 2 => \"two\", _ => \"other\" }",
+        "",
+        "Match arms cannot contain blocks ({ ... }):",
+        "    ✗ Wrong: match x { 1 => { return \"one\" } }",
+        "    ✓ Right: match x { 1 => \"one\" }",
+        "",
+        "If you meant a dict literal, use ':' instead of '=>':",
+        "    let d = {\"one\": 1, \"two\": 2}",
+    };
+}
 
 std::vector<std::string> ErrorHints::hintForMainFunction(const ParserContext& ctx) {
     (void)ctx;  // Unused parameter
@@ -279,6 +305,10 @@ std::vector<std::string> ErrorHints::getHintsForParseError(
     // Check for specific patterns
     if (looksLikeMainFunction(context)) {
         return hintForMainFunction(context);
+    }
+
+    if (looksLikeFatArrowInDict(context)) {
+        return hintForFatArrowInDict(context);
     }
 
     if (looksLikeUnquotedDictKey(context)) {

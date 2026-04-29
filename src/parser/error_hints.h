@@ -56,6 +56,7 @@ public:
     static std::vector<std::string> hintForDotNotationOnDict(const ParserContext& ctx);
     static std::vector<std::string> hintForIncorrectImport(const ParserContext& ctx);
     static std::vector<std::string> hintForMissingTypeAnnotation(const ParserContext& ctx);
+    static std::vector<std::string> hintForFatArrowInDict(const ParserContext& ctx);
 
 private:
     // Pattern detection helpers
@@ -65,6 +66,7 @@ private:
     static bool looksLikeReservedKeywordUsage(const std::string& name);
     static bool looksLikeUnquotedDictKey(const ParserContext& ctx);
     static bool looksLikeJavaScriptImport(const ParserContext& ctx);
+    static bool looksLikeFatArrowInDict(const ParserContext& ctx);
 
     // Suggestion helpers
     static std::vector<std::string> suggestKeywordAlternatives(const std::string& keyword);

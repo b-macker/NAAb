@@ -265,6 +265,12 @@ std::string Interpreter::checkExpressionTaintedSink(ast::Expr* expr, const std::
                           + sink_type + "' without sanitization";
         if (!file.empty()) msg += " at " + file + ":" + std::to_string(line);
 
+        // Add sanitizer guidance (don't list specific sanitizers — adversarial LLMs
+        // would use the list to create identity-function bypasses)
+        msg += "\n\n  Help: Pass the tainted expression through a real sanitization function\n"
+               "  before using it in a '" + sink_type + "' sink. Sanitizers must actually\n"
+               "  validate or transform the data — identity functions are detected.\n";
+
         const auto& level = governance_->getRules().taint_tracking.level;
         if (level == "hard") return msg;
         if (level == "soft" && !governance_->isOverrideEnabled()) return msg;

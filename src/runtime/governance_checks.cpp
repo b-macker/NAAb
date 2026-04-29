@@ -3094,6 +3094,12 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
                       "' without sanitization";
     if (!file.empty()) msg += " at " + file + ":" + std::to_string(line);
 
+    // Add sanitizer guidance (don't list specific sanitizers — adversarial LLMs
+    // would use the list to create identity-function bypasses)
+    msg += "\n\n  Help: Pass the value through a real sanitization function before\n"
+           "  using it in a '" + sink_type + "' sink. Sanitizers must actually\n"
+           "  validate or transform the data — identity functions are detected.\n";
+
     // Enforce based on level
     if (rules_.taint_tracking.level == "hard") {
         return msg;  // Caller will throw

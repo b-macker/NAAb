@@ -20,6 +20,7 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
+static void ensureArray(const interpreter::NaabVal& val, const std::string& func_name);
 static std::vector<interpreter::NaabVal> getArray(const interpreter::NaabVal& val);
 static int getInt(const interpreter::NaabVal& val);
 // Note: getDouble and getBool removed - unused
@@ -77,10 +78,7 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        if (!args[0].isList()) {
-            throw std::runtime_error(
-                "Type error: Expected array, got " + args[0].getTypeName());
-        }
+        ensureArray(args[0], "array.push");
         // V-GOV-023: enforce array size limits on native push
         limits::checkArraySize(args[0].asList().size() + 1);
         args[0].asList().push_back(args[1]);
@@ -99,10 +97,7 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        if (!args[0].isList()) {
-            throw std::runtime_error(
-                "Type error: Expected array, got " + args[0].getTypeName());
-        }
+        ensureArray(args[0], "array.pop");
         auto& arr = args[0].asList();  // Mutate in-place via shared_ptr
         if (arr.empty()) {
             throw std::runtime_error(
@@ -131,10 +126,7 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        if (!args[0].isList()) {
-            throw std::runtime_error(
-                "Type error: Expected array, got " + args[0].getTypeName());
-        }
+        ensureArray(args[0], "array.shift");
         auto& arr = args[0].asList();
         if (arr.empty()) {
             throw std::runtime_error(
@@ -162,10 +154,7 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        if (!args[0].isList()) {
-            throw std::runtime_error(
-                "Type error: Expected array, got " + args[0].getTypeName());
-        }
+        ensureArray(args[0], "array.unshift");
         // V-GOV-023: enforce array size limits on native unshift
         limits::checkArraySize(args[0].asList().size() + 1);
         args[0].asList().insert(args[0].asList().begin(), args[1]);
@@ -618,6 +607,22 @@ interpreter::NaabVal ArrayModule::call(
     }
 
     throw std::runtime_error(oss.str());
+}
+
+// Validation-only helper for in-place mutators (push/pop/shift/unshift)
+static void ensureArray(const interpreter::NaabVal& val, const std::string& func_name) {
+    if (!val.isList()) {
+        throw std::runtime_error(
+            "Type error: Expected array, got " + val.getTypeName() + "\n\n"
+            "  Help:\n"
+            "  - " + func_name + " requires an array argument\n"
+            "  - Create an array with: [1, 2, 3]\n"
+            "  - Check the type with: typeof(value)\n\n"
+            "  Example:\n"
+            "    ✗ Wrong: " + func_name + "(\"hello\")  // string is not an array\n"
+            "    ✓ Right: " + func_name + "([1, 2, 3])  // array\n"
+        );
+    }
 }
 
 // Helper functions

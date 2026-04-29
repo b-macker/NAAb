@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# test_error_msg_leaks.sh — Ensure error messages don't teach bypass techniques
+#
+# Governance/security error messages must NEVER contain:
+#   - CLI flags that disable governance
+#   - Specific sanitizer names/prefixes from config
+#   - Sandbox escape flags
+#   - Direct pointers to security config keys
+#
+# WHY: LLMs read error messages and use them to construct bypasses.
+# An error that says "try --no-governance" is a one-step bypass recipe.
+# An error that lists sanitizer prefixes enables identity-function laundering.
+#
+# This test greps inside STRING LITERALS only (text between quotes).
+
+PASS=0
+FAIL=0
+LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# Files that contain governance/security error messages
+SECURITY_FILES=(
+    "src/runtime/governance_engine.cpp"
+    "src/runtime/governance_checks.cpp"
+    "src/interpreter/governance_taint.cpp"
+    "src/interpreter/call_dispatch.cpp"
+)
+
+# Patterns that should NEVER appear in string literals within these files
+# Format: "pattern|description"
+BANNED_IN_STRINGS=(
+    '--no-governance|bypass flag leaked in error string'
+    '--governance-override|bypass flag leaked in error string'
+    '--sandbox-level|sandbox escape flag leaked in error string'
+    '--allow-network|network escape flag leaked in error string'
+    'taint_tracking.sanitizers|config key pointing LLM to sanitizer list'
+    'taint_tracking.sources|config key pointing LLM to taint sources'
+    'taint_tracking.sinks|config key pointing LLM to sink list'
+)
+
+echo "=== Error Message Leak Check ==="
+echo ""
+
+for src in "${SECURITY_FILES[@]}"; do
+    filepath="$LANG_DIR/$src"
+    [ -f "$filepath" ] || continue
+
+    for entry in "${BANNED_IN_STRINGS[@]}"; do
+        pattern="${entry%%|*}"
+        desc="${entry##*|}"
+
+        # Only match inside string literals (lines containing quotes + pattern)
+        # Skip pure comment lines
+        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | grep -v '^\s*//')
+        if [ -n "$matches" ]; then
+            echo "  FAIL: $src — $desc"
+            echo "        Pattern: $pattern"
+            echo "$matches" | head -3 | sed 's/^/        /'
+            FAIL=$((FAIL + 1))
+        else
+            PASS=$((PASS + 1))
+        fi
+    done
+done
+
+# Also check that no error message iterates over sanitizer config to build output
+# (runtime checks that READ sanitizers are fine; PRINTING them to users is not)
+for src in "${SECURITY_FILES[@]}"; do
+    filepath="$LANG_DIR/$src"
+    [ -f "$filepath" ] || continue
+
+    # Look for patterns that iterate config values into error strings
+    # e.g.: msg += "\n    - " + san;  (dumping sanitizer names into output)
+    matches=$(grep -n 'msg.*+=.*\bsan\b\|msg.*+=.*sanitizers_\|msg.*+=.*\.sanitizers' "$filepath" 2>/dev/null | grep -v '^\s*//')
+    if [ -n "$matches" ]; then
+        echo "  FAIL: $src — error message string built from sanitizer config values"
+        echo "$matches" | head -3 | sed 's/^/        /'
+        FAIL=$((FAIL + 1))
+    else
+        PASS=$((PASS + 1))
+    fi
+done
+
+echo ""
+echo "=== Results: $PASS passed, $FAIL failed ==="
+
+if [ $FAIL -gt 0 ]; then
+    echo ""
+    echo "ERROR: Security error messages contain bypass information."
+    echo ""
+    echo "Rules for governance/security error messages:"
+    echo "  1. NEVER put --no-governance or --governance-override in error text"
+    echo "  2. NEVER list or iterate sanitizer names/prefixes in error output"
+    echo "  3. NEVER suggest --sandbox-level or --allow-network in errors"
+    echo "  4. NEVER point to specific govern.json keys (taint_tracking.sanitizers etc.)"
+    echo "  5. DO say 'identity functions are detected' (deters gaming)"
+    echo "  6. DO say 'see govern.json' generically (legitimate users know where to look)"
+    exit 1
+fi
+
+echo "  All security error messages are clean."
+exit 0

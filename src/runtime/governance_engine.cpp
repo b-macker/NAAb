@@ -2814,9 +2814,8 @@ std::string GovernanceEngine::checkDriftDetection(
             }
             std::string msg = fmt::format(
                 "Drift: {} new function(s) added since baseline: {}.\n"
-                "  Help: Remove the new functions, or ask the project owner (with signing key)\n"
-                "  to re-baseline after reviewing your additions. New functions in governed code\n"
-                "  must be explicitly authorized. Do NOT edit drift-baseline.json — it is signed and tamper-detected.",
+                "  Help: Remove the new functions, or re-baseline after reviewing your additions.\n"
+                "  New functions in governed code must be explicitly authorized.",
                 new_funcs.size(), fn_list);
             violations.push_back(msg);
             enforce("drift_detection.new_functions", cfg.level, msg);
@@ -2834,10 +2833,10 @@ std::string GovernanceEngine::checkDriftDetection(
                   "    naab-lang --drift-baseline-save " + filename + "\n"
                   "  This will update and re-sign the drift baseline.\n";
     } else {
-        result += "\n  To resolve: restore the governed code to match the baseline, or ask the\n"
-                  "  project owner to re-baseline after authorized changes.\n"
-                  "  Do NOT attempt to edit drift-baseline.json or its .sig file — they are\n"
-                  "  signed and any tampering is detected and blocked.\n";
+        result += "\n  To resolve: revert the code changes that caused the drift, or ask the\n"
+                  "  signing key holder to re-baseline after reviewing your changes:\n"
+                  "    naab-lang --drift-baseline-save " + filename + "\n\n"
+                  "  The drift baseline is signed — edits to drift-baseline.json will be detected.\n";
     }
     return result;
 }

@@ -767,6 +767,10 @@ int main(int argc, char** argv) {
                     else script_args.push_back(argv[i]);
                 }
                 break;
+            } else if (arg == "--help" || arg == "-h") {
+                print_usage();
+                fflush(stdout);
+                return 0;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
