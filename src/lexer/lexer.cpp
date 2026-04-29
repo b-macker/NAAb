@@ -287,11 +287,31 @@ std::string Lexer::readString(bool is_fstring) {
                     case '"':  value += '"';  break;
                     case '\'': value += '\''; break;
                     case '0':  value += '\0'; break;
+                    case 'e':  value += '\x1b'; break;  // ESC
+                    case 'x': {
+                        // \xNN hex escape (exactly 2 hex digits)
+                        char hex[3] = {0, 0, 0};
+                        for (int hi = 0; hi < 2; hi++) {
+                            advance();
+                            if (currentChar() && std::isxdigit(*currentChar())) {
+                                hex[hi] = *currentChar();
+                            } else {
+                                // Not enough hex digits — emit literally
+                                value += "\\x";
+                                value += std::string(hex, hi);
+                                if (currentChar()) { value += *currentChar(); }
+                                goto after_escape;
+                            }
+                        }
+                        value += static_cast<char>(std::strtol(hex, nullptr, 16));
+                        break;
+                    }
                     default:
                         value += '\\';
                         value += escaped;
                         break;
                 }
+                after_escape:
                 advance();
             }
         } else if (ch == '$' && peekChar() && *peekChar() == '{') {

@@ -3819,14 +3819,19 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             if (it != dict.end()) return it->second;
             if (argc >= 2) return args[1]; // default value
             // "Did you mean?" hint when key not found and similar keys exist
+            // Deduplicate: only show each (key, suggestion) pair once per execution
             if (!dict.empty()) {
                 std::vector<std::string> keys;
                 keys.reserve(dict.size());
                 for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
                 auto suggestion = naab::error::suggestDictKey(key, keys);
                 if (!suggestion.empty()) {
-                    fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
-                            key.c_str(), suggestion.c_str());
+                    static std::unordered_set<std::string> seen_hints;
+                    auto hint_key = key + "→" + suggestion;
+                    if (seen_hints.insert(hint_key).second) {
+                        fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
+                                key.c_str(), suggestion.c_str());
+                    }
                 }
             }
             return interpreter::NaabVal::makeNull();
