@@ -4,7 +4,7 @@ How to bootstrap a new NAAb project for LLM-governed code generation.
 
 ## Prerequisites
 
-- NAAb built and on PATH (`naab-lang --help` works)
+- NAAb built and on PATH (`naab --help` works)
 - OpenSSL available (for Ed25519 key generation)
 
 ## 1. One-Time Key Setup
@@ -13,7 +13,7 @@ Generate an Ed25519 signing keypair. This only needs to be done once per machine
 
 ```bash
 # Generate keypair — private key at specified path, public key auto-installed
-naab-lang --keygen ~/.naab/keys/signing.pem
+naab --keygen ~/.naab/keys/signing.pem
 ```
 
 Output:
@@ -42,13 +42,13 @@ export NAAB_SIGNING_KEY=~/.naab/keys/signing.pem
 
 ```bash
 # List trusted key fingerprints
-naab-lang --list-keys
+naab --list-keys
 
 # Trust another user's public key
-naab-lang --trust-key /path/to/their-key.pub
+naab --trust-key /path/to/their-key.pub
 
 # Override signing key for one command
-naab-lang --signing-key /path/to/other.pem --sign-governance
+naab --signing-key /path/to/other.pem --sign-governance
 ```
 
 ### Why Signing Matters
@@ -197,7 +197,7 @@ After writing or editing `govern.json`:
 
 ```bash
 # Sign govern.json — creates govern.json.sig
-naab-lang --sign-governance
+naab --sign-governance
 
 # Verify it worked
 ls -la govern.json.sig
@@ -211,10 +211,10 @@ Drift detection locks down function signatures and main{} body hashes:
 
 ```bash
 # Save drift baseline after code is written
-naab-lang --drift-baseline-save src/main.naab
+naab --drift-baseline-save src/main.naab
 
 # Sign the baseline
-naab-lang --sign-baseline
+naab --sign-baseline
 ```
 
 ## 5. Write CLAUDE.md
@@ -295,16 +295,16 @@ EOF
 
 ```bash
 # Execute the project
-naab-lang src/main.naab [command] [args]
+naab src/main.naab [command] [args]
 
 # With timeout override (seconds)
-naab-lang run --timeout 60 src/main.naab [command]
+naab run --timeout 60 src/main.naab [command]
 
 # With governance dashboard (summary to stderr)
-naab-lang --governance-dashboard src/main.naab [command]
+naab --governance-dashboard src/main.naab [command]
 
 # Skip governance (development only — never for LLM testing)
-naab-lang --no-governance src/main.naab [command]
+naab --no-governance src/main.naab [command]
 ```
 
 ## 9. Post-Session Analysis
@@ -314,10 +314,10 @@ After the LLM finishes, analyze the session:
 ```bash
 # Run context-review against session chat logs
 cd ~/.naab/projects/context-review
-naab-lang run --timeout 300 main.naab -- ~/.gemini/tmp/naab-N/chats/
+naab run --timeout 300 main.naab -- ~/.gemini/tmp/naab-N/chats/
 
 # Filter by category
-naab-lang run --timeout 300 main.naab -- --category stuck,hollow ~/.gemini/tmp/naab-N/chats/
+naab run --timeout 300 main.naab -- --category stuck,hollow ~/.gemini/tmp/naab-N/chats/
 ```
 
 ### Re-signing After Changes
@@ -325,7 +325,7 @@ naab-lang run --timeout 300 main.naab -- --category stuck,hollow ~/.gemini/tmp/n
 If you edited `govern.json` during the session:
 ```bash
 cd /path/to/project
-naab-lang --sign-governance
+naab --sign-governance
 ```
 
 ## Quick Reference
@@ -336,6 +336,6 @@ mkdir my-project && cd my-project
 mkdir -p src data
 cp ~/.naab/language/CLAUDE-TEMPLATE.md ./CLAUDE.md
 # Edit govern.json, CLAUDE.md, prompt.md, seed data/
-naab-lang --sign-governance
-naab-lang src/main.naab test
+naab --sign-governance
+naab src/main.naab test
 ```

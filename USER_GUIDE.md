@@ -45,8 +45,8 @@ NAAb is a modern polyglot orchestration language designed for seamlessly integra
 cmake -B build
 cmake --build build -j4
 
-# Install binaries to ~/
-cp build/naab-lang ~/
+# Install (symlink to PATH)
+ln -sf $(pwd)/build/naab-lang /usr/local/bin/naab
 ```
 
 ### Your First Program
@@ -60,7 +60,7 @@ print("Hello, NAAb!")
 Run it:
 
 ```bash
-~/naab-lang run hello.naab
+naab hello.naab
 ```
 
 Output:
@@ -600,7 +600,7 @@ let result = plus(5, times(2, 3))  // 11
 ### Searching for Blocks
 
 ```bash
-~/naab-lang blocks search "validate email"
+naab blocks search "validate email"
 ```
 
 Output:
@@ -621,7 +621,7 @@ Search results for "validate email":
 ### Listing Available Blocks
 
 ```bash
-~/naab-lang blocks list
+naab blocks list
 ```
 
 Output:
@@ -655,7 +655,7 @@ if (valid) {
 ### Validating Block Composition
 
 ```bash
-~/naab-lang validate "BLOCK-PY-09145,BLOCK-JS-03421"
+naab validate "BLOCK-PY-09145,BLOCK-JS-03421"
 ```
 
 Output shows type compatibility and suggestions for adapters if types don't match.
@@ -863,4 +863,4 @@ For the full governance reference, see [Chapter 21: Governance and LLM Code Qual
 - **Examples**: `examples/`
 - **Tests**: `tests/`
 
-Run `naab-lang --help` for command-line options.
+Run `naab --help` for command-line options.

@@ -23,7 +23,7 @@
 ```
 
 ```
-$ naab-lang app.naab
+$ naab app.naab
 
 Error: Hallucinated API in python block:
   ".push()" is not valid Python                        [HARD]
@@ -202,13 +202,13 @@ Define your own regex-based governance rules:
 
 ```bash
 # GitHub Code Scanning (SARIF)
-naab-lang app.naab --governance-report sarif > results.sarif
+naab app.naab --governance-report sarif > results.sarif
 
 # Jenkins / GitLab CI (JUnit XML)
-naab-lang app.naab --governance-report junit > results.xml
+naab app.naab --governance-report junit > results.xml
 
 # Custom tooling (JSON)
-naab-lang app.naab --governance-report json > results.json
+naab app.naab --governance-report json > results.json
 ```
 
 > **[Build your govern.json interactively](https://b-macker.github.io/NAAb/governance.html)** | [Full governance reference (Chapter 21)](docs/book/chapter21.md)
@@ -233,10 +233,10 @@ NAAb supports multi-agent environments where different AI agents have different 
 
 ```bash
 # Run with agent identity
-naab-lang --agent-id code-bot app.naab
+naab --agent-id code-bot app.naab
 
 # View governance dashboard
-naab-lang --agent-id code-bot --governance-dashboard app.naab
+naab --agent-id code-bot --governance-dashboard app.naab
 ```
 
 ---
@@ -555,13 +555,13 @@ Three tools built with NAAb — code governance, performance optimization, and d
 
 ```bash
 # Scan for governance violations
-naab-lang bolo.naab scan ./src --profile enterprise
+naab bolo.naab scan ./src --profile enterprise
 
 # Generate SARIF report for CI
-naab-lang bolo.naab report ./src --format sarif --output results.sarif
+naab bolo.naab report ./src --format sarif --output results.sarif
 
 # AI governance validation
-naab-lang bolo.naab ai-check ./ml-models
+naab bolo.naab ai-check ./ml-models
 ```
 
 **50+ checks · 4 languages · 339 regression tests** → [Get started](https://github.com/b-macker/naab-bolo)
@@ -572,10 +572,10 @@ naab-lang bolo.naab ai-check ./ml-models
 
 ```bash
 # Analyze hotspots (Python → Rust candidates)
-naab-lang pivot.naab analyze app.py
+naab pivot.naab analyze app.py
 
 # Rewrite with proof
-naab-lang pivot.naab rewrite app.py:expensive_loop --target rust --prove
+naab pivot.naab rewrite app.py:expensive_loop --target rust --prove
 
 # Result: 45x faster, semantically identical
 ```
@@ -588,7 +588,7 @@ naab-lang pivot.naab rewrite app.py:expensive_loop --target rust --prove
 
 ```bash
 # Start secure gateway
-naab-lang main.naab
+naab main.naab
 
 # All requests validated, PII blocked
 curl -X POST http://localhost:8091/ -d '{"prompt": "SSN: 123-45-6789"}'

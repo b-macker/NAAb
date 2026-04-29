@@ -9,6 +9,14 @@ Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, Julia) inside `<< >>` blocks with
 .naab files. A govern.json file enforces rules at execution time.
 DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 
+## Running
+```bash
+naab src/main.naab [args]           # Run a .naab file
+naab src/main.naab test             # Run with "test" argument
+naab run --timeout 60 src/main.naab # With timeout override
+```
+The binary is `naab` (on PATH). Do NOT use `naab-lang`, `naab-final`, or other old names.
+
 ## Critical Syntax Rules
 
 ### File Structure
@@ -487,12 +495,12 @@ return int(math.max(0, result))  // Clamp to 0
 
 ## Code Quality Scanner
 
-NAAb has a built-in code quality scanner (`naab-lang --scan`) that checks 127 patterns
+NAAb has a built-in code quality scanner (`naab --scan`) that checks 127 patterns
 across 6 categories and 6 language-specific modules.
 
 ### Auto-Run (Runtime)
 When your govern.json has a `"scanner"` section, the scanner runs automatically after
-every `naab-lang` execution — no flags needed. It reports issues to stderr:
+every `naab` execution — no flags needed. It reports issues to stderr:
 ```
 [scanner] 4 issues (1 hard, 2 soft, 1 advisory) in my_file.naab
 [scanner] HARD violations:
@@ -502,9 +510,9 @@ every `naab-lang` execution — no flags needed. It reports issues to stderr:
 
 ### CLI Mode
 ```bash
-naab-lang --scan <path> [language|auto]    # Standalone scan
-naab-lang --scan src/ auto                 # Scan directory, auto-detect languages
-naab-lang --scan app.py python             # Scan single file
+naab --scan <path> [language|auto]    # Standalone scan
+naab --scan src/ auto                 # Scan directory, auto-detect languages
+naab --scan app.py python             # Scan single file
 ```
 
 ### Check Categories (127 checks total)
