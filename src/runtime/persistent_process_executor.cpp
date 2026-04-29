@@ -271,8 +271,7 @@ interpreter::NaabVal PersistentProcessExecutor::executeWithReturn(
             "Security: {} execution denied by sandbox\n\n"
             "  Polyglot blocks can execute arbitrary code.\n"
             "  For security, execution is disabled by default.\n\n"
-            "  To enable (not recommended for untrusted code):\n"
-            "    naab-lang run --sandbox-level unrestricted script.naab\n",
+            "  The project owner can adjust the sandbox level in the project configuration.\n",
             language_id_));
     }
 

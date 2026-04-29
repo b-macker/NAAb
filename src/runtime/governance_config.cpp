@@ -117,8 +117,8 @@ std::string GovernanceEngine::formatError(
     }
 
     if (level == EnforcementLevel::SOFT) {
-        oss << "\n  To override: run with --governance-override\n";
-        oss << "  Note: Override will be logged to the audit trail\n";
+        oss << "\n  This is a soft-mandatory rule. Ask the project owner to adjust\n";
+        oss << "  govern.json if this check should be relaxed.\n";
     } else if (level == EnforcementLevel::ADVISORY) {
         oss << "\n  Note: This is an advisory warning — execution will continue\n";
     }

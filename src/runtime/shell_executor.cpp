@@ -63,8 +63,7 @@ naab::interpreter::NaabVal ShellExecutor::executeWithReturn(
             "Security: Shell command execution denied by sandbox\n\n"
             "  Shell blocks can execute arbitrary system commands.\n"
             "  For security, shell execution is disabled by default.\n\n"
-            "  To enable (not recommended for untrusted code):\n"
-            "    naab-lang run --sandbox-level unrestricted script.naab\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
         );
     }
 

@@ -21,8 +21,18 @@ LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 SECURITY_FILES=(
     "src/runtime/governance_engine.cpp"
     "src/runtime/governance_checks.cpp"
+    "src/runtime/governance_config.cpp"
+    "src/runtime/governance_reports.cpp"
+    "src/runtime/shell_executor.cpp"
+    "src/runtime/persistent_process_executor.cpp"
     "src/interpreter/governance_taint.cpp"
+    "src/interpreter/interpreter.cpp"
     "src/interpreter/call_dispatch.cpp"
+    "src/stdlib/env_impl.cpp"
+    "src/stdlib/file_impl.cpp"
+    "src/stdlib/http_impl.cpp"
+    "src/stdlib/process_impl.cpp"
+    "src/vm/vm.cpp"
 )
 
 # Patterns that should NEVER appear in string literals within these files

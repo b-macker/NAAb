@@ -56,7 +56,7 @@ interpreter::NaabVal ProcessModule::call(
                 "Security: process.run() denied by sandbox\n\n"
                 "  Command: " + cmd + "\n\n"
                 "  process.run() requires SYS_EXEC capability.\n"
-                "  Use --sandbox-level elevated or higher.\n"
+                "  The project owner can adjust the sandbox level in the project configuration.\n"
             );
         }
 
@@ -128,7 +128,7 @@ interpreter::NaabVal ProcessModule::call(
                 "Security: process.kill() denied by sandbox\n\n"
                 "  PID: " + std::to_string(pid) + "\n\n"
                 "  process.kill() requires SYS_EXEC capability.\n"
-                "  Use --sandbox-level elevated or higher.\n"
+                "  The project owner can adjust the sandbox level in the project configuration.\n"
             );
         }
 

@@ -52,8 +52,7 @@ static void checkFileSandbox(const std::string& path, const std::string& operati
             "Security: file." + operation + "() denied by sandbox\n\n"
             "  Path: " + path + "\n\n"
             "  The current sandbox level does not permit this file operation.\n"
-            "  To allow, use: --sandbox-level elevated\n"
-            "  Or for full access: --sandbox-level unrestricted\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
         );
     }
 }
@@ -98,7 +97,7 @@ static std::string readFileNoFollow(const std::string& path) {
                 "Security: file.read() denied — path is a symlink\n\n"
                 "  Path: " + path + "\n\n"
                 "  Symlinks are not followed when the sandbox is active.\n"
-                "  Use a direct (non-symlink) path, or run with --sandbox-level unrestricted.\n");
+                "  Use a direct (non-symlink) path instead.\n");
         }
         throw std::runtime_error("Failed to open file: " + path);
     }
@@ -122,7 +121,7 @@ static void writeFileNoFollow(const std::string& path, const std::string& conten
                 "Security: file.write() denied — path is a symlink\n\n"
                 "  Path: " + path + "\n\n"
                 "  Symlinks are not followed when the sandbox is active.\n"
-                "  Use a direct (non-symlink) path, or run with --sandbox-level unrestricted.\n");
+                "  Use a direct (non-symlink) path instead.\n");
         }
         throw std::runtime_error("Failed to open file for writing: " + path);
     }

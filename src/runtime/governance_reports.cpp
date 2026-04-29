@@ -1737,7 +1737,7 @@ std::string GovernanceEngine::verifyPolyglotResult(
             "  Task: {}\n"
             "  Results:\n{}"
             "  Consensus: {}/{} (minimum: {})\n\n"
-            "  Use --governance-override to bypass, or adjust verification.tolerance in govern.json",
+            "  Adjust verification.tolerance in govern.json if this threshold is too strict.",
             line, task_type, details, agree_count, total_count, cfg.min_consensus);
     }
 

@@ -71,7 +71,7 @@ static void checkEnvSandbox(const std::string& operation, const std::string& var
             "Security: env." + operation + "() denied by sandbox\n\n"
             "  Variable: " + (var_name.empty() ? "(all environment variables)" : var_name) + "\n\n"
             "  The current sandbox level does not permit environment access.\n"
-            "  To allow, use: --sandbox-level standard (or higher)\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
         );
     }
 }

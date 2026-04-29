@@ -918,7 +918,7 @@ void Interpreter::visit(ast::Program& node) {
                 throw std::runtime_error(msg);
             } else if (level == governance::EnforcementLevel::SOFT) {
                 if (!governance_->isOverrideEnabled()) {
-                    throw std::runtime_error(msg + "\n  To override: run with --governance-override\n");
+                    throw std::runtime_error(msg + "\n  This is a soft-mandatory rule. Adjust govern.json to change enforcement.\n");
                 }
                 fprintf(stderr, "[governance] OVERRIDE requirements.main_block: %s\n", msg.c_str());
             } else {

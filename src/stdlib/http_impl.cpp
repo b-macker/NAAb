@@ -118,7 +118,7 @@ interpreter::NaabVal performRequest(
                 "  Host: " + host + "\n"
                 "  Method: " + method + "\n\n"
                 "  The current sandbox level does not permit network connections.\n"
-                "  To allow, use: --sandbox-level elevated\n"
+                "  The project owner can adjust the sandbox level in the project configuration.\n"
             );
         }
     }
