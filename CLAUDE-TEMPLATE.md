@@ -234,7 +234,8 @@ replace, replace_first, split, groups, find_groups, escape, is_valid
 **GOTCHA**: `regex.match()` and `regex.test()` do NOT exist — use `regex.search()` or `regex.matches()`
 
 ### env
-get, set_var (NOT set — the function is set_var), list
+get, get_args, set_var (NOT set — the function is set_var), list
+- `env.get_args()` — returns array of CLI arguments passed after the script name
 
 ### io
 write, read_line, write_error

@@ -814,7 +814,7 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
         if (!match(lexer::TokenType::AS)) {
             auto& tok = current();
             throw ParseError(formatError(
-                "Expected 'as' after module path.\n\n"
+                "Expected 'as' after module path, got '" + tok.value + "'.\n\n"
                 "  NAAb has two import styles:\n"
                 "    use file              // built-in modules (preferred)\n"
                 "    import \"./path\" as mod  // file imports require 'as'\n\n"
