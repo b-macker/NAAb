@@ -1485,7 +1485,7 @@ interpreter::NaabVal VM::run() {
                             for (int ai = 0; ai < static_cast<int>(argc); ai++) {
                                 ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
                                 if (taint_stack_[arg_offset]) {
-                                    std::string arg_label = "__arg" + std::to_string(ai) + "__";
+                                    std::string arg_label = "argument " + std::to_string(ai) + " of '" + full_method_name + "()'";
                                     governance_->markTainted(arg_label);
                                     int gov_line = CURRENT_CHUNK().getLine(
                                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
@@ -3200,7 +3200,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 for (int ai = 0; ai < argc; ai++) {
                     ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
                     if (taint_stack_[arg_offset]) {
-                        std::string arg_label = "__arg" + std::to_string(ai) + "__";
+                        std::string arg_label = "argument " + std::to_string(ai) + " of '" + mod_name + "()'";
                         governance_->markTainted(arg_label);
                         std::string terr = governance_->checkTaintedSink(
                             arg_label, mod_name, current_file_, 0);

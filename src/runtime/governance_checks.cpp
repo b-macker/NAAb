@@ -2447,11 +2447,28 @@ std::string GovernanceEngine::checkImports(const std::string& language,
             std::regex re(pat, std::regex::icase);
             if (std::regex_search(code, re)) {
                 auto level = cfg.enabled ? cfg.level : EnforcementLevel::HARD;
+                // Suggest NAAb stdlib alternatives for commonly-blocked imports
+                static const std::unordered_map<std::string, std::string> import_alternatives = {
+                    {"os",         "NAAb alternatives: file.list_dir(), file.exists(), path.join(),\n"
+                                   "  path.basename(), env.get(), process.run()"},
+                    {"subprocess", "NAAb alternative: process.run(cmd, [args]) returns\n"
+                                   "  {exit_code, stdout, stderr}"},
+                    {"shutil",     "NAAb alternatives: file.copy(), file.move(), file.delete()"},
+                    {"socket",     "NAAb has no raw socket API. Use the http module if available,\n"
+                                   "  or process.run() to call curl/wget"},
+                    {"ctypes",     "NAAb has no FFI. Use a polyglot block in the target language instead"},
+                    {"pickle",     "NAAb alternative: json.stringify() / json.parse()"},
+                };
+                std::string help_text = fmt::format("The import \"{}\" is blocked by governance", imp);
+                auto alt = import_alternatives.find(imp);
+                if (alt != import_alternatives.end()) {
+                    help_text += ".\n\n  " + alt->second;
+                }
                 return enforce("restrictions.imports", level,
                     formatError(level, fmt::format("Blocked import in {} block: \"{}\"", language, imp),
                         line > 0 ? fmt::format("line {}", line) : "",
                         cfg.enabled ? "restrictions.imports" : fmt::format("languages.per_language.{}.imports.blocked", language),
-                        fmt::format("The import \"{}\" is blocked by governance", imp), "", ""));
+                        help_text, "", ""));
             }
         } catch (const std::regex_error&) {}
     }
@@ -2483,12 +2500,25 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
             }
             std::regex re(escaped, std::regex::icase);
             if (std::regex_search(code, re)) {
+                // Per-function alternatives so LLMs know what to use instead
+                static const std::unordered_map<std::string, std::string> alternatives = {
+                    {"eval(",     "Use a lookup table or if/else chain instead of dynamic evaluation"},
+                    {"Function(", "Use a lookup table, switch/match, or define functions statically.\n"
+                                  "  Example: instead of new Function('return ' + expr),\n"
+                                  "  use a dict mapping: let ops = {\"add\": fn(a,b) { return a + b }}"},
+                    {"exec(",     "Use file.read() + json.parse() for data, or import for code"},
+                    {"compile(",  "Pre-define functions instead of compiling at runtime"},
+                };
+                auto alt_it = alternatives.find(func);
+                std::string help = (alt_it != alternatives.end())
+                    ? alt_it->second
+                    : "This function is banned by governance policy";
                 return enforce("languages.per_language.banned_functions", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         fmt::format("Banned function in {} block: \"{}\"", language, func),
                         line > 0 ? fmt::format("line {}", line) : "",
                         fmt::format("languages.per_language.{}.banned_functions", language),
-                        "This function is banned by governance policy", "", ""));
+                        help, "", ""));
             }
         } catch (const std::regex_error&) {}
     }
@@ -3089,7 +3119,11 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     // Pass 2: Record taint flow for post-execution audit
     taint_flows_.push_back({var_name, "", sink_type, "BLOCKED", file, line});
 
-    std::string msg = "Taint tracking violation: variable '" + var_name +
+    // Use "variable 'x'" for real names, omit "variable" for synthetic labels like
+    // "argument 0 of 'file.write()'" to produce cleaner error messages
+    bool is_synthetic = var_name.find(' ') != std::string::npos;
+    std::string msg = "Taint tracking violation: " +
+                      std::string(is_synthetic ? "" : "variable ") + "'" + var_name +
                       "' contains untrusted data and reached sink '" + sink_type +
                       "' without sanitization";
     if (!file.empty()) msg += " at " + file + ":" + std::to_string(line);
