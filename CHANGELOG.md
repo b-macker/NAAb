@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `\x` hex escape (`\x1b` etc.) and `\e` ESC escape in string literals
+- **Gate 11b**: main{} body hash — blocks modification without re-baselining
+- Banned function alternatives in governance errors (eval, Function, exec, compile)
+- Blocked import alternatives in governance errors (os, subprocess, shutil, socket, ctypes, pickle)
+- `array.get(index)` safe access — returns null instead of throwing on out-of-bounds
+- `format_timestamp()` stdlib helper
+- `PROJECT_SETUP.md` — end-to-end project bootstrapping guide (keys, signing, govern.json)
+- `CLAUDE.md` — internal reference for Claude Code (build, test, architecture, conventions)
+- 5 governance hardening fixes from naab-15 Synapse adversarial analysis
+- 5 systemic runtime enforcement fixes for LLM code generation
+
+### Fixed
+- Dict.get() hint dedup — no longer spams repeated hints in loops
+- Taint labels show "argument N of 'func()'" instead of cryptic `__argN__`
+- Struct-to-dict conversion error now suggests `to_dict()` or field access
+- CLI arg passthrough: NAAb flags no longer consumed after script filename
+- `--sandbox-level` and `--gc-stats` flags restored after passthrough regression
+- `env.get_args()` returns empty in VM — args provider not wired to VM
+- `allowed_paths` now takes priority over `blocked_paths`
+- Sanitizer warning deduplication
+- Unsigned governance mode warnings removed (broke CI tests)
+- `validate_` sanitizer taint clearing + `file.append` registered as taint sink
+
+### Security
+- Bypass flags removed from all governance error messages (11 files) — enforced by `test_error_msg_leaks.sh`
+- 10 governance gap fixes from context-review Gemini session scanning
+- 15+ DX improvements from context-review analysis (better error guidance without leaking internals)
+
 ## [1.1.0] - 2026-04-23
 
 ### Added

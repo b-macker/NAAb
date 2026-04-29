@@ -12,7 +12,7 @@
 ```json
 // govern.json — catches AI hallucinations before they execute
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "code_quality": {
     "no_hallucinated_apis": { "level": "hard" },
@@ -143,7 +143,7 @@ NAAb's governance engine is what sets it apart. Drop a `govern.json` in your pro
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
 
   "languages": {

@@ -1,6 +1,6 @@
 # NAAb Language User Guide
-**Version**: 1.0.0
-**Last Updated**: April 14, 2026
+**Version**: 1.1.0
+**Last Updated**: April 29, 2026
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ NAAb is a modern polyglot orchestration language designed for seamlessly integra
 - **Bytecode VM**: Stack-based bytecode compiler and virtual machine as the default execution engine (~8x faster than tree-walking)
 - **Governance engine**: 50+ built-in checks, taint tracking, 3-tier enforcement (HARD/SOFT/ADVISORY), agent roles, and CI/CD integration
 - **Pipeline syntax**: Chain operations with `|>` operator
-- **Rich stdlib**: 12 modules (array, string, math, json, file, time, env, io, csv, regex, crypto, debug)
+- **Rich stdlib**: 19 modules (array, string, math, json, file, time, env, io, csv, regex, crypto, debug, dict, path, log, uuid, validate, process, bolo)
 - **NaN-boxing**: 8-byte inline values for int/double/bool/null — zero heap allocation for primitives
 - **Type-safe composition**: Validate block compatibility before execution
 - **Exception handling**: try/catch with stack traces
@@ -829,7 +829,7 @@ NAAb includes a built-in governance engine that enforces project-level policies 
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "code_quality": {
     "no_secrets": { "level": "hard" },
