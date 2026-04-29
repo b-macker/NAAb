@@ -2458,6 +2458,8 @@ std::string GovernanceEngine::checkImports(const std::string& language,
                                    "  or process.run() to call curl/wget"},
                     {"ctypes",     "NAAb has no FFI. Use a polyglot block in the target language instead"},
                     {"pickle",     "NAAb alternative: json.stringify() / json.parse()"},
+                    {"sys",        "NAAb alternatives: env.get_args() for CLI arguments,\n"
+                                   "  process.exit(code) for sys.exit, env.get() for sys.platform"},
                 };
                 std::string help_text = fmt::format("The import \"{}\" is blocked by governance", imp);
                 auto alt = import_alternatives.find(imp);
