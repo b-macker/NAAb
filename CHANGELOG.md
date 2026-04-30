@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-30
+
 ### Added
+- **`use agent` stdlib module** — governed LLM conversations with multi-provider support
+  - `agent.create(name)` / `agent.send(handle, message)` / `agent.run(handle, message)` — full conversation lifecycle
+  - `agent.messages(handle)` / `agent.usage(handle)` — conversation history and token tracking
+  - Anthropic (Claude) and Gemini provider support with automatic API format translation
+  - Per-agent governance: `max_turns`, `max_tokens`, `max_total_tokens`, `system_prompt`
+  - Per-agent sandbox config: `allowed_paths`, `blocked_paths`, `shell_allowed` (advisory, pending tool execution)
+  - Server-side `AgentTracker` — turn/token enforcement immune to handle mutation attacks
+  - Output content filtering: `checkSecrets()` (18 patterns) and `checkPii()` (5 patterns) on all LLM responses
+  - Tool-use response blocking — agents cannot invoke function calls (defense-in-depth until tool loop is implemented)
+  - Forged handle rejection — unknown handle IDs blocked at send time
 - `\x` hex escape (`\x1b` etc.) and `\e` ESC escape in string literals
 - **Gate 11b**: main{} body hash — blocks modification without re-baselining
 - Banned function alternatives in governance errors (eval, Function, exec, compile)
@@ -32,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `validate_` sanitizer taint clearing + `file.append` registered as taint sink
 
 ### Security
+- Agent output filtering blocks secrets (API keys, tokens) and PII (SSN, CC numbers) in LLM responses
+- Server-side agent tracking prevents governance bypass via handle dict mutation
 - Bypass flags removed from all governance error messages (11 files) — enforced by `test_error_msg_leaks.sh`
 - 10 governance gap fixes from context-review Gemini session scanning
 - 15+ DX improvements from context-review analysis (better error guidance without leaking internals)
