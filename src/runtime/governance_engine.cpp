@@ -34,6 +34,12 @@ namespace naab {
 namespace governance {
     // Feature 1: Process-level flag for exit code determination
     bool g_governance_hard_block = false;
+
+    // Thread-local governance engine for stdlib module access
+    static thread_local GovernanceEngine* t_current_engine = nullptr;
+
+    GovernanceEngine* GovernanceEngine::getCurrent() { return t_current_engine; }
+    void GovernanceEngine::setCurrent(GovernanceEngine* engine) { t_current_engine = engine; }
 }
 
 // Extern: thread_local interpreter pointer set in interpreter.cpp
@@ -478,7 +484,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
     }
 
     // V-GOV-020: Per-agent language enforcement (defense-in-depth beyond applyAgentRole)
-    for (const auto& role : rules_.agent_roles) {
+    for (const auto& role : rules_.agents) {
         if (role.name == agent_id_) {
             // Check per-agent blocked languages
             for (const auto& bl : role.blocked_languages) {
@@ -488,7 +494,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
                             fmt::format("Agent '{}' is blocked from using language \"{}\"",
                                 agent_id_, language),
                             "",
-                            fmt::format("agent_roles.{}.blocked_languages contains \"{}\"",
+                            fmt::format("agents.{}.blocked_languages contains \"{}\"",
                                 agent_id_, language),
                             "Your agent role does not permit this language",
                             fmt::format("let result = <<{}\n...\n>>", language),
@@ -512,7 +518,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
                             fmt::format("Agent '{}' is not allowed to use language \"{}\"",
                                 agent_id_, language),
                             "",
-                            fmt::format("agent_roles.{}.allowed_languages = [{}]",
+                            fmt::format("agents.{}.allowed_languages = [{}]",
                                 agent_id_, al_list),
                             fmt::format("Your agent role only permits: {}", al_list),
                             fmt::format("let result = <<{}\n...\n>>", language),
@@ -718,7 +724,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     }
 
     // Layer 3+4: Agent role path restrictions
-    for (const auto& role : rules_.agent_roles) {
+    for (const auto& role : rules_.agents) {
         if (role.name == agent_id_) {
             // Agent blocked_paths
             for (const auto& bp : role.blocked_paths) {
@@ -727,7 +733,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                         formatError(EnforcementLevel::HARD,
                             "Agent '" + agent_id_ + "' blocked from path: " + filepath,
                             "",
-                            "agent_roles." + agent_id_ + ".blocked_paths contains \"" + bp + "\"",
+                            "agents." + agent_id_ + ".blocked_paths contains \"" + bp + "\"",
                             "Your agent role does not permit access to this path",
                             "file." + mode + "(\"" + filepath + "\", ...)",
                             "Request access from the project governance config"));
@@ -747,7 +753,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                         formatError(EnforcementLevel::HARD,
                             "Agent '" + agent_id_ + "' not allowed to access: " + filepath,
                             "",
-                            "agent_roles." + agent_id_ + ".allowed_paths",
+                            "agents." + agent_id_ + ".allowed_paths",
                             "Your agent role restricts file access to specific paths",
                             "file." + mode + "(\"" + filepath + "\", ...)",
                             "Use a path within your agent's allowed directories"));
@@ -774,14 +780,14 @@ std::string GovernanceEngine::checkShellAllowed() {
                 "let files = file.list(\".\")"));
     }
     // V-GOV-020: Per-agent shell enforcement (defense-in-depth beyond applyAgentRole)
-    for (const auto& role : rules_.agent_roles) {
+    for (const auto& role : rules_.agents) {
         if (role.name == agent_id_) {
             if (role.shell_allowed_set && !role.shell_allowed) {
                 return enforce("agent_role.shell", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
                         "Agent '" + agent_id_ + "' is not allowed to execute shell blocks",
                         "",
-                        "agent_roles." + agent_id_ + ".shell_allowed = false",
+                        "agents." + agent_id_ + ".shell_allowed = false",
                         "Your agent role does not permit shell execution",
                         "let result = <<shell\nls -la\n>>",
                         "Use NAAb stdlib or request shell access from governance config"));

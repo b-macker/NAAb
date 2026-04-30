@@ -598,7 +598,7 @@ void GovernanceEngine::writeTelemetry() const {
 
 // --- Agent Role Application ---
 void GovernanceEngine::applyAgentRole() {
-    for (const auto& role : rules_.agent_roles) {
+    for (const auto& role : rules_.agents) {
         if (role.name == agent_id_) {
             // Restrict allowed languages: intersect with base allowed_languages
             if (!role.allowed_languages.empty()) {

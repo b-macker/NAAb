@@ -256,6 +256,16 @@ public:
         std::vector<interpreter::NaabVal>& args) override;
 };
 
+// Agent Module — LLM conversation management with governance enforcement
+class AgentModule : public Module {
+public:
+    std::string getName() const override { return "agent"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
 } // namespace stdlib
 } // namespace naab
 

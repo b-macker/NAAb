@@ -1617,48 +1617,74 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (tel.contains("output_file")) rules_.telemetry_output.output_file = tel["output_file"].get<std::string>();
     }
 
-    // --- Agent roles ---
-    if (j.contains("agent_roles") && j["agent_roles"].is_object()) {
-        for (auto& [name, role_json] : j["agent_roles"].items()) {
-            AgentRoleConfig role;
-            role.name = name;
-            if (role_json.contains("allowed_languages") && role_json["allowed_languages"].is_array()) {
-                for (const auto& l : role_json["allowed_languages"])
-                    role.allowed_languages.push_back(l.get<std::string>());
+    // --- Agents (unified config: permissions + LLM) ---
+    // Prefer "agents" key; fall back to legacy "agent_roles" for backward compat
+    std::string agents_key = j.contains("agents") ? "agents" : "agent_roles";
+    if (j.contains(agents_key) && j[agents_key].is_object()) {
+        for (auto& [name, cfg_json] : j[agents_key].items()) {
+            AgentConfig agent;
+            agent.name = name;
+
+            // --- Permissions ---
+            if (cfg_json.contains("allowed_languages") && cfg_json["allowed_languages"].is_array())
+                for (const auto& l : cfg_json["allowed_languages"])
+                    agent.allowed_languages.push_back(l.get<std::string>());
+            if (cfg_json.contains("blocked_languages") && cfg_json["blocked_languages"].is_array())
+                for (const auto& l : cfg_json["blocked_languages"])
+                    agent.blocked_languages.push_back(l.get<std::string>());
+            if (cfg_json.contains("blocked_paths") && cfg_json["blocked_paths"].is_array())
+                for (const auto& p : cfg_json["blocked_paths"])
+                    agent.blocked_paths.push_back(p.get<std::string>());
+            if (cfg_json.contains("allowed_paths") && cfg_json["allowed_paths"].is_array())
+                for (const auto& p : cfg_json["allowed_paths"])
+                    agent.allowed_paths.push_back(p.get<std::string>());
+            // V-GOV-018: per-agent shell capability
+            if (cfg_json.contains("shell_allowed") && cfg_json["shell_allowed"].is_boolean()) {
+                agent.shell_allowed = cfg_json["shell_allowed"].get<bool>();
+                agent.shell_allowed_set = true;
             }
-            // V-GOV-020: parse per-role blocked languages
-            if (role_json.contains("blocked_languages") && role_json["blocked_languages"].is_array()) {
-                for (const auto& l : role_json["blocked_languages"])
-                    role.blocked_languages.push_back(l.get<std::string>());
-            }
-            if (role_json.contains("blocked_paths") && role_json["blocked_paths"].is_array()) {
-                for (const auto& p : role_json["blocked_paths"])
-                    role.blocked_paths.push_back(p.get<std::string>());
-            }
-            if (role_json.contains("allowed_paths") && role_json["allowed_paths"].is_array()) {
-                for (const auto& p : role_json["allowed_paths"])
-                    role.allowed_paths.push_back(p.get<std::string>());
-            }
-            // V-GOV-018: parse per-role shell capability
-            if (role_json.contains("shell_allowed") && role_json["shell_allowed"].is_boolean()) {
-                role.shell_allowed = role_json["shell_allowed"].get<bool>();
-                role.shell_allowed_set = true;
-            }
-            // Also support capabilities.shell (same format as global capabilities)
-            if (!role.shell_allowed_set && role_json.contains("capabilities") && role_json["capabilities"].is_object()) {
-                auto& caps = role_json["capabilities"];
+            if (!agent.shell_allowed_set && cfg_json.contains("capabilities") && cfg_json["capabilities"].is_object()) {
+                auto& caps = cfg_json["capabilities"];
                 if (caps.contains("shell") && caps["shell"].is_boolean()) {
-                    role.shell_allowed = caps["shell"].get<bool>();
-                    role.shell_allowed_set = true;
+                    agent.shell_allowed = caps["shell"].get<bool>();
+                    agent.shell_allowed_set = true;
                 } else if (caps.contains("shell") && caps["shell"].is_object()) {
                     auto& sh = caps["shell"];
                     if (sh.contains("enabled") && sh["enabled"].is_boolean()) {
-                        role.shell_allowed = sh["enabled"].get<bool>();
-                        role.shell_allowed_set = true;
+                        agent.shell_allowed = sh["enabled"].get<bool>();
+                        agent.shell_allowed_set = true;
                     }
                 }
             }
-            rules_.agent_roles.push_back(role);
+
+            // --- LLM config (only present in "agents" key, not legacy "agent_roles") ---
+            if (agents_key == "agents") {
+                if (cfg_json.contains("provider"))
+                    agent.provider = cfg_json["provider"].get<std::string>();
+                if (cfg_json.contains("model"))
+                    agent.model = cfg_json["model"].get<std::string>();
+                if (cfg_json.contains("api_key_env"))
+                    agent.api_key_env = cfg_json["api_key_env"].get<std::string>();
+                if (cfg_json.contains("max_tokens"))
+                    agent.max_tokens = cfg_json["max_tokens"].get<int>();
+                if (cfg_json.contains("system_prompt"))
+                    agent.system_prompt = cfg_json["system_prompt"].get<std::string>();
+                if (cfg_json.contains("tools") && cfg_json["tools"].is_array())
+                    for (const auto& t : cfg_json["tools"])
+                        agent.tools.push_back(t.get<std::string>());
+                if (cfg_json.contains("max_turns"))
+                    agent.max_turns = cfg_json["max_turns"].get<int>();
+                if (cfg_json.contains("max_total_tokens"))
+                    agent.max_total_tokens = cfg_json["max_total_tokens"].get<int>();
+                if (cfg_json.contains("temperature"))
+                    agent.temperature = cfg_json["temperature"].get<double>();
+                if (cfg_json.contains("stop_reason_action"))
+                    agent.stop_reason_action = cfg_json["stop_reason_action"].get<std::string>();
+                if (cfg_json.contains("stream"))
+                    agent.stream = cfg_json["stream"].get<bool>();
+            }
+
+            rules_.agents.push_back(agent);
         }
     }
 

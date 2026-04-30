@@ -402,6 +402,7 @@ void StdLib::registerModules() {
     modules_["uuid"]     = std::make_shared<UuidModule>();
     modules_["validate"] = std::make_shared<ValidateModule>();
     modules_["process"]  = std::make_shared<ProcessModule>();
+    modules_["agent"]    = std::make_shared<AgentModule>();
 }
 
 std::shared_ptr<Module> StdLib::getModule(const std::string& name) const {

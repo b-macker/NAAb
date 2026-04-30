@@ -627,6 +627,11 @@ Interpreter::Interpreter()
     // Issue #3: Set global interpreter pointer for stdlib path resolution
     g_current_interpreter = this;
 
+    // Set thread-local governance engine pointer for stdlib modules (e.g., agent)
+    if (governance_) {
+        governance::GovernanceEngine::setCurrent(governance_.get());
+    }
+
     // Wire debug module with interpreter access for scope inspection
     auto debug_module = stdlib_->getModule("debug");
     if (debug_module) {

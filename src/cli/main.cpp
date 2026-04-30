@@ -1497,6 +1497,7 @@ int main(int argc, char** argv) {
                 if (gov_loaded) {
                     if (governance_verbose) bytecode_vm.setGovernanceVerbose(true);
                     bytecode_vm.setGovernance(&vm_governance);
+                    naab::governance::GovernanceEngine::setCurrent(&vm_governance);
                 }
                 bytecode_vm.setGCThreshold(gc_threshold);  // V-RT-008
 

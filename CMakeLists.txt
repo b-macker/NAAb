@@ -707,6 +707,7 @@ add_library(naab_stdlib
     src/stdlib/uuid_impl.cpp
     src/stdlib/validate_impl.cpp
     src/stdlib/process_impl.cpp
+    src/stdlib/agent_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp
     src/utils/string_utils.cpp

@@ -814,14 +814,33 @@
     "output_file": "telemetry.jsonl"
   },
 
-  "_comment_agent_roles": "Agent Roles — per-agent path and language restrictions for multi-agent environments",
-  "agent_roles": {
-    "example-bot": {
+  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
+  "agents": {
+    "researcher": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 4096,
+      "system_prompt": "You are a research assistant.",
+      "max_turns": 20,
+      "max_total_tokens": 50000,
+      "temperature": 1.0,
+      "tools": ["search", "read_file"],
+      "allowed_languages": ["python"],
+      "allowed_paths": ["./src", "./data"],
+      "blocked_paths": ["./secrets", "./.env"],
+      "shell_allowed": false
+    },
+    "coder": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 8192,
+      "system_prompt": "You are a coding assistant.",
+      "max_turns": 50,
+      "max_total_tokens": 200000,
       "allowed_languages": ["python", "shell"],
-      "allowed_paths": ["./src", "./output"],
-      "blocked_paths": ["./secrets", "./.env"]
+      "allowed_paths": ["./src", "./tests"],
+      "shell_allowed": true
     }
   },
+  "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
 
   "meta": {
     "schema_validation": {

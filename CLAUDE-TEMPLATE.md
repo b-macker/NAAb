@@ -296,6 +296,15 @@ get, post, put, delete, head, patch, call
 - `http.post(url, body)` — POST request
 - `http.call(method, url, options)` — generic request
 
+### agent (requires `use agent`)
+create, send, run, messages, usage
+- `agent.create(config_name)` — create agent handle from govern.json `agents` config, returns handle dict
+- `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}
+- `agent.run(config_name, prompt)` — one-shot: create + send + return content string
+- `agent.messages(handle)` — return conversation history array
+- `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}
+- Requires `ANTHROPIC_API_KEY` env var and agent defined in govern.json `agents` section
+
 ## Functions That Do NOT Exist (use alternatives)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
 - `array.concat(a, b)` — use `a + b`
@@ -407,10 +416,11 @@ main {
 27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
 28. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
-29. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agent_roles` in govern.json
+29. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agents` (or legacy `agent_roles`) in govern.json
 30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
-31. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
+31. `agents` in govern.json defines per-agent permissions AND LLM configuration (model, max_tokens, system_prompt, tools, max_turns, max_total_tokens). Legacy `agent_roles` key is still accepted (permissions only, no LLM config).
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
+33. `use agent` stdlib — `agent.create(name)`, `agent.send(handle, msg)`, `agent.run(name, prompt)`, `agent.messages(handle)`, `agent.usage(handle)` for governed LLM conversations. Agents must be defined in govern.json `agents` section.
 33. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
     "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
     Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.

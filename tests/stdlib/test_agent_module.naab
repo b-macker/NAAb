@@ -1,0 +1,67 @@
+// Test agent module: config lookup errors and handle validation
+// Does NOT require API key — tests config validation and error handling
+use agent
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // Test 1: agent.create with non-existent config should error
+    try {
+        let h = agent.create("nonexistent_agent_xyz")
+        fail = fail + 1
+        print("FAIL: agent.create with unknown name should throw")
+    } catch (e) {
+        let msg = string(e)
+        if (msg.contains("not defined") or msg.contains("requires governance")) {
+            pass = pass + 1
+            print("PASS: create with unknown agent gives helpful error")
+        } else {
+            fail = fail + 1
+            print("FAIL: unexpected error: " + msg)
+        }
+    }
+
+    // Test 2: agent.usage on a non-dict should error
+    try {
+        let u = agent.usage("not a handle")
+        fail = fail + 1
+        print("FAIL: agent.usage should reject non-dict")
+    } catch (e) {
+        pass = pass + 1
+        print("PASS: agent.usage rejects non-dict handle")
+    }
+
+    // Test 3: agent.messages on a non-dict should error
+    try {
+        let m = agent.messages(42)
+        fail = fail + 1
+        print("FAIL: agent.messages should reject non-dict")
+    } catch (e) {
+        pass = pass + 1
+        print("PASS: agent.messages rejects non-dict handle")
+    }
+
+    // Test 4: agent.send with non-dict handle
+    try {
+        let r = agent.send("bad", "hello")
+        fail = fail + 1
+        print("FAIL: agent.send should reject non-dict handle")
+    } catch (e) {
+        pass = pass + 1
+        print("PASS: agent.send rejects non-dict handle")
+    }
+
+    // Test 5: agent.run with missing args
+    try {
+        let r = agent.run("test")
+        fail = fail + 1
+        print("FAIL: agent.run with 1 arg should throw")
+    } catch (e) {
+        pass = pass + 1
+        print("PASS: agent.run with missing prompt gives error")
+    }
+
+    print("")
+    print("Agent module tests: " + string(pass) + " passed, " + string(fail) + " failed")
+}

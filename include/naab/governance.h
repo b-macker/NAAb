@@ -1263,11 +1263,13 @@ struct TelemetryOutputConfig {
 };
 
 // ============================================================================
-// Agent Role Config
+// Agent Config (was AgentRoleConfig — now includes LLM config)
 // ============================================================================
 
-struct AgentRoleConfig {
+struct AgentConfig {
     std::string name;
+
+    // --- Permissions (existing from AgentRoleConfig) ---
     std::vector<std::string> allowed_languages;
     std::vector<std::string> blocked_languages;  // V-GOV-020: per-agent language blocking
     std::vector<std::string> blocked_paths;
@@ -1277,6 +1279,19 @@ struct AgentRoleConfig {
     // shell_allowed_set = true + shell_allowed = false → block shell for this role.
     bool shell_allowed = true;
     bool shell_allowed_set = false;
+
+    // --- LLM config (new — populated from "agents" key in govern.json) ---
+    std::string provider = "anthropic";
+    std::string model;
+    std::string api_key_env = "ANTHROPIC_API_KEY";
+    int max_tokens = 4096;
+    std::string system_prompt;
+    std::vector<std::string> tools;
+    int max_turns = 50;
+    int max_total_tokens = 100000;
+    double temperature = 1.0;
+    std::string stop_reason_action = "end";
+    bool stream = false;
 };
 
 // ============================================================================
@@ -1385,7 +1400,7 @@ struct GovernanceRules {
 
     // --- Agent governance ---
     TelemetryOutputConfig telemetry_output;
-    std::vector<AgentRoleConfig> agent_roles;
+    std::vector<AgentConfig> agents;  // was: agent_roles (migrated to unified config)
 
     // --- Quality gate (Feature 2) ---
     QualityGateConfig quality_gate;
@@ -1540,6 +1555,10 @@ public:
 
     GovernanceEngine() = default;
     ~GovernanceEngine();
+
+    // --- Thread-local accessor (for stdlib modules that need governance config) ---
+    static GovernanceEngine* getCurrent();
+    static void setCurrent(GovernanceEngine* engine);
 
     // --- Loading ---
     bool loadFromFile(const std::string& path);
