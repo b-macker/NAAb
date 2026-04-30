@@ -369,6 +369,7 @@ int main(int argc, char** argv) {
     bool global_lock_check     = false;   // --lock-check: fail on runtime drift
     std::string global_lock_path;         // --lock-path: override lockfile location
     bool global_lint_only      = false;   // --lint-only: parse+governance, skip execution (V-LSP-005)
+    unsigned int global_timeout = 0;       // --timeout: override default 30s (0 = use default)
 
     while (command_arg_index < argc) {
         std::string arg(argv[command_arg_index]);
@@ -450,6 +451,10 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--sandbox-level" && command_arg_index + 1 < argc) {
             global_sandbox_level = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--timeout" && command_arg_index + 1 < argc) {
+            try { global_timeout = std::stoi(argv[++command_arg_index]); }
+            catch (...) { global_timeout = 0; }
             command_arg_index++;
         } else if (arg == "--lint-only") {
             // V-LSP-005: parse + governance pre-flight without executing user code
@@ -678,7 +683,7 @@ int main(int argc, char** argv) {
         std::string governance_report_sarif;
         std::string governance_report_junit;
         std::string sandbox_level = global_sandbox_level;  // Inherit from global pre-scan
-        unsigned int timeout = 30;
+        unsigned int timeout = global_timeout > 0 ? global_timeout : 30;
         size_t memory_limit = 512;
         bool network_enabled = false;
         std::string filename;

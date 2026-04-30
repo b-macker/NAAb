@@ -24,6 +24,7 @@ The binary is `naab` (on PATH). Do NOT use `naab-lang`, `naab-final`, or other o
 - NO top-level `let` or `const` — variables MUST be inside main {} or functions
 - Every executable .naab file needs a `main {}` block
 - Imports: `use array`, `use json`, `use math`, etc.
+- Do NOT write `use array as array` — the `as` alias is only for renaming (e.g. `use json as j`)
 
 ### Variable Declaration
 - `let x = 5` — mutable variable
@@ -244,6 +245,7 @@ replace, replace_first, split, groups, find_groups, escape, is_valid
 ### env
 get, get_args, set_var (NOT set — the function is set_var), list
 - `env.get_args()` — returns array of CLI arguments passed after the script name
+- Do NOT use `env.get("NAAB_ARGS")` or Python `sys.argv` — use `env.get_args()` for CLI args
 
 ### io
 write, read_line, write_error
@@ -400,6 +402,7 @@ main {
 25. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
     `if x > 0 and y > 0` -> ERROR. Use: `if x > 0 && y > 0`
     `if not done` -> ERROR. Use: `if !done`
+    Do NOT use `== false` as a workaround — `!expr` is the correct negation
 26. `config` is a reserved keyword — do NOT use it as a variable name, import alias, or parameter name
 27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
