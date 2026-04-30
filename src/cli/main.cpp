@@ -1348,7 +1348,14 @@ int main(int argc, char** argv) {
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
                     // Category C: security
                     if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") sandbox_level = rules.sandbox_level_config;
-                    if (rules.allow_network_config) {} // allow_network wired through capabilities
+                    if (rules.allow_network_config || rules.network_allowed) {
+                        network_enabled = true;
+                        // Update the active sandbox — it was created before governance loaded
+                        auto* current_sandbox = naab::security::ScopedSandbox::getCurrent();
+                        if (current_sandbox) current_sandbox->setNetworkEnabled(true);
+                        security_config.network_enabled = true;
+                        naab::security::SandboxManager::instance().setDefaultConfig(security_config);
+                    }
                     if (rules.strict_types_config && !strict_types) strict_types = true;
                     if (governance_override) vm_governance.setOverrideEnabled(true);
                     // Agent identity and telemetry

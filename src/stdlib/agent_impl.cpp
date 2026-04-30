@@ -39,6 +39,14 @@ static size_t AgentWriteCallback(void* contents, size_t size, size_t nmemb, void
 // Counter for unique handle IDs
 static int s_handle_counter = 0;
 
+// Server-side governance tracking — immune to handle mutation
+struct AgentTracker {
+    int turns = 0;
+    int input_tokens = 0;
+    int output_tokens = 0;
+};
+static std::unordered_map<int, AgentTracker> s_trackers;
+
 // ============================================================================
 // Helper: Find agent config by name
 // ============================================================================
@@ -53,41 +61,14 @@ static const governance::AgentConfig* findAgentConfig(const std::string& name) {
 }
 
 // ============================================================================
-// Helper: Call Anthropic Messages API
+// Helper: HTTP POST with curl
 // ============================================================================
 
-static json callMessagesAPI(
-    const governance::AgentConfig& config,
-    const std::string& api_key,
-    const json& messages) {
+static json httpPost(
+    const std::string& url,
+    const std::string& body,
+    const std::vector<std::string>& header_lines) {
 
-    // Sandbox check: require network access
-    auto* sandbox = naab::security::ScopedSandbox::getCurrent();
-    if (sandbox) {
-        if (!sandbox->canConnect("api.anthropic.com", 443)) {
-            throw std::runtime_error(
-                "Agent error: Network access to API endpoint is blocked by sandbox\n\n"
-                "  Help:\n"
-                "  - Agent API calls require network access\n"
-                "  - Check sandbox configuration\n");
-        }
-    }
-
-    // Build request body
-    json request_body;
-    request_body["model"] = config.model;
-    request_body["max_tokens"] = config.max_tokens;
-    request_body["messages"] = messages;
-    if (config.temperature != 1.0) {
-        request_body["temperature"] = config.temperature;
-    }
-    if (!config.system_prompt.empty()) {
-        request_body["system"] = config.system_prompt;
-    }
-
-    std::string body_str = request_body.dump();
-
-    // Initialize curl
     CURL* curl = curl_easy_init();
     if (!curl) {
         throw std::runtime_error("Agent error: Failed to initialize HTTP client");
@@ -96,28 +77,23 @@ static json callMessagesAPI(
     std::string response_body;
     long response_code = 0;
 
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.anthropic.com/v1/messages");
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_str.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
 
     BoundedSink sink{&response_body, MAX_RESPONSE_BYTES};
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, AgentWriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
 
-    // 120s timeout for LLM responses
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
-
-    // Security: restrict protocols, verify SSL
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
-    // Headers
     struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, ("x-api-key: " + api_key).c_str());
-    headers = curl_slist_append(headers, "anthropic-version: 2023-06-01");
-    headers = curl_slist_append(headers, "content-type: application/json");
-    headers = curl_slist_append(headers, "User-Agent: NAAb/1.0");
+    for (const auto& h : header_lines) {
+        headers = curl_slist_append(headers, h.c_str());
+    }
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
     CURLcode res = curl_easy_perform(curl);
@@ -125,7 +101,6 @@ static json callMessagesAPI(
     curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
-        std::string err = curl_easy_strerror(res);
         curl_easy_cleanup(curl);
         throw std::runtime_error(
             "Agent error: Network request failed\n\n"
@@ -136,7 +111,6 @@ static json callMessagesAPI(
 
     curl_easy_cleanup(curl);
 
-    // Parse response
     json response;
     try {
         response = json::parse(response_body);
@@ -147,14 +121,19 @@ static json callMessagesAPI(
             "  - The API returned an unparseable response\n");
     }
 
-    // Check for API errors
     if (response_code < 200 || response_code >= 300) {
         std::string error_msg = "unknown error";
+        // Anthropic format
         if (response.contains("error") && response["error"].contains("message")) {
             error_msg = response["error"]["message"].get<std::string>();
-            // Truncate long error messages
-            if (error_msg.size() > 200) error_msg = error_msg.substr(0, 200) + "...";
         }
+        // Gemini format
+        if (response.contains("error") && response["error"].contains("status")) {
+            error_msg = response["error"]["status"].get<std::string>();
+            if (response["error"].contains("message"))
+                error_msg += ": " + response["error"]["message"].get<std::string>();
+        }
+        if (error_msg.size() > 200) error_msg = error_msg.substr(0, 200) + "...";
         throw std::runtime_error(fmt::format(
             "Agent error: API returned status {}\n\n"
             "  Got: {}\n\n"
@@ -165,6 +144,176 @@ static json callMessagesAPI(
     }
 
     return response;
+}
+
+// ============================================================================
+// Helper: Call Anthropic Messages API
+// ============================================================================
+
+static json callAnthropic(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const json& messages) {
+
+    json request_body;
+    request_body["model"] = config.model;
+    request_body["max_tokens"] = config.max_tokens;
+    request_body["messages"] = messages;
+    if (config.temperature != 1.0)
+        request_body["temperature"] = config.temperature;
+    if (!config.system_prompt.empty())
+        request_body["system"] = config.system_prompt;
+
+    return httpPost(
+        "https://api.anthropic.com/v1/messages",
+        request_body.dump(),
+        {
+            "x-api-key: " + api_key,
+            "anthropic-version: 2023-06-01",
+            "content-type: application/json",
+            "User-Agent: NAAb/1.0"
+        });
+}
+
+// ============================================================================
+// Helper: Call Google Gemini API
+// ============================================================================
+
+static json callGemini(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const json& messages) {
+
+    // Convert Anthropic-style messages to Gemini format
+    json contents = json::array();
+    for (const auto& msg : messages) {
+        json part;
+        part["role"] = (msg["role"] == "assistant") ? "model" : "user";
+        part["parts"] = json::array();
+        json text_part;
+        text_part["text"] = msg["content"];
+        part["parts"].push_back(text_part);
+        contents.push_back(part);
+    }
+
+    json request_body;
+    request_body["contents"] = contents;
+
+    // Generation config
+    json gen_config;
+    gen_config["maxOutputTokens"] = config.max_tokens;
+    if (config.temperature != 1.0)
+        gen_config["temperature"] = config.temperature;
+    request_body["generationConfig"] = gen_config;
+
+    // System instruction
+    if (!config.system_prompt.empty()) {
+        json sys;
+        sys["parts"] = json::array();
+        json sys_part;
+        sys_part["text"] = config.system_prompt;
+        sys["parts"].push_back(sys_part);
+        request_body["systemInstruction"] = sys;
+    }
+
+    std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + config.model + ":generateContent?key=" + api_key;
+
+    return httpPost(url, request_body.dump(),
+        {"content-type: application/json", "User-Agent: NAAb/1.0"});
+}
+
+// ============================================================================
+// Helper: Normalize response to common format {content, stop_reason, usage}
+// ============================================================================
+
+struct NormalizedResponse {
+    std::string content;
+    std::string stop_reason;
+    int input_tokens = 0;
+    int output_tokens = 0;
+};
+
+static NormalizedResponse normalizeResponse(
+    const std::string& provider,
+    const json& response) {
+
+    NormalizedResponse result;
+
+    if (provider == "gemini" || provider == "google") {
+        // Gemini response format
+        if (response.contains("candidates") && !response["candidates"].empty()) {
+            auto& candidate = response["candidates"][0];
+            if (candidate.contains("content") && candidate["content"].contains("parts")) {
+                for (const auto& part : candidate["content"]["parts"]) {
+                    if (part.contains("text")) {
+                        if (!result.content.empty()) result.content += "\n";
+                        result.content += part["text"].get<std::string>();
+                    }
+                }
+            }
+            if (candidate.contains("finishReason"))
+                result.stop_reason = candidate["finishReason"].get<std::string>();
+        }
+        if (response.contains("usageMetadata")) {
+            auto& usage = response["usageMetadata"];
+            if (usage.contains("promptTokenCount"))
+                result.input_tokens = usage["promptTokenCount"].get<int>();
+            if (usage.contains("candidatesTokenCount"))
+                result.output_tokens = usage["candidatesTokenCount"].get<int>();
+        }
+    } else {
+        // Anthropic response format
+        if (response.contains("content") && response["content"].is_array()) {
+            for (const auto& block : response["content"]) {
+                if (block.contains("type") && block["type"] == "text" && block.contains("text")) {
+                    if (!result.content.empty()) result.content += "\n";
+                    result.content += block["text"].get<std::string>();
+                }
+            }
+        }
+        if (response.contains("stop_reason") && response["stop_reason"].is_string())
+            result.stop_reason = response["stop_reason"].get<std::string>();
+        if (response.contains("usage") && response["usage"].is_object()) {
+            auto& usage = response["usage"];
+            if (usage.contains("input_tokens"))
+                result.input_tokens = usage["input_tokens"].get<int>();
+            if (usage.contains("output_tokens"))
+                result.output_tokens = usage["output_tokens"].get<int>();
+        }
+    }
+
+    if (result.stop_reason.empty()) result.stop_reason = "end_turn";
+    return result;
+}
+
+// ============================================================================
+// Helper: Route to correct provider
+// ============================================================================
+
+static json callProvider(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const json& messages) {
+
+    // Sandbox check
+    auto* sandbox = naab::security::ScopedSandbox::getCurrent();
+    if (sandbox) {
+        std::string host = (config.provider == "gemini" || config.provider == "google")
+            ? "generativelanguage.googleapis.com" : "api.anthropic.com";
+        if (!sandbox->canConnect(host, 443)) {
+            throw std::runtime_error(
+                "Agent error: Network access to API endpoint is blocked by sandbox\n\n"
+                "  Help:\n"
+                "  - Agent API calls require network access\n"
+                "  - Check sandbox configuration\n");
+        }
+    }
+
+    if (config.provider == "gemini" || config.provider == "google") {
+        return callGemini(config, api_key, messages);
+    }
+    return callAnthropic(config, api_key, messages);
 }
 
 // ============================================================================
@@ -241,14 +390,18 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     }
 
     // Build handle dict
+    int handle_id = ++s_handle_counter;
     std::unordered_map<std::string, NaabVal> handle;
     handle["__agent_handle"] = NaabVal::makeBool(true);
-    handle["id"] = NaabVal::makeInt(++s_handle_counter);
+    handle["id"] = NaabVal::makeInt(handle_id);
     handle["config_name"] = NaabVal::makeString(config_name);
     handle["messages"] = NaabVal::makeList({});
     handle["input_tokens"] = NaabVal::makeInt(0);
     handle["output_tokens"] = NaabVal::makeInt(0);
     handle["turns"] = NaabVal::makeInt(0);
+
+    // Register server-side tracker (immune to handle mutation)
+    s_trackers[handle_id] = AgentTracker{};
 
     return NaabVal::makeDict(std::move(handle));
 }
@@ -305,9 +458,20 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             config_name));
     }
 
-    // Enforce turn limit
-    int turns = handle["turns"].asInt();
-    if (turns >= config->max_turns) {
+    // Server-side governance enforcement (immune to handle mutation)
+    int handle_id = handle["id"].asInt();
+    auto tracker_it = s_trackers.find(handle_id);
+    if (tracker_it == s_trackers.end()) {
+        throw std::runtime_error(
+            "Agent error: Invalid or expired agent handle\n\n"
+            "  Help:\n"
+            "  - Use a handle returned by agent.create()\n"
+            "  - Forged or corrupted handles are rejected\n");
+    }
+    auto& tracker = tracker_it->second;
+
+    // Enforce turn limit from tracker (not handle dict)
+    if (tracker.turns >= config->max_turns) {
         throw std::runtime_error(fmt::format(
             "Agent error: Conversation exceeded max_turns limit ({})\n\n"
             "  Got: {} turns used\n"
@@ -315,13 +479,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  Help:\n"
             "  - Create a new agent handle for a fresh conversation\n"
             "  - Or increase max_turns in govern.json agents config\n",
-            config->max_turns, turns, config->max_turns));
+            config->max_turns, tracker.turns, config->max_turns));
     }
 
-    // Enforce token budget
-    int input_tokens = handle["input_tokens"].asInt();
-    int output_tokens = handle["output_tokens"].asInt();
-    int total_used = input_tokens + output_tokens;
+    // Enforce token budget from tracker (not handle dict)
+    int total_used = tracker.input_tokens + tracker.output_tokens;
     if (total_used >= config->max_total_tokens) {
         throw std::runtime_error(fmt::format(
             "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
@@ -356,30 +518,69 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  - Set the required API key environment variable\n");
     }
 
-    // Call API
-    json response = callMessagesAPI(*config, std::string(api_key), messages_json);
+    // Call provider-specific API
+    json response = callProvider(*config, std::string(api_key), messages_json);
 
-    // Extract response content
-    std::string content;
-    if (response.contains("content") && response["content"].is_array()) {
-        for (const auto& block : response["content"]) {
-            if (block.contains("type") && block["type"] == "text" && block.contains("text")) {
-                if (!content.empty()) content += "\n";
-                content += block["text"].get<std::string>();
-            }
+    // Normalize response across providers
+    auto normalized = normalizeResponse(config->provider, response);
+    std::string content = normalized.content;
+    std::string stop_reason = normalized.stop_reason;
+    int resp_input_tokens = normalized.input_tokens;
+    int resp_output_tokens = normalized.output_tokens;
+
+    // ── Gap 1: Block tool_use responses (no tool execution loop yet) ──
+    if (stop_reason == "tool_use" || stop_reason == "FUNCTION_CALL" ||
+        stop_reason == "tool_calls") {
+        throw std::runtime_error(fmt::format(
+            "Agent error: Agent '{}' returned a tool_use response\n\n"
+            "  Got: stop_reason={}\n\n"
+            "  Help:\n"
+            "  - Agent tool execution is not yet supported\n"
+            "  - The agent attempted to call a function instead of responding with text\n"
+            "  - Rephrase your prompt to request a text response\n",
+            config_name, stop_reason));
+    }
+
+    // ── Gap 2: Output content filtering (secrets + PII) ──
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->isActive() && !content.empty()) {
+        // Check for secrets in LLM response (reuses existing 18-pattern scanner)
+        std::string secret_err = gov_engine->checkSecrets(content, 0);
+        if (!secret_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Response from '{}' contains a potential secret\n\n"
+                "  Help:\n"
+                "  - The LLM response was blocked because it contains a pattern\n"
+                "    matching a known secret format (API key, token, etc.)\n"
+                "  - This is enforced by governance code_quality.no_secrets\n",
+                config_name));
+        }
+        // Check for PII in LLM response (reuses existing SSN/CC/email/phone/IP scanner)
+        std::string pii_err = gov_engine->checkPii(content, 0);
+        if (!pii_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Response from '{}' contains potential PII\n\n"
+                "  Help:\n"
+                "  - The LLM response was blocked because it contains a pattern\n"
+                "    matching personally identifiable information\n"
+                "  - This is enforced by governance code_quality.no_pii\n",
+                config_name));
         }
     }
 
-    std::string stop_reason = "end_turn";
-    if (response.contains("stop_reason") && response["stop_reason"].is_string()) {
-        stop_reason = response["stop_reason"].get<std::string>();
-    }
-
-    int resp_input_tokens = 0, resp_output_tokens = 0;
-    if (response.contains("usage") && response["usage"].is_object()) {
-        auto& usage = response["usage"];
-        if (usage.contains("input_tokens")) resp_input_tokens = usage["input_tokens"].get<int>();
-        if (usage.contains("output_tokens")) resp_output_tokens = usage["output_tokens"].get<int>();
+    // ── Gap 3: Advisory for per-agent path/shell restrictions ──
+    if (gov_engine && gov_engine->isActive()) {
+        bool has_restrictions = config->shell_allowed_set ||
+                                !config->allowed_paths.empty() ||
+                                !config->blocked_paths.empty();
+        if (has_restrictions) {
+            // Log advisory — these restrictions will be enforced when
+            // agent tool execution is implemented (file ops, shell commands)
+            fprintf(stderr,
+                "[governance] Advisory: Agent '%s' has path/shell restrictions "
+                "configured — enforcement pending tool execution support\n",
+                config_name.c_str());
+        }
     }
 
     // Update handle: append messages, update counters
@@ -395,10 +596,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     asst_msg_val["content"] = NaabVal::makeString(content);
     msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
 
-    // Update counters
-    handle["turns"] = NaabVal::makeInt(turns + 1);
-    handle["input_tokens"] = NaabVal::makeInt(input_tokens + resp_input_tokens);
-    handle["output_tokens"] = NaabVal::makeInt(output_tokens + resp_output_tokens);
+    // Update server-side tracker (authoritative) and handle dict (informational)
+    tracker.turns++;
+    tracker.input_tokens += resp_input_tokens;
+    tracker.output_tokens += resp_output_tokens;
+    handle["turns"] = NaabVal::makeInt(tracker.turns);
+    handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
+    handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
 
     // Build response dict
     std::unordered_map<std::string, NaabVal> result;

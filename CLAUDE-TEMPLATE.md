@@ -303,7 +303,11 @@ create, send, run, messages, usage
 - `agent.run(config_name, prompt)` — one-shot: create + send + return content string
 - `agent.messages(handle)` — return conversation history array
 - `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}
-- Requires `ANTHROPIC_API_KEY` env var and agent defined in govern.json `agents` section
+- Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
+- Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
+- `tool_use`/`FUNCTION_CALL` responses are HARD blocked (agent tool execution not yet supported)
+- Turn/token limits enforced server-side — handle dict mutation does not bypass governance
+- Per-agent `allowed_paths`/`shell_allowed` logged as advisory (enforced when tool execution loop lands)
 
 ## Functions That Do NOT Exist (use alternatives)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
@@ -418,9 +422,9 @@ main {
 28. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
 29. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agents` (or legacy `agent_roles`) in govern.json
 30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
-31. `agents` in govern.json defines per-agent permissions AND LLM configuration (model, max_tokens, system_prompt, tools, max_turns, max_total_tokens). Legacy `agent_roles` key is still accepted (permissions only, no LLM config).
+31. `agents` in govern.json defines per-agent permissions AND LLM configuration (model, max_tokens, system_prompt, tools, max_turns, max_total_tokens, provider). Supports `"provider": "anthropic"` (default) and `"provider": "gemini"`. Legacy `agent_roles` key is still accepted (permissions only, no LLM config).
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
-33. `use agent` stdlib — `agent.create(name)`, `agent.send(handle, msg)`, `agent.run(name, prompt)`, `agent.messages(handle)`, `agent.usage(handle)` for governed LLM conversations. Agents must be defined in govern.json `agents` section.
+33. `use agent` stdlib — governed LLM conversations. Responses are scanned by `checkSecrets()` (HARD) and `checkPii()` (configurable). `tool_use` responses are blocked. Turn/token limits use server-side tracking (immune to handle mutation).
 33. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
     "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
     Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.

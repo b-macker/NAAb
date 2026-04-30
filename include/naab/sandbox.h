@@ -119,6 +119,9 @@ public:
     // Get current configuration
     const SandboxConfig& getConfig() const { return config_; }
 
+    // Update network access (used when governance enables network after sandbox creation)
+    void setNetworkEnabled(bool enabled) { config_.network_enabled = enabled; }
+
     // Audit logging
     void logViolation(const std::string& operation,
                      const std::string& resource,

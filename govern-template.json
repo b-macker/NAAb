@@ -815,8 +815,10 @@
   },
 
   "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
+  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
   "agents": {
     "researcher": {
+      "provider": "anthropic",
       "model": "claude-sonnet-4-20250514",
       "max_tokens": 4096,
       "system_prompt": "You are a research assistant.",
@@ -830,7 +832,9 @@
       "shell_allowed": false
     },
     "coder": {
-      "model": "claude-sonnet-4-20250514",
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GEMINI_API_KEY",
       "max_tokens": 8192,
       "system_prompt": "You are a coding assistant.",
       "max_turns": 50,
