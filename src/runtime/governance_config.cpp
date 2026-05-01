@@ -1703,6 +1703,22 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // --- Cumulative Risk Scoring ---
+    if (j.contains("scoring") && j["scoring"].is_object()) {
+        auto& sc = j["scoring"];
+        rules_.scoring.enabled = sc.value("enabled", false);
+        rules_.scoring.default_weight = sc.value("default_weight", 3);
+        if (sc.contains("rule_weights") && sc["rule_weights"].is_object()) {
+            for (auto& [key, val] : sc["rule_weights"].items()) {
+                if (val.is_number_integer())
+                    rules_.scoring.rule_weights[key] = val.get<int>();
+            }
+        }
+        rules_.scoring.green_threshold  = sc.value("green_threshold", 0);
+        rules_.scoring.yellow_threshold = sc.value("yellow_threshold", 10);
+        rules_.scoring.red_threshold    = sc.value("red_threshold", 25);
+    }
+
     // --- Governance Baseline (Feature 4) ---
     if (j.contains("governance_baseline") && j["governance_baseline"].is_object()) {
         auto& gb = j["governance_baseline"];

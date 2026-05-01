@@ -425,7 +425,8 @@ main {
 31. `agents` in govern.json defines per-agent permissions AND LLM configuration (model, max_tokens, system_prompt, tools, max_turns, max_total_tokens, provider). Supports `"provider": "anthropic"` (default) and `"provider": "gemini"`. Legacy `agent_roles` key is still accepted (permissions only, no LLM config).
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
 33. `use agent` stdlib — governed LLM conversations. Responses are scanned by `checkSecrets()` (HARD) and `checkPii()` (configurable). `tool_use` responses are blocked. Turn/token limits use server-side tracking (immune to handle mutation).
-33. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
+34. `scoring` in govern.json enables cumulative risk scoring — advisory findings accumulate weighted scores. Cross `red_threshold` = block (exit 2 via quality gate). Cross `yellow_threshold` = warn once. `default_weight` sets the per-finding weight; `rule_weights` overrides per rule. Deterministic, monotonic, bounded (saturates at 100K), with integrity verification at report time.
+35. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
     "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
     Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.
 

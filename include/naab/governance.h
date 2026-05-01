@@ -1023,6 +1023,19 @@ struct QualityGateConfig {
 };
 
 // ============================================================================
+// Section 12b: Cumulative Risk Scoring
+// ============================================================================
+
+struct ScoringConfig {
+    bool enabled = false;
+    int default_weight = 3;     // weight for any advisory finding without a rule override
+    std::unordered_map<std::string, int> rule_weights;  // per-rule weight overrides
+    int green_threshold  = 0;   // below: silent
+    int yellow_threshold = 10;  // at/above: enhanced warning with breakdown
+    int red_threshold    = 25;  // at/above: block via quality gate (exit 2)
+};
+
+// ============================================================================
 // Section 12c: Governance Baseline
 // ============================================================================
 
@@ -1404,6 +1417,9 @@ struct GovernanceRules {
 
     // --- Quality gate (Feature 2) ---
     QualityGateConfig quality_gate;
+
+    // --- Cumulative risk scoring ---
+    ScoringConfig scoring;
 
     // --- Governance baseline (Feature 4) ---
     GovernanceBaselineConfig governance_baseline;
@@ -1793,6 +1809,11 @@ public:
     // Feature 2: Quality gate evaluation — returns empty if passed, error msg if failed
     std::string evaluateQualityGate() const;
 
+    // Cumulative risk scoring
+    int getCumulativeScore() const { return cumulative_score_; }
+    std::string formatScoreBreakdown() const;
+    bool verifyScoreIntegrity() const;
+
     // Feature 4: Governance baseline regression detection
     void saveGovernanceBaseline() const;
     std::string checkGovernanceBaseline() const;  // empty = no regression
@@ -1968,6 +1989,15 @@ private:
     std::vector<std::pair<std::string, int>> ptc_functions_; // polyglot try/catch: {name, line}
     int advisory_count_ = 0;
     int advisory_suppressed_ = 0;
+
+    // Cumulative risk scoring
+    // INVARIANT: cumulative_score_ >= 0 (monotonic — only increases)
+    // INVARIANT: cumulative_score_ == sum(score_contributions_[*])
+    // INVARIANT: cumulative_score_ <= SCORE_SATURATION_LIMIT
+    static constexpr int SCORE_SATURATION_LIMIT = 100000;
+    int cumulative_score_ = 0;
+    std::unordered_map<std::string, int> score_contributions_;
+    bool score_yellow_warned_ = false;
 
     // Pass 2: Post-execution audit data
     std::vector<PolyglotExecutionRecord> polyglot_executions_;

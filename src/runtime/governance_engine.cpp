@@ -390,6 +390,23 @@ std::string GovernanceEngine::enforce(
         if (check_results_.size() > MAX_CHECK_RESULTS) {
             check_results_.erase(check_results_.begin());
         }
+
+        // Cumulative risk scoring — ADVISORY findings only
+        // MONOTONIC: weight >= 0 guaranteed (clamped), score can only increase
+        if (rules_.scoring.enabled && level == EnforcementLevel::ADVISORY) {
+            int weight = rules_.scoring.default_weight;
+            auto wit = rules_.scoring.rule_weights.find(rule_name);
+            if (wit != rules_.scoring.rule_weights.end()) {
+                weight = wit->second;
+            }
+            weight = std::max(0, weight);
+            if (cumulative_score_ <= SCORE_SATURATION_LIMIT - weight) {
+                cumulative_score_ += weight;
+            } else {
+                cumulative_score_ = SCORE_SATURATION_LIMIT;
+            }
+            score_contributions_[rule_name] += weight;
+        }
     }
 
     // Audit mode: never block, just log
@@ -418,6 +435,16 @@ std::string GovernanceEngine::enforce(
         case EnforcementLevel::ADVISORY:
             if (emitted_advisories_.insert(rule_name).second) {
                 fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+            }
+            // Yellow-zone: warn ONCE when score first enters yellow zone
+            if (rules_.scoring.enabled && !score_yellow_warned_ &&
+                cumulative_score_ >= rules_.scoring.yellow_threshold) {
+                score_yellow_warned_ = true;
+                fprintf(stderr,
+                    "[governance] Risk score %d reached yellow threshold %d "
+                    "(red threshold: %d)\n",
+                    cumulative_score_, rules_.scoring.yellow_threshold,
+                    rules_.scoring.red_threshold);
             }
             return "";  // Don't block
     }
@@ -1173,6 +1200,12 @@ std::string GovernanceEngine::formatSummary() const {
         }
     }
 
+    if (rules_.scoring.enabled && cumulative_score_ > 0) {
+        const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
+                           cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
+        oss << fmt::format("  Risk score: {} ({})\n", cumulative_score_, zone);
+    }
+
     return oss.str();
 }
 
@@ -1257,6 +1290,25 @@ void GovernanceEngine::printDashboard() const {
     if (!top_rule.empty())
         fprintf(stderr, "Top block:  %s (%d violation%s)\n",
                 top_rule.c_str(), top_count, top_count != 1 ? "s" : "");
+    if (rules_.scoring.enabled && cumulative_score_ > 0) {
+        const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
+                           cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
+        fprintf(stderr, "Risk score: %d (%s) [%d/%d]\n",
+                cumulative_score_, zone,
+                rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+        std::vector<std::pair<std::string, int>> sorted(
+            score_contributions_.begin(), score_contributions_.end());
+        std::sort(sorted.begin(), sorted.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+        int shown = 0;
+        for (const auto& [rule, score] : sorted) {
+            if (shown++ >= 3) break;
+            fprintf(stderr, "  +%d  %s\n", score, rule.c_str());
+        }
+        if (!verifyScoreIntegrity()) {
+            fprintf(stderr, "  INTEGRITY: score mismatch (incremental vs recomputed)\n");
+        }
+    }
     if (rules_.telemetry_output.enabled)
         fprintf(stderr, "Telemetry:  %zu events → %s\n",
                 check_results_.size(), rules_.telemetry_output.output_file.c_str());
@@ -1279,47 +1331,99 @@ bool GovernanceEngine::wasBlocked() const {
 // ============================================================================
 
 std::string GovernanceEngine::evaluateQualityGate() const {
-    if (!rules_.quality_gate.enabled) return "";
+    // Quality gate conditions (only when enabled)
+    if (rules_.quality_gate.enabled) {
+        int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
+        for (const auto& r : check_results_) {
+            if (r.passed) continue;
+            total_violations++;
+            if (r.level == EnforcementLevel::HARD) hard++;
+            else if (r.level == EnforcementLevel::SOFT) soft++;
+            else advisory++;
+            if (r.severity == "critical" || r.severity == "high") security++;
+        }
 
-    int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
-    for (const auto& r : check_results_) {
-        if (r.passed) continue;
-        total_violations++;
-        if (r.level == EnforcementLevel::HARD) hard++;
-        else if (r.level == EnforcementLevel::SOFT) soft++;
-        else advisory++;
-        if (r.severity == "critical" || r.severity == "high") security++;
-    }
+        for (const auto& cond : rules_.quality_gate.conditions) {
+            int value = 0;
+            if (cond.metric == "hard_violations") value = hard;
+            else if (cond.metric == "soft_violations") value = soft;
+            else if (cond.metric == "advisory_violations") value = advisory;
+            else if (cond.metric == "security_findings") value = security;
+            else if (cond.metric == "total_violations") value = total_violations;
+            else if (cond.metric == "total_checks") value = static_cast<int>(check_results_.size());
+            else if (cond.metric == "cumulative_risk_score") value = cumulative_score_;
+            else continue;
 
-    for (const auto& cond : rules_.quality_gate.conditions) {
-        int value = 0;
-        if (cond.metric == "hard_violations") value = hard;
-        else if (cond.metric == "soft_violations") value = soft;
-        else if (cond.metric == "advisory_violations") value = advisory;
-        else if (cond.metric == "security_findings") value = security;
-        else if (cond.metric == "total_violations") value = total_violations;
-        else if (cond.metric == "total_checks") value = static_cast<int>(check_results_.size());
-        else continue;
+            // Quality gate conditions use FAIL-WHEN semantics for inequality
+            // operators: "advisory_violations > 0" means "fail when violations
+            // exceed 0". The == operator is special: "hard_violations == 0"
+            // means "require exactly 0" (fail when NOT equal).
+            bool failed = false;
+            if (cond.op == ">" && value > cond.threshold) failed = true;
+            else if (cond.op == ">=" && value >= cond.threshold) failed = true;
+            else if (cond.op == "<" && value < cond.threshold) failed = true;
+            else if (cond.op == "<=" && value <= cond.threshold) failed = true;
+            else if (cond.op == "==" && value != cond.threshold) failed = true;
+            else if (cond.op == "!=" && value == cond.threshold) failed = true;
 
-        // Quality gate conditions use FAIL-WHEN semantics for inequality
-        // operators: "advisory_violations > 0" means "fail when violations
-        // exceed 0". The == operator is special: "hard_violations == 0"
-        // means "require exactly 0" (fail when NOT equal).
-        bool failed = false;
-        if (cond.op == ">" && value > cond.threshold) failed = true;
-        else if (cond.op == ">=" && value >= cond.threshold) failed = true;
-        else if (cond.op == "<" && value < cond.threshold) failed = true;
-        else if (cond.op == "<=" && value <= cond.threshold) failed = true;
-        else if (cond.op == "==" && value != cond.threshold) failed = true;
-        else if (cond.op == "!=" && value == cond.threshold) failed = true;
-
-        if (failed) {
-            return fmt::format(
-                "[governance] Quality gate FAILED: {} {} {} (actual: {})\n",
-                cond.metric, cond.op, cond.threshold, value);
+            if (failed) {
+                return fmt::format(
+                    "[governance] Quality gate FAILED: {} {} {} (actual: {})\n",
+                    cond.metric, cond.op, cond.threshold, value);
+            }
         }
     }
+
+    // Cumulative risk scoring gate (independent of quality_gate.enabled)
+    if (rules_.scoring.enabled && cumulative_score_ >= rules_.scoring.red_threshold) {
+        return fmt::format(
+            "Governance error: Cumulative risk score {} reached threshold {}\n\n"
+            "  Score breakdown:\n{}\n"
+            "  Help:\n"
+            "  - Advisory findings accumulated to critical mass\n"
+            "  - Each advisory finding contributes a weighted score\n"
+            "  - Reduce advisory violations to bring score below threshold\n",
+            cumulative_score_, rules_.scoring.red_threshold,
+            formatScoreBreakdown());
+    }
+
     return "";
+}
+
+// ============================================================================
+// Cumulative Risk Scoring — Helpers
+// ============================================================================
+
+std::string GovernanceEngine::formatScoreBreakdown() const {
+    std::vector<std::pair<std::string, int>> sorted(
+        score_contributions_.begin(), score_contributions_.end());
+    std::sort(sorted.begin(), sorted.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::ostringstream oss;
+    for (const auto& [rule, score] : sorted) {
+        oss << fmt::format("    +{:<4} {}\n", score, rule);
+    }
+    return oss.str();
+}
+
+bool GovernanceEngine::verifyScoreIntegrity() const {
+    if (!rules_.scoring.enabled) return true;
+    int recomputed = 0;
+    for (const auto& r : check_results_) {
+        if (r.passed || r.level != EnforcementLevel::ADVISORY) continue;
+        int weight = rules_.scoring.default_weight;
+        auto wit = rules_.scoring.rule_weights.find(r.rule_name);
+        if (wit != rules_.scoring.rule_weights.end()) {
+            weight = wit->second;
+        }
+        weight = std::max(0, weight);
+        if (recomputed <= SCORE_SATURATION_LIMIT - weight) {
+            recomputed += weight;
+        } else {
+            recomputed = SCORE_SATURATION_LIMIT;
+        }
+    }
+    return recomputed == cumulative_score_;
 }
 
 // ============================================================================

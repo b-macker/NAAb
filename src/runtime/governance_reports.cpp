@@ -222,6 +222,17 @@ std::string GovernanceEngine::generateJsonReport() const {
     report["summary"]["failed_soft"] = failed_soft;
     report["summary"]["advisories"] = advisories;
 
+    if (rules_.scoring.enabled) {
+        report["summary"]["cumulative_risk_score"] = cumulative_score_;
+        report["summary"]["risk_zone"] = cumulative_score_ >= rules_.scoring.red_threshold ? "red" :
+                                         cumulative_score_ >= rules_.scoring.yellow_threshold ? "yellow" : "green";
+        nlohmann::json breakdown = nlohmann::json::object();
+        for (const auto& [rule, score] : score_contributions_) {
+            breakdown[rule] = score;
+        }
+        report["summary"]["score_breakdown"] = breakdown;
+    }
+
     report["results"] = nlohmann::json::array();
     for (const auto& r : check_results_) {
         nlohmann::json entry;
