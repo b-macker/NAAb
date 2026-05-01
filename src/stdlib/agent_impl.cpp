@@ -264,6 +264,11 @@ static NormalizedResponse normalizeResponse(
             if (usage.contains("candidatesTokenCount"))
                 result.output_tokens = usage["candidatesTokenCount"].get<int>();
         }
+        // Estimate output tokens if API didn't report them but content exists
+        // (Gemma models may omit candidatesTokenCount from usageMetadata)
+        if (result.output_tokens == 0 && !result.content.empty()) {
+            result.output_tokens = static_cast<int>(result.content.size() / 4);
+        }
     } else {
         // Anthropic response format
         if (response.contains("content") && response["content"].is_array()) {
@@ -577,18 +582,20 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // ── Gap 3: Advisory for per-agent path/shell restrictions ──
+    // ── Gap 3: Advisory for per-agent path/shell restrictions (once per config) ──
     if (gov_engine && gov_engine->isActive()) {
         bool has_restrictions = config->shell_allowed_set ||
                                 !config->allowed_paths.empty() ||
                                 !config->blocked_paths.empty();
         if (has_restrictions) {
-            // Log advisory — these restrictions will be enforced when
-            // agent tool execution is implemented (file ops, shell commands)
-            fprintf(stderr,
-                "[governance] Advisory: Agent '%s' has path/shell restrictions "
-                "configured — enforcement pending tool execution support\n",
-                config_name.c_str());
+            static std::unordered_set<std::string> warned_agents;
+            if (warned_agents.find(config_name) == warned_agents.end()) {
+                warned_agents.insert(config_name);
+                fprintf(stderr,
+                    "[governance] Advisory: Agent '%s' has path/shell restrictions "
+                    "configured — enforcement pending tool execution support\n",
+                    config_name.c_str());
+            }
         }
     }
 

@@ -1574,14 +1574,27 @@ static std::string extractBraceBody(const std::string& source, size_t brace_star
     while (i < source.size() && depth > 0) {
         char c = source[i];
         if (in_string) {
-            if (c == '\\') { i++; } // skip escaped char
-            else if (c == string_char) { in_string = false; }
+            if (c == '\\') { i += 2; continue; } // skip escaped char
+            if (c == string_char) { in_string = false; }
+            i++;
         } else {
+            // Skip // line comments — braces inside must not affect depth
+            if (c == '/' && i + 1 < source.size() && source[i + 1] == '/') {
+                while (i < source.size() && source[i] != '\n') i++;
+                continue;
+            }
+            // Skip /* block comments */
+            if (c == '/' && i + 1 < source.size() && source[i + 1] == '*') {
+                i += 2;
+                while (i + 1 < source.size() && !(source[i] == '*' && source[i + 1] == '/')) i++;
+                if (i + 1 < source.size()) i += 2; // skip */
+                continue;
+            }
             if (c == '"' || c == '\'') { in_string = true; string_char = c; }
             else if (c == '{') depth++;
             else if (c == '}') depth--;
+            if (depth > 0) i++;
         }
-        if (depth > 0) i++;
     }
     if (depth != 0) return "";
     return source.substr(brace_start + 1, i - brace_start - 1);
