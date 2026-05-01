@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <unordered_set>
+#include <mutex>
 
 namespace naab {
 namespace stdlib {
@@ -46,6 +47,7 @@ struct AgentTracker {
     int output_tokens = 0;
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
+static std::mutex s_agent_mutex;
 
 // ============================================================================
 // Helper: Find agent config by name
@@ -389,8 +391,14 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
             "  - The key must be set before running the script\n");
     }
 
-    // Build handle dict
-    int handle_id = ++s_handle_counter;
+    // Build handle dict — mutex protects s_handle_counter and s_trackers
+    int handle_id;
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        handle_id = ++s_handle_counter;
+        s_trackers[handle_id] = AgentTracker{};
+    }
+
     std::unordered_map<std::string, NaabVal> handle;
     handle["__agent_handle"] = NaabVal::makeBool(true);
     handle["id"] = NaabVal::makeInt(handle_id);
@@ -399,9 +407,6 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     handle["input_tokens"] = NaabVal::makeInt(0);
     handle["output_tokens"] = NaabVal::makeInt(0);
     handle["turns"] = NaabVal::makeInt(0);
-
-    // Register server-side tracker (immune to handle mutation)
-    s_trackers[handle_id] = AgentTracker{};
 
     return NaabVal::makeDict(std::move(handle));
 }
@@ -459,39 +464,43 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // Server-side governance enforcement (immune to handle mutation)
+    // Lock to validate tracker state; released before slow API call
     int handle_id = handle["id"].asInt();
-    auto tracker_it = s_trackers.find(handle_id);
-    if (tracker_it == s_trackers.end()) {
-        throw std::runtime_error(
-            "Agent error: Invalid or expired agent handle\n\n"
-            "  Help:\n"
-            "  - Use a handle returned by agent.create()\n"
-            "  - Forged or corrupted handles are rejected\n");
-    }
-    auto& tracker = tracker_it->second;
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto tracker_it = s_trackers.find(handle_id);
+        if (tracker_it == s_trackers.end()) {
+            throw std::runtime_error(
+                "Agent error: Invalid or expired agent handle\n\n"
+                "  Help:\n"
+                "  - Use a handle returned by agent.create()\n"
+                "  - Forged or corrupted handles are rejected\n");
+        }
+        auto& tracker = tracker_it->second;
 
-    // Enforce turn limit from tracker (not handle dict)
-    if (tracker.turns >= config->max_turns) {
-        throw std::runtime_error(fmt::format(
-            "Agent error: Conversation exceeded max_turns limit ({})\n\n"
-            "  Got: {} turns used\n"
-            "  Expected: max {} turns\n\n"
-            "  Help:\n"
-            "  - Create a new agent handle for a fresh conversation\n"
-            "  - Or increase max_turns in govern.json agents config\n",
-            config->max_turns, tracker.turns, config->max_turns));
-    }
+        // Enforce turn limit from tracker (not handle dict)
+        if (tracker.turns >= config->max_turns) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Conversation exceeded max_turns limit ({})\n\n"
+                "  Got: {} turns used\n"
+                "  Expected: max {} turns\n\n"
+                "  Help:\n"
+                "  - Create a new agent handle for a fresh conversation\n"
+                "  - Or increase max_turns in govern.json agents config\n",
+                config->max_turns, tracker.turns, config->max_turns));
+        }
 
-    // Enforce token budget from tracker (not handle dict)
-    int total_used = tracker.input_tokens + tracker.output_tokens;
-    if (total_used >= config->max_total_tokens) {
-        throw std::runtime_error(fmt::format(
-            "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
-            "  Help:\n"
-            "  - Create a new agent handle for a fresh conversation\n"
-            "  - Or increase max_total_tokens in govern.json agents config\n",
-            total_used, config->max_total_tokens));
-    }
+        // Enforce token budget from tracker (not handle dict)
+        int total_used = tracker.input_tokens + tracker.output_tokens;
+        if (total_used >= config->max_total_tokens) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
+                "  Help:\n"
+                "  - Create a new agent handle for a fresh conversation\n"
+                "  - Or increase max_total_tokens in govern.json agents config\n",
+                total_used, config->max_total_tokens));
+        }
+    } // unlock before API call
 
     // Build messages array from handle history + new message
     json messages_json = json::array();
@@ -597,12 +606,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
 
     // Update server-side tracker (authoritative) and handle dict (informational)
-    tracker.turns++;
-    tracker.input_tokens += resp_input_tokens;
-    tracker.output_tokens += resp_output_tokens;
-    handle["turns"] = NaabVal::makeInt(tracker.turns);
-    handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
-    handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto& tracker = s_trackers[handle_id];
+        tracker.turns++;
+        tracker.input_tokens += resp_input_tokens;
+        tracker.output_tokens += resp_output_tokens;
+        handle["turns"] = NaabVal::makeInt(tracker.turns);
+        handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
+        handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+    }
 
     // Build response dict
     std::unordered_map<std::string, NaabVal> result;
@@ -676,16 +689,30 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
 
     auto& handle = args[0].asDict();
 
-    int input_tokens = 0, output_tokens = 0, turns = 0;
-    if (handle.count("input_tokens")) input_tokens = handle["input_tokens"].asInt();
-    if (handle.count("output_tokens")) output_tokens = handle["output_tokens"].asInt();
-    if (handle.count("turns")) turns = handle["turns"].asInt();
+    // Validate handle
+    auto it = handle.find("__agent_handle");
+    if (it == handle.end() || !it->second.isBool() || !it->second.asBool()) {
+        throw std::runtime_error(
+            "Agent error: Invalid agent handle\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n");
+    }
+
+    // Read from server-side tracker (immune to handle mutation)
+    int handle_id = handle["id"].asInt();
+    std::lock_guard<std::mutex> lock(s_agent_mutex);
+    auto tracker_it = s_trackers.find(handle_id);
+    if (tracker_it == s_trackers.end()) {
+        throw std::runtime_error(
+            "Agent error: Invalid or expired agent handle\n\n"
+            "  Help:\n  - Use a handle returned by agent.create()\n");
+    }
+    auto& tracker = tracker_it->second;
 
     std::unordered_map<std::string, NaabVal> result;
-    result["input_tokens"] = NaabVal::makeInt(input_tokens);
-    result["output_tokens"] = NaabVal::makeInt(output_tokens);
-    result["total_tokens"] = NaabVal::makeInt(input_tokens + output_tokens);
-    result["turns"] = NaabVal::makeInt(turns);
+    result["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
+    result["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+    result["total_tokens"] = NaabVal::makeInt(tracker.input_tokens + tracker.output_tokens);
+    result["turns"] = NaabVal::makeInt(tracker.turns);
 
     return NaabVal::makeDict(std::move(result));
 }

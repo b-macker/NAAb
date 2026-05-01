@@ -19,6 +19,7 @@
 #include <chrono>
 #include <regex>
 #include <mutex>
+#include <set>
 
 #include "naab/project_context.h"
 #include "naab/naab_val.h"
@@ -1999,6 +2000,9 @@ private:
     int cumulative_score_ = 0;
     std::unordered_map<std::string, int> score_contributions_;
     bool score_yellow_warned_ = false;
+
+    // Ed25519 signature warning dedup (per engine instance, not static)
+    mutable std::set<std::string> signature_warned_files_;
 
     // Pass 2: Post-execution audit data
     std::vector<PolyglotExecutionRecord> polyglot_executions_;

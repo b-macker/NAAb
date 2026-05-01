@@ -2153,9 +2153,8 @@ bool GovernanceEngine::verifySignatureImpl(
         }
 
         // Ed25519 sig but no trust store keys → WARN once per file, proceed unsigned
-        static std::set<std::string> warned_files;
-        if (warned_files.find(file_path) == warned_files.end()) {
-            warned_files.insert(file_path);
+        if (signature_warned_files_.find(file_path) == signature_warned_files_.end()) {
+            signature_warned_files_.insert(file_path);
             fprintf(stderr,
                 "[governance] WARNING: %s is Ed25519-signed but no trusted keys installed.\n"
                 "  Cannot verify signature. Install the public key: naab-lang --trust-key <pubkey.pem>\n",

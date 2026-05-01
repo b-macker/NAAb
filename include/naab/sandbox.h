@@ -122,6 +122,9 @@ public:
     // Update network access (used when governance enables network after sandbox creation)
     void setNetworkEnabled(bool enabled) { config_.network_enabled = enabled; }
 
+    // Add a capability (used when governance grants capabilities after sandbox creation)
+    void addCapability(Capability cap) { config_.capabilities.insert(cap); }
+
     // Audit logging
     void logViolation(const std::string& operation,
                      const std::string& resource,

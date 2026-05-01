@@ -932,15 +932,19 @@ int main(int argc, char** argv) {
             if (!ec) filename = abs.string();
         }
 
+        // Load governance once — reused for both preflight and VM/tree-walker paths.
+        // Loading once eliminates the TOCTOU window where govern.json could be swapped
+        // between preflight validation and actual execution.
+        naab::governance::GovernanceEngine shared_governance;
+        auto gov_abs_file = std::filesystem::absolute(filename);
+        auto gov_script_dir = gov_abs_file.parent_path();
+        bool gov_loaded = shared_governance.discoverAndLoad(gov_script_dir.string());
+
         // Pre-flight: blocked_flags enforcement for BOTH execution paths
         // Must run before interpreter.disableGovernance() which skips tree-walker governance entirely
         {
-            naab::governance::GovernanceEngine preflight_gov;
-            auto abs_file = std::filesystem::absolute(filename);
-            auto script_dir = abs_file.parent_path();
-            bool pf_loaded = preflight_gov.discoverAndLoad(script_dir.string());
 
-            if (!pf_loaded && naab::governance::g_governance_hard_block) {
+            if (!gov_loaded && naab::governance::g_governance_hard_block) {
                 fprintf(stderr,
                     "[governance] INTEGRITY BLOCK: Governance configuration is tamper-protected.\n"
                     "  Execution is blocked. Only the project owner can authorize changes.\n");
@@ -948,13 +952,13 @@ int main(int argc, char** argv) {
                 _exit(3);
             }
 
-            if (pf_loaded && preflight_gov.isActive()) {
+            if (gov_loaded && shared_governance.isActive()) {
                 const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
                 const char* _signing_key = std::getenv("NAAB_SIGNING_KEY");
                 bool _has_authority = (_govern_key && *_govern_key) || (_signing_key && *_signing_key);
                 if (!_has_authority) {
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
-                        if (was_used && preflight_gov.isBlockedFlag(flag)) {
+                        if (was_used && shared_governance.isBlockedFlag(flag)) {
                             fprintf(stderr,
                                 "[governance] INTEGRITY BLOCK: flag '%s' is locked by the project owner.\n"
                                 "  This flag is listed in integrity.blocked_flags in govern.json.\n"
@@ -1273,12 +1277,9 @@ int main(int argc, char** argv) {
 
             size_t vm_allocation_count = 0;  // S7: capture VM alloc count for --gc-stats
             if (use_vm) {
-                // Governance: discover and load govern.json BEFORE compilation
-                // (compiler needs it for pre-flight taint analysis)
-                naab::governance::GovernanceEngine vm_governance;
-                auto abs_file = std::filesystem::absolute(filename);
-                auto script_dir = abs_file.parent_path();
-                bool gov_loaded = vm_governance.discoverAndLoad(script_dir.string());
+                // Governance: reuse shared_governance loaded before preflight (no TOCTOU)
+                auto& vm_governance = shared_governance;
+                auto script_dir = std::filesystem::absolute(filename).parent_path();
                 // Integrity: if signature verification failed, hard block immediately
                 if (!gov_loaded && naab::governance::g_governance_hard_block) {
                     fprintf(stderr,
@@ -1351,9 +1352,15 @@ int main(int argc, char** argv) {
                     if (rules.allow_network_config || rules.network_allowed) {
                         network_enabled = true;
                         // Update the active sandbox — it was created before governance loaded
+                        // Must set BOTH the bool AND the NET_CONNECT capability;
+                        // canConnect() checks both conditions.
                         auto* current_sandbox = naab::security::ScopedSandbox::getCurrent();
-                        if (current_sandbox) current_sandbox->setNetworkEnabled(true);
+                        if (current_sandbox) {
+                            current_sandbox->setNetworkEnabled(true);
+                            current_sandbox->addCapability(naab::security::Capability::NET_CONNECT);
+                        }
                         security_config.network_enabled = true;
+                        security_config.addCapability(naab::security::Capability::NET_CONNECT);
                         naab::security::SandboxManager::instance().setDefaultConfig(security_config);
                     }
                     if (rules.strict_types_config && !strict_types) strict_types = true;
@@ -1756,6 +1763,9 @@ int main(int argc, char** argv) {
                     }
                 }
                 vm_allocation_count = bytecode_vm.getAllocationCount();
+
+                // Clear dangling governance pointer before vm_governance goes out of scope
+                naab::governance::GovernanceEngine::setCurrent(nullptr);
             } else {
                 // V-LSP-005: lint-only gate for tree-walker path.
                 if (lint_only) {
