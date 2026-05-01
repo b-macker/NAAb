@@ -307,7 +307,8 @@ create, send, run, messages, usage
 - Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
 - `tool_use`/`FUNCTION_CALL` responses are HARD blocked (agent tool execution not yet supported)
 - Turn/token limits enforced server-side — handle dict mutation does not bypass governance
-- Per-agent `allowed_paths`/`shell_allowed` logged as advisory (enforced when tool execution loop lands)
+- Per-agent `allowed_paths`/`shell_allowed` logged as advisory once per config name (enforced when tool execution loop lands)
+- Output tokens estimated (~content.size()/4) when Gemini API omits `candidatesTokenCount` (common with Gemma models)
 
 ## Functions That Do NOT Exist (use alternatives)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
