@@ -1710,13 +1710,24 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.scoring.default_weight = sc.value("default_weight", 3);
         if (sc.contains("rule_weights") && sc["rule_weights"].is_object()) {
             for (auto& [key, val] : sc["rule_weights"].items()) {
-                if (val.is_number_integer())
-                    rules_.scoring.rule_weights[key] = val.get<int>();
+                if (val.is_number_integer()) {
+                    int w = val.get<int>();
+                    if (w < 0) {
+                        fmt::print(stderr, "[WARN] scoring.rule_weights.{} is negative ({}) — "
+                                   "will be clamped to 0\n", key, w);
+                    }
+                    rules_.scoring.rule_weights[key] = w;
+                }
             }
         }
         rules_.scoring.green_threshold  = sc.value("green_threshold", 0);
         rules_.scoring.yellow_threshold = sc.value("yellow_threshold", 10);
         rules_.scoring.red_threshold    = sc.value("red_threshold", 25);
+        if (rules_.scoring.yellow_threshold > rules_.scoring.red_threshold) {
+            fmt::print(stderr, "[WARN] scoring.yellow_threshold ({}) > red_threshold ({}) — "
+                       "yellow warnings will never appear\n",
+                       rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+        }
     }
 
     // --- Governance Baseline (Feature 4) ---

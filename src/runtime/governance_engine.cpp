@@ -1296,6 +1296,14 @@ void GovernanceEngine::printDashboard() const {
         fprintf(stderr, "Risk score: %d (%s) [%d/%d]\n",
                 cumulative_score_, zone,
                 rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+        // Count occurrences per rule for display
+        std::unordered_map<std::string, int> occ_count;
+        for (const auto& r : check_results_) {
+            if (!r.passed && r.level == EnforcementLevel::ADVISORY &&
+                r.rule_name.compare(0, 6, "pass2.") != 0) {
+                occ_count[r.rule_name]++;
+            }
+        }
         std::vector<std::pair<std::string, int>> sorted(
             score_contributions_.begin(), score_contributions_.end());
         std::sort(sorted.begin(), sorted.end(),
@@ -1303,7 +1311,13 @@ void GovernanceEngine::printDashboard() const {
         int shown = 0;
         for (const auto& [rule, score] : sorted) {
             if (shown++ >= 3) break;
-            fprintf(stderr, "  +%d  %s\n", score, rule.c_str());
+            int count = occ_count.count(rule) ? occ_count[rule] : 1;
+            int per = count > 0 ? score / count : score;
+            if (count > 1) {
+                fprintf(stderr, "  +%d  %s (%dx @%d)\n", score, rule.c_str(), count, per);
+            } else {
+                fprintf(stderr, "  +%d  %s\n", score, rule.c_str());
+            }
         }
         if (!verifyScoreIntegrity()) {
             fprintf(stderr, "  INTEGRITY: score mismatch (incremental vs recomputed)\n");
@@ -1331,6 +1345,8 @@ bool GovernanceEngine::wasBlocked() const {
 // ============================================================================
 
 std::string GovernanceEngine::evaluateQualityGate() const {
+    bool audit_mode = (rules_.mode == GovernanceMode::AUDIT);
+
     // Quality gate conditions (only when enabled)
     if (rules_.quality_gate.enabled) {
         int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
@@ -1367,24 +1383,34 @@ std::string GovernanceEngine::evaluateQualityGate() const {
             else if (cond.op == "!=" && value == cond.threshold) failed = true;
 
             if (failed) {
-                return fmt::format(
-                    "[governance] Quality gate FAILED: {} {} {} (actual: {})\n",
-                    cond.metric, cond.op, cond.threshold, value);
+                if (audit_mode) {
+                    fprintf(stderr, "[governance] AUDIT: Quality gate WOULD fail: %s %s %d (actual: %d)\n",
+                            cond.metric.c_str(), cond.op.c_str(), cond.threshold, value);
+                } else {
+                    return fmt::format(
+                        "[governance] Quality gate FAILED: {} {} {} (actual: {})\n",
+                        cond.metric, cond.op, cond.threshold, value);
+                }
             }
         }
     }
 
     // Cumulative risk scoring gate (independent of quality_gate.enabled)
     if (rules_.scoring.enabled && cumulative_score_ >= rules_.scoring.red_threshold) {
-        return fmt::format(
-            "Governance error: Cumulative risk score {} reached threshold {}\n\n"
-            "  Score breakdown:\n{}\n"
-            "  Help:\n"
-            "  - Advisory findings accumulated to critical mass\n"
-            "  - Each advisory finding contributes a weighted score\n"
-            "  - Reduce advisory violations to bring score below threshold\n",
-            cumulative_score_, rules_.scoring.red_threshold,
-            formatScoreBreakdown());
+        if (audit_mode) {
+            fprintf(stderr, "[governance] AUDIT: Scoring gate WOULD block — score %d >= threshold %d\n",
+                    cumulative_score_, rules_.scoring.red_threshold);
+        } else {
+            return fmt::format(
+                "Governance error: Cumulative risk score {} reached threshold {}\n\n"
+                "  Score breakdown:\n{}\n"
+                "  Help:\n"
+                "  - Advisory findings accumulated to critical mass\n"
+                "  - Each advisory finding contributes a weighted score\n"
+                "  - Reduce advisory violations to bring score below threshold\n",
+                cumulative_score_, rules_.scoring.red_threshold,
+                formatScoreBreakdown());
+        }
     }
 
     return "";
@@ -1395,22 +1421,40 @@ std::string GovernanceEngine::evaluateQualityGate() const {
 // ============================================================================
 
 std::string GovernanceEngine::formatScoreBreakdown() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
+    // Count occurrences per rule from check_results_
+    std::unordered_map<std::string, int> occurrence_count;
+    for (const auto& r : check_results_) {
+        if (!r.passed && r.level == EnforcementLevel::ADVISORY &&
+            r.rule_name.compare(0, 6, "pass2.") != 0) {
+            occurrence_count[r.rule_name]++;
+        }
+    }
     std::vector<std::pair<std::string, int>> sorted(
         score_contributions_.begin(), score_contributions_.end());
     std::sort(sorted.begin(), sorted.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
     std::ostringstream oss;
-    for (const auto& [rule, score] : sorted) {
-        oss << fmt::format("    +{:<4} {}\n", score, rule);
+    for (const auto& [rule, total] : sorted) {
+        int count = occurrence_count.count(rule) ? occurrence_count[rule] : 1;
+        int per = count > 0 ? total / count : total;
+        if (count > 1) {
+            oss << fmt::format("    +{:<4} {} ({}x @{})\n", total, rule, count, per);
+        } else {
+            oss << fmt::format("    +{:<4} {}\n", total, rule);
+        }
     }
     return oss.str();
 }
 
 bool GovernanceEngine::verifyScoreIntegrity() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     if (!rules_.scoring.enabled) return true;
     int recomputed = 0;
     for (const auto& r : check_results_) {
         if (r.passed || r.level != EnforcementLevel::ADVISORY) continue;
+        // Pass 2 entries bypass enforce() — exclude from integrity recomputation
+        if (r.rule_name.compare(0, 6, "pass2.") == 0) continue;
         int weight = rules_.scoring.default_weight;
         auto wit = rules_.scoring.rule_weights.find(r.rule_name);
         if (wit != rules_.scoring.rule_weights.end()) {

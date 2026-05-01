@@ -1992,7 +1992,8 @@ private:
 
     // Cumulative risk scoring
     // INVARIANT: cumulative_score_ >= 0 (monotonic — only increases)
-    // INVARIANT: cumulative_score_ == sum(score_contributions_[*])
+    // INVARIANT: cumulative_score_ == sum of enforce()-path ADVISORY weights
+    // NOTE: Pass 2 entries (rule_name prefix "pass2.") bypass enforce() and are excluded
     // INVARIANT: cumulative_score_ <= SCORE_SATURATION_LIMIT
     static constexpr int SCORE_SATURATION_LIMIT = 100000;
     int cumulative_score_ = 0;
