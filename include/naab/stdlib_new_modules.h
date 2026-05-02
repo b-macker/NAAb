@@ -178,6 +178,16 @@ public:
     static bool checkTainted(const std::string& var_name);
 };
 
+// Governance Scoring Module - Script-accessible scoring pipeline
+class GovernanceModule : public Module {
+public:
+    std::string getName() const override { return "governance"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
 // BOLO Governance Module
 class BoloModule : public Module {
 public:

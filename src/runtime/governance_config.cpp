@@ -1688,6 +1688,27 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // --- Named Scorers ---
+    if (j.contains("scorers") && j["scorers"].is_object()) {
+        for (auto& [name, cfg_json] : j["scorers"].items()) {
+            ScorerConfig scorer;
+            scorer.name = name;
+            scorer.enabled = cfg_json.value("enabled", true);
+            scorer.default_weight = cfg_json.value("default_weight", 3);
+            if (cfg_json.contains("rule_weights") && cfg_json["rule_weights"].is_object()) {
+                for (auto& [key, val] : cfg_json["rule_weights"].items()) {
+                    if (val.is_number_integer()) {
+                        scorer.rule_weights[key] = val.get<int>();
+                    }
+                }
+            }
+            scorer.green_threshold = cfg_json.value("green_threshold", 0);
+            scorer.yellow_threshold = cfg_json.value("yellow_threshold", 10);
+            scorer.red_threshold = cfg_json.value("red_threshold", 25);
+            rules_.scorers.push_back(scorer);
+        }
+    }
+
     // --- Quality Gate (Feature 2) ---
     if (j.contains("quality_gate") && j["quality_gate"].is_object()) {
         auto& qg = j["quality_gate"];

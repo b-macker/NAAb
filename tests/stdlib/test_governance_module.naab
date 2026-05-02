@@ -1,0 +1,118 @@
+use governance
+
+function check(name, condition) {
+    if condition {
+        print("[PASS] " + name)
+    } else {
+        print("[FAIL] " + name)
+    }
+}
+
+main {
+    let passed = 0
+    let total = 0
+
+    // ── Test 1: Create scorer with named config ──
+    let h = governance.scorer("security_review")
+    total = total + 1
+    if h > 0 { passed = passed + 1 } else { print("[FAIL] scorer creation") }
+
+    // ── Test 2: Submit findings and check weights ──
+    let r1 = governance.finding(h, "sec.injection", "SQL concatenation in auth handler")
+    total = total + 1
+    if r1["weight"] == 10 { passed = passed + 1 } else { print("[FAIL] sec.injection weight: expected 10, got " + string(r1["weight"])) }
+    total = total + 1
+    if r1["score"] == 10 { passed = passed + 1 } else { print("[FAIL] score after f1: expected 10, got " + string(r1["score"])) }
+    total = total + 1
+    if r1["zone"] == "green" { passed = passed + 1 } else { print("[FAIL] zone after f1: expected green, got " + r1["zone"]) }
+
+    let r2 = governance.finding(h, "sec.xss", "Unescaped user input in template")
+    total = total + 1
+    if r2["weight"] == 7 { passed = passed + 1 } else { print("[FAIL] sec.xss weight: expected 7, got " + string(r2["weight"])) }
+    total = total + 1
+    if r2["score"] == 17 { passed = passed + 1 } else { print("[FAIL] score after f2: expected 17, got " + string(r2["score"])) }
+    total = total + 1
+    if r2["zone"] == "yellow" { passed = passed + 1 } else { print("[FAIL] zone after f2: expected yellow, got " + r2["zone"]) }
+
+    let r3 = governance.finding(h, "sec.info_leak", "Stack trace exposed in error response")
+    total = total + 1
+    if r3["weight"] == 3 { passed = passed + 1 } else { print("[FAIL] sec.info_leak weight: expected 3, got " + string(r3["weight"])) }
+    total = total + 1
+    if r3["score"] == 20 { passed = passed + 1 } else { print("[FAIL] score after f3: expected 20, got " + string(r3["score"])) }
+
+    // ── Test 3: governance.score() shorthand ──
+    let score = governance.score(h)
+    total = total + 1
+    if score == 20 { passed = passed + 1 } else { print("[FAIL] score(): expected 20, got " + string(score)) }
+
+    // ── Test 4: governance.findings() audit trail ──
+    let all = governance.findings(h)
+    total = total + 1
+    if len(all) == 3 { passed = passed + 1 } else { print("[FAIL] findings count: expected 3, got " + string(len(all))) }
+    total = total + 1
+    if all[0]["rule"] == "sec.injection" { passed = passed + 1 } else { print("[FAIL] first finding rule") }
+    total = total + 1
+    if all[2]["score_after"] == 20 { passed = passed + 1 } else { print("[FAIL] last finding score_after") }
+
+    // ── Test 5: governance.evaluate() full evaluation ──
+    let eval = governance.evaluate(h)
+    total = total + 1
+    if eval["score"] == 20 { passed = passed + 1 } else { print("[FAIL] evaluate score") }
+    total = total + 1
+    if eval["zone"] == "yellow" { passed = passed + 1 } else { print("[FAIL] evaluate zone: " + eval["zone"]) }
+    total = total + 1
+    if eval["findings_count"] == 3 { passed = passed + 1 } else { print("[FAIL] evaluate findings_count") }
+    total = total + 1
+    if eval["integrity_verified"] == true { passed = passed + 1 } else { print("[FAIL] integrity not verified") }
+    total = total + 1
+    if len(eval["integrity_hash"]) == 64 { passed = passed + 1 } else { print("[FAIL] hash length: " + string(len(eval["integrity_hash"]))) }
+
+    // Check thresholds from config
+    let th = eval["thresholds"]
+    total = total + 1
+    if th["green"] == 0 { passed = passed + 1 } else { print("[FAIL] green threshold") }
+    total = total + 1
+    if th["yellow"] == 15 { passed = passed + 1 } else { print("[FAIL] yellow threshold") }
+    total = total + 1
+    if th["red"] == 40 { passed = passed + 1 } else { print("[FAIL] red threshold") }
+
+    // ── Test 6: Push into red zone ──
+    governance.finding(h, "sec.auth_bypass", "Missing auth check on admin endpoint")
+    governance.finding(h, "sec.auth_bypass", "Token validation skipped")
+    governance.finding(h, "sec.injection", "Command injection via filename")
+    let eval2 = governance.evaluate(h)
+    total = total + 1
+    if eval2["zone"] == "red" { passed = passed + 1 } else { print("[FAIL] red zone: " + eval2["zone"] + " score=" + string(eval2["score"])) }
+    total = total + 1
+    if eval2["integrity_verified"] == true { passed = passed + 1 } else { print("[FAIL] integrity after red") }
+
+    // ── Test 7: Default weight for unknown rules ──
+    let h2 = governance.scorer("security_review")
+    let r_unknown = governance.finding(h2, "unknown.rule", "Some finding")
+    total = total + 1
+    if r_unknown["weight"] == 5 { passed = passed + 1 } else { print("[FAIL] unknown rule default weight: " + string(r_unknown["weight"])) }
+
+    // ── Test 8: Fallback to global scoring config ──
+    let h3 = governance.scorer("nonexistent_config")
+    let r_fallback = governance.finding(h3, "code_quality.no_pii", "PII detected")
+    total = total + 1
+    if r_fallback["weight"] == 5 { passed = passed + 1 } else { print("[FAIL] fallback weight: " + string(r_fallback["weight"])) }
+
+    // ── Test 9: Breakdown formatting ──
+    total = total + 1
+    if len(eval2["breakdown"]) > 0 { passed = passed + 1 } else { print("[FAIL] empty breakdown") }
+
+    // ── Test 10: Independent scorers don't interfere ──
+    let score2 = governance.score(h2)
+    let score3 = governance.score(h3)
+    total = total + 1
+    if score2 == 5 { passed = passed + 1 } else { print("[FAIL] h2 score isolation: " + string(score2)) }
+    total = total + 1
+    if score3 == 5 { passed = passed + 1 } else { print("[FAIL] h3 score isolation: " + string(score3)) }
+
+    print("")
+    print("Governance module: " + string(passed) + "/" + string(total) + " tests passed")
+    if passed == total {
+        print("All governance module tests passed!")
+    }
+}

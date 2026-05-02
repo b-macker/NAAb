@@ -1036,6 +1036,17 @@ struct ScoringConfig {
     int red_threshold    = 25;  // at/above: block via quality gate (exit 2)
 };
 
+// Named scorer configs — loaded from "scorers" section of govern.json
+struct ScorerConfig {
+    std::string name;
+    bool enabled = true;
+    int default_weight = 3;
+    std::unordered_map<std::string, int> rule_weights;
+    int green_threshold = 0;
+    int yellow_threshold = 10;
+    int red_threshold = 25;
+};
+
 // ============================================================================
 // Section 12c: Governance Baseline
 // ============================================================================
@@ -1415,6 +1426,7 @@ struct GovernanceRules {
     // --- Agent governance ---
     TelemetryOutputConfig telemetry_output;
     std::vector<AgentConfig> agents;  // was: agent_roles (migrated to unified config)
+    std::vector<ScorerConfig> scorers; // named scorer configs from "scorers" section
 
     // --- Quality gate (Feature 2) ---
     QualityGateConfig quality_gate;

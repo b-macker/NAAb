@@ -1,0 +1,288 @@
+#include "naab/stdlib_new_modules.h"
+#include "naab/score_accumulator.h"
+#include "naab/governance.h"
+
+#include <mutex>
+#include <memory>
+#include <unordered_map>
+
+using naab::interpreter::NaabVal;
+using naab::governance::ScoreAccumulator;
+using naab::governance::ScoringConfig;
+using naab::governance::ScorerConfig;
+using naab::governance::GovernanceEngine;
+
+namespace naab {
+namespace stdlib {
+
+// ============================================================================
+// Server-side state — immune to script handle mutation
+// Same pattern as agent_impl.cpp:40-50
+// ============================================================================
+
+static int s_scorer_counter = 0;
+static std::unordered_map<int, std::unique_ptr<ScoreAccumulator>> s_scorers;
+// Each scorer holds a copy of ScoringConfig (not a reference to govern.json)
+// so that config lifetime is safe even if the engine is destroyed.
+static std::unordered_map<int, ScoringConfig> s_scorer_configs;
+static std::mutex s_scorer_mutex;
+
+// ============================================================================
+// Helper: Build ScoringConfig from a named ScorerConfig or fall back to global
+// ============================================================================
+
+static ScoringConfig resolveScoringConfig(const std::string& config_name) {
+    auto* engine = GovernanceEngine::getCurrent();
+    if (!engine) {
+        throw std::runtime_error(
+            "Governance error: governance.scorer() requires an active governance engine\n\n"
+            "  Help:\n"
+            "  - Ensure govern.json is present in the project directory\n"
+            "  - Ensure governance mode is not disabled\n");
+    }
+
+    const auto& rules = engine->getRules();
+
+    // Look for a named scorer config
+    for (const auto& sc : rules.scorers) {
+        if (sc.name == config_name && sc.enabled) {
+            ScoringConfig cfg;
+            cfg.enabled = true;
+            cfg.default_weight = sc.default_weight;
+            cfg.rule_weights = sc.rule_weights;
+            cfg.green_threshold = sc.green_threshold;
+            cfg.yellow_threshold = sc.yellow_threshold;
+            cfg.red_threshold = sc.red_threshold;
+            return cfg;
+        }
+    }
+
+    // Fall back to global scoring config
+    if (rules.scoring.enabled) {
+        return rules.scoring;
+    }
+
+    // Last resort: return a default config
+    ScoringConfig cfg;
+    cfg.enabled = true;
+    return cfg;
+}
+
+// ============================================================================
+// governance.scorer(config_name) -> int
+// ============================================================================
+
+static NaabVal governanceScorer(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isString()) {
+        throw std::runtime_error(
+            "Type error: governance.scorer() expects a string config name\n\n"
+            "  Got: " + std::string(args.empty() ? "no arguments" : "non-string") + "\n"
+            "  Expected: string\n\n"
+            "  Help:\n"
+            "  - Pass the name of a scorer config from govern.json\n\n"
+            "  Example:\n"
+            "    x Wrong: governance.scorer(42)\n"
+            "    v Right: governance.scorer(\"security_review\")\n");
+    }
+
+    std::string config_name = args[0].asString();
+    ScoringConfig cfg = resolveScoringConfig(config_name);
+
+    std::lock_guard<std::mutex> lock(s_scorer_mutex);
+    int handle = ++s_scorer_counter;
+    s_scorer_configs[handle] = cfg;
+    s_scorers[handle] = std::make_unique<ScoreAccumulator>(s_scorer_configs[handle]);
+    return NaabVal::makeInt(handle);
+}
+
+// ============================================================================
+// governance.finding(handle, rule_name, message) -> dict
+// ============================================================================
+
+static NaabVal governanceFinding(std::vector<NaabVal>& args) {
+    if (args.size() < 3 || !args[0].isInt() || !args[1].isString() || !args[2].isString()) {
+        throw std::runtime_error(
+            "Type error: governance.finding() expects (int handle, string rule, string message)\n\n"
+            "  Help:\n"
+            "  - handle: from governance.scorer()\n"
+            "  - rule: rule name like \"sec.injection\"\n"
+            "  - message: description of the finding\n\n"
+            "  Example:\n"
+            "    v Right: governance.finding(h, \"sec.xss\", \"Unescaped input\")\n");
+    }
+
+    int handle = static_cast<int>(args[0].asInt());
+    std::string rule_name = args[1].asString();
+    std::string message = args[2].asString();
+
+    ScoreAccumulator* acc = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(s_scorer_mutex);
+        auto it = s_scorers.find(handle);
+        if (it == s_scorers.end()) {
+            throw std::runtime_error(
+                "Governance error: Invalid scorer handle " + std::to_string(handle) + "\n\n"
+                "  Help:\n"
+                "  - Obtain a handle from governance.scorer() first\n");
+        }
+        acc = it->second.get();
+    }
+
+    int weight = acc->addFinding(rule_name, message);
+    int score = acc->score();
+    std::string zone = acc->zone();
+
+    std::unordered_map<std::string, NaabVal> dict;
+    dict["weight"] = NaabVal::makeInt(weight);
+    dict["score"] = NaabVal::makeInt(score);
+    dict["zone"] = NaabVal::makeString(zone);
+    return NaabVal::makeDict(std::move(dict));
+}
+
+// ============================================================================
+// governance.evaluate(handle) -> dict
+// ============================================================================
+
+static NaabVal governanceEvaluate(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isInt()) {
+        throw std::runtime_error(
+            "Type error: governance.evaluate() expects an int handle\n\n"
+            "  Help:\n"
+            "  - Pass a handle from governance.scorer()\n");
+    }
+
+    int handle = static_cast<int>(args[0].asInt());
+
+    ScoreAccumulator* acc = nullptr;
+    ScoringConfig cfg;
+    {
+        std::lock_guard<std::mutex> lock(s_scorer_mutex);
+        auto it = s_scorers.find(handle);
+        if (it == s_scorers.end()) {
+            throw std::runtime_error(
+                "Governance error: Invalid scorer handle " + std::to_string(handle) + "\n\n"
+                "  Help:\n"
+                "  - Obtain a handle from governance.scorer() first\n");
+        }
+        acc = it->second.get();
+        cfg = s_scorer_configs[handle];
+    }
+
+    int score = acc->score();
+    std::string zone = acc->zone();
+    std::string breakdown = acc->formatBreakdown();
+    bool integrity = acc->verifyIntegrity();
+    std::string hash = acc->integrityHash();
+    const auto& findings = acc->findings();
+
+    std::unordered_map<std::string, NaabVal> thresholds;
+    thresholds["green"] = NaabVal::makeInt(cfg.green_threshold);
+    thresholds["yellow"] = NaabVal::makeInt(cfg.yellow_threshold);
+    thresholds["red"] = NaabVal::makeInt(cfg.red_threshold);
+
+    std::unordered_map<std::string, NaabVal> dict;
+    dict["score"] = NaabVal::makeInt(score);
+    dict["zone"] = NaabVal::makeString(zone);
+    dict["findings_count"] = NaabVal::makeInt(static_cast<int>(findings.size()));
+    dict["breakdown"] = NaabVal::makeString(breakdown);
+    dict["integrity_verified"] = NaabVal::makeBool(integrity);
+    dict["integrity_hash"] = NaabVal::makeString(hash);
+    dict["thresholds"] = NaabVal::makeDict(std::move(thresholds));
+    return NaabVal::makeDict(std::move(dict));
+}
+
+// ============================================================================
+// governance.findings(handle) -> array
+// ============================================================================
+
+static NaabVal governanceFindings(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isInt()) {
+        throw std::runtime_error(
+            "Type error: governance.findings() expects an int handle\n\n"
+            "  Help:\n"
+            "  - Pass a handle from governance.scorer()\n");
+    }
+
+    int handle = static_cast<int>(args[0].asInt());
+
+    ScoreAccumulator* acc = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(s_scorer_mutex);
+        auto it = s_scorers.find(handle);
+        if (it == s_scorers.end()) {
+            throw std::runtime_error(
+                "Governance error: Invalid scorer handle " + std::to_string(handle) + "\n\n"
+                "  Help:\n"
+                "  - Obtain a handle from governance.scorer() first\n");
+        }
+        acc = it->second.get();
+    }
+
+    std::vector<NaabVal> arr;
+    for (const auto& f : acc->findings()) {
+        std::unordered_map<std::string, NaabVal> entry;
+        entry["rule"] = NaabVal::makeString(f.rule_name);
+        entry["message"] = NaabVal::makeString(f.message);
+        entry["weight"] = NaabVal::makeInt(f.weight);
+        entry["score_after"] = NaabVal::makeInt(f.score_after);
+        arr.push_back(NaabVal::makeDict(std::move(entry)));
+    }
+    return NaabVal::makeList(std::move(arr));
+}
+
+// ============================================================================
+// governance.score(handle) -> int
+// ============================================================================
+
+static NaabVal governanceScore(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isInt()) {
+        throw std::runtime_error(
+            "Type error: governance.score() expects an int handle\n\n"
+            "  Help:\n"
+            "  - Pass a handle from governance.scorer()\n");
+    }
+
+    int handle = static_cast<int>(args[0].asInt());
+
+    ScoreAccumulator* acc = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(s_scorer_mutex);
+        auto it = s_scorers.find(handle);
+        if (it == s_scorers.end()) {
+            throw std::runtime_error(
+                "Governance error: Invalid scorer handle " + std::to_string(handle) + "\n\n"
+                "  Help:\n"
+                "  - Obtain a handle from governance.scorer() first\n");
+        }
+        acc = it->second.get();
+    }
+
+    return NaabVal::makeInt(acc->score());
+}
+
+// ============================================================================
+// Module interface
+// ============================================================================
+
+bool GovernanceModule::hasFunction(const std::string& name) const {
+    return name == "scorer" || name == "finding" || name == "evaluate" ||
+           name == "findings" || name == "score";
+}
+
+NaabVal GovernanceModule::call(
+    const std::string& function_name,
+    std::vector<NaabVal>& args) {
+    if (function_name == "scorer") return governanceScorer(args);
+    if (function_name == "finding") return governanceFinding(args);
+    if (function_name == "evaluate") return governanceEvaluate(args);
+    if (function_name == "findings") return governanceFindings(args);
+    if (function_name == "score") return governanceScore(args);
+
+    throw std::runtime_error(
+        "Runtime error: governance module has no function '" + function_name + "'\n\n"
+        "  Help:\n"
+        "  - Available: scorer, finding, evaluate, findings, score\n");
+}
+
+} // namespace stdlib
+} // namespace naab

@@ -1,0 +1,35 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "scoring": {
+        "enabled": true,
+        "default_weight": 3,
+        "rule_weights": {
+            "code_quality.no_pii": 5,
+            "code_quality.no_hardcoded_results": 2,
+            "code_quality.no_placeholders": 1,
+            "code_quality.no_debug_artifacts": 2
+        },
+        "green_threshold": 0,
+        "yellow_threshold": 8,
+        "red_threshold": 30
+    },
+    "scorers": {
+        "security_review": {
+            "default_weight": 5,
+            "rule_weights": {
+                "sec.injection": 10,
+                "sec.auth_bypass": 8,
+                "sec.xss": 7,
+                "sec.info_leak": 3
+            },
+            "green_threshold": 0,
+            "yellow_threshold": 15,
+            "red_threshold": 40
+        }
+    }
+}

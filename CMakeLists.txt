@@ -384,6 +384,7 @@ add_library(naab_security
     src/runtime/governance_engine.cpp        # Governance engine core (init, enforce, recordPass)
     src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
     src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
+    src/runtime/score_accumulator.cpp      # ScoreAccumulator — script-facing scoring math
     src/runtime/governance_reports.cpp      # Governance reports (audit, hooks, plugins)
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
@@ -708,6 +709,7 @@ add_library(naab_stdlib
     src/stdlib/validate_impl.cpp
     src/stdlib/process_impl.cpp
     src/stdlib/agent_impl.cpp
+    src/stdlib/governance_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp
     src/utils/string_utils.cpp
