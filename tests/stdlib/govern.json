@@ -3,7 +3,7 @@
     "mode": "enforce",
     "capabilities": {
         "network": false,
-        "filesystem": "read"
+        "filesystem": true
     },
     "scoring": {
         "enabled": true,
