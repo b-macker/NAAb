@@ -11,6 +11,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 namespace naab {
 namespace runtime {
@@ -122,7 +125,11 @@ static bool fileExists(const std::string& path) {
 }
 
 static void ensureDir(const std::string& path) {
+#ifdef _WIN32
+    _mkdir(path.c_str());
+#else
     mkdir(path.c_str(), 0755);
+#endif
 }
 
 // ============================================================================
