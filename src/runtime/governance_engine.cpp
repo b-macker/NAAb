@@ -1222,6 +1222,7 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     config.enabled = true;
     config.detection_agents = rules_.agent_review.detection;
     config.validation_agent = rules_.agent_review.validation;
+    config.voice_agent = rules_.agent_review.voice;
     config.scorer_name = rules_.agent_review.scorer;
     config.enforcement = rules_.agent_review.enforcement;
     config.cache = rules_.agent_review.cache;
@@ -1237,25 +1238,38 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     }
     if (!result.executed) return;
 
-    // Feed validated findings through enforce() with agent-generated messages
+    // Determine enforcement level from zone
+    std::string level_str = "advisory";
+    auto zone_it = config.enforcement.find(result.zone);
+    if (zone_it != config.enforcement.end()) level_str = zone_it->second;
+
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
+    if (level_str == "hard") level = EnforcementLevel::HARD;
+    else if (level_str == "soft") level = EnforcementLevel::SOFT;
+
+    // Feed deduplicated findings through enforce() (for violation counting + quality gate)
     for (const auto& f : result.findings) {
-        std::string level_str = "advisory";
-        auto it = config.enforcement.find(result.zone);
-        if (it != config.enforcement.end()) level_str = it->second;
-
-        EnforcementLevel level = EnforcementLevel::ADVISORY;
-        if (level_str == "hard") level = EnforcementLevel::HARD;
-        else if (level_str == "soft") level = EnforcementLevel::SOFT;
-
-        // The message IS the agent's words — living organic error message
         enforce("agent_review." + f.category, level, f.message);
     }
 
     agent_review_count_ = result.confirmed_count;
 
-    if (result.confirmed_count > 0) {
-        fprintf(stderr, "[governance] Agent review: %d confirmed finding(s), zone=%s, score=%d\n",
-                result.confirmed_count, result.zone.c_str(), result.score);
+    // Print the voice summary — one cohesive remediation guide
+    if (!result.findings.empty()) {
+        fprintf(stderr, "\n[governance] Agent Review — %zu issue(s) found (score=%d, %s/%s):\n",
+                result.findings.size(), result.score, result.zone.c_str(), level_str.c_str());
+
+        if (!result.voice_summary.empty()) {
+            // Voice agent produced a synthesized guide
+            fprintf(stderr, "\n%s\n\n", result.voice_summary.c_str());
+        } else {
+            // Fallback: compact table (no voice agent configured or it failed)
+            for (const auto& f : result.findings) {
+                fprintf(stderr, "  %-30s (%s) %s\n",
+                        f.category.c_str(), f.source_agent.c_str(), f.message.c_str());
+            }
+            fprintf(stderr, "\n");
+        }
     }
 }
 

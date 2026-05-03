@@ -144,6 +144,7 @@ static bool loadCache(const std::string& path, AgentReviewResult& result) {
         result.false_positive_count = j.value("false_positive_count", 0);
         result.zone = j.value("zone", "green");
         result.score = j.value("score", 0);
+        result.voice_summary = j.value("voice_summary", "");
 
         if (j.contains("findings") && j["findings"].is_array()) {
             for (const auto& fj : j["findings"]) {
@@ -173,6 +174,7 @@ static void saveCache(const std::string& path, const AgentReviewResult& result) 
     j["false_positive_count"] = result.false_positive_count;
     j["zone"] = result.zone;
     j["score"] = result.score;
+    j["voice_summary"] = result.voice_summary;
 
     json findings_arr = json::array();
     for (const auto& f : result.findings) {
@@ -349,6 +351,35 @@ AgentReviewResult runAgentReview(
         }
     }
 
+    // ── Deduplication phase ──
+    // Collapse findings by category — keep first message per category, note agent agreement
+    std::map<std::string, AgentReviewFinding> deduped;
+    std::map<std::string, std::vector<std::string>> category_agents;
+    for (const auto& f : result.findings) {
+        if (deduped.find(f.category) == deduped.end()) {
+            deduped[f.category] = f;
+        }
+        category_agents[f.category].push_back(f.source_agent);
+    }
+    // Replace findings with deduplicated set
+    std::vector<AgentReviewFinding> deduped_findings;
+    for (auto& [cat, f] : deduped) {
+        auto& agents = category_agents[cat];
+        if (agents.size() > 1) {
+            // Multiple agents agreed — note consensus
+            std::string agent_list;
+            std::set<std::string> unique_agents(agents.begin(), agents.end());
+            for (const auto& a : unique_agents) {
+                if (!agent_list.empty()) agent_list += ", ";
+                agent_list += a;
+            }
+            f.source_agent = agent_list;
+        }
+        deduped_findings.push_back(f);
+    }
+    int pre_dedup = result.confirmed_count;
+    result.findings = deduped_findings;
+
     // ── Scoring phase ──
     ScoreAccumulator scorer(scorer_cfg);
     for (const auto& f : result.findings) {
@@ -358,8 +389,42 @@ AgentReviewResult runAgentReview(
     result.zone = scorer.zone();
     result.score = scorer.score();
 
-    fprintf(stderr, "[governance] Agent review: score=%d zone=%s (%zu validated findings)\n",
-            result.score, result.zone.c_str(), result.findings.size());
+    fprintf(stderr, "[governance] Agent review: score=%d zone=%s (%d findings, %zu unique categories)\n",
+            result.score, result.zone.c_str(), pre_dedup, result.findings.size());
+
+    // ── Voice phase ──
+    // Synthesize all findings into one actionable remediation guide
+    if (!config.voice_agent.empty() && !result.findings.empty()) {
+        const AgentConfig* voice_cfg = findAgent(rules, config.voice_agent);
+        if (voice_cfg) {
+            const char* voice_key = std::getenv(voice_cfg->api_key_env.c_str());
+            if (voice_key && std::string(voice_key).length() > 0) {
+                // Build finding summary for voice prompt
+                std::string finding_list;
+                int num = 1;
+                for (const auto& f : result.findings) {
+                    finding_list += std::to_string(num++) + ". [" + f.category + "] " + f.message + "\n";
+                }
+
+                std::string voice_prompt;
+                voice_prompt += "You are a governance advisor. A code review found these issues in a script.\n";
+                voice_prompt += "Zone: " + result.zone + " (score: " + std::to_string(result.score) + ")\n\n";
+                voice_prompt += "Findings:\n" + finding_list + "\n";
+                voice_prompt += "Script:\n" + script_source + "\n\n";
+                voice_prompt += "Write a SHORT, actionable remediation guide. For each issue:\n";
+                voice_prompt += "- Reference specific line numbers or function names from the script\n";
+                voice_prompt += "- Say exactly what to change (not vague advice)\n";
+                voice_prompt += "- One or two sentences per issue, max\n";
+                voice_prompt += "Number each fix. No preamble, no summary paragraph. Just the numbered fixes.\n";
+                voice_prompt += "Do NOT include any literal secret values, API keys, or credentials.\n";
+
+                auto voice_resp = callAgentSimple(*voice_cfg, std::string(voice_key), voice_prompt);
+                if (voice_resp.success && !voice_resp.content.empty()) {
+                    result.voice_summary = voice_resp.content;
+                }
+            }
+        }
+    }
 
     // ── Cache write ──
     if (config.cache && !govern_dir.empty()) {

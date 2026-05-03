@@ -1375,11 +1375,12 @@
     "red_threshold": 25
   },
 
-  "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, scored findings enforce at advisory/soft/hard tiers. Agent-generated messages flow through enforce() as living organic error messages. Disabled by default. Cache uses SHA-256 of script source.",
+  "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
   "agent_review": {
     "enabled": false,
     "detection": ["redteam", "testing"],
     "validation": "analyst",
+    "voice": "voice",
     "scorer": "security",
     "enforcement": {
       "green": "advisory",

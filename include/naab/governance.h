@@ -1435,6 +1435,7 @@ struct GovernanceRules {
         bool enabled = false;
         std::vector<std::string> detection;       // agent names for detection
         std::string validation;                    // agent name for validation
+        std::string voice;                         // agent name for voice synthesis
         std::string scorer;                        // scorer config name
         std::map<std::string, std::string> enforcement;  // zone -> level
         bool cache = false;

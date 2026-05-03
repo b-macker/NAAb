@@ -20,6 +20,7 @@ struct AgentReviewConfig {
     bool enabled = false;
     std::vector<std::string> detection_agents;
     std::string validation_agent;
+    std::string voice_agent;         // synthesizes findings into one actionable message
     std::string scorer_name;
     std::map<std::string, std::string> enforcement;  // zone -> level (advisory/soft/hard)
     bool cache = false;
@@ -42,6 +43,7 @@ struct AgentReviewResult {
     int false_positive_count = 0;
     std::string zone;
     int score = 0;
+    std::string voice_summary;  // synthesized remediation guide from voice agent
     std::string error;
 };
 
