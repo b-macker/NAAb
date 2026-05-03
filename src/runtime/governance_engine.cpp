@@ -435,7 +435,10 @@ std::string GovernanceEngine::enforce(
 
         case EnforcementLevel::ADVISORY:
             if (emitted_advisories_.insert(rule_name).second) {
-                fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+                // Suppress individual warnings for agent_review.* — voice block covers them
+                if (rule_name.rfind("agent_review.", 0) != 0) {
+                    fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
+                }
             }
             // Yellow-zone: warn ONCE when score first enters yellow zone
             if (rules_.scoring.enabled && !score_yellow_warned_ &&
@@ -1262,6 +1265,7 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
         if (!result.voice_summary.empty()) {
             // Voice agent produced a synthesized guide
             fprintf(stderr, "\n%s\n\n", result.voice_summary.c_str());
+            agent_review_voiced_ = true;
         } else {
             // Fallback: compact table (no voice agent configured or it failed)
             for (const auto& f : result.findings) {
@@ -1297,9 +1301,11 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
         << blocked << " blocked\n";
 
     // Show details only for non-passing rules
+    // Skip agent_review.* rules when voice summary was already printed (redundant)
     std::unordered_map<std::string, const CheckResult*> unique_results;
     for (const auto& r : check_results_) {
         if (r.passed) continue;
+        if (agent_review_voiced_ && r.rule_name.rfind("agent_review.", 0) == 0) continue;
         auto it = unique_results.find(r.rule_name);
         if (it == unique_results.end()) unique_results[r.rule_name] = &r;
         else if (!r.passed) unique_results[r.rule_name] = &r;

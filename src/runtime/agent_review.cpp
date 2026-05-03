@@ -230,9 +230,6 @@ AgentReviewResult runAgentReview(
     std::string categories = buildCategoryList(scorer_cfg);
 
     // ── Detection phase ──
-    fprintf(stderr, "[governance] Agent review: running %zu detection agent(s)...\n",
-            config.detection_agents.size());
-
     std::vector<ParsedFinding> all_raw_findings;
     std::vector<std::string> finding_sources;  // parallel to all_raw_findings
     std::string all_findings_text;  // for validation prompt
@@ -259,8 +256,6 @@ AgentReviewResult runAgentReview(
         }
 
         auto parsed = parseFindings(resp.content);
-        fprintf(stderr, "[governance] Agent review: %s found %zu issue(s)\n",
-                agent_name.c_str(), parsed.size());
 
         for (const auto& f : parsed) {
             all_raw_findings.push_back(f);
@@ -336,8 +331,6 @@ AgentReviewResult runAgentReview(
             }
         }
 
-        fprintf(stderr, "[governance] Agent review: %d confirmed, %d false positives\n",
-                result.confirmed_count, result.false_positive_count);
     } else {
         // No validation agent — all findings pass through
         for (size_t i = 0; i < all_raw_findings.size(); i++) {
@@ -377,7 +370,6 @@ AgentReviewResult runAgentReview(
         }
         deduped_findings.push_back(f);
     }
-    int pre_dedup = result.confirmed_count;
     result.findings = deduped_findings;
 
     // ── Scoring phase ──
@@ -388,9 +380,6 @@ AgentReviewResult runAgentReview(
 
     result.zone = scorer.zone();
     result.score = scorer.score();
-
-    fprintf(stderr, "[governance] Agent review: score=%d zone=%s (%d findings, %zu unique categories)\n",
-            result.score, result.zone.c_str(), pre_dedup, result.findings.size());
 
     // ── Voice phase ──
     // Synthesize all findings into one actionable remediation guide

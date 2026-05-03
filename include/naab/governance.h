@@ -2019,6 +2019,7 @@ private:
     int advisory_count_ = 0;
     int advisory_suppressed_ = 0;
     int agent_review_count_ = 0;  // confirmed findings from agent review phase
+    bool agent_review_voiced_ = false;  // true when voice summary was printed (suppress per-rule list)
 
     // Cumulative risk scoring
     // INVARIANT: cumulative_score_ >= 0 (monotonic — only increases)
