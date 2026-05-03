@@ -385,6 +385,9 @@ add_library(naab_security
     src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
     src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
     src/runtime/score_accumulator.cpp      # ScoreAccumulator — script-facing scoring math
+    src/runtime/agent_provider.cpp         # Shared LLM API calling layer (Gemini/Anthropic)
+    src/runtime/finding_parser.cpp         # Shared FINDING/VERDICT line parser
+    src/runtime/agent_review.cpp           # Agent review engine (detection → validation → scoring)
     src/runtime/governance_reports.cpp      # Governance reports (audit, hooks, plugins)
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection

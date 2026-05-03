@@ -1,15 +1,16 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/score_accumulator.h"
 #include "naab/governance.h"
+#include "naab/finding_parser.h"
 
 #include <mutex>
 #include <memory>
+#include <sstream>
 #include <unordered_map>
 
 using naab::interpreter::NaabVal;
 using naab::governance::ScoreAccumulator;
 using naab::governance::ScoringConfig;
-using naab::governance::ScorerConfig;
 using naab::governance::GovernanceEngine;
 
 namespace naab {
@@ -53,6 +54,7 @@ static ScoringConfig resolveScoringConfig(const std::string& config_name) {
             cfg.green_threshold = sc.green_threshold;
             cfg.yellow_threshold = sc.yellow_threshold;
             cfg.red_threshold = sc.red_threshold;
+            cfg.threshold_mode = sc.threshold_mode;
             return cfg;
         }
     }
@@ -96,24 +98,31 @@ static NaabVal governanceScorer(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
-// governance.finding(handle, rule_name, message) -> dict
+// governance.finding(handle, rule_name, message [, source]) -> dict
 // ============================================================================
 
 static NaabVal governanceFinding(std::vector<NaabVal>& args) {
     if (args.size() < 3 || !args[0].isInt() || !args[1].isString() || !args[2].isString()) {
         throw std::runtime_error(
-            "Type error: governance.finding() expects (int handle, string rule, string message)\n\n"
+            "Type error: governance.finding() expects (int handle, string rule, string message [, string source])\n\n"
             "  Help:\n"
             "  - handle: from governance.scorer()\n"
             "  - rule: rule name like \"sec.injection\"\n"
-            "  - message: description of the finding\n\n"
+            "  - message: description of the finding\n"
+            "  - source: (optional) which agent submitted this finding\n\n"
             "  Example:\n"
-            "    v Right: governance.finding(h, \"sec.xss\", \"Unescaped input\")\n");
+            "    v Right: governance.finding(h, \"sec.xss\", \"Unescaped input\", \"redteam\")\n");
     }
 
     int handle = static_cast<int>(args[0].asInt());
     std::string rule_name = args[1].asString();
     std::string message = args[2].asString();
+
+    // Optional 4th arg: source
+    std::string source;
+    if (args.size() >= 4 && args[3].isString()) {
+        source = args[3].asString();
+    }
 
     ScoreAccumulator* acc = nullptr;
     {
@@ -128,7 +137,7 @@ static NaabVal governanceFinding(std::vector<NaabVal>& args) {
         acc = it->second.get();
     }
 
-    int weight = acc->addFinding(rule_name, message);
+    int weight = acc->addFinding(rule_name, message, source);
     int score = acc->score();
     std::string zone = acc->zone();
 
@@ -174,16 +183,26 @@ static NaabVal governanceEvaluate(std::vector<NaabVal>& args) {
     bool integrity = acc->verifyIntegrity();
     std::string hash = acc->integrityHash();
     const auto& findings = acc->findings();
+    int src_count = acc->sourceCount();
+
+    // Compute effective thresholds (scaled by source count in per_source mode)
+    int scale = 1;
+    if (cfg.threshold_mode == "per_source" && src_count > 0) {
+        scale = src_count;
+    }
 
     std::unordered_map<std::string, NaabVal> thresholds;
-    thresholds["green"] = NaabVal::makeInt(cfg.green_threshold);
-    thresholds["yellow"] = NaabVal::makeInt(cfg.yellow_threshold);
-    thresholds["red"] = NaabVal::makeInt(cfg.red_threshold);
+    thresholds["green"] = NaabVal::makeInt(cfg.green_threshold * scale);
+    thresholds["yellow"] = NaabVal::makeInt(cfg.yellow_threshold * scale);
+    thresholds["red"] = NaabVal::makeInt(cfg.red_threshold * scale);
+    thresholds["mode"] = NaabVal::makeString(cfg.threshold_mode);
+    thresholds["scale"] = NaabVal::makeInt(scale);
 
     std::unordered_map<std::string, NaabVal> dict;
     dict["score"] = NaabVal::makeInt(score);
     dict["zone"] = NaabVal::makeString(zone);
     dict["findings_count"] = NaabVal::makeInt(static_cast<int>(findings.size()));
+    dict["source_count"] = NaabVal::makeInt(src_count);
     dict["breakdown"] = NaabVal::makeString(breakdown);
     dict["integrity_verified"] = NaabVal::makeBool(integrity);
     dict["integrity_hash"] = NaabVal::makeString(hash);
@@ -223,6 +242,7 @@ static NaabVal governanceFindings(std::vector<NaabVal>& args) {
         std::unordered_map<std::string, NaabVal> entry;
         entry["rule"] = NaabVal::makeString(f.rule_name);
         entry["message"] = NaabVal::makeString(f.message);
+        entry["source"] = NaabVal::makeString(f.source);
         entry["weight"] = NaabVal::makeInt(f.weight);
         entry["score_after"] = NaabVal::makeInt(f.score_after);
         arr.push_back(NaabVal::makeDict(std::move(entry)));
@@ -261,12 +281,42 @@ static NaabVal governanceScore(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// governance.parse_findings(text) -> list of {category, description}
+// Robust parser for FINDING|category|description lines from agent output.
+// Handles markdown code blocks, preamble, and delimiter variations (|, :, -)
+// ============================================================================
+
+static NaabVal governanceParseFindings(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isString()) {
+        throw std::runtime_error(
+            "Type error: governance.parse_findings() expects a string\n\n"
+            "  Help:\n"
+            "  - Pass raw agent output text\n"
+            "  - Returns list of {\"category\": ..., \"description\": ...} dicts\n\n"
+            "  Example:\n"
+            "    v Right: governance.parse_findings(agent_response)\n");
+    }
+
+    // Delegate to shared parser
+    auto parsed = runtime::parseFindings(args[0].asString());
+
+    std::vector<NaabVal> results;
+    for (const auto& f : parsed) {
+        std::unordered_map<std::string, NaabVal> entry;
+        entry["category"] = NaabVal::makeString(f.category);
+        entry["description"] = NaabVal::makeString(f.description);
+        results.push_back(NaabVal::makeDict(std::move(entry)));
+    }
+    return NaabVal::makeList(std::move(results));
+}
+
+// ============================================================================
 // Module interface
 // ============================================================================
 
 bool GovernanceModule::hasFunction(const std::string& name) const {
     return name == "scorer" || name == "finding" || name == "evaluate" ||
-           name == "findings" || name == "score";
+           name == "findings" || name == "score" || name == "parse_findings";
 }
 
 NaabVal GovernanceModule::call(
@@ -277,11 +327,12 @@ NaabVal GovernanceModule::call(
     if (function_name == "evaluate") return governanceEvaluate(args);
     if (function_name == "findings") return governanceFindings(args);
     if (function_name == "score") return governanceScore(args);
+    if (function_name == "parse_findings") return governanceParseFindings(args);
 
     throw std::runtime_error(
         "Runtime error: governance module has no function '" + function_name + "'\n\n"
         "  Help:\n"
-        "  - Available: scorer, finding, evaluate, findings, score\n");
+        "  - Available: scorer, finding, evaluate, findings, score, parse_findings\n");
 }
 
 } // namespace stdlib

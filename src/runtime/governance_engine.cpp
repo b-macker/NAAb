@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/agent_review.h"
 #include "naab/crypto_utils.h"
 #include "naab/trust_store.h"
 #include "naab/secure_file.h"
@@ -1207,6 +1208,55 @@ std::string GovernanceEngine::formatSummary() const {
     }
 
     return oss.str();
+}
+
+// ============================================================================
+// Agent Review — LLM-based governance phase
+// ============================================================================
+
+void GovernanceEngine::runAgentReview(const std::string& source) {
+    if (!rules_.agent_review.enabled) return;
+
+    // Build AgentReviewConfig from govern.json section
+    runtime::AgentReviewConfig config;
+    config.enabled = true;
+    config.detection_agents = rules_.agent_review.detection;
+    config.validation_agent = rules_.agent_review.validation;
+    config.scorer_name = rules_.agent_review.scorer;
+    config.enforcement = rules_.agent_review.enforcement;
+    config.cache = rules_.agent_review.cache;
+
+    auto result = runtime::runAgentReview(config, rules_, source, govern_json_dir_);
+
+    if (result.cache_hit) {
+        fprintf(stderr, "[governance] Agent review: cache hit (source unchanged)\n");
+    }
+    if (!result.error.empty()) {
+        fprintf(stderr, "[governance] Agent review error: %s\n", result.error.c_str());
+        return;  // Graceful degradation — don't block on agent failure
+    }
+    if (!result.executed) return;
+
+    // Feed validated findings through enforce() with agent-generated messages
+    for (const auto& f : result.findings) {
+        std::string level_str = "advisory";
+        auto it = config.enforcement.find(result.zone);
+        if (it != config.enforcement.end()) level_str = it->second;
+
+        EnforcementLevel level = EnforcementLevel::ADVISORY;
+        if (level_str == "hard") level = EnforcementLevel::HARD;
+        else if (level_str == "soft") level = EnforcementLevel::SOFT;
+
+        // The message IS the agent's words — living organic error message
+        enforce("agent_review." + f.category, level, f.message);
+    }
+
+    agent_review_count_ = result.confirmed_count;
+
+    if (result.confirmed_count > 0) {
+        fprintf(stderr, "[governance] Agent review: %d confirmed finding(s), zone=%s, score=%d\n",
+                result.confirmed_count, result.zone.c_str(), result.score);
+    }
 }
 
 std::string GovernanceEngine::formatSummaryOneLine() const {

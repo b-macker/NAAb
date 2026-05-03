@@ -1375,6 +1375,20 @@
     "red_threshold": 25
   },
 
+  "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, scored findings enforce at advisory/soft/hard tiers. Agent-generated messages flow through enforce() as living organic error messages. Disabled by default. Cache uses SHA-256 of script source.",
+  "agent_review": {
+    "enabled": false,
+    "detection": ["redteam", "testing"],
+    "validation": "analyst",
+    "scorer": "security",
+    "enforcement": {
+      "green": "advisory",
+      "yellow": "soft",
+      "red": "hard"
+    },
+    "cache": true
+  },
+
   "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",
   "governance_baseline": {
     "enabled": false,

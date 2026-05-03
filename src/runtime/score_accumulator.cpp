@@ -12,7 +12,8 @@ namespace governance {
 ScoreAccumulator::ScoreAccumulator(const ScoringConfig& config)
     : config_(config) {}
 
-int ScoreAccumulator::addFinding(const std::string& rule_name, const std::string& message) {
+int ScoreAccumulator::addFinding(const std::string& rule_name, const std::string& message,
+                                  const std::string& source) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     // Weight lookup — same algorithm as governance_engine.cpp:396-408
@@ -30,9 +31,14 @@ int ScoreAccumulator::addFinding(const std::string& rule_name, const std::string
         cumulative_score_ = SATURATION_LIMIT;
     }
 
+    // Track unique sources for per_source threshold scaling
+    if (!source.empty()) {
+        sources_.insert(source);
+    }
+
     contributions_[rule_name] += weight;
 
-    findings_.push_back({rule_name, message, weight, cumulative_score_});
+    findings_.push_back({rule_name, message, source, weight, cumulative_score_});
 
     return weight;
 }
@@ -49,9 +55,18 @@ const std::vector<ScoredFinding>& ScoreAccumulator::findings() const {
 
 std::string ScoreAccumulator::zone() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (cumulative_score_ >= config_.red_threshold) return "red";
-    if (cumulative_score_ >= config_.yellow_threshold) return "yellow";
+    int scale = 1;
+    if (config_.threshold_mode == "per_source" && !sources_.empty()) {
+        scale = static_cast<int>(sources_.size());
+    }
+    if (cumulative_score_ >= config_.red_threshold * scale) return "red";
+    if (cumulative_score_ >= config_.yellow_threshold * scale) return "yellow";
     return "green";
+}
+
+int ScoreAccumulator::sourceCount() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return static_cast<int>(sources_.size());
 }
 
 std::string ScoreAccumulator::formatBreakdown() const {
@@ -109,7 +124,7 @@ std::string ScoreAccumulator::integrityHash() const {
     // SHA-256 over the findings sequence for tamper evidence
     std::ostringstream oss;
     for (const auto& f : findings_) {
-        oss << f.rule_name << ":" << f.weight << ":" << f.score_after << "\n";
+        oss << f.rule_name << ":" << f.source << ":" << f.weight << ":" << f.score_after << "\n";
     }
     return security::CryptoUtils::sha256(oss.str());
 }

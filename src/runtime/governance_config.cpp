@@ -1705,6 +1705,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             scorer.green_threshold = cfg_json.value("green_threshold", 0);
             scorer.yellow_threshold = cfg_json.value("yellow_threshold", 10);
             scorer.red_threshold = cfg_json.value("red_threshold", 25);
+            scorer.threshold_mode = cfg_json.value("threshold_mode", "fixed");
             rules_.scorers.push_back(scorer);
         }
     }
@@ -1744,10 +1745,30 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.scoring.green_threshold  = sc.value("green_threshold", 0);
         rules_.scoring.yellow_threshold = sc.value("yellow_threshold", 10);
         rules_.scoring.red_threshold    = sc.value("red_threshold", 25);
+        rules_.scoring.threshold_mode   = sc.value("threshold_mode", "fixed");
         if (rules_.scoring.yellow_threshold > rules_.scoring.red_threshold) {
             fmt::print(stderr, "[WARN] scoring.yellow_threshold ({}) > red_threshold ({}) — "
                        "yellow warnings will never appear\n",
                        rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+        }
+    }
+
+    // --- Agent Review (LLM-based governance phase) ---
+    if (j.contains("agent_review") && j["agent_review"].is_object()) {
+        auto& ar = j["agent_review"];
+        rules_.agent_review.enabled = ar.value("enabled", false);
+        rules_.agent_review.scorer = ar.value("scorer", "");
+        rules_.agent_review.validation = ar.value("validation", "");
+        rules_.agent_review.cache = ar.value("cache", false);
+        if (ar.contains("detection") && ar["detection"].is_array()) {
+            for (const auto& d : ar["detection"]) {
+                if (d.is_string()) rules_.agent_review.detection.push_back(d.get<std::string>());
+            }
+        }
+        if (ar.contains("enforcement") && ar["enforcement"].is_object()) {
+            for (auto& [zone, level] : ar["enforcement"].items()) {
+                if (level.is_string()) rules_.agent_review.enforcement[zone] = level.get<std::string>();
+            }
         }
     }
 

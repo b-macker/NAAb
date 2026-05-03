@@ -110,6 +110,64 @@ main {
     total = total + 1
     if score3 == 5 { passed = passed + 1 } else { print("[FAIL] h3 score isolation: " + string(score3)) }
 
+    // ── Test 11: Source tracking ──
+    let h_src = governance.scorer("security_review")
+    governance.finding(h_src, "sec.injection", "SQL concat", "redteam")
+    governance.finding(h_src, "sec.xss", "XSS found", "blueteam")
+    governance.finding(h_src, "sec.info_leak", "Stack trace", "redteam")
+    let eval_src = governance.evaluate(h_src)
+    total = total + 1
+    if eval_src["source_count"] == 2 { passed = passed + 1 } else { print("[FAIL] source_count: expected 2, got " + string(eval_src["source_count"])) }
+
+    // Check source in findings list
+    let src_findings = governance.findings(h_src)
+    total = total + 1
+    if src_findings[0]["source"] == "redteam" { passed = passed + 1 } else { print("[FAIL] finding source: " + src_findings[0]["source"]) }
+    total = total + 1
+    if src_findings[1]["source"] == "blueteam" { passed = passed + 1 } else { print("[FAIL] finding source 2: " + src_findings[1]["source"]) }
+
+    // No source = source_count 0
+    total = total + 1
+    let eval_no_src = governance.evaluate(h)
+    if eval_no_src["source_count"] == 0 { passed = passed + 1 } else { print("[FAIL] no-source count: " + string(eval_no_src["source_count"])) }
+
+    // ── Test 12: parse_findings — clean input ──
+    let clean_text = "FINDING|sec.injection|SQL concat in login\nFINDING|sec.xss|Unescaped input"
+    let parsed = governance.parse_findings(clean_text)
+    total = total + 1
+    if len(parsed) == 2 { passed = passed + 1 } else { print("[FAIL] parse clean count: " + string(len(parsed))) }
+    total = total + 1
+    if parsed[0]["category"] == "sec.injection" { passed = passed + 1 } else { print("[FAIL] parse clean category") }
+    total = total + 1
+    if parsed[0]["description"] == "SQL concat in login" { passed = passed + 1 } else { print("[FAIL] parse clean desc") }
+
+    // ── Test 13: parse_findings — noisy input (markdown, preamble) ──
+    let noisy_text = "Here are my findings:\n\n```\nFINDING|sec.injection|SQL concat in login\n```\n\nFINDING|sec.xss|XSS in upload\nSome other text"
+    let parsed_noisy = governance.parse_findings(noisy_text)
+    total = total + 1
+    if len(parsed_noisy) == 2 { passed = passed + 1 } else { print("[FAIL] parse noisy count: " + string(len(parsed_noisy))) }
+
+    // ── Test 14: parse_findings — alternate delimiters ──
+    let alt_text = "FINDING:sec.auth:Missing auth check\nFINDING-sec.crypto-Weak hash algorithm"
+    let parsed_alt = governance.parse_findings(alt_text)
+    total = total + 1
+    if len(parsed_alt) == 2 { passed = passed + 1 } else { print("[FAIL] parse alt count: " + string(len(parsed_alt))) }
+    total = total + 1
+    if parsed_alt[0]["category"] == "sec.auth" { passed = passed + 1 } else { print("[FAIL] parse alt category: " + parsed_alt[0]["category"]) }
+
+    // ── Test 15: parse_findings — empty/junk input ──
+    let junk_text = "No findings here\nJust some text\n"
+    let parsed_junk = governance.parse_findings(junk_text)
+    total = total + 1
+    if len(parsed_junk) == 0 { passed = passed + 1 } else { print("[FAIL] parse junk should be empty") }
+
+    // ── Test 16: Threshold scaling (thresholds section reports mode and scale) ──
+    let th_mode = eval_src["thresholds"]
+    total = total + 1
+    if th_mode["mode"] == "fixed" { passed = passed + 1 } else { print("[FAIL] threshold mode should be fixed") }
+    total = total + 1
+    if th_mode["scale"] == 1 { passed = passed + 1 } else { print("[FAIL] threshold scale should be 1 in fixed mode") }
+
     print("")
     print("Governance module: " + string(passed) + "/" + string(total) + " tests passed")
     if passed == total {

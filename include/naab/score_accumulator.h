@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 
 namespace naab {
@@ -13,6 +14,7 @@ struct ScoringConfig;  // forward decl from governance.h
 struct ScoredFinding {
     std::string rule_name;
     std::string message;
+    std::string source;      // which agent/source submitted this finding
     int weight;              // resolved weight (after config lookup + clamp)
     int score_after;         // cumulative score after this finding
 };
@@ -24,7 +26,11 @@ public:
     explicit ScoreAccumulator(const ScoringConfig& config);
 
     // Add a finding — returns the weight that was applied
-    int addFinding(const std::string& rule_name, const std::string& message);
+    int addFinding(const std::string& rule_name, const std::string& message,
+                   const std::string& source = "");
+
+    // Source tracking
+    int sourceCount() const;
 
     // Read state (all const, thread-safe with internal mutex)
     int score() const;
@@ -40,6 +46,7 @@ private:
     int cumulative_score_ = 0;
     std::vector<ScoredFinding> findings_;
     std::unordered_map<std::string, int> contributions_;
+    std::unordered_set<std::string> sources_;  // unique non-empty sources
 };
 
 }  // namespace governance

@@ -2935,7 +2935,8 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "governance_plugins", "governance",
         "taint_tracking", "quality_gate", "governance_baseline",
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",
-        "runtime", "security", "api", "integrity", "project_name", "scorers"
+        "runtime", "security", "api", "integrity", "project_name", "scorers",
+        "agent_review"
     };
 
     try {

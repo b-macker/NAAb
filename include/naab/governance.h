@@ -1034,6 +1034,7 @@ struct ScoringConfig {
     int green_threshold  = 0;   // below: silent
     int yellow_threshold = 10;  // at/above: enhanced warning with breakdown
     int red_threshold    = 25;  // at/above: block via quality gate (exit 2)
+    std::string threshold_mode = "fixed";  // "fixed" or "per_source"
 };
 
 // Named scorer configs — loaded from "scorers" section of govern.json
@@ -1045,6 +1046,7 @@ struct ScorerConfig {
     int green_threshold = 0;
     int yellow_threshold = 10;
     int red_threshold = 25;
+    std::string threshold_mode = "fixed";  // "fixed" or "per_source"
 };
 
 // ============================================================================
@@ -1427,6 +1429,16 @@ struct GovernanceRules {
     TelemetryOutputConfig telemetry_output;
     std::vector<AgentConfig> agents;  // was: agent_roles (migrated to unified config)
     std::vector<ScorerConfig> scorers; // named scorer configs from "scorers" section
+
+    // --- Agent review (LLM-based governance phase) ---
+    struct AgentReviewSection {
+        bool enabled = false;
+        std::vector<std::string> detection;       // agent names for detection
+        std::string validation;                    // agent name for validation
+        std::string scorer;                        // scorer config name
+        std::map<std::string, std::string> enforcement;  // zone -> level
+        bool cache = false;
+    } agent_review;
 
     // --- Quality gate (Feature 2) ---
     QualityGateConfig quality_gate;
@@ -1898,6 +1910,9 @@ public:
     std::string generateHtmlReport() const;
     void writeReports() const;
 
+    // Agent review: LLM-based governance phase (detection → validation → scoring)
+    void runAgentReview(const std::string& source);
+
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);
 
@@ -2002,6 +2017,7 @@ private:
     std::vector<std::pair<std::string, int>> ptc_functions_; // polyglot try/catch: {name, line}
     int advisory_count_ = 0;
     int advisory_suppressed_ = 0;
+    int agent_review_count_ = 0;  // confirmed findings from agent review phase
 
     // Cumulative risk scoring
     // INVARIANT: cumulative_score_ >= 0 (monotonic — only increases)

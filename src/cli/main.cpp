@@ -1468,7 +1468,12 @@ int main(int argc, char** argv) {
                     vm_governance.saveDriftBaseline(filename, drift_metrics);
                 }
 
-                // Drift detection hard block — skip execution
+                // Agent review: LLM-based governance phase (if enabled in govern.json)
+                if (gov_loaded && vm_governance.isActive()) {
+                    vm_governance.runAgentReview(source);
+                }
+
+                // Drift detection / agent review hard block — skip execution
                 if (naab::governance::g_governance_hard_block) {
                     if (vm_governance.isActive()) {
                         vm_governance.writeReports();
@@ -1806,7 +1811,15 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // Drift detection hard block — skip execution
+                // Agent review: LLM-based governance phase (tree-walker path)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->isActive()) {
+                        gov->runAgentReview(source);
+                    }
+                }
+
+                // Drift detection / agent review hard block — skip execution
                 if (naab::governance::g_governance_hard_block) {
                     auto* gov = interpreter.getGovernance();
                     if (gov) gov->writeReports();
