@@ -31,6 +31,7 @@ struct AgentReviewFinding {
     std::string message;        // agent-generated "living organic message"
     std::string source_agent;
     bool validated;
+    double confidence = 1.0;    // consensus ratio: agents_found / total_agents
 };
 
 struct AgentReviewResult {

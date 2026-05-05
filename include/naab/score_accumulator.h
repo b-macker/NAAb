@@ -15,8 +15,9 @@ struct ScoredFinding {
     std::string rule_name;
     std::string message;
     std::string source;      // which agent/source submitted this finding
-    int weight;              // resolved weight (after config lookup + clamp)
+    int weight;              // effective weight (after config lookup + confidence scaling)
     int score_after;         // cumulative score after this finding
+    double confidence = 1.0; // consensus multiplier that was applied
 };
 
 class ScoreAccumulator {
@@ -28,6 +29,9 @@ public:
     // Add a finding — returns the weight that was applied
     int addFinding(const std::string& rule_name, const std::string& message,
                    const std::string& source = "");
+    // Add a finding with consensus confidence scaling
+    int addFinding(const std::string& rule_name, const std::string& message,
+                   const std::string& source, double confidence);
 
     // Source tracking
     int sourceCount() const;

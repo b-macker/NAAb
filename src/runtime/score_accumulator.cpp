@@ -14,15 +14,24 @@ ScoreAccumulator::ScoreAccumulator(const ScoringConfig& config)
 
 int ScoreAccumulator::addFinding(const std::string& rule_name, const std::string& message,
                                   const std::string& source) {
+    return addFinding(rule_name, message, source, 1.0);
+}
+
+int ScoreAccumulator::addFinding(const std::string& rule_name, const std::string& message,
+                                  const std::string& source, double confidence) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     // Weight lookup — same algorithm as governance_engine.cpp:396-408
-    int weight = config_.default_weight;
+    int base_weight = config_.default_weight;
     auto wit = config_.rule_weights.find(rule_name);
     if (wit != config_.rule_weights.end()) {
-        weight = wit->second;
+        base_weight = wit->second;
     }
-    weight = std::max(0, weight);
+    base_weight = std::max(0, base_weight);
+
+    // Apply consensus confidence scaling
+    double clamped = std::max(0.0, std::min(1.0, confidence));
+    int weight = static_cast<int>(base_weight * clamped + 0.5);  // round
 
     // Saturating add — monotonic, bounded
     if (cumulative_score_ <= SATURATION_LIMIT - weight) {
@@ -38,7 +47,7 @@ int ScoreAccumulator::addFinding(const std::string& rule_name, const std::string
 
     contributions_[rule_name] += weight;
 
-    findings_.push_back({rule_name, message, source, weight, cumulative_score_});
+    findings_.push_back({rule_name, message, source, weight, cumulative_score_, clamped});
 
     return weight;
 }
@@ -100,15 +109,10 @@ std::string ScoreAccumulator::formatBreakdown() const {
 bool ScoreAccumulator::verifyIntegrity() const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Replay all findings, recompute score — same as governance_engine.cpp:1450-1471
+    // Replay from stored effective weights (includes confidence scaling)
     int recomputed = 0;
     for (const auto& f : findings_) {
-        int weight = config_.default_weight;
-        auto wit = config_.rule_weights.find(f.rule_name);
-        if (wit != config_.rule_weights.end()) {
-            weight = wit->second;
-        }
-        weight = std::max(0, weight);
+        int weight = f.weight;
         if (recomputed <= SATURATION_LIMIT - weight) {
             recomputed += weight;
         } else {

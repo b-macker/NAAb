@@ -160,6 +160,7 @@ static bool loadCache(const std::string& path, AgentReviewResult& result) {
                 finding.message = fj.value("message", "");
                 finding.source_agent = fj.value("source_agent", "");
                 finding.validated = fj.value("validated", false);
+                finding.confidence = fj.value("confidence", 1.0);
                 result.findings.push_back(finding);
             }
         }
@@ -190,6 +191,7 @@ static void saveCache(const std::string& path, const AgentReviewResult& result) 
         fj["message"] = f.message;
         fj["source_agent"] = f.source_agent;
         fj["validated"] = f.validated;
+        fj["confidence"] = f.confidence;
         findings_arr.push_back(fj);
     }
     j["findings"] = findings_arr;
@@ -361,14 +363,21 @@ AgentReviewResult runAgentReview(
         }
         category_agents[f.category].push_back(f.source_agent);
     }
-    // Replace findings with deduplicated set
+    // Replace findings with deduplicated set, compute consensus confidence
+    int total_agents = static_cast<int>(config.detection_agents.size());
     std::vector<AgentReviewFinding> deduped_findings;
     for (auto& [cat, f] : deduped) {
         auto& agents = category_agents[cat];
-        if (agents.size() > 1) {
+        std::set<std::string> unique_agents(agents.begin(), agents.end());
+
+        // Consensus confidence: agents_found / total_agents
+        if (total_agents > 0) {
+            f.confidence = static_cast<double>(unique_agents.size()) / total_agents;
+        }
+
+        if (unique_agents.size() > 1) {
             // Multiple agents agreed — note consensus
             std::string agent_list;
-            std::set<std::string> unique_agents(agents.begin(), agents.end());
             for (const auto& a : unique_agents) {
                 if (!agent_list.empty()) agent_list += ", ";
                 agent_list += a;
@@ -382,7 +391,7 @@ AgentReviewResult runAgentReview(
     // ── Scoring phase ──
     ScoreAccumulator scorer(scorer_cfg);
     for (const auto& f : result.findings) {
-        scorer.addFinding(f.category, f.message, f.source_agent);
+        scorer.addFinding(f.category, f.message, f.source_agent, f.confidence);
     }
 
     result.zone = scorer.zone();
@@ -399,7 +408,12 @@ AgentReviewResult runAgentReview(
                 std::string finding_list;
                 int num = 1;
                 for (const auto& f : result.findings) {
-                    finding_list += std::to_string(num++) + ". [" + f.category + "] " + f.message + "\n";
+                    finding_list += std::to_string(num++) + ". [" + f.category + "] " + f.message;
+                    if (f.confidence < 1.0) {
+                        int pct = static_cast<int>(f.confidence * 100 + 0.5);
+                        finding_list += " (confidence: " + std::to_string(pct) + "%)";
+                    }
+                    finding_list += "\n";
                 }
 
                 std::string voice_prompt;

@@ -174,12 +174,22 @@ static json callGemini(
     request_body["generationConfig"] = gen_config;
 
     if (!config.system_prompt.empty()) {
-        json sys;
-        sys["parts"] = json::array();
-        json sys_part;
-        sys_part["text"] = config.system_prompt;
-        sys["parts"].push_back(sys_part);
-        request_body["systemInstruction"] = sys;
+        // Gemma models don't support systemInstruction — prepend to first user message
+        bool is_gemma = config.model.find("gemma") != std::string::npos;
+        if (is_gemma) {
+            if (!contents.empty() && contents[0]["role"] == "user") {
+                std::string original = contents[0]["parts"][0]["text"];
+                contents[0]["parts"][0]["text"] = config.system_prompt + "\n\n" + original;
+                request_body["contents"] = contents;
+            }
+        } else {
+            json sys;
+            sys["parts"] = json::array();
+            json sys_part;
+            sys_part["text"] = config.system_prompt;
+            sys["parts"].push_back(sys_part);
+            request_body["systemInstruction"] = sys;
+        }
     }
 
     std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
