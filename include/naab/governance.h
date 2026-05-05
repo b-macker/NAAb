@@ -1681,6 +1681,7 @@ public:
     std::string checkIncompleteLogic(const std::string& code, int line = 0, const std::string& source_file = "");
     std::string checkCosmeticSanitizer(const std::string& function_name,
                                         const std::string& body, int line = 0);
+    std::string checkEmptyMain(const std::string& source);
     std::string checkHallucinatedApis(const std::string& language,
                                        const std::string& code, int line = 0);
     std::string checkSemanticIssues(const std::string& language,

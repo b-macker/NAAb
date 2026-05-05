@@ -1481,20 +1481,11 @@ int main(int argc, char** argv) {
                     if (!sec_err.empty()) throw std::runtime_error(sec_err);
                 }
 
-                // Gap 15: Warn on empty main{} blocks (governance-compliant but functionally empty)
+                // Gap 15: Detect empty/comment-only main{} blocks
                 if (gov_loaded && vm_governance.isActive() && program->getMainBlock()) {
-                    std::string main_body = naab::governance::GovernanceEngine::extractMainBodyPublic(source);
-                    bool main_is_empty = true;
-                    for (char c : main_body) {
-                        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
-                            main_is_empty = false;
-                            break;
-                        }
-                    }
-                    if (main_is_empty) {
-                        fprintf(stderr,
-                            "[governance] WARNING: main{} block is empty. This satisfies governance structurally\n"
-                            "  but the program does nothing. Consider adding meaningful implementation.\n");
+                    std::string empty_err = vm_governance.checkEmptyMain(source);
+                    if (!empty_err.empty()) {
+                        fprintf(stderr, "%s\n", empty_err.c_str());
                     }
                 }
 

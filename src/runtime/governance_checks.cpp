@@ -916,6 +916,49 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "\\[\\s*(?:0\\.\\d+,\\s*){4,}\\]",
 };
 
+std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
+    auto& cfg = rules_.code_quality.no_incomplete_logic;
+    if (!cfg.enabled) return "";
+
+    std::string main_body = extractMainBodyPublic(source);
+
+    // Count comment vs code lines in main body
+    int comment_lines = 0, code_lines = 0;
+    bool in_block_comment = false;
+    std::istringstream stream(main_body);
+    std::string line_str;
+    while (std::getline(stream, line_str)) {
+        size_t first = line_str.find_first_not_of(" \t\r");
+        if (first == std::string::npos) continue;
+        std::string trimmed = line_str.substr(first);
+        if (in_block_comment) {
+            comment_lines++;
+            if (trimmed.find("*/") != std::string::npos) in_block_comment = false;
+            continue;
+        }
+        if (trimmed.rfind("//", 0) == 0 || trimmed.rfind("#", 0) == 0) {
+            comment_lines++;
+        } else if (trimmed.rfind("/*", 0) == 0) {
+            comment_lines++;
+            if (trimmed.find("*/") == std::string::npos) in_block_comment = true;
+        } else {
+            code_lines++;
+        }
+    }
+
+    if (code_lines == 0) {
+        std::string detail = main_body.empty()
+            ? "main{} block is empty"
+            : "main{} block contains only comments (" + std::to_string(comment_lines) + " comment lines, 0 code lines)";
+        return enforce("code_quality.no_incomplete_logic",
+            EnforcementLevel::ADVISORY,
+            detail + " — the program compiles but does nothing.\n"
+            "  This pattern is often used to satisfy governance structurally\n"
+            "  while removing actual implementation.");
+    }
+    return "";
+}
+
 std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file) {
     auto& cfg = rules_.code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
