@@ -1,7 +1,7 @@
 {
-  "version": "4.0",
+  "version": "5.0",
   "mode": "enforce",
-  "description": "NAAb Governance v4.0 — Complete Template (all sections, all options)",
+  "description": "NAAb Governance v5.0 — Complete Template (all sections, all options)",
 
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
@@ -530,14 +530,14 @@
         {
           "names": ["analyze", "compute", "calculate", "process", "transform",
                     "evaluate", "optimize", "classify", "detect", "predict"],
-          "min_score": 12,
+          "min_score": 25,
           "require_branching_or_loops": true,
           "message": "Functions named analyze/compute/process must contain non-trivial logic"
         },
         {
           "names": ["sort", "search", "filter", "merge", "parse",
                     "serialize", "encode", "decode", "compress", "encrypt"],
-          "min_score": 12,
+          "min_score": 20,
           "require_branching_or_loops": true
         },
         {
@@ -716,47 +716,6 @@
     }
   ],
 
-  "governance_plugins": [
-    {
-      "file": "governance/security_checks.naab",
-      "rules": [
-        {
-          "id": "SEC-001",
-          "function": "check_no_raw_sql",
-          "description": "Disallow raw SQL strings without parameterization",
-          "level": "hard",
-          "trigger": "polyglot_block",
-          "languages": ["python"],
-          "message": "Use parameterized queries, not raw SQL",
-          "help": "Replace cursor.execute(f'...') with cursor.execute('...?', (val,))",
-          "bad_example": "cursor.execute(f\"SELECT * FROM users WHERE id={user_id}\")",
-          "good_example": "cursor.execute(\"SELECT * FROM users WHERE id=?\", (user_id,))",
-          "enabled": true
-        },
-        {
-          "id": "SEC-002",
-          "function": "check_no_network_in_math",
-          "description": "Math modules should not import networking libraries",
-          "level": "soft",
-          "trigger": "polyglot_block",
-          "message": "Network imports detected in a computation module"
-        }
-      ]
-    },
-    {
-      "file": "governance/style_checks.naab",
-      "rules": [
-        {
-          "id": "STYLE-001",
-          "function": "check_function_docs",
-          "description": "All exported functions must have doc comments",
-          "level": "advisory",
-          "trigger": "naab_function"
-        }
-      ]
-    }
-  ],
-
   "scopes": [
     {
       "glob": "tests/**",
@@ -855,14 +814,37 @@
     "output_file": "telemetry.jsonl"
   },
 
-  "_comment_agent_roles": "Agent Roles — per-agent path and language restrictions for multi-agent environments",
-  "agent_roles": {
-    "example-bot": {
+  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
+  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
+  "agents": {
+    "researcher": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 4096,
+      "system_prompt": "You are a research assistant.",
+      "max_turns": 20,
+      "max_total_tokens": 50000,
+      "temperature": 1.0,
+      "tools": ["search", "read_file"],
+      "allowed_languages": ["python"],
+      "allowed_paths": ["./src", "./data"],
+      "blocked_paths": ["./secrets", "./.env"],
+      "shell_allowed": false
+    },
+    "coder": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GEMINI_API_KEY",
+      "max_tokens": 8192,
+      "system_prompt": "You are a coding assistant.",
+      "max_turns": 50,
+      "max_total_tokens": 200000,
       "allowed_languages": ["python", "shell"],
-      "allowed_paths": ["./src", "./output"],
-      "blocked_paths": ["./secrets", "./.env"]
+      "allowed_paths": ["./src", "./tests"],
+      "shell_allowed": true
     }
   },
+  "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
 
   "meta": {
     "schema_validation": {
@@ -1379,6 +1361,35 @@
     ]
   },
 
+  "_comment_scoring": "Cumulative Risk Scoring — advisory findings accumulate weighted scores. Cross red_threshold = block (exit 2). Deterministic, no LLM.",
+  "scoring": {
+    "enabled": false,
+    "default_weight": 3,
+    "rule_weights": {
+      "code_quality.no_hardcoded_results": 1,
+      "code_quality.no_dead_code": 2,
+      "code_quality.encoding": 8
+    },
+    "green_threshold": 0,
+    "yellow_threshold": 10,
+    "red_threshold": 25
+  },
+
+  "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
+  "agent_review": {
+    "enabled": false,
+    "detection": ["redteam", "testing"],
+    "validation": "analyst",
+    "voice": "voice",
+    "scorer": "security",
+    "enforcement": {
+      "green": "advisory",
+      "yellow": "soft",
+      "red": "hard"
+    },
+    "cache": true
+  },
+
   "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",
   "governance_baseline": {
     "enabled": false,
@@ -1401,5 +1412,59 @@
       "mode": "enforce",
       "output.file_output.report_sarif": "governance.sarif"
     }
-  }
+  },
+
+  "_comment_governance": "Governance behavior — replaces CLI flags like --governance-verbose, --governance-dashboard, etc. CLI flags override when present.",
+  "governance": {
+    "verbose": false,
+    "dashboard": false,
+    "quiet": false,
+    "override": false,
+    "lint_only": false,
+    "baseline_save": false,
+    "record_baselines": false,
+    "check_baselines": false,
+    "strict_types": false,
+    "gc_threshold": 5000,
+    "gc_stats": false,
+    "sandbox_level": "unrestricted",
+    "agent_id": "anonymous",
+    "default_env": "",
+    "telemetry": "",
+    "report_json": "",
+    "report_sarif": "",
+    "report_junit": "",
+    "no_color": false
+  },
+
+  "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
+  "runtime": {
+    "timeout": 30,
+    "memory_limit": 0,
+    "gc_threshold": 5000,
+    "gc_stats": false
+  },
+
+  "_comment_security": "Security posture. CLI flags (--sandbox-level, --allow-network, --strict-types) override when present.",
+  "security": {
+    "sandbox_level": "unrestricted",
+    "allow_network": false,
+    "strict_types": false
+  },
+
+  "_comment_api": "REST API server settings (naab-lang api). CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "api": {
+    "key": "",
+    "timeout": 10,
+    "rate_limit": 0,
+    "max_body": 1048576
+  },
+
+  "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match.",
+  "runtime_versions": [
+    { "language": "python", "required": "3.10", "level": "advisory" },
+    { "language": "javascript", "required": "18", "level": "advisory" }
+  ],
+
+  "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }

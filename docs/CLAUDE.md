@@ -417,7 +417,7 @@ main {
 46. `args` is NOT a global variable — use `env.get_args()` to get CLI arguments as an array. See "CLI Arguments Pattern" section above.
 47. Structs become plain dicts after JSON round-trip (`json.stringify` → `json.parse`). Use `.get("field")` not `.field` on deserialized data. For type-safe reconstruction: `fn Task.from_dict(d) { return new Task { id: d.get("id"), ... } }`
 48. `array.get(index)` returns null on out-of-bounds (safe access). `array.get(index, default)` returns a default value. Use this for optional CLI args instead of `args[N]` which throws.
-49. Don't create identity sanitizer functions like `fn validate_x(data) { return data }` — governance detects these as bypasses. Sanitizers must actually validate or transform.
+49. Don't create identity sanitizer functions like `fn validate_x(data) { return data }` — governance detects these as bypasses. Functions named `sanitize_*/validate_*/check_*/verify_*` must contain real validation: regex checks, rejection paths (if → return false/throw), type checks, or bounds checks. Cosmetic transforms like `string(x).trim()` or `return param` are blocked.
 
 ## Complexity Scoring (for governance)
 
@@ -427,10 +427,11 @@ complexity score. Here's what contributes:
 | Pattern | Score | Example |
 |---------|-------|---------|
 | Real loop (for/while) | +5 each | `for item in data { ... }` |
+| Padding loop (0..N, N≤3) | +1 each | `for i in 0..1 { }` (discounted) |
 | Nested loops | +15 | `for row in grid { for col in row { } }` |
 | try/catch | +5 | `try { risky() } catch (e) { handle(e) }` |
 | Array operations | +5 | `array.filter_fn(arr, predicate)` |
-| Pipeline operator | +5 | `data \|> transform \|> format` |
+| Pipeline operator (\|>) | +3 per stage, cap 15 | `data \|> transform \|> format` (+6) |
 | Function definition | +3 each | `fn helper(x) { ... }` |
 | External function call | +1 each | `math.sqrt(x)` |
 | Recursion | +10 | Function calls itself |
@@ -515,7 +516,9 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
 - Do NOT write empty/trivial functions (pass-only, return True, return [])
 - Do NOT swallow errors silently (empty catch blocks, except: pass)
 - Do NOT pad functions with `for i in 0..1 { }` or `for i in 0..2 { }` loops to pass
-  complexity checks. Instead: add real logic — input validation, edge case handling,
+  complexity checks — small-range loops (0..N where N≤3) are automatically discounted
+  to +1 instead of +5. Identity pipelines (`x |> fn(r) { return r }`) are also detected.
+  Instead: add real logic — input validation, edge case handling,
   error recovery with try/catch. The governance engine rewards: loops over real data,
   conditionals, try/catch, function calls, array operations (map_fn, filter_fn, reduce_fn).
 - Do NOT add hedging comments like "for now", "simplified", "basic implementation",
