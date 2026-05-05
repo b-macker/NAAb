@@ -1231,10 +1231,19 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     config.cache = rules_.agent_review.cache;
     config.hints = rules_.agent_review.hints;
 
+    // Include govern.json hash in cache key so config changes invalidate cache
+    std::string govern_path = govern_json_dir_ + "/govern.json";
+    std::ifstream gf(govern_path);
+    if (gf.is_open()) {
+        std::string govern_content((std::istreambuf_iterator<char>(gf)),
+                                    std::istreambuf_iterator<char>());
+        config.config_hash = security::CryptoUtils::sha256(govern_content);
+    }
+
     auto result = runtime::runAgentReview(config, rules_, source, govern_json_dir_);
 
     if (result.cache_hit) {
-        fprintf(stderr, "[governance] Agent review: cache hit (source unchanged)\n");
+        fprintf(stderr, "[governance] Agent review: cache hit (source + config unchanged)\n");
     }
     if (!result.error.empty()) {
         fprintf(stderr, "[governance] Agent review error: %s\n", result.error.c_str());

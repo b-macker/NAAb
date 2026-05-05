@@ -25,6 +25,7 @@ struct AgentReviewConfig {
     std::map<std::string, std::string> enforcement;  // zone -> level (advisory/soft/hard)
     bool cache = false;
     bool hints = false;         // show rejected findings as [hint] lines
+    std::string config_hash;    // govern.json SHA-256 — invalidates cache on config change
 };
 
 struct AgentReviewFinding {

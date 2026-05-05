@@ -244,12 +244,17 @@ AgentReviewResult runAgentReview(
         return result;
     }
 
-    // Compute source hash
+    // Compute cache key: source hash + config hash
+    // Config hash ensures cache invalidates when govern.json changes
     result.source_hash = security::CryptoUtils::sha256(script_source);
+    std::string cache_key = result.source_hash;
+    if (!config.config_hash.empty()) {
+        cache_key = security::CryptoUtils::sha256(result.source_hash + config.config_hash);
+    }
 
     // Cache check
     if (config.cache && !govern_dir.empty()) {
-        std::string cpath = cachePath(govern_dir, result.source_hash);
+        std::string cpath = cachePath(govern_dir, cache_key);
         if (fileExists(cpath)) {
             AgentReviewResult cached;
             if (loadCache(cpath, cached)) {
@@ -307,7 +312,7 @@ AgentReviewResult runAgentReview(
         // Cache and return
         if (config.cache && !govern_dir.empty()) {
             ensureDir(govern_dir + "/.naab_cache");
-            saveCache(cachePath(govern_dir, result.source_hash), result);
+            saveCache(cachePath(govern_dir, cache_key), result);
         }
         return result;
     }
@@ -471,7 +476,7 @@ AgentReviewResult runAgentReview(
     // ── Cache write ──
     if (config.cache && !govern_dir.empty()) {
         ensureDir(govern_dir + "/.naab_cache");
-        saveCache(cachePath(govern_dir, result.source_hash), result);
+        saveCache(cachePath(govern_dir, cache_key), result);
     }
 
     return result;
