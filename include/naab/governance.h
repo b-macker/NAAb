@@ -1614,6 +1614,7 @@ public:
     const std::string& getLoadedPath() const { return loaded_path_; }
     const std::string& getLastError() const { return last_error_; }
     GovernanceMode getMode() const { return rules_.mode; }
+    const std::string& getGovernDir() const { return govern_json_dir_; }
     const GovernanceRules& getRules() const { return rules_; }
     GovernanceRules& getMutableRules() { return rules_; }
 

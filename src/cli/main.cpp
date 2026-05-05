@@ -975,10 +975,33 @@ int main(int argc, char** argv) {
                     checkBlocked("--drift-baseline-save", drift_baseline_save);
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
-                    // Gap 13/16: Projects should add --no-governance and --governance-override
-                    // to integrity.blocked_flags in govern.json to prevent bypass.
-                    // No implicit warning here — it fires for scripts in unrelated directories
-                    // that discover ~/govern.json via upward walk, breaking legitimate usage.
+
+                    // Gap 13/16: In enforce mode with a signed govern.json,
+                    // --no-governance and --governance-override are implicitly blocked
+                    // even without blocked_flags. This prevents LLMs from bypassing
+                    // governance on projects that forgot to configure blocked_flags.
+                    // Only applies when govern.json.sig exists (signed = project owner
+                    // cares about integrity). Unsigned configs remain permissive for dev/test.
+                    if (shared_governance.getMode() == naab::governance::GovernanceMode::ENFORCE) {
+                        std::string gov_dir = shared_governance.getGovernDir();
+                        bool config_is_signed = !gov_dir.empty() &&
+                            std::filesystem::exists(gov_dir + "/govern.json.sig");
+                        if (config_is_signed) {
+                            auto implicitBlock = [&](const std::string& flag, bool was_used) {
+                                if (was_used && !shared_governance.isBlockedFlag(flag)) {
+                                    fprintf(stderr,
+                                        "[governance] INTEGRITY BLOCK: flag '%s' is not allowed.\n"
+                                        "  This project's govern.json is signed — bypass flags are\n"
+                                        "  implicitly blocked to prevent governance evasion.\n"
+                                        "  Help: Remove '%s' from your command.\n",
+                                        flag.c_str(), flag.c_str());
+                                    naab::governance::g_governance_hard_block = true;
+                                }
+                            };
+                            implicitBlock("--no-governance", no_governance);
+                            implicitBlock("--governance-override", governance_override);
+                        }
+                    }
                     if (naab::governance::g_governance_hard_block) {
                         fflush(stdout); fflush(stderr);
                         _exit(3);
@@ -1415,6 +1438,31 @@ int main(int argc, char** argv) {
                     checkBlocked("--governance-override", governance_override);
                     checkBlocked("--governance-baseline-save", governance_baseline_save);
                     checkBlocked("--no-governance", no_governance);
+
+                    // Gap 13/16: In enforce mode with a signed govern.json,
+                    // --no-governance and --governance-override are implicitly blocked
+                    // even without blocked_flags. Only applies when govern.json.sig exists.
+                    if (vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE) {
+                        std::string gov_dir = vm_governance.getGovernDir();
+                        bool config_is_signed = !gov_dir.empty() &&
+                            std::filesystem::exists(gov_dir + "/govern.json.sig");
+                        if (config_is_signed) {
+                            auto implicitBlock = [&](const std::string& flag, bool was_used) {
+                                if (was_used && !vm_governance.isBlockedFlag(flag)) {
+                                    fprintf(stderr,
+                                        "[governance] INTEGRITY BLOCK: flag '%s' is not allowed.\n"
+                                        "  This project's govern.json is signed — bypass flags are\n"
+                                        "  implicitly blocked to prevent governance evasion.\n"
+                                        "  Help: Remove '%s' from your command.\n",
+                                        flag.c_str(), flag.c_str());
+                                    naab::governance::g_governance_hard_block = true;
+                                }
+                            };
+                            implicitBlock("--no-governance", no_governance);
+                            implicitBlock("--governance-override", governance_override);
+                        }
+                    }
+
                     if (naab::governance::g_governance_hard_block) {
                         if (vm_governance.isActive()) vm_governance.writeReports();
                         fflush(stdout); fflush(stderr);
