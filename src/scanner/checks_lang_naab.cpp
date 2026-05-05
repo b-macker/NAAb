@@ -356,6 +356,83 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
             }
         }
     }
+
+    // 11. unsafe_args_access — args[N] without length guard or null-coalesce
+    if (isEnabled(CAT, "unsafe_args_access")) {
+        static const std::regex args_access_pat(R"(args\[(\d+)\])");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = nb_trim(lines[i]);
+            std::smatch m;
+            if (std::regex_search(s, m, args_access_pat)) {
+                // Safe if line contains ?? (null-coalesce)
+                if (s.find("??") != std::string::npos) continue;
+
+                // Check preceding 15 lines for a length guard
+                bool has_guard = false;
+                for (int j = std::max(0, static_cast<int>(i) - 15); j < static_cast<int>(i); ++j) {
+                    std::string prev = nb_trim(lines[j]);
+                    if (prev.find("len(args)") != std::string::npos) {
+                        has_guard = true;
+                        break;
+                    }
+                }
+                if (!has_guard) {
+                    addIssue(issues, filepath, static_cast<int>(i + 1),
+                             "unsafe_args_access", CAT,
+                             fmt::format("args[{}] accessed without length check or ?? fallback", m[1].str()),
+                             s,
+                             "Guard with `if len(args) > N` or use `args[N] ?? default`",
+                             "advisory");
+                }
+            }
+        }
+    }
+
+    // 12. hardcoded_return_value — return dict with literal 0 or "" for named keys
+    if (isEnabled(CAT, "hardcoded_return_value")) {
+        static const std::regex return_dict_pat(R"(return\s*\{)");
+        // Match "key": <literal> where literal is 0, "", [], {}, true, false, null
+        static const std::regex hardcoded_key_pat(
+            "\"(\\w+)\"\\s*:\\s*(?:0|\"\"|true|false|null|\\[\\]|\\{\\})\\s*[,}]");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = nb_trim(lines[i]);
+            if (!std::regex_search(s, return_dict_pat)) continue;
+
+            // Collect the full return statement (may span multiple lines)
+            std::string return_block = s;
+            int brace_depth = 0;
+            for (char c : s) {
+                if (c == '{') brace_depth++;
+                if (c == '}') brace_depth--;
+            }
+            for (size_t j = i + 1; j < lines.size() && brace_depth > 0; ++j) {
+                std::string line_j = lines[j];
+                return_block += " " + line_j;
+                for (char c : line_j) {
+                    if (c == '{') brace_depth++;
+                    if (c == '}') brace_depth--;
+                }
+            }
+
+            // Find hardcoded keys
+            auto begin = std::sregex_iterator(return_block.begin(), return_block.end(), hardcoded_key_pat);
+            auto end = std::sregex_iterator();
+            for (auto it = begin; it != end; ++it) {
+                std::string key = (*it)[1].str();
+                // Skip common legitimately-hardcoded keys
+                if (key == "success" || key == "ok" || key == "error" ||
+                    key == "solved" || key == "has_cycle" || key == "validated" ||
+                    key == "retry" || key == "status" || key == "enabled" ||
+                    key == "version" || key == "type") continue;
+                addIssue(issues, filepath, static_cast<int>(i + 1),
+                         "hardcoded_return_value", CAT,
+                         fmt::format("Return key \"{}\" has a hardcoded literal value — ensure it is computed from input", key),
+                         s,
+                         "Compute the value from input data instead of using a constant",
+                         "advisory");
+            }
+        }
+    }
 }
 
 } // namespace scanner

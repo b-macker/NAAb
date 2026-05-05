@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#define NAAB_GOV_VERSION "0.9.0"
+#define NAAB_GOV_VERSION "0.10.0"
 
 namespace fs = std::filesystem;
 

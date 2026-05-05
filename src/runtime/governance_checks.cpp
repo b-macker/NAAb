@@ -732,6 +732,17 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     "(?:#|//)\\s*(?:dummy|fake|fabricated|synthetic|contrived|artificial)\\s+(?:result|data|output|value|response|computation|calculation)",
     "(?:#|//)\\s*(?:omitted|elided|redacted|removed|cut)\\s+(?:for|due to)\\s+(?:brevity|space|time|simplicity)",
     "(?:#|//)\\s*(?:actual|real|proper|production|full)\\s+(?:implementation|logic|code|version)\\s+(?:would|should|goes|belongs)\\s+here",
+
+    // ============================================================
+    // EVA-EXTRA-2: Complexity gaming / scanner manipulation
+    // Catches comments that admit to gaming the complexity floor
+    // ============================================================
+    "(?:#|//)\\s*(?:complexity|score)\\s+(?:padding|gaming|hack|workaround|filler|inflation)",
+    "(?:#|//)\\s*(?:satisfy|pass|meet|reach|beat|fool|trick|game)\\s+(?:the\\s+)?(?:scanner|checker|validator|complexity|floor|threshold|score|gate|requirement)",
+    "(?:#|//)\\s*(?:just|only)\\s+(?:iterating|looping|adding|padding)\\s+to\\s+(?:satisfy|pass|meet|increase|boost|inflate|reach)",
+    "(?:#|//)\\s*(?:mandatory|required|needed|necessary)\\s+(?:complexity|padding|score|loop|iteration)",
+    "(?:#|//).*score\\s*(?:estimate|calculation|breakdown|:).*(?:need|require|missing|more|short)",
+    "(?:#|//)\\s*(?:complexity|score)\\s+(?:score\\s+)?(?:>=?|>|==|is)\\s*\\d+\\s*(?:required|needed|necessary)",
 };
 
 std::string GovernanceEngine::checkOversimplification(const std::string& code, int line) {
@@ -853,6 +864,13 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*let\\s+(\\w+)\\s*=\\s*\\1\\s*;?\\s*return\\s+\\2\\s*;?\\s*\\}",
     // NAAb multi-let copy-and-return: validate_*(p) { let a = p; let b = a; return b }
     "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*(?:let\\s+\\w+\\s*=\\s*\\w+\\s*;?\\s*){1,3}return\\s+\\w+\\s*;?\\s*\\}",
+
+    // EVA-EXTRA-4: Cosmetic sanitizers — string(param).trim() is not real sanitization
+    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\([^)]*\\)\\s*\\{\\s*let\\s+\\w+\\s*=\\s*string\\s*\\([^)]+\\)\\s*;?\\s*return\\s+\\w+\\.trim\\(\\)\\s*;?\\s*\\}",
+    // Cosmetic sanitizer: just wraps in string() and returns
+    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*(?:let\\s+\\w+\\s*=\\s*)?string\\s*\\(\\s*\\1\\s*\\)\\s*;?\\s*(?:return\\s+\\w+\\s*;?\\s*)?\\}",
+    // Effectless loop: single-line loop body with only a let declaration (no function calls)
+    "for\\s+\\w+\\s+in\\s+[^{\\n]+\\{\\s*let\\s+\\w+\\s*=\\s*\\w+\\[\\w+\\]\\s*;?\\s*\\}",
 
     // EVA-EXTRA-3: Numeric result fabrication patterns
     // Suspiciously precise hardcoded scores (LLMs love 0.85, 0.92, etc.)

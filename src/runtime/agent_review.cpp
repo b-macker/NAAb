@@ -90,6 +90,12 @@ static std::string buildDetectionPrompt(const std::string& categories,
         prompt += "Categories: " + categories + "\n";
     }
     prompt += "Do NOT include any literal secret values or API keys.\n\n";
+    prompt += "Common NAAb bugs to check for:\n";
+    prompt += "- Effectless loop: `for i in 0..len(arr) { let x = arr[i] }` — loop body has no side effects, variable x is never used\n";
+    prompt += "- Cosmetic sanitizer: `fn sanitize_x(d) { let s = string(d); return s.trim() }` — trim() on JSON is a no-op, not real sanitization\n";
+    prompt += "- Complexity padding: loops or code added solely to increase complexity score, with comments admitting it\n";
+    prompt += "- Hardcoded contract values: return keys that are always literal constants (e.g., `\"widest_section\": 0`) instead of computed\n";
+    prompt += "- Unsafe subscript: `args[N]` without length check — crashes on missing args\n\n";
     prompt += "Script to analyze:\n" + source;
     return prompt;
 }

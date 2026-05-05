@@ -4,6 +4,7 @@
 #include "naab/parser.h"
 #include <stdexcept>
 #include <unordered_set>
+#include <fstream>
 
 namespace naab {
 namespace vm {
@@ -1000,6 +1001,39 @@ void Compiler::visit(ast::UseStatement& node) {
 }
 
 void Compiler::visit(ast::FunctionDecl& node) {
+    int line = node.getLocation().line;
+
+    // Governance: function body quality checks (oversimplification, complexity floor, etc.)
+    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
+        std::ifstream src_file(source_file_);
+        if (src_file.is_open()) {
+            std::vector<std::string> src_lines;
+            std::string src_line;
+            while (std::getline(src_file, src_line)) {
+                src_lines.push_back(src_line);
+            }
+            src_file.close();
+            if (line <= static_cast<int>(src_lines.size())) {
+                std::string body_text;
+                int brace_depth = 0;
+                bool found_start = false;
+                for (size_t i = static_cast<size_t>(line - 1); i < src_lines.size(); ++i) {
+                    body_text += src_lines[i] + "\n";
+                    for (char c : src_lines[i]) {
+                        if (c == '{') { brace_depth++; found_start = true; }
+                        if (c == '}') brace_depth--;
+                    }
+                    if (found_start && brace_depth <= 0) break;
+                }
+                std::string err = governance_->checkNaabFunctionBody(
+                    node.getName(), body_text, line, source_file_);
+                if (!err.empty()) {
+                    throw std::runtime_error(err);
+                }
+            }
+        }
+    }
+
     // For local scope, declare before body so recursive self-references resolve
     bool is_local = (current_->scope_depth > 0);
     if (is_local) {
@@ -1063,6 +1097,37 @@ void Compiler::visit(ast::InterfaceDecl& node) {
 void Compiler::visit(ast::FunctionDeclStmt& node) {
     auto* decl = node.getDecl();
     int line = decl->getLocation().line;
+
+    // Governance: function body quality checks (oversimplification, complexity floor, etc.)
+    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
+        std::ifstream src_file(source_file_);
+        if (src_file.is_open()) {
+            std::vector<std::string> lines;
+            std::string src_line;
+            while (std::getline(src_file, src_line)) {
+                lines.push_back(src_line);
+            }
+            src_file.close();
+            if (line <= static_cast<int>(lines.size())) {
+                std::string body_text;
+                int brace_depth = 0;
+                bool found_start = false;
+                for (size_t i = static_cast<size_t>(line - 1); i < lines.size(); ++i) {
+                    body_text += lines[i] + "\n";
+                    for (char c : lines[i]) {
+                        if (c == '{') { brace_depth++; found_start = true; }
+                        if (c == '}') brace_depth--;
+                    }
+                    if (found_start && brace_depth <= 0) break;
+                }
+                std::string err = governance_->checkNaabFunctionBody(
+                    decl->getName(), body_text, line, source_file_);
+                if (!err.empty()) {
+                    throw std::runtime_error(err);
+                }
+            }
+        }
+    }
 
     // Check if this function was pre-hoisted by CompoundStmt
     int existing = resolveLocal(current_, decl->getName());
