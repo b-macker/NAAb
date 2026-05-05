@@ -3122,6 +3122,41 @@ void GovernanceEngine::saveDriftBaseline(
         }
     }
 
+    // Gap 4: Trust anchor check — if existing baseline records that signing was
+    // previously configured, require signing capability even if .sig was deleted.
+    // Prevents: delete .sig → --drift-baseline-save → bless tampered code.
+    {
+        std::ifstream existing(resolved);
+        if (existing.is_open()) {
+            try {
+                auto prev = nlohmann::json::parse(existing);
+                bool baseline_had_signing = false;
+                if (prev.contains("signing_configured") && prev["signing_configured"].get<bool>()) {
+                    baseline_had_signing = true;
+                }
+                if (!baseline_had_signing && prev.contains("files")) {
+                    for (auto& [fname, entry] : prev["files"].items()) {
+                        if (entry.contains("signature_present") && entry["signature_present"].get<bool>()) {
+                            baseline_had_signing = true;
+                            break;
+                        }
+                    }
+                }
+                if (baseline_had_signing && !hasSigningCapability()) {
+                    fprintf(stderr,
+                        "[governance] INTEGRITY BLOCK: Cannot overwrite baseline %s\n"
+                        "  This baseline records that governance signing was previously configured.\n"
+                        "  Signing keys must be present to save a new baseline.\n"
+                        "  Install the trusted public key: naab-lang --trust-key <pubkey.pem>\n",
+                        resolved.c_str());
+                    return;
+                }
+            } catch (...) {
+                // Baseline is corrupt or unreadable — allow overwrite
+            }
+        }
+    }
+
     // Load existing baseline (to preserve other files' entries)
     nlohmann::json baseline;
     {
