@@ -27,6 +27,7 @@ fn test_member_sanitizer() {
 }
 
 fn validate_data(x) {
+    if type(x) != "string" { return "" }
     return string(x)
 }
 

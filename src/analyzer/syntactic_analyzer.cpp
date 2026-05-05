@@ -8,11 +8,12 @@ namespace analyzer {
 
 SyntacticAnalyzer::SyntacticAnalyzer() {}
 
-SyntacticProfile SyntacticAnalyzer::analyze(const std::string& code) const {
+SyntacticProfile SyntacticAnalyzer::analyze(const std::string& code,
+                                             const std::string& function_name) const {
     SyntacticProfile profile;
 
     detectLoops(code, profile);
-    detectFunctions(code, profile);
+    detectFunctions(code, profile, function_name);
     detectDataFlow(code, profile);
     detectMemoryPatterns(code, profile);
     detectErrorHandling(code, profile);
@@ -43,6 +44,20 @@ void SyntacticAnalyzer::detectLoops(const std::string& code, SyntacticProfile& p
 
     profile.loop_count = total_loops;
 
+    // Discount small-range literal loops (likely complexity padding)
+    // "for x in 0..N" where N <= 3 gets reduced score
+    static const std::regex small_range_loop(R"(\bfor\s+\w+\s+in\s+0\.\.([0-9]+)\b)");
+    int padding_loops = 0;
+    {
+        auto sr_begin = std::sregex_iterator(code.begin(), code.end(), small_range_loop);
+        auto sr_end = std::sregex_iterator();
+        for (auto it = sr_begin; it != sr_end; ++it) {
+            int range_end = std::stoi((*it)[1].str());
+            if (range_end <= 3) padding_loops++;
+        }
+    }
+    profile.padding_loop_count = padding_loops;
+
     // Check for nested loops (rough heuristic: count indentation levels with loops)
     std::regex nested_for("\\bfor\\s+.*\\n.*\\bfor\\s+");
     profile.has_nested_loops = std::regex_search(code, nested_for);
@@ -54,7 +69,8 @@ void SyntacticAnalyzer::detectLoops(const std::string& code, SyntacticProfile& p
     profile.max_loop_depth = calculateNestingDepth(code);
 }
 
-void SyntacticAnalyzer::detectFunctions(const std::string& code, SyntacticProfile& profile) const {
+void SyntacticAnalyzer::detectFunctions(const std::string& code, SyntacticProfile& profile,
+                                         const std::string& function_name) const {
     // Detect function definitions
     std::vector<std::regex> function_patterns = {
         std::regex("\\bdef\\s+\\w+", std::regex::icase),         // Python
@@ -74,16 +90,12 @@ void SyntacticAnalyzer::detectFunctions(const std::string& code, SyntacticProfil
     profile.function_count = total_functions;
 
     // Check for recursion (function calling itself)
-    // Heuristic: if call count is disproportionate to function definitions.
-    // When total_functions=0 (analyzing a function body, not a full file),
-    // recursion can't be detected this way — skip it.
-    std::regex func_call("\\w+\\s*\\(");
-    auto begin = std::sregex_iterator(code.begin(), code.end(), func_call);
-    auto end = std::sregex_iterator();
-    int call_count = std::distance(begin, end);
-    if (total_functions > 0) {
-        profile.has_recursion = (call_count > total_functions * 2);
+    if (!function_name.empty()) {
+        // Direct detection: does the body contain a self-call?
+        std::regex self_call("\\b" + function_name + "\\s*\\(");
+        profile.has_recursion = std::regex_search(code, self_call);
     } else {
+        // No function name provided — can't reliably detect recursion
         profile.has_recursion = false;
     }
 
@@ -95,9 +107,13 @@ void SyntacticAnalyzer::detectDataFlow(const std::string& code, SyntacticProfile
     std::regex array_ops("\\.(map|filter|reduce|fold|scan|collect)\\s*\\(");
     profile.has_array_operations = std::regex_search(code, array_ops);
 
-    // Pipeline operator
-    std::regex pipeline("\\|>|->|>>|\\|");
-    profile.has_pipeline = std::regex_search(code, pipeline);
+    // Pipeline operator — only match NAAb's actual |> operator
+    // (NOT ||, >>, ->, or bare |, which are different operators)
+    std::regex pipeline_op("\\|>");
+    auto pipe_begin = std::sregex_iterator(code.begin(), code.end(), pipeline_op);
+    auto pipe_end = std::sregex_iterator();
+    profile.pipeline_count = static_cast<int>(std::distance(pipe_begin, pipe_end));
+    profile.has_pipeline = profile.pipeline_count > 0;
 
     // List/dict comprehensions
     std::regex comprehension("\\[.*\\bfor\\b.*\\bin\\b.*\\]");
@@ -200,8 +216,10 @@ int SyntacticAnalyzer::calculateNestingDepth(const std::string& code) const {
 int SyntacticAnalyzer::calculateComplexity(const SyntacticProfile& profile) const {
     int score = 0;
 
-    // Loop complexity
-    score += profile.loop_count * 5;
+    // Loop complexity (discount small-range padding loops)
+    int real_loops = profile.loop_count - profile.padding_loop_count;
+    score += real_loops * 5;
+    score += profile.padding_loop_count * 1;  // padding loops get minimal credit
     if (profile.has_nested_loops) score += 15;
     if (profile.has_large_iterations) score += 20;
 
@@ -211,7 +229,7 @@ int SyntacticAnalyzer::calculateComplexity(const SyntacticProfile& profile) cons
 
     // Data flow complexity
     if (profile.has_array_operations) score += 5;
-    if (profile.has_pipeline) score += 5;
+    score += std::min(profile.pipeline_count * 3, 15);  // +3 per |> stage, cap at 15
     if (profile.has_comprehension) score += 5;
 
     // Memory management complexity

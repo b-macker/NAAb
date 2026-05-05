@@ -48,10 +48,12 @@ fn test_prefix_sanitizer() {
 }
 
 fn validate_input(x) {
+    if type(x) != "string" { return "" }
     return string(x)
 }
 
 fn sanitize_value(x) {
+    if type(x) != "string" { return "" }
     return string(x)
 }
 

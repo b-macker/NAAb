@@ -697,18 +697,47 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     // EVA-5: Merged #//-prefixed patterns into (?:#|//) for all comment styles
     // ============================================================
 
-    "(?:#|//)\\s*(?:basic|simplified|simple|minimal|trivial|naive|rough|crude)\\s+(?:implementation|version|approach|logic|solution|code|algorithm)",
+    // ============================================================
+    // EVA-5+EXTRA-1 UNIFIED: Co-occurrence stub detection
+    // Instead of matching exact phrases ("basic implementation"),
+    // detect ANY comment containing both a diminishing adjective
+    // and a code noun, in any word order.
+    // ============================================================
+
+    // Diminishing adjective + code noun (any order)
+    "(?:#|//)(?=.*\\b(?:basic|simplified|simple|minimal|trivial|naive|rough|crude|approximate|toy|pedagogical|illustrative|proof.of.concept|MVP|bare.minimum|stripped.down|condensed|abridged|truncated)\\b)(?=.*\\b(?:implementation|version|approach|logic|solution|code|algorithm|example)\\b).*",
+
+    // Mock/fake/placeholder + data/result/value (any order)
+    "(?:#|//)(?=.*\\b(?:mock|dummy|fake|placeholder|simulated|hardcoded|synthetic|fabricated|generated|contrived|artificial|stand.?in|filler|surrogate|substitute)\\b)(?=.*\\b(?:data|implementation|results?|value|response|output|return|computation|calculation)\\b).*",
+
+    // "will/should be" + "replaced/implemented/completed" (any order)
+    "(?:#|//)(?=.*\\b(?:will|should|needs?|could|can|to)\\b)(?=.*\\bbe\\b)(?=.*\\b(?:replaced|implemented|completed|finished|done|updated|improved|expanded|fleshed)\\b).*",
+
+    // "left/serves/acts as" + "exercise/placeholder/skeleton" (any order)
+    "(?:#|//)(?=.*\\b(?:left|serves?|acts?|used)\\b)(?=.*\\bas\\b)(?=.*\\b(?:exercise|example|placeholder|starting.point|skeleton|template|scaffold|stub|fallback)\\b).*",
+
+    // "in a real/production" + "system/implementation" (any order)
+    "(?:#|//)(?=.*\\b(?:real|production|actual|proper|full|complete)\\b)(?=.*\\b(?:system|application|implementation|version|world|scenario|environment)\\b)(?=.*\\b(?:in|for|would|should|goes|belongs)\\b).*",
+
+    // "not fully implemented" — 3 groups to avoid false positives
+    "(?:#|//)(?=.*\\b(?:not|partially|incompletely|never)\\b)(?=.*\\b(?:fully|completely|properly|actually|really|truly)\\b)(?=.*\\b(?:implemented|finished|done|functional|working|complete|developed)\\b).*",
+    // "barely/hardly" + state (2 groups — these words imply both negation and degree)
+    "(?:#|//)(?=.*\\b(?:barely|hardly)\\b)(?=.*\\b(?:implemented|finished|done|functional|working|complete|developed)\\b).*",
+
+    // "omitted/elided for brevity/simplicity" (any order)
+    "(?:#|//)(?=.*\\b(?:omitted|elided|redacted|removed|cut|truncated)\\b)(?=.*\\b(?:brevity|space|time|simplicity|clarity|readability)\\b).*",
+
+    // Scaffold/skeleton + code noun (any order)
+    "(?:#|//)(?=.*\\b(?:skeleton|boilerplate|starter|template|scaffold)\\b)(?=.*\\b(?:code|implementation|version)\\b).*",
+
+    // --- Patterns that work fine as phrase-ordered (unique structures) ---
     "(?:#|//)\\s*(?:for|in)\\s+(?:demonstration|demo|testing|test|example|simplicity|now|this exercise)\\s*(?:purposes?|only)?",
-    "(?:#|//)\\s*(?:mock|dummy|fake|placeholder|simulated|hardcoded|synthetic|fabricated|generated)\\s+(?:data|implementation|result|value|response|output|return)",
-    "(?:#|//)\\s*(?:will be|to be|should be|needs to be|can be|could be)\\s+(?:replaced|implemented|completed|finished|done|updated|improved|expanded|fleshed out)",
-    "(?:#|//)\\s*(?:left as|serves as|acts as|used as)\\s+(?:an?\\s+)?(?:exercise|example|placeholder|starting point|skeleton|template|scaffold|stub|fallback)",
-    "(?:#|//)\\s*(?:in a|in the|for a)\\s+(?:real|production|actual|proper|full|complete)\\s+(?:system|application|implementation|version|world|scenario|environment)",
-    "(?:#|//)\\s*(?:not\\s+)?(?:fully|completely|properly|actually|really|truly)\\s+(?:implemented|finished|done|functional|working|complete|developed)",
     "(?:#|//)\\s*(?:this is|this was|here we|we just|i just|just)\\s+(?:a simplified|just a|only a|a basic|a rough|a naive|a quick|a temporary|a stopgap|using a simple)",
     "(?:#|//)\\s*(?:for now|temporary|interim|stopgap|quick and dirty|quick fix|short.?term|band.?aid)",
     "(?:#|//)\\s*(?:no.op|noop|no operation|does nothing|empty|stub|pass.?through|identity|dummy|skip|bypass|shortcut)",
     "(?:#|//)\\s*(?:would normally|would actually|should actually|in reality|ideally|in practice)\\s+(?:do|use|call|implement|process|compute|calculate|analyze|check|validate)",
     "(?:#|//)\\s*(?:skipping|omitting|ignoring|bypassing|not doing|not implementing|eliding)\\s+(?:actual|real|proper|full|the)\\s+(?:logic|implementation|computation|analysis|processing|validation|checking)",
+    "(?:#|//)\\s*(?:for brevity|for simplicity|for clarity|for readability)",
 
     // ============================================================
     // EVA-9: NAAb-specific function stub patterns (fn keyword, {} braces)
@@ -722,27 +751,34 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+\"\"\\s*\\}",       // fn x() { return "" }
 
     // ============================================================
-    // EVA-EXTRA-1: Creative LLM synonyms for stubs
-    // ============================================================
-    "(?:#|//)\\s*(?:approximate|toy|pedagogical|illustrative|proof.of.concept)\\s+(?:implementation|version|code|example)",
-    "(?:#|//)\\s*(?:MVP|bare.minimum|stripped.down|condensed|abridged|truncated)\\s+(?:version|implementation|code)",
-    "(?:#|//)\\s*(?:for brevity|for simplicity|for clarity|for readability)",
-    "(?:#|//)\\s*(?:skeleton|boilerplate|starter|template|scaffold)\\s+(?:code|implementation|version)",
-    "(?:#|//)\\s*(?:stand.?in|filler|surrogate|substitute)\\s+(?:implementation|code|data|value)",
-    "(?:#|//)\\s*(?:dummy|fake|fabricated|synthetic|contrived|artificial)\\s+(?:result|data|output|value|response|computation|calculation)",
-    "(?:#|//)\\s*(?:omitted|elided|redacted|removed|cut)\\s+(?:for|due to)\\s+(?:brevity|space|time|simplicity)",
-    "(?:#|//)\\s*(?:actual|real|proper|production|full)\\s+(?:implementation|logic|code|version)\\s+(?:would|should|goes|belongs)\\s+here",
-
-    // ============================================================
     // EVA-EXTRA-2: Complexity gaming / scanner manipulation
-    // Catches comments that admit to gaming the complexity floor
+    // Uses CO-OCCURRENCE detection: any comment containing both a
+    // governance concept (Group A) and a gaming intent word (Group B)
+    // in ANY order gets flagged. This eliminates whack-a-mole with
+    // specific phrase orderings ("complexity padding" vs "padding
+    // for complexity" vs "to boost complexity" etc.)
     // ============================================================
-    "(?:#|//)\\s*(?:complexity|score)\\s+(?:padding|gaming|hack|workaround|filler|inflation)",
-    "(?:#|//)\\s*(?:satisfy|pass|meet|reach|beat|fool|trick|game)\\s+(?:the\\s+)?(?:scanner|checker|validator|complexity|floor|threshold|score|gate|requirement)",
-    "(?:#|//)\\s*(?:just|only)\\s+(?:iterating|looping|adding|padding)\\s+to\\s+(?:satisfy|pass|meet|increase|boost|inflate|reach)",
-    "(?:#|//)\\s*(?:mandatory|required|needed|necessary)\\s+(?:complexity|padding|score|loop|iteration)",
+
+    // Co-occurrence: governance concept + gaming intent in same comment (any order)
+    // Group A: complexity|score|threshold|floor|scanner|checker|validator|gate|requirement
+    // Group B: padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial
+    // Note: "satisfy" excluded from Group B (too common in normal comments like
+    // "satisfy the user requirement") — handled separately with scanner-specific Group A
+    "(?:#|//)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement)\\b)(?=.*\\b(?:padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial)\\b).*",
+    // "satisfy" only flags with scanner-specific concepts (not generic "requirement")
+    "(?:#|//)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate)\\b)(?=.*\\b(?:satisfy)\\b).*",
+
+    // Co-occurrence variant: "just/only [doing X] to/for [governance concept]"
+    "(?:#|//)(?=.*\\b(?:just|only|merely|simply)\\b)(?=.*\\b(?:to|for)\\b)(?=.*\\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement|pass|meet|reach|satisfy)\\b).*",
+
+    // Score calculation/estimate comments (admitting score tracking)
     "(?:#|//).*score\\s*(?:estimate|calculation|breakdown|:).*(?:need|require|missing|more|short)",
-    "(?:#|//)\\s*(?:complexity|score)\\s+(?:score\\s+)?(?:>=?|>|==|is)\\s*\\d+\\s*(?:required|needed|necessary)",
+    // Score threshold comments: "Complexity score >= 20 required"
+    "(?:#|//).*(?:complexity|score).*(?:>=?|>|==|is)\\s*\\d+\\s*(?:required|needed|necessary)",
+
+    // Purpose-admission: comments that admit code serves no real purpose
+    "(?:#|//)\\s*(?:mandatory|required|needed|necessary)\\s+(?:complexity|padding|score|loop|iteration)",
+    "(?:#|//).*\\b(?:no-op|noop|dead code|unused|pointless|useless)\\b.*\\b(?:complexity|score|floor|gate|pass)\\b",
 };
 
 std::string GovernanceEngine::checkOversimplification(const std::string& code, int line) {
@@ -865,10 +901,11 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     // NAAb multi-let copy-and-return: validate_*(p) { let a = p; let b = a; return b }
     "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*(?:let\\s+\\w+\\s*=\\s*\\w+\\s*;?\\s*){1,3}return\\s+\\w+\\s*;?\\s*\\}",
 
-    // EVA-EXTRA-4: Cosmetic sanitizers — string(param).trim() is not real sanitization
-    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\([^)]*\\)\\s*\\{\\s*let\\s+\\w+\\s*=\\s*string\\s*\\([^)]+\\)\\s*;?\\s*return\\s+\\w+\\.trim\\(\\)\\s*;?\\s*\\}",
-    // Cosmetic sanitizer: just wraps in string() and returns
-    "fn\\s+(?:validate|sanitize|check|verify)_\\w*\\(\\s*(\\w+)\\s*\\)\\s*\\{\\s*(?:let\\s+\\w+\\s*=\\s*)?string\\s*\\(\\s*\\1\\s*\\)\\s*;?\\s*(?:return\\s+\\w+\\s*;?\\s*)?\\}",
+    // EVA-EXTRA-4: REMOVED — cosmetic sanitizer pattern matching replaced by
+    // checkCosmeticSanitizer() which inverts the logic: checks for PRESENCE of
+    // real sanitization ops rather than listing cosmetic transforms.
+    // Identity sanitizer patterns (lines 892-902 above) kept as fast-path.
+
     // Effectless loop: single-line loop body with only a let declaration (no function calls)
     "for\\s+\\w+\\s+in\\s+[^{\\n]+\\{\\s*let\\s+\\w+\\s*=\\s*\\w+\\[\\w+\\]\\s*;?\\s*\\}",
 
@@ -1246,6 +1283,113 @@ std::string GovernanceEngine::checkFunctionInputContract(
     return "";
 }
 
+// --- Cosmetic Sanitizer Detection ---
+// Instead of listing specific cosmetic transforms (whack-a-mole),
+// check if a sanitize_*/validate_* function contains ANY real
+// sanitization operation. If none found, it's cosmetic.
+
+std::string GovernanceEngine::checkCosmeticSanitizer(
+    const std::string& function_name,
+    const std::string& body,
+    int line) {
+
+    auto& cfg = rules_.code_quality.no_incomplete_logic;
+    if (!cfg.enabled) return "";
+
+    // Only check functions named sanitize_*/validate_*/check_*/verify_*
+    static const std::regex sanitizer_prefix(
+        "^(?:sanitize|validate|check|verify)_", std::regex::icase);
+    if (!std::regex_search(function_name, sanitizer_prefix)) return "";
+
+    // Skip short functions (< 3 lines can't meaningfully sanitize)
+    int line_count = static_cast<int>(std::count(body.begin(), body.end(), '\n')) + 1;
+    if (line_count < 3) return "";
+
+    // Check for real sanitization operations
+    bool has_real_sanitization = false;
+
+    // 1. Pattern validation (regex library usage)
+    if (body.find("regex.") != std::string::npos ||
+        body.find("regex_") != std::string::npos ||
+        body.find("re.match") != std::string::npos ||
+        body.find("re.search") != std::string::npos) {
+        has_real_sanitization = true;
+    }
+
+    // 2. Rejection path: if condition → return false/null/0/throw
+    if (!has_real_sanitization) {
+        static const std::regex rejection(
+            "if\\s+[^{]*\\{[^}]*(?:return\\s+(?:false|null|0|\"\"|\\[\\]|\\{\\})|throw\\s)",
+            std::regex::icase);
+        if (std::regex_search(body, rejection)) has_real_sanitization = true;
+    }
+
+    // 3. Type checking with rejection (type() + != or ==)
+    if (!has_real_sanitization) {
+        if (body.find("type(") != std::string::npos &&
+            (body.find("!=") != std::string::npos || body.find("==") != std::string::npos) &&
+            (body.find("return") != std::string::npos || body.find("throw") != std::string::npos)) {
+            has_real_sanitization = true;
+        }
+    }
+
+    // 4. Numeric conversion with try/catch (real error handling)
+    if (!has_real_sanitization) {
+        if ((body.find("int(") != std::string::npos || body.find("float(") != std::string::npos) &&
+            body.find("try") != std::string::npos && body.find("catch") != std::string::npos) {
+            has_real_sanitization = true;
+        }
+    }
+
+    // 5. Bounds/range checking
+    if (!has_real_sanitization) {
+        static const std::regex bounds_check(
+            "(?:>=?|<=?|>|<)\\s*(?:\\d+|len\\(|length\\(|size\\()",
+            std::regex::icase);
+        if (std::regex_search(body, bounds_check) &&
+            (body.find("return") != std::string::npos || body.find("throw") != std::string::npos)) {
+            has_real_sanitization = true;
+        }
+    }
+
+    // 6. Allowlist/blocklist check (.contains() or "in [")
+    if (!has_real_sanitization) {
+        if ((body.find(".contains(") != std::string::npos ||
+             body.find(" in [") != std::string::npos ||
+             body.find(" not in ") != std::string::npos) &&
+            (body.find("return") != std::string::npos || body.find("throw") != std::string::npos)) {
+            has_real_sanitization = true;
+        }
+    }
+
+    if (!has_real_sanitization) {
+        return enforce("code_quality.no_incomplete_logic", cfg.level,
+            formatError(cfg.level,
+                fmt::format("Function '{}' is named as a sanitizer/validator but contains "
+                    "no real sanitization — no regex, no rejection path, no type check, "
+                    "no bounds check", function_name),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "code_quality.no_incomplete_logic",
+                "Sanitizer/validator functions must contain real validation logic:\n"
+                "  - Type checking: if type(x) != \"string\" { return null }\n"
+                "  - Bounds check: if val < 0 { return 0 }\n"
+                "  - Pattern match: if !regex.test(pattern, input) { return null }\n"
+                "  - Allowlist: if category not in allowed { throw ... }\n\n"
+                "  string(x).trim() or string(x).lower() alone is NOT sanitization.",
+                "fn sanitize_input(data) {\n"
+                "    let s = string(data)\n"
+                "    return s.trim()  // cosmetic — no validation\n"
+                "}",
+                "fn sanitize_input(data) {\n"
+                "    if type(data) != \"string\" { return \"\" }\n"
+                "    let s = data.trim()\n"
+                "    if s.length() > 1000 { return s.substring(0, 1000) }\n"
+                "    return s\n"
+                "}"));
+    }
+    return "";
+}
+
 // --- Complexity Floor Check ---
 
 std::string GovernanceEngine::checkComplexityFloor(
@@ -1265,7 +1409,7 @@ std::string GovernanceEngine::checkComplexityFloor(
     analyzer::SyntacticAnalyzer sa;
     analyzer::SyntacticProfile profile;
     try {
-        profile = sa.analyze(code);
+        profile = sa.analyze(code, function_name);
     } catch (...) {
         return "";  // Can't analyze — skip floor check
     }
@@ -1317,17 +1461,19 @@ std::string GovernanceEngine::checkComplexityFloor(
             formatError(cfg.level, msg,
                 line > 0 ? fmt::format("line {}", line) : "",
                 "code_quality.complexity_floor",
-                fmt::format("Score {}/100: loops={}, nesting={}, calls={}, recursion={}\n\n"
+                fmt::format("Score {}/100: loops={} (padding={}), nesting={}, calls={}, recursion={}, pipelines={}\n\n"
                     "  What adds complexity:\n"
                     "    +5  each real loop (for/while over data)     +5  try/catch\n"
-                    "    +15 nested loops                              +5  array operations (map_fn, filter_fn)\n"
+                    "    +1  small-range loop (0..1, 0..2, 0..3)     +5  array operations\n"
+                    "    +15 nested loops                              +3  per |> pipeline stage (cap 15)\n"
                     "    +3  each function definition                  +10 recursion\n"
-                    "    +1  each external function call               +5  pipeline (|>)\n\n"
+                    "    +1  each external function call\n\n"
                     "  Tip: Add real logic — input validation, edge cases, error handling.\n"
                     "  Do NOT pad with for i in 0..1 {{}} loops.",
-                    profile.complexity_score, profile.loop_count,
+                    profile.complexity_score, profile.loop_count, profile.padding_loop_count,
                     (profile.has_try_catch ? 1 : 0) + profile.max_function_depth,
-                    profile.external_call_count, profile.has_recursion ? "yes" : "no"),
+                    profile.external_call_count, profile.has_recursion ? "yes" : "no",
+                    profile.pipeline_count),
                 "fn apply_damage(ent, damage) {\n"
                 "    ent[\"hp\"] = ent.get(\"hp\") - damage\n"
                 "    for i in 0..1 { if ent.get(\"hp\") < 0 { ent[\"hp\"] = 0 } }\n"
@@ -1422,6 +1568,11 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     if (il_cfg.enabled) {
         err = checkIncompleteLogic(stripped, line, source_file);
+        if (!err.empty()) return err;
+
+        // Cosmetic sanitizer check — uses inverted logic: checks for PRESENCE
+        // of real sanitization ops rather than listing specific cosmetic patterns
+        err = checkCosmeticSanitizer(function_name, stripped, line);
         if (!err.empty()) return err;
     }
 

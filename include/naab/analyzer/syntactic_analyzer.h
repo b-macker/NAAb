@@ -16,6 +16,7 @@ struct SyntacticProfile {
     // Loop metrics
     bool has_nested_loops = false;
     int loop_count = 0;
+    int padding_loop_count = 0;         // small-range loops (0..1, 0..2, 0..3)
     int max_loop_depth = 0;
     bool has_large_iterations = false;  // range(1000000+)
 
@@ -27,6 +28,7 @@ struct SyntacticProfile {
     // Data flow patterns
     bool has_array_operations = false;   // map/filter/reduce
     bool has_pipeline = false;           // x |> y |> z
+    int pipeline_count = 0;             // number of |> stages
     bool has_comprehension = false;      // [x for x in y]
 
     // Memory patterns
@@ -63,7 +65,8 @@ public:
      * @param code Source code to analyze
      * @return Syntactic profile
      */
-    SyntacticProfile analyze(const std::string& code) const;
+    SyntacticProfile analyze(const std::string& code,
+                             const std::string& function_name = "") const;
 
     /**
      * Calculate complexity score from profile
@@ -82,7 +85,8 @@ private:
     /**
      * Detect functions in code
      */
-    void detectFunctions(const std::string& code, SyntacticProfile& profile) const;
+    void detectFunctions(const std::string& code, SyntacticProfile& profile,
+                         const std::string& function_name = "") const;
 
     /**
      * Detect data flow patterns
