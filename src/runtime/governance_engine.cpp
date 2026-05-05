@@ -1229,6 +1229,7 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     config.scorer_name = rules_.agent_review.scorer;
     config.enforcement = rules_.agent_review.enforcement;
     config.cache = rules_.agent_review.cache;
+    config.hints = rules_.agent_review.hints;
 
     auto result = runtime::runAgentReview(config, rules_, source, govern_json_dir_);
 
@@ -1273,6 +1274,17 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
                         f.category.c_str(), f.source_agent.c_str(), f.message.c_str());
             }
             fprintf(stderr, "\n");
+        }
+    }
+
+    // Print rejected findings as hints (when enabled in govern.json)
+    if (rules_.agent_review.hints && !result.rejected_findings.empty()) {
+        fprintf(stderr, "[hint] Agent review rejected %zu finding(s):\n",
+                result.rejected_findings.size());
+        for (const auto& f : result.rejected_findings) {
+            fprintf(stderr, "[hint]   [%s] (%s) %s\n",
+                    f.category.c_str(), f.source_agent.c_str(),
+                    f.message.substr(0, 120).c_str());
         }
     }
 }

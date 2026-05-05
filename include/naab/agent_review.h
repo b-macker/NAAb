@@ -24,6 +24,7 @@ struct AgentReviewConfig {
     std::string scorer_name;
     std::map<std::string, std::string> enforcement;  // zone -> level (advisory/soft/hard)
     bool cache = false;
+    bool hints = false;         // show rejected findings as [hint] lines
 };
 
 struct AgentReviewFinding {
@@ -39,6 +40,7 @@ struct AgentReviewResult {
     bool cache_hit = false;
     std::string source_hash;
     std::vector<AgentReviewFinding> findings;
+    std::vector<AgentReviewFinding> rejected_findings;  // analyst-rejected (for hints)
     int raw_count = 0;
     int confirmed_count = 0;
     int false_positive_count = 0;

@@ -1761,6 +1761,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.validation = ar.value("validation", "");
         rules_.agent_review.voice = ar.value("voice", "");
         rules_.agent_review.cache = ar.value("cache", false);
+        rules_.agent_review.hints = ar.value("hints", false);
         if (ar.contains("detection") && ar["detection"].is_array()) {
             for (const auto& d : ar["detection"]) {
                 if (d.is_string()) rules_.agent_review.detection.push_back(d.get<std::string>());

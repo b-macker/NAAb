@@ -1439,6 +1439,7 @@ struct GovernanceRules {
         std::string scorer;                        // scorer config name
         std::map<std::string, std::string> enforcement;  // zone -> level
         bool cache = false;
+        bool hints = false;  // show rejected findings as [hint] lines
     } agent_review;
 
     // --- Quality gate (Feature 2) ---

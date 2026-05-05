@@ -164,6 +164,16 @@ static bool loadCache(const std::string& path, AgentReviewResult& result) {
                 result.findings.push_back(finding);
             }
         }
+        if (j.contains("rejected") && j["rejected"].is_array()) {
+            for (const auto& fj : j["rejected"]) {
+                AgentReviewFinding finding;
+                finding.category = fj.value("category", "");
+                finding.message = fj.value("message", "");
+                finding.source_agent = fj.value("source_agent", "");
+                finding.validated = false;
+                result.rejected_findings.push_back(finding);
+            }
+        }
         return true;
     } catch (...) {
         return false;
@@ -195,6 +205,16 @@ static void saveCache(const std::string& path, const AgentReviewResult& result) 
         findings_arr.push_back(fj);
     }
     j["findings"] = findings_arr;
+
+    json rejected_arr = json::array();
+    for (const auto& f : result.rejected_findings) {
+        json fj;
+        fj["category"] = f.category;
+        fj["message"] = f.message;
+        fj["source_agent"] = f.source_agent;
+        rejected_arr.push_back(fj);
+    }
+    j["rejected"] = rejected_arr;
 
     std::ofstream out(path);
     if (out.is_open()) {
@@ -337,6 +357,12 @@ AgentReviewResult runAgentReview(
                 result.confirmed_count++;
             } else {
                 result.false_positive_count++;
+                AgentReviewFinding rf;
+                rf.category = all_raw_findings[i].category;
+                rf.message = all_raw_findings[i].description;
+                rf.source_agent = finding_sources[i];
+                rf.validated = false;
+                result.rejected_findings.push_back(rf);
             }
         }
 
