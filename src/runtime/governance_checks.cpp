@@ -995,6 +995,109 @@ static std::vector<std::string> extractIntentKeywords(const std::string& text) {
     return keywords;
 }
 
+// Helper: strip comments, string literals, and locally-declared variable names from code
+// so they don't inflate keyword matches during intent validation.
+// Two-pass: first collect variable names from `let` declarations, then remove all
+// occurrences of those names plus comments and strings.
+static std::string stripNonCodeContent(const std::string& code) {
+    // Pass 1: collect variable names from `let <name>` declarations
+    std::unordered_set<std::string> local_vars;
+    {
+        size_t i = 0;
+        while (i < code.size()) {
+            // Skip strings
+            if (code[i] == '"') {
+                i++;
+                while (i < code.size() && code[i] != '"') {
+                    if (code[i] == '\\' && i + 1 < code.size()) i++;
+                    i++;
+                }
+                if (i < code.size()) i++;
+                continue;
+            }
+            // Find `let ` keyword
+            if (i + 3 < code.size() && code.substr(i, 4) == "let ") {
+                i += 4;
+                while (i < code.size() && (code[i] == ' ' || code[i] == '\t')) i++;
+                std::string name;
+                while (i < code.size() &&
+                       (std::isalnum(static_cast<unsigned char>(code[i])) || code[i] == '_')) {
+                    name += code[i]; i++;
+                }
+                if (name.size() >= 3) {
+                    local_vars.insert(name);
+                }
+                continue;
+            }
+            i++;
+        }
+    }
+
+    // Pass 2: strip comments, long strings (>20 chars, keyword stuffing), and local var names
+    std::string result;
+    result.reserve(code.size());
+    size_t i = 0;
+    while (i < code.size()) {
+        // Skip /// and // comments
+        if (i + 1 < code.size() && code[i] == '/' && code[i + 1] == '/') {
+            while (i < code.size() && code[i] != '\n') i++;
+            continue;
+        }
+        // Handle string literals: keep short ones (dict keys, field names), strip long ones
+        if (code[i] == '"') {
+            i++;
+            std::string str_content;
+            while (i < code.size() && code[i] != '"') {
+                if (code[i] == '\\' && i + 1 < code.size()) {
+                    str_content += code[i]; str_content += code[i + 1];
+                    i += 2;
+                } else {
+                    str_content += code[i]; i++;
+                }
+            }
+            if (i < code.size()) i++; // skip closing quote
+            // Keep short strings (<= 20 chars) — likely dict keys, field names, format strings
+            // Strip long strings — likely keyword stuffing / intent restatements
+            if (str_content.size() <= 20) {
+                result += '"';
+                result += str_content;
+                result += '"';
+            } else {
+                result += ' ';
+            }
+            continue;
+        }
+        // Skip single-quoted string literals (always strip — not dict keys)
+        if (code[i] == '\'') {
+            i++;
+            while (i < code.size() && code[i] != '\'') {
+                if (code[i] == '\\' && i + 1 < code.size()) i++;
+                i++;
+            }
+            if (i < code.size()) i++;
+            result += ' ';
+            continue;
+        }
+        // Check for identifier — if it matches a local variable name, erase it
+        if (std::isalpha(static_cast<unsigned char>(code[i])) || code[i] == '_') {
+            std::string word;
+            while (i < code.size() &&
+                   (std::isalnum(static_cast<unsigned char>(code[i])) || code[i] == '_')) {
+                word += code[i]; i++;
+            }
+            if (local_vars.count(word)) {
+                result += ' '; // preserve word boundary but erase the name
+            } else {
+                result += word;
+            }
+            continue;
+        }
+        result += code[i];
+        i++;
+    }
+    return result;
+}
+
 // Helper: check keyword overlap between intent and body+name
 static double keywordOverlap(const std::vector<std::string>& keywords,
                               const std::string& body, const std::string& name,
@@ -1074,24 +1177,89 @@ std::string GovernanceEngine::checkIntentValidation(
         }
 
         // Body vs owner intent (configured level — this is ground truth)
-        // Strip the function declaration line — parameter names create false keyword matches
+        // Strip: 1) function declaration line (param names create false matches)
+        //        2) comments and string literals (keyword stuffing vectors)
         std::string inner_body = body;
         size_t first_brace = inner_body.find('{');
         if (first_brace != std::string::npos && first_brace + 1 < inner_body.size()) {
             inner_body = inner_body.substr(first_brace + 1);
         }
+        inner_body = stripNonCodeContent(inner_body);
         auto keywords = extractIntentKeywords(owner_intent);
         if (keywords.size() >= 3) {
             std::string missing;
             // Don't match against function_name — owner defined that slot, so name match is circular
             double overlap = keywordOverlap(keywords, inner_body, "", missing);
-            if (overlap < 0.3 && keywords.size() >= 4) {
+            if (overlap < 0.2 && keywords.size() >= 4) {
                 return enforce("code_quality.intent_validation", cfg.level,
                     fmt::format("Intent mismatch on '{}': {:.0f}% overlap with owner requirement.\n"
                         "  Owner requires: \"{}\"\n"
                         "  Missing from code: {}\n"
                         "  The implementation does not match the project owner's specification.",
                         function_name, overlap * 100, owner_intent, missing));
+            }
+        }
+
+        // Side-effect detection: flag I/O operations not mentioned in owner intent
+        // Catches dual-purpose attacks where code does the right thing PLUS exfiltrates
+        {
+            std::string intent_lower = owner_intent;
+            std::transform(intent_lower.begin(), intent_lower.end(), intent_lower.begin(), ::tolower);
+            std::string body_lower = body;
+            std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
+
+            // I/O operations that should be mentioned in intent if present in code
+            static const std::vector<std::pair<std::string, std::string>> side_effects = {
+                {"print(", "print/output"},
+                {"io.write(", "I/O write"},
+                {"io.write_error(", "stderr write"},
+                {"file.write(", "file write"},
+                {"file.append(", "file append"},
+                {"file.delete(", "file delete"},
+                {"http.get(", "network call"},
+                {"http.post(", "network call"},
+                {"http.request(", "network call"},
+                {"env.set_var(", "env modification"},
+                {"process.exec(", "process execution"},
+                {"process.run(", "process execution"},
+            };
+
+            // Intent keywords that signal I/O is expected
+            static const std::vector<std::string> io_intent_words = {
+                "print", "output", "write", "log", "display", "show", "file",
+                "network", "http", "send", "fetch", "stdout", "stderr", "report",
+                "format", "emit", "publish"
+            };
+
+            bool intent_mentions_io = false;
+            for (const auto& w : io_intent_words) {
+                if (intent_lower.find(w) != std::string::npos) {
+                    intent_mentions_io = true;
+                    break;
+                }
+            }
+
+            if (!intent_mentions_io) {
+                std::vector<std::string> found_effects;
+                for (const auto& [pattern, label] : side_effects) {
+                    if (body_lower.find(pattern) != std::string::npos) {
+                        found_effects.push_back(label);
+                    }
+                }
+                if (!found_effects.empty()) {
+                    std::string effects_str;
+                    for (const auto& e : found_effects) {
+                        if (!effects_str.empty()) effects_str += ", ";
+                        effects_str += e;
+                    }
+                    enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                        fmt::format("Unexpected side effects in '{}': {} found but owner intent "
+                            "doesn't mention I/O.\n"
+                            "  Owner requires: \"{}\"\n"
+                            "  Detected: {}\n"
+                            "  Functions should only perform operations described in their intent.",
+                            function_name, found_effects.size(), owner_intent, effects_str));
+                }
             }
         }
 
