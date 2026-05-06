@@ -19,6 +19,7 @@
 #include <chrono>
 #include <regex>
 #include <mutex>
+#include <atomic>
 #include <set>
 
 #include "naab/project_context.h"
@@ -1339,6 +1340,7 @@ struct AgentConfig {
     double temperature = 1.0;
     std::string stop_reason_action = "end";
     bool stream = false;
+    int timeout_seconds = 30;  // F11: per-call LLM API timeout
 };
 
 // ============================================================================
@@ -1460,6 +1462,7 @@ struct GovernanceRules {
         std::map<std::string, std::string> enforcement;  // zone -> level
         bool cache = false;
         bool hints = false;  // show rejected findings as [hint] lines
+        std::string fail_policy = "open";  // F10: "open" or "closed"
     } agent_review;
 
     // --- Quality gate (Feature 2) ---
@@ -1499,6 +1502,7 @@ struct CheckResult {
     std::string file;         // source file path
     std::vector<std::string> cwe_ids;    // e.g., {"CWE-89"}
     std::vector<std::string> owasp_ids;  // e.g., {"A03:2021"}
+    bool preflight = false;   // F8: preflight results survive FIFO eviction
 };
 
 // ============================================================================
@@ -1606,7 +1610,7 @@ struct RateLimiter {
 
 // Process-level flag for exit code determination (Feature 1)
 // Survives stack unwinding — set in enforce() when HARD violation fires
-extern bool g_governance_hard_block;
+extern std::atomic<bool> g_governance_hard_block;
 
 class GovernanceEngine {
 public:
@@ -2034,6 +2038,7 @@ private:
     std::string current_check_file_;    // Set by setCheckContext() for report tracking
     int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_set<std::string> emitted_advisories_;  // Dedup advisory warnings
+    bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
     std::unordered_set<std::string> taint_set_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint

@@ -23,6 +23,7 @@
 #include <sstream>
 #include <regex>
 #include <chrono>
+#include <algorithm>
 #include <functional>
 #ifndef _WIN32
 #  include <sys/file.h>
@@ -34,7 +35,8 @@ namespace naab {
 
 namespace governance {
     // Feature 1: Process-level flag for exit code determination
-    bool g_governance_hard_block = false;
+    // V-CONC-F6: std::atomic for thread-safe access from concurrent polyglot executors
+    std::atomic<bool> g_governance_hard_block{false};
 
     // Thread-local governance engine for stdlib module access
     static thread_local GovernanceEngine* t_current_engine = nullptr;
@@ -386,10 +388,17 @@ std::string GovernanceEngine::enforce(
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
         check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
-                                  current_check_line_, current_check_file_, cwes, owasps});
-        // V-GOV-024: cap telemetry
+                                  current_check_line_, current_check_file_, cwes, owasps,
+                                  preflight_mode_});
+        // V-GOV-024: cap telemetry — F8: skip preflight entries during eviction
         if (check_results_.size() > MAX_CHECK_RESULTS) {
-            check_results_.erase(check_results_.begin());
+            auto it = std::find_if(check_results_.begin(), check_results_.end(),
+                [](const CheckResult& cr) { return !cr.preflight; });
+            if (it != check_results_.end()) {
+                check_results_.erase(it);
+            } else {
+                check_results_.erase(check_results_.begin());
+            }
         }
 
         // Cumulative risk scoring — ADVISORY findings only
@@ -410,12 +419,17 @@ std::string GovernanceEngine::enforce(
         }
     }
 
-    // Audit mode: never block, just log
+    // Audit mode: never block, just log — except safety-critical checks
     if (rules_.mode == GovernanceMode::AUDIT) {
-        fprintf(stderr, "[governance] AUDIT %s: %s\n",
-                rule_name.c_str(),
-                violation_message.substr(0, violation_message.find('\n')).c_str());
-        return "";  // Don't block
+        // F3: no_secrets and no_pii always enforce, even in AUDIT mode
+        if (rule_name != "restrictions.no_secrets" &&
+            rule_name != "code_quality.no_pii") {
+            fprintf(stderr, "[governance] AUDIT %s: %s\n",
+                    rule_name.c_str(),
+                    violation_message.substr(0, violation_message.find('\n')).c_str());
+            return "";  // Don't block
+        }
+        // Fall through to normal enforcement for secrets/PII
     }
 
     switch (level) {
@@ -433,7 +447,9 @@ std::string GovernanceEngine::enforce(
             }
             return violation_message;
 
-        case EnforcementLevel::ADVISORY:
+        case EnforcementLevel::ADVISORY: {
+            // V-CONC-F7: mutex-guard emitted_advisories_ and score_yellow_warned_
+            std::lock_guard<std::mutex> adv_lock(results_mutex_);
             if (emitted_advisories_.insert(rule_name).second) {
                 // Suppress individual warnings for agent_review.* — voice block covers them
                 if (rule_name.rfind("agent_review.", 0) != 0) {
@@ -451,6 +467,7 @@ std::string GovernanceEngine::enforce(
                     rules_.scoring.red_threshold);
             }
             return "";  // Don't block
+        }
     }
     return "";
 }
@@ -1247,7 +1264,12 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     }
     if (!result.error.empty()) {
         fprintf(stderr, "[governance] Agent review error: %s\n", result.error.c_str());
-        return;  // Graceful degradation — don't block on agent failure
+        // F10: fail_policy controls behavior on agent review errors
+        if (rules_.agent_review.fail_policy == "closed") {
+            fprintf(stderr, "[governance] Agent review fail_policy:closed — blocking execution.\n");
+            g_governance_hard_block = true;
+        }
+        return;
     }
     if (!result.executed) return;
 
@@ -1803,6 +1825,13 @@ std::string GovernanceEngine::preflightIntentCheck(
     if (!cfg.enabled) return "";
     if (cfg.mode == "agent") return "";  // agent-only defers to LLM review
 
+    // F8: Mark results as preflight so they survive FIFO eviction
+    preflight_mode_ = true;
+    struct PreflightGuard {
+        bool& flag;
+        ~PreflightGuard() { flag = false; }
+    } pf_guard{preflight_mode_};
+
     // Check all top-level functions
     for (const auto& fn : program.getFunctions()) {
         if (!fn) continue;
@@ -1832,6 +1861,29 @@ std::string GovernanceEngine::preflightIntentCheck(
             "main", mb->getIntent(), body, mb->getLocation().line);
         if (!err.empty()) return err;
     }
+
+    // F14: Detect orphaned function_intents keys — govern.json references
+    // functions that don't exist in this source file
+    if (!cfg.function_intents.empty()) {
+        std::unordered_set<std::string> checked;
+        for (const auto& fn : program.getFunctions())
+            if (fn) checked.insert(fn->getName());
+        for (const auto& ex : program.getExports())
+            if (ex && ex->getFunctionDecl()) checked.insert(ex->getFunctionDecl()->getName());
+        if (program.getMainBlock()) checked.insert("main");
+
+        for (const auto& [name, intent] : cfg.function_intents) {
+            if (checked.find(name) == checked.end()) {
+                enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                    fmt::format("Orphaned function_intents key '{}' — no matching "
+                                 "function in source.", name));
+            }
+        }
+    }
+
+    // F15: NOTE — getFunctions() returns top-level functions only. Lambdas are
+    // not independently checked. Lambda bodies ARE included in the enclosing
+    // function's extracted body text, so side-effect detection still catches them.
 
     return "";
 }

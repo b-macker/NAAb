@@ -37,7 +37,8 @@ static size_t ProviderWriteCallback(void* contents, size_t size, size_t nmemb, v
 static json httpPost(
     const std::string& url,
     const std::string& body,
-    const std::vector<std::string>& header_lines) {
+    const std::vector<std::string>& header_lines,
+    long timeout_seconds = 120L) {
 
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -55,7 +56,7 @@ static json httpPost(
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ProviderWriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
 
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_seconds > 0 ? timeout_seconds : 30L);
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
@@ -140,7 +141,8 @@ static json callAnthropic(
             "anthropic-version: 2023-06-01",
             "content-type: application/json",
             "User-Agent: NAAb/1.0"
-        });
+        },
+        static_cast<long>(config.timeout_seconds));
 }
 
 // ============================================================================
@@ -196,7 +198,8 @@ static json callGemini(
                     + config.model + ":generateContent?key=" + api_key;
 
     return httpPost(url, request_body.dump(),
-        {"content-type: application/json", "User-Agent: NAAb/1.0"});
+        {"content-type: application/json", "User-Agent: NAAb/1.0"},
+        static_cast<long>(config.timeout_seconds));
 }
 
 // ============================================================================

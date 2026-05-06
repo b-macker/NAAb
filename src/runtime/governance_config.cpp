@@ -1709,6 +1709,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.stop_reason_action = cfg_json["stop_reason_action"].get<std::string>();
                 if (cfg_json.contains("stream"))
                     agent.stream = cfg_json["stream"].get<bool>();
+                if (cfg_json.contains("timeout"))
+                    agent.timeout_seconds = cfg_json["timeout"].get<int>();
             }
 
             rules_.agents.push_back(agent);
@@ -1789,6 +1791,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.voice = ar.value("voice", "");
         rules_.agent_review.cache = ar.value("cache", false);
         rules_.agent_review.hints = ar.value("hints", false);
+        rules_.agent_review.fail_policy = ar.value("fail_policy", "open");
         if (ar.contains("detection") && ar["detection"].is_array()) {
             for (const auto& d : ar["detection"]) {
                 if (d.is_string()) rules_.agent_review.detection.push_back(d.get<std::string>());
@@ -1854,6 +1857,28 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
 // minimum enforcement levels. An LLM could write govern.json with all
 // checks set to "advisory" (warn-only) to bypass quality gates.
 void GovernanceEngine::enforceMinimumLevels() {
+    // F3: Signed configs cannot use AUDIT mode — override to ENFORCE
+    if (rules_.mode == GovernanceMode::AUDIT && !loaded_path_.empty()) {
+        std::string sig_path = loaded_path_ + ".sig";
+        std::error_code ec;
+        if (std::filesystem::exists(sig_path, ec)) {
+            fprintf(stderr,
+                "[governance] WARNING: Signed govern.json has mode:audit — "
+                "overriding to ENFORCE.\n");
+            rules_.mode = GovernanceMode::ENFORCE;
+        }
+    }
+
+    // F3: no_secrets and no_pii always minimum SOFT regardless of mode
+    if (rules_.code_quality.no_secrets.enabled &&
+        rules_.code_quality.no_secrets.level < EnforcementLevel::SOFT) {
+        rules_.code_quality.no_secrets.level = EnforcementLevel::SOFT;
+    }
+    if (rules_.code_quality.no_pii.enabled &&
+        rules_.code_quality.no_pii.level < EnforcementLevel::SOFT) {
+        rules_.code_quality.no_pii.level = EnforcementLevel::SOFT;
+    }
+
     // Helper: silently elevate advisory to soft for anti-evasion checks
     // (documented behavior — no per-run warning noise)
     auto elevate = [](auto& cfg, const char* /*name*/) {

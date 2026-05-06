@@ -955,7 +955,53 @@ int main(int argc, char** argv) {
             if (gov_loaded && shared_governance.isActive()) {
                 const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
                 const char* _signing_key = std::getenv("NAAB_SIGNING_KEY");
-                bool _has_authority = (_govern_key && *_govern_key) || (_signing_key && *_signing_key);
+                // F1: Validate key against project's signature — not just existence
+                bool _has_authority = false;
+                {
+                    std::string gov_dir = shared_governance.getGovernDir();
+                    std::string sig_path = gov_dir + "/govern.json.sig";
+                    std::string gov_path = gov_dir + "/govern.json";
+                    std::error_code _ec;
+                    if (!gov_dir.empty() && std::filesystem::exists(sig_path, _ec)) {
+                        std::ifstream gf(gov_path);
+                        std::ifstream sf(sig_path);
+                        if (gf.is_open() && sf.is_open()) {
+                            std::string content((std::istreambuf_iterator<char>(gf)),
+                                                 std::istreambuf_iterator<char>());
+                            std::string stored_sig((std::istreambuf_iterator<char>(sf)),
+                                                    std::istreambuf_iterator<char>());
+                            // Trim trailing newlines from sig
+                            while (!stored_sig.empty() && (stored_sig.back() == '\n' || stored_sig.back() == '\r'))
+                                stored_sig.pop_back();
+
+                            if (_signing_key && *_signing_key) {
+                                // Ed25519: read key file, verify sig
+                                std::ifstream kf(_signing_key);
+                                if (kf.is_open()) {
+                                    std::string key_pem((std::istreambuf_iterator<char>(kf)),
+                                                         std::istreambuf_iterator<char>());
+                                    // Sig format: "ed25519:<base64>"
+                                    if (stored_sig.rfind("ed25519:", 0) == 0) {
+                                        std::string b64 = stored_sig.substr(8);
+                                        _has_authority = naab::security::CryptoUtils::ed25519Verify(
+                                            content, b64, key_pem);
+                                    }
+                                }
+                            } else if (_govern_key && *_govern_key) {
+                                // Legacy HMAC: verify key produces matching sig
+                                std::string expected_hmac = naab::security::CryptoUtils::hmacSha256(
+                                    content, std::string(_govern_key));
+                                // Sig format: "hmac:<hex>" or raw hex (legacy)
+                                std::string sig_value = stored_sig;
+                                if (sig_value.rfind("hmac:", 0) == 0)
+                                    sig_value = sig_value.substr(5);
+                                _has_authority = naab::security::CryptoUtils::constantTimeCompare(
+                                    expected_hmac, sig_value);
+                            }
+                        }
+                    }
+                    // No .sig file = unsigned project — key has nothing to validate against
+                }
                 if (!_has_authority) {
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && shared_governance.isBlockedFlag(flag)) {
@@ -1314,6 +1360,32 @@ int main(int argc, char** argv) {
                     _exit(3);
                 }
                 if (!gov_loaded && !no_governance) {
+                    // F2: Detect govern.json deletion — governance artifacts imply prior config
+                    {
+                        bool had_governance = false;
+                        std::error_code f2_ec;
+                        auto check_dir = script_dir;
+                        for (int depth = 0; depth < 10 && !check_dir.empty(); ++depth) {
+                            if (std::filesystem::exists(check_dir / "govern.json.sig", f2_ec) ||
+                                std::filesystem::exists(check_dir / ".naab_cache", f2_ec)) {
+                                had_governance = true;
+                                break;
+                            }
+                            auto parent = check_dir.parent_path();
+                            if (parent == check_dir) break;
+                            check_dir = parent;
+                        }
+                        if (had_governance) {
+                            fprintf(stderr,
+                                "[governance] INTEGRITY BLOCK: govern.json is missing but governance "
+                                "artifacts exist (govern.json.sig or .naab_cache/).\n"
+                                "  This project was previously governed. Missing govern.json may "
+                                "indicate tampering.\n"
+                                "  Restore govern.json or remove governance artifacts to proceed.\n");
+                            fflush(stderr);
+                            _exit(3);
+                        }
+                    }
                     if (require_governance) {
                         fmt::print(stderr,
                             "Error: --require-governance set but no govern.json found.\n"
@@ -1843,13 +1915,12 @@ int main(int argc, char** argv) {
                 }
 
                 // Preflight intent gate (tree-walker path)
-                {
-                    auto* gov = interpreter.getGovernance();
-                    if (gov && gov->isActive()) {
-                        std::string intent_err = gov->preflightIntentCheck(*program, source);
-                        if (!intent_err.empty()) {
-                            throw std::runtime_error(intent_err);
-                        }
+                // F5: Use shared_governance (loaded at startup) — interpreter's engine
+                // hasn't called discoverAndLoad() yet (happens inside execute()).
+                if (gov_loaded && shared_governance.isActive()) {
+                    std::string intent_err = shared_governance.preflightIntentCheck(*program, source);
+                    if (!intent_err.empty()) {
+                        throw std::runtime_error(intent_err);
                     }
                 }
 
@@ -1877,15 +1948,13 @@ int main(int argc, char** argv) {
                 }
 
                 // Agent review: LLM-based governance phase (tree-walker path)
-                {
-                    auto* gov = interpreter.getGovernance();
-                    if (gov && gov->isActive()) {
-                        gov->runAgentReview(source);
-                        if (gov->hasIntentBlock()) {
-                            gov->writeReports();
-                            fflush(stdout); fflush(stderr);
-                            _exit(2);
-                        }
+                // F5: Use shared_governance — same rationale as preflight gate above
+                if (gov_loaded && shared_governance.isActive()) {
+                    shared_governance.runAgentReview(source);
+                    if (shared_governance.hasIntentBlock()) {
+                        shared_governance.writeReports();
+                        fflush(stdout); fflush(stderr);
+                        _exit(2);
                     }
                 }
 

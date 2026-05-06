@@ -232,45 +232,63 @@ static void ensureDir(const std::string& path) {
 // Helper: Load cached result
 // ============================================================================
 
-static bool loadCache(const std::string& path, AgentReviewResult& result) {
+static bool loadCache(const std::string& path, AgentReviewResult& result,
+                      const std::string& config_hash) {
     std::ifstream f(path);
     if (!f.is_open()) return false;
 
     try {
-        json j;
-        f >> j;
-        result.executed = true;
-        result.cache_hit = true;
-        result.source_hash = j.value("source_hash", "");
-        result.raw_count = j.value("raw_count", 0);
-        result.confirmed_count = j.value("confirmed_count", 0);
-        result.false_positive_count = j.value("false_positive_count", 0);
-        result.zone = j.value("zone", "green");
-        result.score = j.value("score", 0);
-        result.voice_summary = j.value("voice_summary", "");
+        json wrapper;
+        f >> wrapper;
 
-        if (j.contains("findings") && j["findings"].is_array()) {
-            for (const auto& fj : j["findings"]) {
-                AgentReviewFinding finding;
-                finding.category = fj.value("category", "");
-                finding.message = fj.value("message", "");
-                finding.source_agent = fj.value("source_agent", "");
-                finding.validated = fj.value("validated", false);
-                finding.confidence = fj.value("confidence", 1.0);
-                result.findings.push_back(finding);
+        // F12: Verify HMAC integrity if present
+        if (wrapper.contains("hmac") && wrapper.contains("data")) {
+            std::string data_str = wrapper["data"].get<std::string>();
+            std::string stored_hmac = wrapper["hmac"].get<std::string>();
+            json j = json::parse(data_str);
+            std::string source_hash = j.value("source_hash", "");
+            std::string hmac_key = security::CryptoUtils::sha256(config_hash + ":" + source_hash);
+            std::string expected = security::CryptoUtils::hmacSha256(data_str, hmac_key);
+            if (!security::CryptoUtils::constantTimeCompare(stored_hmac, expected)) {
+                fprintf(stderr, "[governance] Agent review cache integrity check failed — re-running review\n");
+                return false;
             }
-        }
-        if (j.contains("rejected") && j["rejected"].is_array()) {
-            for (const auto& fj : j["rejected"]) {
-                AgentReviewFinding finding;
-                finding.category = fj.value("category", "");
-                finding.message = fj.value("message", "");
-                finding.source_agent = fj.value("source_agent", "");
-                finding.validated = false;
-                result.rejected_findings.push_back(finding);
+            // Deserialize from verified inner data
+            result.executed = true;
+            result.cache_hit = true;
+            result.source_hash = j.value("source_hash", "");
+            result.raw_count = j.value("raw_count", 0);
+            result.confirmed_count = j.value("confirmed_count", 0);
+            result.false_positive_count = j.value("false_positive_count", 0);
+            result.zone = j.value("zone", "green");
+            result.score = j.value("score", 0);
+            result.voice_summary = j.value("voice_summary", "");
+            if (j.contains("findings") && j["findings"].is_array()) {
+                for (const auto& fj : j["findings"]) {
+                    AgentReviewFinding finding;
+                    finding.category = fj.value("category", "");
+                    finding.message = fj.value("message", "");
+                    finding.source_agent = fj.value("source_agent", "");
+                    finding.validated = fj.value("validated", false);
+                    finding.confidence = fj.value("confidence", 1.0);
+                    result.findings.push_back(finding);
+                }
             }
+            if (j.contains("rejected") && j["rejected"].is_array()) {
+                for (const auto& fj : j["rejected"]) {
+                    AgentReviewFinding finding;
+                    finding.category = fj.value("category", "");
+                    finding.message = fj.value("message", "");
+                    finding.source_agent = fj.value("source_agent", "");
+                    finding.validated = false;
+                    result.rejected_findings.push_back(finding);
+                }
+            }
+            return true;
         }
-        return true;
+
+        // Legacy format (no HMAC) — reject, force re-review
+        return false;
     } catch (...) {
         return false;
     }
@@ -280,7 +298,8 @@ static bool loadCache(const std::string& path, AgentReviewResult& result) {
 // Helper: Save cache
 // ============================================================================
 
-static void saveCache(const std::string& path, const AgentReviewResult& result) {
+static void saveCache(const std::string& path, const AgentReviewResult& result,
+                      const std::string& config_hash) {
     json j;
     j["source_hash"] = result.source_hash;
     j["raw_count"] = result.raw_count;
@@ -312,9 +331,18 @@ static void saveCache(const std::string& path, const AgentReviewResult& result) 
     }
     j["rejected"] = rejected_arr;
 
+    // F12: HMAC integrity wrapper
+    std::string json_str = j.dump(2);
+    std::string hmac_key = security::CryptoUtils::sha256(config_hash + ":" + result.source_hash);
+    std::string hmac = security::CryptoUtils::hmacSha256(json_str, hmac_key);
+
+    json wrapper;
+    wrapper["data"] = json_str;
+    wrapper["hmac"] = hmac;
+
     std::ofstream out(path);
     if (out.is_open()) {
-        out << j.dump(2);
+        out << wrapper.dump(2);
     }
 }
 
@@ -347,7 +375,7 @@ AgentReviewResult runAgentReview(
         std::string cpath = cachePath(govern_dir, cache_key);
         if (fileExists(cpath)) {
             AgentReviewResult cached;
-            if (loadCache(cpath, cached)) {
+            if (loadCache(cpath, cached, config.config_hash)) {
                 return cached;
             }
         }
@@ -402,7 +430,7 @@ AgentReviewResult runAgentReview(
         // Cache and return
         if (config.cache && !govern_dir.empty()) {
             ensureDir(govern_dir + "/.naab_cache");
-            saveCache(cachePath(govern_dir, cache_key), result);
+            saveCache(cachePath(govern_dir, cache_key), result, config.config_hash);
         }
         return result;
     }
@@ -566,7 +594,7 @@ AgentReviewResult runAgentReview(
     // ── Cache write ──
     if (config.cache && !govern_dir.empty()) {
         ensureDir(govern_dir + "/.naab_cache");
-        saveCache(cachePath(govern_dir, cache_key), result);
+        saveCache(cachePath(govern_dir, cache_key), result, config.config_hash);
     }
 
     return result;

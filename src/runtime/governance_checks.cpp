@@ -1168,6 +1168,14 @@ std::string GovernanceEngine::checkIntentValidation(
     if (it != cfg.function_intents.end()) {
         const std::string& owner_intent = it->second;
 
+        // F13: Empty owner intent is invalid
+        if (owner_intent.empty()) {
+            return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                fmt::format("Owner intent for '{}' is empty in function_intents.\n"
+                    "  Provide a meaningful intent description in govern.json.",
+                    function_name));
+        }
+
         // Trivial owner intent
         if (isTrivialIntent(owner_intent)) {
             return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
