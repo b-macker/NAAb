@@ -980,6 +980,7 @@ static std::vector<std::string> extractIntentKeywords(const std::string& text) {
     std::string lower = text;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
     std::vector<std::string> keywords;
+    std::unordered_set<std::string> seen;
     std::string word;
     for (size_t i = 0; i <= lower.size(); i++) {
         char c = (i < lower.size()) ? lower[i] : ' ';
@@ -987,7 +988,9 @@ static std::vector<std::string> extractIntentKeywords(const std::string& text) {
             word += c;
         } else {
             if (word.size() >= 3 && stop_words.find(word) == stop_words.end()) {
-                keywords.push_back(word);
+                if (seen.insert(word).second) {
+                    keywords.push_back(word);
+                }
             }
             word.clear();
         }
@@ -1084,7 +1087,11 @@ static std::string stripNonCodeContent(const std::string& code) {
             while (i + 1 < code.size() && !(code[i] == '*' && code[i + 1] == '/')) {
                 i++;
             }
-            if (i + 1 < code.size()) i += 2;  // skip */
+            if (i + 1 < code.size()) {
+                i += 2;  // skip */
+            } else {
+                i = code.size();  // unterminated — skip to end
+            }
             result += ' ';
             continue;
         }
@@ -1148,6 +1155,21 @@ static std::string stripNonCodeContent(const std::string& code) {
     return result;
 }
 
+// Helper: match keyword at word boundaries (not as substring of larger word)
+static bool wordBoundaryMatch(const std::string& text, const std::string& word) {
+    size_t pos = 0;
+    while ((pos = text.find(word, pos)) != std::string::npos) {
+        bool left_ok = (pos == 0 ||
+            !(std::isalnum(static_cast<unsigned char>(text[pos - 1])) || text[pos - 1] == '_'));
+        size_t end = pos + word.size();
+        bool right_ok = (end >= text.size() ||
+            !(std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '_'));
+        if (left_ok && right_ok) return true;
+        pos++;
+    }
+    return false;
+}
+
 // Helper: check keyword overlap between intent and body+name
 static double keywordOverlap(const std::vector<std::string>& keywords,
                               const std::string& body, const std::string& name,
@@ -1162,8 +1184,8 @@ static double keywordOverlap(const std::vector<std::string>& keywords,
     missing_out.clear();
     int shown = 0;
     for (const auto& kw : keywords) {
-        if (lower_body.find(kw) != std::string::npos ||
-            lower_name.find(kw) != std::string::npos) {
+        if (wordBoundaryMatch(lower_body, kw) ||
+            wordBoundaryMatch(lower_name, kw)) {
             found++;
         } else {
             if (shown < max_missing) {
@@ -1264,7 +1286,7 @@ std::string GovernanceEngine::checkIntentValidation(
         {
             std::string intent_lower = owner_intent;
             std::transform(intent_lower.begin(), intent_lower.end(), intent_lower.begin(), ::tolower);
-            std::string body_lower = body;
+            std::string body_lower = inner_body;
             std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
 
             // I/O and escape operations that should be mentioned in intent if present
@@ -1398,16 +1420,17 @@ std::string GovernanceEngine::checkIntentValidation(
     if (!cfg.project_intent.empty()) {
         auto proj_kw = extractIntentKeywords(cfg.project_intent);
         if (proj_kw.size() >= 3 && body_lines >= cfg.min_function_lines) {
-            // Check if ANY project keywords appear in function name or body
-            std::string lower_body = body;
+            // Strip comments/strings/vars before matching (same as Tier 1)
+            std::string stripped_body = stripNonCodeContent(body);
+            std::string lower_body = stripped_body;
             std::transform(lower_body.begin(), lower_body.end(), lower_body.begin(), ::tolower);
             std::string lower_name = function_name;
             std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
 
             int found = 0;
             for (const auto& kw : proj_kw) {
-                if (lower_body.find(kw) != std::string::npos ||
-                    lower_name.find(kw) != std::string::npos) {
+                if (wordBoundaryMatch(lower_body, kw) ||
+                    wordBoundaryMatch(lower_name, kw)) {
                     found++;
                 }
             }
@@ -1437,7 +1460,7 @@ std::string GovernanceEngine::checkIntentValidation(
         {
             std::string proj_lower = cfg.project_intent;
             std::transform(proj_lower.begin(), proj_lower.end(), proj_lower.begin(), ::tolower);
-            std::string body_lower = body;
+            std::string body_lower = stripNonCodeContent(body);
             std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
 
             // Check project-level prohibitions
