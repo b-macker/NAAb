@@ -828,6 +828,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& f : iv["exempt_functions"])
                     rules_.code_quality.intent_validation.exempt_functions.push_back(f.get<std::string>());
             }
+            if (iv.contains("project_intent"))
+                rules_.code_quality.intent_validation.project_intent = iv["project_intent"].get<std::string>();
+            if (iv.contains("function_intents") && iv["function_intents"].is_object()) {
+                for (auto& [name, intent] : iv["function_intents"].items())
+                    rules_.code_quality.intent_validation.function_intents[name] = intent.get<std::string>();
+            }
         }
 
         // no_pii

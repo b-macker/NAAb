@@ -82,7 +82,8 @@ static std::string buildCategoryList(const ScoringConfig& cfg) {
 // ============================================================================
 
 static std::string buildDetectionPrompt(const std::string& categories,
-                                         const std::string& source) {
+                                         const std::string& source,
+                                         const governance::GovernanceRules& rules) {
     std::string prompt;
     prompt += "You are a code reviewer. Analyze this script for issues. ";
     prompt += "For each issue found, output EXACTLY one line:\n";
@@ -97,17 +98,34 @@ static std::string buildDetectionPrompt(const std::string& categories,
     prompt += "- Complexity padding: loops or code added solely to increase complexity score, with comments admitting it\n";
     prompt += "- Hardcoded contract values: return keys that are always literal constants (e.g., `\"widest_section\": 0`) instead of computed\n";
     prompt += "- Unsafe subscript: `args[N]` without length check — crashes on missing args\n\n";
-    // Extract @intent declarations from source for intent-body validation
+    // Intent validation section: owner intents (ground truth) + LLM @intent (claims)
     {
+        const auto& iv = rules.code_quality.intent_validation;
+
+        // Owner-defined intents from govern.json (authoritative)
+        bool has_owner_intents = !iv.project_intent.empty() || !iv.function_intents.empty();
+        if (has_owner_intents) {
+            prompt += "\n\nOwner-defined intents (from govern.json — these are AUTHORITATIVE):\n";
+            if (!iv.project_intent.empty()) {
+                prompt += "Project intent: \"" + iv.project_intent + "\"\n";
+            }
+            if (!iv.function_intents.empty()) {
+                prompt += "Per-function intents:\n";
+                for (const auto& [name, intent] : iv.function_intents) {
+                    prompt += "- " + name + ": \"" + intent + "\"\n";
+                }
+            }
+        }
+
+        // Extract LLM's @intent declarations from source (secondary)
         std::istringstream stream(source);
         std::string line;
         std::string current_intent;
-        std::vector<std::pair<std::string, std::string>> intents; // (function_name, intent)
+        std::vector<std::pair<std::string, std::string>> llm_intents;
         while (std::getline(stream, line)) {
             size_t first = line.find_first_not_of(" \t");
             if (first == std::string::npos) continue;
             std::string trimmed = line.substr(first);
-            // Collect /// lines
             if (trimmed.rfind("///", 0) == 0) {
                 size_t ipos = trimmed.find("@intent");
                 if (ipos != std::string::npos) {
@@ -120,30 +138,38 @@ static std::string buildDetectionPrompt(const std::string& categories,
                     }
                 }
             } else if (!current_intent.empty()) {
-                // Check if this line declares a function or main
                 if (trimmed.rfind("function ", 0) == 0 || trimmed.rfind("fn ", 0) == 0 ||
                     trimmed.rfind("func ", 0) == 0 || trimmed.rfind("def ", 0) == 0) {
-                    // Extract function name
                     size_t name_start = trimmed.find(' ') + 1;
                     size_t name_end = name_start;
                     while (name_end < trimmed.size() &&
                            (std::isalnum(static_cast<unsigned char>(trimmed[name_end])) || trimmed[name_end] == '_'))
                         name_end++;
-                    intents.push_back({trimmed.substr(name_start, name_end - name_start), current_intent});
+                    llm_intents.push_back({trimmed.substr(name_start, name_end - name_start), current_intent});
                 } else if (trimmed.rfind("main", 0) == 0) {
-                    intents.push_back({"main", current_intent});
+                    llm_intents.push_back({"main", current_intent});
                 }
                 current_intent.clear();
             }
         }
-        if (!intents.empty()) {
-            prompt += "\n\nIntent declarations found in this script:\n";
-            for (const auto& [name, intent] : intents) {
+
+        if (!llm_intents.empty()) {
+            prompt += "\nLLM-declared intents (from /// @intent — verify these ALIGN with owner intents):\n";
+            for (const auto& [name, intent] : llm_intents) {
                 prompt += "- " + name + ": \"" + intent + "\"\n";
             }
-            prompt += "\nFor each function with an @intent, verify the implementation matches "
-                      "the declared intent. Output FINDING|intent_mismatch|<function_name>: <description> "
-                      "if the code does NOT fulfill its declared intent.\n";
+        }
+
+        // Instructions for the reviewer
+        if (has_owner_intents || !llm_intents.empty()) {
+            prompt += "\nFor each function, verify:\n";
+            if (has_owner_intents) {
+                prompt += "1. Implementation matches the OWNER's intent (primary check)\n";
+                prompt += "2. LLM's @intent aligns with owner's intent (secondary check — flag divergence)\n";
+            } else {
+                prompt += "1. Implementation matches the declared @intent\n";
+            }
+            prompt += "Output FINDING|intent_mismatch|<function_name>: <description> for mismatches.\n";
         }
     }
 
@@ -338,7 +364,7 @@ AgentReviewResult runAgentReview(
             return result;
         }
 
-        std::string prompt = buildDetectionPrompt(categories, script_source);
+        std::string prompt = buildDetectionPrompt(categories, script_source, rules);
         auto resp = callAgentSimple(*acfg, std::string(api_key), prompt);
 
         if (!resp.success) {

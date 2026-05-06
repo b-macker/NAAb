@@ -959,84 +959,14 @@ std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
     return "";
 }
 
-// --- Intent Validation: verify code matches its declared @intent ---
-std::string GovernanceEngine::checkIntentValidation(
-    const std::string& function_name, const std::string& intent,
-    const std::string& body, int line) {
+// --- Intent Validation: verify code matches declared intent ---
+// Authority hierarchy:
+//   1. Owner's function_intents in govern.json (ground truth, cfg.level)
+//   2. Owner's project_intent in govern.json (broad context, advisory)
+//   3. LLM's /// @intent (self-declared, advisory only — lower trust)
 
-    auto& cfg = rules_.code_quality.intent_validation;
-    if (!cfg.enabled) return "";
-
-    // Check exemptions
-    for (const auto& exempt : cfg.exempt_functions) {
-        if (function_name == exempt) return "";
-    }
-
-    // Count body lines (for min_function_lines check)
-    int body_lines = 0;
-    for (char c : body) if (c == '\n') body_lines++;
-
-    // Missing intent check
-    if (intent.empty()) {
-        if (cfg.required && body_lines >= cfg.min_function_lines) {
-            return enforce("code_quality.intent_validation", cfg.missing_level,
-                fmt::format("Function '{}' has no @intent declaration ({} lines).\n"
-                    "  Add a /// @intent \"...\" comment before the function to declare\n"
-                    "  what the code is supposed to do.",
-                    function_name, body_lines));
-        }
-        recordPass("code_quality.intent_validation", cfg.level);
-        return "";
-    }
-
-    // --- Static intent checks (mode: "static" or "hybrid") ---
-    if (cfg.mode == "agent") {
-        // Agent-only mode: skip static checks, handled by agent review
-        recordPass("code_quality.intent_validation", cfg.level);
-        return "";
-    }
-
-    std::string lower_intent = intent;
-    std::transform(lower_intent.begin(), lower_intent.end(), lower_intent.begin(), ::tolower);
-    std::string lower_body = body;
-    std::transform(lower_body.begin(), lower_body.end(), lower_body.begin(), ::tolower);
-    std::string lower_name = function_name;
-    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
-
-    // Check 1: Trivial intent — too vague to be useful
-    static const std::vector<std::string> trivial_patterns = {
-        "does stuff", "handles data", "processes input", "does things",
-        "main function", "entry point", "placeholder", "todo",
-        "implement later", "not implemented", "stub", "dummy"
-    };
-    for (const auto& pat : trivial_patterns) {
-        if (lower_intent.find(pat) != std::string::npos) {
-            return enforce("code_quality.intent_validation", cfg.level,
-                fmt::format("Trivial @intent on '{}': \"{}\"\n"
-                    "  Intent declarations must be specific enough to validate against.\n"
-                    "  Describe WHAT the function computes and HOW.",
-                    function_name, intent));
-        }
-    }
-
-    // Check 2: Intent length vs function complexity
-    // Count words in intent
-    int intent_words = 0;
-    bool in_word = false;
-    for (char c : intent) {
-        if (c == ' ' || c == '\t' || c == '\n') { in_word = false; }
-        else if (!in_word) { in_word = true; intent_words++; }
-    }
-    // 30+ line functions need at least 5 words of intent
-    if (body_lines >= 30 && intent_words < 5) {
-        return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
-            fmt::format("@intent on '{}' is too brief ({} words for {} lines).\n"
-                "  Complex functions need detailed intent declarations.",
-                function_name, intent_words, body_lines));
-    }
-
-    // Check 3: Intent-body keyword divergence
-    // Extract meaningful words from intent (skip stop words)
+// Helper: extract meaningful keywords from freeform text
+static std::vector<std::string> extractIntentKeywords(const std::string& text) {
     static const std::unordered_set<std::string> stop_words = {
         "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
         "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
@@ -1045,51 +975,217 @@ std::string GovernanceEngine::checkIntentValidation(
         "it", "its", "they", "them", "their", "we", "our", "you", "your",
         "if", "then", "else", "when", "where", "how", "what", "which",
         "each", "every", "all", "any", "both", "few", "more", "most",
-        "using", "into", "not", "no"
+        "using", "into", "not", "no", "see", "also", "return", "returns"
     };
-
-    std::vector<std::string> intent_keywords;
+    std::string lower = text;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    std::vector<std::string> keywords;
     std::string word;
-    for (size_t i = 0; i <= lower_intent.size(); i++) {
-        char c = (i < lower_intent.size()) ? lower_intent[i] : ' ';
+    for (size_t i = 0; i <= lower.size(); i++) {
+        char c = (i < lower.size()) ? lower[i] : ' ';
         if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
             word += c;
         } else {
             if (word.size() >= 3 && stop_words.find(word) == stop_words.end()) {
-                intent_keywords.push_back(word);
+                keywords.push_back(word);
             }
             word.clear();
         }
     }
+    return keywords;
+}
 
-    if (intent_keywords.size() >= 3) {
-        int found = 0;
-        for (const auto& kw : intent_keywords) {
-            if (lower_body.find(kw) != std::string::npos ||
-                lower_name.find(kw) != std::string::npos) {
-                found++;
+// Helper: check keyword overlap between intent and body+name
+static double keywordOverlap(const std::vector<std::string>& keywords,
+                              const std::string& body, const std::string& name,
+                              std::string& missing_out, int max_missing = 5) {
+    if (keywords.empty()) return 1.0;
+    std::string lower_body = body;
+    std::transform(lower_body.begin(), lower_body.end(), lower_body.begin(), ::tolower);
+    std::string lower_name = name;
+    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+
+    int found = 0;
+    missing_out.clear();
+    int shown = 0;
+    for (const auto& kw : keywords) {
+        if (lower_body.find(kw) != std::string::npos ||
+            lower_name.find(kw) != std::string::npos) {
+            found++;
+        } else {
+            if (shown < max_missing) {
+                if (!missing_out.empty()) missing_out += ", ";
+                missing_out += kw;
+                shown++;
+            } else if (shown == max_missing) {
+                missing_out += "...";
+                shown++;
             }
         }
-        double match_ratio = static_cast<double>(found) / static_cast<double>(intent_keywords.size());
-        // If fewer than 20% of intent keywords appear in the body, flag it
-        if (match_ratio < 0.2 && intent_keywords.size() >= 4) {
+    }
+    return static_cast<double>(found) / static_cast<double>(keywords.size());
+}
+
+// Helper: check if intent text is trivially vague
+static bool isTrivialIntent(const std::string& intent) {
+    std::string lower = intent;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    static const std::vector<std::string> trivial = {
+        "does stuff", "handles data", "processes input", "does things",
+        "placeholder", "todo", "implement later", "not implemented",
+        "stub", "dummy", "tbd", "fixme"
+    };
+    for (const auto& pat : trivial) {
+        if (lower.find(pat) != std::string::npos) return true;
+    }
+    return false;
+}
+
+std::string GovernanceEngine::checkIntentValidation(
+    const std::string& function_name, const std::string& llm_intent,
+    const std::string& body, int line) {
+
+    auto& cfg = rules_.code_quality.intent_validation;
+    if (!cfg.enabled) return "";
+    if (cfg.mode == "agent") {
+        recordPass("code_quality.intent_validation", cfg.level);
+        return "";
+    }
+
+    // Check exemptions
+    for (const auto& exempt : cfg.exempt_functions) {
+        if (function_name == exempt) return "";
+    }
+
+    int body_lines = 0;
+    for (char c : body) if (c == '\n') body_lines++;
+
+    // --- Tier 1: Owner's per-function intent (ground truth) ---
+    auto it = cfg.function_intents.find(function_name);
+    if (it != cfg.function_intents.end()) {
+        const std::string& owner_intent = it->second;
+
+        // Trivial owner intent
+        if (isTrivialIntent(owner_intent)) {
+            return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                fmt::format("Owner intent for '{}' is too vague: \"{}\"\n"
+                    "  function_intents in govern.json should describe what the function does.",
+                    function_name, owner_intent));
+        }
+
+        // Body vs owner intent (configured level — this is ground truth)
+        // Strip the function declaration line — parameter names create false keyword matches
+        std::string inner_body = body;
+        size_t first_brace = inner_body.find('{');
+        if (first_brace != std::string::npos && first_brace + 1 < inner_body.size()) {
+            inner_body = inner_body.substr(first_brace + 1);
+        }
+        auto keywords = extractIntentKeywords(owner_intent);
+        if (keywords.size() >= 3) {
             std::string missing;
-            int shown = 0;
-            for (const auto& kw : intent_keywords) {
-                if (lower_body.find(kw) == std::string::npos &&
-                    lower_name.find(kw) == std::string::npos) {
-                    if (!missing.empty()) missing += ", ";
-                    missing += kw;
-                    if (++shown >= 5) { missing += "..."; break; }
+            // Don't match against function_name — owner defined that slot, so name match is circular
+            double overlap = keywordOverlap(keywords, inner_body, "", missing);
+            if (overlap < 0.3 && keywords.size() >= 4) {
+                return enforce("code_quality.intent_validation", cfg.level,
+                    fmt::format("Intent mismatch on '{}': {:.0f}% overlap with owner requirement.\n"
+                        "  Owner requires: \"{}\"\n"
+                        "  Missing from code: {}\n"
+                        "  The implementation does not match the project owner's specification.",
+                        function_name, overlap * 100, owner_intent, missing));
+            }
+        }
+
+        // LLM @intent vs owner intent (advisory — is the LLM confused about requirements?)
+        if (!llm_intent.empty()) {
+            auto owner_kw = extractIntentKeywords(owner_intent);
+            auto llm_kw = extractIntentKeywords(llm_intent);
+            if (owner_kw.size() >= 3 && llm_kw.size() >= 3) {
+                // Check if LLM intent keywords overlap with owner intent keywords
+                std::string llm_lower = llm_intent;
+                std::transform(llm_lower.begin(), llm_lower.end(), llm_lower.begin(), ::tolower);
+                std::string owner_lower = owner_intent;
+                std::transform(owner_lower.begin(), owner_lower.end(), owner_lower.begin(), ::tolower);
+
+                std::string missing;
+                double overlap = keywordOverlap(owner_kw, llm_lower, "", missing);
+                if (overlap < 0.15) {
+                    enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                        fmt::format("Intent conflict on '{}': LLM's @intent diverges from owner's.\n"
+                            "  Owner requires: \"{}\"\n"
+                            "  LLM claims: \"{}\"\n"
+                            "  The agent may have misunderstood the requirement.",
+                            function_name, owner_intent, llm_intent));
                 }
             }
-            return enforce("code_quality.intent_validation", cfg.level,
-                fmt::format("Intent-body mismatch on '{}': {:.0f}% keyword overlap.\n"
-                    "  Intent: \"{}\"\n"
-                    "  Missing from body: {}\n"
-                    "  The implementation may not match the declared intent.",
-                    function_name, match_ratio * 100, intent, missing));
         }
+
+        recordPass("code_quality.intent_validation", cfg.level);
+        return "";
+    }
+
+    // --- Tier 2: Project-wide intent (advisory — broad context) ---
+    if (!cfg.project_intent.empty()) {
+        auto proj_kw = extractIntentKeywords(cfg.project_intent);
+        if (proj_kw.size() >= 3 && body_lines >= cfg.min_function_lines) {
+            // Check if ANY project keywords appear in function name or body
+            std::string lower_body = body;
+            std::transform(lower_body.begin(), lower_body.end(), lower_body.begin(), ::tolower);
+            std::string lower_name = function_name;
+            std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+
+            int found = 0;
+            for (const auto& kw : proj_kw) {
+                if (lower_body.find(kw) != std::string::npos ||
+                    lower_name.find(kw) != std::string::npos) {
+                    found++;
+                }
+            }
+            // If zero project keywords match, this function might not belong
+            if (found == 0 && proj_kw.size() >= 4) {
+                enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                    fmt::format("Function '{}' has no keyword overlap with project intent.\n"
+                        "  Project: \"{}\"\n"
+                        "  This function may not belong in this project.",
+                        function_name, cfg.project_intent));
+            }
+        }
+    }
+
+    // --- Tier 3: LLM's @intent only (advisory — self-declared, lower trust) ---
+    if (!llm_intent.empty()) {
+        if (isTrivialIntent(llm_intent)) {
+            return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                fmt::format("Trivial @intent on '{}': \"{}\"\n"
+                    "  Intent declarations must be specific enough to validate against.",
+                    function_name, llm_intent));
+        }
+
+        auto keywords = extractIntentKeywords(llm_intent);
+        if (keywords.size() >= 4) {
+            std::string missing;
+            double overlap = keywordOverlap(keywords, body, function_name, missing);
+            if (overlap < 0.2) {
+                return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                    fmt::format("Self-declared intent mismatch on '{}': {:.0f}% overlap.\n"
+                        "  LLM claims: \"{}\"\n"
+                        "  Missing from body: {}\n"
+                        "  Note: No owner intent defined — this is advisory only.",
+                        function_name, overlap * 100, llm_intent, missing));
+            }
+        }
+
+        recordPass("code_quality.intent_validation", cfg.level);
+        return "";
+    }
+
+    // --- Tier 4: Nothing declared ---
+    // Missing intent only matters if owner defined function_intents at all
+    if (!cfg.function_intents.empty() && cfg.required && body_lines >= cfg.min_function_lines) {
+        return enforce("code_quality.intent_validation", cfg.missing_level,
+            fmt::format("Function '{}' has no intent declared ({} lines).\n"
+                "  Add this function to function_intents in govern.json,\n"
+                "  or add a /// @intent \"...\" comment before the function.",
+                function_name, body_lines));
     }
 
     recordPass("code_quality.intent_validation", cfg.level);

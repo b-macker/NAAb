@@ -709,6 +709,9 @@ struct IntentValidationConfig {
     std::string mode = "hybrid";   // "static", "agent", "hybrid"
     int min_function_lines = 3;    // Skip tiny functions
     std::vector<std::string> exempt_functions;
+    // Owner-defined intents (ground truth from govern.json)
+    std::string project_intent;    // Broad project purpose — freeform text
+    std::unordered_map<std::string, std::string> function_intents; // Per-function requirements
 };
 
 struct SemanticChecksConfig {

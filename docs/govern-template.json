@@ -556,7 +556,13 @@
       "missing_level": "advisory",
       "mode": "hybrid",
       "min_function_lines": 3,
-      "exempt_functions": []
+      "exempt_functions": [],
+      "project_intent": "Budget tracking CLI. All functions relate to financial calculations, CSV parsing, or report generation. No network calls.",
+      "function_intents": {
+        "calculate_tax": "income * rate, clamp to zero minimum",
+        "parse_budget_csv": "Read CSV with columns: date, category, amount. Skip header row. Return array of dicts.",
+        "generate_report": "Aggregate budget data by category, output JSON summary to stdout."
+      }
     },
     "encoding": {
       "enabled": true,
