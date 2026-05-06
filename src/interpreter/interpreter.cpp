@@ -1050,6 +1050,12 @@ void Interpreter::visit(ast::FunctionDecl& node) {
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
+                    // Intent validation
+                    err = governance_->checkIntentValidation(
+                        node.getName(), node.getIntent(), body_text, loc.line);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
                 }
             }
         }
@@ -1340,6 +1346,12 @@ void Interpreter::visit(ast::MainBlock& node) {
                     }
                     std::string err = governance_->checkNaabFunctionBody(
                         "main", body_text, loc.line, current_file_);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
+                    // Intent validation for main block
+                    err = governance_->checkIntentValidation(
+                        "main", node.getIntent(), body_text, loc.line);
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }

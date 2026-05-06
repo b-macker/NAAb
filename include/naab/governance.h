@@ -701,6 +701,16 @@ struct PolyglotTryCatchConfig {
     int max_entries = 3;         // Max functions to list in grouped output
 };
 
+struct IntentValidationConfig {
+    bool enabled = false;
+    bool required = false;         // Missing @intent is a violation
+    EnforcementLevel level = EnforcementLevel::SOFT;            // Mismatch level
+    EnforcementLevel missing_level = EnforcementLevel::ADVISORY; // Missing level
+    std::string mode = "hybrid";   // "static", "agent", "hybrid"
+    int min_function_lines = 3;    // Skip tiny functions
+    std::vector<std::string> exempt_functions;
+};
+
 struct SemanticChecksConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
@@ -735,6 +745,7 @@ struct CodeQualityConfig {
     DuplicateCallsConfig duplicate_calls;
     PolyglotTryCatchConfig polyglot_try_catch;
     SemanticChecksConfig semantic_checks;
+    IntentValidationConfig intent_validation;
 
     // Drift detection: block execution when a rewrite loses significant functionality
     struct DriftDetectionConfig {
@@ -1688,6 +1699,9 @@ public:
     std::string checkCosmeticSanitizer(const std::string& function_name,
                                         const std::string& body, int line = 0);
     std::string checkEmptyMain(const std::string& source);
+    std::string checkIntentValidation(const std::string& function_name,
+                                       const std::string& intent,
+                                       const std::string& body, int line);
     std::string checkHallucinatedApis(const std::string& language,
                                        const std::string& code, int line = 0);
     std::string checkSemanticIssues(const std::string& language,

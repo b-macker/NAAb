@@ -1030,6 +1030,12 @@ void Compiler::visit(ast::FunctionDecl& node) {
                 if (!err.empty()) {
                     throw std::runtime_error(err);
                 }
+                // Intent validation
+                err = governance_->checkIntentValidation(
+                    node.getName(), node.getIntent(), body_text, line);
+                if (!err.empty()) {
+                    throw std::runtime_error(err);
+                }
             }
         }
     }
@@ -1122,6 +1128,12 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                 }
                 std::string err = governance_->checkNaabFunctionBody(
                     decl->getName(), body_text, line, source_file_);
+                if (!err.empty()) {
+                    throw std::runtime_error(err);
+                }
+                // Intent validation
+                err = governance_->checkIntentValidation(
+                    decl->getName(), decl->getIntent(), body_text, line);
                 if (!err.empty()) {
                     throw std::runtime_error(err);
                 }

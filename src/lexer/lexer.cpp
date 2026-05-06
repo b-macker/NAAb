@@ -472,6 +472,18 @@ std::vector<Token> Lexer::tokenize() {
         }
         if (ch == '/' && pos_ + 1 < source_.length() &&
             (source_[pos_ + 1] == '/' || source_[pos_ + 1] == '*')) {
+            // Emit /// doc comments as COMMENT tokens (for @intent parsing)
+            if (pos_ + 2 < source_.length() && source_[pos_ + 1] == '/' && source_[pos_ + 2] == '/') {
+                int cline = line_, ccol = column_;
+                advance(); advance(); advance();  // Skip ///
+                // Skip optional leading space
+                if (currentChar() && *currentChar() == ' ') advance();
+                size_t start = pos_;
+                while (currentChar() && *currentChar() != '\n') advance();
+                std::string content = source_.substr(start, pos_ - start);
+                tokens_.emplace_back(TokenType::COMMENT, content, cline, ccol);
+                continue;
+            }
             skipComment();
             continue;
         }

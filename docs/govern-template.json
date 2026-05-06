@@ -549,6 +549,15 @@
         }
       ]
     },
+    "intent_validation": {
+      "enabled": false,
+      "required": false,
+      "level": "soft",
+      "missing_level": "advisory",
+      "mode": "hybrid",
+      "min_function_lines": 3,
+      "exempt_functions": []
+    },
     "encoding": {
       "enabled": true,
       "level": "advisory",

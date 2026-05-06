@@ -959,6 +959,143 @@ std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
     return "";
 }
 
+// --- Intent Validation: verify code matches its declared @intent ---
+std::string GovernanceEngine::checkIntentValidation(
+    const std::string& function_name, const std::string& intent,
+    const std::string& body, int line) {
+
+    auto& cfg = rules_.code_quality.intent_validation;
+    if (!cfg.enabled) return "";
+
+    // Check exemptions
+    for (const auto& exempt : cfg.exempt_functions) {
+        if (function_name == exempt) return "";
+    }
+
+    // Count body lines (for min_function_lines check)
+    int body_lines = 0;
+    for (char c : body) if (c == '\n') body_lines++;
+
+    // Missing intent check
+    if (intent.empty()) {
+        if (cfg.required && body_lines >= cfg.min_function_lines) {
+            return enforce("code_quality.intent_validation", cfg.missing_level,
+                fmt::format("Function '{}' has no @intent declaration ({} lines).\n"
+                    "  Add a /// @intent \"...\" comment before the function to declare\n"
+                    "  what the code is supposed to do.",
+                    function_name, body_lines));
+        }
+        recordPass("code_quality.intent_validation", cfg.level);
+        return "";
+    }
+
+    // --- Static intent checks (mode: "static" or "hybrid") ---
+    if (cfg.mode == "agent") {
+        // Agent-only mode: skip static checks, handled by agent review
+        recordPass("code_quality.intent_validation", cfg.level);
+        return "";
+    }
+
+    std::string lower_intent = intent;
+    std::transform(lower_intent.begin(), lower_intent.end(), lower_intent.begin(), ::tolower);
+    std::string lower_body = body;
+    std::transform(lower_body.begin(), lower_body.end(), lower_body.begin(), ::tolower);
+    std::string lower_name = function_name;
+    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+
+    // Check 1: Trivial intent — too vague to be useful
+    static const std::vector<std::string> trivial_patterns = {
+        "does stuff", "handles data", "processes input", "does things",
+        "main function", "entry point", "placeholder", "todo",
+        "implement later", "not implemented", "stub", "dummy"
+    };
+    for (const auto& pat : trivial_patterns) {
+        if (lower_intent.find(pat) != std::string::npos) {
+            return enforce("code_quality.intent_validation", cfg.level,
+                fmt::format("Trivial @intent on '{}': \"{}\"\n"
+                    "  Intent declarations must be specific enough to validate against.\n"
+                    "  Describe WHAT the function computes and HOW.",
+                    function_name, intent));
+        }
+    }
+
+    // Check 2: Intent length vs function complexity
+    // Count words in intent
+    int intent_words = 0;
+    bool in_word = false;
+    for (char c : intent) {
+        if (c == ' ' || c == '\t' || c == '\n') { in_word = false; }
+        else if (!in_word) { in_word = true; intent_words++; }
+    }
+    // 30+ line functions need at least 5 words of intent
+    if (body_lines >= 30 && intent_words < 5) {
+        return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+            fmt::format("@intent on '{}' is too brief ({} words for {} lines).\n"
+                "  Complex functions need detailed intent declarations.",
+                function_name, intent_words, body_lines));
+    }
+
+    // Check 3: Intent-body keyword divergence
+    // Extract meaningful words from intent (skip stop words)
+    static const std::unordered_set<std::string> stop_words = {
+        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+        "has", "have", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "must", "shall", "can", "this", "that",
+        "it", "its", "they", "them", "their", "we", "our", "you", "your",
+        "if", "then", "else", "when", "where", "how", "what", "which",
+        "each", "every", "all", "any", "both", "few", "more", "most",
+        "using", "into", "not", "no"
+    };
+
+    std::vector<std::string> intent_keywords;
+    std::string word;
+    for (size_t i = 0; i <= lower_intent.size(); i++) {
+        char c = (i < lower_intent.size()) ? lower_intent[i] : ' ';
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+            word += c;
+        } else {
+            if (word.size() >= 3 && stop_words.find(word) == stop_words.end()) {
+                intent_keywords.push_back(word);
+            }
+            word.clear();
+        }
+    }
+
+    if (intent_keywords.size() >= 3) {
+        int found = 0;
+        for (const auto& kw : intent_keywords) {
+            if (lower_body.find(kw) != std::string::npos ||
+                lower_name.find(kw) != std::string::npos) {
+                found++;
+            }
+        }
+        double match_ratio = static_cast<double>(found) / static_cast<double>(intent_keywords.size());
+        // If fewer than 20% of intent keywords appear in the body, flag it
+        if (match_ratio < 0.2 && intent_keywords.size() >= 4) {
+            std::string missing;
+            int shown = 0;
+            for (const auto& kw : intent_keywords) {
+                if (lower_body.find(kw) == std::string::npos &&
+                    lower_name.find(kw) == std::string::npos) {
+                    if (!missing.empty()) missing += ", ";
+                    missing += kw;
+                    if (++shown >= 5) { missing += "..."; break; }
+                }
+            }
+            return enforce("code_quality.intent_validation", cfg.level,
+                fmt::format("Intent-body mismatch on '{}': {:.0f}% keyword overlap.\n"
+                    "  Intent: \"{}\"\n"
+                    "  Missing from body: {}\n"
+                    "  The implementation may not match the declared intent.",
+                    function_name, match_ratio * 100, intent, missing));
+        }
+    }
+
+    recordPass("code_quality.intent_validation", cfg.level);
+    return "";
+}
+
 std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file) {
     auto& cfg = rules_.code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";

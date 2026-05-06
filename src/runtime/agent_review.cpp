@@ -10,6 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <sys/stat.h>
 #ifdef _WIN32
 #include <direct.h>
@@ -96,6 +97,56 @@ static std::string buildDetectionPrompt(const std::string& categories,
     prompt += "- Complexity padding: loops or code added solely to increase complexity score, with comments admitting it\n";
     prompt += "- Hardcoded contract values: return keys that are always literal constants (e.g., `\"widest_section\": 0`) instead of computed\n";
     prompt += "- Unsafe subscript: `args[N]` without length check — crashes on missing args\n\n";
+    // Extract @intent declarations from source for intent-body validation
+    {
+        std::istringstream stream(source);
+        std::string line;
+        std::string current_intent;
+        std::vector<std::pair<std::string, std::string>> intents; // (function_name, intent)
+        while (std::getline(stream, line)) {
+            size_t first = line.find_first_not_of(" \t");
+            if (first == std::string::npos) continue;
+            std::string trimmed = line.substr(first);
+            // Collect /// lines
+            if (trimmed.rfind("///", 0) == 0) {
+                size_t ipos = trimmed.find("@intent");
+                if (ipos != std::string::npos) {
+                    size_t q1 = trimmed.find('"', ipos);
+                    if (q1 != std::string::npos) {
+                        size_t q2 = trimmed.find('"', q1 + 1);
+                        if (q2 != std::string::npos) {
+                            current_intent = trimmed.substr(q1 + 1, q2 - q1 - 1);
+                        }
+                    }
+                }
+            } else if (!current_intent.empty()) {
+                // Check if this line declares a function or main
+                if (trimmed.rfind("function ", 0) == 0 || trimmed.rfind("fn ", 0) == 0 ||
+                    trimmed.rfind("func ", 0) == 0 || trimmed.rfind("def ", 0) == 0) {
+                    // Extract function name
+                    size_t name_start = trimmed.find(' ') + 1;
+                    size_t name_end = name_start;
+                    while (name_end < trimmed.size() &&
+                           (std::isalnum(static_cast<unsigned char>(trimmed[name_end])) || trimmed[name_end] == '_'))
+                        name_end++;
+                    intents.push_back({trimmed.substr(name_start, name_end - name_start), current_intent});
+                } else if (trimmed.rfind("main", 0) == 0) {
+                    intents.push_back({"main", current_intent});
+                }
+                current_intent.clear();
+            }
+        }
+        if (!intents.empty()) {
+            prompt += "\n\nIntent declarations found in this script:\n";
+            for (const auto& [name, intent] : intents) {
+                prompt += "- " + name + ": \"" + intent + "\"\n";
+            }
+            prompt += "\nFor each function with an @intent, verify the implementation matches "
+                      "the declared intent. Output FINDING|intent_mismatch|<function_name>: <description> "
+                      "if the code does NOT fulfill its declared intent.\n";
+        }
+    }
+
     prompt += "Script to analyze:\n" + source;
     return prompt;
 }

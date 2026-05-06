@@ -407,6 +407,50 @@ void Parser::skipNewlines() {
     }
 }
 
+void Parser::collectDocComments() {
+    // Collect consecutive COMMENT tokens (from /// doc comments)
+    // and extract @intent declarations. Called after skipNewlines()
+    // in the top-level parsing loop.
+    pending_intent_.clear();
+    std::string doc_lines;
+    while (!isAtEnd() && check(lexer::TokenType::COMMENT)) {
+        doc_lines += current().value;
+        doc_lines += '\n';
+        advance();
+        // Skip newlines between consecutive /// lines
+        while (match(lexer::TokenType::NEWLINE)) {}
+    }
+    if (doc_lines.empty()) return;
+
+    // Extract @intent "..." from accumulated doc comment text
+    size_t intent_pos = doc_lines.find("@intent");
+    if (intent_pos == std::string::npos) return;
+
+    // Find the quoted intent string
+    size_t quote_start = doc_lines.find('"', intent_pos + 7);
+    if (quote_start == std::string::npos) return;
+    size_t quote_end = doc_lines.find('"', quote_start + 1);
+    if (quote_end == std::string::npos) {
+        // Multi-line: intent spans until last quote in doc block
+        quote_end = doc_lines.rfind('"');
+        if (quote_end <= quote_start) return;
+    }
+    pending_intent_ = doc_lines.substr(quote_start + 1, quote_end - quote_start - 1);
+    // Normalize whitespace in multi-line intents
+    for (char& c : pending_intent_) {
+        if (c == '\n') c = ' ';
+    }
+    // Collapse multiple spaces
+    std::string normalized;
+    bool prev_space = false;
+    for (char c : pending_intent_) {
+        if (c == ' ' && prev_space) continue;
+        normalized += c;
+        prev_space = (c == ' ');
+    }
+    pending_intent_ = normalized;
+}
+
 void Parser::optionalSemicolon() {
     match(lexer::TokenType::SEMICOLON);  // Optional semicolon for compatibility
 }
@@ -519,6 +563,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
     // S10: Panic-mode recovery — collect multiple errors instead of stopping at first
     while (!isAtEnd()) {
         skipNewlines();
+        collectDocComments();  // Accumulate /// doc comments, extract @intent
 
         try {
 
@@ -561,7 +606,12 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
             runtime_decls.push_back(parseRuntimeDeclStmt());
         }
         else if (check(lexer::TokenType::FUNCTION) || check(lexer::TokenType::ASYNC)) {
-            functions.push_back(parseFunctionDecl());
+            auto func = parseFunctionDecl();
+            if (!pending_intent_.empty()) {
+                func->setIntent(pending_intent_);
+                pending_intent_.clear();
+            }
+            functions.push_back(std::move(func));
         }
         else if (check(lexer::TokenType::MAIN)) {
             if (main_block) {
@@ -572,6 +622,10 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                         formatLocation(tok.line, tok.column)));
             }
             main_block = parseMainBlock();
+            if (!pending_intent_.empty()) {
+                main_block->setIntent(pending_intent_);
+                pending_intent_.clear();
+            }
             // Continue parsing — functions/structs/enums may follow main
         }
         else {

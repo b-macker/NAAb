@@ -814,6 +814,22 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
         }
 
+        // intent_validation
+        if (cq.contains("intent_validation") && cq["intent_validation"].is_object()) {
+            auto& iv = cq["intent_validation"];
+            rules_.code_quality.intent_validation.enabled = true;
+            if (iv.contains("enabled")) rules_.code_quality.intent_validation.enabled = iv["enabled"].get<bool>();
+            if (iv.contains("required")) rules_.code_quality.intent_validation.required = iv["required"].get<bool>();
+            if (iv.contains("level")) { auto [en, lv] = parseEnforcementLevel(iv["level"]); rules_.code_quality.intent_validation.level = lv; }
+            if (iv.contains("missing_level")) { auto [en, lv] = parseEnforcementLevel(iv["missing_level"]); rules_.code_quality.intent_validation.missing_level = lv; }
+            if (iv.contains("mode")) rules_.code_quality.intent_validation.mode = iv["mode"].get<std::string>();
+            if (iv.contains("min_function_lines")) rules_.code_quality.intent_validation.min_function_lines = iv["min_function_lines"].get<int>();
+            if (iv.contains("exempt_functions")) {
+                for (auto& f : iv["exempt_functions"])
+                    rules_.code_quality.intent_validation.exempt_functions.push_back(f.get<std::string>());
+            }
+        }
+
         // no_pii
         if (cq.contains("no_pii")) {
             if (cq["no_pii"].is_boolean() || cq["no_pii"].is_string()) {

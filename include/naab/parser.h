@@ -52,6 +52,10 @@ private:
     // Brace tracking for better "Expected '}'" error messages
     std::vector<size_t> brace_stack_;  // Stack of line numbers where '{' was opened
 
+    // Intent declaration tracking (/// @intent "...")
+    std::string pending_intent_;
+    void collectDocComments();  // Accumulate /// comments, extract @intent
+
     // Phase 2.1: Parser context for enhanced error hints
     std::unique_ptr<ParserContext> parser_context_;
 

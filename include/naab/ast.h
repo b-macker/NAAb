@@ -223,6 +223,8 @@ public:
     Stmt* getBody() const { return body_.get(); }
     const std::vector<std::string>& getTypeParams() const { return type_params_; }  // Phase 2.4.1
     bool isAsync() const { return is_async_; }  // Phase 6 (deferred)
+    const std::string& getIntent() const { return intent_; }
+    void setIntent(const std::string& intent) { intent_ = intent; }
 
     void accept(ASTVisitor& visitor) override;
 
@@ -233,6 +235,7 @@ private:
     std::unique_ptr<Stmt> body_;
     std::vector<std::string> type_params_;  // Phase 2.4.1: Generic type parameters (T, U, etc.)
     bool is_async_;  // Phase 6 (deferred): async function flag
+    std::string intent_;  // @intent declaration from /// doc comments
 };
 
 // main { ... }
@@ -243,11 +246,14 @@ public:
         : ASTNode(NodeKind::MainBlock, loc), body_(std::move(body)) {}
 
     Stmt* getBody() const { return body_.get(); }
+    const std::string& getIntent() const { return intent_; }
+    void setIntent(const std::string& intent) { intent_ = intent; }
 
     void accept(ASTVisitor& visitor) override;
 
 private:
     std::unique_ptr<Stmt> body_;
+    std::string intent_;  // @intent declaration from /// doc comments
 };
 
 // struct Name { field: Type; ... }
