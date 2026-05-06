@@ -589,6 +589,18 @@ else
     echo "  test_governance_enforcement.sh: not found, skipping"
 fi
 
+INTENT_SCRIPT="tests/governance/test_intent_validation.sh"
+if [ -f "$INTENT_SCRIPT" ]; then
+    if bash "$INTENT_SCRIPT" "$NAAB_BIN" 2>&1; then
+        echo "  test_intent_validation.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_intent_validation.sh")
+    fi
+else
+    echo "  test_intent_validation.sh: not found, skipping"
+fi
+
 GOV_SCRIPT="tests/cli/test_naab_gov.sh"
 if [ -f "$GOV_SCRIPT" ]; then
     if bash "$GOV_SCRIPT" 2>&1; then

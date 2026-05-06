@@ -1005,6 +1005,7 @@ static std::vector<std::string> extractIntentKeywords(const std::string& text) {
 static std::string stripNonCodeContent(const std::string& code) {
     // Pass 1: collect variable names from `let <name>` declarations
     std::unordered_set<std::string> local_vars;
+    std::unordered_set<std::string> let_string_values;  // strings from `let x = "..."` (stuffing vector)
     {
         size_t i = 0;
         while (i < code.size()) {
@@ -1029,6 +1030,28 @@ static std::string stripNonCodeContent(const std::string& code) {
                 }
                 if (name.size() >= 3) {
                     local_vars.insert(name);
+                }
+                // Check for = "string" pattern to detect let-assignment strings
+                size_t j = i;
+                while (j < code.size() && (code[j] == ' ' || code[j] == '\t')) j++;
+                if (j < code.size() && code[j] == '=') {
+                    j++;
+                    while (j < code.size() && (code[j] == ' ' || code[j] == '\t')) j++;
+                    if (j < code.size() && code[j] == '"') {
+                        j++;
+                        std::string str_val;
+                        while (j < code.size() && code[j] != '"') {
+                            if (code[j] == '\\' && j + 1 < code.size()) {
+                                str_val += code[j]; str_val += code[j + 1];
+                                j += 2;
+                            } else {
+                                str_val += code[j]; j++;
+                            }
+                        }
+                        if (!str_val.empty() && str_val.size() <= 20) {
+                            let_string_values.insert(str_val);
+                        }
+                    }
                 }
                 continue;
             }
@@ -1115,10 +1138,15 @@ static std::string stripNonCodeContent(const std::string& code) {
             if (i < code.size()) i++; // skip closing quote
             // Keep short strings (<= 20 chars) — likely dict keys, field names, format strings
             // Strip long strings — likely keyword stuffing / intent restatements
+            // Strip let-assignment strings — `let x = "keyword"` is a stuffing vector
             if (str_content.size() <= 20) {
-                result += '"';
-                result += str_content;
-                result += '"';
+                if (let_string_values.count(str_content)) {
+                    result += ' ';  // strip: let-assignment string
+                } else {
+                    result += '"';
+                    result += str_content;
+                    result += '"';
+                }
             } else {
                 result += ' ';
             }
@@ -1160,45 +1188,181 @@ static bool wordBoundaryMatch(const std::string& text, const std::string& word) 
     size_t pos = 0;
     while ((pos = text.find(word, pos)) != std::string::npos) {
         bool left_ok = (pos == 0 ||
-            !(std::isalnum(static_cast<unsigned char>(text[pos - 1])) || text[pos - 1] == '_'));
+            !std::isalnum(static_cast<unsigned char>(text[pos - 1])));
         size_t end = pos + word.size();
         bool right_ok = (end >= text.size() ||
-            !(std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '_'));
+            !std::isalnum(static_cast<unsigned char>(text[end])));
         if (left_ok && right_ok) return true;
         pos++;
     }
     return false;
 }
 
+// Co-occurrence synonym groups: intent keyword → code alternatives
+// Unidirectional lookup. Synonym matches score 0.75 (not 1.0) to prevent inflation.
+static const std::unordered_map<std::string, std::vector<std::string>> KEYWORD_SYNONYMS = {
+    // Control flow verbs → code constructs
+    {"iterate",   {"for", "loop", "foreach", "while", "range"}},
+    {"loop",      {"for", "while", "foreach", "repeat", "iterate"}},
+    {"execute",   {"run", "call", "invoke", "dispatch", "perform"}},
+    {"check",     {"verify", "validate", "assert", "test", "ensure", "confirm"}},
+
+    // I/O and data verbs
+    {"load",      {"read", "open", "fetch", "parse", "ingest"}},
+    {"store",     {"save", "write", "persist", "cache", "put"}},
+    {"print",     {"output", "display", "write", "emit", "show", "format"}},
+    {"log",       {"audit", "record", "trace", "track", "journal", "append"}},
+    {"report",    {"summary", "summarize", "aggregate", "tally", "stats"}},
+
+    // Data processing verbs
+    {"evaluate",  {"check", "match", "test", "assess", "score", "judge"}},
+    {"detect",    {"find", "search", "scan", "identify", "discover"}},
+    {"validate",  {"check", "verify", "assert", "ensure", "confirm"}},
+    {"parse",     {"decode", "deserialize", "extract", "tokenize", "read"}},
+    {"transform", {"convert", "map", "format", "process"}},
+    {"filter",    {"select", "where", "exclude", "pick"}},
+    {"merge",     {"combine", "join", "concat", "append"}},
+    {"sort",      {"order", "rank", "arrange"}},
+
+    // CRUD verbs
+    {"create",    {"new", "make", "build", "init", "generate", "construct"}},
+    {"remove",    {"delete", "drop", "clear", "erase", "purge"}},
+    {"send",      {"post", "emit", "dispatch", "push", "publish"}},
+    {"receive",   {"get", "accept", "listen", "consume", "pull"}},
+
+    // Testing and verification verbs
+    {"verify",    {"check", "validate", "assert", "test", "tests", "confirm", "ensure"}},
+    {"suite",     {"test", "tests", "spec", "cases", "bench", "run"}},
+    {"correct",   {"valid", "right", "expected", "proper", "pass", "true"}},
+};
+
+// Anti-stuffing: truncate compound identifiers (5+ underscore parts) to first 3 parts.
+// Natural code maxes at ~3 parts (compute_risk_score). Stuffed names pack 6+.
+static std::string truncateCompoundIdentifiers(const std::string& code) {
+    std::string result;
+    result.reserve(code.size());
+    size_t i = 0;
+    while (i < code.size()) {
+        if (std::isalpha(static_cast<unsigned char>(code[i])) || code[i] == '_') {
+            std::string ident;
+            while (i < code.size() &&
+                   (std::isalnum(static_cast<unsigned char>(code[i])) || code[i] == '_')) {
+                ident += code[i]; i++;
+            }
+            // Count underscore-separated parts
+            int parts = 1;
+            for (char c : ident) if (c == '_') parts++;
+            if (parts >= 5) {
+                // Keep only first 3 parts
+                int underscores_seen = 0;
+                for (size_t j = 0; j < ident.size(); j++) {
+                    if (ident[j] == '_') {
+                        underscores_seen++;
+                        if (underscores_seen >= 3) {
+                            ident = ident.substr(0, j);
+                            break;
+                        }
+                    }
+                }
+            }
+            result += ident;
+        } else {
+            result += code[i]; i++;
+        }
+    }
+    return result;
+}
+
 // Helper: check keyword overlap between intent and body+name
+// Returns ratio of matched keywords (direct = 1.0, synonym = 0.75).
+// matched_out: comma-separated list of matched keywords for error messages.
 static double keywordOverlap(const std::vector<std::string>& keywords,
                               const std::string& body, const std::string& name,
-                              std::string& missing_out, int max_missing = 5) {
+                              std::string& missing_out,
+                              std::string& matched_out,
+                              int max_missing = 5) {
     if (keywords.empty()) return 1.0;
     std::string lower_body = body;
     std::transform(lower_body.begin(), lower_body.end(), lower_body.begin(), ::tolower);
     std::string lower_name = name;
     std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
 
-    int found = 0;
+    double found = 0.0;
     missing_out.clear();
-    int shown = 0;
+    matched_out.clear();
+    int shown_missing = 0;
+    int shown_matched = 0;
+
     for (const auto& kw : keywords) {
+        // Direct match (full weight = 1.0)
         if (wordBoundaryMatch(lower_body, kw) ||
             wordBoundaryMatch(lower_name, kw)) {
-            found++;
-        } else {
-            if (shown < max_missing) {
-                if (!missing_out.empty()) missing_out += ", ";
-                missing_out += kw;
-                shown++;
-            } else if (shown == max_missing) {
-                missing_out += "...";
-                shown++;
+            found += 1.0;
+            if (shown_matched < 8) {
+                if (!matched_out.empty()) matched_out += ", ";
+                matched_out += kw;
+                shown_matched++;
+            }
+            continue;
+        }
+
+        // Synonym match (reduced weight = 0.75)
+        bool syn_found = false;
+        auto syn_it = KEYWORD_SYNONYMS.find(kw);
+        if (syn_it != KEYWORD_SYNONYMS.end()) {
+            for (const auto& syn : syn_it->second) {
+                if (wordBoundaryMatch(lower_body, syn) ||
+                    wordBoundaryMatch(lower_name, syn)) {
+                    found += 0.75;
+                    if (shown_matched < 8) {
+                        if (!matched_out.empty()) matched_out += ", ";
+                        matched_out += kw + " (via '" + syn + "')";
+                        shown_matched++;
+                    }
+                    syn_found = true;
+                    break;  // first synonym match wins
+                }
             }
         }
+        if (syn_found) continue;
+
+        // Plural/singular match (weight = 0.9)
+        // "actions" matches "action", "test" matches "tests"
+        {
+            bool plural_found = false;
+            std::string plural_variant;
+            if (kw.size() >= 4 && kw.back() == 's') {
+                // Try singular: "actions" → "action"
+                plural_variant = kw.substr(0, kw.size() - 1);
+            } else if (kw.size() >= 3 && kw.back() != 's') {
+                // Try plural: "action" → "actions"
+                plural_variant = kw + "s";
+            }
+            if (!plural_variant.empty() &&
+                (wordBoundaryMatch(lower_body, plural_variant) ||
+                 wordBoundaryMatch(lower_name, plural_variant))) {
+                found += 0.9;
+                if (shown_matched < 8) {
+                    if (!matched_out.empty()) matched_out += ", ";
+                    matched_out += kw + " (~'" + plural_variant + "')";
+                    shown_matched++;
+                }
+                plural_found = true;
+            }
+            if (plural_found) continue;
+        }
+
+        // Not found
+        if (shown_missing < max_missing) {
+            if (!missing_out.empty()) missing_out += ", ";
+            missing_out += kw;
+            shown_missing++;
+        } else if (shown_missing == max_missing) {
+            missing_out += "...";
+            shown_missing++;
+        }
     }
-    return static_cast<double>(found) / static_cast<double>(keywords.size());
+    return found / static_cast<double>(keywords.size());
 }
 
 // Helper: check if intent text is trivially vague
@@ -1265,19 +1429,29 @@ std::string GovernanceEngine::checkIntentValidation(
             inner_body = inner_body.substr(first_brace + 1);
         }
         inner_body = stripNonCodeContent(inner_body);
+        inner_body = truncateCompoundIdentifiers(inner_body);
         auto keywords = extractIntentKeywords(owner_intent);
         if (keywords.size() >= 3) {
-            std::string missing;
+            std::string missing, matched;
             // Don't match against function_name — owner defined that slot, so name match is circular
-            double overlap = keywordOverlap(keywords, inner_body, "", missing);
+            double overlap = keywordOverlap(keywords, inner_body, "", missing, matched);
             double min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
             if (overlap < min_overlap && keywords.size() >= 3) {
                 return enforce("code_quality.intent_validation", cfg.level,
-                    fmt::format("Intent mismatch on '{}': {:.0f}% overlap with owner requirement.\n"
+                    fmt::format("Intent mismatch on '{}': {:.0f}% overlap (need {:.0f}%).\n"
                         "  Owner requires: \"{}\"\n"
-                        "  Missing from code: {}\n"
-                        "  The implementation does not match the project owner's specification.",
-                        function_name, overlap * 100, owner_intent, missing));
+                        "  Matched: {}\n"
+                        "  Missing: {}\n"
+                        "  Note: Only executable code counts. Comments, string literals\n"
+                        "  assigned to variables, and local variable names are stripped\n"
+                        "  before matching.\n"
+                        "  Hint: Use intent keywords in function calls and identifiers.\n"
+                        "  Snake_case like load_data() matches 'load'. Common synonyms\n"
+                        "  of programming verbs also count (e.g., 'for' matches 'iterate').",
+                        function_name, overlap * 100, min_overlap * 100,
+                        owner_intent,
+                        matched.empty() ? "(none)" : matched,
+                        missing.empty() ? "(none)" : missing));
             }
         }
 
@@ -1395,8 +1569,8 @@ std::string GovernanceEngine::checkIntentValidation(
                 std::string llm_lower = llm_intent;
                 std::transform(llm_lower.begin(), llm_lower.end(), llm_lower.begin(), ::tolower);
 
-                std::string missing;
-                double llm_overlap = keywordOverlap(owner_kw, llm_lower, "", missing);
+                std::string missing, matched_discard;
+                double llm_overlap = keywordOverlap(owner_kw, llm_lower, "", missing, matched_discard);
                 if (llm_overlap < 0.15) {
                     diverged = true;
                     enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
@@ -1499,16 +1673,21 @@ std::string GovernanceEngine::checkIntentValidation(
 
         auto keywords = extractIntentKeywords(llm_intent);
         if (keywords.size() >= 3) {
-            std::string missing;
-            double overlap = keywordOverlap(keywords, body, function_name, missing);
+            std::string missing, matched;
+            double overlap = keywordOverlap(keywords, body, function_name, missing, matched);
             double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
             if (overlap < t3_min_overlap) {
                 return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
-                    fmt::format("Self-declared intent mismatch on '{}': {:.0f}% overlap.\n"
+                    fmt::format("Self-declared intent mismatch on '{}': {:.0f}% overlap (need {:.0f}%).\n"
                         "  LLM claims: \"{}\"\n"
-                        "  Missing from body: {}\n"
-                        "  Note: No owner intent defined — this is advisory only.",
-                        function_name, overlap * 100, llm_intent, missing));
+                        "  Matched: {}\n"
+                        "  Missing: {}\n"
+                        "  Note: No owner intent defined — this is advisory only.\n"
+                        "  Hint: Use intent keywords in function calls and identifiers.",
+                        function_name, overlap * 100, t3_min_overlap * 100,
+                        llm_intent,
+                        matched.empty() ? "(none)" : matched,
+                        missing.empty() ? "(none)" : missing));
             }
         }
 
