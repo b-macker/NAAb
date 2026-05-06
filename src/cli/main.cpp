@@ -1489,6 +1489,15 @@ int main(int argc, char** argv) {
                     }
                 }
 
+                // Preflight intent gate — verify all functions match owner-defined intent
+                // before any compilation or execution. Pattern-based (fast, no API).
+                if (gov_loaded && vm_governance.isActive()) {
+                    std::string intent_err = vm_governance.preflightIntentCheck(*program, source);
+                    if (!intent_err.empty()) {
+                        throw std::runtime_error(intent_err);
+                    }
+                }
+
                 // Drift detection: check structural metrics against baseline
                 if (gov_loaded && vm_governance.getRules().code_quality.drift_detection.enabled) {
                     auto drift_metrics = naab::governance::GovernanceEngine::collectDriftMetrics(
@@ -1510,6 +1519,12 @@ int main(int argc, char** argv) {
                 // Agent review: LLM-based governance phase (if enabled in govern.json)
                 if (gov_loaded && vm_governance.isActive()) {
                     vm_governance.runAgentReview(source);
+                    // Intent-specific agent findings block execution immediately
+                    if (vm_governance.hasIntentBlock()) {
+                        vm_governance.writeReports();
+                        fflush(stdout); fflush(stderr);
+                        _exit(2);  // quality gate failure
+                    }
                 }
 
                 // Drift detection / agent review hard block — skip execution
@@ -1827,6 +1842,17 @@ int main(int argc, char** argv) {
                     _exit(naab::governance::g_governance_hard_block ? 3 : 0);
                 }
 
+                // Preflight intent gate (tree-walker path)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->isActive()) {
+                        std::string intent_err = gov->preflightIntentCheck(*program, source);
+                        if (!intent_err.empty()) {
+                            throw std::runtime_error(intent_err);
+                        }
+                    }
+                }
+
                 // Drift detection (tree-walker path — pre-execute)
                 {
                     auto* gov = interpreter.getGovernance();
@@ -1855,6 +1881,11 @@ int main(int argc, char** argv) {
                     auto* gov = interpreter.getGovernance();
                     if (gov && gov->isActive()) {
                         gov->runAgentReview(source);
+                        if (gov->hasIntentBlock()) {
+                            gov->writeReports();
+                            fflush(stdout); fflush(stderr);
+                            _exit(2);
+                        }
                     }
                 }
 

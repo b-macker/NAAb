@@ -1298,6 +1298,19 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     }
 }
 
+bool GovernanceEngine::hasIntentBlock() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
+    for (const auto& r : check_results_) {
+        if (!r.passed &&
+            (r.rule_name == "agent_review.intent_mismatch" ||
+             r.rule_name == "agent_review.intent_evasion") &&
+            r.level != EnforcementLevel::ADVISORY) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string GovernanceEngine::formatSummaryOneLine() const {
     if (check_results_.empty()) return "";
 
@@ -1706,6 +1719,22 @@ static std::string extractFunctionBody(const std::string& source, int start_line
     return extractBraceBody(source, brace_start);
 }
 
+// Like extractFunctionBody but includes the declaration line (fn name(...) { ... })
+// Used by preflight intent check — checkIntentValidation expects the declaration line
+// so it can strip it (avoiding parameter name false keyword matches).
+static std::string extractFunctionWithDecl(const std::string& source, int start_line) {
+    int current_line = 1;
+    size_t pos = 0;
+    while (current_line < start_line && pos < source.size()) {
+        if (source[pos] == '\n') current_line++;
+        pos++;
+    }
+    size_t brace_start = source.find('{', pos);
+    if (brace_start == std::string::npos) return "";
+    std::string inner = extractBraceBody(source, brace_start);
+    return source.substr(pos, brace_start - pos + 1) + inner + "}";
+}
+
 // Helper: extract main{} block body by searching for top-level "main" keyword
 static std::string extractMainBody(const std::string& source) {
     // Search for "main" at the start of a line (after optional whitespace),
@@ -1760,6 +1789,50 @@ static std::string extractMainBody(const std::string& source) {
 
         pos = found + 4;
     }
+    return "";
+}
+
+// ============================================================================
+// Preflight intent gate — check all functions before execution starts
+// ============================================================================
+
+std::string GovernanceEngine::preflightIntentCheck(
+    const ast::Program& program, const std::string& source) {
+
+    auto& cfg = rules_.code_quality.intent_validation;
+    if (!cfg.enabled) return "";
+    if (cfg.mode == "agent") return "";  // agent-only defers to LLM review
+
+    // Check all top-level functions
+    for (const auto& fn : program.getFunctions()) {
+        if (!fn) continue;
+        int line = fn->getLocation().line;
+        std::string body = extractFunctionWithDecl(source, line);
+        std::string err = checkIntentValidation(
+            fn->getName(), fn->getIntent(), body, line);
+        if (!err.empty()) return err;
+    }
+
+    // Check exported functions
+    for (const auto& ex : program.getExports()) {
+        if (!ex || !ex->getFunctionDecl()) continue;
+        auto* fd = ex->getFunctionDecl();
+        int line = fd->getLocation().line;
+        std::string body = extractFunctionWithDecl(source, line);
+        std::string err = checkIntentValidation(
+            fd->getName(), fd->getIntent(), body, line);
+        if (!err.empty()) return err;
+    }
+
+    // Check main block — main{} body doesn't have a declaration to strip
+    if (program.getMainBlock()) {
+        auto* mb = program.getMainBlock();
+        std::string body = "main {" + extractMainBody(source) + "}";
+        std::string err = checkIntentValidation(
+            "main", mb->getIntent(), body, mb->getLocation().line);
+        if (!err.empty()) return err;
+    }
+
     return "";
 }
 

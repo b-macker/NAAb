@@ -1030,12 +1030,7 @@ void Compiler::visit(ast::FunctionDecl& node) {
                 if (!err.empty()) {
                     throw std::runtime_error(err);
                 }
-                // Intent validation
-                err = governance_->checkIntentValidation(
-                    node.getName(), node.getIntent(), body_text, line);
-                if (!err.empty()) {
-                    throw std::runtime_error(err);
-                }
+                // Intent validation handled by preflight gate in main.cpp
             }
         }
     }
@@ -1131,12 +1126,7 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                 if (!err.empty()) {
                     throw std::runtime_error(err);
                 }
-                // Intent validation
-                err = governance_->checkIntentValidation(
-                    decl->getName(), decl->getIntent(), body_text, line);
-                if (!err.empty()) {
-                    throw std::runtime_error(err);
-                }
+                // Intent validation handled by preflight gate in main.cpp
             }
         }
     }

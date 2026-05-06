@@ -1705,6 +1705,9 @@ public:
     std::string checkIntentValidation(const std::string& function_name,
                                        const std::string& intent,
                                        const std::string& body, int line);
+    // Preflight intent gate — runs all intent checks before execution
+    std::string preflightIntentCheck(const ast::Program& program, const std::string& source);
+    bool hasIntentBlock() const;
     std::string checkHallucinatedApis(const std::string& language,
                                        const std::string& code, int line = 0);
     std::string checkSemanticIssues(const std::string& language,
