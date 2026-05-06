@@ -2619,6 +2619,122 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int l
     return "";
 }
 
+// --- Security: VCS Secret Extraction (co-occurrence detection) ---
+// Gap #12: Detects attempts to extract secrets from version control history.
+// Uses signal co-occurrence instead of hard patterns — resilient to rephrasing.
+//
+// Signal 1: VCS invocation (git, .git, subprocess calling git, etc.)
+// Signal 2: History traversal (log, show, rev-list, reflog, diff, blame)
+// Signal 3: Content search/extraction (-S, -G, -p, --format, grep, pipe)
+// Signal 4: Secret-adjacent targets (key, token, secret, password, .pem, .env)
+//
+// 3/4 signals = ADVISORY, 4/4 = configured level (default SOFT)
+std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, int line) {
+    auto& cfg = rules_.restrictions.vcs_secret_extraction;
+    if (!cfg.enabled) return "";
+
+    // Lowercase for case-insensitive matching
+    std::string lower = code;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Signal 1: VCS invocation
+    bool has_vcs = false;
+    static const std::vector<std::string> vcs_signals = {
+        "git ", "git\\b", "\\.git", "subprocess.*git", "exec.*git",
+        "os\\.system.*git", "os\\.popen.*git", "run.*git",
+        "system(\"git", "system('git", "`git ", "$(git ",
+        "svn ", "hg ", "mercurial"
+    };
+    for (const auto& pat : vcs_signals) {
+        try {
+            if (std::regex_search(lower, std::regex(pat))) { has_vcs = true; break; }
+        } catch (...) {
+            if (lower.find(pat) != std::string::npos) { has_vcs = true; break; }
+        }
+    }
+
+    // Signal 2: History traversal intent
+    bool has_history = false;
+    static const std::vector<std::string> history_signals = {
+        "\\blog\\b", "\\bshow\\b", "\\bblame\\b", "\\breflog\\b",
+        "rev-list", "rev-parse", "\\bdiff\\b", "cat-file",
+        "fsck", "for-each-ref", "\\bhistory\\b", "\\bcommit\\b"
+    };
+    for (const auto& pat : history_signals) {
+        try {
+            if (std::regex_search(lower, std::regex(pat))) { has_history = true; break; }
+        } catch (...) {
+            if (lower.find(pat) != std::string::npos) { has_history = true; break; }
+        }
+    }
+
+    // Signal 3: Content search/extraction
+    bool has_search = false;
+    static const std::vector<std::string> search_signals = {
+        "-s\\b", "-g\\b", "-p\\b", "--format", "--pretty",
+        "\\bgrep\\b", "\\bsed\\b", "\\bawk\\b", "\\bxargs\\b",
+        "\\bpipe\\b", "\\b>\\s", ">>\\s", "tee\\b",
+        "\\bread\\b", "open\\(", "write\\(", "extract",
+        "--all", "--follow", "--source"
+    };
+    for (const auto& pat : search_signals) {
+        try {
+            if (std::regex_search(lower, std::regex(pat))) { has_search = true; break; }
+        } catch (...) {
+            if (lower.find(pat) != std::string::npos) { has_search = true; break; }
+        }
+    }
+
+    // Signal 4: Secret-adjacent targets
+    bool has_secret = false;
+    static const std::vector<std::string> secret_signals = {
+        "\\bkey\\b", "\\btoken\\b", "\\bsecret\\b", "\\bpassword\\b",
+        "\\bcredential", "\\bprivate", "\\.pem\\b", "\\.key\\b",
+        "\\.env\\b", "api.?key", "auth.?token", "access.?key",
+        "signing.?key", "\\bcert\\b", "\\bpkcs", "\\baws_",
+        "\\bazure", "\\bgcp_", "service.?account"
+    };
+    for (const auto& pat : secret_signals) {
+        try {
+            if (std::regex_search(lower, std::regex(pat))) { has_secret = true; break; }
+        } catch (...) {
+            if (lower.find(pat) != std::string::npos) { has_secret = true; break; }
+        }
+    }
+
+    int signal_count = (has_vcs ? 1 : 0) + (has_history ? 1 : 0) +
+                       (has_search ? 1 : 0) + (has_secret ? 1 : 0);
+
+    if (signal_count >= 4) {
+        // Full co-occurrence: all 4 signals present
+        return enforce("restrictions.vcs_secret_extraction", cfg.level,
+            formatError(cfg.level,
+                "VCS secret extraction: code combines version control access, "
+                "history traversal, content extraction, and secret-related targets "
+                "(4/4 signals detected)",
+                line > 0 ? fmt::format("line {}", line) : "",
+                "restrictions.vcs_secret_extraction",
+                "Do not extract secrets from version control history", "", ""));
+    } else if (signal_count == 3) {
+        // Partial co-occurrence: 3/4 signals — advisory regardless of config level
+        std::string missing;
+        if (!has_vcs) missing = "vcs-invocation";
+        else if (!has_history) missing = "history-traversal";
+        else if (!has_search) missing = "content-extraction";
+        else missing = "secret-targets";
+        return enforce("restrictions.vcs_secret_extraction", EnforcementLevel::ADVISORY,
+            formatError(EnforcementLevel::ADVISORY,
+                fmt::format("Possible VCS secret extraction: 3/4 co-occurrence signals "
+                    "detected (missing: {})", missing),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "restrictions.vcs_secret_extraction",
+                "This code pattern resembles secret extraction from version control", "", ""));
+    }
+
+    recordPass("restrictions.vcs_secret_extraction", cfg.level);
+    return "";
+}
+
 // --- Per-Language: Imports ---
 std::string GovernanceEngine::checkImports(const std::string& language,
                                             const std::string& code, int line) {
@@ -3073,6 +3189,8 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkInfoDisclosure(lang, stripped, line);
     if (!err.empty()) return err;
     err = checkCryptoWeakness(stripped, line);
+    if (!err.empty()) return err;
+    err = checkVcsSecretExtraction(code, line);  // uses raw code — secret targets live in strings
     if (!err.empty()) return err;
 
     // Capability checks for polyglot blocks

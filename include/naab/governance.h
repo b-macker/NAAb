@@ -407,6 +407,11 @@ struct CryptoRestriction {
     EnforcementLevel secure_random_level = EnforcementLevel::ADVISORY;
 };
 
+struct VcsSecretExtractionRestriction {
+    bool enabled = true;                                // on by default
+    EnforcementLevel level = EnforcementLevel::SOFT;    // 3/4 signals = ADVISORY, 4/4 = SOFT
+};
+
 struct RestrictionsConfig {
     PolyglotOutputRestriction polyglot_output;
     DangerousCallsRestriction dangerous_calls;
@@ -418,6 +423,7 @@ struct RestrictionsConfig {
     InfoDisclosureRestriction information_disclosure;
     CodeInjectionRestriction code_injection;
     CryptoRestriction crypto;
+    VcsSecretExtractionRestriction vcs_secret_extraction;
 };
 
 // ============================================================================
@@ -1697,6 +1703,7 @@ public:
     std::string checkInfoDisclosure(const std::string& language,
                                      const std::string& code, int line = 0);
     std::string checkCryptoWeakness(const std::string& code, int line = 0);
+    std::string checkVcsSecretExtraction(const std::string& code, int line = 0);
 
     // Capability checks for polyglot blocks
     std::string checkNetworkImports(const std::string& language,

@@ -714,6 +714,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("weak_hashes")) for (auto& h : cr["weak_hashes"]) rules_.restrictions.crypto.weak_hashes.push_back(h.get<std::string>());
             if (cr.contains("weak_ciphers")) for (auto& c : cr["weak_ciphers"]) rules_.restrictions.crypto.weak_ciphers.push_back(c.get<std::string>());
         }
+        if (res.contains("vcs_secret_extraction") && res["vcs_secret_extraction"].is_object()) {
+            auto& vs = res["vcs_secret_extraction"];
+            if (vs.contains("enabled")) rules_.restrictions.vcs_secret_extraction.enabled = vs["enabled"].get<bool>();
+            if (vs.contains("level")) { auto [en, lv] = parseEnforcementLevel(vs["level"]); rules_.restrictions.vcs_secret_extraction.level = lv; }
+        }
         if (res.contains("imports") && res["imports"].is_object()) {
             auto& im = res["imports"];
             rules_.restrictions.imports.enabled = true;
