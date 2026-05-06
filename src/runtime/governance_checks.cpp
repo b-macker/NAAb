@@ -1033,11 +1033,61 @@ static std::string stripNonCodeContent(const std::string& code) {
         }
     }
 
+    // Collect function parameter names from declaration: fn name(p1, p2, p3) {
+    {
+        size_t fn_pos = code.find("fn ");
+        if (fn_pos != std::string::npos) {
+            size_t paren = code.find('(', fn_pos);
+            size_t close = code.find(')', paren != std::string::npos ? paren : 0);
+            if (paren != std::string::npos && close != std::string::npos) {
+                std::string params = code.substr(paren + 1, close - paren - 1);
+                std::string pname;
+                for (size_t p = 0; p <= params.size(); p++) {
+                    char c = (p < params.size()) ? params[p] : ',';
+                    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+                        pname += c;
+                    } else {
+                        if (pname.size() >= 3) local_vars.insert(pname);
+                        pname.clear();
+                    }
+                }
+            }
+        }
+    }
+
+    // Collect for-loop variable names: for <name> in ...
+    {
+        size_t fi = 0;
+        while (fi < code.size()) {
+            if (fi + 3 < code.size() && code.substr(fi, 4) == "for ") {
+                fi += 4;
+                while (fi < code.size() && (code[fi] == ' ' || code[fi] == '\t')) fi++;
+                std::string name;
+                while (fi < code.size() &&
+                       (std::isalnum(static_cast<unsigned char>(code[fi])) || code[fi] == '_')) {
+                    name += code[fi]; fi++;
+                }
+                if (name.size() >= 3) local_vars.insert(name);
+            }
+            fi++;
+        }
+    }
+
     // Pass 2: strip comments, long strings (>20 chars, keyword stuffing), and local var names
     std::string result;
     result.reserve(code.size());
     size_t i = 0;
     while (i < code.size()) {
+        // Skip /* */ block comments
+        if (i + 1 < code.size() && code[i] == '/' && code[i + 1] == '*') {
+            i += 2;
+            while (i + 1 < code.size() && !(code[i] == '*' && code[i + 1] == '/')) {
+                i++;
+            }
+            if (i + 1 < code.size()) i += 2;  // skip */
+            result += ' ';
+            continue;
+        }
         // Skip /// and // comments
         if (i + 1 < code.size() && code[i] == '/' && code[i + 1] == '/') {
             while (i < code.size() && code[i] != '\n') i++;
@@ -1198,7 +1248,8 @@ std::string GovernanceEngine::checkIntentValidation(
             std::string missing;
             // Don't match against function_name — owner defined that slot, so name match is circular
             double overlap = keywordOverlap(keywords, inner_body, "", missing);
-            if (overlap < 0.2 && keywords.size() >= 4) {
+            double min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            if (overlap < min_overlap && keywords.size() >= 3) {
                 return enforce("code_quality.intent_validation", cfg.level,
                     fmt::format("Intent mismatch on '{}': {:.0f}% overlap with owner requirement.\n"
                         "  Owner requires: \"{}\"\n"
@@ -1268,7 +1319,7 @@ std::string GovernanceEngine::checkIntentValidation(
                         if (!effects_str.empty()) effects_str += ", ";
                         effects_str += e;
                     }
-                    return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                    return enforce("code_quality.intent_validation", cfg.level,
                         fmt::format("Unexpected side effects in '{}': {} found but owner intent "
                             "doesn't mention I/O.\n"
                             "  Owner requires: \"{}\"\n"
@@ -1295,13 +1346,13 @@ std::string GovernanceEngine::checkIntentValidation(
                 }
             }
             if (intent_requires_rejection) {
-                // Body should have at least one conditional (if/match/throw)
-                std::string body_lower = body;
-                std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
-                bool has_branch = (body_lower.find("if ") != std::string::npos ||
-                                   body_lower.find("if(") != std::string::npos ||
-                                   body_lower.find("match ") != std::string::npos ||
-                                   body_lower.find("throw ") != std::string::npos);
+                // Use stripped body — raw body lets comments with "if" defeat the check
+                std::string stripped_lower = inner_body;
+                std::transform(stripped_lower.begin(), stripped_lower.end(), stripped_lower.begin(), ::tolower);
+                bool has_branch = (stripped_lower.find("if ") != std::string::npos ||
+                                   stripped_lower.find("if(") != std::string::npos ||
+                                   stripped_lower.find("match ") != std::string::npos ||
+                                   stripped_lower.find("throw ") != std::string::npos);
                 if (!has_branch) {
                     return enforce("code_quality.intent_validation", cfg.level,
                         fmt::format("Rubber-stamp detected in '{}': owner intent requires validation/rejection "
@@ -1314,19 +1365,18 @@ std::string GovernanceEngine::checkIntentValidation(
         }
 
         // LLM @intent vs owner intent (advisory — is the LLM confused about requirements?)
+        bool diverged = false;
         if (!llm_intent.empty()) {
             auto owner_kw = extractIntentKeywords(owner_intent);
             auto llm_kw = extractIntentKeywords(llm_intent);
             if (owner_kw.size() >= 3 && llm_kw.size() >= 3) {
-                // Check if LLM intent keywords overlap with owner intent keywords
                 std::string llm_lower = llm_intent;
                 std::transform(llm_lower.begin(), llm_lower.end(), llm_lower.begin(), ::tolower);
-                std::string owner_lower = owner_intent;
-                std::transform(owner_lower.begin(), owner_lower.end(), owner_lower.begin(), ::tolower);
 
                 std::string missing;
-                double overlap = keywordOverlap(owner_kw, llm_lower, "", missing);
-                if (overlap < 0.15) {
+                double llm_overlap = keywordOverlap(owner_kw, llm_lower, "", missing);
+                if (llm_overlap < 0.15) {
+                    diverged = true;
                     enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
                         fmt::format("Intent conflict on '{}': LLM's @intent diverges from owner's.\n"
                             "  Owner requires: \"{}\"\n"
@@ -1337,7 +1387,10 @@ std::string GovernanceEngine::checkIntentValidation(
             }
         }
 
-        recordPass("code_quality.intent_validation", cfg.level);
+        // Only record pass if no divergence advisory was emitted
+        if (!diverged) {
+            recordPass("code_quality.intent_validation", cfg.level);
+        }
         return "";
     }
 
@@ -1365,11 +1418,16 @@ std::string GovernanceEngine::checkIntentValidation(
                 // likely a dodge — escalate from advisory to configured level.
                 EnforcementLevel eff_level = cfg.function_intents.empty()
                     ? EnforcementLevel::ADVISORY : cfg.level;
+                std::string escalation_note = "";
+                if (!cfg.function_intents.empty()) {
+                    escalation_note = "\n  Note: Enforcement escalated because function_intents are defined "
+                                      "but this function is not listed.";
+                }
                 std::string msg = enforce("code_quality.intent_validation", eff_level,
                     fmt::format("Function '{}' has no keyword overlap with project intent.\n"
                         "  Project: \"{}\"\n"
-                        "  This function may not belong in this project.",
-                        function_name, cfg.project_intent));
+                        "  This function may not belong in this project.{}",
+                        function_name, cfg.project_intent, escalation_note));
                 if (!msg.empty()) return msg;
             }
         }
@@ -1384,9 +1442,9 @@ std::string GovernanceEngine::checkIntentValidation(
 
             // Check project-level prohibitions
             static const std::vector<std::pair<std::string, std::vector<std::string>>> prohibitions = {
-                {"no network", {"http.get(", "http.post(", "http.request("}},
-                {"no credential", {"env.get(", "env.list("}},
-                {"no file", {"file.write(", "file.append(", "file.delete("}},
+                {"no network", {"http.get(", "http.post(", "http.request(", "<<python", "<<javascript", "<<shell"}},
+                {"no credential", {"env.get(", "<<python", "<<shell"}},
+                {"no file", {"file.write(", "file.append(", "file.delete(", "<<python", "<<shell"}},
             };
             for (const auto& [prohibition, patterns] : prohibitions) {
                 if (proj_lower.find(prohibition) != std::string::npos) {
@@ -1417,10 +1475,11 @@ std::string GovernanceEngine::checkIntentValidation(
         }
 
         auto keywords = extractIntentKeywords(llm_intent);
-        if (keywords.size() >= 4) {
+        if (keywords.size() >= 3) {
             std::string missing;
             double overlap = keywordOverlap(keywords, body, function_name, missing);
-            if (overlap < 0.2) {
+            double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            if (overlap < t3_min_overlap) {
                 return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
                     fmt::format("Self-declared intent mismatch on '{}': {:.0f}% overlap.\n"
                         "  LLM claims: \"{}\"\n"
