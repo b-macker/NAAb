@@ -1208,7 +1208,7 @@ std::string GovernanceEngine::checkIntentValidation(
             std::string body_lower = body;
             std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
 
-            // I/O operations that should be mentioned in intent if present in code
+            // I/O and escape operations that should be mentioned in intent if present
             static const std::vector<std::pair<std::string, std::string>> side_effects = {
                 {"print(", "print/output"},
                 {"io.write(", "I/O write"},
@@ -1220,15 +1220,23 @@ std::string GovernanceEngine::checkIntentValidation(
                 {"http.post(", "network call"},
                 {"http.request(", "network call"},
                 {"env.set_var(", "env modification"},
+                {"env.get(", "env read"},
                 {"process.exec(", "process execution"},
                 {"process.run(", "process execution"},
+                {"<<python", "polyglot escape (python)"},
+                {"<<javascript", "polyglot escape (javascript)"},
+                {"<<shell", "polyglot escape (shell)"},
+                {"<<go", "polyglot escape (go)"},
+                {"<<ruby", "polyglot escape (ruby)"},
+                {"<<rust", "polyglot escape (rust)"},
             };
 
-            // Intent keywords that signal I/O is expected
+            // Intent keywords that signal I/O or polyglot is expected
             static const std::vector<std::string> io_intent_words = {
                 "print", "output", "write", "log", "display", "show", "file",
                 "network", "http", "send", "fetch", "stdout", "stderr", "report",
-                "format", "emit", "publish"
+                "format", "emit", "publish", "python", "javascript", "shell",
+                "polyglot", "external", "execute", "script", "env", "environment"
             };
 
             bool intent_mentions_io = false;
@@ -1252,13 +1260,47 @@ std::string GovernanceEngine::checkIntentValidation(
                         if (!effects_str.empty()) effects_str += ", ";
                         effects_str += e;
                     }
-                    enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                    return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
                         fmt::format("Unexpected side effects in '{}': {} found but owner intent "
                             "doesn't mention I/O.\n"
                             "  Owner requires: \"{}\"\n"
                             "  Detected: {}\n"
                             "  Functions should only perform operations described in their intent.",
                             function_name, found_effects.size(), owner_intent, effects_str));
+                }
+            }
+        }
+
+        // Rubber-stamp detection: owner intent mentions rejection/validation but code has no branches
+        {
+            std::string intent_lower = owner_intent;
+            std::transform(intent_lower.begin(), intent_lower.end(), intent_lower.begin(), ::tolower);
+            static const std::vector<std::string> rejection_words = {
+                "reject", "deny", "block", "fail", "error", "invalid", "validate",
+                "check", "verify", "ensure", "must", "require", "prohibit", "prevent"
+            };
+            bool intent_requires_rejection = false;
+            for (const auto& w : rejection_words) {
+                if (intent_lower.find(w) != std::string::npos) {
+                    intent_requires_rejection = true;
+                    break;
+                }
+            }
+            if (intent_requires_rejection) {
+                // Body should have at least one conditional (if/match/throw)
+                std::string body_lower = body;
+                std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
+                bool has_branch = (body_lower.find("if ") != std::string::npos ||
+                                   body_lower.find("if(") != std::string::npos ||
+                                   body_lower.find("match ") != std::string::npos ||
+                                   body_lower.find("throw ") != std::string::npos);
+                if (!has_branch) {
+                    return enforce("code_quality.intent_validation", cfg.level,
+                        fmt::format("Rubber-stamp detected in '{}': owner intent requires validation/rejection "
+                            "but function has no conditional branches.\n"
+                            "  Owner requires: \"{}\"\n"
+                            "  Functions that must reject invalid input need if/match/throw logic.",
+                            function_name, owner_intent));
                 }
             }
         }
@@ -1310,11 +1352,49 @@ std::string GovernanceEngine::checkIntentValidation(
             }
             // If zero project keywords match, this function might not belong
             if (found == 0 && proj_kw.size() >= 4) {
-                enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                // If owner has defined function_intents, they care about intent control.
+                // A function with zero project overlap AND not in function_intents is
+                // likely a dodge — escalate from advisory to configured level.
+                EnforcementLevel eff_level = cfg.function_intents.empty()
+                    ? EnforcementLevel::ADVISORY : cfg.level;
+                std::string msg = enforce("code_quality.intent_validation", eff_level,
                     fmt::format("Function '{}' has no keyword overlap with project intent.\n"
                         "  Project: \"{}\"\n"
                         "  This function may not belong in this project.",
                         function_name, cfg.project_intent));
+                if (!msg.empty()) return msg;
+            }
+        }
+
+        // Side-effect detection at project level — check for operations the project
+        // explicitly prohibits (e.g., "no network calls, no credential access")
+        {
+            std::string proj_lower = cfg.project_intent;
+            std::transform(proj_lower.begin(), proj_lower.end(), proj_lower.begin(), ::tolower);
+            std::string body_lower = body;
+            std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
+
+            // Check project-level prohibitions
+            static const std::vector<std::pair<std::string, std::vector<std::string>>> prohibitions = {
+                {"no network", {"http.get(", "http.post(", "http.request("}},
+                {"no credential", {"env.get(", "env.list("}},
+                {"no file", {"file.write(", "file.append(", "file.delete("}},
+            };
+            for (const auto& [prohibition, patterns] : prohibitions) {
+                if (proj_lower.find(prohibition) != std::string::npos) {
+                    for (const auto& pat : patterns) {
+                        if (body_lower.find(pat) != std::string::npos) {
+                            EnforcementLevel eff_level = cfg.function_intents.empty()
+                                ? EnforcementLevel::ADVISORY : cfg.level;
+                            std::string msg2 = enforce("code_quality.intent_validation", eff_level,
+                                fmt::format("Function '{}' violates project prohibition.\n"
+                                    "  Project states: \"{}\"\n"
+                                    "  Detected: '{}' in function body.",
+                                    function_name, cfg.project_intent, pat));
+                            if (!msg2.empty()) return msg2;
+                        }
+                    }
+                }
             }
         }
     }
