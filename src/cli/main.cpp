@@ -1853,7 +1853,10 @@ int main(int argc, char** argv) {
                     (void)result;
                     // writeReports() already called inside execute() on success
                 } catch (...) {
-                    if (vm_governance.isActive()) vm_governance.writeReports();
+                    if (vm_governance.isActive()) {
+                        vm_governance.runGovernanceVoice();
+                        vm_governance.writeReports();
+                    }
                     throw;
                 }
 
@@ -1991,7 +1994,10 @@ int main(int argc, char** argv) {
                 } catch (...) {
                     // Write reports before the interpreter is destroyed
                     auto* gov = interpreter.getGovernance();
-                    if (gov) gov->writeReports();
+                    if (gov) {
+                        gov->runGovernanceVoice();
+                        gov->writeReports();
+                    }
                     throw;  // Re-throw to outer catch
                 }
 

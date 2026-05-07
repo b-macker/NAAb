@@ -1424,6 +1424,10 @@ void GovernanceEngine::runGovernanceVoice() {
                             governance_voiced_ = true;
                             fprintf(stderr,
                                 "[governance] Voice: cache hit (source + config unchanged)\n");
+                            fprintf(stderr,
+                                "\n[governance] Voice Summary (%zu violation%s):\n\n%s\n\n",
+                                violations.size(), violations.size() != 1 ? "s" : "",
+                                governance_voice_summary_.c_str());
                             return;
                         }
                     }
@@ -1488,6 +1492,13 @@ void GovernanceEngine::runGovernanceVoice() {
                 out << wrapper.dump(2);
             }
         }
+    }
+
+    // Print voice summary immediately — on error paths the summary formatter may not run
+    if (governance_voiced_ && !governance_voice_summary_.empty()) {
+        fprintf(stderr, "\n[governance] Voice Summary (%zu violation%s):\n\n%s\n\n",
+                violations.size(), violations.size() != 1 ? "s" : "",
+                governance_voice_summary_.c_str());
     }
 }
 
