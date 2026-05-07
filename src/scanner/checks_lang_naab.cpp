@@ -388,7 +388,42 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
         }
     }
 
-    // 12. hardcoded_return_value — return dict with literal 0 or "" for named keys
+    // 12. json_double_encode — json.dumps()/JSON.stringify() inside -> JSON blocks
+    if (isEnabled(CAT, "json_double_encode")) {
+        static const std::regex json_pipe_open(R"(<<\w+.*->\s*JSON)");
+        static const std::regex py_close(R"(^>>)");
+        static const std::regex py_dumps(R"(json\.dumps\s*\()");
+        static const std::regex js_stringify(R"(JSON\.stringify\s*\()");
+        bool in_json_block = false;
+
+        for (size_t i = 0; i < orig_lines.size(); ++i) {
+            std::string s = nb_trim(orig_lines[i]);
+            if (!in_json_block && std::regex_search(s, json_pipe_open)) {
+                in_json_block = true;
+            } else if (in_json_block && std::regex_match(orig_lines[i], py_close)) {
+                in_json_block = false;
+            } else if (in_json_block) {
+                if (std::regex_search(s, py_dumps)) {
+                    addIssue(issues, filepath, i + 1, "json_double_encode", CAT,
+                             "json.dumps() inside '-> JSON' block causes double-encoding",
+                             s,
+                             "Remove json.dumps() — the -> JSON pipe handles serialization. "
+                             "Use the bare dict/list as the last expression.",
+                             "advisory");
+                }
+                if (std::regex_search(s, js_stringify)) {
+                    addIssue(issues, filepath, i + 1, "json_double_encode", CAT,
+                             "JSON.stringify() inside '-> JSON' block causes double-encoding",
+                             s,
+                             "Remove JSON.stringify() — the -> JSON pipe handles serialization. "
+                             "Use the bare object as the last expression.",
+                             "advisory");
+                }
+            }
+        }
+    }
+
+    // 13. hardcoded_return_value — return dict with literal 0 or "" for named keys
     if (isEnabled(CAT, "hardcoded_return_value")) {
         static const std::regex return_dict_pat(R"(return\s*\{)");
         // Match "key": <literal> where literal is 0, "", [], {}, true, false, null

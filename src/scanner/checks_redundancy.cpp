@@ -518,6 +518,41 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         }
     }
 
+    // 11c. missing_imports (NAAb) — detect module.func() usage without `use module`
+    if (isEnabled(CAT, "missing_imports") && language == "naab") {
+        static const std::vector<std::string> known_modules = {
+            "math", "string", "json", "csv", "file", "time", "regex",
+            "env", "io", "crypto", "log", "uuid", "validate", "process",
+            "path", "http", "array", "dict", "agent"
+        };
+        // Collect imported modules
+        std::unordered_set<std::string> imported;
+        static const std::regex mi_use_pat(R"(^\s*use\s+(\w+))");
+        for (const auto& line : lines) {
+            std::smatch m;
+            if (std::regex_search(line, m, mi_use_pat))
+                imported.insert(m[1].str());
+        }
+        imported.insert("debug"); // auto-imported prelude
+
+        // Find usages of non-imported modules (lines are polyglot-stripped)
+        for (const auto& mod : known_modules) {
+            if (imported.count(mod)) continue;
+            std::regex usage_pat("\\b" + mod + "\\.");
+            for (size_t i = 0; i < lines.size(); ++i) {
+                if (std::regex_search(lines[i], usage_pat)) {
+                    addIssue(issues, filepath, i + 1, "missing_imports", CAT,
+                        fmt::format("'{}' is used but module '{}' is not imported",
+                            mod, mod),
+                        trim(lines[i]),
+                        fmt::format("Add 'use {}' at the top of the file", mod),
+                        "advisory");
+                    break; // one issue per missing module
+                }
+            }
+        }
+    }
+
     // 12. single_use_variable
     if (isEnabled(CAT, "single_use_variable")) {
         static const std::regex var_assign(R"(^\s*(?:let|const|var|)\s*(\w+)\s*=\s*(.+)$)");

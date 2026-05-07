@@ -2023,6 +2023,12 @@ std::string GovernanceEngine::checkFunctionContract(
                 help += "\"" + contract.return_one_of[i] + "\"";
             }
         }
+        if (contract.has_return_min) {
+            help += fmt::format("\n  Minimum value: {}", contract.return_min);
+        }
+        if (contract.has_return_max) {
+            help += fmt::format("\n  Maximum value: {}", contract.return_max);
+        }
 
         return enforce("contracts." + func_name, level,
             formatError(level,

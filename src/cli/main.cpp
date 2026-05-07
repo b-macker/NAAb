@@ -1588,6 +1588,41 @@ int main(int argc, char** argv) {
                     vm_governance.saveDriftBaseline(filename, drift_metrics);
                 }
 
+                // Preflight scanner: run before execution so advisories are visible
+                // even if governance blocks execution later (exit 3)
+                if (gov_loaded && vm_governance.isActive()) {
+                    naab::scanner::ScannerEngine preflight_scanner;
+                    preflight_scanner.loadConfigFromPath(vm_governance.getLoadedPath(), true);
+                    if (preflight_scanner.hasConfig()) {
+                        auto scan_result = preflight_scanner.scan(filename, "auto");
+                        if (!scan_result.issues.empty()) {
+                            int adv_count = 0;
+                            for (const auto& issue : scan_result.issues) {
+                                if (issue.level == "advisory") adv_count++;
+                            }
+                            if (adv_count > 0) {
+                                fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", adv_count);
+                                int shown = 0;
+                                for (const auto& issue : scan_result.issues) {
+                                    if (issue.level == "advisory" && shown < 10) {
+                                        fprintf(stderr, "  - Line %d: %s.%s — %s\n",
+                                                issue.line, issue.category.c_str(),
+                                                issue.rule.c_str(), issue.message.c_str());
+                                        if (!issue.fix.empty()) {
+                                            fprintf(stderr, "    Fix: %s\n", issue.fix.c_str());
+                                        }
+                                        shown++;
+                                    }
+                                }
+                                if (adv_count > 10) {
+                                    fprintf(stderr, "  ... and %d more\n", adv_count - 10);
+                                }
+                                fprintf(stderr, "\n");
+                            }
+                        }
+                    }
+                }
+
                 // Store source for governance voice synthesis
                 if (gov_loaded && vm_governance.isActive()) {
                     vm_governance.setSource(source);

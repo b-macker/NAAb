@@ -1732,15 +1732,18 @@ std::string GovernanceEngine::evaluateQualityGate() const {
             fprintf(stderr, "[governance] AUDIT: Scoring gate WOULD block — score %d >= threshold %d\n",
                     cumulative_score_, rules_.scoring.red_threshold);
         } else {
+            int deficit = cumulative_score_ - rules_.scoring.red_threshold;
+            std::string breakdown = formatScoreBreakdown();
             return fmt::format(
                 "Governance error: Cumulative risk score {} reached threshold {}\n\n"
+                "  {} points over threshold — fix the highest-weight items first:\n\n"
                 "  Score breakdown:\n{}\n"
                 "  Help:\n"
-                "  - Advisory findings accumulated to critical mass\n"
-                "  - Each advisory finding contributes a weighted score\n"
-                "  - Reduce advisory violations to bring score below threshold\n",
+                "  - Fix the top contributor to drop below threshold fastest\n"
+                "  - Each fixed violation removes its weight from the score\n"
+                "  - Target: reduce score by at least {} points\n",
                 cumulative_score_, rules_.scoring.red_threshold,
-                formatScoreBreakdown());
+                deficit, breakdown, deficit);
         }
     }
 
@@ -1766,13 +1769,16 @@ std::string GovernanceEngine::formatScoreBreakdown() const {
     std::sort(sorted.begin(), sorted.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
     std::ostringstream oss;
+    bool first = true;
     for (const auto& [rule, total] : sorted) {
         int count = occurrence_count.count(rule) ? occurrence_count[rule] : 1;
         int per = count > 0 ? total / count : total;
+        std::string marker = first ? "  << fix first" : "";
+        first = false;
         if (count > 1) {
-            oss << fmt::format("    +{:<4} {} ({}x @{})\n", total, rule, count, per);
+            oss << fmt::format("    +{:<4} {} ({}x @{}){}\n", total, rule, count, per, marker);
         } else {
-            oss << fmt::format("    +{:<4} {}\n", total, rule);
+            oss << fmt::format("    +{:<4} {}{}\n", total, rule, marker);
         }
     }
     return oss.str();
