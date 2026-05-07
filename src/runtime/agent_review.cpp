@@ -7,10 +7,12 @@
 #include "naab/score_accumulator.h"
 #include "naab/governance.h"
 #include "naab/crypto_utils.h"
+#include "naab/thread_pool.h"
 #include <nlohmann/json.hpp>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <future>
 #include <sys/stat.h>
 #ifdef _WIN32
 #include <direct.h>
@@ -347,6 +349,22 @@ static void saveCache(const std::string& path, const AgentReviewResult& result,
 }
 
 // ============================================================================
+// Agent thread pool — separate from polyglot pool.
+// Agent calls are I/O-bound (HTTP wait), so more workers are safe.
+// ============================================================================
+
+static runtime::ThreadPool& getAgentThreadPool(int pool_size = 6, int queue_max = 50) {
+    static runtime::ThreadPool* pool = nullptr;
+    static std::once_flag init_flag;
+    std::call_once(init_flag, [pool_size, queue_max]() {
+        pool = new runtime::ThreadPool(
+            static_cast<size_t>(pool_size),
+            static_cast<size_t>(queue_max));
+    });
+    return *pool;
+}
+
+// ============================================================================
 // Main entry point
 // ============================================================================
 
@@ -392,33 +410,103 @@ AgentReviewResult runAgentReview(
     std::vector<std::string> finding_sources;  // parallel to all_raw_findings
     std::string all_findings_text;  // for validation prompt
 
+    // Pre-validate all detection agent configs and API keys (fail fast)
+    struct DetectionTask {
+        std::string agent_name;
+        const AgentConfig* cfg;
+        std::string api_key;
+        std::string prompt;
+    };
+    std::vector<DetectionTask> detection_tasks;
     for (const auto& agent_name : config.detection_agents) {
         const AgentConfig* acfg = findAgent(rules, agent_name);
         if (!acfg) {
             result.error = "Agent review: detection agent '" + agent_name + "' not found in govern.json";
             return result;
         }
-
         const char* api_key = std::getenv(acfg->api_key_env.c_str());
         if (!api_key || std::string(api_key).empty()) {
             result.error = "Agent review: API key env var '" + acfg->api_key_env + "' not set for agent '" + agent_name + "'";
             return result;
         }
-
         std::string prompt = buildDetectionPrompt(categories, script_source, rules);
-        auto resp = callAgentSimple(*acfg, std::string(api_key), prompt);
+        detection_tasks.push_back({agent_name, acfg, std::string(api_key), prompt});
+    }
 
-        if (!resp.success) {
-            result.error = "Agent review: detection agent '" + agent_name + "' failed: " + resp.error;
-            return result;
+    if (config.dispatch_mode == "parallel" && detection_tasks.size() > 1) {
+        // ── Parallel detection: fan-out all calls, fan-in results ──
+        auto& pool = getAgentThreadPool();
+
+        // Determine concurrency limit
+        size_t max_par = detection_tasks.size();
+        if (config.max_parallel > 0 && static_cast<size_t>(config.max_parallel) < max_par) {
+            max_par = static_cast<size_t>(config.max_parallel);
         }
 
-        auto parsed = parseFindings(resp.content);
+        // Submit tasks in batches of max_par
+        size_t idx = 0;
+        while (idx < detection_tasks.size()) {
+            size_t batch_end = std::min(idx + max_par, detection_tasks.size());
+            std::vector<std::future<AgentResponse>> futures;
 
-        for (const auto& f : parsed) {
-            all_raw_findings.push_back(f);
-            finding_sources.push_back(agent_name);
-            all_findings_text += "FINDING|" + f.category + "|" + f.description + "\n";
+            for (size_t i = idx; i < batch_end; i++) {
+                auto& task = detection_tasks[i];
+                futures.push_back(pool.enqueue(
+                    [cfg = task.cfg, key = task.api_key, prompt = task.prompt]() {
+                        return callAgentSimple(*cfg, key, prompt);
+                    }));
+            }
+
+            // Collect results for this batch
+            std::string batch_error;
+            for (size_t i = 0; i < futures.size(); i++) {
+                size_t task_idx = idx + i;
+                auto resp = futures[i].get();
+
+                if (!resp.success) {
+                    std::string err = "Agent review: detection agent '" +
+                        detection_tasks[task_idx].agent_name + "' failed: " + resp.error;
+                    if (config.fail_strategy == "fail_fast") {
+                        result.error = err;
+                        return result;
+                    }
+                    if (batch_error.empty()) batch_error = err;
+                    continue;
+                }
+
+                auto parsed = parseFindings(resp.content);
+                for (const auto& f : parsed) {
+                    all_raw_findings.push_back(f);
+                    finding_sources.push_back(detection_tasks[task_idx].agent_name);
+                    all_findings_text += "FINDING|" + f.category + "|" + f.description + "\n";
+                }
+            }
+
+            // In continue mode, propagate first error only if ALL agents failed
+            if (!batch_error.empty() && all_raw_findings.empty() && batch_end == detection_tasks.size()) {
+                result.error = batch_error;
+                return result;
+            }
+
+            idx = batch_end;
+        }
+
+    } else {
+        // ── Sequential detection (default) ──
+        for (auto& task : detection_tasks) {
+            auto resp = callAgentSimple(*task.cfg, task.api_key, task.prompt);
+
+            if (!resp.success) {
+                result.error = "Agent review: detection agent '" + task.agent_name + "' failed: " + resp.error;
+                return result;
+            }
+
+            auto parsed = parseFindings(resp.content);
+            for (const auto& f : parsed) {
+                all_raw_findings.push_back(f);
+                finding_sources.push_back(task.agent_name);
+                all_findings_text += "FINDING|" + f.category + "|" + f.description + "\n";
+            }
         }
     }
 

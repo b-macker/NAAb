@@ -1247,6 +1247,9 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     config.enforcement = rules_.agent_review.enforcement;
     config.cache = rules_.agent_review.cache;
     config.hints = rules_.agent_review.hints;
+    config.dispatch_mode = rules_.agent_review.dispatch_mode;
+    config.max_parallel = rules_.agent_review.max_parallel;
+    config.fail_strategy = rules_.agent_review.fail_strategy;
 
     // Include govern.json hash in cache key so config changes invalidate cache
     std::string govern_path = govern_json_dir_ + "/govern.json";

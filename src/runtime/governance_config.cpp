@@ -1792,6 +1792,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.cache = ar.value("cache", false);
         rules_.agent_review.hints = ar.value("hints", false);
         rules_.agent_review.fail_policy = ar.value("fail_policy", "open");
+        rules_.agent_review.dispatch_mode = ar.value("dispatch_mode", "sequential");
+        rules_.agent_review.fail_strategy = ar.value("fail_strategy", "fail_fast");
+        if (ar.contains("max_parallel"))
+            rules_.agent_review.max_parallel = ar["max_parallel"].get<int>();
         if (ar.contains("detection") && ar["detection"].is_array()) {
             for (const auto& d : ar["detection"]) {
                 if (d.is_string()) rules_.agent_review.detection.push_back(d.get<std::string>());
@@ -1802,6 +1806,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (level.is_string()) rules_.agent_review.enforcement[zone] = level.get<std::string>();
             }
         }
+    }
+
+    // --- Agent Dispatch (parallel agent execution config) ---
+    if (j.contains("agent_dispatch") && j["agent_dispatch"].is_object()) {
+        auto& ad = j["agent_dispatch"];
+        if (ad.contains("max_concurrent"))
+            rules_.agent_dispatch.max_concurrent = ad["max_concurrent"].get<int>();
+        if (ad.contains("pool_size"))
+            rules_.agent_dispatch.pool_size = ad["pool_size"].get<int>();
+        if (ad.contains("pool_queue_max"))
+            rules_.agent_dispatch.pool_queue_max = ad["pool_queue_max"].get<int>();
     }
 
     // --- Governance Baseline (Feature 4) ---

@@ -1452,6 +1452,14 @@ struct GovernanceRules {
     std::vector<AgentConfig> agents;  // was: agent_roles (migrated to unified config)
     std::vector<ScorerConfig> scorers; // named scorer configs from "scorers" section
 
+    // --- Agent dispatch (parallel agent execution config) ---
+    struct AgentDispatchConfig {
+        int max_concurrent = 6;    // max concurrent agent API calls
+        int pool_size = 6;         // thread pool worker count (I/O-bound, not CPU)
+        int pool_queue_max = 50;   // max queued tasks before rejection
+    };
+    AgentDispatchConfig agent_dispatch;
+
     // --- Agent review (LLM-based governance phase) ---
     struct AgentReviewSection {
         bool enabled = false;
@@ -1463,6 +1471,9 @@ struct GovernanceRules {
         bool cache = false;
         bool hints = false;  // show rejected findings as [hint] lines
         std::string fail_policy = "open";  // F10: "open" or "closed"
+        std::string dispatch_mode = "sequential";  // "sequential" | "parallel"
+        int max_parallel = 0;      // 0 = unlimited (all detection agents at once)
+        std::string fail_strategy = "fail_fast";   // "fail_fast" | "continue"
     } agent_review;
 
     // --- Quality gate (Feature 2) ---

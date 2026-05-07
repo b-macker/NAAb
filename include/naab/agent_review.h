@@ -26,6 +26,9 @@ struct AgentReviewConfig {
     bool cache = false;
     bool hints = false;         // show rejected findings as [hint] lines
     std::string config_hash;    // govern.json SHA-256 — invalidates cache on config change
+    std::string dispatch_mode = "sequential";  // "sequential" | "parallel"
+    int max_parallel = 0;       // 0 = unlimited (all detection agents at once)
+    std::string fail_strategy = "fail_fast";   // "fail_fast" | "continue"
 };
 
 struct AgentReviewFinding {

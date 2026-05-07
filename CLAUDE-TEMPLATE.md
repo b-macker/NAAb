@@ -301,17 +301,28 @@ get, post, put, delete, head, patch, call
 - `http.call(method, url, options)` — generic request
 
 ### agent (requires `use agent`)
-create, send, run, messages, usage
+create, send, run, messages, usage, batch, fan_out, pipeline
 - `agent.create(config_name)` — create agent handle from govern.json `agents` config, returns handle dict
 - `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}
 - `agent.run(config_name, prompt)` — one-shot: create + send + return content string
 - `agent.messages(handle)` — return conversation history array
 - `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}
+- `agent.batch(handles, messages)` — parallel: send messages[i] to handles[i], returns array of response dicts
+- `agent.fan_out(handles, message)` — parallel: send same message to all handles, returns array of response dicts
+- `agent.pipeline(handles, initial_message)` — sequential chain: output of agent N becomes input to agent N+1, returns final response dict
 - Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
 - Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
 - `tool_use`/`FUNCTION_CALL` responses are HARD blocked (agent tool execution not yet supported)
 - Turn/token limits enforced server-side — handle dict mutation does not bypass governance
 - Per-agent `allowed_paths`/`shell_allowed` logged as advisory once per config name (enforced when tool execution loop lands)
+- Parallel dispatch config (optional in govern.json):
+  ```json
+  "agent_dispatch": { "max_concurrent": 6, "pool_size": 6, "pool_queue_max": 50 }
+  ```
+- Agent review dispatch mode (in govern.json `agent_review` section):
+  `"dispatch_mode": "parallel"` — run detection agents concurrently (default: `"sequential"`)
+  `"max_parallel": 4` — limit concurrent detection agents (0 = unlimited)
+  `"fail_strategy": "fail_fast"` — abort on first error (`"continue"` = collect all results)
 - Output tokens estimated (~content.size()/4) when Gemini API omits `candidatesTokenCount` (common with Gemma models)
 
 ## Functions That Do NOT Exist (use alternatives)

@@ -1,17 +1,20 @@
 // NAAb Agent Module — Governed LLM conversation management
-// Provides agent.create(), agent.send(), agent.run(), agent.messages(), agent.usage()
+// Provides agent.create(), agent.send(), agent.run(), agent.messages(), agent.usage(),
+// agent.batch(), agent.fan_out(), agent.pipeline()
 // Requires "agents" section in govern.json for configuration
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/naab_val.h"
 #include "naab/governance.h"
 #include "naab/agent_provider.h"
+#include "naab/thread_pool.h"
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
 #include <cstdlib>
 #include <unordered_set>
 #include <mutex>
+#include <future>
 
 namespace naab {
 namespace stdlib {
@@ -447,12 +450,273 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// Agent thread pool — for batch/fan_out parallel dispatch.
+// Separate from polyglot pool: agent calls are I/O-bound (HTTP wait).
+// ============================================================================
+
+static runtime::ThreadPool& getUserAgentThreadPool() {
+    // Read pool config from governance if available
+    int pool_size = 6;
+    int queue_max = 50;
+    auto* engine = governance::GovernanceEngine::getCurrent();
+    if (engine && engine->isActive()) {
+        pool_size = engine->getRules().agent_dispatch.pool_size;
+        queue_max = engine->getRules().agent_dispatch.pool_queue_max;
+    }
+    static runtime::ThreadPool* pool = nullptr;
+    static std::once_flag init_flag;
+    std::call_once(init_flag, [pool_size, queue_max]() {
+        pool = new runtime::ThreadPool(
+            static_cast<size_t>(pool_size),
+            static_cast<size_t>(queue_max));
+    });
+    return *pool;
+}
+
+// ============================================================================
+// Helper: validate handle and return (config_name, handle_id)
+// ============================================================================
+
+static std::pair<std::string, int> validateHandle(NaabVal& handle_val) {
+    if (!handle_val.isDict()) {
+        throw std::runtime_error(
+            "Agent error: Expected an agent handle (dict from agent.create())\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n");
+    }
+    auto& handle = handle_val.asDict();
+    auto it = handle.find("__agent_handle");
+    if (it == handle.end() || !it->second.isBool() || !it->second.asBool()) {
+        throw std::runtime_error(
+            "Agent error: Invalid agent handle\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n");
+    }
+    return {handle.at("config_name").asString(), handle.at("id").asInt()};
+}
+
+// ============================================================================
+// agent.batch(handles_array, messages_array) → array of response dicts
+// Sends messages[i] to handles[i] concurrently. Returns ordered results.
+// ============================================================================
+
+static NaabVal agentBatch(std::vector<NaabVal>& args) {
+    if (args.size() < 2) {
+        throw std::runtime_error(
+            "Agent error: agent.batch requires handles array and messages array\n\n"
+            "  Expected: agent.batch(handles, messages)\n\n"
+            "  Example:\n"
+            "    let h1 = agent.create(\"judge_1\")\n"
+            "    let h2 = agent.create(\"judge_2\")\n"
+            "    let results = agent.batch([h1, h2], [\"prompt1\", \"prompt2\"])\n");
+    }
+
+    if (!args[0].isList() || !args[1].isList()) {
+        throw std::runtime_error(
+            "Agent error: agent.batch requires two arrays\n\n"
+            "  Got: " + std::string(args[0].isList() ? "array" : "non-array") +
+            ", " + std::string(args[1].isList() ? "array" : "non-array") + "\n"
+            "  Expected: agent.batch([handle1, handle2, ...], [msg1, msg2, ...])\n");
+    }
+
+    auto& handles = args[0].asList();
+    auto& messages = args[1].asList();
+
+    if (handles.size() != messages.size()) {
+        throw std::runtime_error(fmt::format(
+            "Agent error: handles and messages arrays must have same length\n\n"
+            "  Got: {} handles, {} messages\n",
+            handles.size(), messages.size()));
+    }
+
+    if (handles.empty()) {
+        return NaabVal::makeList({});
+    }
+
+    // Validate all handles and messages upfront (fail fast)
+    std::vector<std::pair<std::string, int>> validated;
+    for (size_t i = 0; i < handles.size(); i++) {
+        validated.push_back(validateHandle(handles[i]));
+        if (!messages[i].isString()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: messages[{}] must be a string\n\n"
+                "  Got: non-string value at index {}\n",
+                i, i));
+        }
+    }
+
+    // Check concurrency limit from governance
+    auto* engine = governance::GovernanceEngine::getCurrent();
+    int max_concurrent = 6;
+    if (engine && engine->isActive()) {
+        max_concurrent = engine->getRules().agent_dispatch.max_concurrent;
+    }
+
+    // For single handle, just use regular send
+    if (handles.size() == 1) {
+        std::vector<NaabVal> send_args = {handles[0], messages[0]};
+        NaabVal resp = agentSend(send_args);
+        return NaabVal::makeList({resp});
+    }
+
+    // Dispatch all sends via thread pool
+    auto& pool = getUserAgentThreadPool();
+
+    // We need to call agentSend for each pair, but agentSend modifies the handle
+    // (appends messages, updates counters). To avoid races, we serialize handle
+    // access through individual send calls on the pool.
+    // Each future captures its own args by value.
+    struct BatchTask {
+        NaabVal handle;
+        NaabVal message;
+    };
+    std::vector<BatchTask> tasks;
+    for (size_t i = 0; i < handles.size(); i++) {
+        tasks.push_back({handles[i], messages[i]});
+    }
+
+    // Submit in batches respecting max_concurrent
+    std::vector<NaabVal> results(tasks.size());
+    size_t idx = 0;
+    while (idx < tasks.size()) {
+        size_t batch_end = std::min(idx + static_cast<size_t>(max_concurrent), tasks.size());
+
+        std::vector<std::future<NaabVal>> futures;
+        for (size_t i = idx; i < batch_end; i++) {
+            auto& task = tasks[i];
+            futures.push_back(pool.enqueue(
+                [handle = task.handle, message = task.message]() mutable {
+                    std::vector<NaabVal> send_args = {handle, message};
+                    return agentSend(send_args);
+                }));
+        }
+
+        for (size_t i = 0; i < futures.size(); i++) {
+            results[idx + i] = futures[i].get();
+        }
+        idx = batch_end;
+    }
+
+    return NaabVal::makeList(std::move(results));
+}
+
+// ============================================================================
+// agent.fan_out(handles_array, message) → array of response dicts
+// Sends the SAME message to all handles concurrently. Returns ordered results.
+// ============================================================================
+
+static NaabVal agentFanOut(std::vector<NaabVal>& args) {
+    if (args.size() < 2) {
+        throw std::runtime_error(
+            "Agent error: agent.fan_out requires handles array and a message\n\n"
+            "  Expected: agent.fan_out(handles, message)\n\n"
+            "  Example:\n"
+            "    let judges = [agent.create(\"j1\"), agent.create(\"j2\")]\n"
+            "    let results = agent.fan_out(judges, \"evaluate this action\")\n");
+    }
+
+    if (!args[0].isList()) {
+        throw std::runtime_error(
+            "Agent error: First argument must be an array of handles\n\n"
+            "  Expected: agent.fan_out([handle1, handle2, ...], message)\n");
+    }
+
+    if (!args[1].isString()) {
+        throw std::runtime_error(
+            "Agent error: Second argument must be a message string\n\n"
+            "  Expected: agent.fan_out(handles, \"your message\")\n");
+    }
+
+    auto& handles = args[0].asList();
+    std::string message = args[1].asString();
+
+    if (handles.empty()) {
+        return NaabVal::makeList({});
+    }
+
+    // Validate all handles upfront
+    for (size_t i = 0; i < handles.size(); i++) {
+        validateHandle(handles[i]);
+    }
+
+    // Build messages array with same message for all
+    std::vector<NaabVal> messages_list;
+    for (size_t i = 0; i < handles.size(); i++) {
+        messages_list.push_back(NaabVal::makeString(message));
+    }
+
+    // Reuse batch logic
+    std::vector<NaabVal> batch_args = {args[0], NaabVal::makeList(std::move(messages_list))};
+    return agentBatch(batch_args);
+}
+
+// ============================================================================
+// agent.pipeline(handles_array, initial_message) → final response dict
+// Chains agents sequentially: output of N becomes input to N+1.
+// Returns the final response. Intermediate responses stored in handle history.
+// ============================================================================
+
+static NaabVal agentPipeline(std::vector<NaabVal>& args) {
+    if (args.size() < 2) {
+        throw std::runtime_error(
+            "Agent error: agent.pipeline requires handles array and initial message\n\n"
+            "  Expected: agent.pipeline(handles, initial_message)\n\n"
+            "  Example:\n"
+            "    let a = agent.create(\"analyst\")\n"
+            "    let r = agent.create(\"reviewer\")\n"
+            "    let result = agent.pipeline([a, r], raw_data)\n");
+    }
+
+    if (!args[0].isList()) {
+        throw std::runtime_error(
+            "Agent error: First argument must be an array of handles\n\n"
+            "  Expected: agent.pipeline([handle1, handle2, ...], message)\n");
+    }
+
+    if (!args[1].isString()) {
+        throw std::runtime_error(
+            "Agent error: Second argument must be a message string\n\n"
+            "  Expected: agent.pipeline(handles, \"initial input\")\n");
+    }
+
+    auto& handles = args[0].asList();
+    if (handles.empty()) {
+        throw std::runtime_error(
+            "Agent error: Pipeline requires at least one agent handle\n\n"
+            "  Got: empty handles array\n");
+    }
+
+    // Validate all handles upfront
+    for (size_t i = 0; i < handles.size(); i++) {
+        validateHandle(handles[i]);
+    }
+
+    // Chain: send to each agent sequentially, pass output as input to next
+    std::string current_message = args[1].asString();
+    NaabVal last_response = NaabVal::makeNull();
+
+    for (size_t i = 0; i < handles.size(); i++) {
+        std::vector<NaabVal> send_args = {handles[i], NaabVal::makeString(current_message)};
+        last_response = agentSend(send_args);
+
+        // Extract content for next stage
+        if (last_response.isDict()) {
+            auto it = last_response.asDict().find("content");
+            if (it != last_response.asDict().end() && it->second.isString()) {
+                current_message = it->second.asString();
+            }
+        }
+    }
+
+    return last_response;
+}
+
+// ============================================================================
 // Module Interface
 // ============================================================================
 
 bool AgentModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "create", "send", "run", "messages", "usage"
+        "create", "send", "run", "messages", "usage",
+        "batch", "fan_out", "pipeline"
     };
     return functions.count(name) > 0;
 }
@@ -466,16 +730,22 @@ NaabVal AgentModule::call(
     if (function_name == "run") return agentRun(args);
     if (function_name == "messages") return agentMessages(args);
     if (function_name == "usage") return agentUsage(args);
+    if (function_name == "batch") return agentBatch(args);
+    if (function_name == "fan_out") return agentFanOut(args);
+    if (function_name == "pipeline") return agentPipeline(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
         "  - agent.run(name, prompt) — one-shot conversation\n"
         "  - agent.messages(handle) — get conversation history\n"
-        "  - agent.usage(handle) — get token usage stats\n",
+        "  - agent.usage(handle) — get token usage stats\n"
+        "  - agent.batch(handles, msgs) — parallel: send msgs[i] to handles[i]\n"
+        "  - agent.fan_out(handles, msg) — parallel: send same msg to all handles\n"
+        "  - agent.pipeline(handles, msg) — sequential: chain agents, output->input\n",
         function_name));
 }
 
