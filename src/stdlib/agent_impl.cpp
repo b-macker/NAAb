@@ -450,6 +450,65 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// agent.check(config_name) → dict {valid, config_name, error}
+// Pre-flight validation: config exists, API key env var is set and non-empty.
+// Does NOT make an API call — just checks local config and env.
+// ============================================================================
+
+static NaabVal agentCheck(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isString()) {
+        throw std::runtime_error(
+            "Agent error: agent.check requires a config name\n\n"
+            "  Expected: agent.check(\"agent_name\")\n\n"
+            "  Example:\n"
+            "    let status = agent.check(\"judge_1\")\n"
+            "    if status.get(\"valid\") { ... }\n");
+    }
+
+    std::string config_name = args[0].asString();
+    std::unordered_map<std::string, NaabVal> result;
+    result["config_name"] = NaabVal::makeString(config_name);
+
+    // Check governance engine
+    auto* engine = governance::GovernanceEngine::getCurrent();
+    if (!engine || !engine->isActive()) {
+        result["valid"] = NaabVal::makeBool(false);
+        result["error"] = NaabVal::makeString("governance not active");
+        return NaabVal::makeDict(std::move(result));
+    }
+
+    // Check config exists
+    const auto* config = findAgentConfig(config_name);
+    if (!config) {
+        result["valid"] = NaabVal::makeBool(false);
+        result["error"] = NaabVal::makeString("agent '" + config_name + "' not defined in govern.json");
+        return NaabVal::makeDict(std::move(result));
+    }
+
+    // Check model is set
+    if (config->model.empty()) {
+        result["valid"] = NaabVal::makeBool(false);
+        result["error"] = NaabVal::makeString("no model configured for '" + config_name + "'");
+        return NaabVal::makeDict(std::move(result));
+    }
+
+    // Check API key env var is set and non-empty
+    const char* api_key = std::getenv(config->api_key_env.c_str());
+    if (!api_key || std::string(api_key).empty()) {
+        result["valid"] = NaabVal::makeBool(false);
+        result["error"] = NaabVal::makeString("API key env var '" + config->api_key_env + "' not set");
+        return NaabVal::makeDict(std::move(result));
+    }
+
+    result["valid"] = NaabVal::makeBool(true);
+    result["error"] = NaabVal::makeString("");
+    result["provider"] = NaabVal::makeString(config->provider);
+    result["model"] = NaabVal::makeString(config->model);
+    result["api_key_env"] = NaabVal::makeString(config->api_key_env);
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
 // Agent thread pool — for batch/fan_out parallel dispatch.
 // Separate from polyglot pool: agent calls are I/O-bound (HTTP wait).
 // ============================================================================
@@ -573,6 +632,9 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
         tasks.push_back({handles[i], messages[i]});
     }
 
+    // Capture governance engine pointer for worker threads (thread_local)
+    auto* gov_engine_ptr = governance::GovernanceEngine::getCurrent();
+
     // Submit in batches respecting max_concurrent
     std::vector<NaabVal> results(tasks.size());
     size_t idx = 0;
@@ -583,9 +645,20 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
         for (size_t i = idx; i < batch_end; i++) {
             auto& task = tasks[i];
             futures.push_back(pool.enqueue(
-                [handle = task.handle, message = task.message]() mutable {
-                    std::vector<NaabVal> send_args = {handle, message};
-                    return agentSend(send_args);
+                [handle = task.handle, message = task.message, gov_engine_ptr]() mutable {
+                    // Propagate governance engine to worker thread
+                    governance::GovernanceEngine::setCurrent(gov_engine_ptr);
+                    try {
+                        std::vector<NaabVal> send_args = {handle, message};
+                        return agentSend(send_args);
+                    } catch (const std::exception& e) {
+                        // Return error dict instead of crashing the batch
+                        std::unordered_map<std::string, NaabVal> err;
+                        err["error"] = NaabVal::makeString(e.what());
+                        err["success"] = NaabVal::makeBool(false);
+                        err["content"] = NaabVal::makeString("");
+                        return NaabVal::makeDict(std::move(err));
+                    }
                 }));
         }
 
@@ -716,7 +789,7 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
 bool AgentModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "create", "send", "run", "messages", "usage",
-        "batch", "fan_out", "pipeline"
+        "batch", "fan_out", "pipeline", "check"
     };
     return functions.count(name) > 0;
 }
@@ -733,6 +806,7 @@ NaabVal AgentModule::call(
     if (function_name == "batch") return agentBatch(args);
     if (function_name == "fan_out") return agentFanOut(args);
     if (function_name == "pipeline") return agentPipeline(args);
+    if (function_name == "check") return agentCheck(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
@@ -745,7 +819,8 @@ NaabVal AgentModule::call(
         "  - agent.usage(handle) — get token usage stats\n"
         "  - agent.batch(handles, msgs) — parallel: send msgs[i] to handles[i]\n"
         "  - agent.fan_out(handles, msg) — parallel: send same msg to all handles\n"
-        "  - agent.pipeline(handles, msg) — sequential: chain agents, output->input\n",
+        "  - agent.pipeline(handles, msg) — sequential: chain agents, output->input\n"
+        "  - agent.check(name) — pre-flight: validate config + API key, returns {valid, error}\n",
         function_name));
 }
 

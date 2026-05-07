@@ -4127,7 +4127,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "taint_tracking", "quality_gate", "governance_baseline",
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",
         "runtime", "security", "api", "integrity", "project_name", "scorers",
-        "agent_review"
+        "agent_review", "agent_dispatch"
     };
 
     try {

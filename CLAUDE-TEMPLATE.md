@@ -310,6 +310,8 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `agent.batch(handles, messages)` — parallel: send messages[i] to handles[i], returns array of response dicts
 - `agent.fan_out(handles, message)` — parallel: send same message to all handles, returns array of response dicts
 - `agent.pipeline(handles, initial_message)` — sequential chain: output of agent N becomes input to agent N+1, returns final response dict
+- `agent.check(config_name)` — pre-flight validation: returns `{valid: bool, error: string, provider, model, api_key_env}`. Checks config exists and API key env var is set. Does NOT make an API call.
+- `agent.batch()` is resilient: if individual calls fail, returns `{success: false, error: "...", content: ""}` for that slot instead of crashing. Callers should check `resp.get("success") == false`.
 - Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
 - Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
 - `tool_use`/`FUNCTION_CALL` responses are HARD blocked (agent tool execution not yet supported)
