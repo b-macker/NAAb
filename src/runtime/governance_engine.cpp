@@ -25,7 +25,10 @@
 #include <algorithm>
 #ifndef _WIN32
 #  include <sys/file.h>
-#  include <sys/stat.h>
+#endif
+#include <sys/stat.h>
+#ifdef _WIN32
+#  include <direct.h>
 #endif
 #include <fmt/core.h>
 
