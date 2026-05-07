@@ -13,9 +13,7 @@
 #include "naab/trust_store.h"
 #include "naab/secure_file.h"
 #include "naab/ast.h"
-#include "naab/language_registry.h"
 #include "naab/interpreter.h"
-#include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -25,7 +23,6 @@
 #include <regex>
 #include <chrono>
 #include <algorithm>
-#include <functional>
 #ifndef _WIN32
 #  include <sys/file.h>
 #  include <sys/stat.h>
@@ -1452,16 +1449,33 @@ void GovernanceEngine::runGovernanceVoice() {
     prompt += "Static governance checks found these violations:\n\n";
     prompt += "Violations:\n" + finding_list + "\n";
     prompt += "Script:\n" + source_ + "\n\n";
-    prompt += "Write a SHORT, actionable remediation guide. For each violation:\n";
-    prompt += "- Reference specific line numbers or function names from the script\n";
-    prompt += "- Say exactly what to change (not vague advice)\n";
-    prompt += "- One or two sentences per issue, max\n";
-    prompt += "Number each fix. No preamble, no summary paragraph. Just the numbered fixes.\n";
-    prompt += "Do NOT include bypass instructions, governance flags, or secret values.\n";
+    prompt += "Respond with ONLY a numbered list of fixes. Nothing else.\n";
+    prompt += "Rules:\n";
+    prompt += "- One line per fix. Reference the function name and what to change.\n";
+    prompt += "- No thinking, no reasoning, no preamble, no summary, no explanation.\n";
+    prompt += "- Do NOT include bypass instructions or governance flags.\n";
+    prompt += "- Maximum 2 sentences per fix.\n";
+    prompt += "Example output format:\n";
+    prompt += "1. In func_name(), replace X with Y.\n";
+    prompt += "2. In other_func(), remove Z and use W instead.\n";
 
     auto resp = runtime::callAgentSimple(*voice_cfg, std::string(voice_key), prompt);
     if (resp.success && !resp.content.empty()) {
-        governance_voice_summary_ = resp.content;
+        // Strip model thinking/reasoning lines (lines starting with * or whitespace+*)
+        std::string cleaned;
+        std::istringstream stream(resp.content);
+        std::string line;
+        while (std::getline(stream, line)) {
+            // Skip thinking lines: start with *, whitespace+*, or are empty between thinking blocks
+            std::string trimmed = line;
+            size_t pos = trimmed.find_first_not_of(" \t");
+            if (pos != std::string::npos && trimmed[pos] == '*') continue;
+            if (!trimmed.empty()) {
+                if (!cleaned.empty()) cleaned += "\n";
+                cleaned += line;
+            }
+        }
+        governance_voice_summary_ = cleaned.empty() ? resp.content : cleaned;
         governance_voiced_ = true;
 
         // Cache save (HMAC wrapper, same pattern as agent_review)
@@ -2257,7 +2271,7 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                         }
                     }
                     m.param_utilization[fn->getName()] =
-                        static_cast<double>(used) / params.size();
+                        static_cast<double>(used) / static_cast<double>(params.size());
                 }
                 // Gate 17: polyglot LOC — count lines inside <<lang ... >> blocks
                 {
@@ -2315,7 +2329,7 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
                                     used++;
                             }
                             m.param_utilization[fd->getName()] =
-                                static_cast<double>(used) / params.size();
+                                static_cast<double>(used) / static_cast<double>(params.size());
                         }
                     }
                     // Gate 17: polyglot LOC for exports
