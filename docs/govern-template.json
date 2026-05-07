@@ -1402,7 +1402,17 @@
       "yellow": "soft",
       "red": "hard"
     },
-    "cache": true
+    "cache": true,
+    "dispatch_mode": "sequential",
+    "max_parallel": 0,
+    "fail_strategy": "fail_fast"
+  },
+
+  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size and concurrency limits for I/O-bound LLM API calls.",
+  "agent_dispatch": {
+    "max_concurrent": 6,
+    "pool_size": 6,
+    "pool_queue_max": 50
   },
 
   "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",
