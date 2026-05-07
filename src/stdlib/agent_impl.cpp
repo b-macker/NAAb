@@ -22,6 +22,15 @@ namespace stdlib {
 using interpreter::NaabVal;
 using json = nlohmann::json;
 
+// RAII guard: sets GovernanceEngine on worker threads, clears on scope exit.
+// Prevents stale thread_local pointers after pool tasks complete.
+struct GovernanceGuard {
+    GovernanceGuard(governance::GovernanceEngine* e) { governance::GovernanceEngine::setCurrent(e); }
+    ~GovernanceGuard() { governance::GovernanceEngine::setCurrent(nullptr); }
+    GovernanceGuard(const GovernanceGuard&) = delete;
+    GovernanceGuard& operator=(const GovernanceGuard&) = delete;
+};
+
 // Counter for unique handle IDs
 static int s_handle_counter = 0;
 
@@ -33,6 +42,8 @@ struct AgentTracker {
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
+static std::unordered_set<std::string> s_agents_with_restrictions;
+static bool s_restrictions_warned = false;
 
 // ============================================================================
 // Helper: Find agent config by name
@@ -307,19 +318,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // ── Gap 3: Advisory for per-agent path/shell restrictions (once per config) ──
+    // ── Gap 3: Advisory for per-agent path/shell restrictions (single summary) ──
     if (gov_engine && gov_engine->isActive()) {
         bool has_restrictions = config->shell_allowed_set ||
                                 !config->allowed_paths.empty() ||
                                 !config->blocked_paths.empty();
         if (has_restrictions) {
-            static std::unordered_set<std::string> warned_agents;
-            if (warned_agents.find(config_name) == warned_agents.end()) {
-                warned_agents.insert(config_name);
+            std::lock_guard<std::mutex> lock(s_agent_mutex);
+            bool is_new = s_agents_with_restrictions.insert(config_name).second;
+            if (is_new && !s_restrictions_warned) {
+                s_restrictions_warned = true;
                 fprintf(stderr,
-                    "[governance] Advisory: Agent '%s' has path/shell restrictions "
-                    "configured — enforcement pending tool execution support\n",
-                    config_name.c_str());
+                    "[governance] Advisory: agent(s) have path/shell restrictions "
+                    "configured — enforcement pending tool execution support\n");
             }
         }
     }
@@ -524,11 +535,25 @@ static runtime::ThreadPool& getUserAgentThreadPool() {
     }
     static runtime::ThreadPool* pool = nullptr;
     static std::once_flag init_flag;
+    static int init_pool_size = 0;
+    static int init_queue_max = 0;
     std::call_once(init_flag, [pool_size, queue_max]() {
+        init_pool_size = pool_size;
+        init_queue_max = queue_max;
         pool = new runtime::ThreadPool(
             static_cast<size_t>(pool_size),
             static_cast<size_t>(queue_max));
     });
+    // Warn if governance config differs from initialized pool
+    if (pool_size != init_pool_size || queue_max != init_queue_max) {
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            fprintf(stderr, "[governance] Warning: agent_dispatch pool config changed "
+                "(init: %d/%d, now: %d/%d) — restart required to apply.\n",
+                init_pool_size, init_queue_max, pool_size, queue_max);
+        }
+    }
     return *pool;
 }
 
@@ -619,10 +644,10 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
     // Dispatch all sends via thread pool
     auto& pool = getUserAgentThreadPool();
 
-    // We need to call agentSend for each pair, but agentSend modifies the handle
-    // (appends messages, updates counters). To avoid races, we serialize handle
-    // access through individual send calls on the pool.
-    // Each future captures its own args by value.
+    // Each task captures handle+message by value to avoid cross-thread races.
+    // Consequence: the caller's handle dicts are NOT updated with turn counts
+    // or message history after batch completes. The server-side s_trackers map
+    // remains authoritative — use agent.usage(handle) to read actual state.
     struct BatchTask {
         NaabVal handle;
         NaabVal message;
@@ -645,9 +670,8 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
         for (size_t i = idx; i < batch_end; i++) {
             auto& task = tasks[i];
             futures.push_back(pool.enqueue(
-                [handle = task.handle, message = task.message, gov_engine_ptr]() mutable {
-                    // Propagate governance engine to worker thread
-                    governance::GovernanceEngine::setCurrent(gov_engine_ptr);
+                [handle = task.handle, message = task.message, gov_engine_ptr]() mutable -> NaabVal {
+                    GovernanceGuard guard(gov_engine_ptr);
                     try {
                         std::vector<NaabVal> send_args = {handle, message};
                         return agentSend(send_args);
@@ -705,12 +729,7 @@ static NaabVal agentFanOut(std::vector<NaabVal>& args) {
         return NaabVal::makeList({});
     }
 
-    // Validate all handles upfront
-    for (size_t i = 0; i < handles.size(); i++) {
-        validateHandle(handles[i]);
-    }
-
-    // Build messages array with same message for all
+    // Build messages array with same message for all (agentBatch validates handles)
     std::vector<NaabVal> messages_list;
     for (size_t i = 0; i < handles.size(); i++) {
         messages_list.push_back(NaabVal::makeString(message));
@@ -771,10 +790,19 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
         last_response = agentSend(send_args);
 
         // Extract content for next stage
-        if (last_response.isDict()) {
-            auto it = last_response.asDict().find("content");
-            if (it != last_response.asDict().end() && it->second.isString()) {
-                current_message = it->second.asString();
+        if (i < handles.size() - 1) {
+            bool got_content = false;
+            if (last_response.isDict()) {
+                auto it = last_response.asDict().find("content");
+                if (it != last_response.asDict().end() && it->second.isString()) {
+                    current_message = it->second.asString();
+                    got_content = !current_message.empty();
+                }
+            }
+            if (!got_content) {
+                throw std::runtime_error(fmt::format(
+                    "Agent error: pipeline stage {} returned empty content — "
+                    "cannot chain to next stage.\n", i));
             }
         }
     }

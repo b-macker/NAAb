@@ -1794,8 +1794,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.fail_policy = ar.value("fail_policy", "open");
         rules_.agent_review.dispatch_mode = ar.value("dispatch_mode", "sequential");
         rules_.agent_review.fail_strategy = ar.value("fail_strategy", "fail_fast");
-        if (ar.contains("max_parallel"))
-            rules_.agent_review.max_parallel = ar["max_parallel"].get<int>();
+        if (ar.contains("max_parallel")) {
+            int mp = ar["max_parallel"].get<int>();
+            rules_.agent_review.max_parallel = (mp < 0) ? 0 : mp;
+        }
         if (ar.contains("detection") && ar["detection"].is_array()) {
             for (const auto& d : ar["detection"]) {
                 if (d.is_string()) rules_.agent_review.detection.push_back(d.get<std::string>());

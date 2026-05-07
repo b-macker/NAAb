@@ -178,8 +178,8 @@ static std::string searchPatterns(const std::string& code,
             if (std::regex_search(code, match, re)) {
                 return match[0].str();
             }
-        } catch (const std::regex_error&) {
-            // Invalid pattern — skip silently
+        } catch (const std::regex_error& e) {
+            fprintf(stderr, "[governance] Warning: invalid regex pattern skipped: %s\n", e.what());
         } catch (const std::bad_alloc&) {
             // Memory exhausted during governance check — fail-safe: deny execution
             throw std::runtime_error(
@@ -233,8 +233,10 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
                         fmt::format("PII detected: {} ({})", desc, display),
                         line > 0 ? fmt::format("line {}", line) : "",
                         "code_quality.no_pii",
-                        "Remove personally identifiable information from code\nUse environment variables or config files instead",
-                        "", ""));
+                        "Remove personally identifiable information from code.\n"
+                        "Use environment variables or config files instead.",
+                        "email = \"john.doe@company.com\"",
+                        "email = env.get(\"ADMIN_EMAIL\")"));
             }
         } catch (const std::regex_error&) {
             // Invalid pattern — skip
@@ -1286,32 +1288,46 @@ static std::string stripUnusedAssignments(const std::string& code) {
 
     if (assignments.empty()) return code;
 
+    // Build comment-blanked version: replace comment chars with spaces to preserve
+    // positions. This prevents an LLM from defeating dead-code detection by
+    // mentioning the variable name in a comment.
+    std::string search_code = code;
+    for (size_t si = 0; si < search_code.size(); ) {
+        if (search_code[si] == '/' && si + 1 < search_code.size() && search_code[si + 1] == '/') {
+            while (si < search_code.size() && search_code[si] != '\n') { search_code[si] = ' '; si++; }
+        } else if (search_code[si] == '#') {
+            while (si < search_code.size() && search_code[si] != '\n') { search_code[si] = ' '; si++; }
+        } else {
+            si++;
+        }
+    }
+
     // For each assignment, check if the variable name appears elsewhere in the code
     std::unordered_set<size_t> lines_to_strip; // set of line_start positions to remove
     for (const auto& asgn : assignments) {
-        // Build the code WITHOUT this assignment's line for searching
+        // Search the comment-blanked code for variable usage
         bool found_elsewhere = false;
         size_t pos = 0;
-        while (pos < code.size()) {
+        while (pos < search_code.size()) {
             // Skip the assignment line itself
             if (pos >= asgn.line_start && pos < asgn.line_end) {
                 pos = asgn.line_end;
                 continue;
             }
             // Check for the variable name at word boundary
-            if ((std::isalpha(static_cast<unsigned char>(code[pos])) || code[pos] == '_')) {
+            if ((std::isalpha(static_cast<unsigned char>(search_code[pos])) || search_code[pos] == '_')) {
                 std::string word;
                 size_t wstart = pos;
-                while (pos < code.size() &&
-                       (std::isalnum(static_cast<unsigned char>(code[pos])) || code[pos] == '_')) {
-                    word += code[pos]; pos++;
+                while (pos < search_code.size() &&
+                       (std::isalnum(static_cast<unsigned char>(search_code[pos])) || search_code[pos] == '_')) {
+                    word += search_code[pos]; pos++;
                 }
                 if (word == asgn.name) {
                     // Check it's at a word boundary (not part of a larger identifier)
                     bool left_ok = (wstart == 0 ||
-                        (!std::isalnum(static_cast<unsigned char>(code[wstart - 1])) && code[wstart - 1] != '_'));
-                    bool right_ok = (pos >= code.size() ||
-                        (!std::isalnum(static_cast<unsigned char>(code[pos])) && code[pos] != '_'));
+                        (!std::isalnum(static_cast<unsigned char>(search_code[wstart - 1])) && search_code[wstart - 1] != '_'));
+                    bool right_ok = (pos >= search_code.size() ||
+                        (!std::isalnum(static_cast<unsigned char>(search_code[pos])) && search_code[pos] != '_'));
                     if (left_ok && right_ok) {
                         found_elsewhere = true;
                         break;
@@ -1558,7 +1574,9 @@ std::string GovernanceEngine::checkIntentValidation(
                         "  before matching.\n"
                         "  Hint: Use intent keywords in function calls and identifiers.\n"
                         "  Snake_case like load_data() matches 'load'. Common synonyms\n"
-                        "  of programming verbs also count (e.g., 'for' matches 'iterate').",
+                        "  of programming verbs also count (e.g., 'for' matches 'iterate').\n"
+                        "  Example: if intent says 'parse JSON and validate fields', use\n"
+                        "  json.parse(), validate_fields(), or field_check() in your code.",
                         function_name, overlap * 100, min_overlap * 100,
                         owner_intent,
                         matched.empty() ? "(none)" : matched,
@@ -1595,6 +1613,13 @@ std::string GovernanceEngine::checkIntentValidation(
                 {"<<go", "polyglot escape (go)"},
                 {"<<ruby", "polyglot escape (ruby)"},
                 {"<<rust", "polyglot escape (rust)"},
+                {"<<cpp", "polyglot escape (cpp)"},
+                {"<<c++", "polyglot escape (cpp)"},
+                {"<<csharp", "polyglot escape (csharp)"},
+                {"<<nim", "polyglot escape (nim)"},
+                {"<<php", "polyglot escape (php)"},
+                {"<<julia", "polyglot escape (julia)"},
+                {"<<zig", "polyglot escape (zig)"},
             };
 
             // Intent keywords that signal I/O or polyglot is expected
@@ -1607,7 +1632,7 @@ std::string GovernanceEngine::checkIntentValidation(
 
             bool intent_mentions_io = false;
             for (const auto& w : io_intent_words) {
-                if (intent_lower.find(w) != std::string::npos) {
+                if (wordBoundaryMatch(intent_lower, w)) {
                     intent_mentions_io = true;
                     break;
                 }
@@ -1661,12 +1686,33 @@ std::string GovernanceEngine::checkIntentValidation(
                                    stripped_lower.find("match ") != std::string::npos ||
                                    stripped_lower.find("throw ") != std::string::npos);
                 if (!has_branch) {
-                    return enforce("code_quality.intent_validation", cfg.level,
-                        fmt::format("Rubber-stamp detected in '{}': owner intent requires validation/rejection "
-                            "but function has no conditional branches.\n"
-                            "  Owner requires: \"{}\"\n"
-                            "  Functions that must reject invalid input need if/match/throw logic.",
-                            function_name, owner_intent));
+                    // Check for delegation: calling a validator function
+                    static const std::vector<std::string> validation_calls = {
+                        "validate", "check", "verify", "ensure", "assert", "reject", "deny"
+                    };
+                    bool delegates_to_validator = false;
+                    for (const auto& vc : validation_calls) {
+                        if (stripped_lower.find(vc + "(") != std::string::npos ||
+                            stripped_lower.find(vc + "_") != std::string::npos) {
+                            delegates_to_validator = true;
+                            break;
+                        }
+                    }
+                    if (!delegates_to_validator) {
+                        return enforce("code_quality.intent_validation", cfg.level,
+                            fmt::format("Rubber-stamp detected in '{}': owner intent requires validation/rejection "
+                                "but function has no conditional branches or validator delegation.\n"
+                                "  Owner requires: \"{}\"\n"
+                                "  Functions that must reject invalid input need if/match/throw logic\n"
+                                "  or must delegate to a validation function.\n"
+                                "  Bad:  fn validate(x) {{ return x }}  // always passes\n"
+                                "  Good: fn validate(x) {{\n"
+                                "      if type(x) != \"dict\" {{ return null }}\n"
+                                "      if !x.has(\"id\") {{ return null }}\n"
+                                "      return x\n"
+                                "  }}",
+                                function_name, owner_intent));
+                    }
                 }
             }
         }
@@ -1745,19 +1791,33 @@ std::string GovernanceEngine::checkIntentValidation(
         {
             std::string proj_lower = cfg.project_intent;
             std::transform(proj_lower.begin(), proj_lower.end(), proj_lower.begin(), ::tolower);
-            std::string body_lower = stripNonCodeContent(body);
-            std::transform(body_lower.begin(), body_lower.end(), body_lower.begin(), ::tolower);
+            // Use raw body (not stripped) for prohibition matching — stripNonCodeContent
+            // removes parameter names like 'env', which would defeat env.get( detection
+            std::string raw_body_lower = body;
+            std::transform(raw_body_lower.begin(), raw_body_lower.end(), raw_body_lower.begin(), ::tolower);
+
+            // All polyglot languages that could hide prohibited operations
+            static const std::vector<std::string> all_polyglot = {
+                "<<python", "<<javascript", "<<shell", "<<go", "<<ruby", "<<rust",
+                "<<cpp", "<<c++", "<<csharp", "<<nim", "<<php", "<<julia", "<<zig"
+            };
 
             // Check project-level prohibitions
-            static const std::vector<std::pair<std::string, std::vector<std::string>>> prohibitions = {
-                {"no network", {"http.get(", "http.post(", "http.request(", "<<python", "<<javascript", "<<shell"}},
-                {"no credential", {"env.get(", "<<python", "<<shell"}},
-                {"no file", {"file.write(", "file.append(", "file.delete(", "<<python", "<<shell"}},
+            std::vector<std::pair<std::string, std::vector<std::string>>> prohibitions = {
+                {"no network", {"http.get(", "http.post(", "http.request("}},
+                {"no credential", {"env.get("}},
+                {"no file", {"file.write(", "file.append(", "file.delete("}},
             };
+            // Append all polyglot escapes to each prohibition
+            for (auto& [prohibition, patterns] : prohibitions) {
+                for (const auto& pl : all_polyglot) {
+                    patterns.push_back(pl);
+                }
+            }
             for (const auto& [prohibition, patterns] : prohibitions) {
                 if (proj_lower.find(prohibition) != std::string::npos) {
                     for (const auto& pat : patterns) {
-                        if (body_lower.find(pat) != std::string::npos) {
+                        if (raw_body_lower.find(pat) != std::string::npos) {
                             EnforcementLevel eff_level = cfg.function_intents.empty()
                                 ? EnforcementLevel::ADVISORY : cfg.level;
                             std::string msg2 = enforce("code_quality.intent_validation", eff_level,
@@ -1784,8 +1844,15 @@ std::string GovernanceEngine::checkIntentValidation(
 
         auto keywords = extractIntentKeywords(llm_intent);
         if (keywords.size() >= 3) {
+            // Apply anti-stuffing pipeline (same as Tier 1) — raw body lets LLMs
+            // inflate overlap with dead assignments and compound identifiers
+            std::string t3_body = body;
+            t3_body = stripUnusedAssignments(t3_body);
+            t3_body = stripNonCodeContent(t3_body);
+            t3_body = truncateCompoundIdentifiers(t3_body);
+
             std::string missing, matched;
-            double overlap = keywordOverlap(keywords, body, function_name, missing, matched);
+            double overlap = keywordOverlap(keywords, t3_body, function_name, missing, matched);
             double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
             if (overlap < t3_min_overlap) {
                 return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
@@ -1812,7 +1879,8 @@ std::string GovernanceEngine::checkIntentValidation(
         return enforce("code_quality.intent_validation", cfg.missing_level,
             fmt::format("Function '{}' has no intent declared ({} lines).\n"
                 "  Add this function to function_intents in govern.json,\n"
-                "  or add a /// @intent \"...\" comment before the function.",
+                "  or add a comment before the function like:\n"
+                "  /// @intent \"Load data from file, parse JSON, return array of records\"",
                 function_name, body_lines));
     }
 
@@ -2884,7 +2952,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                             fmt::format("Cross-language confusion in {} block: \"{}\"", language, match[0].str()),
                             line > 0 ? fmt::format("line {}", line) : "",
                             "code_quality.no_hallucinated_apis",
-                            "// comments are JavaScript — in Python, use #", "", ""));
+                            "// comments are JavaScript — in Python, use #",
+                            "// this is wrong in Python",
+                            "# this is correct in Python"));
                 }
             } catch (const std::regex_error&) {}
         } else if (language == "javascript" || language == "js") {
@@ -2898,7 +2968,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                             fmt::format("Cross-language confusion in {} block: \"{}\"", language, match[0].str()),
                             line > 0 ? fmt::format("line {}", line) : "",
                             "code_quality.no_hallucinated_apis",
-                            "# comments are Python — in JavaScript, use //", "", ""));
+                            "# comments are Python — in JavaScript, use //",
+                            "# this is wrong in JavaScript",
+                            "// this is correct in JavaScript"));
                 }
             } catch (const std::regex_error&) {}
         }
@@ -2913,7 +2985,8 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                     fmt::format("Hallucinated API pattern in {} block: \"{}\"", language, found),
                     line > 0 ? fmt::format("line {}", line) : "",
                     "code_quality.no_hallucinated_apis",
-                    "This pattern matches a known hallucinated or incorrect API usage", "", ""));
+                    "This API call doesn't exist in the target language.\n"
+                    "Check language documentation for correct function names and syntax.", "", ""));
         }
     }
 
@@ -3175,7 +3248,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                                 line > 0 ? fmt::format("line {}", line) : "",
                                 "code_quality.semantic_checks",
                                 "This module is not in Python's stdlib or common packages.\n"
-                                "  If it's a project dependency, ensure it's in requirements.txt.", "", ""));
+                                "  If it's a project dependency, ensure it's in requirements.txt.",
+                                fmt::format("import {}", mod),
+                                "import json  # use stdlib modules"));
                     }
                 }
             } catch (const std::regex_error&) {}
@@ -3228,7 +3303,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                                 line > 0 ? fmt::format("line {}", line) : "",
                                 "code_quality.semantic_checks",
                                 "This module is not a Node.js builtin or common package.\n"
-                                "  If it's a project dependency, ensure it's in package.json.", "", ""));
+                                "  If it's a project dependency, ensure it's in package.json.",
+                                fmt::format("const x = require('{}')", mod),
+                                "const fs = require('fs')  // use builtin modules"));
                     }
                 }
 
@@ -3250,7 +3327,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                                 line > 0 ? fmt::format("line {}", line) : "",
                                 "code_quality.semantic_checks",
                                 "This module is not a Node.js builtin or common package.\n"
-                                "  If it's a project dependency, ensure it's in package.json.", "", ""));
+                                "  If it's a project dependency, ensure it's in package.json.",
+                                fmt::format("import x from '{}'", mod),
+                                "import fs from 'fs'  // use builtin modules"));
                     }
                 }
             } catch (const std::regex_error&) {}
@@ -3350,7 +3429,10 @@ std::string GovernanceEngine::checkShellInjection(const std::string& code, int l
         return enforce("restrictions.shell_injection", cfg.level,
             formatError(cfg.level, fmt::format("Shell injection pattern: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.shell_injection",
-                "Avoid piping untrusted input to shell execution", "", ""));
+                "Shell injection detected — user-controlled input reaches shell execution.\n"
+                "Never pipe variables into shell commands or use eval with dynamic strings.",
+                "cmd = \"grep \" + user_input + \" /etc/passwd\"\nos.system(cmd)",
+                "import shlex\ncmd = [\"grep\", shlex.quote(user_input), \"data/safe.txt\"]\nsubprocess.run(cmd, shell=False)"));
     }
     recordPass("restrictions.shell_injection", cfg.level);
     return "";
@@ -3373,7 +3455,10 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
         return enforce("restrictions.code_injection", cfg.level,
             formatError(cfg.level, fmt::format("Code injection pattern in {} block: \"{}\"", language, found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.code_injection",
-                "Avoid dynamic code execution and use safe alternatives", "", ""));
+                "Dynamic code execution detected — eval/exec/Function can run arbitrary code.\n"
+                "Use data-driven approaches (lookup tables, config) instead of code generation.",
+                "result = eval(user_expression)",
+                "ops = {\"add\": fn(a,b) { a+b }, \"mul\": fn(a,b) { a*b }}\nresult = ops.get(op_name)(a, b)"));
     }
     recordPass("restrictions.code_injection", cfg.level);
     return "";
@@ -3393,7 +3478,10 @@ std::string GovernanceEngine::checkPrivilegeEscalation(const std::string& code, 
         return enforce("restrictions.privilege_escalation", cfg.level,
             formatError(cfg.level, fmt::format("Privilege escalation: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.privilege_escalation",
-                "Avoid privilege escalation in polyglot blocks", "", ""));
+                "Privilege escalation commands are blocked in polyglot blocks.\n"
+                "NAAb scripts run with the invoking user's permissions — no elevation allowed.",
+                "os.system(\"sudo chmod 777 /etc/config\")",
+                "file.write(\"./output/config.txt\", data)  // write to allowed paths only"));
     }
     recordPass("restrictions.privilege_escalation", cfg.level);
     return "";
@@ -3411,7 +3499,10 @@ std::string GovernanceEngine::checkDataExfiltration(const std::string& code, int
         return enforce("restrictions.data_exfiltration", cfg.level,
             formatError(cfg.level, "Potential data exfiltration pattern detected",
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.data_exfiltration",
-                "Do not encode secrets for transmission", "", ""));
+                "Encoding secrets for transmission is blocked.\n"
+                "Secrets should never leave the runtime — use them in-place, don't encode for export.",
+                "encoded = base64.b64encode(api_key.encode())",
+                "// Use the secret directly, don't encode it for export\nheaders = {\"Authorization\": env.get(\"API_KEY\")}"));
     }
     recordPass("restrictions.data_exfiltration", cfg.level);
     return "";
@@ -3429,7 +3520,10 @@ std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int li
         return enforce("restrictions.resource_abuse", cfg.level,
             formatError(cfg.level, fmt::format("Resource abuse pattern: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.resource_abuse",
-                "This pattern could cause resource exhaustion", "", ""));
+                "This pattern could cause resource exhaustion (fork bombs, disk filling).\n"
+                "Use bounded operations with explicit limits.",
+                ":(){ :|:& };:  // fork bomb",
+                "for i in 0..10 { process(items[i]) }  // bounded iteration"));
     }
     recordPass("restrictions.resource_abuse", cfg.level);
     return "";
@@ -3449,7 +3543,10 @@ std::string GovernanceEngine::checkInfoDisclosure(const std::string& /*language*
         return enforce("restrictions.information_disclosure", cfg.level,
             formatError(cfg.level, fmt::format("Information disclosure pattern: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.information_disclosure",
-                "Avoid leaking system/environment information", "", ""));
+                "Dumping system environment or process information is blocked.\n"
+                "Access specific environment variables by name instead of enumerating all.",
+                "for k, v in os.environ.items():\n    print(k, v)",
+                "let db_host = env.get(\"DB_HOST\")  // access specific vars only"));
     }
     recordPass("restrictions.information_disclosure", cfg.level);
     return "";
@@ -3474,7 +3571,10 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int l
         return enforce("restrictions.crypto", cfg.level,
             formatError(cfg.level, fmt::format("Cryptographic weakness: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.crypto",
-                "Use strong cryptographic algorithms (SHA-256+, AES-256)", "", ""));
+                "Use strong cryptographic algorithms (SHA-256+, AES-256).\n"
+                "Weak algorithms like MD5 and SHA-1 are vulnerable to collision attacks.",
+                "hash = hashlib.md5(data)  // weak",
+                "hash = hashlib.sha256(data)  // strong"));
     }
     recordPass("restrictions.crypto", cfg.level);
     return "";
@@ -3575,7 +3675,10 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
                 "(4/4 signals detected)",
                 line > 0 ? fmt::format("line {}", line) : "",
                 "restrictions.vcs_secret_extraction",
-                "Do not extract secrets from version control history", "", ""));
+                "Do not extract secrets from version control history.\n"
+                "If you need credentials, use environment variables or a secrets manager.",
+                "git log -p | grep -i 'password\\|secret\\|key'",
+                "let api_key = env.get(\"API_KEY\")  // use env vars for secrets"));
     } else if (signal_count == 3) {
         // Partial co-occurrence: 3/4 signals — advisory regardless of config level
         std::string missing;
@@ -3589,7 +3692,8 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
                     "detected (missing: {})", missing),
                 line > 0 ? fmt::format("line {}", line) : "",
                 "restrictions.vcs_secret_extraction",
-                "This code pattern resembles secret extraction from version control", "", ""));
+                "This code pattern resembles secret extraction from version control.\n"
+                "If you need credentials, use environment variables instead.", "", ""));
     }
 
     recordPass("restrictions.vcs_secret_extraction", cfg.level);
@@ -3810,7 +3914,11 @@ std::string GovernanceEngine::checkLoopIterations(size_t count) {
             formatError(EnforcementLevel::HARD,
                 fmt::format("Loop iteration count {} exceeds limit of {}", count, max),
                 "", fmt::format("limits.execution.loop_iterations = {}", max),
-                "Maximum loop iterations exceeded", "", ""));
+                "Loop exceeded iteration limit — likely infinite or unbounded.\n"
+                "Add a break condition, or process data in chunks.\n"
+                "If the limit is too low, adjust limits.execution.loop_iterations in govern.json.",
+                "while true { process() }  // unbounded",
+                "for i in 0..len(items) { process(items[i]) }  // bounded by data"));
     }
     return "";
 }
@@ -3822,7 +3930,9 @@ std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
             formatError(EnforcementLevel::HARD,
                 fmt::format("Polyglot block count {} exceeds limit of {}", count, max),
                 "", fmt::format("limits.execution.polyglot_blocks = {}", max),
-                "Maximum polyglot block count exceeded", "", ""));
+                "Too many polyglot blocks executed — refactor to reduce block count.\n"
+                "Combine related operations into fewer, larger blocks.\n"
+                "Adjust limits.execution.polyglot_blocks in govern.json if needed.", "", ""));
     }
     return "";
 }
@@ -3839,7 +3949,8 @@ std::string GovernanceEngine::checkStringLength(size_t length) {
             formatError(EnforcementLevel::HARD,
                 fmt::format("String length {} exceeds limit of {}", length, max),
                 "", fmt::format("limits.data.string_length = {}", max),
-                "Maximum string length exceeded", "", ""));
+                "String exceeds maximum length — truncate or stream large data.\n"
+                "Adjust limits.data.string_length in govern.json if processing large inputs.", "", ""));
     }
     return "";
 }
@@ -3851,7 +3962,9 @@ std::string GovernanceEngine::checkNestingDepth(size_t depth) {
             formatError(EnforcementLevel::HARD,
                 fmt::format("Nesting depth {} exceeds limit of {}", depth, max),
                 "", fmt::format("limits.data.nesting_depth = {}", max),
-                "Maximum data nesting depth exceeded", "", ""));
+                "Data structure nesting is too deep — flatten nested objects.\n"
+                "Extract nested data into separate variables or use a flatter schema.\n"
+                "Adjust limits.data.nesting_depth in govern.json if needed.", "", ""));
     }
     return "";
 }
@@ -3863,7 +3976,9 @@ std::string GovernanceEngine::checkOutputSize(size_t size) {
             formatError(EnforcementLevel::HARD,
                 fmt::format("Output size {} exceeds limit of {}", size, max),
                 "", fmt::format("limits.data.output_size = {}", max),
-                "Maximum output size exceeded", "", ""));
+                "Polyglot block output exceeds size limit — return less data.\n"
+                "Filter or summarize results instead of returning full datasets.\n"
+                "Adjust limits.data.output_size in govern.json if needed.", "", ""));
     }
     return "";
 }
@@ -3875,7 +3990,8 @@ std::string GovernanceEngine::checkDictSize(size_t size) {
             formatError(EnforcementLevel::HARD,
                 fmt::format("Dictionary size {} exceeds limit of {}", size, max),
                 "", fmt::format("limits.data.dict_size = {}", max),
-                "Maximum dictionary size exceeded", "", ""));
+                "Dictionary exceeds maximum entry count — use a smaller data structure.\n"
+                "Adjust limits.data.dict_size in govern.json if needed.", "", ""));
     }
     return "";
 }

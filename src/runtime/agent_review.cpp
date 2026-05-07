@@ -23,6 +23,14 @@ namespace runtime {
 
 using json = nlohmann::json;
 using governance::AgentConfig;
+
+// RAII guard: sets GovernanceEngine on worker threads, clears on scope exit.
+struct GovernanceGuard {
+    GovernanceGuard(governance::GovernanceEngine* e) { governance::GovernanceEngine::setCurrent(e); }
+    ~GovernanceGuard() { governance::GovernanceEngine::setCurrent(nullptr); }
+    GovernanceGuard(const GovernanceGuard&) = delete;
+    GovernanceGuard& operator=(const GovernanceGuard&) = delete;
+};
 using governance::ScoringConfig;
 using governance::ScoreAccumulator;
 
@@ -435,7 +443,15 @@ AgentReviewResult runAgentReview(
 
     if (config.dispatch_mode == "parallel" && detection_tasks.size() > 1) {
         // ── Parallel detection: fan-out all calls, fan-in results ──
-        auto& pool = getAgentThreadPool();
+        // Read pool config from governance agent_dispatch section
+        int ar_pool_size = 6, ar_queue_max = 50;
+        auto* gov = governance::GovernanceEngine::getCurrent();
+        if (gov && gov->isActive()) {
+            ar_pool_size = gov->getRules().agent_dispatch.pool_size;
+            ar_queue_max = gov->getRules().agent_dispatch.pool_queue_max;
+        }
+        auto& pool = getAgentThreadPool(ar_pool_size, ar_queue_max);
+        auto* gov_engine_ptr = governance::GovernanceEngine::getCurrent();
 
         // Determine concurrency limit
         size_t max_par = detection_tasks.size();
@@ -444,6 +460,7 @@ AgentReviewResult runAgentReview(
         }
 
         // Submit tasks in batches of max_par
+        std::vector<std::string> all_errors;
         size_t idx = 0;
         while (idx < detection_tasks.size()) {
             size_t batch_end = std::min(idx + max_par, detection_tasks.size());
@@ -452,13 +469,13 @@ AgentReviewResult runAgentReview(
             for (size_t i = idx; i < batch_end; i++) {
                 auto& task = detection_tasks[i];
                 futures.push_back(pool.enqueue(
-                    [cfg = task.cfg, key = task.api_key, prompt = task.prompt]() {
+                    [cfg = task.cfg, key = task.api_key, prompt = task.prompt, gov_engine_ptr]() {
+                        GovernanceGuard guard(gov_engine_ptr);
                         return callAgentSimple(*cfg, key, prompt);
                     }));
             }
 
             // Collect results for this batch
-            std::string batch_error;
             for (size_t i = 0; i < futures.size(); i++) {
                 size_t task_idx = idx + i;
                 auto resp = futures[i].get();
@@ -470,7 +487,7 @@ AgentReviewResult runAgentReview(
                         result.error = err;
                         return result;
                     }
-                    if (batch_error.empty()) batch_error = err;
+                    all_errors.push_back(err);
                     continue;
                 }
 
@@ -482,13 +499,16 @@ AgentReviewResult runAgentReview(
                 }
             }
 
-            // In continue mode, propagate first error only if ALL agents failed
-            if (!batch_error.empty() && all_raw_findings.empty() && batch_end == detection_tasks.size()) {
-                result.error = batch_error;
-                return result;
-            }
-
             idx = batch_end;
+        }
+
+        // In continue mode, surface accumulated errors only if no findings at all
+        if (!all_errors.empty() && all_raw_findings.empty()) {
+            result.error = "All detection agents failed:\n";
+            for (const auto& e : all_errors) {
+                result.error += "  - " + e + "\n";
+            }
+            return result;
         }
 
     } else {

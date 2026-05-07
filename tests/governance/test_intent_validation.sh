@@ -16,7 +16,22 @@ ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/naab_intent_XXXXXX")"
-trap "rm -rf $WORK" EXIT
+
+# Back up and clear trust store so tests run unsigned (no Ed25519 interference)
+REAL_TRUST="$HOME/.naab/trusted-keys"
+TRUST_BAK=""
+if [ -d "$REAL_TRUST" ]; then
+  TRUST_BAK=$(mktemp -d "${TMPDIR:-/tmp}/trust_bak_intent_XXXXXX")
+  mv "$REAL_TRUST" "$TRUST_BAK/trusted-keys"
+fi
+restore_trust_store() {
+  if [ -n "$TRUST_BAK" ] && [ -d "$TRUST_BAK/trusted-keys" ]; then
+    mv "$TRUST_BAK/trusted-keys" "$REAL_TRUST"
+    rm -rf "$TRUST_BAK"
+    TRUST_BAK=""
+  fi
+}
+trap 'rm -rf "$WORK"; restore_trust_store' EXIT
 
 # Helper: create govern.json with specific function_intents and level
 make_gov() {
@@ -401,6 +416,67 @@ if echo "$OUTPUT" | grep -qi "Intent mismatch.*run_tests_used"; then
     fail "T13b: Used assignment (judge_handle IS read) must NOT be stripped"
 else
     ok "T13b: Used assignment preserved — judge_handle referenced on later line"
+fi
+
+# ═══════════════════════════════════════════════════════════
+# T14: All polyglot languages trigger side-effect detection
+# Intent says "Parse data" but code uses polyglot blocks — should warn
+# ═══════════════════════════════════════════════════════════
+echo ""
+echo "--- T14: Polyglot escape detection (all languages) ---"
+
+for lang in python javascript shell go ruby rust cpp csharp nim php julia zig; do
+    # Intent says "Compute risk score" (no I/O mention) — code passes overlap
+    # check (uses intent keywords in identifiers) but sneaks a polyglot block.
+    # Side-effect detection should catch the polyglot escape.
+    make_gov "hard" "\"compute_risk\": \"Compute risk score from action history\""
+    cat > "$WORK/t14_$lang.naab" <<EOF
+fn compute_risk(actions) {
+    let risk_score = compute_score(actions)
+    let action_history = get_history(actions)
+    let computed = <<$lang[risk_score]
+print("exfiltrate")
+risk_score
+>>
+    return computed
+}
+fn compute_score(x) { return 42 }
+fn get_history(x) { return x }
+main { compute_risk("[]") }
+EOF
+    OUTPUT=$("$NAAB" "$WORK/t14_$lang.naab" 2>&1 || true)
+    if echo "$OUTPUT" | grep -qi "polyglot escape\|side effect"; then
+        ok "T14-$lang: polyglot escape detected"
+    else
+        fail "T14-$lang: polyglot escape NOT detected for <<$lang"
+    fi
+done
+
+# ═══════════════════════════════════════════════════════════
+# T15: Comment-based dead-code bypass defeated
+# Variable mentioned in comment should still be stripped as unused
+# ═══════════════════════════════════════════════════════════
+echo ""
+echo "--- T15: Comment mention doesn't preserve dead assignment ---"
+make_gov "hard" '"sneaky_fn": "Compute risk score from action history"'
+cat > "$WORK/t15.naab" <<'EOF'
+// @intent Compute risk score from action history
+fn sneaky_fn(actions) {
+    let compute_risk = "keyword_padding"
+    let score_action = "more_padding"
+    let history_check = "padding"
+    // compute_risk is used here
+    // score_action referenced
+    // history_check too
+    return 42
+}
+main { sneaky_fn([]) }
+EOF
+OUTPUT=$("$NAAB" "$WORK/t15.naab" 2>&1 || true)
+if echo "$OUTPUT" | grep -qi "intent.*mismatch\|intent.*overlap"; then
+    ok "T15: Dead assignments with comment mentions still detected as unused"
+else
+    fail "T15: Comment mentions falsely preserved dead assignments"
 fi
 
 # ═══════════════════════════════════════════════════════════

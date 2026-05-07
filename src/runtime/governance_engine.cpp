@@ -544,9 +544,13 @@ std::string GovernanceEngine::checkLanguageAllowed(
                             "",
                             fmt::format("agents.{}.blocked_languages contains \"{}\"",
                                 agent_id_, language),
-                            "Your agent role does not permit this language",
+                            fmt::format("Your agent role does not permit the \"{}\" language.\n"
+                                "Check your agent's allowed_languages in govern.json.", language),
                             fmt::format("let result = <<{}\n...\n>>", language),
-                            "Request access from the project governance config"));
+                            !rules_.allowed_languages.empty()
+                                ? fmt::format("let result = <<{}\n...\n>>",
+                                    *rules_.allowed_languages.begin())
+                                : "Use an allowed language for this agent"));
                 }
             }
             // Check per-agent allowed languages (if non-empty, must be in list)
@@ -617,8 +621,10 @@ std::string GovernanceEngine::checkNetworkImports(
                         fmt::format("line {}", line),
                         "capabilities.network = false",
                         "Network operations are disabled by governance.\n"
-                        "This prevents outbound connections from polyglot blocks.",
-                        "", "Use cached/local data or NAAb stdlib instead"));
+                        "This prevents outbound connections from polyglot blocks.\n"
+                        "Use cached/local data or NAAb stdlib instead.",
+                        fmt::format("{} in <<{}>> block", pat.description, language),
+                        "let data = json.parse(file.read(\"data/cached.json\"))"));
             }
         } catch (...) {}
     }
@@ -647,7 +653,10 @@ std::string GovernanceEngine::checkFilesystemImports(
                                     rules_.filesystem_mode),
                         "Filesystem operations are restricted by governance policy.\n"
                         "Use NAAb stdlib file module for controlled file access.",
-                        "", pat.safe_alternative));
+                        fmt::format("{} in <<{}>> block", pat.description, language),
+                        pat.safe_alternative.empty()
+                            ? "let data = file.read(\"./data/input.txt\")  // NAAb stdlib"
+                            : pat.safe_alternative));
             }
         } catch (const std::regex_error&) {
             // Invalid pattern — skip
@@ -764,9 +773,10 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                         "File path blocked by governance: " + filepath,
                         "",
                         "capabilities.filesystem.blocked_paths contains \"" + bp + "\"",
-                        "This path is blocked by the project's governance configuration",
+                        "This path is blocked by the project's governance configuration.\n"
+                        "Use a path under an allowed directory (e.g., ./data or ./output).",
                         "file." + mode + "(\"" + filepath + "\", ...)",
-                        "Use an allowed path instead"));
+                        "file." + mode + "(\"./data/my_file.txt\", ...)"));
             }
         }
     }
@@ -782,9 +792,12 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                             "Agent '" + agent_id_ + "' blocked from path: " + filepath,
                             "",
                             "agents." + agent_id_ + ".blocked_paths contains \"" + bp + "\"",
-                            "Your agent role does not permit access to this path",
+                            "Your agent role does not permit access to this path.\n"
+                            "Use a path within your agent's allowed directories.",
                             "file." + mode + "(\"" + filepath + "\", ...)",
-                            "Request access from the project governance config"));
+                            !role.allowed_paths.empty()
+                                ? "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"
+                                : "file." + mode + "(\"./data/my_file.txt\", ...)"));
                 }
             }
             // Agent allowed_paths (if non-empty, must match one)
@@ -802,9 +815,11 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                             "Agent '" + agent_id_ + "' not allowed to access: " + filepath,
                             "",
                             "agents." + agent_id_ + ".allowed_paths",
-                            "Your agent role restricts file access to specific paths",
+                            fmt::format("Your agent role restricts file access to: {}",
+                                [&]() { std::string l; for (const auto& p : role.allowed_paths) {
+                                    if (!l.empty()) l += ", "; l += p; } return l; }()),
                             "file." + mode + "(\"" + filepath + "\", ...)",
-                            "Use a path within your agent's allowed directories"));
+                            "file." + mode + "(\"" + role.allowed_paths[0] + "/my_file.txt\", ...)"));
                 }
             }
             break;
@@ -836,9 +851,10 @@ std::string GovernanceEngine::checkShellAllowed() {
                         "Agent '" + agent_id_ + "' is not allowed to execute shell blocks",
                         "",
                         "agents." + agent_id_ + ".shell_allowed = false",
-                        "Your agent role does not permit shell execution",
+                        "Your agent role does not permit shell execution.\n"
+                        "Use NAAb stdlib or another allowed language instead.",
                         "let result = <<shell\nls -la\n>>",
-                        "Use NAAb stdlib or request shell access from governance config"));
+                        "let files = file.list(\".\")  // NAAb stdlib"));
             }
             break;
         }
@@ -856,9 +872,10 @@ std::string GovernanceEngine::checkCallDepth(size_t current_depth) {
                     current_depth, rules_.max_call_depth),
                 "",
                 fmt::format("limits.call_depth = {}", rules_.max_call_depth),
-                "Maximum function call depth exceeded\n"
-                "This usually indicates infinite recursion",
-                "", ""));
+                "Function call depth exceeded — likely infinite recursion.\n"
+                "Add a base case to recursive functions, or convert to iterative logic.",
+                "fn count(n) { return count(n + 1) }  // no base case",
+                "fn count(n) {\n    if n >= 100 { return n }\n    return count(n + 1)\n}"));
     }
     return "";
 }
@@ -872,9 +889,10 @@ std::string GovernanceEngine::checkArraySize(size_t size) {
                     size, rules_.max_array_size),
                 "",
                 fmt::format("limits.array_size = {}", rules_.max_array_size),
-                "Maximum array size exceeded\n"
-                "Consider processing data in smaller batches",
-                "", ""));
+                "Array exceeds maximum element count — process data in batches.\n"
+                "Adjust limits.array_size in govern.json if working with large datasets.",
+                "let all = range(0, 1000000)  // million-element array",
+                "for batch in 0..10 {\n    let chunk = load_batch(batch, 1000)\n    process(chunk)\n}"));
     }
     return "";
 }
@@ -1037,9 +1055,11 @@ std::string GovernanceEngine::checkPlaceholders(
                         location,
                         fmt::format("code_quality.no_placeholders = \"{}\"",
                             levelToString(rules_.no_placeholders_level)),
-                        "Code must be complete — no placeholder markers allowed\n"
-                        "Implement the actual functionality instead of deferring",
-                        "", ""));
+                        "Code must be complete — no placeholder markers allowed.\n"
+                        "Implement the actual functionality instead of deferring.\n"
+                        "The most common fix: delete the comment and write real logic.",
+                        "// TODO: implement validation\nfn validate(x) { return true }",
+                        "fn validate(x) {\n    if type(x) != \"string\" { return false }\n    return x.length() > 0\n}"));
             }
         } catch (const std::regex_error&) {
             // Skip invalid patterns
