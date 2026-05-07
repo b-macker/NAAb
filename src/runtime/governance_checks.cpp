@@ -1236,6 +1236,116 @@ static const std::unordered_map<std::string, std::vector<std::string>> KEYWORD_S
     {"correct",   {"valid", "right", "expected", "proper", "pass", "true"}},
 };
 
+// Anti-stuffing: strip unused variable assignments from intent analysis.
+// Detects `let <name> = <expr>` where <name> never appears again in the body.
+// This prevents dead code like `let judge_handle = create_judge()` from inflating
+// keyword overlap when judge_handle is never read.
+static std::string stripUnusedAssignments(const std::string& code) {
+    // Collect all `let <name> = ...` with their line positions
+    struct Assignment {
+        std::string name;
+        size_t line_start;
+        size_t line_end;
+    };
+    std::vector<Assignment> assignments;
+
+    // Find all let assignments and their line boundaries
+    size_t i = 0;
+    while (i < code.size()) {
+        // Find start of current line
+        size_t line_start = i;
+
+        // Check for `let ` at current position (after optional whitespace)
+        size_t j = i;
+        while (j < code.size() && (code[j] == ' ' || code[j] == '\t')) j++;
+
+        if (j + 3 < code.size() && code.substr(j, 4) == "let ") {
+            j += 4;
+            while (j < code.size() && (code[j] == ' ' || code[j] == '\t')) j++;
+            std::string name;
+            while (j < code.size() &&
+                   (std::isalnum(static_cast<unsigned char>(code[j])) || code[j] == '_')) {
+                name += code[j]; j++;
+            }
+            // Only track assignments (not destructuring or declarations without =)
+            size_t eq = j;
+            while (eq < code.size() && (code[eq] == ' ' || code[eq] == '\t')) eq++;
+            if (!name.empty() && name.size() >= 3 && eq < code.size() && code[eq] == '=') {
+                // Find end of this line
+                size_t line_end = i;
+                while (line_end < code.size() && code[line_end] != '\n') line_end++;
+                if (line_end < code.size()) line_end++; // include newline
+                assignments.push_back({name, line_start, line_end});
+            }
+        }
+
+        // Advance to next line
+        while (i < code.size() && code[i] != '\n') i++;
+        if (i < code.size()) i++;
+    }
+
+    if (assignments.empty()) return code;
+
+    // For each assignment, check if the variable name appears elsewhere in the code
+    std::unordered_set<size_t> lines_to_strip; // set of line_start positions to remove
+    for (const auto& asgn : assignments) {
+        // Build the code WITHOUT this assignment's line for searching
+        bool found_elsewhere = false;
+        size_t pos = 0;
+        while (pos < code.size()) {
+            // Skip the assignment line itself
+            if (pos >= asgn.line_start && pos < asgn.line_end) {
+                pos = asgn.line_end;
+                continue;
+            }
+            // Check for the variable name at word boundary
+            if ((std::isalpha(static_cast<unsigned char>(code[pos])) || code[pos] == '_')) {
+                std::string word;
+                size_t wstart = pos;
+                while (pos < code.size() &&
+                       (std::isalnum(static_cast<unsigned char>(code[pos])) || code[pos] == '_')) {
+                    word += code[pos]; pos++;
+                }
+                if (word == asgn.name) {
+                    // Check it's at a word boundary (not part of a larger identifier)
+                    bool left_ok = (wstart == 0 ||
+                        (!std::isalnum(static_cast<unsigned char>(code[wstart - 1])) && code[wstart - 1] != '_'));
+                    bool right_ok = (pos >= code.size() ||
+                        (!std::isalnum(static_cast<unsigned char>(code[pos])) && code[pos] != '_'));
+                    if (left_ok && right_ok) {
+                        found_elsewhere = true;
+                        break;
+                    }
+                }
+                continue;
+            }
+            pos++;
+        }
+        if (!found_elsewhere) {
+            lines_to_strip.insert(asgn.line_start);
+        }
+    }
+
+    if (lines_to_strip.empty()) return code;
+
+    // Rebuild code without the stripped lines
+    std::string result;
+    result.reserve(code.size());
+    i = 0;
+    while (i < code.size()) {
+        if (lines_to_strip.count(i)) {
+            // Skip this line
+            while (i < code.size() && code[i] != '\n') i++;
+            if (i < code.size()) i++;
+            result += ' '; // preserve word boundary
+        } else {
+            result += code[i];
+            i++;
+        }
+    }
+    return result;
+}
+
 // Anti-stuffing: truncate compound identifiers (5+ underscore parts) to first 3 parts.
 // Natural code maxes at ~3 parts (compute_risk_score). Stuffed names pack 6+.
 static std::string truncateCompoundIdentifiers(const std::string& code) {
@@ -1428,6 +1538,7 @@ std::string GovernanceEngine::checkIntentValidation(
         if (first_brace != std::string::npos && first_brace + 1 < inner_body.size()) {
             inner_body = inner_body.substr(first_brace + 1);
         }
+        inner_body = stripUnusedAssignments(inner_body);
         inner_body = stripNonCodeContent(inner_body);
         inner_body = truncateCompoundIdentifiers(inner_body);
         auto keywords = extractIntentKeywords(owner_intent);

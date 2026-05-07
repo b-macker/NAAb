@@ -353,6 +353,57 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════
+# Dead-code keyword stuffing — unused variable assignments stripped
+# ═══════════════════════════════════════════════════════════
+
+# T13a: Dead assignment inflates overlap — should be stripped
+# Intent: "Execute test suite: create judge, process actions, verify verdicts"
+# Code only processes actions and checks verdicts, but adds dead `let judge_handle = create_judge()`
+# Without stripping: judge+create from dead line inflate overlap above threshold
+# With stripping: dead line removed, overlap should drop below threshold
+make_gov "hard" '"run_tests": "Execute test suite: create judge, process actions, verify correct verdicts"'
+cat > "$WORK/t13a.naab" <<'EOF'
+fn create_judge() { return {"handle": true} }
+fn check_verdict(v) { return v == "allow" }
+fn run_tests() {
+    let judge_handle = create_judge()
+    let result = check_verdict("allow")
+    if result { return true }
+    return false
+}
+main { run_tests() }
+EOF
+OUTPUT=$("$NAAB" "$WORK/t13a.naab" 2>&1 || true)
+if echo "$OUTPUT" | grep -qi "Intent mismatch.*run_tests"; then
+    ok "T13a: Dead assignment (judge_handle never read) stripped — overlap drops correctly"
+else
+    fail "T13a: Dead assignment should be stripped, reducing overlap below threshold"
+fi
+
+# T13b: USED assignment must NOT be stripped
+# Same code but judge_handle IS used on a later line
+make_gov "hard" '"run_tests_used": "Execute test suite: create judge, process actions, verify correct verdicts"'
+cat > "$WORK/t13b.naab" <<'EOF'
+fn create_judge() { return {"handle": true} }
+fn process_actions(h) { return h }
+fn check_verdict(v) { return v == "allow" }
+fn run_tests_used() {
+    let judge_handle = create_judge()
+    let actions = process_actions(judge_handle)
+    let result = check_verdict("allow")
+    if result { return true }
+    return false
+}
+main { run_tests_used() }
+EOF
+OUTPUT=$("$NAAB" "$WORK/t13b.naab" 2>&1 || true)
+if echo "$OUTPUT" | grep -qi "Intent mismatch.*run_tests_used"; then
+    fail "T13b: Used assignment (judge_handle IS read) must NOT be stripped"
+else
+    ok "T13b: Used assignment preserved — judge_handle referenced on later line"
+fi
+
+# ═══════════════════════════════════════════════════════════
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [ $FAIL -eq 0 ]; then

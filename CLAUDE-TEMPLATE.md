@@ -91,6 +91,10 @@ let p = new Point { x: 1, y: 2 }
 // Works inside function calls:
 arr.push(new Point { x: 1, y: 2 })
 
+// Cross-module struct instantiation:
+import "models.naab" as models
+let p = new models.Point { x: 1, y: 2 }
+
 // WRONG (will error):
 // let p = Point { x: 1, y: 2 }     // Missing `new`
 ```
@@ -427,7 +431,10 @@ main {
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
 33. `use agent` stdlib — governed LLM conversations. Responses are scanned by `checkSecrets()` (HARD) and `checkPii()` (configurable). `tool_use` responses are blocked. Turn/token limits use server-side tracking (immune to handle mutation).
 34. `scoring` in govern.json enables cumulative risk scoring — advisory findings accumulate weighted scores. Cross `red_threshold` = block (exit 2 via quality gate). Cross `yellow_threshold` = warn once. `default_weight` sets the per-finding weight; `rule_weights` overrides per rule. Deterministic, monotonic, bounded (saturates at 100K), thread-safe (reads and writes protected by results_mutex_), with integrity verification at report time. Pass 2 findings (post-execution audit) are excluded from scoring — they use direct check_results_ push, not enforce(). In audit mode, scoring gate logs "WOULD block" but exits 0. If `cumulative_risk_score` is used as a quality gate condition AND `scoring.red_threshold` is set, the quality gate condition takes precedence (fires first).
-35. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
+35. Cross-module struct instantiation: `new module.StructName { field: value }`.
+    Structs defined in imported files are accessible via the module alias.
+    Example: `import "types.naab" as types` then `let p = new types.Point { x: 1, y: 2 }`
+36. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
     "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
     Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.
 
@@ -616,5 +623,7 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
   "in a real system". If the code works, it IS the real implementation. Delete the
   qualifying comment — governance blocks these patterns even when the code is correct.
 - The governance engine detects 200+ stub/evasion patterns and will BLOCK execution
+- Do NOT modify govern.json — it is signed and modifications will be blocked.
+  If you need different settings, ask the user to update and re-sign governance.
 - [Add project-specific restrictions]
 ```
