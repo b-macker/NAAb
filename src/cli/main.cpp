@@ -1588,6 +1588,11 @@ int main(int argc, char** argv) {
                     vm_governance.saveDriftBaseline(filename, drift_metrics);
                 }
 
+                // Store source for governance voice synthesis
+                if (gov_loaded && vm_governance.isActive()) {
+                    vm_governance.setSource(source);
+                }
+
                 // Agent review: LLM-based governance phase (if enabled in govern.json)
                 if (gov_loaded && vm_governance.isActive()) {
                     vm_governance.runAgentReview(source);
@@ -1602,6 +1607,7 @@ int main(int argc, char** argv) {
                 // Drift detection / agent review hard block — skip execution
                 if (naab::governance::g_governance_hard_block) {
                     if (vm_governance.isActive()) {
+                        vm_governance.runGovernanceVoice();
                         vm_governance.writeReports();
                     }
                     fflush(stdout); fflush(stderr);
@@ -1947,6 +1953,11 @@ int main(int argc, char** argv) {
                     }
                 }
 
+                // Store source for governance voice synthesis (tree-walker path)
+                if (gov_loaded && shared_governance.isActive()) {
+                    shared_governance.setSource(source);
+                }
+
                 // Agent review: LLM-based governance phase (tree-walker path)
                 // F5: Use shared_governance — same rationale as preflight gate above
                 if (gov_loaded && shared_governance.isActive()) {
@@ -1961,7 +1972,10 @@ int main(int argc, char** argv) {
                 // Drift detection / agent review hard block — skip execution
                 if (naab::governance::g_governance_hard_block) {
                     auto* gov = interpreter.getGovernance();
-                    if (gov) gov->writeReports();
+                    if (gov) {
+                        gov->runGovernanceVoice();
+                        gov->writeReports();
+                    }
                     fflush(stdout); fflush(stderr);
                     _exit(3);
                 }

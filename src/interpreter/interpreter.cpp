@@ -944,6 +944,7 @@ void Interpreter::visit(ast::Program& node) {
 
     // Governance: Print execution summary and write reports (only for top-level program)
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        governance_->runGovernanceVoice();
         if (governance_verbose_) {
             // Full detail: summary line + every check
             std::string summary = governance_->formatSummary();

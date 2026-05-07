@@ -1249,6 +1249,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (out.contains("advisory_summary")) rules_.output.advisory_summary = out["advisory_summary"].get<bool>();
         if (out.contains("quiet")) rules_.quiet_config = out["quiet"].get<bool>();
         if (out.contains("no_color")) rules_.no_color_config = out["no_color"].get<bool>();
+        if (out.contains("voice")) rules_.output.voice = out["voice"].get<std::string>();
+        if (out.contains("voice_cache")) rules_.output.voice_cache = out["voice_cache"].get<bool>();
     }
 
     // V3 Audit (expanded)

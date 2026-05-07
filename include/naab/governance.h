@@ -918,6 +918,8 @@ struct OutputConfig {
     FileOutputConfig file_output;
     int max_advisories = 15;       // Cap total [ADVISORY] messages (0 = unlimited)
     bool advisory_summary = true;  // Show "... and N more" when capped
+    std::string voice;             // Agent name for voice synthesis of violations
+    bool voice_cache = false;      // Cache voice synthesis results
 };
 
 // ============================================================================
@@ -1960,6 +1962,8 @@ public:
 
     // Agent review: LLM-based governance phase (detection → validation → scoring)
     void runAgentReview(const std::string& source);
+    void setSource(const std::string& source);
+    void runGovernanceVoice();
 
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);
@@ -2068,6 +2072,9 @@ private:
     int advisory_suppressed_ = 0;
     int agent_review_count_ = 0;  // confirmed findings from agent review phase
     bool agent_review_voiced_ = false;  // true when voice summary was printed (suppress per-rule list)
+    bool governance_voiced_ = false;    // true when governance voice summary was printed
+    std::string governance_voice_summary_;  // synthesized remediation guide
+    std::string source_;                    // script source (for voice phase)
 
     // Cumulative risk scoring
     // INVARIANT: cumulative_score_ >= 0 (monotonic — only increases)

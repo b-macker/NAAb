@@ -769,7 +769,9 @@
       "report_html": ""
     },
     "max_advisories": 15,
-    "advisory_summary": true
+    "advisory_summary": true,
+    "voice": "",
+    "voice_cache": false
   },
 
   "audit": {

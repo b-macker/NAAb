@@ -8,6 +8,7 @@
 
 #include "naab/governance.h"
 #include "naab/agent_review.h"
+#include "naab/agent_provider.h"
 #include "naab/crypto_utils.h"
 #include "naab/trust_store.h"
 #include "naab/secure_file.h"
@@ -1213,6 +1214,17 @@ std::string GovernanceEngine::formatSummary() const {
         << warned << " warning" << (warned != 1 ? "s" : "") << ", "
         << blocked << " blocked\n";
 
+    // Voice summary replaces individual violation details
+    if (governance_voiced_ && !governance_voice_summary_.empty()) {
+        oss << "\n" << governance_voice_summary_ << "\n";
+        if (rules_.scoring.enabled && cumulative_score_ > 0) {
+            const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
+                               cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
+            oss << fmt::format("  Risk score: {} ({})\n", cumulative_score_, zone);
+        }
+        return oss.str();
+    }
+
     // Deduplicate results by rule_name (show only unique rules)
     std::unordered_map<std::string, const CheckResult*> unique_results;
     for (const auto& r : check_results_) {
@@ -1343,6 +1355,142 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     }
 }
 
+// ============================================================================
+// Governance Voice — unified output for blocking errors
+// ============================================================================
+
+void GovernanceEngine::setSource(const std::string& source) {
+    source_ = source;
+}
+
+void GovernanceEngine::runGovernanceVoice() {
+    if (rules_.output.voice.empty() || source_.empty()) return;
+
+    // Collect non-passing results
+    std::vector<const CheckResult*> violations;
+    for (const auto& r : check_results_) {
+        if (!r.passed) violations.push_back(&r);
+    }
+    if (violations.empty()) return;
+
+    // Find voice agent config
+    const AgentConfig* voice_cfg = nullptr;
+    for (const auto& a : rules_.agents) {
+        if (a.name == rules_.output.voice) { voice_cfg = &a; break; }
+    }
+    if (!voice_cfg) {
+        fprintf(stderr, "[governance] Voice agent '%s' not found in agents config\n",
+                rules_.output.voice.c_str());
+        return;
+    }
+
+    const char* voice_key = std::getenv(voice_cfg->api_key_env.c_str());
+    if (!voice_key || std::string(voice_key).empty()) return;
+
+    // Cache key: sha256(source_hash + config_hash)
+    std::string source_hash = security::CryptoUtils::sha256(source_);
+    std::string config_hash;
+    if (!govern_json_dir_.empty()) {
+        std::string govern_path = govern_json_dir_ + "/govern.json";
+        std::ifstream gf(govern_path);
+        if (gf.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(gf)),
+                                 std::istreambuf_iterator<char>());
+            config_hash = security::CryptoUtils::sha256(content);
+        }
+    }
+    std::string cache_key = security::CryptoUtils::sha256(source_hash + config_hash);
+
+    // Cache check
+    if (rules_.output.voice_cache && !govern_json_dir_.empty()) {
+        std::string cpath = govern_json_dir_ + "/.naab_cache/" + cache_key + ".voice.json";
+        std::ifstream cf(cpath);
+        if (cf.is_open()) {
+            try {
+                std::string raw((std::istreambuf_iterator<char>(cf)),
+                                 std::istreambuf_iterator<char>());
+                auto wrapper = nlohmann::json::parse(raw);
+                if (wrapper.contains("data") && wrapper.contains("hmac")) {
+                    std::string data_str = wrapper["data"].get<std::string>();
+                    std::string stored_hmac = wrapper["hmac"].get<std::string>();
+                    std::string hmac_key = security::CryptoUtils::sha256(
+                        config_hash + ":" + source_hash);
+                    std::string computed_hmac = security::CryptoUtils::hmacSha256(
+                        data_str, hmac_key);
+                    if (computed_hmac == stored_hmac) {
+                        auto data = nlohmann::json::parse(data_str);
+                        governance_voice_summary_ = data.value("voice_summary", "");
+                        if (!governance_voice_summary_.empty()) {
+                            governance_voiced_ = true;
+                            fprintf(stderr,
+                                "[governance] Voice: cache hit (source + config unchanged)\n");
+                            return;
+                        }
+                    }
+                }
+            } catch (...) {
+                // Cache corrupt — fall through to re-generate
+            }
+        }
+    }
+
+    // Build finding list from violations
+    std::string finding_list;
+    int num = 1;
+    for (const auto* v : violations) {
+        finding_list += std::to_string(num++) + ". [" + v->rule_name + "] "
+                     + levelToString(v->level) + " — " + v->message + "\n";
+    }
+
+    // Voice prompt
+    std::string prompt;
+    prompt += "You are a governance advisor for NAAb scripts. ";
+    prompt += "Static governance checks found these violations:\n\n";
+    prompt += "Violations:\n" + finding_list + "\n";
+    prompt += "Script:\n" + source_ + "\n\n";
+    prompt += "Write a SHORT, actionable remediation guide. For each violation:\n";
+    prompt += "- Reference specific line numbers or function names from the script\n";
+    prompt += "- Say exactly what to change (not vague advice)\n";
+    prompt += "- One or two sentences per issue, max\n";
+    prompt += "Number each fix. No preamble, no summary paragraph. Just the numbered fixes.\n";
+    prompt += "Do NOT include bypass instructions, governance flags, or secret values.\n";
+
+    auto resp = runtime::callAgentSimple(*voice_cfg, std::string(voice_key), prompt);
+    if (resp.success && !resp.content.empty()) {
+        governance_voice_summary_ = resp.content;
+        governance_voiced_ = true;
+
+        // Cache save (HMAC wrapper, same pattern as agent_review)
+        if (rules_.output.voice_cache && !govern_json_dir_.empty()) {
+            std::string cache_dir = govern_json_dir_ + "/.naab_cache";
+#ifdef _WIN32
+            _mkdir(cache_dir.c_str());
+#else
+            mkdir(cache_dir.c_str(), 0755);
+#endif
+            nlohmann::json data;
+            data["voice_summary"] = governance_voice_summary_;
+            data["violation_count"] = static_cast<int>(violations.size());
+            data["source_hash"] = source_hash;
+
+            std::string data_str = data.dump(2);
+            std::string hmac_key = security::CryptoUtils::sha256(
+                config_hash + ":" + source_hash);
+            std::string hmac = security::CryptoUtils::hmacSha256(data_str, hmac_key);
+
+            nlohmann::json wrapper;
+            wrapper["data"] = data_str;
+            wrapper["hmac"] = hmac;
+
+            std::string cpath = govern_json_dir_ + "/.naab_cache/" + cache_key + ".voice.json";
+            std::ofstream out(cpath);
+            if (out.is_open()) {
+                out << wrapper.dump(2);
+            }
+        }
+    }
+}
+
 bool GovernanceEngine::hasIntentBlock() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     for (const auto& r : check_results_) {
@@ -1378,6 +1526,12 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
         << passed << " passed, "
         << warned << " warning" << (warned != 1 ? "s" : "") << ", "
         << blocked << " blocked\n";
+
+    // Voice summary replaces individual violation details
+    if (governance_voiced_ && !governance_voice_summary_.empty()) {
+        oss << "\n" << governance_voice_summary_ << "\n";
+        return oss.str();
+    }
 
     // Show details only for non-passing rules
     // Skip agent_review.* rules when voice summary was already printed (redundant)

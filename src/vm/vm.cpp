@@ -205,6 +205,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     // Post-execution governance: flush advisories, print summary, write reports
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
         governance_->flushGroupedAdvisories();
+        governance_->runGovernanceVoice();
 
         if (governance_verbose_) {
             std::string summary = governance_->formatSummary();
