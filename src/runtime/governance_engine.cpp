@@ -1717,6 +1717,17 @@ std::string GovernanceEngine::evaluateQualityGate() const {
                 if (audit_mode) {
                     fprintf(stderr, "[governance] AUDIT: Quality gate WOULD fail: %s %s %d (actual: %d)\n",
                             cond.metric.c_str(), cond.op.c_str(), cond.threshold, value);
+                } else if (cond.metric == "cumulative_risk_score") {
+                    int deficit = value - cond.threshold;
+                    return fmt::format(
+                        "[governance] Quality gate FAILED: cumulative risk score {} exceeded threshold {}\n\n"
+                        "  {} points over — fix the highest-weight items first:\n\n"
+                        "  Score breakdown:\n{}\n"
+                        "  Help:\n"
+                        "  - Fix the top contributor to drop below threshold fastest\n"
+                        "  - Each fixed violation removes its weight from the score\n"
+                        "  - Target: reduce score by at least {} points\n",
+                        value, cond.threshold, deficit, formatScoreBreakdown(), deficit);
                 } else {
                     return fmt::format(
                         "[governance] Quality gate FAILED: {} {} {} (actual: {})\n",

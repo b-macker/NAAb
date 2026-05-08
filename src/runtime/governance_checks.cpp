@@ -1772,16 +1772,26 @@ std::string GovernanceEngine::checkIntentValidation(
                 // likely a dodge — escalate from advisory to configured level.
                 EnforcementLevel eff_level = cfg.function_intents.empty()
                     ? EnforcementLevel::ADVISORY : cfg.level;
-                std::string escalation_note = "";
-                if (!cfg.function_intents.empty()) {
-                    escalation_note = "\n  Note: Enforcement escalated because function_intents are defined "
-                                      "but this function is not listed.";
+                // Format project keywords for display
+                std::string kw_list;
+                for (size_t ki = 0; ki < proj_kw.size() && ki < 12; ki++) {
+                    if (ki > 0) kw_list += ", ";
+                    kw_list += proj_kw[ki];
                 }
+                if (proj_kw.size() > 12) kw_list += ", ...";
+                std::string guidance = cfg.function_intents.empty()
+                    ? ""
+                    : fmt::format("\n\n  How to fix:\n"
+                        "  - Use variable/function names that match project keywords\n"
+                        "  - Call functions whose names overlap with the project description\n"
+                        "  - If this function doesn't belong, move its logic into a function\n"
+                        "    that IS listed in function_intents\n"
+                        "  - govern.json is signed — you cannot modify function_intents\n"
+                        "  Project keywords: {}", kw_list);
                 std::string msg = enforce("code_quality.intent_validation", eff_level,
                     fmt::format("Function '{}' has no keyword overlap with project intent.\n"
-                        "  Project: \"{}\"\n"
-                        "  This function may not belong in this project.{}",
-                        function_name, cfg.project_intent, escalation_note));
+                        "  Project: \"{}\"{}",
+                        function_name, cfg.project_intent, guidance));
                 if (!msg.empty()) return msg;
             }
         }
@@ -1878,9 +1888,11 @@ std::string GovernanceEngine::checkIntentValidation(
     if (!cfg.function_intents.empty() && cfg.required && body_lines >= cfg.min_function_lines) {
         return enforce("code_quality.intent_validation", cfg.missing_level,
             fmt::format("Function '{}' has no intent declared ({} lines).\n"
-                "  Add this function to function_intents in govern.json,\n"
-                "  or add a comment before the function like:\n"
-                "  /// @intent \"Load data from file, parse JSON, return array of records\"",
+                "  Add a comment before the function:\n"
+                "  /// @intent \"Load data from file, parse JSON, return array of records\"\n\n"
+                "  The @intent must describe what the function actually does.\n"
+                "  It is matched against the function body — use specific verbs and nouns\n"
+                "  that appear in your code (e.g., \"parse\", \"validate\", \"compute\").",
                 function_name, body_lines));
     }
 
@@ -2435,6 +2447,14 @@ std::string GovernanceEngine::checkComplexityFloor(
                 function_name, profile.complexity_score, required_score)
             : custom_message;
 
+        std::string padding_warning;
+        if (profile.padding_loop_count > 0) {
+            padding_warning = fmt::format(
+                "\n\n  WARNING: {} small-range loop(s) detected (0..1, 0..2, 0..3).\n"
+                "  These only add +1 each (not +5). They do NOT count as real complexity.\n"
+                "  Replace with loops over real data: for item in data {{ ... }} adds +5.",
+                profile.padding_loop_count);
+        }
         return enforce("code_quality.complexity_floor", cfg.level,
             formatError(cfg.level, msg,
                 line > 0 ? fmt::format("line {}", line) : "",
@@ -2447,11 +2467,11 @@ std::string GovernanceEngine::checkComplexityFloor(
                     "    +3  each function definition                  +10 recursion\n"
                     "    +1  each external function call\n\n"
                     "  Tip: Add real logic — input validation, edge cases, error handling.\n"
-                    "  Do NOT pad with for i in 0..1 {{}} loops.",
+                    "  Do NOT pad with for i in 0..1 {{}} loops.{}",
                     profile.complexity_score, profile.loop_count, profile.padding_loop_count,
                     (profile.has_try_catch ? 1 : 0) + profile.max_function_depth,
                     profile.external_call_count, profile.has_recursion ? "yes" : "no",
-                    profile.pipeline_count),
+                    profile.pipeline_count, padding_warning),
                 "fn apply_damage(ent, damage) {\n"
                 "    ent[\"hp\"] = ent.get(\"hp\") - damage\n"
                 "    for i in 0..1 { if ent.get(\"hp\") < 0 { ent[\"hp\"] = 0 } }\n"

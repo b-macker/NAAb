@@ -2843,6 +2843,15 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             do {
                 skipNewlines();
                 auto key = parseExpression();
+                if (parser_context_->in_match_arm && !check(lexer::TokenType::COLON)) {
+                    throw ParseError(formatError(
+                        "Match arms cannot contain blocks — this '{' was parsed as a dict literal.\n\n"
+                        "  \xE2\x9C\x97 Wrong:  \"x\" => { result = compute() }\n"
+                        "  \xE2\x9C\x93 Right:  \"x\" => compute()\n\n"
+                        "  Match arm bodies must be single expressions.\n"
+                        "  For side effects, use if/else before the match.",
+                        current()));
+                }
                 expect(lexer::TokenType::COLON, "Expected ':' after dict key");
                 auto value = parseExpression();
                 pairs.emplace_back(std::move(key), std::move(value));
@@ -3284,7 +3293,9 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
         }
 
         // Use parseLogicalOr for body to avoid greedy newline consumption
+        parser_context_->in_match_arm = true;
         auto body = parseLogicalOr();
+        parser_context_->in_match_arm = false;
         skipNewlines();
 
         arms.push_back(ast::MatchArm{std::move(pattern), std::move(guard), std::move(body)});

@@ -703,11 +703,36 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             R"((?:\+\s*(?:score|complexity)))",
             std::regex::icase);
 
+        // Co-occurrence: governance concept (Group A) + gaming intent (Group B) in same comment
+        static const std::regex cooccur_pat(
+            R"((?=.*\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement)\b))"
+            R"((?=.*\b(?:padding|gaming|hack|boost|inflate|trick|fool|filler|workaround|fake|dummy|artificial)\b))",
+            std::regex::icase);
+        // "satisfy" only with scanner-specific concepts
+        static const std::regex cooccur_satisfy_pat(
+            R"((?=.*\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate)\b))"
+            R"((?=.*\b(?:satisfy)\b))",
+            std::regex::icase);
+        // "just/only doing X to/for governance concept"
+        static const std::regex cooccur_just_pat(
+            R"((?=.*\b(?:just|only|merely|simply)\b)(?=.*\b(?:to|for)\b))"
+            R"((?=.*\b(?:complexity|score|threshold|floor|scanner|checker|validator|gate|requirement|pass|meet|reach|satisfy)\b))",
+            std::regex::icase);
+        // Purpose-admission: "mandatory complexity", "required padding", etc.
+        static const std::regex purpose_admission_pat(
+            R"(\b(?:mandatory|required|needed|necessary)\s+(?:complexity|padding|score|loop|iteration)\b|)"
+            R"(\b(?:no-op|noop|dead code|unused|pointless|useless)\b.*\b(?:complexity|score|floor|gate|pass)\b)",
+            std::regex::icase);
+
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
             if (startsWith(stripped, "//") || startsWith(stripped, "#") ||
                 startsWith(stripped, "/*") || startsWith(stripped, "*")) {
-                if (std::regex_search(stripped, gaming_pat)) {
+                if (std::regex_search(stripped, gaming_pat) ||
+                    std::regex_search(stripped, cooccur_pat) ||
+                    std::regex_search(stripped, cooccur_satisfy_pat) ||
+                    std::regex_search(stripped, cooccur_just_pat) ||
+                    std::regex_search(stripped, purpose_admission_pat)) {
                     addIssue(issues, filepath, i + 1, "gaming_comments", CAT,
                              "Comment reveals metric gaming intent", stripped,
                              "Remove gaming comment — write natural code instead");

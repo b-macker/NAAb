@@ -28,6 +28,7 @@ struct ParserContext {
     bool in_function_body = false;
     bool in_struct_literal = false;
     bool in_dict_literal = false;
+    bool in_match_arm = false;
     bool expecting_statement = false;
     bool expecting_expression = false;
 
