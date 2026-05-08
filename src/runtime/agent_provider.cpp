@@ -2,7 +2,6 @@
 // Extracted from stdlib/agent_impl.cpp for reuse by governance engine
 
 #include "naab/agent_provider.h"
-#include "naab/sandbox.h"
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
@@ -276,19 +275,10 @@ static json callProviderInternal(
     const std::string& api_key,
     const json& messages) {
 
-    // Sandbox check
-    auto* sandbox = naab::security::ScopedSandbox::getCurrent();
-    if (sandbox) {
-        std::string host = (config.provider == "gemini" || config.provider == "google")
-            ? "generativelanguage.googleapis.com" : "api.anthropic.com";
-        if (!sandbox->canConnect(host, 443)) {
-            throw std::runtime_error(
-                "Agent error: Network access to API endpoint is blocked by sandbox\n\n"
-                "  Help:\n"
-                "  - Agent API calls require network access\n"
-                "  - Check sandbox configuration\n");
-        }
-    }
+    // Agent API calls bypass sandbox network restrictions — they are
+    // explicitly authorized by the govern.json agents section (which is signed).
+    // The general network: false policy applies to user code (http module,
+    // polyglot network calls), not to governed agent communication.
 
     if (config.provider == "gemini" || config.provider == "google") {
         return callGemini(config, api_key, messages);
