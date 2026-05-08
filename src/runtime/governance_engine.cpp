@@ -409,6 +409,8 @@ std::string GovernanceEngine::enforce(
             auto wit = rules_.scoring.rule_weights.find(rule_name);
             if (wit != rules_.scoring.rule_weights.end()) {
                 weight = wit->second;
+            } else if (rule_name == "code_quality.intent_validation.self_declared") {
+                weight = 1;  // supporting functions: reduced weight
             }
             weight = std::max(0, weight);
             if (cumulative_score_ <= SCORE_SATURATION_LIMIT - weight) {
@@ -466,6 +468,14 @@ std::string GovernanceEngine::enforce(
                     "(red threshold: %d)\n",
                     cumulative_score_, rules_.scoring.yellow_threshold,
                     rules_.scoring.red_threshold);
+                // Show top contributor so LLM knows what's causing the score
+                if (!score_contributions_.empty()) {
+                    auto top = std::max_element(score_contributions_.begin(),
+                        score_contributions_.end(),
+                        [](const auto& a, const auto& b) { return a.second < b.second; });
+                    fprintf(stderr, "[governance] Top contributor: %s (+%d)\n",
+                        top->first.c_str(), top->second);
+                }
             }
             return "";  // Don't block
         }
@@ -1786,10 +1796,14 @@ std::string GovernanceEngine::formatScoreBreakdown() const {
         int per = count > 0 ? total / count : total;
         std::string marker = first ? "  << fix first" : "";
         first = false;
+        std::string label = rule;
+        if (rule == "code_quality.intent_validation.self_declared") {
+            label = rule + " [supporting fns]";
+        }
         if (count > 1) {
-            oss << fmt::format("    +{:<4} {} ({}x @{}){}\n", total, rule, count, per, marker);
+            oss << fmt::format("    +{:<4} {} ({}x @{}){}\n", total, label, count, per, marker);
         } else {
-            oss << fmt::format("    +{:<4} {}{}\n", total, rule, marker);
+            oss << fmt::format("    +{:<4} {}{}\n", total, label, marker);
         }
     }
     return oss.str();
@@ -1807,6 +1821,8 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         auto wit = rules_.scoring.rule_weights.find(r.rule_name);
         if (wit != rules_.scoring.rule_weights.end()) {
             weight = wit->second;
+        } else if (r.rule_name == "code_quality.intent_validation.self_declared") {
+            weight = 1;  // supporting functions: reduced weight
         }
         weight = std::max(0, weight);
         if (recomputed <= SCORE_SATURATION_LIMIT - weight) {
@@ -2096,9 +2112,12 @@ std::string GovernanceEngine::preflightIntentCheck(
 
         for (const auto& [name, intent] : cfg.function_intents) {
             if (checked.find(name) == checked.end()) {
-                enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                // Orphaned keys are common in multi-file projects where
+                // contracted functions live in imported modules. Use reduced
+                // weight to avoid blocking the entry-point file.
+                enforce("code_quality.intent_validation.self_declared", EnforcementLevel::ADVISORY,
                     fmt::format("Orphaned function_intents key '{}' — no matching "
-                                 "function in source.", name));
+                                 "function in this file (may exist in imported module).", name));
             }
         }
     }

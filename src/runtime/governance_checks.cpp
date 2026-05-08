@@ -1767,11 +1767,6 @@ std::string GovernanceEngine::checkIntentValidation(
             }
             // If zero project keywords match, this function might not belong
             if (found == 0 && proj_kw.size() >= 4) {
-                // If owner has defined function_intents, they care about intent control.
-                // A function with zero project overlap AND not in function_intents is
-                // likely a dodge — escalate from advisory to configured level.
-                EnforcementLevel eff_level = cfg.function_intents.empty()
-                    ? EnforcementLevel::ADVISORY : cfg.level;
                 // Format project keywords for display
                 std::string kw_list;
                 for (size_t ki = 0; ki < proj_kw.size() && ki < 12; ki++) {
@@ -1779,19 +1774,48 @@ std::string GovernanceEngine::checkIntentValidation(
                     kw_list += proj_kw[ki];
                 }
                 if (proj_kw.size() > 12) kw_list += ", ...";
-                std::string guidance = cfg.function_intents.empty()
-                    ? ""
-                    : fmt::format("\n\n  How to fix:\n"
+
+                // Determine enforcement level and rule name based on cooperation
+                EnforcementLevel eff_level;
+                std::string rule;
+                if (cfg.function_intents.empty()) {
+                    // No function_intents defined — pure advisory
+                    eff_level = EnforcementLevel::ADVISORY;
+                    rule = "code_quality.intent_validation";
+                } else if (!llm_intent.empty()) {
+                    // Has @intent — cooperating with governance.
+                    // Downgrade to advisory; Tier 3 will validate the self-declared intent.
+                    eff_level = EnforcementLevel::ADVISORY;
+                    rule = "code_quality.intent_validation.self_declared";
+                } else {
+                    // No @intent, no owner intent, zero project overlap — suspicious.
+                    // Keep escalation to configured level.
+                    eff_level = cfg.level;
+                    rule = "code_quality.intent_validation";
+                }
+
+                std::string msg;
+                if (!llm_intent.empty()) {
+                    // Downgraded — advisory message for supporting function
+                    msg = enforce(rule, eff_level,
+                        fmt::format("Function '{}' has no project keyword overlap (advisory).\n"
+                            "  This is a supporting function — checked at reduced weight.\n"
+                            "  To reduce risk score: call functions or use identifiers related to:\n"
+                            "  {}",
+                            function_name, kw_list));
+                } else {
+                    std::string guidance = fmt::format("\n\n  How to fix:\n"
                         "  - Use variable/function names that match project keywords\n"
                         "  - Call functions whose names overlap with the project description\n"
                         "  - If this function doesn't belong, move its logic into a function\n"
                         "    that IS listed in function_intents\n"
                         "  - govern.json is signed — you cannot modify function_intents\n"
                         "  Project keywords: {}", kw_list);
-                std::string msg = enforce("code_quality.intent_validation", eff_level,
-                    fmt::format("Function '{}' has no keyword overlap with project intent.\n"
-                        "  Project: \"{}\"{}",
-                        function_name, cfg.project_intent, guidance));
+                    msg = enforce(rule, eff_level,
+                        fmt::format("Function '{}' has no keyword overlap with project intent.\n"
+                            "  Project: \"{}\"{}",
+                            function_name, cfg.project_intent, guidance));
+                }
                 if (!msg.empty()) return msg;
             }
         }
@@ -1846,7 +1870,7 @@ std::string GovernanceEngine::checkIntentValidation(
     // --- Tier 3: LLM's @intent only (advisory — self-declared, lower trust) ---
     if (!llm_intent.empty()) {
         if (isTrivialIntent(llm_intent)) {
-            return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+            return enforce("code_quality.intent_validation.self_declared", EnforcementLevel::ADVISORY,
                 fmt::format("Trivial @intent on '{}': \"{}\"\n"
                     "  Intent declarations must be specific enough to validate against.",
                     function_name, llm_intent));
@@ -1865,13 +1889,15 @@ std::string GovernanceEngine::checkIntentValidation(
             double overlap = keywordOverlap(keywords, t3_body, function_name, missing, matched);
             double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
             if (overlap < t3_min_overlap) {
-                return enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
+                return enforce("code_quality.intent_validation.self_declared", EnforcementLevel::ADVISORY,
                     fmt::format("Self-declared intent mismatch on '{}': {:.0f}% overlap (need {:.0f}%).\n"
                         "  LLM claims: \"{}\"\n"
                         "  Matched: {}\n"
                         "  Missing: {}\n"
-                        "  Note: No owner intent defined — this is advisory only.\n"
-                        "  Hint: Use intent keywords in function calls and identifiers.",
+                        "  Status: advisory — adds to risk score but does not block on its own.\n"
+                        "  This function is not in function_intents — checked at reduced weight.\n"
+                        "  To reduce score: use missing keywords as identifiers in executable code,\n"
+                        "  not in comments or variable names.",
                         function_name, overlap * 100, t3_min_overlap * 100,
                         llm_intent,
                         matched.empty() ? "(none)" : matched,
@@ -1879,7 +1905,7 @@ std::string GovernanceEngine::checkIntentValidation(
             }
         }
 
-        recordPass("code_quality.intent_validation", cfg.level);
+        recordPass("code_quality.intent_validation.self_declared", cfg.level);
         return "";
     }
 
