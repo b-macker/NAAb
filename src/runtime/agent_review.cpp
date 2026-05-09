@@ -432,13 +432,13 @@ AgentReviewResult runAgentReview(
             result.error = "Agent review: detection agent '" + agent_name + "' not found in govern.json";
             return result;
         }
-        const char* api_key = std::getenv(acfg->api_key_env.c_str());
-        if (!api_key || std::string(api_key).empty()) {
-            result.error = "Agent review: API key env var '" + acfg->api_key_env + "' not set for agent '" + agent_name + "'";
+        std::string api_key = runtime::resolveApiKey(acfg->api_key_env);
+        if (api_key.empty()) {
+            result.error = "Agent review: API key '" + acfg->api_key_env + "' not found in env or ~/.naab/keys/ for agent '" + agent_name + "'";
             return result;
         }
         std::string prompt = buildDetectionPrompt(categories, script_source, rules);
-        detection_tasks.push_back({agent_name, acfg, std::string(api_key), prompt});
+        detection_tasks.push_back({agent_name, acfg, api_key, prompt});
     }
 
     if (config.dispatch_mode == "parallel" && detection_tasks.size() > 1) {
@@ -551,14 +551,14 @@ AgentReviewResult runAgentReview(
             return result;
         }
 
-        const char* val_key = std::getenv(val_cfg->api_key_env.c_str());
-        if (!val_key || std::string(val_key).empty()) {
+        std::string val_key = runtime::resolveApiKey(val_cfg->api_key_env);
+        if (val_key.empty()) {
             result.error = "Agent review: API key not set for validation agent '" + config.validation_agent + "'";
             return result;
         }
 
         std::string val_prompt = buildValidationPrompt(all_findings_text, script_source);
-        auto val_resp = callAgentSimple(*val_cfg, std::string(val_key), val_prompt);
+        auto val_resp = callAgentSimple(*val_cfg, val_key, val_prompt);
 
         if (!val_resp.success) {
             result.error = "Agent review: validation agent failed: " + val_resp.error;
@@ -665,8 +665,8 @@ AgentReviewResult runAgentReview(
     if (!config.voice_agent.empty() && !result.findings.empty()) {
         const AgentConfig* voice_cfg = findAgent(rules, config.voice_agent);
         if (voice_cfg) {
-            const char* voice_key = std::getenv(voice_cfg->api_key_env.c_str());
-            if (voice_key && std::string(voice_key).length() > 0) {
+            std::string voice_key = runtime::resolveApiKey(voice_cfg->api_key_env);
+            if (!voice_key.empty()) {
                 // Build finding summary for voice prompt
                 std::string finding_list;
                 int num = 1;
@@ -691,7 +691,7 @@ AgentReviewResult runAgentReview(
                 voice_prompt += "Number each fix. No preamble, no summary paragraph. Just the numbered fixes.\n";
                 voice_prompt += "Do NOT include any literal secret values, API keys, or credentials.\n";
 
-                auto voice_resp = callAgentSimple(*voice_cfg, std::string(voice_key), voice_prompt);
+                auto voice_resp = callAgentSimple(*voice_cfg, voice_key, voice_prompt);
                 if (voice_resp.success && !voice_resp.content.empty()) {
                     result.voice_summary = voice_resp.content;
                 }

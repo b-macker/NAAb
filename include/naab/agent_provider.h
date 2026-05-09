@@ -19,6 +19,10 @@ struct AgentResponse {
     std::string error;  // non-empty on failure
 };
 
+// Resolve API key: checks env var first, then falls back to ~/.naab/keys/<varname>.
+// Returns empty string if neither source has the key.
+std::string resolveApiKey(const std::string& env_var_name);
+
 // Single-shot: send one user prompt, get normalized response. Stateless.
 // Uses config.system_prompt if non-empty.
 AgentResponse callAgentSimple(

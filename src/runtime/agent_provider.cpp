@@ -6,11 +6,40 @@
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
+#include <cstdlib>
+#include <fstream>
 
 namespace naab {
 namespace runtime {
 
 using json = nlohmann::json;
+
+// ============================================================================
+// Resolve API key: env var first, then ~/.naab/keys/<varname> file fallback
+// ============================================================================
+
+std::string resolveApiKey(const std::string& env_var_name) {
+    // Try environment variable first
+    const char* val = std::getenv(env_var_name.c_str());
+    if (val && val[0] != '\0') {
+        return std::string(val);
+    }
+
+    // Fallback: read from ~/.naab/keys/<varname>
+    const char* home = std::getenv("HOME");
+    if (!home) return "";
+
+    std::string key_path = std::string(home) + "/.naab/keys/" + env_var_name;
+    std::ifstream ifs(key_path);
+    if (!ifs.good()) return "";
+
+    std::string key;
+    std::getline(ifs, key);
+    // Trim whitespace
+    key.erase(0, key.find_first_not_of(" \t\r\n"));
+    key.erase(key.find_last_not_of(" \t\r\n") + 1);
+    return key;
+}
 
 // V-DOS-010: Maximum API response size (25 MB)
 static constexpr size_t MAX_RESPONSE_BYTES = 25 * 1024 * 1024;

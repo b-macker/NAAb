@@ -121,14 +121,14 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
             config_name, config_name));
     }
 
-    // Check API key availability
-    const char* api_key = std::getenv(config->api_key_env.c_str());
-    if (!api_key || std::string(api_key).empty()) {
+    // Check API key availability (env var, then ~/.naab/keys/ fallback)
+    std::string api_key_str = runtime::resolveApiKey(config->api_key_env);
+    if (api_key_str.empty()) {
         throw std::runtime_error(
             "Agent error: API key not available\n\n"
             "  Help:\n"
-            "  - Set the required API key environment variable\n"
-            "  - The key must be set before running the script\n");
+            "  - Set the required API key environment variable, or\n"
+            "  - Place the key in ~/.naab/keys/" + config->api_key_env + "\n");
     }
 
     // Build handle dict — mutex protects s_handle_counter and s_trackers
@@ -258,17 +258,18 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     user_msg["content"] = message;
     messages_json.push_back(user_msg);
 
-    // Get API key
-    const char* api_key = std::getenv(config->api_key_env.c_str());
-    if (!api_key || std::string(api_key).empty()) {
+    // Get API key (env var, then ~/.naab/keys/ fallback)
+    std::string api_key = runtime::resolveApiKey(config->api_key_env);
+    if (api_key.empty()) {
         throw std::runtime_error(
             "Agent error: API key not available\n\n"
             "  Help:\n"
-            "  - Set the required API key environment variable\n");
+            "  - Set the required API key environment variable, or\n"
+            "  - Place the key in ~/.naab/keys/" + config->api_key_env + "\n");
     }
 
     // Call provider via shared layer
-    auto agent_resp = runtime::callAgentMultiTurn(*config, std::string(api_key), messages_json.dump());
+    auto agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
     if (!agent_resp.success) {
         throw std::runtime_error(agent_resp.error);
     }
@@ -503,11 +504,11 @@ static NaabVal agentCheck(std::vector<NaabVal>& args) {
         return NaabVal::makeDict(std::move(result));
     }
 
-    // Check API key env var is set and non-empty
-    const char* api_key = std::getenv(config->api_key_env.c_str());
-    if (!api_key || std::string(api_key).empty()) {
+    // Check API key availability (env var, then ~/.naab/keys/ fallback)
+    std::string api_key = runtime::resolveApiKey(config->api_key_env);
+    if (api_key.empty()) {
         result["valid"] = NaabVal::makeBool(false);
-        result["error"] = NaabVal::makeString("API key env var '" + config->api_key_env + "' not set");
+        result["error"] = NaabVal::makeString("API key '" + config->api_key_env + "' not found in env or ~/.naab/keys/");
         return NaabVal::makeDict(std::move(result));
     }
 

@@ -1394,8 +1394,8 @@ void GovernanceEngine::runGovernanceVoice() {
         return;
     }
 
-    const char* voice_key = std::getenv(voice_cfg->api_key_env.c_str());
-    if (!voice_key || std::string(voice_key).empty()) return;
+    std::string voice_key = runtime::resolveApiKey(voice_cfg->api_key_env);
+    if (voice_key.empty()) return;
 
     // Cache key: sha256(source_hash + config_hash)
     std::string source_hash = security::CryptoUtils::sha256(source_);
@@ -1472,7 +1472,7 @@ void GovernanceEngine::runGovernanceVoice() {
     prompt += "1. In func_name(), replace X with Y.\n";
     prompt += "2. In other_func(), remove Z and use W instead.\n";
 
-    auto resp = runtime::callAgentSimple(*voice_cfg, std::string(voice_key), prompt);
+    auto resp = runtime::callAgentSimple(*voice_cfg, voice_key, prompt);
     if (resp.success && !resp.content.empty()) {
         // Strip model thinking/reasoning lines (lines starting with * or whitespace+*)
         std::string cleaned;
