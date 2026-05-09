@@ -1227,7 +1227,15 @@ std::unique_ptr<ast::StructDecl> Parser::parseStructDecl() {
     std::vector<ast::StructField> fields;
     skipNewlines();
     while (!match(lexer::TokenType::RBRACE)) {
-        auto& field_name_token = expect(lexer::TokenType::IDENTIFIER, "Expected field name");
+        // Allow keywords (method, class, type, etc.) as struct field names
+        if (!isAllowedNameToken(current().type)) {
+            throw ParseError(formatError(
+                "Expected field name.\n\n"
+                "  Example: struct Point { x: int, y: int }\n",
+                current()));
+        }
+        auto& field_name_token = current();
+        advance();
         if (!match(lexer::TokenType::COLON)) {
             auto& tok = current();
             throw ParseError(formatError(
@@ -1380,6 +1388,10 @@ std::unique_ptr<ast::StructLiteralExpr> Parser::parseStructLiteral(
             field_name_value = current().value;
             advance();
         } else if (check(lexer::TokenType::STRING)) {
+            field_name_value = current().value;
+            advance();
+        } else if (isAllowedNameToken(current().type)) {
+            // Allow keywords (method, class, type, etc.) as field names
             field_name_value = current().value;
             advance();
         } else {

@@ -88,6 +88,9 @@ enum Color {
 // Instantiation REQUIRES `new` keyword:
 let p = new Point { x: 1, y: 2 }
 
+// Field names can be identifiers OR quoted strings:
+let p = new Point { "x": 1, "y": 2 }     // Also valid
+
 // Works inside function calls:
 arr.push(new Point { x: 1, y: 2 })
 
@@ -180,6 +183,50 @@ print(json.dumps({"key": "value", "count": 42}))
 >>
 ```
 Bare `json.dumps(data)` as the last expression also works (auto-wrapped in `print()`).
+
+## Taint Tracking
+
+When govern.json has `taint_tracking` enabled, the runtime tracks data flow from
+**sources** (polyglot output, file.read, io.read_line) to **sinks** (file.write, file.append).
+Tainted data must pass through a **sanitizer** (functions starting with `validate_` or
+`sanitize_`, or type casts like `int()`, `float()`, `string()`) before reaching a sink.
+
+### Common pattern: polyglot output → file.write
+```naab
+// WRONG — taint violation (polyglot output flows directly to file.write):
+let result = <<python
+json.dumps({"key": "value"})
+>>
+file.write("data/output.json", result)
+
+// RIGHT — sanitize before writing:
+let result = <<python
+json.dumps({"key": "value"})
+>>
+let clean = sanitize_string(result)
+file.write("data/output.json", clean)
+```
+
+### Where to sanitize
+Sanitize at the **sink** (just before file.write/file.append), not at the source.
+The taint engine traces data flow through string concatenation, interpolation, function
+returns, loop iterators, and dict/array access. Sanitizing early may not clear taint
+if the value is later concatenated with other tainted data.
+
+### sanitize_string design
+Your `sanitize_string` function must NOT strip characters that are valid in the
+output format. If writing JSON to a file, do NOT strip double quotes `"` — that breaks
+JSON structure. A safe sanitizer for file output:
+```naab
+fn sanitize_string(input) {
+    if input == null { return "" }
+    let s = string.trim(input)
+    s = string.replace(s, "<", "")   // Strip HTML/XML injection vectors
+    s = string.replace(s, ">", "")
+    return s
+}
+```
+Do NOT strip `"`, `{`, `}`, `[`, `]` — these are structural characters in JSON/data formats.
 
 ## Stdlib Reference (ALL functions)
 
@@ -452,6 +499,27 @@ main {
 36. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
     "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
     Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.
+37. `json.stringify()` on NAAb structs may produce non-standard output (unquoted keys).
+    For reliable JSON serialization of structs, convert to a dict first or use Python polyglot:
+    ```naab
+    // Option A: manual dict conversion
+    let d = { "id": entry.id, "name": entry.name }
+    let s = json.stringify(d)
+
+    // Option B: Python polyglot
+    let data = { "id": entry.id, "name": entry.name }
+    let s = <<python[data]
+    import json
+    json.dumps(data)
+    >>
+    ```
+    When using `-> JSON` with Python: `json.dumps()` as the last expression auto-wraps
+    in `print()`. But if you then pass the result to `json.parse()`, you get double-parsing.
+    Use `-> JSON` only when you want the result parsed into a NAAb dict, not when you need
+    a JSON string for file output.
+38. Struct field names in `new` expressions accept both identifiers (`x: 1`) and
+    quoted strings (`"x": 1`). Both work. If a field name collides with a keyword
+    (like `method`, `class`, `type`), use the quoted form: `new Request { "method": "GET" }`.
 
 ## Complexity Scoring (for governance)
 
