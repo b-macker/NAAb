@@ -132,6 +132,7 @@ import "./sibling.naab" as sib      // Explicit relative
 
 ### Block Syntax
 Polyglot blocks MUST be multiline. The `>>` closer MUST be on its own line at column 0.
+**The `>>` closer must have NO leading spaces/tabs — not indented to match the function body.**
 ```naab
 let result = <<python
 x = 42
@@ -143,6 +144,30 @@ x * 2
 ```naab
 let result = <<python x * 2 >>     // Single-line NOT allowed
 ```
+
+### WRONG — indented `>>` (most common polyglot mistake):
+```naab
+fn compute() {
+    let result = <<python
+    x = 42
+    x * 2
+    >>              // WRONG — >> is indented to match the function body
+    return result
+}
+```
+
+### RIGHT — `>>` at column 0 even inside functions:
+```naab
+fn compute() {
+    let result = <<python
+x = 42
+x * 2
+>>
+    return result
+}
+```
+The `>>` closer and Python code inside the block start at column 0, regardless of
+how deeply nested the surrounding NAAb code is. This looks odd but is required.
 
 ### Variable Binding
 Pass NAAb variables to polyglot blocks explicitly.
@@ -162,8 +187,22 @@ sum(d * multiplier for d in data)
   The last expression's value is automatically captured.
   WRONG: `return json.dumps(data)`
   RIGHT: `json.dumps(data)`
-- **JavaScript**: Last expression is the return value. Use `const`/`let`, NOT `var`.
-  No `console.log` — use NAAb `io.write`.
+- **JavaScript**: Uses embedded QuickJS (NOT Node.js). Last expression is the return value.
+  Use `const`/`let`, NOT `var`. Multi-line JS is wrapped in an IIFE for return capture.
+  **Keep JS blocks simple**: declare variables, compute, then put the result expression last.
+  Arrow functions work but avoid them on the last line — prefer a named result variable.
+  WRONG (last line is arrow function):
+  ```
+  const items = data.filter(x => x > 0);
+  items.map(x => x * 2)    // arrow as last expr — fragile
+  ```
+  RIGHT (last line is a simple variable):
+  ```
+  const items = data.filter(x => x > 0);
+  const result = items.map(x => x * 2);
+  result
+  ```
+  No `console.log` — use NAAb `io.write` for output.
 - **Shell**: stdout is the return value.
 - **Go**: Needs `package main`, `import`, `func main()`. `fmt.Println` for output.
 - **Nim**: Compiled language. Use `echo` for output. No `execCmd`.
@@ -183,6 +222,24 @@ print(json.dumps({"key": "value", "count": 42}))
 >>
 ```
 Bare `json.dumps(data)` as the last expression also works (auto-wrapped in `print()`).
+
+**`-> JSON` with JavaScript** works differently from Python. JS uses eval-based return (not stdout).
+Use `JSON.stringify()` as the last expression — do NOT use `console.log`:
+```naab
+let data = <<javascript -> JSON
+const result = {key: "value", count: 42};
+JSON.stringify(result)
+>>
+```
+**If `-> JSON` fails with JS, drop the `-> JSON` and use `json.parse()` instead:**
+```naab
+let raw = <<javascript[input]
+const result = {key: "value", count: input.length};
+JSON.stringify(result)
+>>
+let data = json.parse(raw)
+```
+This two-step approach is more reliable than `-> JSON` for JavaScript blocks.
 
 ## Taint Tracking
 
@@ -476,9 +533,12 @@ main {
 23. `string.match()` does NOT exist — use `regex.search(text, pattern)` for partial match,
     `regex.matches(text, pattern)` for full match, `regex.find_all(text, pattern)` for all matches.
     Requires `use regex`.
-24. `-> JSON`: Python bare expressions (e.g. `json.dumps(data)`) as the last line are auto-wrapped
-    in `print()`. Both `json.dumps(data)` and `print(json.dumps(data))` work as the last line.
-    JS: `JSON.stringify(data)` as the last expression (eval-based, no print needed).
+24. `-> JSON` behaves differently per language:
+    **Python**: bare expressions (e.g. `json.dumps(data)`) as the last line are auto-wrapped
+    in `print()`. Both `json.dumps(data)` and `print(json.dumps(data))` work.
+    **JavaScript**: `-> JSON` is fragile with JS. Prefer dropping `-> JSON` and using
+    `json.parse()` on the raw JS result instead (see JSON Sovereign Pipe section above).
+    If using `-> JSON` with JS, put `JSON.stringify(result)` as the last expression — no `console.log`.
 25. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
     `if x > 0 and y > 0` -> ERROR. Use: `if x > 0 && y > 0`
     `if not done` -> ERROR. Use: `if !done`
@@ -520,6 +580,20 @@ main {
 38. Struct field names in `new` expressions accept both identifiers (`x: 1`) and
     quoted strings (`"x": 1`). Both work. If a field name collides with a keyword
     (like `method`, `class`, `type`), use the quoted form: `new Request { "method": "GET" }`.
+39. **Polyglot `>>` closer must be at column 0** — no leading whitespace, ever.
+    When writing polyglot blocks inside functions, do NOT indent `>>` to match the function body.
+    WRONG: `    >>` (indented)  RIGHT: `>>` (column 0).
+    The Python/JS code inside the block also starts at column 0.
+    This is the #1 most common polyglot mistake — causes parse errors or silent failures.
+40. **JavaScript polyglot uses QuickJS (embedded), NOT Node.js.** Multi-line JS code is
+    wrapped in an IIFE `(function() { ...; return (lastExpr); })()` for return capture.
+    This means: (a) keep the last line a simple expression or variable, not an arrow function
+    or complex statement; (b) `console.log` is captured but not returned as the value;
+    (c) no Node.js APIs (require, process, Buffer, etc.); (d) ES2020 syntax only.
+    **When a project uses both Python and JavaScript polyglot, prefer Python for any block
+    that needs `-> JSON` or complex data transformation.** Use JS for simpler operations
+    like JSON manipulation, array sorting, or string processing where the last expression
+    is a straightforward value.
 
 ## Complexity Scoring (for governance)
 
