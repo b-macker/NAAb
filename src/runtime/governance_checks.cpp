@@ -1804,7 +1804,9 @@ std::string GovernanceEngine::checkIntentValidation(
                             "  {}",
                             function_name, kw_list));
                 } else {
-                    std::string guidance = fmt::format("\n\n  How to fix:\n"
+                    std::string guidance = fmt::format("\n\n  How to fix (any one of these):\n"
+                        "  - Add /// @intent \"...\" above the function to declare its purpose\n"
+                        "    (downgrades this to advisory — intent is still validated)\n"
                         "  - Use variable/function names that match project keywords\n"
                         "  - Call functions whose names overlap with the project description\n"
                         "  - If this function doesn't belong, move its logic into a function\n"
