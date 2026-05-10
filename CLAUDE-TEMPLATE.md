@@ -120,8 +120,12 @@ The `main {}` block only runs when the file is executed directly.
 
 ### Imports (file-based)
 ```naab
-import "src/module.naab" as mod     // Relative to THIS file's directory (NOT CWD)
-import "./sibling.naab" as sib      // Explicit relative
+import "module.naab" as mod         // Relative to THIS file's directory (NOT CWD)
+import "./sibling.naab" as sib      // Explicit relative (same directory)
+
+// If THIS file is src/main.naab and you're importing src/models.naab:
+//   WRONG: import "src/models.naab" as models   // looks for src/src/models.naab
+//   RIGHT: import "models.naab" as models        // same directory = just the filename
 
 // Functions in imported files MUST be exported:
 //   export fn my_function() { ... }
@@ -633,6 +637,9 @@ main {
     has `use agent` and module B imports A via `import "a.naab" as a`, module B does NOT need
     `use agent` unless B directly calls agent functions. Only add `use X` for modules your
     file directly uses. Importing a module that uses X does not require you to also `use X`.
+44. **Import paths are relative to the importing file, NOT the project root.** If both
+    `main.naab` and `models.naab` are in `src/`, write `import "models.naab" as models` —
+    NOT `import "src/models.naab"`. The `src/` prefix would look for `src/src/models.naab`.
 
 ## Complexity Scoring (for governance)
 
