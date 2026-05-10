@@ -1024,6 +1024,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         cf.rules.push_back(std::move(rule));
                     }
                 }
+                // Bridge: convert target_prefixes to a rules entry if no explicit rules defined
+                if (val.contains("target_prefixes") && val["target_prefixes"].is_array() && cf.rules.empty()) {
+                    ComplexityFloorRule prefix_rule;
+                    for (auto& p : val["target_prefixes"]) {
+                        prefix_rule.names.push_back(p.get<std::string>());
+                    }
+                    prefix_rule.min_score = cf.min_score;
+                    prefix_rule.require_branching_or_loops = false;
+                    cf.rules.push_back(std::move(prefix_rule));
+                }
             }
         }
 

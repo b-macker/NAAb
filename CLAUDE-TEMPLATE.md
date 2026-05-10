@@ -128,6 +128,33 @@ import "./sibling.naab" as sib      // Explicit relative
 // Non-exported functions are private to their file
 ```
 
+### Exporting Structs, Enums, and Functions
+Structs, enums, and functions are exported individually by prefixing `export`:
+```naab
+// Each struct/enum/fn gets its own export keyword:
+export struct Point {
+    x: int
+    y: int
+}
+
+export enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+export fn create_point(x, y) {
+    return new Point { x: x, y: y }
+}
+```
+
+**WRONG** — NAAb does NOT support batch export syntax:
+```naab
+// WRONG — this does not work:
+export { Point, Color, create_point }
+```
+Each export must be declared individually with `export struct`, `export enum`, or `export fn`.
+
 ## Polyglot Rules
 
 ### Block Syntax
@@ -594,6 +621,18 @@ main {
     that needs `-> JSON` or complex data transformation.** Use JS for simpler operations
     like JSON manipulation, array sorting, or string processing where the last expression
     is a straightforward value.
+41. **Always read data files before writing code that parses them.** JSON files often
+    have wrapper objects (e.g., `{"alerts": [...]}` not `[{...}, ...]`). CSV files may
+    have headers that need DictReader. Read the first few lines of each data file
+    before writing loader/parser code. Do NOT assume the structure from the filename.
+42. **`0..len(arr)` is correct for iterating all elements.** The `..` operator is exclusive
+    (like Python's `range()`), so `0..len(arr)` visits indices 0 through len-1. Do NOT write
+    `0..len(arr) - 1` — that skips the last element. Common mistake from Python habits where
+    `range(len(x)-1)` is used for "all but last". In NAAb, `0..len(arr) - 1` IS "all but last".
+43. **`use` imports are file-scoped — they do NOT propagate across `import`.** If module A
+    has `use agent` and module B imports A via `import "a.naab" as a`, module B does NOT need
+    `use agent` unless B directly calls agent functions. Only add `use X` for modules your
+    file directly uses. Importing a module that uses X does not require you to also `use X`.
 
 ## Complexity Scoring (for governance)
 

@@ -2441,6 +2441,7 @@ std::string GovernanceEngine::checkComplexityFloor(
     std::string fn_lower = function_name;
     std::transform(fn_lower.begin(), fn_lower.end(), fn_lower.begin(), ::tolower);
 
+    bool rule_matched = false;
     for (const auto& rule : cfg.rules) {
         bool matched = false;
         for (const auto& name : rule.names) {
@@ -2461,11 +2462,18 @@ std::string GovernanceEngine::checkComplexityFloor(
             }
         }
         if (matched) {
+            rule_matched = true;
             required_score = rule.min_score;
             require_branching = rule.require_branching_or_loops;
             custom_message = rule.message;
             break;
         }
+    }
+
+    // If rules exist but none matched this function name, skip the floor check.
+    // This is the intended behavior of target_prefixes: only check listed prefixes.
+    if (!cfg.rules.empty() && !rule_matched) {
+        return "";
     }
 
     // Check complexity score against floor
