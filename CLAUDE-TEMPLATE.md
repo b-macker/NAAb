@@ -384,6 +384,7 @@ replace, replace_first, split, groups, find_groups, escape, is_valid
 ### env
 get, get_args, set_var (NOT set — the function is set_var), list
 - `env.get_args()` — returns array of CLI arguments passed after the script name
+- Always check `len(args) > N` before indexing `args[N]` — out-of-bounds throws; the scanner flags unguarded access
 - Do NOT use `env.get("NAAB_ARGS")` or Python `sys.argv` — use `env.get_args()` for CLI args
 
 ### io
@@ -469,6 +470,10 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `array.concat(a, b)` — use `a + b`
 - `array.flat()` — not available, manually iterate
 - `string.match()` — use `regex.search()` or `regex.matches()` with `use regex`
+- `regex.match()` — use `regex.search()` (partial match, returns match or null)
+- `regex.test()` — use `regex.matches()` (full string match, returns bool)
+- `time.format()` — use `time.format_timestamp()` (the function name is `format_timestamp`, NOT `format`)
+- `env.set()` — use `env.set_var(name, value)` (the function name is `set_var`, NOT `set`)
 - `dict.update()` — use `dict.merge(other)` or `dict.put(key, val)` individually
 - `dict.clear()` — not available, reassign to empty dict: `my_dict = {}`
 
@@ -557,10 +562,14 @@ main {
 18. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
 19. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
 20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
-21. `try` is a STATEMENT, not an expression — `let x = try { ... }` will NOT parse.
-    Instead: declare variable before try, assign inside: `let x = ""; try { x = compute() } catch (e) { }`
-22. `throw` is a STATEMENT, not an expression — cannot appear in match arms or `let` assignments.
-    Instead of `_ => throw "err"` in match, use if/else with throw: `if x == "bad" { throw "err" }`
+21. `try` works as both a statement and an expression.
+    `let x = try { compute() } catch (e) { default_val }` — returns the value from
+    the successful branch or the catch branch. Both branches must be expressions.
+    Use expression form for inline fallback patterns; use statement form for side effects.
+22. `throw` works as an expression — it CAN appear in match arms and `let` assignments.
+    `_ => throw "invalid value"` in a match arm is valid.
+    Throw expressions diverge (never return), so the type system treats them as compatible
+    with any branch type.
 23. `string.match()` does NOT exist — use `regex.search(text, pattern)` for partial match,
     `regex.matches(text, pattern)` for full match, `regex.find_all(text, pattern)` for all matches.
     Requires `use regex`.
@@ -570,6 +579,9 @@ main {
     **JavaScript**: `-> JSON` is fragile with JS. Prefer dropping `-> JSON` and using
     `json.parse()` on the raw JS result instead (see JSON Sovereign Pipe section above).
     If using `-> JSON` with JS, put `JSON.stringify(result)` as the last expression — no `console.log`.
+    **Python double-encoding trap**: do NOT call `json.dumps()` inside `<<python -> JSON` —
+    the `-> JSON` pipe already converts the output to a NAAb dict. `json.dumps()` inside
+    `-> JSON` causes double-encoding (the output becomes a JSON-encoded JSON string).
 25. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
     `if x > 0 and y > 0` -> ERROR. Use: `if x > 0 && y > 0`
     `if not done` -> ERROR. Use: `if !done`
@@ -619,7 +631,9 @@ main {
 40. **JavaScript polyglot uses QuickJS (embedded), NOT Node.js.** Multi-line JS code is
     wrapped in an IIFE `(function() { ...; return (lastExpr); })()` for return capture.
     This means: (a) keep the last line a simple expression or variable, not an arrow function
-    or complex statement; (b) `console.log` is captured but not returned as the value;
+    or complex statement — multi-line expressions like `JSON.stringify({...})` spanning several
+    lines must be assigned to a variable first (see gotcha #45);
+    (b) `console.log` is captured but not returned as the value;
     (c) no Node.js APIs (require, process, Buffer, etc.); (d) ES2020 syntax only.
     **When a project uses both Python and JavaScript polyglot, prefer Python for any block
     that needs `-> JSON` or complex data transformation.** Use JS for simpler operations
@@ -640,6 +654,14 @@ main {
 44. **Import paths are relative to the importing file, NOT the project root.** If both
     `main.naab` and `models.naab` are in `src/`, write `import "models.naab" as models` —
     NOT `import "src/models.naab"`. The `src/` prefix would look for `src/src/models.naab`.
+45. **JavaScript polyglot: if the last expression is multi-line, assign it to a variable.**
+    The JS executor wraps multi-line code in an IIFE and returns the last expression.
+    When the last expression spans multiple lines (e.g. JSON.stringify with a multi-line
+    object literal), the return capture can fail.
+    WRONG — last expression spans multiple lines:
+      `JSON.stringify({\n    winner: x,\n    margin: 0\n});`
+    RIGHT — assign to variable, bare name on last line:
+      `const result = JSON.stringify({ winner: x, margin: 0 });\nresult`
 
 ## Complexity Scoring (for governance)
 
@@ -724,7 +746,7 @@ return int(math.max(0, result))  // Clamp to 0
 
 ## Code Quality Scanner
 
-NAAb has a built-in code quality scanner (`naab --scan`) that checks 127 patterns
+NAAb has a built-in code quality scanner (`naab --scan`) that checks 139 patterns
 across 6 categories and 6 language-specific modules.
 
 ### Auto-Run (Runtime)
@@ -747,12 +769,12 @@ naab --scan app.py python             # Scan single file
 ### Check Categories (127 checks total)
 | Category | Checks | Key Rules |
 |----------|--------|-----------|
-| redundancy | 15 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code |
+| redundancy | 16 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code, missing_imports |
 | code_quality | 15 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting |
 | complexity | 8 | cyclomatic_complexity, cognitive_complexity, file_length |
 | style | 10 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
 | security | 10 | hardcoded_credentials, sql_string_concat, shell_injection, path_traversal |
-| lang_naab | 10 | value_semantics_bug, top_level_let, arrow_lambda, python_return_in_block |
+| lang_naab | 14 | value_semantics_bug, top_level_let, arrow_lambda, python_return_in_block, json_double_encode |
 | lang_python | 14 | bare_except, mutable_default_arg, star_import, open_without_with |
 | lang_javascript | 12 | loose_equality, var_declaration, eval_usage, prototype_pollution |
 | lang_cpp | 12 | raw_new_delete, using_namespace_std, c_style_cast, goto_usage |

@@ -954,9 +954,14 @@ std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
             : "main{} block contains only comments (" + std::to_string(comment_lines) + " comment lines, 0 code lines)";
         return enforce("code_quality.no_incomplete_logic",
             EnforcementLevel::ADVISORY,
-            detail + " — the program compiles but does nothing.\n"
-            "  This pattern is often used to satisfy governance structurally\n"
-            "  while removing actual implementation.");
+            detail + " — add executable code inside main{}.\n"
+            "  Example:\n"
+            "    main {\n"
+            "      let result = compute_something()\n"
+            "      print(result)\n"
+            "    }\n"
+            "  If this file is import-only (no entry point), remove main{}\n"
+            "  or add the code that uses the exported functions.");
     }
     return "";
 }
@@ -3361,13 +3366,18 @@ std::string GovernanceEngine::checkSemanticIssues(
                     if (JS_KNOWN_MODULES.find(mod) == JS_KNOWN_MODULES.end()) {
                         return enforce("code_quality.semantic_checks", cfg.level,
                             formatError(cfg.level,
-                                fmt::format("Unknown Node.js module '{}' — verify it's installed", mod),
+                                fmt::format("Unknown module '{}' in JavaScript polyglot block", mod),
                                 line > 0 ? fmt::format("line {}", line) : "",
                                 "code_quality.semantic_checks",
-                                "This module is not a Node.js builtin or common package.\n"
-                                "  If it's a project dependency, ensure it's in package.json.",
+                                "NAAb runs JavaScript via QuickJS (embedded), not Node.js.\n"
+                                "  npm packages, require(), and Node.js builtins are NOT available.\n"
+                                "  Use NAAb stdlib modules instead:\n"
+                                "    File I/O: use file -> file.read(), file.write()\n"
+                                "    HTTP:     use http -> http.get(), http.post()\n"
+                                "    JSON:     JSON.parse() / JSON.stringify() are built in to QuickJS\n"
+                                "  Rewrite the logic using NAAb stdlib or pure JS (no external modules).",
                                 fmt::format("const x = require('{}')", mod),
-                                "const fs = require('fs')  // use builtin modules"));
+                                "const result = JSON.stringify(data)  // use built-in QuickJS APIs"));
                     }
                 }
 
@@ -3385,13 +3395,18 @@ std::string GovernanceEngine::checkSemanticIssues(
                     if (JS_KNOWN_MODULES.find(mod) == JS_KNOWN_MODULES.end()) {
                         return enforce("code_quality.semantic_checks", cfg.level,
                             formatError(cfg.level,
-                                fmt::format("Unknown Node.js module '{}' — verify it's installed", mod),
+                                fmt::format("Unknown module '{}' in JavaScript polyglot block", mod),
                                 line > 0 ? fmt::format("line {}", line) : "",
                                 "code_quality.semantic_checks",
-                                "This module is not a Node.js builtin or common package.\n"
-                                "  If it's a project dependency, ensure it's in package.json.",
+                                "NAAb runs JavaScript via QuickJS (embedded), not Node.js.\n"
+                                "  npm packages, require(), and Node.js builtins are NOT available.\n"
+                                "  Use NAAb stdlib modules instead:\n"
+                                "    File I/O: use file -> file.read(), file.write()\n"
+                                "    HTTP:     use http -> http.get(), http.post()\n"
+                                "    JSON:     JSON.parse() / JSON.stringify() are built in to QuickJS\n"
+                                "  Rewrite the logic using NAAb stdlib or pure JS (no external modules).",
                                 fmt::format("import x from '{}'", mod),
-                                "import fs from 'fs'  // use builtin modules"));
+                                "const result = JSON.stringify(data)  // use built-in QuickJS APIs"));
                     }
                 }
             } catch (const std::regex_error&) {}

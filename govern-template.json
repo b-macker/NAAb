@@ -1166,6 +1166,7 @@
       "unnecessary_else_after_return": { "enabled": true, "level": "advisory" },
       "wrapper_classes":        { "enabled": true, "level": "advisory" },
       "unused_imports":         { "enabled": true, "level": "soft" },
+      "missing_imports":        { "enabled": true, "level": "soft" },
       "single_use_variable":    { "enabled": false, "level": "advisory" },
       "copy_paste_signatures":  { "enabled": true, "level": "advisory" },
       "excessive_type_checks":  { "enabled": true, "level": "advisory" },
@@ -1268,7 +1269,11 @@
         "arrow_lambda":          { "enabled": true, "level": "soft" },
         "missing_export":        { "enabled": true, "level": "advisory" },
         "dict_bracket_access":   { "enabled": true, "level": "soft" },
-        "python_return_in_block": { "enabled": true, "level": "hard" }
+        "python_return_in_block": { "enabled": true, "level": "hard" },
+        "unsafe_args_access":    { "enabled": true, "level": "advisory" },
+        "json_double_encode":    { "enabled": true, "level": "soft" },
+        "hardcoded_return_value": { "enabled": false, "level": "advisory" },
+        "dict_key_schema_check": { "enabled": false, "level": "advisory" }
       },
       "cpp": {
         "raw_new_delete":        { "enabled": true, "level": "soft" },

@@ -545,8 +545,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                         fmt::format("'{}' is used but module '{}' is not imported",
                             mod, mod),
                         trim(lines[i]),
-                        fmt::format("Add 'use {}' at the top of the file", mod),
-                        "advisory");
+                        fmt::format("Add 'use {}' at the top of the file", mod));
                     break; // one issue per missing module
                 }
             }

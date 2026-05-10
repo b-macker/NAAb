@@ -329,43 +329,125 @@ interpreter::NaabVal JsExecutor::evaluate(
             if (js_lines.empty()) {
                 wrapped = "undefined";
             } else {
-                // Build IIFE: all lines except last as statements, last as return expression
-                std::string statements;
-                for (size_t i = 0; i + 1 < js_lines.size(); i++) {
-                    statements += js_lines[i] + "\n";
-                }
-
-                // Trim last line for return
-                std::string last_expr = js_lines.back();
-                size_t first_pos = last_expr.find_first_not_of(" \t");
-                if (first_pos != std::string::npos) {
-                    last_expr = last_expr.substr(first_pos);
-                }
-                // Strip line comments (// ...) before processing
-                // Be careful not to strip // inside string literals
-                bool in_string = false;
-                char string_char = 0;
-                for (size_t ci = 0; ci + 1 < last_expr.size(); ci++) {
-                    if (!in_string && (last_expr[ci] == '"' || last_expr[ci] == '\'')) {
-                        in_string = true;
-                        string_char = last_expr[ci];
-                    } else if (in_string && last_expr[ci] == string_char && (ci == 0 || last_expr[ci-1] != '\\')) {
-                        in_string = false;
-                    } else if (!in_string && last_expr[ci] == '/' && last_expr[ci+1] == '/') {
-                        last_expr = last_expr.substr(0, ci);
+                // Determine if the last expression is multi-line by checking
+                // the last non-whitespace/non-semicolon char of the entire code.
+                // If it's a closing bracket (}, ), ]), the final statement spans
+                // multiple lines and taking only the last line would break it.
+                // Example: JSON.stringify({\n  key: val\n}); — last line is "});"
+                // which becomes "return (});" — a syntax error.
+                char last_significant = 0;
+                for (size_t ci = code.size(); ci > 0; ci--) {
+                    char c = code[ci - 1];
+                    if (c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != ';') {
+                        last_significant = c;
                         break;
                     }
                 }
-                // Remove trailing whitespace and semicolon
-                size_t last_pos = last_expr.find_last_not_of(" \t\r\n");
-                if (last_pos != std::string::npos) {
-                    last_expr = last_expr.substr(0, last_pos + 1);
-                }
-                if (!last_expr.empty() && last_expr.back() == ';') {
-                    last_expr.pop_back();
-                }
 
-                wrapped = "(function() {\n" + statements + "return (" + last_expr + ");\n})()";
+                bool is_multiline_last = (last_significant == '}' ||
+                                          last_significant == ')' ||
+                                          last_significant == ']');
+
+                if (is_multiline_last) {
+                    // The last expression spans multiple lines — use full code block
+                    // as the return expression instead of just the last line.
+                    // Scan backwards to find where the last top-level statement begins
+                    // by tracking brace/bracket/paren depth from the end.
+                    std::string full_code;
+                    for (const auto& l : js_lines) {
+                        full_code += l + "\n";
+                    }
+                    // Strip trailing whitespace and semicolon
+                    size_t lp = full_code.find_last_not_of(" \t\r\n");
+                    if (lp != std::string::npos) full_code = full_code.substr(0, lp + 1);
+                    if (!full_code.empty() && full_code.back() == ';') full_code.pop_back();
+
+                    // Find where the last top-level statement starts by scanning backwards
+                    // with brace depth tracking. When depth returns to 0 and we hit a
+                    // semicolon or newline at depth 0, that's the boundary.
+                    int depth = 0;
+                    size_t stmt_start = 0;
+                    bool in_str = false;
+                    char str_ch = 0;
+                    for (size_t ci = full_code.size(); ci > 0; ci--) {
+                        char c = full_code[ci - 1];
+                        // Simple string tracking (backwards)
+                        if (in_str) {
+                            if (c == str_ch && (ci < 2 || full_code[ci - 2] != '\\')) {
+                                in_str = false;
+                            }
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') {
+                            in_str = true;
+                            str_ch = c;
+                            continue;
+                        }
+                        if (c == '}' || c == ')' || c == ']') depth++;
+                        else if (c == '{' || c == '(' || c == '[') depth--;
+
+                        if (depth == 0 && c == ';') {
+                            stmt_start = ci; // position after the semicolon
+                            break;
+                        }
+                    }
+
+                    if (stmt_start > 0) {
+                        // Split into statements + last expression
+                        std::string stmts_part = full_code.substr(0, stmt_start);
+                        std::string expr_part = full_code.substr(stmt_start);
+                        // Trim leading whitespace from expr_part
+                        size_t fp = expr_part.find_first_not_of(" \t\r\n");
+                        if (fp != std::string::npos) expr_part = expr_part.substr(fp);
+                        // Strip trailing semicolon from expr_part
+                        size_t ep = expr_part.find_last_not_of(" \t\r\n");
+                        if (ep != std::string::npos) expr_part = expr_part.substr(0, ep + 1);
+                        if (!expr_part.empty() && expr_part.back() == ';') expr_part.pop_back();
+
+                        wrapped = "(function() {\n" + stmts_part + "\nreturn (" + expr_part + ");\n})()";
+                    } else {
+                        // No semicolon found — entire block is one expression
+                        wrapped = "(function() {\nreturn (" + full_code + ");\n})()";
+                    }
+                } else {
+                    // Last line is a simple expression — use existing last-line logic
+                    std::string statements;
+                    for (size_t i = 0; i + 1 < js_lines.size(); i++) {
+                        statements += js_lines[i] + "\n";
+                    }
+
+                    // Trim last line for return
+                    std::string last_expr = js_lines.back();
+                    size_t first_pos = last_expr.find_first_not_of(" \t");
+                    if (first_pos != std::string::npos) {
+                        last_expr = last_expr.substr(first_pos);
+                    }
+                    // Strip line comments (// ...) before processing
+                    // Be careful not to strip // inside string literals
+                    bool in_str = false;
+                    char str_ch = 0;
+                    for (size_t ci = 0; ci + 1 < last_expr.size(); ci++) {
+                        if (!in_str && (last_expr[ci] == '"' || last_expr[ci] == '\'')) {
+                            in_str = true;
+                            str_ch = last_expr[ci];
+                        } else if (in_str && last_expr[ci] == str_ch && (ci == 0 || last_expr[ci-1] != '\\')) {
+                            in_str = false;
+                        } else if (!in_str && last_expr[ci] == '/' && last_expr[ci+1] == '/') {
+                            last_expr = last_expr.substr(0, ci);
+                            break;
+                        }
+                    }
+                    // Remove trailing whitespace and semicolon
+                    size_t last_pos = last_expr.find_last_not_of(" \t\r\n");
+                    if (last_pos != std::string::npos) {
+                        last_expr = last_expr.substr(0, last_pos + 1);
+                    }
+                    if (!last_expr.empty() && last_expr.back() == ';') {
+                        last_expr.pop_back();
+                    }
+
+                    wrapped = "(function() {\n" + statements + "return (" + last_expr + ");\n})()";
+                }
             }
         }
 
@@ -391,11 +473,15 @@ interpreter::NaabVal JsExecutor::evaluate(
                 }
 
                 if (error.find("expecting ')'") != std::string::npos ||
+                    error.find("expecting '}'") != std::string::npos ||
                     error.find("unexpected token") != std::string::npos) {
-                    hint += "\n\n  Hint: This may be caused by:\n"
-                            "  - Unescaped special characters in bound variables\n"
-                            "  - Template literals (`...`) with complex expressions\n"
-                            "  - Try simplifying the JS code or checking variable values\n";
+                    hint += "\n\n  Hint: JavaScript syntax error in polyglot block.\n"
+                            "  - NAAb wraps multi-line JS in an IIFE for return value capture\n"
+                            "  - If your last expression spans multiple lines (e.g. JSON.stringify({\\n"
+                            "    ...\\n})), assign it to a variable and put the variable name on the\n"
+                            "    last line:\n"
+                            "      const result = JSON.stringify({ winner: x, margin: y });\n"
+                            "      result\n";
                 }
             }
 
