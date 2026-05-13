@@ -60,6 +60,8 @@ struct ScanConfig {
     std::string json_path = "quality-report.json";
     std::string text_path = "quality-report.txt";
     std::string sarif_path = "quality-report.sarif";
+    // capabilities read from govern.json (for cross-section checks)
+    bool shell_allowed = true;  // false when capabilities.shell.enabled = false
 };
 
 // Scan result

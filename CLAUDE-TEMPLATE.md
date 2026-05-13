@@ -421,7 +421,8 @@ email, url, ip, ipv6, int_range, not_empty, length, matches, is_int, is_float, i
 ### process
 run, exit, kill, getpid
 - `process.run("command")` — execute shell command, returns {stdout, stderr, exit_code}
-- `process.exit(code)` — exit with code
+- `process.exit(code)` — exit with code (**requires `use process`**; BLOCKED when
+  `capabilities.shell.enabled: false` in govern.json — use `return` to exit main instead)
 - `process.getpid()` — current process ID
 
 ### path
@@ -476,6 +477,7 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `env.set()` — use `env.set_var(name, value)` (the function name is `set_var`, NOT `set`)
 - `dict.update()` — use `dict.merge(other)` or `dict.put(key, val)` individually
 - `dict.clear()` — not available, reassign to empty dict: `my_dict = {}`
+- `process.exit()` when shell is disabled in govern.json — use `return` at end of main{} instead
 
 ## Pipeline Operator
 ```naab
@@ -487,6 +489,12 @@ For multi-arg stdlib functions, create a wrapper:
 ```naab
 fn my_filter(arr) { return array.filter_fn(arr, fn(x) { return x > 5 }) }
 let result = data |> my_filter
+```
+`|>` does NOT support a `_` placeholder for non-first-argument positions.
+`data |> string.split(_, " ")` is INVALID — create a wrapper function:
+```naab
+fn split_spaces(s) { return string.split(s, " ") }
+let words = data |> split_spaces
 ```
 
 ## Value Semantics
@@ -558,7 +566,10 @@ main {
     NAAb's `||` is NOT like JavaScript's `||` operator.
     For null coalesce, use the `??` operator: `x ?? default_val`
 16. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
-17. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error
+17. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error.
+    Conversely, `new { }` WITHOUT a struct name is also a parse error — plain dicts do NOT use `new`.
+    WRONG: `new { "key": val }`   RIGHT: `{ "key": val }`
+    `new` is ONLY for struct instantiation: `new StructName { field: value }`.
 18. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
 19. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
 20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
@@ -600,8 +611,16 @@ main {
     Structs defined in imported files are accessible via the module alias.
     Example: `import "types.naab" as types` then `let p = new types.Point { x: 1, y: 2 }`
 36. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
-    "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
-    Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.
+    "Expected ':' after dict key" because `{` opens a dict, not a block.
+    Use expression arms only — each arm must be a single expression, not a statement block.
+    For multi-step logic in a match arm, extract a helper function or restructure as if/else:
+    WRONG:
+      `match status { "ok" => { let x = compute(); x * 2 } }`  // ERROR: { parsed as dict
+    RIGHT (helper function):
+      `fn handle_ok() { let x = compute(); return x * 2 }`
+      `match status { "ok" => handle_ok() }`
+    RIGHT (if/else instead of match):
+      `if status == "ok" { let x = compute(); x * 2 } else { 0 }`
 37. `json.stringify()` on NAAb structs may produce non-standard output (unquoted keys).
     For reliable JSON serialization of structs, convert to a dict first or use Python polyglot:
     ```naab
@@ -662,6 +681,35 @@ main {
       `JSON.stringify({\n    winner: x,\n    margin: 0\n});`
     RIGHT — assign to variable, bare name on last line:
       `const result = JSON.stringify({ winner: x, margin: 0 });\nresult`
+46. **No Python/Ruby-style ternary.** `x if cond else y` is NOT valid NAAb syntax.
+    NAAb uses `if` as an expression (prefix form):
+    WRONG: `let result = score if score > 0 else 0.0`
+    RIGHT: `let result = if score > 0 { score } else { 0.0 }`
+    The `if cond { a } else { b }` form IS an expression — assign it directly.
+47. **JavaScript polyglot: do NOT redeclare bound variable names inside the block.**
+    Variables listed in `<<javascript[x, y, z]` are injected as `const` into the IIFE.
+    Redeclaring them with `const` or `let` causes "invalid redefinition of lexical identifier".
+    WRONG: `<<javascript[margin]  const margin = margin * 2; margin >>`
+    RIGHT: `<<javascript[margin]  const m = margin * 2; m >>`
+    Use different names for any local variables that transform the bound inputs.
+48. **`let` declarations cannot appear inside if-expressions.**
+    If-expressions are values — their bodies must be pure expressions, not statements.
+    WRONG: `let x = if cond { let tmp = compute(); tmp * 2 } else { 0 }`
+    RIGHT: extract the intermediate computation before the if:
+      let tmp = if cond { compute() } else { 0 }
+      let x = tmp * 2
+    Or restructure as an if-statement with a mutable variable:
+      let x = 0
+      if cond { x = compute() * 2 }
+49. **Do not sanitize content that has already been hashed, or hash content before sanitizing.**
+    Sanitizers change content (e.g. replacing `<>` with HTML entities). If you hash raw content
+    then sanitize the same content, the stored hash will not match the sanitized version.
+    Pattern for audit trails and hash chains:
+      1. Assemble the raw content string
+      2. Compute the hash on raw content: `let h = crypto.sha256(raw_content)`
+      3. Sanitize only at the file.write() sink: `file.write(path, sanitize_string(raw_content))`
+    Do NOT sanitize inside functions that build hash chains — sanitize is a presentation concern,
+    not a data integrity concern.
 
 ## Complexity Scoring (for governance)
 
@@ -724,6 +772,15 @@ return {
     "y": position_y
 }
 ```
+
+**Parameter types — arrays vs dicts:**
+`return_keys` describes what the FUNCTION RETURNS, not what it takes.
+For input parameters, follow the module spec:
+- Parameters named `history`, `events`, `findings`, `signals`, `items` → pass an **array** `[...]`
+- Parameters named `summary`, `context`, `config`, `options`, `metadata` → pass a **dict** `{...}`
+- When a parameter accepts a list of homogeneous items, it expects an array even if items are dicts.
+  WRONG: `score_signal(signal, {"entries": history_list})`
+  RIGHT: `score_signal(signal, history_list)` — pass the array directly
 
 **return_one_of:**
 ```naab

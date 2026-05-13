@@ -370,6 +370,15 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
         }
     }
 
+    // Read capabilities.shell for cross-section checks (e.g. process module guard)
+    if (full_cfg.contains("capabilities") && full_cfg["capabilities"].contains("shell")) {
+        auto& shell = full_cfg["capabilities"]["shell"];
+        if (shell.is_boolean())
+            config_.shell_allowed = shell.get<bool>();
+        else if (shell.is_object() && shell.contains("enabled"))
+            config_.shell_allowed = shell["enabled"].get<bool>();
+    }
+
     // Load output settings
     if (scanner_cfg.contains("output") && scanner_cfg["output"].is_object()) {
         auto& output = scanner_cfg["output"];

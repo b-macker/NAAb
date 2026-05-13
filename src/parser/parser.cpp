@@ -2650,7 +2650,10 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
 
     // Struct literal: new StructName<T> { field: value, ... } or new module.StructName { ... }
     if (match(lexer::TokenType::NEW)) {
-        auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected struct name after 'new'");
+        auto& name_token = expect(lexer::TokenType::IDENTIFIER,
+            "Expected struct name after 'new'\n"
+            "  To create a plain dict, use { } without 'new': { \"key\": val }\n"
+            "  'new' is only for struct instantiation: new StructName { field: value }");
         std::string struct_name = name_token.value;
 
         // ISS-024 Fix: Check for module-qualified struct name (module.StructName)
@@ -2806,6 +2809,36 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                 tokens_[pos_ + 1].type == lexer::TokenType::IDENTIFIER &&
                 tokens_[pos_ + 2].type == lexer::TokenType::COLON) {
                 return parseStructLiteral(name);
+            }
+        }
+
+        // HELPER: detect Python-style ternary `value if cond else other`
+        // Only error if we see 'if' followed eventually by 'else' (not match guards like 'x if guard =>')
+        if (check(lexer::TokenType::IF)) {
+            // Peek ahead to see if there's an 'else' keyword (ternary) or '=>' (match guard)
+            bool has_else_ahead = false;
+            int paren_depth = 0;
+            for (int offset = 1; offset < 20 && !isAtEnd(); offset++) {  // Look ahead up to 20 tokens
+                const auto& tok = peek(offset);
+                if (tok.type == lexer::TokenType::LPAREN) paren_depth++;
+                else if (tok.type == lexer::TokenType::RPAREN) paren_depth--;
+                else if (paren_depth == 0) {
+                    if (tok.type == lexer::TokenType::ELSE) {
+                        has_else_ahead = true;
+                        break;
+                    }
+                    if (tok.type == lexer::TokenType::ARROW) {  // =>
+                        break;  // Match guard, not ternary
+                    }
+                }
+                if (tok.type == lexer::TokenType::END_OF_FILE) break;
+            }
+
+            if (has_else_ahead) {
+                throw ParseError(
+                    "Python-style ternary 'x if cond else y' is not supported.\n"
+                    "  Use NAAb's if-expression instead: if cond { x } else { y }\n"
+                    "  Example: let result = if score > 0 { score } else { 0.0 }");
             }
         }
 

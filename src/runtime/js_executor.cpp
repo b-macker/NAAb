@@ -326,6 +326,25 @@ interpreter::NaabVal JsExecutor::evaluate(
                 }
             }
 
+            // Returns true if the trimmed string starts with a JS statement keyword
+            // that cannot be used as a return expression in the IIFE wrapper.
+            auto startsWithStmtKeyword = [](const std::string& s) -> bool {
+                static const std::vector<std::string> kws = {
+                    "for ", "for(", "while ", "while(", "do ", "do{",
+                    "switch ", "switch(", "if ", "if(",
+                    "return ", "throw ", "break", "continue",
+                    "try ", "try{"
+                };
+                size_t start = s.find_first_not_of(" \t\r\n");
+                if (start == std::string::npos) return false;
+                std::string trimmed = s.substr(start);
+                for (const auto& kw : kws) {
+                    if (trimmed.size() >= kw.size() &&
+                        trimmed.compare(0, kw.size(), kw) == 0) return true;
+                }
+                return false;
+            };
+
             if (js_lines.empty()) {
                 wrapped = "undefined";
             } else {
@@ -404,10 +423,20 @@ interpreter::NaabVal JsExecutor::evaluate(
                         if (ep != std::string::npos) expr_part = expr_part.substr(0, ep + 1);
                         if (!expr_part.empty() && expr_part.back() == ';') expr_part.pop_back();
 
+                        // If expr_part is a statement (for/while/etc), it can't be returned
+                        if (startsWithStmtKeyword(expr_part)) {
+                            stmts_part += "\n" + expr_part;
+                            expr_part = "undefined";
+                        }
                         wrapped = "(function() {\n" + stmts_part + "\nreturn (" + expr_part + ");\n})()";
                     } else {
                         // No semicolon found — entire block is one expression
-                        wrapped = "(function() {\nreturn (" + full_code + ");\n})()";
+                        // Check if it's actually a statement block
+                        if (startsWithStmtKeyword(full_code)) {
+                            wrapped = "(function() {\n" + full_code + "\nreturn (undefined);\n})()";
+                        } else {
+                            wrapped = "(function() {\nreturn (" + full_code + ");\n})()";
+                        }
                     }
                 } else {
                     // Last line is a simple expression — use existing last-line logic
@@ -446,6 +475,11 @@ interpreter::NaabVal JsExecutor::evaluate(
                         last_expr.pop_back();
                     }
 
+                    // If last_expr is a statement, move it to statements and return undefined
+                    if (startsWithStmtKeyword(last_expr)) {
+                        statements += last_expr + "\n";
+                        last_expr = "undefined";
+                    }
                     wrapped = "(function() {\n" + statements + "return (" + last_expr + ");\n})()";
                 }
             }
@@ -481,7 +515,11 @@ interpreter::NaabVal JsExecutor::evaluate(
                             "    ...\\n})), assign it to a variable and put the variable name on the\n"
                             "    last line:\n"
                             "      const result = JSON.stringify({ winner: x, margin: y });\n"
-                            "      result\n";
+                            "      result\n"
+                            "  - If your last line is a for/while/if statement (not an expression),\n"
+                            "    put a result variable on the last line instead:\n"
+                            "      let out = []; for (const x of items) { out.push(x); }\n"
+                            "      out\n";
                 }
             }
 

@@ -250,6 +250,23 @@ void ScannerEngine::checkSecurity(const std::string& filepath,
             }
         }
     }
+
+    // 11. process_exit_shell_guard: flag process.* calls when shell is disabled
+    if (!config_.shell_allowed && isEnabled(CAT, "process_exit_shell_guard")) {
+        static const std::regex proc_pat(R"(\bprocess\.(exit|run|kill|getpid)\s*\()");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = sec_trim(lines[i]);
+            if (std::regex_search(s, proc_pat)) {
+                std::smatch m;
+                std::regex_search(s, m, proc_pat);
+                addSecIssue(static_cast<int>(i + 1), "process_exit_shell_guard",
+                    fmt::format("process.{}() called but shell is disabled in govern.json",
+                                m[1].str()),
+                    s,
+                    "Use 'return' to exit main{}, or enable shell in govern.json capabilities");
+            }
+        }
+    }
 }
 
 } // namespace scanner
