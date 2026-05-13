@@ -1225,7 +1225,7 @@
       "path_traversal":            { "enabled": true, "level": "hard" },
       "insecure_deserialization":  { "enabled": true, "level": "hard" },
       "exposed_stack_traces":      { "enabled": true, "level": "advisory" },
-      "process_exit_shell_guard":  { "enabled": true, "level": "soft" }
+      "process_shell_guard":       { "enabled": true, "level": "soft" }
     },
 
     "_comment_lang_rules": "Language-specific checks (only run for matching file types)",

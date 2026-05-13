@@ -55,7 +55,7 @@ std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
             std::regex_search(stripped, poly_open)) {
             in_poly = true;
             result[i] = "";
-        } else if (in_poly && std::regex_match(result[i], poly_close)) {
+        } else if (in_poly && std::regex_match(trimmed, poly_close)) {
             in_poly = false;
             result[i] = "";
         } else if (in_poly) {

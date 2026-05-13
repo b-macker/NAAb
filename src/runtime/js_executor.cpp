@@ -333,14 +333,25 @@ interpreter::NaabVal JsExecutor::evaluate(
                     "for ", "for(", "while ", "while(", "do ", "do{",
                     "switch ", "switch(", "if ", "if(",
                     "return ", "throw ", "break", "continue",
-                    "try ", "try{"
+                    "try ", "try{",
+                    "function ", "function("
                 };
                 size_t start = s.find_first_not_of(" \t\r\n");
                 if (start == std::string::npos) return false;
                 std::string trimmed = s.substr(start);
                 for (const auto& kw : kws) {
                     if (trimmed.size() >= kw.size() &&
-                        trimmed.compare(0, kw.size(), kw) == 0) return true;
+                        trimmed.compare(0, kw.size(), kw) == 0) {
+                        // Keywords without trailing delimiter need word boundary check
+                        if (kw.back() != ' ' && kw.back() != '(' && kw.back() != '{') {
+                            if (trimmed.size() > kw.size()) {
+                                char next = trimmed[kw.size()];
+                                if (std::isalnum(static_cast<unsigned char>(next)) || next == '_')
+                                    continue;  // Not a word boundary — skip
+                            }
+                        }
+                        return true;
+                    }
                 }
                 return false;
             };

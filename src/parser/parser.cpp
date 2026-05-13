@@ -2814,6 +2814,8 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
 
         // HELPER: detect Python-style ternary `value if cond else other`
         // Only error if we see 'if' followed eventually by 'else' (not match guards like 'x if guard =>')
+        // Note: peek(offset) does not account for pending_token_, but pending_token_ is always
+        // cleared by the match(IDENTIFIER) that enters this branch, so it's safe here.
         if (check(lexer::TokenType::IF)) {
             // Peek ahead to see if there's an 'else' keyword (ternary) or '=>' (match guard)
             bool has_else_ahead = false;

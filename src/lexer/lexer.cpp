@@ -682,9 +682,9 @@ std::vector<Token> Lexer::tokenize() {
             // Read the inline code
             std::string code = readInlineCode();
 
-            // Auto-dedent: strip common leading whitespace from polyglot block.
-            // This allows polyglot content to be indented to match surrounding
-            // NAAb code without breaking column-0 semantics.
+            // Auto-dedent: strip common leading whitespace PREFIX from polyglot block.
+            // Uses prefix-string comparison (not byte count) so mixed tabs/spaces
+            // are handled correctly — a tab and a space are never considered equal.
             {
                 std::vector<std::string> block_lines;
                 std::istringstream stream(code);
@@ -692,23 +692,45 @@ std::vector<Token> Lexer::tokenize() {
                 while (std::getline(stream, ln)) {
                     block_lines.push_back(ln);
                 }
-                // Find minimum non-empty leading whitespace
-                size_t min_indent = std::string::npos;
+
+                // Find common whitespace prefix across all non-blank lines
+                std::string common_prefix;
+                bool prefix_initialized = false;
                 for (const auto& bl : block_lines) {
                     if (bl.empty() || bl.find_first_not_of(" \t") == std::string::npos) continue;
-                    size_t indent = bl.find_first_not_of(" \t");
-                    if (indent < min_indent) min_indent = indent;
+                    std::string ws = bl.substr(0, bl.find_first_not_of(" \t"));
+                    if (!prefix_initialized) {
+                        common_prefix = ws;
+                        prefix_initialized = true;
+                    } else {
+                        // Shrink to longest common prefix (character-exact)
+                        size_t max_len = std::min(common_prefix.size(), ws.size());
+                        size_t match_len = 0;
+                        while (match_len < max_len && common_prefix[match_len] == ws[match_len]) {
+                            match_len++;
+                        }
+                        common_prefix = common_prefix.substr(0, match_len);
+                    }
+                    if (common_prefix.empty()) break;  // No common prefix possible
                 }
-                if (min_indent != std::string::npos && min_indent > 0) {
+
+                if (!common_prefix.empty()) {
+                    bool had_trailing_newline = !code.empty() && code.back() == '\n';
                     std::string dedented;
                     for (size_t i = 0; i < block_lines.size(); i++) {
                         const auto& bl = block_lines[i];
-                        if (!bl.empty() && bl.find_first_not_of(" \t") != std::string::npos) {
-                            dedented += bl.substr(min_indent);
+                        if (!bl.empty() && bl.find_first_not_of(" \t") != std::string::npos
+                            && bl.size() >= common_prefix.size()
+                            && bl.compare(0, common_prefix.size(), common_prefix) == 0) {
+                            dedented += bl.substr(common_prefix.size());
                         } else {
                             dedented += bl;
                         }
                         if (i + 1 < block_lines.size()) dedented += '\n';
+                    }
+                    // Preserve trailing newline if original had one
+                    if (had_trailing_newline && !dedented.empty() && dedented.back() != '\n') {
+                        dedented += '\n';
                     }
                     code = dedented;
                 }

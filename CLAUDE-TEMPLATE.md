@@ -162,8 +162,7 @@ Each export must be declared individually with `export struct`, `export enum`, o
 ## Polyglot Rules
 
 ### Block Syntax
-Polyglot blocks MUST be multiline. The `>>` closer MUST be on its own line at column 0.
-**The `>>` closer must have NO leading spaces/tabs — not indented to match the function body.**
+Polyglot blocks MUST be multiline. The `>>` closer MUST be on its own line.
 ```naab
 let result = <<python
 x = 42
@@ -176,18 +175,20 @@ x * 2
 let result = <<python x * 2 >>     // Single-line NOT allowed
 ```
 
-### WRONG — indented `>>` (most common polyglot mistake):
+### Polyglot content indentation (auto-dedent)
+Polyglot content and `>>` can be indented to match surrounding NAAb code — the runtime
+auto-dedents by stripping the common leading whitespace prefix:
 ```naab
 fn compute() {
     let result = <<python
     x = 42
     x * 2
-    >>              // WRONG — >> is indented to match the function body
+    >>
     return result
 }
 ```
-
-### RIGHT — `>>` at column 0 even inside functions:
+Auto-dedent preserves relative indentation (critical for Python nested blocks).
+Column 0 also works and is the traditional style:
 ```naab
 fn compute() {
     let result = <<python
@@ -197,8 +198,8 @@ x * 2
     return result
 }
 ```
-The `>>` closer and Python code inside the block start at column 0, regardless of
-how deeply nested the surrounding NAAb code is. This looks odd but is required.
+**Do NOT mix tabs and spaces in polyglot indentation** — auto-dedent compares exact
+whitespace characters, not column widths. Use spaces consistently.
 
 ### Variable Binding
 Pass NAAb variables to polyglot blocks explicitly.
@@ -690,11 +691,13 @@ main {
 38. Struct field names in `new` expressions accept both identifiers (`x: 1`) and
     quoted strings (`"x": 1`). Both work. If a field name collides with a keyword
     (like `method`, `class`, `type`), use the quoted form: `new Request { "method": "GET" }`.
-39. **Polyglot `>>` closer must be at column 0** — no leading whitespace, ever.
-    When writing polyglot blocks inside functions, do NOT indent `>>` to match the function body.
-    WRONG: `    >>` (indented)  RIGHT: `>>` (column 0).
-    The Python/JS code inside the block also starts at column 0.
-    This is the #1 most common polyglot mistake — causes parse errors or silent failures.
+39. **Polyglot blocks support auto-dedent.** Content and `>>` can be indented to match
+    surrounding NAAb code. The runtime strips the common leading whitespace prefix.
+    Both styles work:
+    Style A (indented): content and `>>` indented to match function body
+    Style B (column 0): content and `>>` at column 0 (traditional)
+    **Rule:** Do NOT mix tabs and spaces within a polyglot block's indentation.
+    Use spaces consistently. The `>>` closer must still be on its OWN line.
 40. **JavaScript polyglot uses QuickJS (embedded), NOT Node.js.** Multi-line JS code is
     wrapped in an IIFE `(function() { ...; return (lastExpr); })()` for return capture.
     This means: (a) keep the last line a simple expression or variable, not an arrow function
@@ -738,8 +741,16 @@ main {
 47. **JavaScript polyglot: do NOT redeclare bound variable names inside the block.**
     Variables listed in `<<javascript[x, y, z]` are injected as `const` into the IIFE.
     Redeclaring them with `const` or `let` causes "invalid redefinition of lexical identifier".
-    WRONG: `<<javascript[margin]  const margin = margin * 2; margin >>`
-    RIGHT: `<<javascript[margin]  const m = margin * 2; m >>`
+    WRONG:
+      `<<javascript[margin]`
+      `const margin = margin * 2;`
+      `margin`
+      `>>`
+    RIGHT:
+      `<<javascript[margin]`
+      `const m = margin * 2;`
+      `m`
+      `>>`
     Use different names for any local variables that transform the bound inputs.
 48. **`let` declarations cannot appear inside if-expressions.**
     If-expressions are values — their bodies must be pure expressions, not statements.
@@ -759,12 +770,12 @@ main {
       3. Sanitize only at the file.write() sink: `file.write(path, sanitize_string(raw_content))`
     Do NOT sanitize inside functions that build hash chains — sanitize is a presentation concern,
     not a data integrity concern.
-50. **Editing polyglot blocks with partial edits (replace/sed) will break column 0 alignment.**
-    Edit tools match indentation of surrounding NAAb code, but polyglot content MUST start at
-    column 0. After any partial edit to a file containing polyglot blocks, verify that ALL
-    `<<python`, `<<javascript` content lines AND the `>>` closer are still at column 0.
-    If an edit tool re-indented polyglot content, rewrite the entire file rather than trying
-    to fix indentation with another partial edit.
+50. **After editing files with polyglot blocks, verify indentation consistency.**
+    Edit tools may re-indent polyglot content. Auto-dedent handles uniform indentation,
+    but if edits produce MIXED indentation (some lines with 4 spaces, others with 8),
+    the relative indentation changes and Python code may break. After partial edits,
+    verify that all polyglot content lines use the same indentation base.
+    Do NOT mix tabs and spaces — auto-dedent compares exact characters, not column widths.
 51. **Python polyglot: `try/except` swallows the return value.** The last expression of
     the block must be AFTER the try/except, not inside it.
     WRONG (returns null — try/except is a statement, not an expression):
@@ -792,6 +803,9 @@ main {
     WRONG: `fn check_command(cmd)` — triggers cosmetic sanitizer detection if it just routes
     RIGHT: `fn handle_command(cmd)` or `fn route_command(cmd)` or `fn run_command(cmd)`
     Only use `check_*/validate_*/sanitize_*/verify_*` for functions that genuinely validate input.
+    NOTE: These prefixes also get a LOW complexity threshold (score >= 3), so they don't need
+    complex logic to pass the complexity floor — but they DO need real validation logic to
+    pass the cosmetic sanitizer check.
 
 ## Complexity Scoring (for governance)
 
