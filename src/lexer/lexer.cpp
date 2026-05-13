@@ -682,6 +682,38 @@ std::vector<Token> Lexer::tokenize() {
             // Read the inline code
             std::string code = readInlineCode();
 
+            // Auto-dedent: strip common leading whitespace from polyglot block.
+            // This allows polyglot content to be indented to match surrounding
+            // NAAb code without breaking column-0 semantics.
+            {
+                std::vector<std::string> block_lines;
+                std::istringstream stream(code);
+                std::string ln;
+                while (std::getline(stream, ln)) {
+                    block_lines.push_back(ln);
+                }
+                // Find minimum non-empty leading whitespace
+                size_t min_indent = std::string::npos;
+                for (const auto& bl : block_lines) {
+                    if (bl.empty() || bl.find_first_not_of(" \t") == std::string::npos) continue;
+                    size_t indent = bl.find_first_not_of(" \t");
+                    if (indent < min_indent) min_indent = indent;
+                }
+                if (min_indent != std::string::npos && min_indent > 0) {
+                    std::string dedented;
+                    for (size_t i = 0; i < block_lines.size(); i++) {
+                        const auto& bl = block_lines[i];
+                        if (!bl.empty() && bl.find_first_not_of(" \t") != std::string::npos) {
+                            dedented += bl.substr(min_indent);
+                        } else {
+                            dedented += bl;
+                        }
+                        if (i + 1 < block_lines.size()) dedented += '\n';
+                    }
+                    code = dedented;
+                }
+            }
+
             // Skip the closing >>
             if (currentChar() && *currentChar() == '>' && peekChar() && *peekChar() == '>') {
                 advance();  // Skip first >

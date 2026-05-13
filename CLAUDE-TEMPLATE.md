@@ -316,6 +316,22 @@ fn sanitize_string(input) {
 ```
 Do NOT strip `"`, `{`, `}`, `[`, `]` — these are structural characters in JSON/data formats.
 
+### Taint pattern for multi-file projects
+When your sanitizer is in a separate module (e.g., `validators.naab`), you must:
+1. Import the validators module: `import "validators.naab" as validators`
+2. Call the sanitizer before EVERY `file.write`/`file.append`:
+```naab
+import "validators.naab" as validators
+
+fn write_report(data, path) {
+    let content = json.stringify(data)
+    let clean = validators.sanitize_string(content)
+    file.write(path, clean)   // Taint cleared by sanitize_string
+}
+```
+Every path from polyglot output -> file.write MUST pass through a sanitizer.
+String concatenation with tainted data re-taints the result.
+
 ## Stdlib Reference (ALL functions)
 
 ### array (dot-notation works: arr.push(4))
@@ -478,6 +494,38 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `dict.update()` — use `dict.merge(other)` or `dict.put(key, val)` individually
 - `dict.clear()` — not available, reassign to empty dict: `my_dict = {}`
 - `process.exit()` when shell is disabled in govern.json — use `return` at end of main{} instead
+
+## Import Rules
+
+**Every module except `debug` requires `use <module>` before calling its functions.**
+debug is auto-imported (prelude) — do NOT write `use debug`.
+
+**Only import what you actually call.** The scanner flags both unused and missing imports.
+Before writing `use X`, verify your file calls `X.something()`. Before removing `use X`,
+verify no function in the file calls `X.something()`.
+
+| Module | Common functions | Notes |
+|--------|-----------------|-------|
+| array | push, pop, length, map, filter, reduce, sort, contains | Dot-notation works: `arr.push(x)` |
+| string | upper, lower, trim, split, replace, contains, length | Dot-notation works: `s.upper()` |
+| math | abs, floor, ceil, round, min, max, pow, sqrt, random | `math.PI`, `math.E` |
+| json | parse, stringify | |
+| file | read, write, exists, list_dir, append | Taint sink: sanitize before write |
+| time | now, now_millis, sleep, format_timestamp | NOT `time.format` |
+| csv | parse, stringify | |
+| regex | search, matches, find, find_all, replace, split | NOT `regex.match` or `regex.test` |
+| env | get, get_args, set_var, list | NOT `env.set` |
+| io | write, read_line, write_error | |
+| crypto | sha256, sha512, hash, random_bytes, base64_encode | |
+| log | debug, warn, log, set_level | |
+| uuid | v4, v5, is_valid | |
+| validate | email, url, ip, int_range, not_empty | |
+| process | run, exit, kill, getpid | Blocked when shell disabled |
+| path | join, dirname, basename, extension | |
+| http | get, post, put, delete, call | Blocked when network disabled |
+| agent | create, send, run, batch, fan_out, pipeline | `use agent` required |
+| dict | get, has, put, keys, values, merge | Built-in, no `use` needed |
+| debug | type, inspect, keys, values, log | Auto-imported, do NOT `use debug` |
 
 ## Pipeline Operator
 ```naab
@@ -681,9 +729,10 @@ main {
       `JSON.stringify({\n    winner: x,\n    margin: 0\n});`
     RIGHT — assign to variable, bare name on last line:
       `const result = JSON.stringify({ winner: x, margin: 0 });\nresult`
-46. **No Python/Ruby-style ternary.** `x if cond else y` is NOT valid NAAb syntax.
-    NAAb uses `if` as an expression (prefix form):
-    WRONG: `let result = score if score > 0 else 0.0`
+46. **No ternary operators.** Neither C-style `cond ? a : b` nor Python-style `x if cond else y`
+    is valid NAAb syntax. NAAb uses `if` as an expression (prefix form):
+    WRONG: `let result = score > 0 ? score : 0.0`           // C/JS ternary
+    WRONG: `let result = score if score > 0 else 0.0`       // Python ternary
     RIGHT: `let result = if score > 0 { score } else { 0.0 }`
     The `if cond { a } else { b }` form IS an expression — assign it directly.
 47. **JavaScript polyglot: do NOT redeclare bound variable names inside the block.**
@@ -710,6 +759,39 @@ main {
       3. Sanitize only at the file.write() sink: `file.write(path, sanitize_string(raw_content))`
     Do NOT sanitize inside functions that build hash chains — sanitize is a presentation concern,
     not a data integrity concern.
+50. **Editing polyglot blocks with partial edits (replace/sed) will break column 0 alignment.**
+    Edit tools match indentation of surrounding NAAb code, but polyglot content MUST start at
+    column 0. After any partial edit to a file containing polyglot blocks, verify that ALL
+    `<<python`, `<<javascript` content lines AND the `>>` closer are still at column 0.
+    If an edit tool re-indented polyglot content, rewrite the entire file rather than trying
+    to fix indentation with another partial edit.
+51. **Python polyglot: `try/except` swallows the return value.** The last expression of
+    the block must be AFTER the try/except, not inside it.
+    WRONG (returns null — try/except is a statement, not an expression):
+      `<<python[data]`
+      `try:`
+      `    result = json.dumps(data)`
+      `except:`
+      `    result = "{}"`
+      `>>`
+    RIGHT (bare variable as last line, AFTER try/except):
+      `<<python[data]`
+      `result = "{}"`
+      `try:`
+      `    result = json.dumps(data)`
+      `except:`
+      `    pass`
+      `result`
+      `>>`
+    The same applies to `if/else` — put the result variable on the LAST LINE of the block,
+    not inside a branch. Initialize it before the control flow, update inside, reference after.
+52. **Function names starting with `sanitize_`, `validate_`, `check_`, or `verify_` trigger
+    governance inspection.** The runtime verifies these functions contain real validation logic
+    (regex, rejection path, type check, bounds check, or allowlist). If your function doesn't
+    actually validate/sanitize, use a different name prefix:
+    WRONG: `fn check_command(cmd)` — triggers cosmetic sanitizer detection if it just routes
+    RIGHT: `fn handle_command(cmd)` or `fn route_command(cmd)` or `fn run_command(cmd)`
+    Only use `check_*/validate_*/sanitize_*/verify_*` for functions that genuinely validate input.
 
 ## Complexity Scoring (for governance)
 

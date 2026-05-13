@@ -3149,6 +3149,15 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             }
         }
     }
+    else if (tok.type == lexer::TokenType::QUESTION) {
+        hint = "\n\n  NAAb does not support the C/JS ternary operator (cond ? a : b).\n"
+               "  Use NAAb's if-expression instead:\n"
+               "    \xE2\x9C\x97 Wrong: condition ? value_a : value_b\n"
+               "    \xE2\x9C\x93 Right: if condition { value_a } else { value_b }\n\n"
+               "  The if-expression IS a value \xe2\x80\x94 assign it directly:\n"
+               "    let result = if x > 0 { x } else { 0 }\n\n"
+               "  Note: '?' is only valid in type annotations (e.g., string? for nullable).\n";
+    }
 
     throw ParseError(formatError("Unexpected token in expression", tok) + hint);
 }
