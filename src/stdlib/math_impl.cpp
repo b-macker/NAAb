@@ -120,20 +120,26 @@ interpreter::NaabVal MathModule::call(
         return interpreter::NaabVal::makeDouble(rounded);
     }
 
-    // Function 7: min
+    // Function 7: min — returns int when both args are int, float otherwise
     if (function_name == "min") {
         if (args.size() != 2) {
             throw std::runtime_error("min() takes exactly 2 arguments");
+        }
+        if (args[0].isInt() && args[1].isInt()) {
+            return interpreter::NaabVal::makeInt(std::min(args[0].asInt(), args[1].asInt()));
         }
         double a = getDouble(args[0]);
         double b = getDouble(args[1]);
         return interpreter::NaabVal::makeDouble(std::min(a, b));
     }
 
-    // Function 8: max
+    // Function 8: max — returns int when both args are int, float otherwise
     if (function_name == "max") {
         if (args.size() != 2) {
             throw std::runtime_error("max() takes exactly 2 arguments");
+        }
+        if (args[0].isInt() && args[1].isInt()) {
+            return interpreter::NaabVal::makeInt(std::max(args[0].asInt(), args[1].asInt()));
         }
         double a = getDouble(args[0]);
         double b = getDouble(args[1]);

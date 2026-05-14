@@ -3223,7 +3223,15 @@ std::unique_ptr<ast::Expr> Parser::parseTryCatchExpr() {
     auto try_expr = parseExpression();
     skipNewlines();
 
-    expect(lexer::TokenType::RBRACE, "Expected '}' after try expression");
+    expect(lexer::TokenType::RBRACE,
+        "Expected '}' after try expression\n"
+        "  In try/catch EXPRESSION form (let x = try {...} catch (e) {...}),\n"
+        "  each branch must be a single expression, not a statement block.\n"
+        "  Pattern: initialize before, mutate inside, reference after:\n"
+        "    let result = default_val\n"
+        "    try { result = risky_call() } catch (e) { result = fallback }\n"
+        "  For multi-statement try/catch, use statement form (no assignment):\n"
+        "    try { stmt1; stmt2 } catch (e) { handle(e) }");
     skipNewlines();
 
     expect(lexer::TokenType::CATCH, "try expression requires a 'catch' branch");
@@ -3241,7 +3249,14 @@ std::unique_ptr<ast::Expr> Parser::parseTryCatchExpr() {
     auto catch_expr = parseExpression();
     skipNewlines();
 
-    expect(lexer::TokenType::RBRACE, "Expected '}' after catch expression");
+    expect(lexer::TokenType::RBRACE,
+        "Expected '}' after catch expression\n"
+        "  catch body must be a single expression when used in expression form.\n"
+        "  WRONG: catch (e) { let x = 0; x }     // Two statements\n"
+        "  RIGHT: catch (e) { fallback_value }    // One expression\n"
+        "  For multiple statements, use try/catch as a STATEMENT instead:\n"
+        "    let result = default_val\n"
+        "    try { result = compute() } catch (e) { log(e); result = 0 }");
 
     return std::make_unique<ast::TryCatchExpr>(
         std::move(try_expr), error_name, std::move(catch_expr),

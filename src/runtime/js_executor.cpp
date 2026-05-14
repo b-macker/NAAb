@@ -517,6 +517,17 @@ interpreter::NaabVal JsExecutor::evaluate(
                     }
                 }
 
+                // Detect for...of pattern that may fail in QuickJS
+                if (wrapped.find("for ") != std::string::npos &&
+                    wrapped.find(" of ") != std::string::npos &&
+                    (error.find("expecting ';'") != std::string::npos ||
+                     error.find("unexpected token") != std::string::npos)) {
+                    hint += "\n\n  Hint: 'for...of' may not work in QuickJS with some iterables.\n"
+                            "  Use a C-style loop instead:\n"
+                            "    WRONG: for (const item of items) { ... }\n"
+                            "    RIGHT: for (let i = 0; i < items.length; i++) { const item = items[i]; ... }\n";
+                }
+
                 if (error.find("expecting ')'") != std::string::npos ||
                     error.find("expecting '}'") != std::string::npos ||
                     error.find("unexpected token") != std::string::npos) {

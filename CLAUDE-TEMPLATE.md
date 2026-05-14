@@ -505,6 +505,14 @@ debug is auto-imported (prelude) — do NOT write `use debug`.
 Before writing `use X`, verify your file calls `X.something()`. Before removing `use X`,
 verify no function in the file calls `X.something()`.
 
+**IMPORTANT: Write imports LAST, not first.** Write your function bodies first,
+then add only the `use` statements for modules you actually called. The scanner
+will flag unused imports as violations. Common over-imports to avoid:
+- `use time` — only needed if you call `time.now()`, `time.sleep()`, etc.
+- `use array` — NOT needed for `.push()`, `.length()`, `len()` (these are built-in dot-notation)
+- `use regex` — only needed if you call `regex.search()`, `regex.find_all()`, etc.
+- `import "models.naab" as models` — only needed if you use `new models.StructName`
+
 | Module | Common functions | Notes |
 |--------|-----------------|-------|
 | array | push, pop, length, map, filter, reduce, sort, contains | Dot-notation works: `arr.push(x)` |
@@ -624,8 +632,15 @@ main {
 20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
 21. `try` works as both a statement and an expression.
     `let x = try { compute() } catch (e) { default_val }` — returns the value from
-    the successful branch or the catch branch. Both branches must be expressions.
-    Use expression form for inline fallback patterns; use statement form for side effects.
+    the successful branch or the catch branch. Both branches must be SINGLE EXPRESSIONS.
+    WRONG (multi-statement catch in expression form):
+      `let x = try { compute() } catch (e) { print(e); 0 }`  // ERROR: two statements
+    RIGHT (expression form — single expression per branch):
+      `let x = try { compute() } catch (e) { 0 }`
+    RIGHT (statement form — use when you need multiple statements):
+      `let result = 0`
+      `try { result = compute() } catch (e) { print(e); result = fallback() }`
+    The statement form has no restriction on branch body complexity.
 22. `throw` works as an expression — it CAN appear in match arms and `let` assignments.
     `_ => throw "invalid value"` in a match arm is valid.
     Throw expressions diverge (never return), so the type system treats them as compatible
@@ -704,7 +719,10 @@ main {
     or complex statement — multi-line expressions like `JSON.stringify({...})` spanning several
     lines must be assigned to a variable first (see gotcha #45);
     (b) `console.log` is captured but not returned as the value;
-    (c) no Node.js APIs (require, process, Buffer, etc.); (d) ES2020 syntax only.
+    (c) no Node.js APIs (require, process, Buffer, etc.); (d) ES2020 syntax only;
+    (e) `for...of` works on arrays but may fail on other iterables or when combined with
+    destructuring. For maximum reliability, use C-style loops:
+    `for (let i = 0; i < arr.length; i++) { const item = arr[i]; ... }`
     **When a project uses both Python and JavaScript polyglot, prefer Python for any block
     that needs `-> JSON` or complex data transformation.** Use JS for simpler operations
     like JSON manipulation, array sorting, or string processing where the last expression
@@ -806,6 +824,34 @@ main {
     NOTE: These prefixes also get a LOW complexity threshold (score >= 3), so they don't need
     complex logic to pass the complexity floor — but they DO need real validation logic to
     pass the cosmetic sanitizer check.
+53. **`math.min()`/`math.max()` return float when either argument is float.**
+    When both arguments are integers, they return int. When either is float, the
+    result is float. If you need an integer result from mixed-type args, wrap in
+    `int()`: `int(math.min(float_val, 10.0))`
+54. **Python polyglot returning a dict/list MUST use `-> JSON` or `json.dumps()`.**
+    Without `-> JSON`, Python's repr output (e.g., `{'key': 'value'}`) is returned
+    as a string, not a NAAb dict. This causes contract violations when the function
+    is expected to return a dict.
+    WRONG (returns string, not dict):
+      `let result = <<python[data]`
+      `{"key": "value", "count": len(data)}`
+      `>>`
+    RIGHT (-> JSON parses into NAAb dict):
+      `let result = <<python[data] -> JSON`
+      `import json`
+      `json.dumps({"key": "value", "count": len(data)})`
+      `>>`
+    RIGHT (manual parse):
+      `let raw = <<python[data]`
+      `import json`
+      `json.dumps({"key": "value", "count": len(data)})`
+      `>>`
+      `let result = json.parse(raw)`
+55. **Dot-notation array/string methods work WITHOUT `use array`/`use string`.**
+    `arr.push(x)`, `arr.length()`, `s.upper()`, `s.split(" ")` — all work without imports.
+    You only need `use array` for module-form calls: `array.map(arr, fn)`, `array.filter_fn(...)`.
+    Similarly, `use string` is only needed for `string.contains(s, sub)` module-form calls.
+    **Do NOT add `use array` just because you use `.push()` or `len()` — it wastes an import.**
 
 ## Complexity Scoring (for governance)
 
