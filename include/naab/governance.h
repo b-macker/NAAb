@@ -126,6 +126,7 @@ struct LanguagesConfig {
 
 struct NetworkCapability {
     bool enabled = true;
+    std::string rationale;   // WHY this capability is enabled/disabled
     bool http_allowed = true;
     bool https_only = false;
     std::vector<std::string> allowed_hosts;
@@ -139,6 +140,7 @@ struct NetworkCapability {
 
 struct FilesystemCapability {
     std::string mode = "write";  // "none", "read", "write"
+    std::string rationale;
     std::vector<std::string> allowed_paths;
     std::vector<std::string> blocked_paths;
     std::vector<std::string> allowed_extensions;
@@ -152,6 +154,7 @@ struct FilesystemCapability {
 
 struct ShellCapability {
     bool enabled = true;
+    std::string rationale;
     std::vector<std::string> allowed_commands;
     std::vector<std::string> blocked_commands;
     bool allow_pipes = true;
@@ -161,6 +164,7 @@ struct ShellCapability {
 };
 
 struct EnvVarsCapability {
+    std::string rationale;
     bool read = true;
     bool write = true;
     std::vector<std::string> allowed_read;
@@ -170,6 +174,7 @@ struct EnvVarsCapability {
 };
 
 struct ProcessCapability {
+    std::string rationale;
     bool spawn = true;
     bool signals = true;
     int max_processes = 0;
@@ -262,6 +267,7 @@ struct RequirementRule {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
     std::string message;
+    std::string rationale;
 };
 
 struct ErrorHandlingRequirement : RequirementRule {
@@ -319,6 +325,7 @@ struct PolyglotOutputRestriction {
 struct DangerousCallsRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::vector<std::string> allowlist;
     std::vector<std::string> blocklist_extra;
     bool check_chained_calls = false;
@@ -328,6 +335,7 @@ struct DangerousCallsRestriction {
 struct ShellInjectionRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> allowlist;
     bool check_variable_expansion = false;
@@ -337,6 +345,7 @@ struct ShellInjectionRestriction {
 struct ImportsRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     std::string mode = "blocklist";
     std::unordered_map<std::string, std::vector<std::string>> blocked;  // lang -> imports
     std::unordered_map<std::string, std::vector<std::string>> allowed;  // lang -> imports
@@ -345,6 +354,7 @@ struct ImportsRestriction {
 struct DataExfiltrationRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     bool block_base64_encode_secrets = true;
     bool block_hex_encode_secrets = true;
     bool block_url_encode_secrets = true;
@@ -354,6 +364,7 @@ struct DataExfiltrationRestriction {
 struct ResourceAbuseRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     bool block_fork_bomb = true;
     bool block_infinite_loops = false;
     EnforcementLevel infinite_loops_level = EnforcementLevel::ADVISORY;
@@ -366,6 +377,7 @@ struct ResourceAbuseRestriction {
 struct PrivilegeEscalationRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     bool block_sudo = true;
     bool block_su = true;
     bool block_chmod_suid = true;
@@ -376,6 +388,7 @@ struct PrivilegeEscalationRestriction {
 struct InfoDisclosureRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     bool block_env_dump = true;
     bool block_process_listing = true;
     bool block_system_info_leak = true;
@@ -387,6 +400,7 @@ struct InfoDisclosureRestriction {
 struct CodeInjectionRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     bool block_dynamic_code_gen = true;
     bool block_template_injection = true;
     bool block_sql_injection_patterns = true;
@@ -398,6 +412,7 @@ struct CodeInjectionRestriction {
 struct CryptoRestriction {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     bool block_weak_hashing = true;
     std::vector<std::string> weak_hashes;      // e.g., "md5", "sha1"
     bool block_weak_encryption = true;
@@ -411,6 +426,7 @@ struct CryptoRestriction {
 struct VcsSecretExtractionRestriction {
     bool enabled = true;                                // on by default
     EnforcementLevel level = EnforcementLevel::SOFT;    // 3/4 signals = ADVISORY, 4/4 = SOFT
+    std::string rationale;
 };
 
 struct RestrictionsConfig {
@@ -456,6 +472,7 @@ struct SuspiciousVariableNames {
 struct NoSecretsConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::unordered_map<std::string, PatternWithSeverity> patterns;
     std::vector<PatternWithSeverity> custom_patterns;
     std::vector<std::string> allowlist;
@@ -466,6 +483,7 @@ struct NoSecretsConfig {
 struct NoPlaceholdersConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     std::vector<std::string> markers;
     std::vector<std::string> custom_markers;
     bool ignore_in_comments_only = false;
@@ -476,6 +494,7 @@ struct NoPlaceholdersConfig {
 struct NoHardcodedResultsConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     bool check_return_true_false = true;
     bool check_return_none_null = true;
     bool check_return_empty_collections = true;
@@ -490,6 +509,7 @@ struct NoHardcodedResultsConfig {
 struct NoPiiConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     bool detect_ssn = true;
     bool detect_credit_card = true;
     bool detect_email = true;
@@ -508,6 +528,7 @@ struct NoPiiConfig {
 struct NoTemporaryCodeConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> custom_patterns;
     bool case_sensitive = false;
@@ -516,6 +537,7 @@ struct NoTemporaryCodeConfig {
 struct NoSimulationMarkersConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> custom_patterns;
     bool case_sensitive = false;
@@ -524,6 +546,7 @@ struct NoSimulationMarkersConfig {
 struct NoMockDataConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     std::vector<std::string> variable_prefixes;
     std::vector<std::string> function_prefixes;
     std::vector<std::string> literal_patterns;
@@ -535,6 +558,7 @@ struct NoMockDataConfig {
 struct NoOversimplificationConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> custom_patterns;
     bool check_empty_bodies = true;
@@ -550,6 +574,7 @@ struct NoOversimplificationConfig {
 struct NoIncompleteLogicConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> custom_patterns;
     bool check_empty_catch = true;
@@ -567,6 +592,7 @@ struct NoIncompleteLogicConfig {
 struct NoHallucinatedApisConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     std::vector<std::string> python_patterns;
     std::vector<std::string> javascript_patterns;
     std::vector<std::string> shell_patterns;
@@ -588,6 +614,7 @@ struct ApologeticCategory {
 struct NoApologeticLanguageConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     std::unordered_map<std::string, ApologeticCategory> categories;
     std::vector<std::string> custom_patterns;
     bool scan_comments_only = true;
@@ -597,6 +624,7 @@ struct NoApologeticLanguageConfig {
 struct NoDeadCodeConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     bool detect_unreachable_after_return = true;
     bool detect_always_true_conditions = true;
     bool detect_always_false_conditions = true;
@@ -609,6 +637,7 @@ struct NoDeadCodeConfig {
 struct NoDebugArtifactsConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> custom_patterns;
     std::vector<std::string> allowlist;
@@ -619,12 +648,14 @@ struct NoDebugArtifactsConfig {
 struct NoUnsafeDeserializationConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::vector<std::string> patterns;
 };
 
 struct NoSqlInjectionConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> allowlist;
 };
@@ -632,12 +663,14 @@ struct NoSqlInjectionConfig {
 struct NoPathTraversalConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
     std::vector<std::string> patterns;
 };
 
 struct NoHardcodedUrlsConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> allowlist;
     bool check_internal_urls = false;
@@ -646,6 +679,7 @@ struct NoHardcodedUrlsConfig {
 struct NoHardcodedIpsConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     std::vector<std::string> patterns;
     std::vector<std::string> allowlist;
 };
@@ -653,6 +687,7 @@ struct NoHardcodedIpsConfig {
 struct MaxComplexityConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     int max_lines_per_block = 0;
     int max_nesting_depth = 0;
     int max_parameters = 0;
@@ -664,6 +699,7 @@ struct MaxComplexityConfig {
 struct EncodingConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     bool require_utf8 = true;
     bool block_null_bytes = true;
     bool block_control_characters = true;
@@ -683,6 +719,7 @@ struct ComplexityFloorRule {
 struct ComplexityFloorConfig {
     bool enabled = false;                  // Only active when explicitly configured
     EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
     int min_score = 10;                    // Global minimum
     int min_lines_for_check = 0;           // Skip floor for functions shorter than N lines (0 = disabled)
     bool check_polyglot = true;
@@ -695,6 +732,7 @@ struct DuplicateCallsConfig {
     bool enabled = true;
     int threshold = 3;           // Warn at N+ calls per function (was hardcoded 2)
     int max_entries = 5;         // Max unique calls to show in grouped output
+    std::string rationale;
 };
 
 struct PolyglotTryCatchConfig {
@@ -706,6 +744,7 @@ struct IntentValidationConfig {
     bool enabled = false;
     bool required = false;         // Missing @intent is a violation
     EnforcementLevel level = EnforcementLevel::SOFT;            // Mismatch level
+    std::string rationale;
     EnforcementLevel missing_level = EnforcementLevel::ADVISORY; // Missing level
     std::string mode = "hybrid";   // "static", "agent", "hybrid"
     int min_function_lines = 3;    // Skip tiny functions
@@ -718,6 +757,7 @@ struct IntentValidationConfig {
 struct SemanticChecksConfig {
     bool enabled = false;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string rationale;
     bool check_imports = true;           // Validate imports against known modules
     bool check_api_signatures = true;    // Validate common API call patterns
     bool check_shell_syntax = true;      // Shell-specific syntax validation
@@ -755,6 +795,7 @@ struct CodeQualityConfig {
     struct DriftDetectionConfig {
         bool enabled = false;
         EnforcementLevel level = EnforcementLevel::HARD;
+        std::string rationale;
         std::string baseline_path = ".naab/drift-baseline.json";
         double max_function_loss = 0.5;   // Block if >50% functions disappear
         double max_loc_loss = 0.6;        // Block if >60% LOC disappears
@@ -820,6 +861,7 @@ struct CustomRule {
     std::string id;
     std::string name;
     std::string description;
+    std::string rationale;     // WHY this rule exists at its enforcement tier
     std::string pattern;       // regex
     std::vector<std::string> languages;  // empty = all
     EnforcementLevel level = EnforcementLevel::HARD;
@@ -843,6 +885,7 @@ struct GovernancePluginRule {
     std::string id;               // e.g. "SEC-001"
     std::string function_name;    // NAAb function to call (must be exported)
     std::string description;
+    std::string rationale;
     EnforcementLevel level = EnforcementLevel::HARD;
     std::vector<std::string> languages;  // empty = all languages
     std::string trigger;          // "polyglot_block", "naab_function", "polyglot_output"
@@ -1052,6 +1095,7 @@ struct QualityGateConfig {
 
 struct ScoringConfig {
     bool enabled = false;
+    std::string rationale;      // WHY these scoring thresholds were chosen
     int default_weight = 3;     // weight for any advisory finding without a rule override
     std::unordered_map<std::string, int> rule_weights;  // per-rule weight overrides
     int green_threshold  = 0;   // below: silent
@@ -1138,6 +1182,7 @@ struct PolyglotConfig {
 
 struct FunctionContract {
     std::string description;
+    std::string rationale;
     EnforcementLevel level = EnforcementLevel::NONE;  // NONE = use parent level
     std::string return_type;           // "int", "float", "string", "bool", "array", "dict", "null"
     bool has_return_range = false;
@@ -1298,6 +1343,7 @@ struct BaselinesConfig {
 struct TaintTrackingConfig {
     bool enabled = false;
     std::string level = "hard";  // hard, soft, advisory
+    std::string rationale;
     std::vector<std::string> sources;      // e.g., "env.get", "io.read_line", "file.read", "polyglot_output"
     std::vector<std::string> sinks;        // e.g., "shell_exec", "file.write", "file.append"
     std::vector<std::string> sanitizers;   // e.g., "validate_", "sanitize_", "escape_", "int(", "float("
@@ -1516,6 +1562,10 @@ struct CheckResult {
     std::vector<std::string> cwe_ids;    // e.g., {"CWE-89"}
     std::vector<std::string> owasp_ids;  // e.g., {"A03:2021"}
     bool preflight = false;   // F8: preflight results survive FIFO eviction
+    // Decision rationale: WHY this rule is at this enforcement tier (from govern.json)
+    std::string rationale;
+    // Decision trace: HOW the engine reached its verdict (computed at check time)
+    std::vector<std::string> decision_trace;
 };
 
 // ============================================================================
@@ -1529,6 +1579,7 @@ struct AuditEntry {
     std::string file;
     int line = 0;
     std::string message;
+    std::string rationale;   // WHY this rule is at this tier (from govern.json)
     std::string previous_hash;
     std::string current_hash;
 };
@@ -2134,6 +2185,12 @@ private:
     int drift_write_count_ = 0;
     void loadBaselines();
     void saveBaselines();
+
+    // --- Decision trace accumulator ---
+    std::vector<std::string> current_decision_trace_;
+    void addTrace(const std::string& step);
+    void clearTrace();
+    std::string lookupRationale(const std::string& rule_name) const;
 
     // --- Core enforcement ---
     std::string enforce(const std::string& rule_name,

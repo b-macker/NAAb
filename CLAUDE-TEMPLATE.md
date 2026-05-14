@@ -1024,6 +1024,16 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
 - Variable binding: [REQUIRED/optional]
 - Security restrictions: [banned functions, blocked paths, network policy]
 - Polyglot block limit: [number, if set]
+- When configuring govern.json rules, include a `rationale` field explaining WHY the
+  enforcement tier was chosen. This rationale appears in governance reports (JSON, SARIF,
+  JUnit, CSV, HTML) and the audit trail. Example:
+  ```json
+  "no_secrets": {
+    "enabled": true,
+    "level": "hard",
+    "rationale": "OWASP A07:2021 — hardcoded secrets are a critical risk"
+  }
+  ```
 
 ## Module Specifications
 [Describe each .naab file, its exports, and expected behavior]

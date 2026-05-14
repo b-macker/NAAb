@@ -204,6 +204,7 @@ static const std::vector<std::pair<std::string, std::string>> DEFAULT_PII_PATTER
 std::string GovernanceEngine::checkPii(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_pii;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     std::vector<std::pair<std::string, std::string>> patterns;
     if (cfg.detect_ssn) patterns.push_back(DEFAULT_PII_PATTERNS[0]);
@@ -228,6 +229,7 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
                 std::string display = cfg.mask_in_errors
                     ? (found.substr(0, 3) + std::string(found.size() - 3, '*'))
                     : found;
+                addTrace(fmt::format("PII detected: {} at line {}", desc, line));
                 return enforce("code_quality.no_pii", cfg.level,
                     formatError(cfg.level,
                         fmt::format("PII detected: {} ({})", desc, display),
@@ -271,9 +273,11 @@ static const std::vector<std::string> DEFAULT_TEMP_PATTERNS = {
 std::string GovernanceEngine::checkTemporaryCode(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_temporary_code;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_TEMP_PATTERNS : cfg.patterns;
     std::string found = searchPatterns(code, pats, !cfg.case_sensitive);
     if (!found.empty()) {
+        addTrace(fmt::format("matched temporary code pattern: \"{}\"", found));
         return enforce("code_quality.no_temporary_code", cfg.level,
             formatError(cfg.level, fmt::format("Temporary code marker: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_temporary_code",
@@ -299,9 +303,11 @@ static const std::vector<std::string> DEFAULT_SIMULATION_PATTERNS = {
 std::string GovernanceEngine::checkSimulationMarkers(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_simulation_markers;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_SIMULATION_PATTERNS : cfg.patterns;
     std::string found = searchPatterns(code, pats, !cfg.case_sensitive);
     if (!found.empty()) {
+        addTrace(fmt::format("matched simulation pattern: \"{}\"", found));
         return enforce("code_quality.no_simulation_markers", cfg.level,
             formatError(cfg.level, fmt::format("Simulation marker: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_simulation_markers",
@@ -317,6 +323,7 @@ std::string GovernanceEngine::checkSimulationMarkers(const std::string& code, in
 std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_mock_data;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     auto& prefixes = cfg.variable_prefixes.empty()
         ? (const std::vector<std::string>&)(std::vector<std::string>{"mock_", "fake_", "dummy_", "stub_", "sample_", "example_"})
@@ -363,6 +370,7 @@ std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
 std::string GovernanceEngine::checkApologeticLanguage(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_apologetic_language;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     static const std::vector<std::string> default_apology_patterns = {
         "[Ii]'?m\\s+(?:very\\s+)?sorry", "[Ii]\\s+apologize", "[Mm]y\\s+apologies",
@@ -391,6 +399,7 @@ std::string GovernanceEngine::checkApologeticLanguage(const std::string& code, i
 std::string GovernanceEngine::checkDeadCode(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_dead_code;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     static const std::vector<std::string> default_dead_patterns = {
         "if\\s+(?:True|1)\\s*:", "if\\s+(?:False|0)\\s*:",
@@ -431,6 +440,7 @@ std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
                                                    const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_debug_artifacts;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     auto& pats = cfg.patterns.empty() ? DEFAULT_DEBUG_PATTERNS : cfg.patterns;
     for (const auto& pat : pats) {
@@ -471,6 +481,7 @@ static const std::vector<std::string> DEFAULT_DESER_PATTERNS = {
 std::string GovernanceEngine::checkUnsafeDeserialization(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_unsafe_deserialization;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_DESER_PATTERNS : cfg.patterns;
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
@@ -497,6 +508,7 @@ static const std::vector<std::string> DEFAULT_SQL_PATTERNS = {
 std::string GovernanceEngine::checkSqlInjection(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_sql_injection;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_SQL_PATTERNS : cfg.patterns;
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
@@ -523,6 +535,7 @@ static const std::vector<std::string> DEFAULT_PATH_PATTERNS = {
 std::string GovernanceEngine::checkPathTraversal(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_path_traversal;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_PATH_PATTERNS : cfg.patterns;
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
@@ -545,6 +558,7 @@ std::string GovernanceEngine::checkPathTraversal(const std::string& code, int li
 std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_hardcoded_urls;
     if (!cfg.enabled) return "";
+    clearTrace();
     try {
         std::regex re("https?://(?!example\\.com|localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)[a-zA-Z0-9.-]+");
         std::smatch match;
@@ -570,6 +584,7 @@ std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int li
 std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_hardcoded_ips;
     if (!cfg.enabled) return "";
+    clearTrace();
     try {
         std::regex re("\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b");
         std::smatch match;
@@ -595,6 +610,7 @@ std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int lin
 std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.encoding;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     if (cfg.block_null_bytes && code.find('\0') != std::string::npos) {
         return enforce("code_quality.encoding", cfg.level,
@@ -786,15 +802,19 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
 std::string GovernanceEngine::checkOversimplification(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_oversimplification;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_OVERSIMPLIFICATION_PATTERNS : cfg.patterns;
 
     // Build active patterns based on config flags
     std::vector<std::string> active_pats;
     for (const auto& p : pats) active_pats.push_back(p);
     for (const auto& p : cfg.custom_patterns) active_pats.push_back(p);
+    addTrace(fmt::format("checking {} patterns ({} built-in + {} custom)",
+        active_pats.size(), pats.size(), cfg.custom_patterns.size()));
 
     std::string found = searchPatterns(code, active_pats, !cfg.case_sensitive);
     if (!found.empty()) {
+        addTrace(fmt::format("matched pattern: \"{}\"", found));
         return enforce("code_quality.no_oversimplification", cfg.level,
             formatError(cfg.level, fmt::format("Oversimplified code detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_oversimplification",
@@ -1517,14 +1537,19 @@ std::string GovernanceEngine::checkIntentValidation(
 
     auto& cfg = rules_.code_quality.intent_validation;
     if (!cfg.enabled) return "";
+    clearTrace();
     if (cfg.mode == "agent") {
+        addTrace("mode=agent — skipping static validation");
         recordPass("code_quality.intent_validation", cfg.level);
         return "";
     }
 
     // Check exemptions
     for (const auto& exempt : cfg.exempt_functions) {
-        if (function_name == exempt) return "";
+        if (function_name == exempt) {
+            addTrace(fmt::format("function '{}' is exempt — skipping", function_name));
+            return "";
+        }
     }
 
     int body_lines = 0;
@@ -1533,6 +1558,7 @@ std::string GovernanceEngine::checkIntentValidation(
     // --- Tier 1: Owner's per-function intent (ground truth) ---
     auto it = cfg.function_intents.find(function_name);
     if (it != cfg.function_intents.end()) {
+        addTrace(fmt::format("Tier 1: owner intent found for '{}' in function_intents", function_name));
         const std::string& owner_intent = it->second;
 
         // F13: Empty owner intent is invalid
@@ -1562,12 +1588,24 @@ std::string GovernanceEngine::checkIntentValidation(
         inner_body = stripUnusedAssignments(inner_body);
         inner_body = stripNonCodeContent(inner_body);
         inner_body = truncateCompoundIdentifiers(inner_body);
+        addTrace("anti-stuffing: stripped unused assignments, comments/strings, truncated compound identifiers");
         auto keywords = extractIntentKeywords(owner_intent);
         if (keywords.size() >= 3) {
+            std::string kw_list;
+            for (size_t ki = 0; ki < keywords.size() && ki < 8; ki++) {
+                if (ki > 0) kw_list += ", ";
+                kw_list += keywords[ki];
+            }
+            if (keywords.size() > 8) kw_list += ", ...";
+            addTrace(fmt::format("extracted {} keywords from owner intent: [{}]", keywords.size(), kw_list));
             std::string missing, matched;
             // Don't match against function_name — owner defined that slot, so name match is circular
             double overlap = keywordOverlap(keywords, inner_body, "", missing, matched);
             double min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            addTrace(fmt::format("keyword overlap={:.0f}% (threshold={:.0f}%), matched=[{}], missing=[{}]",
+                overlap * 100, min_overlap * 100,
+                matched.empty() ? "none" : matched,
+                missing.empty() ? "none" : missing));
             if (overlap < min_overlap && keywords.size() >= 3) {
                 return enforce("code_quality.intent_validation", cfg.level,
                     fmt::format("Intent mismatch on '{}': {:.0f}% overlap (need {:.0f}%).\n"
@@ -1643,6 +1681,7 @@ std::string GovernanceEngine::checkIntentValidation(
                 }
             }
 
+            addTrace(fmt::format("side-effect check: intent_mentions_io={}", intent_mentions_io ? "yes" : "no"));
             if (!intent_mentions_io) {
                 std::vector<std::string> found_effects;
                 for (const auto& [pattern, label] : side_effects) {
@@ -1651,6 +1690,7 @@ std::string GovernanceEngine::checkIntentValidation(
                     }
                 }
                 if (!found_effects.empty()) {
+                    addTrace(fmt::format("detected {} undeclared side effects", found_effects.size()));
                     std::string effects_str;
                     for (const auto& e : found_effects) {
                         if (!effects_str.empty()) effects_str += ", ";
@@ -1682,6 +1722,7 @@ std::string GovernanceEngine::checkIntentValidation(
                     break;
                 }
             }
+            addTrace(fmt::format("rubber-stamp check: intent_requires_rejection={}", intent_requires_rejection ? "yes" : "no"));
             if (intent_requires_rejection) {
                 // Use stripped body — raw body lets comments with "if" defeat the check
                 std::string stripped_lower = inner_body;
@@ -1690,6 +1731,7 @@ std::string GovernanceEngine::checkIntentValidation(
                                    stripped_lower.find("if(") != std::string::npos ||
                                    stripped_lower.find("match ") != std::string::npos ||
                                    stripped_lower.find("throw ") != std::string::npos);
+                addTrace(fmt::format("rubber-stamp: has_branch={}", has_branch ? "yes" : "no"));
                 if (!has_branch) {
                     // Check for delegation: calling a validator function
                     static const std::vector<std::string> validation_calls = {
@@ -1725,6 +1767,7 @@ std::string GovernanceEngine::checkIntentValidation(
         // LLM @intent vs owner intent (advisory — is the LLM confused about requirements?)
         bool diverged = false;
         if (!llm_intent.empty()) {
+            addTrace(fmt::format("checking LLM @intent vs owner intent divergence"));
             auto owner_kw = extractIntentKeywords(owner_intent);
             auto llm_kw = extractIntentKeywords(llm_intent);
             if (owner_kw.size() >= 3 && llm_kw.size() >= 3) {
@@ -1733,6 +1776,7 @@ std::string GovernanceEngine::checkIntentValidation(
 
                 std::string missing, matched_discard;
                 double llm_overlap = keywordOverlap(owner_kw, llm_lower, "", missing, matched_discard);
+                addTrace(fmt::format("LLM-vs-owner overlap={:.0f}% (divergence threshold=15%)", llm_overlap * 100));
                 if (llm_overlap < 0.15) {
                     diverged = true;
                     enforce("code_quality.intent_validation", EnforcementLevel::ADVISORY,
@@ -1754,6 +1798,7 @@ std::string GovernanceEngine::checkIntentValidation(
 
     // --- Tier 2: Project-wide intent (advisory — broad context) ---
     if (!cfg.project_intent.empty()) {
+        addTrace("Tier 2: checking project-wide intent");
         auto proj_kw = extractIntentKeywords(cfg.project_intent);
         if (proj_kw.size() >= 3 && body_lines >= cfg.min_function_lines) {
             // Strip comments/strings/vars before matching (same as Tier 1)
@@ -1770,6 +1815,7 @@ std::string GovernanceEngine::checkIntentValidation(
                     found++;
                 }
             }
+            addTrace(fmt::format("project keyword overlap: {}/{} matched", found, proj_kw.size()));
             // If zero project keywords match, this function might not belong
             if (found == 0 && proj_kw.size() >= 4) {
                 // Format project keywords for display
@@ -1876,7 +1922,9 @@ std::string GovernanceEngine::checkIntentValidation(
 
     // --- Tier 3: LLM's @intent only (advisory — self-declared, lower trust) ---
     if (!llm_intent.empty()) {
+        addTrace("Tier 3: self-declared @intent (advisory)");
         if (isTrivialIntent(llm_intent)) {
+            addTrace("trivial @intent detected");
             return enforce("code_quality.intent_validation.self_declared", EnforcementLevel::ADVISORY,
                 fmt::format("Trivial @intent on '{}': \"{}\"\n"
                     "  Intent declarations must be specific enough to validate against.",
@@ -1895,6 +1943,10 @@ std::string GovernanceEngine::checkIntentValidation(
             std::string missing, matched;
             double overlap = keywordOverlap(keywords, t3_body, function_name, missing, matched);
             double t3_min_overlap = std::max(0.3, 2.0 / static_cast<double>(keywords.size()));
+            addTrace(fmt::format("Tier 3 overlap={:.0f}% (threshold={:.0f}%), matched=[{}], missing=[{}]",
+                overlap * 100, t3_min_overlap * 100,
+                matched.empty() ? "none" : matched,
+                missing.empty() ? "none" : missing));
             if (overlap < t3_min_overlap) {
                 return enforce("code_quality.intent_validation.self_declared", EnforcementLevel::ADVISORY,
                     fmt::format("Self-declared intent mismatch on '{}': {:.0f}% overlap (need {:.0f}%).\n"
@@ -1917,6 +1969,7 @@ std::string GovernanceEngine::checkIntentValidation(
     }
 
     // --- Tier 4: Nothing declared ---
+    addTrace("Tier 4: no intent declared");
     // Missing intent only matters if owner defined function_intents at all
     if (!cfg.function_intents.empty() && cfg.required && body_lines >= cfg.min_function_lines) {
         return enforce("code_quality.intent_validation", cfg.missing_level,
@@ -1936,6 +1989,7 @@ std::string GovernanceEngine::checkIntentValidation(
 std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file) {
     auto& cfg = rules_.code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
+    clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_INCOMPLETE_LOGIC_PATTERNS : cfg.patterns;
 
     std::vector<std::string> active_pats;
@@ -2004,12 +2058,14 @@ std::string GovernanceEngine::checkFunctionContract(
 
     setCheckContext(source_file, line);
 
+    clearTrace();
     auto it = rules_.contracts.functions.find(func_name);
     if (it == rules_.contracts.functions.end()) return "";
 
     const auto& contract = it->second;
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
         ? contract.level : rules_.contracts.level;
+    addTrace(fmt::format("contract found for '{}' in govern.json", func_name));
 
     auto make_err = [&](const std::string& detail) -> std::string {
         // Build contract-specific examples
@@ -2086,14 +2142,18 @@ std::string GovernanceEngine::checkFunctionContract(
 
     // return_not_null
     if (contract.return_not_null && result_type == "null") {
+        addTrace("return_not_null: FAIL — got null");
         return make_err("expected non-null return, got null");
     }
+    if (contract.return_not_null) addTrace("return_not_null: PASS");
 
     // return_type
     if (!contract.return_type.empty() && result_type != contract.return_type) {
+        addTrace(fmt::format("return_type: FAIL — expected '{}', got '{}'", contract.return_type, result_type));
         return make_err(fmt::format("expected return_type '{}', got '{}'",
             contract.return_type, result_type));
     }
+    if (!contract.return_type.empty()) addTrace(fmt::format("return_type: PASS — '{}'", result_type));
 
     // Numeric checks — single parse, wrapped in try-catch for safety
     bool is_numeric = (result_type == "int" || result_type == "float");
@@ -2133,6 +2193,7 @@ std::string GovernanceEngine::checkFunctionContract(
             if (result_str == opt) { found = true; break; }
         }
         if (!found) {
+            addTrace(fmt::format("return_one_of: FAIL — '{}' not in allowed values", result_str));
             std::string opts;
             for (const auto& opt : contract.return_one_of) {
                 if (!opts.empty()) opts += ", ";
@@ -2147,6 +2208,7 @@ std::string GovernanceEngine::checkFunctionContract(
         bool empty = result_str.empty() || result_str == "[]" || result_str == "{}"
                      || result_str == "\"\"" || result_type == "null";
         if (empty) {
+            addTrace("return_non_empty: FAIL — empty value");
             return make_err("expected non-empty return value");
         }
     }
@@ -2318,15 +2380,21 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
 
     auto& cfg = rules_.code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     // Only check functions named sanitize_*/validate_*/check_*/verify_*
     static const std::regex sanitizer_prefix(
         "^(?:sanitize|validate|check|verify)_", std::regex::icase);
     if (!std::regex_search(function_name, sanitizer_prefix)) return "";
+    addTrace(fmt::format("'{}' identified as sanitizer/validator (prefix match)", function_name));
 
     // Skip short functions (< 3 lines can't meaningfully sanitize)
     int line_count = static_cast<int>(std::count(body.begin(), body.end(), '\n')) + 1;
-    if (line_count < 3) return "";
+    if (line_count < 3) {
+        addTrace(fmt::format("skipped: {} lines < 3 minimum", line_count));
+        return "";
+    }
+    addTrace(fmt::format("body has {} lines", line_count));
 
     // Check for real sanitization operations
     bool has_real_sanitization = false;
@@ -2385,7 +2453,11 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
         }
     }
 
+    if (has_real_sanitization) {
+        addTrace("real sanitization found → PASS");
+    }
     if (!has_real_sanitization) {
+        addTrace("no real sanitization ops found (no regex, no rejection, no type check, no bounds check) → FAIL");
         return enforce("code_quality.no_incomplete_logic", cfg.level,
             formatError(cfg.level,
                 fmt::format("Function '{}' is named as a sanitizer/validator but contains "
@@ -2421,11 +2493,15 @@ std::string GovernanceEngine::checkComplexityFloor(
     int line) {
 
     auto& cfg = rules_.code_quality.complexity_floor;
+    clearTrace();
 
     // B2: Skip floor for short functions (can't meaningfully reach high scores)
     if (cfg.min_lines_for_check > 0) {
         int line_count = static_cast<int>(std::count(code.begin(), code.end(), '\n')) + 1;
-        if (line_count < cfg.min_lines_for_check) return "";
+        if (line_count < cfg.min_lines_for_check) {
+            addTrace(fmt::format("skipped: {} lines < min_lines_for_check={}", line_count, cfg.min_lines_for_check));
+            return "";
+        }
     }
 
     // Analyze code structure (defensive — never crash the host program)
@@ -2434,6 +2510,7 @@ std::string GovernanceEngine::checkComplexityFloor(
     try {
         profile = sa.analyze(code, function_name);
     } catch (...) {
+        addTrace("skipped: syntactic analysis failed");
         return "";  // Can't analyze — skip floor check
     }
 
@@ -2471,6 +2548,7 @@ std::string GovernanceEngine::checkComplexityFloor(
             required_score = rule.min_score;
             require_branching = rule.require_branching_or_loops;
             custom_message = rule.message;
+            addTrace(fmt::format("rule matched: '{}' matched prefix → min_score={}", function_name, required_score));
             break;
         }
     }
@@ -2478,8 +2556,17 @@ std::string GovernanceEngine::checkComplexityFloor(
     // If rules exist but none matched this function name, skip the floor check.
     // This is the intended behavior of target_prefixes: only check listed prefixes.
     if (!cfg.rules.empty() && !rule_matched) {
+        addTrace(fmt::format("skipped: '{}' not matched by any target prefix", function_name));
         return "";
     }
+
+    addTrace(fmt::format("complexity profile: score={}, loops={} (padding={}), nesting={}, calls={}, recursion={}, pipelines={}",
+        profile.complexity_score, profile.loop_count, profile.padding_loop_count,
+        profile.max_function_depth, profile.external_call_count,
+        profile.has_recursion ? "yes" : "no", profile.pipeline_count));
+    addTrace(fmt::format("verdict: score={} vs required={} → {}",
+        profile.complexity_score, required_score,
+        profile.complexity_score >= required_score ? "PASS" : "FAIL"));
 
     // Check complexity score against floor
     if (profile.complexity_score < required_score) {
@@ -2937,6 +3024,7 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                                                      const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_hallucinated_apis;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     // Select patterns based on language
     const std::vector<std::pair<std::string, std::string>>* lang_patterns = nullptr;
@@ -3264,6 +3352,7 @@ std::string GovernanceEngine::checkSemanticIssues(
 
     auto& cfg = rules_.code_quality.semantic_checks;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     // Strip strings and comments for pattern matching
     std::string code_no_strings = stripStringLiterals(code);
@@ -3495,6 +3584,7 @@ std::string GovernanceEngine::checkSemanticIssues(
 std::string GovernanceEngine::checkShellInjection(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.shell_injection;
     if (!cfg.enabled) return "";
+    clearTrace();
     static const std::vector<std::string> default_patterns = {
         "curl.*\\|\\s*sh", "wget.*\\|\\s*bash", "eval\\s+\\$",
         "\\$\\(curl", "\\$\\(wget", "bash\\s+-c.*\\$",
@@ -3520,6 +3610,7 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
                                                   const std::string& code, int line) {
     auto& cfg = rules_.restrictions.code_injection;
     if (!cfg.enabled) return "";
+    clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_dynamic_code_gen) { pats.push_back("\\beval\\s*\\("); pats.push_back("\\bexec\\s*\\("); pats.push_back("\\bFunction\\s*\\("); }
     if (cfg.block_sql_injection_patterns) {
@@ -3545,6 +3636,7 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
 std::string GovernanceEngine::checkPrivilegeEscalation(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.privilege_escalation;
     if (!cfg.enabled) return "";
+    clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_sudo) pats.push_back("\\bsudo\\s");
     if (cfg.block_su) pats.push_back("\\bsu\\s+-");
@@ -3568,6 +3660,7 @@ std::string GovernanceEngine::checkPrivilegeEscalation(const std::string& code, 
 std::string GovernanceEngine::checkDataExfiltration(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.data_exfiltration;
     if (!cfg.enabled) return "";
+    clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_base64_encode_secrets) pats.push_back("base64\\.(?:b64encode|encode).*(?:password|secret|key|token)");
     if (cfg.block_hex_encode_secrets) pats.push_back("\\.hex\\(\\).*(?:password|secret|key|token)");
@@ -3589,6 +3682,7 @@ std::string GovernanceEngine::checkDataExfiltration(const std::string& code, int
 std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.resource_abuse;
     if (!cfg.enabled) return "";
+    clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_fork_bomb) { pats.push_back(":\\(\\)\\{\\s*:\\|:&\\s*\\};:"); pats.push_back("fork\\(\\).*fork\\(\\)"); }
     if (cfg.block_disk_filling) pats.push_back("dd\\s+if=/dev/zero");
@@ -3611,6 +3705,7 @@ std::string GovernanceEngine::checkInfoDisclosure(const std::string& /*language*
                                                    const std::string& code, int line) {
     auto& cfg = rules_.restrictions.information_disclosure;
     if (!cfg.enabled) return "";
+    clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_env_dump) { pats.push_back("os\\.environ(?!\\[)"); pats.push_back("process\\.env(?!\\.)"); pats.push_back("\\benv\\b(?!\\.)"); }
     if (cfg.block_process_listing) { pats.push_back("ps\\s+aux"); pats.push_back("ps\\s+-ef"); }
@@ -3633,6 +3728,7 @@ std::string GovernanceEngine::checkInfoDisclosure(const std::string& /*language*
 std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.crypto;
     if (!cfg.enabled) return "";
+    clearTrace();
     std::vector<std::string> pats;
     if (cfg.block_weak_hashing) {
         auto& hashes = cfg.weak_hashes.empty() ? (const std::vector<std::string>&)(std::vector<std::string>{"md5", "sha1"}) : cfg.weak_hashes;
@@ -3670,6 +3766,7 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int l
 std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.vcs_secret_extraction;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     // Lowercase for case-insensitive matching
     std::string lower = code;
@@ -3787,6 +3884,7 @@ std::string GovernanceEngine::checkImports(const std::string& language,
     bool has_per_lang = (it != rules_.languages.per_language.end() &&
                          (!it->second.imports.blocked.empty() || !it->second.banned_imports.empty()));
     if (!cfg.enabled && !has_per_lang) return "";
+    clearTrace();
 
     // Build import patterns for this language
     std::vector<std::string> blocked;
@@ -3855,6 +3953,7 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
     if (it == rules_.languages.per_language.end()) return "";
     auto& lc = it->second;
     if (lc.banned_functions.empty()) return "";
+    clearTrace();
 
     for (const auto& func : lc.banned_functions) {
         try {
@@ -3903,6 +4002,7 @@ std::string GovernanceEngine::checkLanguageStyle(const std::string& language,
     auto it = rules_.languages.per_language.find(language);
     if (it == rules_.languages.per_language.end()) return "";
     auto& lc = it->second;
+    clearTrace();
 
     // Shell: require set -e
     if (language == "shell" || language == "bash") {
@@ -3941,6 +4041,7 @@ std::string GovernanceEngine::checkCodeSize(const std::string& language,
     auto it = rules_.languages.per_language.find(language);
     if (it == rules_.languages.per_language.end()) return "";
     auto& lc = it->second;
+    clearTrace();
 
     if (lc.max_lines > 0) {
         int lines = 1;
@@ -3960,6 +4061,7 @@ std::string GovernanceEngine::checkCodeSize(const std::string& language,
 // --- Custom Rules ---
 std::string GovernanceEngine::checkCustomRules(const std::string& language,
                                                 const std::string& code, int line) {
+    clearTrace();
     for (const auto& rule : rules_.custom_rules) {
         if (!rule.enabled || !rule.pattern_valid) continue;
         if (!rule.languages.empty()) {
@@ -4480,10 +4582,12 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
                                                 const std::string& sink_type,
                                                 const std::string& file, int line) {
     if (!rules_.taint_tracking.enabled) return "";
+    clearTrace();
     {
         std::lock_guard<std::mutex> lock(taint_mutex_);
         if (taint_set_.count(var_name) == 0) return "";
     }
+    addTrace(fmt::format("variable '{}' is tainted", var_name));
 
     // FIX-DX-1: PREFIX match for sink types (not substring)
     // Auto-expand: file.append is equivalent to file.write for taint purposes
@@ -4498,7 +4602,11 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
             sink_type.compare(0, s.size(), s) == 0) { is_sink = true; break; }
         if (sink_type == s) { is_sink = true; break; }
     }
-    if (!is_sink) return "";
+    if (!is_sink) {
+        addTrace(fmt::format("'{}' not in configured sinks — allowed", sink_type));
+        return "";
+    }
+    addTrace(fmt::format("tainted value reached sink '{}' without sanitization → BLOCKED", sink_type));
 
     // Log the decision
     logTaintDecision(var_name, "BLOCKED", sink_type, file, line);

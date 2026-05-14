@@ -60,6 +60,10 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
     if (!file.empty()) entry["file"] = file;
     if (line > 0) entry["line"] = line;
 
+    // Include config rationale in audit entries when available
+    std::string rationale = lookupRationale(rule_name);
+    if (!rationale.empty()) entry["rationale"] = rationale;
+
     // Tamper-evident hash chain
     if (rules_.audit.tamper_evidence.enabled) {
         entry["prev_hash"] = last_audit_hash_.empty()
@@ -252,6 +256,11 @@ std::string GovernanceEngine::generateJsonReport() const {
             entry["owasp"] = nlohmann::json::array();
             for (const auto& o : r.owasp_ids) entry["owasp"].push_back(o);
         }
+        if (!r.rationale.empty()) entry["rationale"] = r.rationale;
+        if (!r.decision_trace.empty()) {
+            entry["decision_trace"] = nlohmann::json::array();
+            for (const auto& step : r.decision_trace) entry["decision_trace"].push_back(step);
+        }
         report["results"].push_back(entry);
     }
     return report.dump(2);
@@ -367,6 +376,11 @@ std::string GovernanceEngine::generateSarifReport() const {
         if (!r.category.empty()) props["category"] = r.category;
         if (!r.severity.empty()) props["severity"] = r.severity;
         props["enforcement"] = levelToString(r.level);
+        if (!r.rationale.empty()) props["rationale"] = r.rationale;
+        if (!r.decision_trace.empty()) {
+            props["decisionTrace"] = nlohmann::json::array();
+            for (const auto& step : r.decision_trace) props["decisionTrace"].push_back(step);
+        }
         result["properties"] = props;
 
         results_arr.push_back(result);
@@ -430,9 +444,15 @@ std::string GovernanceEngine::generateJunitReport() const {
             std::string first_line = r.message.empty() ? r.rule_name
                 : r.message.substr(0, r.message.find('\n'));
             oss << "    <failure message=\"" << xmlEscape(first_line)
-                << "\" type=\"" << xmlEscape(levelToString(r.level)) << "\">"
-                << xmlEscape(r.message.empty() ? r.rule_name : r.message)
-                << "</failure>\n";
+                << "\" type=\"" << xmlEscape(levelToString(r.level)) << "\"";
+            if (!r.rationale.empty()) oss << " rationale=\"" << xmlEscape(r.rationale) << "\"";
+            oss << ">"
+                << xmlEscape(r.message.empty() ? r.rule_name : r.message);
+            if (!r.decision_trace.empty()) {
+                oss << "\n--- Decision Trace ---\n";
+                for (const auto& step : r.decision_trace) oss << step << "\n";
+            }
+            oss << "</failure>\n";
             oss << "  </testcase>\n";
         }
     }
@@ -443,7 +463,7 @@ std::string GovernanceEngine::generateJunitReport() const {
 
 std::string GovernanceEngine::generateCsvReport() const {
     std::ostringstream oss;
-    oss << "rule,level,passed,message,category,severity,file,line\n";
+    oss << "rule,level,passed,message,category,severity,file,line,rationale\n";
     for (const auto& r : check_results_) {
         oss << "\"" << csvEscape(r.rule_name) << "\","
             << levelToString(r.level) << ","
@@ -452,7 +472,8 @@ std::string GovernanceEngine::generateCsvReport() const {
             << "\"" << csvEscape(r.category) << "\","
             << "\"" << csvEscape(r.severity) << "\","
             << "\"" << csvEscape(r.file) << "\","
-            << r.line << "\n";
+            << r.line << ","
+            << "\"" << csvEscape(r.rationale) << "\"\n";
     }
     return oss.str();
 }
@@ -493,7 +514,7 @@ std::string GovernanceEngine::generateHtmlReport() const {
 
     if (failed > 0 || warnings > 0) {
         oss << "<h2>Issues</h2>\n<table>\n";
-        oss << "<tr><th>Rule</th><th>Level</th><th>Category</th><th>File</th><th>Line</th><th>Message</th></tr>\n";
+        oss << "<tr><th>Rule</th><th>Level</th><th>Category</th><th>File</th><th>Line</th><th>Message</th><th>Rationale</th><th>Trace</th></tr>\n";
         for (const auto& r : check_results_) {
             if (r.passed) continue;
             std::string css_class = (r.level == EnforcementLevel::HARD) ? "fail-hard" :
@@ -508,7 +529,14 @@ std::string GovernanceEngine::generateHtmlReport() const {
                 << "<td>" << r.line << "</td>"
                 << "<td class=\"msg\" title=\"" << htmlEscape(r.message) << "\">"
                 << htmlEscape(first_line) << "</td>"
-                << "</tr>\n";
+                << "<td>" << htmlEscape(r.rationale) << "</td>"
+                << "<td>";
+            if (!r.decision_trace.empty()) {
+                oss << "<details><summary>" << r.decision_trace.size() << " steps</summary><ol>";
+                for (const auto& step : r.decision_trace) oss << "<li>" << htmlEscape(step) << "</li>";
+                oss << "</ol></details>";
+            }
+            oss << "</td></tr>\n";
         }
         oss << "</table>\n";
     }

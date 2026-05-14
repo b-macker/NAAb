@@ -99,6 +99,7 @@ include/naab/       All headers
 - `src/runtime/crypto_utils.cpp` — Ed25519 sign/verify, SHA-256
 - Enforcement tiers: HARD (block), SOFT (block + override), ADVISORY (warn)
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
+- Decision rationale: govern.json sections accept optional `rationale` field; engine generates `decision_trace` per check. Both flow into all 5 report formats + audit trail via `CheckResult.rationale` and `CheckResult.decision_trace`
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)
@@ -138,11 +139,13 @@ All settings belong in govern.json first. CLI flags are overrides only. Never ad
 6. Add parser rule in `src/parser/parser.cpp`, hook into appropriate parse method
 
 ### Adding a Governance Check
-1. Add check function in `src/runtime/governance_checks.cpp`
+1. Add check function in `src/runtime/governance_checks.cpp` — call `clearTrace()` after enabled check, `addTrace()` for key decisions
 2. Wire into governance engine dispatch
-3. Add config key to governance_config.cpp
-4. Run security test after: `bash tests/security/test_error_msg_leaks.sh`
-5. Never include bypass instructions in the error message
+3. Add config key to governance_config.cpp — include `parseRationale()` call
+4. Add `std::string rationale;` to the config struct in `governance.h`
+5. Add rule_name mapping in `lookupRationale()` in `governance_engine.cpp`
+6. Run security test after: `bash tests/security/test_error_msg_leaks.sh`
+7. Never include bypass instructions in the error message
 
 ### Modifying Error Messages
 Always run `bash tests/security/test_error_msg_leaks.sh` after changing any error text. The test scans all error strings for leaked bypass flags like `--no-governance`, `--governance-override`, sanitizer function names, etc.

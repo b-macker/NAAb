@@ -173,6 +173,13 @@ static bool checkJsonArrayWidth(const nlohmann::json& j, size_t max = MAX_GOV_AR
     return true;
 }
 
+// Helper: parse optional "rationale" string from a JSON object into a target string
+static void parseRationale(const nlohmann::json& obj, std::string& target) {
+    if (obj.contains("rationale") && obj["rationale"].is_string()) {
+        target = obj["rationale"].get<std::string>();
+    }
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Mode
     if (j.contains("mode")) {
@@ -541,6 +548,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& p : net["allowed_ports"]) nc.allowed_ports.push_back(p.get<int>());
             if (net.contains("allow_websockets")) nc.allow_websockets = net["allow_websockets"].get<bool>();
             if (net.contains("allow_raw_sockets")) nc.allow_raw_sockets = net["allow_raw_sockets"].get<bool>();
+            parseRationale(net, nc.rationale);
         }
         if (cap.contains("filesystem") && cap["filesystem"].is_object()) {
             auto& fs = cap["filesystem"];
@@ -557,6 +565,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (fs.contains("allow_symlinks")) fc.allow_symlinks = fs["allow_symlinks"].get<bool>();
             if (fs.contains("allow_hidden_files")) fc.allow_hidden_files = fs["allow_hidden_files"].get<bool>();
             if (fs.contains("allow_absolute_paths")) fc.allow_absolute_paths = fs["allow_absolute_paths"].get<bool>();
+            parseRationale(fs, fc.rationale);
         }
         if (cap.contains("shell") && cap["shell"].is_object()) {
             auto& sh = cap["shell"];
@@ -569,6 +578,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sh.contains("allow_pipes")) sc.allow_pipes = sh["allow_pipes"].get<bool>();
             if (sh.contains("allow_redirects")) sc.allow_redirects = sh["allow_redirects"].get<bool>();
             if (sh.contains("max_execution_time")) sc.max_execution_time = sh["max_execution_time"].get<int>();
+            parseRationale(sh, sc.rationale);
         }
         if (cap.contains("env_vars") && cap["env_vars"].is_object()) {
             auto& ev = cap["env_vars"];
@@ -579,6 +589,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& v : ev["allowed_read"]) ec.allowed_read.push_back(v.get<std::string>());
             if (ev.contains("blocked_read"))
                 for (auto& v : ev["blocked_read"]) ec.blocked_read.push_back(v.get<std::string>());
+            parseRationale(ev, ec.rationale);
+        }
+        if (cap.contains("process") && cap["process"].is_object()) {
+            auto& pr = cap["process"];
+            parseRationale(pr, rules_.capabilities.process.rationale);
         }
     }
 
@@ -645,6 +660,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.main_block_level = lv;
             }
             if (mb.contains("message")) rules_.requirements.main_block.message = mb["message"].get<std::string>();
+            parseRationale(mb, rules_.requirements.main_block.rationale);
         }
         if (req.contains("error_handling") && req["error_handling"].is_object()) {
             auto& eh = req["error_handling"];
@@ -657,6 +673,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
             if (eh.contains("require_try_catch")) rules_.requirements.error_handling.require_try_catch = eh["require_try_catch"].get<bool>();
             if (eh.contains("require_catch_body")) rules_.requirements.error_handling.require_catch_body = eh["require_catch_body"].get<bool>();
+            parseRationale(eh, rules_.requirements.error_handling.rationale);
         }
         if (req.contains("naming_conventions") && req["naming_conventions"].is_object()) {
             auto& nc = req["naming_conventions"];
@@ -686,12 +703,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (dc.contains("level")) { auto [en, lv] = parseEnforcementLevel(dc["level"]); rules_.restrictions.dangerous_calls.level = lv; rules_.dangerous_calls_level = lv; }
             if (dc.contains("allowlist")) for (auto& a : dc["allowlist"]) rules_.restrictions.dangerous_calls.allowlist.push_back(a.get<std::string>());
             if (dc.contains("blocklist_extra")) for (auto& b : dc["blocklist_extra"]) rules_.restrictions.dangerous_calls.blocklist_extra.push_back(b.get<std::string>());
+            parseRationale(dc, rules_.restrictions.dangerous_calls.rationale);
         }
         if (res.contains("shell_injection") && res["shell_injection"].is_object()) {
             auto& si = res["shell_injection"];
             rules_.restrictions.shell_injection.enabled = true;
             if (si.contains("level")) { auto [en, lv] = parseEnforcementLevel(si["level"]); rules_.restrictions.shell_injection.level = lv; }
             if (si.contains("patterns")) for (auto& p : si["patterns"]) rules_.restrictions.shell_injection.patterns.push_back(p.get<std::string>());
+            parseRationale(si, rules_.restrictions.shell_injection.rationale);
         }
         if (res.contains("privilege_escalation") && res["privilege_escalation"].is_object()) {
             auto& pe = res["privilege_escalation"];
@@ -699,6 +718,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (pe.contains("level")) { auto [en, lv] = parseEnforcementLevel(pe["level"]); rules_.restrictions.privilege_escalation.level = lv; }
             if (pe.contains("block_sudo")) rules_.restrictions.privilege_escalation.block_sudo = pe["block_sudo"].get<bool>();
             if (pe.contains("block_su")) rules_.restrictions.privilege_escalation.block_su = pe["block_su"].get<bool>();
+            parseRationale(pe, rules_.restrictions.privilege_escalation.rationale);
         }
         if (res.contains("code_injection") && res["code_injection"].is_object()) {
             auto& ci = res["code_injection"];
@@ -706,6 +726,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (ci.contains("level")) { auto [en, lv] = parseEnforcementLevel(ci["level"]); rules_.restrictions.code_injection.level = lv; }
             if (ci.contains("block_dynamic_code_gen")) rules_.restrictions.code_injection.block_dynamic_code_gen = ci["block_dynamic_code_gen"].get<bool>();
             if (ci.contains("block_sql_injection_patterns")) rules_.restrictions.code_injection.block_sql_injection_patterns = ci["block_sql_injection_patterns"].get<bool>();
+            parseRationale(ci, rules_.restrictions.code_injection.rationale);
         }
         if (res.contains("crypto") && res["crypto"].is_object()) {
             auto& cr = res["crypto"];
@@ -713,11 +734,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("level")) { auto [en, lv] = parseEnforcementLevel(cr["level"]); rules_.restrictions.crypto.level = lv; }
             if (cr.contains("weak_hashes")) for (auto& h : cr["weak_hashes"]) rules_.restrictions.crypto.weak_hashes.push_back(h.get<std::string>());
             if (cr.contains("weak_ciphers")) for (auto& c : cr["weak_ciphers"]) rules_.restrictions.crypto.weak_ciphers.push_back(c.get<std::string>());
+            parseRationale(cr, rules_.restrictions.crypto.rationale);
         }
         if (res.contains("vcs_secret_extraction") && res["vcs_secret_extraction"].is_object()) {
             auto& vs = res["vcs_secret_extraction"];
             if (vs.contains("enabled")) rules_.restrictions.vcs_secret_extraction.enabled = vs["enabled"].get<bool>();
             if (vs.contains("level")) { auto [en, lv] = parseEnforcementLevel(vs["level"]); rules_.restrictions.vcs_secret_extraction.level = lv; }
+            parseRationale(vs, rules_.restrictions.vcs_secret_extraction.rationale);
         }
         if (res.contains("imports") && res["imports"].is_object()) {
             auto& im = res["imports"];
@@ -730,6 +753,32 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (im.contains("allowed") && im["allowed"].is_object())
                 for (auto& [lang, arr] : im["allowed"].items())
                     for (auto& v : arr) rules_.restrictions.imports.allowed[lang].push_back(v.get<std::string>());
+            parseRationale(im, rules_.restrictions.imports.rationale);
+        }
+        if (res.contains("data_exfiltration") && res["data_exfiltration"].is_object()) {
+            auto& de = res["data_exfiltration"];
+            if (de.contains("enabled")) rules_.restrictions.data_exfiltration.enabled = de["enabled"].get<bool>();
+            if (de.contains("level")) { auto [en, lv] = parseEnforcementLevel(de["level"]); rules_.restrictions.data_exfiltration.level = lv; }
+            if (de.contains("block_base64_encode_secrets")) rules_.restrictions.data_exfiltration.block_base64_encode_secrets = de["block_base64_encode_secrets"].get<bool>();
+            if (de.contains("block_hex_encode_secrets")) rules_.restrictions.data_exfiltration.block_hex_encode_secrets = de["block_hex_encode_secrets"].get<bool>();
+            parseRationale(de, rules_.restrictions.data_exfiltration.rationale);
+        }
+        if (res.contains("resource_abuse") && res["resource_abuse"].is_object()) {
+            auto& ra = res["resource_abuse"];
+            if (ra.contains("enabled")) rules_.restrictions.resource_abuse.enabled = ra["enabled"].get<bool>();
+            if (ra.contains("level")) { auto [en, lv] = parseEnforcementLevel(ra["level"]); rules_.restrictions.resource_abuse.level = lv; }
+            if (ra.contains("block_fork_bomb")) rules_.restrictions.resource_abuse.block_fork_bomb = ra["block_fork_bomb"].get<bool>();
+            if (ra.contains("block_disk_filling")) rules_.restrictions.resource_abuse.block_disk_filling = ra["block_disk_filling"].get<bool>();
+            parseRationale(ra, rules_.restrictions.resource_abuse.rationale);
+        }
+        if (res.contains("information_disclosure") && res["information_disclosure"].is_object()) {
+            auto& id = res["information_disclosure"];
+            if (id.contains("enabled")) rules_.restrictions.information_disclosure.enabled = id["enabled"].get<bool>();
+            if (id.contains("level")) { auto [en, lv] = parseEnforcementLevel(id["level"]); rules_.restrictions.information_disclosure.level = lv; }
+            if (id.contains("block_env_dump")) rules_.restrictions.information_disclosure.block_env_dump = id["block_env_dump"].get<bool>();
+            if (id.contains("block_process_listing")) rules_.restrictions.information_disclosure.block_process_listing = id["block_process_listing"].get<bool>();
+            if (id.contains("block_system_info_leak")) rules_.restrictions.information_disclosure.block_system_info_leak = id["block_system_info_leak"].get<bool>();
+            parseRationale(id, rules_.restrictions.information_disclosure.rationale);
         }
     }
 
@@ -755,6 +804,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (sv.contains("enabled")) rules_.code_quality.no_secrets.suspicious_variable_names.enabled = sv["enabled"].get<bool>();
                 if (sv.contains("names")) for (auto& n : sv["names"]) rules_.code_quality.no_secrets.suspicious_variable_names.names.push_back(n.get<std::string>());
             }
+            parseRationale(ns, rules_.code_quality.no_secrets.rationale);
         }
 
         // no_placeholders (expanded)
@@ -766,6 +816,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (np.contains("markers")) { rules_.code_quality.no_placeholders.markers.clear(); for (auto& m : np["markers"]) rules_.code_quality.no_placeholders.markers.push_back(m.get<std::string>()); }
             if (np.contains("custom_markers")) for (auto& m : np["custom_markers"]) rules_.code_quality.no_placeholders.custom_markers.push_back(m.get<std::string>());
             if (np.contains("case_sensitive")) rules_.code_quality.no_placeholders.case_sensitive = np["case_sensitive"].get<bool>();
+            parseRationale(np, rules_.code_quality.no_placeholders.rationale);
         }
 
         // New code quality checks
@@ -783,6 +834,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         for (auto& p : obj["patterns"]) config.patterns.push_back(p.get<std::string>());
                     if (obj.contains("custom_patterns"))
                         for (auto& p : obj["custom_patterns"]) config.patterns.push_back(p.get<std::string>());
+                    parseRationale(obj, config.rationale);
                 }
             }
         };
@@ -811,6 +863,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (sc.contains("check_api_signatures")) rules_.code_quality.semantic_checks.check_api_signatures = sc["check_api_signatures"].get<bool>();
                 if (sc.contains("check_shell_syntax")) rules_.code_quality.semantic_checks.check_shell_syntax = sc["check_shell_syntax"].get<bool>();
                 if (sc.contains("check_dangerous_eval")) rules_.code_quality.semantic_checks.check_dangerous_eval = sc["check_dangerous_eval"].get<bool>();
+                parseRationale(sc, rules_.code_quality.semantic_checks.rationale);
             }
         }
 
@@ -834,6 +887,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& [name, intent] : iv["function_intents"].items())
                     rules_.code_quality.intent_validation.function_intents[name] = intent.get<std::string>();
             }
+            parseRationale(iv, rules_.code_quality.intent_validation.rationale);
         }
 
         // no_pii
@@ -853,6 +907,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (pii.contains("detect_ip_address")) rules_.code_quality.no_pii.detect_ip_address = pii["detect_ip_address"].get<bool>();
                 if (pii.contains("mask_in_errors")) rules_.code_quality.no_pii.mask_in_errors = pii["mask_in_errors"].get<bool>();
                 if (pii.contains("allowlist_patterns")) for (auto& a : pii["allowlist_patterns"]) rules_.code_quality.no_pii.allowlist_patterns.push_back(a.get<std::string>());
+                parseRationale(pii, rules_.code_quality.no_pii.rationale);
             }
         }
 
@@ -865,6 +920,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (md.contains("function_prefixes")) for (auto& p : md["function_prefixes"]) rules_.code_quality.no_mock_data.function_prefixes.push_back(p.get<std::string>());
             if (md.contains("literal_patterns")) for (auto& p : md["literal_patterns"]) rules_.code_quality.no_mock_data.literal_patterns.push_back(p.get<std::string>());
             if (md.contains("ignore_in_test_context")) rules_.code_quality.no_mock_data.ignore_in_test_context = md["ignore_in_test_context"].get<bool>();
+            parseRationale(md, rules_.code_quality.no_mock_data.rationale);
         } else if (cq.contains("no_mock_data")) {
             auto [en, lv] = parseEnforcementLevel(cq["no_mock_data"]);
             rules_.code_quality.no_mock_data.enabled = en;
@@ -883,6 +939,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (al.contains("level")) { auto [en, lv] = parseEnforcementLevel(al["level"]); rules_.code_quality.no_apologetic_language.level = lv; }
                 if (al.contains("scan_comments_only")) rules_.code_quality.no_apologetic_language.scan_comments_only = al["scan_comments_only"].get<bool>();
                 if (al.contains("scan_strings")) rules_.code_quality.no_apologetic_language.scan_strings = al["scan_strings"].get<bool>();
+                parseRationale(al, rules_.code_quality.no_apologetic_language.rationale);
             }
         }
 
@@ -894,6 +951,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (mc.contains("max_lines_per_block")) rules_.code_quality.max_complexity.max_lines_per_block = mc["max_lines_per_block"].get<int>();
             if (mc.contains("max_nesting_depth")) rules_.code_quality.max_complexity.max_nesting_depth = mc["max_nesting_depth"].get<int>();
             if (mc.contains("max_parameters")) rules_.code_quality.max_complexity.max_parameters = mc["max_parameters"].get<int>();
+            parseRationale(mc, rules_.code_quality.max_complexity.rationale);
         }
 
         // encoding
@@ -903,6 +961,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (enc.contains("level")) { auto [en, lv] = parseEnforcementLevel(enc["level"]); rules_.code_quality.encoding.level = lv; }
             if (enc.contains("block_null_bytes")) rules_.code_quality.encoding.block_null_bytes = enc["block_null_bytes"].get<bool>();
             if (enc.contains("block_unicode_bidi")) rules_.code_quality.encoding.block_unicode_bidi = enc["block_unicode_bidi"].get<bool>();
+            parseRationale(enc, rules_.code_quality.encoding.rationale);
         }
 
         // no_hardcoded_results (expanded)
@@ -913,6 +972,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (hr.contains("level")) { auto [en, lv] = parseEnforcementLevel(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false")) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
             if (hr.contains("check_dict_success_fields")) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
+            parseRationale(hr, rules_.code_quality.no_hardcoded_results.rationale);
         }
 
         // no_oversimplification
@@ -937,6 +997,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (val.contains("custom_patterns")) {
                     for (auto& p : val["custom_patterns"]) os.custom_patterns.push_back(p.get<std::string>());
                 }
+                parseRationale(val, os.rationale);
             }
         }
 
@@ -966,6 +1027,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (val.contains("suppressions") && val["suppressions"].is_array()) {
                     for (auto& s : val["suppressions"]) il.suppressions.push_back(s.get<std::string>());
                 }
+                parseRationale(val, il.rationale);
             }
         }
 
@@ -994,6 +1056,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 loadPatterns(val, "ruby_patterns", ha.ruby_patterns);
                 loadPatterns(val, "cross_language_patterns", ha.cross_language_patterns);
                 loadPatterns(val, "custom_patterns", ha.custom_patterns);
+                parseRationale(val, ha.rationale);
             }
         }
 
@@ -1034,6 +1097,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     prefix_rule.require_branching_or_loops = false;
                     cf.rules.push_back(std::move(prefix_rule));
                 }
+                parseRationale(val, cf.rationale);
             }
         }
 
@@ -1043,6 +1107,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (dc.contains("enabled")) rules_.code_quality.duplicate_calls.enabled = dc["enabled"].get<bool>();
             if (dc.contains("threshold")) rules_.code_quality.duplicate_calls.threshold = dc["threshold"].get<int>();
             if (dc.contains("max_entries")) rules_.code_quality.duplicate_calls.max_entries = dc["max_entries"].get<int>();
+            parseRationale(dc, rules_.code_quality.duplicate_calls.rationale);
         }
 
         // Polyglot try/catch config
@@ -1115,6 +1180,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (dd.contains("max_function_gain")) rules_.code_quality.drift_detection.max_function_gain = dd["max_function_gain"].get<double>();
             // Gate 18: New function detection
             if (dd.contains("check_new_functions")) rules_.code_quality.drift_detection.check_new_functions = dd["check_new_functions"].get<bool>();
+            parseRationale(dd, rules_.code_quality.drift_detection.rationale);
         }
     }
 
@@ -1147,6 +1213,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("enabled")) rule.enabled = cr["enabled"].get<bool>();
             if (cr.contains("case_sensitive")) rule.case_sensitive = cr["case_sensitive"].get<bool>();
             if (cr.contains("tags")) for (auto& t : cr["tags"]) rule.tags.push_back(t.get<std::string>());
+            parseRationale(cr, rule.rationale);
             // Compile regex
             if (!rule.pattern.empty() && rule.enabled) {
                 // V-GOV-010: validate pattern complexity before compiling to prevent ReDoS
@@ -1217,6 +1284,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                                 rule.id.empty() ? rule.function_name.c_str() : rule.id.c_str());
                         continue;
                     }
+                    parseRationale(pr, rule.rationale);
                     plugin.rules.push_back(std::move(rule));
                 }
             }
@@ -1592,6 +1660,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("params") && fn_obj["params"].is_array()) {
                     for (auto& p : fn_obj["params"]) fc.params.push_back(p.get<std::string>());
                 }
+                parseRationale(fn_obj, fc.rationale);
                 rules_.contracts.functions[fn_name] = std::move(fc);
             }
         }
@@ -1647,6 +1716,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.taint_tracking.sanitizers.push_back(s.get<std::string>());
             }
         }
+        parseRationale(tt, rules_.taint_tracking.rationale);
     }
 
     // --- Telemetry output config ---
@@ -1787,6 +1857,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.scoring.yellow_threshold = sc.value("yellow_threshold", 10);
         rules_.scoring.red_threshold    = sc.value("red_threshold", 25);
         rules_.scoring.threshold_mode   = sc.value("threshold_mode", "fixed");
+        parseRationale(sc, rules_.scoring.rationale);
         if (rules_.scoring.yellow_threshold > rules_.scoring.red_threshold) {
             fmt::print(stderr, "[WARN] scoring.yellow_threshold ({}) > red_threshold ({}) — "
                        "yellow warnings will never appear\n",

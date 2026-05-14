@@ -110,9 +110,12 @@
     }
   },
 
+  "_comment_rationale": "Any section can include an optional 'rationale' field explaining WHY that rule or tier was chosen. Rationale text appears in governance reports and the audit trail.",
+
   "capabilities": {
     "network": {
       "enabled": true,
+      "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
       "http_allowed": true,
       "https_only": false,
       "allowed_hosts": [],
@@ -137,6 +140,7 @@
     },
     "shell": {
       "enabled": true,
+      "rationale": "CWE-78 — shell access allowed but sudo/su/suid blocked to prevent privilege escalation",
       "allowed_commands": [],
       "blocked_commands": ["sudo", "su", "chmod +s"],
       "allow_pipes": true,
@@ -374,6 +378,7 @@
     "no_secrets": {
       "enabled": true,
       "level": "hard",
+      "rationale": "OWASP A07:2021 — hardcoded secrets are a critical risk. Hard block prevents any secret from reaching production.",
       "entropy_check": {
         "enabled": true,
         "threshold": 4.5,
@@ -395,6 +400,7 @@
     "no_placeholders": {
       "enabled": true,
       "level": "soft",
+      "rationale": "Production code must not contain TODO/FIXME markers — soft block allows override during development",
       "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"],
       "custom_markers": [],
       "ignore_in_comments_only": false,
@@ -1372,6 +1378,7 @@
   "_comment_scoring": "Cumulative Risk Scoring — advisory findings accumulate weighted scores. Cross red_threshold = block (exit 2). Deterministic, no LLM.",
   "scoring": {
     "enabled": false,
+    "rationale": "Cumulative risk scoring — advisory findings accumulate weighted scores. Yellow/red thresholds tuned to block when 3+ medium or 1 critical finding present.",
     "default_weight": 3,
     "rule_weights": {
       "code_quality.no_hardcoded_results": 1,

@@ -361,14 +361,100 @@ void GovernanceEngine::setCheckContext(const std::string& file, int line) {
     current_check_line_ = line;
 }
 
+// --- Decision trace accumulator ---
+void GovernanceEngine::addTrace(const std::string& step) {
+    current_decision_trace_.push_back(step);
+}
+
+void GovernanceEngine::clearTrace() {
+    current_decision_trace_.clear();
+}
+
+std::string GovernanceEngine::lookupRationale(const std::string& rule_name) const {
+    // Capabilities
+    if (rule_name == "capabilities.network") return rules_.capabilities.network.rationale;
+    if (rule_name == "capabilities.filesystem") return rules_.capabilities.filesystem.rationale;
+    if (rule_name == "capabilities.shell") return rules_.capabilities.shell.rationale;
+    if (rule_name == "capabilities.env_vars") return rules_.capabilities.env_vars.rationale;
+    if (rule_name == "capabilities.process") return rules_.capabilities.process.rationale;
+    // Requirements
+    if (rule_name.rfind("requirements.", 0) == 0) {
+        if (rule_name.find("error_handling") != std::string::npos) return rules_.requirements.error_handling.rationale;
+        return rules_.requirements.main_block.rationale;
+    }
+    // Restrictions
+    if (rule_name.rfind("restrictions.", 0) == 0) {
+        if (rule_name.find("dangerous_calls") != std::string::npos) return rules_.restrictions.dangerous_calls.rationale;
+        if (rule_name.find("shell_injection") != std::string::npos) return rules_.restrictions.shell_injection.rationale;
+        if (rule_name.find("privilege_escalation") != std::string::npos) return rules_.restrictions.privilege_escalation.rationale;
+        if (rule_name.find("code_injection") != std::string::npos) return rules_.restrictions.code_injection.rationale;
+        if (rule_name.find("crypto") != std::string::npos) return rules_.restrictions.crypto.rationale;
+        if (rule_name.find("vcs_secret") != std::string::npos) return rules_.restrictions.vcs_secret_extraction.rationale;
+        if (rule_name.find("data_exfiltration") != std::string::npos) return rules_.restrictions.data_exfiltration.rationale;
+        if (rule_name.find("resource_abuse") != std::string::npos) return rules_.restrictions.resource_abuse.rationale;
+        if (rule_name.find("info_disclosure") != std::string::npos) return rules_.restrictions.information_disclosure.rationale;
+        if (rule_name.find("imports") != std::string::npos) return rules_.restrictions.imports.rationale;
+    }
+    // Code quality
+    if (rule_name.rfind("code_quality.", 0) == 0) {
+        if (rule_name.find("no_secrets") != std::string::npos) return rules_.code_quality.no_secrets.rationale;
+        if (rule_name.find("no_placeholders") != std::string::npos) return rules_.code_quality.no_placeholders.rationale;
+        if (rule_name.find("no_hardcoded_results") != std::string::npos) return rules_.code_quality.no_hardcoded_results.rationale;
+        if (rule_name.find("no_pii") != std::string::npos) return rules_.code_quality.no_pii.rationale;
+        if (rule_name.find("no_temporary_code") != std::string::npos) return rules_.code_quality.no_temporary_code.rationale;
+        if (rule_name.find("no_simulation_markers") != std::string::npos) return rules_.code_quality.no_simulation_markers.rationale;
+        if (rule_name.find("no_mock_data") != std::string::npos) return rules_.code_quality.no_mock_data.rationale;
+        if (rule_name.find("no_apologetic") != std::string::npos) return rules_.code_quality.no_apologetic_language.rationale;
+        if (rule_name.find("no_dead_code") != std::string::npos) return rules_.code_quality.no_dead_code.rationale;
+        if (rule_name.find("no_debug") != std::string::npos) return rules_.code_quality.no_debug_artifacts.rationale;
+        if (rule_name.find("no_unsafe_deserialization") != std::string::npos) return rules_.code_quality.no_unsafe_deserialization.rationale;
+        if (rule_name.find("no_sql_injection") != std::string::npos) return rules_.code_quality.no_sql_injection.rationale;
+        if (rule_name.find("no_path_traversal") != std::string::npos) return rules_.code_quality.no_path_traversal.rationale;
+        if (rule_name.find("no_hardcoded_urls") != std::string::npos) return rules_.code_quality.no_hardcoded_urls.rationale;
+        if (rule_name.find("no_hardcoded_ips") != std::string::npos) return rules_.code_quality.no_hardcoded_ips.rationale;
+        if (rule_name.find("max_complexity") != std::string::npos) return rules_.code_quality.max_complexity.rationale;
+        if (rule_name.find("complexity_floor") != std::string::npos) return rules_.code_quality.complexity_floor.rationale;
+        if (rule_name.find("encoding") != std::string::npos) return rules_.code_quality.encoding.rationale;
+        if (rule_name.find("no_oversimplification") != std::string::npos) return rules_.code_quality.no_oversimplification.rationale;
+        if (rule_name.find("no_incomplete_logic") != std::string::npos) return rules_.code_quality.no_incomplete_logic.rationale;
+        if (rule_name.find("no_hallucinated_apis") != std::string::npos) return rules_.code_quality.no_hallucinated_apis.rationale;
+        if (rule_name.find("intent_validation") != std::string::npos) return rules_.code_quality.intent_validation.rationale;
+        if (rule_name.find("duplicate_calls") != std::string::npos) return rules_.code_quality.duplicate_calls.rationale;
+        if (rule_name.find("drift_detection") != std::string::npos) return rules_.code_quality.drift_detection.rationale;
+        if (rule_name.find("semantic_checks") != std::string::npos) return rules_.code_quality.semantic_checks.rationale;
+    }
+    // Taint tracking
+    if (rule_name.rfind("taint", 0) == 0) return rules_.taint_tracking.rationale;
+    // Scoring
+    if (rule_name.rfind("scoring", 0) == 0) return rules_.scoring.rationale;
+    // Contracts — look up per-function rationale
+    if (rule_name.rfind("contract.", 0) == 0) {
+        // rule_name is "contract.<function_name>"
+        std::string fn = rule_name.substr(9);
+        auto it = rules_.contracts.functions.find(fn);
+        if (it != rules_.contracts.functions.end()) return it->second.rationale;
+    }
+    // Custom rules
+    if (rule_name.rfind("custom.", 0) == 0) {
+        std::string id = rule_name.substr(7);
+        for (const auto& cr : rules_.custom_rules) {
+            if (cr.id == id) return cr.rationale;
+        }
+    }
+    return "";  // No rationale configured
+}
+
 void GovernanceEngine::recordPass(const std::string& rule_name,
                                    EnforcementLevel level) {
     std::string cat = rule_name.substr(0, rule_name.find('.'));
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
+    std::string rationale = lookupRationale(rule_name);
     // V-CONC-007: mutex-guard concurrent access from async threads
     std::lock_guard<std::mutex> lock(results_mutex_);
     check_results_.push_back({rule_name, level, true, "", cat, "",
-                              current_check_line_, current_check_file_, cwes, owasps});
+                              current_check_line_, current_check_file_, cwes, owasps,
+                              false, rationale, current_decision_trace_});
+    current_decision_trace_.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
     if (check_results_.size() > MAX_CHECK_RESULTS) {
         check_results_.erase(check_results_.begin());
@@ -385,12 +471,14 @@ std::string GovernanceEngine::enforce(
     std::string sev = (level == EnforcementLevel::HARD) ? "critical" :
                       (level == EnforcementLevel::SOFT) ? "high" : "medium";
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
+    std::string rationale = lookupRationale(rule_name);
     {
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
         check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
                                   current_check_line_, current_check_file_, cwes, owasps,
-                                  preflight_mode_});
+                                  preflight_mode_, rationale, current_decision_trace_});
+        current_decision_trace_.clear();
         // V-GOV-024: cap telemetry — F8: skip preflight entries during eviction
         if (check_results_.size() > MAX_CHECK_RESULTS) {
             auto it = std::find_if(check_results_.begin(), check_results_.end(),
@@ -406,19 +494,33 @@ std::string GovernanceEngine::enforce(
         // MONOTONIC: weight >= 0 guaranteed (clamped), score can only increase
         if (rules_.scoring.enabled && level == EnforcementLevel::ADVISORY) {
             int weight = rules_.scoring.default_weight;
+            std::string weight_source = "default";
             auto wit = rules_.scoring.rule_weights.find(rule_name);
             if (wit != rules_.scoring.rule_weights.end()) {
                 weight = wit->second;
+                weight_source = "rule_weights";
             } else if (rule_name == "code_quality.intent_validation.self_declared") {
                 weight = 1;  // supporting functions: reduced weight
+                weight_source = "self_declared reduction";
             }
             weight = std::max(0, weight);
+            int prev_score = cumulative_score_;
             if (cumulative_score_ <= SCORE_SATURATION_LIMIT - weight) {
                 cumulative_score_ += weight;
             } else {
                 cumulative_score_ = SCORE_SATURATION_LIMIT;
             }
             score_contributions_[rule_name] += weight;
+            // Append scoring trace to the just-pushed CheckResult
+            if (!check_results_.empty()) {
+                auto& last = check_results_.back();
+                last.decision_trace.push_back(fmt::format(
+                    "scoring: weight={} ({}), cumulative: {} → {}",
+                    weight, weight_source, prev_score, cumulative_score_));
+                std::string zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
+                                   cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "GREEN";
+                last.decision_trace.push_back(fmt::format("risk zone: {}", zone));
+            }
         }
     }
 
@@ -1631,6 +1733,16 @@ void GovernanceEngine::printDashboard() const {
     if (!top_rule.empty())
         fprintf(stderr, "Top block:  %s (%d violation%s)\n",
                 top_rule.c_str(), top_count, top_count != 1 ? "s" : "");
+    // Show rationale for blocked checks (up to 3)
+    {
+        int shown_rationale = 0;
+        for (const auto& r : check_results_) {
+            if (!r.passed && !r.rationale.empty() && shown_rationale < 3) {
+                fprintf(stderr, "  Why:      %s — %s\n", r.rule_name.c_str(), r.rationale.c_str());
+                shown_rationale++;
+            }
+        }
+    }
     if (rules_.scoring.enabled && cumulative_score_ > 0) {
         const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
                            cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
