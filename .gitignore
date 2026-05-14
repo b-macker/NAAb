@@ -170,3 +170,11 @@ interaction_review_report_*.md
 comprehensive_vulnerability_report_*.md
 v1-readiness-audit-report.md
 security_refuted_findings.md
+
+# Runtime output artifacts
+/core
+/map
+/report.json
+/telemetry.json
+/pipeline_report.md
+/.naab/
