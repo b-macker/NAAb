@@ -458,6 +458,27 @@ else
     echo "  Report format test script not found, skipping"
 fi
 
+# --- Rationale Report Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Rationale Report Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RATIONALE_SCRIPT="tests/cli/test_rationale_reports.sh"
+if [ -f "$RATIONALE_SCRIPT" ]; then
+    if bash "$RATIONALE_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Rationale report tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Rationale report tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("rationale-report-tests")
+    fi
+else
+    echo "  Rationale report test script not found, skipping"
+fi
+
 # --- CLI Init Governance Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

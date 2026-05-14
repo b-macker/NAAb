@@ -100,6 +100,7 @@ include/naab/       All headers
 - Enforcement tiers: HARD (block), SOFT (block + override), ADVISORY (warn)
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
 - Decision rationale: govern.json sections accept optional `rationale` field; engine generates `decision_trace` per check. Both flow into all 5 report formats + audit trail via `CheckResult.rationale` and `CheckResult.decision_trace`
+- Decision trace storage: `t_current_decision_trace` is `static thread_local` in `governance_engine.cpp` (NOT a class member) — thread-safe for concurrent polyglot/agent threads
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)
@@ -139,7 +140,7 @@ All settings belong in govern.json first. CLI flags are overrides only. Never ad
 6. Add parser rule in `src/parser/parser.cpp`, hook into appropriate parse method
 
 ### Adding a Governance Check
-1. Add check function in `src/runtime/governance_checks.cpp` — call `clearTrace()` after enabled check, `addTrace()` for key decisions
+1. Add check function in `src/runtime/governance_checks.cpp` — call `clearTrace()` as first statement (or right after the enabled guard); call `addTrace()` for key decisions
 2. Wire into governance engine dispatch
 3. Add config key to governance_config.cpp — include `parseRationale()` call
 4. Add `std::string rationale;` to the config struct in `governance.h`
@@ -179,3 +180,4 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 - **`current_file_`** not `filename_` for the current source file
 - **No Julia/Zig on Termux** — tests skip gracefully
 - **Polyglot `>>` delimiter** must be at line start (after optional whitespace)
+- **`t_current_decision_trace`** is `static thread_local` in governance_engine.cpp — not a class member in the header
