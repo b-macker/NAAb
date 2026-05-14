@@ -28,11 +28,16 @@ check() {
 echo "=== NAAb Rationale Report Tests ==="
 echo ""
 
-# Dashboard rationale requires the polyglot block to execute at runtime,
-# which needs python3. Reports are populated by the static scan path.
-HAS_PYTHON3=true
-if ! command -v python3 &>/dev/null; then
-    HAS_PYTHON3=false
+# Dashboard rationale requires the polyglot block to execute at runtime.
+# If naab-lang was built without Python support (e.g. Windows CI) the block
+# won't run, so the dashboard won't show rationale. Reports still get
+# populated by the static scan path regardless.
+CAN_RUN_PYTHON=true
+if "$NAAB_BIN" -e 'let x = <<python
+1
+>>
+print(x)' 2>&1 | grep -qi "not available\|not found\|missing\|disabled"; then
+    CAN_RUN_PYTHON=false
 fi
 
 MARKER="TEST_RATIONALE_MARKER_7x9q"
@@ -90,11 +95,11 @@ check "JUnit report contains rationale" \
 check "SARIF report contains rationale" \
     "grep -q '$MARKER' '$SARIF_OUT'"
 
-if [ "$HAS_PYTHON3" = "true" ]; then
+if [ "$CAN_RUN_PYTHON" = "true" ]; then
     check "Dashboard stderr contains rationale" \
         "grep -q '$MARKER' '$TEST_DIR/stderr.txt'"
 else
-    echo "  SKIP: Dashboard stderr contains rationale (python3 unavailable)"
+    echo "  SKIP: Dashboard stderr contains rationale (Python blocks disabled)"
 fi
 
 # --- Test 2: Backward compat — no rationale fields ---
