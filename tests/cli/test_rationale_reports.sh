@@ -28,18 +28,6 @@ check() {
 echo "=== NAAb Rationale Report Tests ==="
 echo ""
 
-# Dashboard rationale requires the polyglot block to execute at runtime.
-# If naab-lang was built without Python support (e.g. Windows CI) the block
-# won't run, so the dashboard won't show rationale. Reports still get
-# populated by the static scan path regardless.
-CAN_RUN_PYTHON=true
-if "$NAAB_BIN" -e 'let x = <<python
-1
->>
-print(x)' 2>&1 | grep -qi "not available\|not found\|missing\|disabled"; then
-    CAN_RUN_PYTHON=false
-fi
-
 MARKER="TEST_RATIONALE_MARKER_7x9q"
 
 # --- Test 1: Rationale appears in all report formats ---
@@ -95,11 +83,14 @@ check "JUnit report contains rationale" \
 check "SARIF report contains rationale" \
     "grep -q '$MARKER' '$SARIF_OUT'"
 
-if [ "$CAN_RUN_PYTHON" = "true" ]; then
+# Dashboard rationale requires the polyglot block to execute at runtime.
+# If naab-lang was built without Python support the block won't run and
+# the dashboard won't show rationale. Check stderr for the warning.
+if grep -qi "Python support not available\|Python blocks disabled" "$TEST_DIR/stderr.txt"; then
+    echo "  SKIP: Dashboard stderr contains rationale (Python blocks disabled)"
+else
     check "Dashboard stderr contains rationale" \
         "grep -q '$MARKER' '$TEST_DIR/stderr.txt'"
-else
-    echo "  SKIP: Dashboard stderr contains rationale (Python blocks disabled)"
 fi
 
 # --- Test 2: Backward compat — no rationale fields ---
