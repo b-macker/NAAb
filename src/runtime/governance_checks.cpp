@@ -645,6 +645,7 @@ std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
 std::string GovernanceEngine::checkComplexity(const std::string& code, int line) {
     auto& cfg = rules_.code_quality.max_complexity;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     if (cfg.max_lines_per_block > 0) {
         int lines = 1;
@@ -941,6 +942,7 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
 std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
     auto& cfg = rules_.code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
+    clearTrace();
 
     std::string main_body = extractMainBodyPublic(source);
 
@@ -4087,6 +4089,7 @@ std::string GovernanceEngine::checkCustomRules(const std::string& language,
 
 // --- Resource Limits ---
 std::string GovernanceEngine::checkLoopIterations(size_t count) {
+    clearTrace();
     int max = rules_.limits.execution.loop_iterations;
     if (max > 0 && static_cast<int>(count) > max) {
         return enforce("limits.execution.loop_iterations", EnforcementLevel::HARD,
@@ -4103,6 +4106,7 @@ std::string GovernanceEngine::checkLoopIterations(size_t count) {
 }
 
 std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
+    clearTrace();
     int max = rules_.limits.execution.polyglot_blocks;
     if (max > 0 && static_cast<int>(count) > max) {
         return enforce("limits.execution.polyglot_blocks", EnforcementLevel::HARD,
@@ -4122,6 +4126,7 @@ std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
 }
 
 std::string GovernanceEngine::checkStringLength(size_t length) {
+    clearTrace();
     int max = rules_.limits.data.string_length;
     if (max > 0 && static_cast<int>(length) > max) {
         return enforce("limits.data.string_length", EnforcementLevel::HARD,
@@ -4135,6 +4140,7 @@ std::string GovernanceEngine::checkStringLength(size_t length) {
 }
 
 std::string GovernanceEngine::checkNestingDepth(size_t depth) {
+    clearTrace();
     int max = rules_.limits.data.nesting_depth;
     if (max > 0 && static_cast<int>(depth) > max) {
         return enforce("limits.data.nesting_depth", EnforcementLevel::HARD,
@@ -4149,6 +4155,7 @@ std::string GovernanceEngine::checkNestingDepth(size_t depth) {
 }
 
 std::string GovernanceEngine::checkOutputSize(size_t size) {
+    clearTrace();
     int max = rules_.limits.data.output_size;
     if (max > 0 && static_cast<int>(size) > max) {
         return enforce("limits.data.output_size", EnforcementLevel::HARD,
@@ -4163,6 +4170,7 @@ std::string GovernanceEngine::checkOutputSize(size_t size) {
 }
 
 std::string GovernanceEngine::checkDictSize(size_t size) {
+    clearTrace();
     int max = rules_.limits.data.dict_size;
     if (max > 0 && static_cast<int>(size) > max) {
         return enforce("limits.data.dict_size", EnforcementLevel::HARD,
@@ -4219,6 +4227,7 @@ const LanguageConfig* GovernanceEngine::getLanguageConfig(const std::string& lan
 
 // --- Comprehensive Polyglot Block Check ---
 std::string GovernanceEngine::checkVariableBinding(size_t binding_count, int line) {
+    clearTrace();
     if (!rules_.polyglot.variable_binding.require_explicit) return "";
     if (binding_count > 0) return "";  // Has bindings, OK
 
@@ -4235,6 +4244,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
     const std::string& source_file, int line,
     size_t binding_count) {
+    clearTrace();
 
     // Check variable binding requirement first
     std::string bind_err = checkVariableBinding(binding_count, line);
@@ -4680,6 +4690,7 @@ void GovernanceEngine::validateScopePatterns(const std::vector<std::string>& fun
 
 std::string GovernanceEngine::checkDeterminism(const std::string& language,
                                                 const std::string& code, int line) {
+    clearTrace();
     static const std::vector<std::pair<std::string, std::string>> patterns = {
         // Random
         {R"(\brandom\b)", "random function"},
@@ -4726,6 +4737,7 @@ std::string GovernanceEngine::checkDeterminism(const std::string& language,
 }
 
 std::string GovernanceEngine::checkOutputEntropy(const std::string& output, int line) {
+    clearTrace();
     // Check each line for high-entropy strings (possible leaked credentials)
     std::istringstream stream(output);
     std::string line_str;
@@ -4741,6 +4753,7 @@ std::string GovernanceEngine::checkOutputEntropy(const std::string& output, int 
 }
 
 std::string GovernanceEngine::checkErrorDumps(const std::string& output, int line) {
+    clearTrace();
     static const std::vector<std::pair<std::string, std::string>> patterns = {
         {R"(Traceback \(most recent call last\))", "Python traceback"},
         {R"(at [\w\.]+\([\w\.]+:\d+\))", "Java/JS stack trace"},

@@ -2186,8 +2186,7 @@ private:
     void loadBaselines();
     void saveBaselines();
 
-    // --- Decision trace accumulator ---
-    std::vector<std::string> current_decision_trace_;
+    // --- Decision trace accumulator (storage is thread_local in .cpp) ---
     void addTrace(const std::string& step);
     void clearTrace();
     std::string lookupRationale(const std::string& rule_name) const;

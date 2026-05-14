@@ -450,7 +450,7 @@ std::string GovernanceEngine::generateJunitReport() const {
                 << xmlEscape(r.message.empty() ? r.rule_name : r.message);
             if (!r.decision_trace.empty()) {
                 oss << "\n--- Decision Trace ---\n";
-                for (const auto& step : r.decision_trace) oss << step << "\n";
+                for (const auto& step : r.decision_trace) oss << xmlEscape(step) << "\n";
             }
             oss << "</failure>\n";
             oss << "  </testcase>\n";
