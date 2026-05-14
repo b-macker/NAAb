@@ -28,6 +28,13 @@ check() {
 echo "=== NAAb Rationale Report Tests ==="
 echo ""
 
+# Dashboard rationale requires the polyglot block to execute at runtime,
+# which needs python3. Reports are populated by the static scan path.
+HAS_PYTHON3=true
+if ! command -v python3 &>/dev/null; then
+    HAS_PYTHON3=false
+fi
+
 MARKER="TEST_RATIONALE_MARKER_7x9q"
 
 # --- Test 1: Rationale appears in all report formats ---
@@ -83,8 +90,12 @@ check "JUnit report contains rationale" \
 check "SARIF report contains rationale" \
     "grep -q '$MARKER' '$SARIF_OUT'"
 
-check "Dashboard stderr contains rationale" \
-    "grep -q '$MARKER' '$TEST_DIR/stderr.txt'"
+if [ "$HAS_PYTHON3" = "true" ]; then
+    check "Dashboard stderr contains rationale" \
+        "grep -q '$MARKER' '$TEST_DIR/stderr.txt'"
+else
+    echo "  SKIP: Dashboard stderr contains rationale (python3 unavailable)"
+fi
 
 # --- Test 2: Backward compat — no rationale fields ---
 echo ""
