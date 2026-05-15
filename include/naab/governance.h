@@ -1695,6 +1695,11 @@ public:
     bool loadFromFile(const std::string& path);
     bool discoverAndLoad(const std::string& start_dir);
 
+    // --- Mid-run reload (Governance Under Survivability) ---
+    bool reloadIfChanged();                        // check mtime, reload if tightened, return true if reloaded
+    std::vector<std::string> getAndClearNotices(); // retrieve + clear pending reload notices
+    int getReloadCount() const { return reload_count_; }
+
     // --- State ---
     bool isActive() const { return active_; }
     bool isOverrideEnabled() const { return override_enabled_; }
@@ -2185,6 +2190,13 @@ private:
     int drift_write_count_ = 0;
     void loadBaselines();
     void saveBaselines();
+
+    // --- Mid-run reload state (Governance Under Survivability) ---
+    int64_t loaded_mtime_ns_ = 0;                 // govern.json mtime as nanoseconds (fs clock epoch)
+    int reload_count_ = 0;                        // reloads applied this run
+    std::vector<std::string> pending_notices_;    // notices from last reload
+    mutable std::mutex notices_mutex_;            // guards pending_notices_
+    mutable std::mutex reload_mutex_;             // serializes reload attempts
 
     // --- Decision trace accumulator (storage is thread_local in .cpp) ---
     void addTrace(const std::string& step);

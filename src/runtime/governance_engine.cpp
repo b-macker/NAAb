@@ -1751,6 +1751,8 @@ void GovernanceEngine::printDashboard() const {
     if (!rules_.sandbox_level_config.empty() && rules_.sandbox_level_config != "unrestricted")
         config_line += " | Sandbox: " + rules_.sandbox_level_config;
     fprintf(stderr, "%s\n", config_line.c_str());
+    if (reload_count_ > 0)
+        fprintf(stderr, "Reloads:    %d mid-run reload(s) applied\n", reload_count_);
     fprintf(stderr, "Checks:     %d passed, %d blocked\n", passed, blocked);
     if (!top_rule.empty())
         fprintf(stderr, "Top block:  %s (%d violation%s)\n",

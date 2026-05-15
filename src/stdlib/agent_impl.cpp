@@ -268,6 +268,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  - Place the key in ~/.naab/keys/" + config->api_key_env + "\n");
     }
 
+    // Mid-run governance reload check (Governance Under Survivability)
+    // Detect if operator tightened govern.json since last turn
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    std::vector<std::string> gov_notices;
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->reloadIfChanged();
+        gov_notices = gov_engine->getAndClearNotices();
+    }
+
     // Call provider via shared layer
     auto agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
     if (!agent_resp.success) {
@@ -293,7 +302,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // ── Gap 2: Output content filtering (secrets + PII) ──
-    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    // (gov_engine already obtained above for reload check)
     if (gov_engine && gov_engine->isActive() && !content.empty()) {
         // Check for secrets in LLM response (reuses existing 18-pattern scanner)
         std::string secret_err = gov_engine->checkSecrets(content, 0);
@@ -371,6 +380,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     usage_val["input_tokens"] = NaabVal::makeInt(resp_input_tokens);
     usage_val["output_tokens"] = NaabVal::makeInt(resp_output_tokens);
     result["usage"] = NaabVal::makeDict(std::move(usage_val));
+
+    // Attach governance reload notices (Governance Under Survivability)
+    if (!gov_notices.empty()) {
+        std::vector<NaabVal> notice_vals;
+        notice_vals.reserve(gov_notices.size());
+        for (const auto& n : gov_notices) {
+            notice_vals.push_back(NaabVal::makeString(n));
+        }
+        result["governance_notices"] = NaabVal::makeList(std::move(notice_vals));
+    }
 
     return NaabVal::makeDict(std::move(result));
 }
@@ -632,6 +651,8 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
     auto* engine = governance::GovernanceEngine::getCurrent();
     int max_concurrent = 6;
     if (engine && engine->isActive()) {
+        // Mid-run governance reload before dispatching batch workers
+        engine->reloadIfChanged();
         max_concurrent = engine->getRules().agent_dispatch.max_concurrent;
     }
 

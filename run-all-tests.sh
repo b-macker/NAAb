@@ -479,6 +479,48 @@ else
     echo "  Rationale report test script not found, skipping"
 fi
 
+# --- Governance Reload Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance Reload Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RELOAD_SCRIPT="tests/cli/test_governance_reload.sh"
+if [ -f "$RELOAD_SCRIPT" ]; then
+    if bash "$RELOAD_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Governance reload tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Governance reload tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("governance-reload-tests")
+    fi
+else
+    echo "  Governance reload test script not found, skipping"
+fi
+
+# --- Governance Reload Live Tests (requires API key) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance Reload Live Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RELOAD_LIVE_SCRIPT="tests/cli/test_governance_reload_live.sh"
+if [ -f "$RELOAD_LIVE_SCRIPT" ]; then
+    if bash "$RELOAD_LIVE_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Governance reload live tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Governance reload live tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("governance-reload-live-tests")
+    fi
+else
+    echo "  Governance reload live test script not found, skipping"
+fi
+
 # --- CLI Init Governance Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

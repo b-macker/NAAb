@@ -26,7 +26,7 @@ bash tests/security/test_error_msg_leaks.sh
 
 Test categories in `tests/`: governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, polyglot, formatter, lsp, platform, chaos, robustness.
 
-Expected breakdown: ~329 pass, ~48 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
+Expected breakdown: ~330 pass, ~47 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 
@@ -101,6 +101,7 @@ include/naab/       All headers
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
 - Decision rationale: govern.json sections accept optional `rationale` field; engine generates `decision_trace` per check. Both flow into all 5 report formats + audit trail via `CheckResult.rationale` and `CheckResult.decision_trace`
 - Decision trace storage: `t_current_decision_trace` is `static thread_local` in `governance_engine.cpp` (NOT a class member) — thread-safe for concurrent polyglot/agent threads
+- Mid-run reload (Governance Under Survivability): `reloadIfChanged()` detects govern.json mtime changes during agent turns, validates signature, enforces one-way ratchet (only tightening allowed), and surfaces structured notices via `agent.send()` return dict `governance_notices` field. Reload is triggered automatically before each `agent.send()` and `agent.batch()` call.
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)

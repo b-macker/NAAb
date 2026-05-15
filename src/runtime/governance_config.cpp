@@ -1952,7 +1952,312 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     }
 }
 
+// ============================================================================
+// Governance Under Survivability — Helpers and Ratchet Comparator
+// ============================================================================
+
+// Static helper: enforce minimum enforcement levels on arbitrary rules
+static void enforceMinimumLevelsOnRules(GovernanceRules& rules) {
+    // F3: no_secrets and no_pii always minimum SOFT regardless of mode
+    if (rules.code_quality.no_secrets.enabled &&
+        rules.code_quality.no_secrets.level < EnforcementLevel::SOFT) {
+        rules.code_quality.no_secrets.level = EnforcementLevel::SOFT;
+    }
+    if (rules.code_quality.no_pii.enabled &&
+        rules.code_quality.no_pii.level < EnforcementLevel::SOFT) {
+        rules.code_quality.no_pii.level = EnforcementLevel::SOFT;
+    }
+
+    // Helper: silently elevate advisory to soft for anti-evasion checks
+    auto elevate = [](auto& cfg, const char* /*name*/) {
+        if (cfg.enabled && cfg.level == EnforcementLevel::ADVISORY) {
+            cfg.level = EnforcementLevel::SOFT;
+        }
+    };
+
+    elevate(rules.code_quality.no_oversimplification, "no_oversimplification");
+    elevate(rules.code_quality.no_incomplete_logic, "no_incomplete_logic");
+    elevate(rules.code_quality.no_simulation_markers, "no_simulation_markers");
+    elevate(rules.code_quality.no_temporary_code, "no_temporary_code");
+    elevate(rules.code_quality.no_apologetic_language, "no_apologetic_language");
+}
+
+// Helper: convert EnforcementLevel to string (local version to avoid private access)
+static const char* ratchetLevelStr(EnforcementLevel level) {
+    switch (level) {
+        case EnforcementLevel::ADVISORY: return "advisory";
+        case EnforcementLevel::SOFT:     return "soft";
+        case EnforcementLevel::HARD:     return "hard";
+        default:                         return "unknown";
+    }
+}
+
+// Helper: convert EnforcementLevel to int for comparison (higher = stricter)
+static int levelToInt(EnforcementLevel level) {
+    switch (level) {
+        case EnforcementLevel::ADVISORY: return 1;
+        case EnforcementLevel::SOFT:     return 2;
+        case EnforcementLevel::HARD:     return 3;
+        default:                         return 0;
+    }
+}
+
+// Check that new_r is at least as strict as old_r. Returns true if ratchet OK.
+// Populates violations (loosening attempts) and notices (tightening changes).
+static bool checkRatchetViolation(
+    const GovernanceRules& old_r,
+    const GovernanceRules& new_r,
+    std::vector<std::string>& violations,
+    std::vector<std::string>& notices)
+{
+    // --- A. Numeric limits (lower = stricter, 0 = unlimited) ---
+    auto chkLimit = [&](int old_v, int new_v, const char* name) {
+        if (old_v > 0 && (new_v == 0 || new_v > old_v)) {
+            violations.push_back(fmt::format("{}: {} -> {} (loosened)", name, old_v, new_v));
+        } else if (new_v > 0 && (old_v == 0 || new_v < old_v)) {
+            notices.push_back(fmt::format("{}: {} -> {} (tightened)", name,
+                old_v == 0 ? "unlimited" : std::to_string(old_v), new_v));
+        }
+    };
+
+    // Timeout limits
+    chkLimit(old_r.limits.timeout.global, new_r.limits.timeout.global, "limits.timeout.global");
+    chkLimit(old_r.limits.timeout.per_block, new_r.limits.timeout.per_block, "limits.timeout.per_block");
+    chkLimit(old_r.limits.timeout.total_polyglot, new_r.limits.timeout.total_polyglot, "limits.timeout.total_polyglot");
+    // Memory limits
+    chkLimit(old_r.limits.memory.per_block_mb, new_r.limits.memory.per_block_mb, "limits.memory.per_block_mb");
+    chkLimit(old_r.limits.memory.total_mb, new_r.limits.memory.total_mb, "limits.memory.total_mb");
+    // Execution limits
+    chkLimit(old_r.limits.execution.call_depth, new_r.limits.execution.call_depth, "limits.execution.call_depth");
+    chkLimit(old_r.limits.execution.loop_iterations, new_r.limits.execution.loop_iterations, "limits.execution.loop_iterations");
+    chkLimit(old_r.limits.execution.polyglot_blocks, new_r.limits.execution.polyglot_blocks, "limits.execution.polyglot_blocks");
+    chkLimit(old_r.limits.execution.parallel_blocks, new_r.limits.execution.parallel_blocks, "limits.execution.parallel_blocks");
+    chkLimit(old_r.limits.execution.total_executions, new_r.limits.execution.total_executions, "limits.execution.total_executions");
+    // Data limits
+    chkLimit(old_r.limits.data.array_size, new_r.limits.data.array_size, "limits.data.array_size");
+    chkLimit(old_r.limits.data.dict_size, new_r.limits.data.dict_size, "limits.data.dict_size");
+    chkLimit(old_r.limits.data.string_length, new_r.limits.data.string_length, "limits.data.string_length");
+    chkLimit(old_r.limits.data.nesting_depth, new_r.limits.data.nesting_depth, "limits.data.nesting_depth");
+    chkLimit(old_r.limits.data.output_size, new_r.limits.data.output_size, "limits.data.output_size");
+    chkLimit(old_r.limits.data.input_size, new_r.limits.data.input_size, "limits.data.input_size");
+    // Code limits
+    chkLimit(old_r.limits.code.max_lines_per_block, new_r.limits.code.max_lines_per_block, "limits.code.max_lines_per_block");
+    chkLimit(old_r.limits.code.max_total_polyglot_lines, new_r.limits.code.max_total_polyglot_lines, "limits.code.max_total_polyglot_lines");
+    chkLimit(old_r.limits.code.max_nesting_depth, new_r.limits.code.max_nesting_depth, "limits.code.max_nesting_depth");
+    // Rate limits
+    chkLimit(old_r.limits.rate.max_polyglot_per_second, new_r.limits.rate.max_polyglot_per_second, "limits.rate.max_polyglot_per_second");
+    chkLimit(old_r.limits.rate.max_stdlib_calls_per_second, new_r.limits.rate.max_stdlib_calls_per_second, "limits.rate.max_stdlib_calls_per_second");
+    chkLimit(old_r.limits.rate.max_file_ops_per_second, new_r.limits.rate.max_file_ops_per_second, "limits.rate.max_file_ops_per_second");
+
+    // --- B. Capabilities (false/disabled = stricter) ---
+    auto chkCap = [&](bool old_v, bool new_v, const char* name) {
+        if (!old_v && new_v) {
+            violations.push_back(fmt::format("{}: disabled -> enabled (loosened)", name));
+        } else if (old_v && !new_v) {
+            notices.push_back(fmt::format("{}: enabled -> disabled (revoked)", name));
+        }
+    };
+
+    chkCap(old_r.capabilities.network.enabled, new_r.capabilities.network.enabled, "capabilities.network.enabled");
+    chkCap(old_r.capabilities.shell.enabled, new_r.capabilities.shell.enabled, "capabilities.shell.enabled");
+    chkCap(old_r.capabilities.filesystem.allow_symlinks, new_r.capabilities.filesystem.allow_symlinks, "capabilities.filesystem.allow_symlinks");
+    chkCap(old_r.capabilities.filesystem.allow_hidden_files, new_r.capabilities.filesystem.allow_hidden_files, "capabilities.filesystem.allow_hidden_files");
+    chkCap(old_r.capabilities.filesystem.allow_absolute_paths, new_r.capabilities.filesystem.allow_absolute_paths, "capabilities.filesystem.allow_absolute_paths");
+    chkCap(old_r.capabilities.shell.allow_pipes, new_r.capabilities.shell.allow_pipes, "capabilities.shell.allow_pipes");
+    chkCap(old_r.capabilities.shell.allow_redirects, new_r.capabilities.shell.allow_redirects, "capabilities.shell.allow_redirects");
+
+    // Filesystem mode: "none" < "read" < "write" (lower = stricter)
+    auto fsModeRank = [](const std::string& m) -> int {
+        if (m == "none") return 0;
+        if (m == "read") return 1;
+        return 2; // "write"
+    };
+    int old_fs = fsModeRank(old_r.capabilities.filesystem.mode);
+    int new_fs = fsModeRank(new_r.capabilities.filesystem.mode);
+    if (new_fs > old_fs) {
+        violations.push_back(fmt::format("capabilities.filesystem.mode: {} -> {} (loosened)",
+            old_r.capabilities.filesystem.mode, new_r.capabilities.filesystem.mode));
+    } else if (new_fs < old_fs) {
+        notices.push_back(fmt::format("capabilities.filesystem.mode: {} -> {} (tightened)",
+            old_r.capabilities.filesystem.mode, new_r.capabilities.filesystem.mode));
+    }
+
+    // --- C. Enforcement levels (HARD > SOFT > ADVISORY) ---
+    auto chkLevel = [&](EnforcementLevel old_v, EnforcementLevel new_v, const char* name) {
+        int oi = levelToInt(old_v), ni = levelToInt(new_v);
+        if (ni < oi) {
+            violations.push_back(fmt::format("{}: {} -> {} (lowered)", name,
+                ratchetLevelStr(old_v), ratchetLevelStr(new_v)));
+        } else if (ni > oi) {
+            notices.push_back(fmt::format("{}: {} -> {} (elevated)", name,
+                ratchetLevelStr(old_v), ratchetLevelStr(new_v)));
+        }
+    };
+
+    // Restrictions enforcement levels
+    chkLevel(old_r.restrictions.dangerous_calls.level, new_r.restrictions.dangerous_calls.level, "restrictions.dangerous_calls.level");
+    chkLevel(old_r.restrictions.shell_injection.level, new_r.restrictions.shell_injection.level, "restrictions.shell_injection.level");
+    chkLevel(old_r.restrictions.code_injection.level, new_r.restrictions.code_injection.level, "restrictions.code_injection.level");
+    chkLevel(old_r.restrictions.privilege_escalation.level, new_r.restrictions.privilege_escalation.level, "restrictions.privilege_escalation.level");
+    chkLevel(old_r.restrictions.data_exfiltration.level, new_r.restrictions.data_exfiltration.level, "restrictions.data_exfiltration.level");
+    chkLevel(old_r.restrictions.resource_abuse.level, new_r.restrictions.resource_abuse.level, "restrictions.resource_abuse.level");
+    // Code quality enforcement levels
+    chkLevel(old_r.code_quality.no_secrets.level, new_r.code_quality.no_secrets.level, "code_quality.no_secrets.level");
+    chkLevel(old_r.code_quality.no_placeholders.level, new_r.code_quality.no_placeholders.level, "code_quality.no_placeholders.level");
+    chkLevel(old_r.code_quality.no_oversimplification.level, new_r.code_quality.no_oversimplification.level, "code_quality.no_oversimplification.level");
+    chkLevel(old_r.code_quality.no_incomplete_logic.level, new_r.code_quality.no_incomplete_logic.level, "code_quality.no_incomplete_logic.level");
+    chkLevel(old_r.code_quality.no_simulation_markers.level, new_r.code_quality.no_simulation_markers.level, "code_quality.no_simulation_markers.level");
+
+    // --- D. Boolean restrictions (true = stricter) ---
+    auto chkRestrict = [&](bool old_v, bool new_v, const char* name) {
+        if (old_v && !new_v) {
+            violations.push_back(fmt::format("{}: enabled -> disabled (loosened)", name));
+        } else if (!old_v && new_v) {
+            notices.push_back(fmt::format("{}: disabled -> enabled (tightened)", name));
+        }
+    };
+
+    chkRestrict(old_r.restrictions.dangerous_calls.enabled, new_r.restrictions.dangerous_calls.enabled, "restrictions.dangerous_calls.enabled");
+    chkRestrict(old_r.restrictions.shell_injection.enabled, new_r.restrictions.shell_injection.enabled, "restrictions.shell_injection.enabled");
+    chkRestrict(old_r.restrictions.code_injection.enabled, new_r.restrictions.code_injection.enabled, "restrictions.code_injection.enabled");
+    chkRestrict(old_r.restrictions.privilege_escalation.enabled, new_r.restrictions.privilege_escalation.enabled, "restrictions.privilege_escalation.enabled");
+    chkRestrict(old_r.restrictions.data_exfiltration.enabled, new_r.restrictions.data_exfiltration.enabled, "restrictions.data_exfiltration.enabled");
+    chkRestrict(old_r.restrictions.resource_abuse.enabled, new_r.restrictions.resource_abuse.enabled, "restrictions.resource_abuse.enabled");
+    chkRestrict(old_r.code_quality.no_secrets.enabled, new_r.code_quality.no_secrets.enabled, "code_quality.no_secrets.enabled");
+    chkRestrict(old_r.code_quality.no_placeholders.enabled, new_r.code_quality.no_placeholders.enabled, "code_quality.no_placeholders.enabled");
+    chkRestrict(old_r.code_quality.no_oversimplification.enabled, new_r.code_quality.no_oversimplification.enabled, "code_quality.no_oversimplification.enabled");
+    chkRestrict(old_r.code_quality.no_incomplete_logic.enabled, new_r.code_quality.no_incomplete_logic.enabled, "code_quality.no_incomplete_logic.enabled");
+    chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
+    chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
+
+    return violations.empty();
+}
+
+// ============================================================================
+// Governance Under Survivability — Mid-Run Config Reload
+// ============================================================================
+
+bool GovernanceEngine::reloadIfChanged() {
+    std::lock_guard<std::mutex> reload_lock(reload_mutex_);
+
+    if (loaded_path_.empty()) return false;
+
+    // Check mtime
+    int64_t current_mtime = 0;
+    try {
+        auto ftime = std::filesystem::last_write_time(loaded_path_);
+        auto secs = std::chrono::duration_cast<std::chrono::seconds>(
+            ftime.time_since_epoch());
+        current_mtime = static_cast<int64_t>(secs.count());
+    } catch (...) {
+        return false;
+    }
+
+    if (current_mtime == loaded_mtime_ns_) return false;
+
+    // File changed — attempt reload
+    try {
+        std::ifstream ifs(loaded_path_);
+        if (!ifs.is_open()) {
+            loaded_mtime_ns_ = current_mtime; // don't re-check until next change
+            return false;
+        }
+
+        nlohmann::json j = nlohmann::json::parse(ifs);
+        ifs.close();
+
+        if (!checkJsonArrayWidth(j)) {
+            fmt::print(stderr, "[governance] Reload rejected: JSON array exceeds cap\n");
+            loaded_mtime_ns_ = current_mtime;
+            return false;
+        }
+
+        // Parse into temporary rules
+        GovernanceRules new_rules;
+        loadFromJson(j, new_rules);
+
+        // Verify signature — reject unsigned changes
+        if (!verifyFileSignature(loaded_path_)) {
+            fmt::print(stderr, "[governance] Reload rejected: signature verification failed\n");
+            logAuditEvent("governance_reload_rejected", "governance_config",
+                "Signature verification failed on govern.json reload");
+            loaded_mtime_ns_ = current_mtime;
+            return false;
+        }
+
+        // Apply minimum enforcement levels to new rules
+        enforceMinimumLevelsOnRules(new_rules);
+
+        // One-way ratchet: reject any loosening
+        std::vector<std::string> violations;
+        std::vector<std::string> notices;
+        if (!checkRatchetViolation(rules_, new_rules, violations, notices)) {
+            std::string detail;
+            for (const auto& v : violations) {
+                if (!detail.empty()) detail += "; ";
+                detail += v;
+            }
+            fmt::print(stderr, "[governance] Reload rejected: ratchet violation(s): {}\n", detail);
+            logAuditEvent("governance_reload_rejected", "governance_config",
+                fmt::format("Ratchet violation: {}", detail));
+            loaded_mtime_ns_ = current_mtime;
+            return false;
+        }
+
+        // Read optional update_reason from JSON
+        std::string update_reason;
+        if (j.contains("update_reason") && j["update_reason"].is_string()) {
+            update_reason = j["update_reason"].get<std::string>();
+        }
+        if (!update_reason.empty()) {
+            notices.insert(notices.begin(),
+                fmt::format("Governance update: {}", update_reason));
+        }
+
+        // Atomic swap
+        rules_ = std::move(new_rules);
+        active_ = (rules_.mode != GovernanceMode::OFF);
+        loaded_mtime_ns_ = current_mtime;
+        reload_count_++;
+
+        // Store notices for retrieval by agent.send()
+        size_t notice_count = notices.size();
+        {
+            std::lock_guard<std::mutex> lock(notices_mutex_);
+            pending_notices_ = std::move(notices);
+        }
+
+        // Audit trail
+        logAuditEvent("governance_reloaded", "governance_config",
+            fmt::format("Config reloaded: {} change(s){}",
+                notice_count,
+                update_reason.empty() ? "" : ", reason: " + update_reason));
+
+        // Dashboard notification
+        fmt::print(stderr, "[governance] Config reloaded mid-run: {} change(s) applied{}\n",
+            notice_count,
+            update_reason.empty() ? "" : " (" + update_reason + ")");
+
+        return true;
+
+    } catch (const std::exception& e) {
+        fmt::print(stderr, "[governance] Reload failed: {}\n", e.what());
+        loaded_mtime_ns_ = current_mtime;
+        return false;
+    }
+}
+
+std::vector<std::string> GovernanceEngine::getAndClearNotices() {
+    std::lock_guard<std::mutex> lock(notices_mutex_);
+    std::vector<std::string> result = std::move(pending_notices_);
+    pending_notices_.clear();
+    return result;
+}
+
+// ============================================================================
 // EVA-11/EVA-12: Governance integrity check
+// ============================================================================
+
 // Prevents LLM config manipulation by ensuring anti-evasion checks have
 // minimum enforcement levels. An LLM could write govern.json with all
 // checks set to "advisory" (warn-only) to bypass quality gates.
@@ -1969,29 +2274,7 @@ void GovernanceEngine::enforceMinimumLevels() {
         }
     }
 
-    // F3: no_secrets and no_pii always minimum SOFT regardless of mode
-    if (rules_.code_quality.no_secrets.enabled &&
-        rules_.code_quality.no_secrets.level < EnforcementLevel::SOFT) {
-        rules_.code_quality.no_secrets.level = EnforcementLevel::SOFT;
-    }
-    if (rules_.code_quality.no_pii.enabled &&
-        rules_.code_quality.no_pii.level < EnforcementLevel::SOFT) {
-        rules_.code_quality.no_pii.level = EnforcementLevel::SOFT;
-    }
-
-    // Helper: silently elevate advisory to soft for anti-evasion checks
-    // (documented behavior — no per-run warning noise)
-    auto elevate = [](auto& cfg, const char* /*name*/) {
-        if (cfg.enabled && cfg.level == EnforcementLevel::ADVISORY) {
-            cfg.level = EnforcementLevel::SOFT;
-        }
-    };
-
-    elevate(rules_.code_quality.no_oversimplification, "no_oversimplification");
-    elevate(rules_.code_quality.no_incomplete_logic, "no_incomplete_logic");
-    elevate(rules_.code_quality.no_simulation_markers, "no_simulation_markers");
-    elevate(rules_.code_quality.no_temporary_code, "no_temporary_code");
-    elevate(rules_.code_quality.no_apologetic_language, "no_apologetic_language");
+    enforceMinimumLevelsOnRules(rules_);
 
     // Warn about contradictory config: code quality checks enabled but mode is audit/off
     if (rules_.mode != GovernanceMode::ENFORCE) {
@@ -2020,6 +2303,16 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         loadFromJson(j, rules_);
         loaded_path_ = path;
         active_ = (rules_.mode != GovernanceMode::OFF);
+
+        // Store mtime for mid-run reload detection (truncate to seconds for portability)
+        try {
+            auto ftime = std::filesystem::last_write_time(path);
+            auto secs = std::chrono::duration_cast<std::chrono::seconds>(
+                ftime.time_since_epoch());
+            loaded_mtime_ns_ = static_cast<int64_t>(secs.count());
+        } catch (...) {
+            loaded_mtime_ns_ = 0;
+        }
 
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels();
