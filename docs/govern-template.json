@@ -2,6 +2,8 @@
   "version": "5.0",
   "mode": "enforce",
   "description": "NAAb Governance v5.0 — Complete Template (all sections, all options)",
+  "update_reason": "",
+  "_comment_update_reason": "Optional: reason for last config update (shown in mid-run reload notices)",
 
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
