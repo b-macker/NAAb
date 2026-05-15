@@ -8,7 +8,11 @@
         "verification": {
             "enabled": true,
             "enforcement_level": "advisory",
-            "consensus_languages": ["python", "javascript", "go"],
+            "consensus_languages": [
+                "python",
+                "javascript",
+                "go"
+            ],
             "tolerance": 1e-10,
             "verify_task_types": [],
             "min_consensus": 2,
@@ -17,6 +21,14 @@
         }
     },
     "languages": {
-        "allowed": ["python", "javascript", "go", "shell"]
+        "allowed": [
+            "python",
+            "javascript",
+            "go",
+            "shell"
+        ]
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
     }
 }

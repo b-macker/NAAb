@@ -1,6 +1,9 @@
 {
-  "project_context": {
-    "enabled": true,
-    "show_extractions": true
-  }
+    "project_context": {
+        "enabled": true,
+        "show_extractions": true
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
+    }
 }

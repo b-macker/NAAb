@@ -190,6 +190,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         else if (mode == "off")   rules_.mode = GovernanceMode::OFF;
     }
 
+    // Top-level sandbox_level (convenience — also available under governance. or security.)
+    if (j.contains("sandbox_level") && j["sandbox_level"].is_string()) {
+        rules_.sandbox_level_config = j["sandbox_level"].get<std::string>();
+    }
+
     // Governance behavior settings (govern.json alternative to CLI flags)
     if (j.contains("governance") && j["governance"].is_object()) {
         auto& gov = j["governance"];

@@ -1,1 +1,16 @@
-{"version": "4.0", "taint_tracking": {"enabled": true, "level": "hard", "sources": ["env.get"], "sinks": ["shell_exec"]}}
+{
+    "version": "4.0",
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": [
+            "env.get"
+        ],
+        "sinks": [
+            "shell_exec"
+        ]
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
+    }
+}

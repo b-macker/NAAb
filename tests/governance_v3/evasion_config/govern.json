@@ -1,19 +1,25 @@
 {
-  "version": "3.0",
-  "mode": "enforce",
-  "description": "Test EVA-11/EVA-12: LLM tries to set advisory levels — should be elevated to soft",
-  "languages": {
-    "allowed": ["python", "javascript"]
-  },
-  "code_quality": {
-    "no_oversimplification": {
-      "level": "advisory"
+    "version": "3.0",
+    "mode": "enforce",
+    "description": "Test EVA-11/EVA-12: LLM tries to set advisory levels \u2014 should be elevated to soft",
+    "languages": {
+        "allowed": [
+            "python",
+            "javascript"
+        ]
     },
-    "no_incomplete_logic": {
-      "level": "advisory"
+    "code_quality": {
+        "no_oversimplification": {
+            "level": "advisory"
+        },
+        "no_incomplete_logic": {
+            "level": "advisory"
+        },
+        "no_temporary_code": {
+            "level": "advisory"
+        }
     },
-    "no_temporary_code": {
-      "level": "advisory"
+    "security": {
+        "sandbox_level": "unrestricted"
     }
-  }
 }

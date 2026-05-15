@@ -31,5 +31,8 @@
             "yellow_threshold": 15,
             "red_threshold": 40
         }
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
     }
 }

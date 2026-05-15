@@ -1,31 +1,41 @@
 {
-  "version": "4.0",
-  "mode": "enforce",
-  "languages": {
-    "allowed": ["python", "javascript", "shell"]
-  },
-  "governance_plugins": [
-    {
-      "file": "test_plugin.naab",
-      "rules": [
+    "version": "4.0",
+    "mode": "enforce",
+    "languages": {
+        "allowed": [
+            "python",
+            "javascript",
+            "shell"
+        ]
+    },
+    "governance_plugins": [
         {
-          "id": "TEST-001",
-          "function": "check_no_eval",
-          "description": "Disallow eval() in polyglot blocks",
-          "level": "hard",
-          "trigger": "polyglot_block",
-          "languages": ["python", "javascript"],
-          "message": "eval() is not allowed",
-          "help": "Use safe alternatives like json.loads()"
-        },
-        {
-          "id": "TEST-002",
-          "function": "check_always_pass",
-          "description": "Always passes (smoke test)",
-          "level": "advisory",
-          "trigger": "polyglot_block"
+            "file": "test_plugin.naab",
+            "rules": [
+                {
+                    "id": "TEST-001",
+                    "function": "check_no_eval",
+                    "description": "Disallow eval() in polyglot blocks",
+                    "level": "hard",
+                    "trigger": "polyglot_block",
+                    "languages": [
+                        "python",
+                        "javascript"
+                    ],
+                    "message": "eval() is not allowed",
+                    "help": "Use safe alternatives like json.loads()"
+                },
+                {
+                    "id": "TEST-002",
+                    "function": "check_always_pass",
+                    "description": "Always passes (smoke test)",
+                    "level": "advisory",
+                    "trigger": "polyglot_block"
+                }
+            ]
         }
-      ]
+    ],
+    "security": {
+        "sandbox_level": "unrestricted"
     }
-  ]
 }

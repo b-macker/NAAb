@@ -2,7 +2,10 @@
     "version": "4.0",
     "description": "Async & concurrency - taint under parallel execution",
     "languages": {
-        "allowed": ["python", "shell"],
+        "allowed": [
+            "python",
+            "shell"
+        ],
         "blocked": []
     },
     "capabilities": {
@@ -12,8 +15,17 @@
     "taint_tracking": {
         "enabled": true,
         "level": "hard",
-        "sources": ["env.get", "polyglot_output"],
-        "sinks": ["shell_exec", "env.set_var"],
+        "sources": [
+            "env.get",
+            "polyglot_output"
+        ],
+        "sinks": [
+            "shell_exec",
+            "env.set_var"
+        ],
         "sanitizers": []
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
     }
 }

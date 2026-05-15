@@ -2,7 +2,11 @@
     "version": "4.0",
     "description": "Semantic checks for Python, JS, Shell polyglot blocks",
     "languages": {
-        "allowed": ["python", "javascript", "shell"]
+        "allowed": [
+            "python",
+            "javascript",
+            "shell"
+        ]
     },
     "capabilities": {
         "network": false,
@@ -17,5 +21,8 @@
             "check_shell_syntax": true,
             "check_dangerous_eval": true
         }
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
     }
 }

@@ -2,7 +2,10 @@
     "version": "4.0",
     "description": "Module system - taint across module boundaries",
     "languages": {
-        "allowed": ["python", "shell"],
+        "allowed": [
+            "python",
+            "shell"
+        ],
         "blocked": []
     },
     "capabilities": {
@@ -12,8 +15,15 @@
     "taint_tracking": {
         "enabled": true,
         "level": "hard",
-        "sources": ["env.get"],
-        "sinks": ["shell_exec"],
+        "sources": [
+            "env.get"
+        ],
+        "sinks": [
+            "shell_exec"
+        ],
         "sanitizers": []
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
     }
 }

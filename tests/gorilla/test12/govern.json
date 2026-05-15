@@ -1,193 +1,477 @@
 {
-  "version": "3.0",
-  "mode": "enforce",
-
-  "languages": {
-    "allowed": ["python", "shell"],
-    "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
-    "require_explicit": true
-  },
-
-  "capabilities": {
-    "network": { "enabled": false },
-    "filesystem": { "mode": "read_only" },
-    "shell": { "enabled": true, "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "mkfs"] }
-  },
-
-  "limits": {
-    "execution": {
-      "call_depth": 50,
-      "loop_iterations": 200000,
-      "polyglot_blocks": 25
-    },
-    "code": {
-      "max_lines_per_block": 50,
-      "max_functions": 70,
-      "max_nesting_depth": 5
-    }
-  },
-
-  "requirements": {
-    "main_block": { "enabled": true, "level": "hard" },
-    "variable_binding": { "enabled": true, "level": "hard" },
-    "naming_conventions": {
-      "enabled": true,
-      "level": "soft",
-      "variables": "snake_case",
-      "functions": "snake_case",
-      "constants": "UPPER_SNAKE_CASE"
-    }
-  },
-
-  "restrictions": {
-    "dangerous_calls": { "enabled": true, "level": "hard" },
-    "shell_injection": { "enabled": true, "level": "hard" }
-  },
-
-  "code_quality": {
-    "no_secrets": { "enabled": true, "level": "hard" },
-    "no_placeholders": { "enabled": true, "level": "hard" },
-    "no_hardcoded_results": { "enabled": true, "level": "soft" },
-    "no_temporary_code": { "enabled": true, "level": "soft" },
-    "no_simulation_markers": { "enabled": true, "level": "hard" },
-    "complexity_floor": {
-      "enabled": true,
-      "level": "soft",
-      "min_lines_for_check": 6,
-      "rules": [
-        {
-          "names": ["test_"],
-          "min_score": 0,
-          "require_branching_or_loops": false
-        },
-        {
-          "names": ["calculate_route", "calculate_driver", "calculate_depreciation", "calculate_on_time", "calculate_fleet", "calculate_fuel", "optimize_route", "forecast_maintenance", "estimate_delivery"],
-          "min_score": 20,
-          "require_branching_or_loops": true
-        },
-        {
-          "names": ["score_", "evaluate_", "generate_", "rank_", "get_route_history", "get_deliveries_by_status", "receive_", "check_route_capacity", "check_hours"],
-          "min_score": 15,
-          "require_branching_or_loops": true
-        },
-        {
-          "names": ["status_name", "delivery_status_name", "fuel_type_name"],
-          "min_score": 0,
-          "require_branching_or_loops": false
-        },
-        {
-          "names": ["create_", "get_", "add_", "update_", "validate_", "assign_", "release_", "retire_", "register_", "complete_", "fail_", "export_", "main"],
-          "min_score": 3,
-          "require_branching_or_loops": false
-        }
-      ]
-    }
-  },
-
-  "contracts": {
-    "level": "soft",
-    "functions": {
-      "create_vehicle": {
-        "return_type": "dict",
-        "return_keys": ["id", "plate", "type", "fuel_type", "capacity_kg", "mileage", "fuel_efficiency", "status"]
-      },
-      "create_driver": {
-        "return_type": "dict",
-        "return_keys": ["id", "name", "license_class", "hourly_rate", "rating", "total_hours", "max_hours_per_week", "available"]
-      },
-      "create_delivery": {
-        "return_type": "dict",
-        "return_keys": ["id", "origin", "destination", "weight_kg", "priority", "status", "created_at"]
-      },
-      "add_vehicle": {
-        "return_type": "dict",
-        "return_keys": ["fleet", "success"]
-      },
-      "assign_vehicle": {
-        "return_type": "dict",
-        "return_keys": ["fleet", "vehicle", "success"]
-      },
-      "register_driver": {
-        "return_type": "dict",
-        "return_keys": ["drivers", "success"]
-      },
-      "calculate_driver_score": {
-        "return_type": "dict",
-        "return_keys": ["driver_id", "total_score", "delivery_score", "reliability_score", "efficiency_score", "rating_score"]
-      },
-      "check_hours_compliance": {
-        "return_type": "dict",
-        "return_keys": ["compliant", "hours_remaining", "weekly_limit"]
-      },
-      "calculate_route_cost": {
-        "return_type": "dict",
-        "return_keys": ["fuel_cost", "driver_cost", "total_cost"]
-      },
-      "optimize_route_order": {
-        "return_type": "dict",
-        "return_keys": ["optimized_stops", "total_distance", "savings_percent"]
-      },
-      "check_route_capacity": {
-        "return_type": "dict",
-        "return_keys": ["fits", "total_weight", "capacity", "utilization"]
-      },
-      "generate_fleet_report": {
-        "return_type": "dict",
-        "return_keys": ["report_text", "total_vehicles", "available_count", "in_transit_count", "maintenance_count", "avg_mileage"]
-      },
-      "calculate_fleet_kpis": {
-        "return_type": "dict",
-        "return_keys": ["utilization_rate", "delivery_success_rate", "avg_route_distance", "fleet_size"]
-      },
-      "calculate_fuel_efficiency": {
-        "return_type": "dict",
-        "return_keys": ["total_fuel_cost", "total_distance", "avg_cost_per_km", "by_fuel_type"]
-      },
-      "forecast_maintenance_costs": {
-        "return_type": "dict",
-        "return_keys": ["forecast", "avg_monthly", "total"]
-      }
-    }
-  },
-
-  "scanner": {
-    "version": "1.0",
+    "version": "3.0",
     "mode": "enforce",
-    "redundancy": {
-      "generic_variable_names": { "enabled": true, "level": "soft" },
-      "single_use_variable": { "enabled": true, "level": "soft" },
-      "over_abstraction": { "enabled": true, "level": "soft" },
-      "apologetic_comments": { "enabled": true, "level": "soft" },
-      "placeholder_code": { "enabled": true, "level": "soft" },
-      "trivial_constant_alias": { "enabled": true, "level": "soft" },
-      "gaming_comments": { "enabled": true, "level": "soft" },
-      "obvious_comments": { "enabled": true, "level": "soft" },
-      "decorative_separators": { "enabled": true, "level": "advisory" }
+    "languages": {
+        "allowed": [
+            "python",
+            "shell"
+        ],
+        "blocked": [
+            "javascript",
+            "rust",
+            "cpp",
+            "csharp",
+            "go",
+            "nim",
+            "zig",
+            "julia",
+            "ruby",
+            "php"
+        ],
+        "require_explicit": true
+    },
+    "capabilities": {
+        "network": {
+            "enabled": false
+        },
+        "filesystem": {
+            "mode": "read_only"
+        },
+        "shell": {
+            "enabled": true,
+            "blocked_commands": [
+                "rm",
+                "curl",
+                "wget",
+                "chmod",
+                "sudo",
+                "mkfs"
+            ]
+        }
+    },
+    "limits": {
+        "execution": {
+            "call_depth": 50,
+            "loop_iterations": 200000,
+            "polyglot_blocks": 25
+        },
+        "code": {
+            "max_lines_per_block": 50,
+            "max_functions": 70,
+            "max_nesting_depth": 5
+        }
+    },
+    "requirements": {
+        "main_block": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "variable_binding": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "naming_conventions": {
+            "enabled": true,
+            "level": "soft",
+            "variables": "snake_case",
+            "functions": "snake_case",
+            "constants": "UPPER_SNAKE_CASE"
+        }
+    },
+    "restrictions": {
+        "dangerous_calls": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "shell_injection": {
+            "enabled": true,
+            "level": "hard"
+        }
     },
     "code_quality": {
-      "empty_catch": { "enabled": true, "level": "hard" },
-      "dead_conditional": { "enabled": true, "level": "hard" },
-      "dead_code_after_return": { "enabled": true, "level": "soft" },
-      "recursive_no_base_case": { "enabled": true, "level": "soft" },
-      "magic_numbers": { "enabled": true, "level": "soft", "allowed": [0, 1, -1, 2, 3, 5, 8, 10, 12, 15, 20, 24, 25, 30, 45, 50, 60, 80, 90, 100, 120, 365, 1000, 0.0, 0.02, 0.09, 0.3, 0.5, 0.8, 0.9, 1.0, 1.2, 1.4, 1.5, 5.0] },
-      "complex_boolean_expr": { "enabled": true, "level": "soft", "max_operators": 4 },
-      "magic_strings": { "enabled": true, "level": "soft" }
+        "no_secrets": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_placeholders": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_hardcoded_results": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_temporary_code": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_simulation_markers": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "complexity_floor": {
+            "enabled": true,
+            "level": "soft",
+            "min_lines_for_check": 6,
+            "rules": [
+                {
+                    "names": [
+                        "test_"
+                    ],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "calculate_route",
+                        "calculate_driver",
+                        "calculate_depreciation",
+                        "calculate_on_time",
+                        "calculate_fleet",
+                        "calculate_fuel",
+                        "optimize_route",
+                        "forecast_maintenance",
+                        "estimate_delivery"
+                    ],
+                    "min_score": 20,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "score_",
+                        "evaluate_",
+                        "generate_",
+                        "rank_",
+                        "get_route_history",
+                        "get_deliveries_by_status",
+                        "receive_",
+                        "check_route_capacity",
+                        "check_hours"
+                    ],
+                    "min_score": 15,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "status_name",
+                        "delivery_status_name",
+                        "fuel_type_name"
+                    ],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "create_",
+                        "get_",
+                        "add_",
+                        "update_",
+                        "validate_",
+                        "assign_",
+                        "release_",
+                        "retire_",
+                        "register_",
+                        "complete_",
+                        "fail_",
+                        "export_",
+                        "main"
+                    ],
+                    "min_score": 3,
+                    "require_branching_or_loops": false
+                }
+            ]
+        }
     },
-    "complexity": {
-      "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
-      "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+    "contracts": {
+        "level": "soft",
+        "functions": {
+            "create_vehicle": {
+                "return_type": "dict",
+                "return_keys": [
+                    "id",
+                    "plate",
+                    "type",
+                    "fuel_type",
+                    "capacity_kg",
+                    "mileage",
+                    "fuel_efficiency",
+                    "status"
+                ]
+            },
+            "create_driver": {
+                "return_type": "dict",
+                "return_keys": [
+                    "id",
+                    "name",
+                    "license_class",
+                    "hourly_rate",
+                    "rating",
+                    "total_hours",
+                    "max_hours_per_week",
+                    "available"
+                ]
+            },
+            "create_delivery": {
+                "return_type": "dict",
+                "return_keys": [
+                    "id",
+                    "origin",
+                    "destination",
+                    "weight_kg",
+                    "priority",
+                    "status",
+                    "created_at"
+                ]
+            },
+            "add_vehicle": {
+                "return_type": "dict",
+                "return_keys": [
+                    "fleet",
+                    "success"
+                ]
+            },
+            "assign_vehicle": {
+                "return_type": "dict",
+                "return_keys": [
+                    "fleet",
+                    "vehicle",
+                    "success"
+                ]
+            },
+            "register_driver": {
+                "return_type": "dict",
+                "return_keys": [
+                    "drivers",
+                    "success"
+                ]
+            },
+            "calculate_driver_score": {
+                "return_type": "dict",
+                "return_keys": [
+                    "driver_id",
+                    "total_score",
+                    "delivery_score",
+                    "reliability_score",
+                    "efficiency_score",
+                    "rating_score"
+                ]
+            },
+            "check_hours_compliance": {
+                "return_type": "dict",
+                "return_keys": [
+                    "compliant",
+                    "hours_remaining",
+                    "weekly_limit"
+                ]
+            },
+            "calculate_route_cost": {
+                "return_type": "dict",
+                "return_keys": [
+                    "fuel_cost",
+                    "driver_cost",
+                    "total_cost"
+                ]
+            },
+            "optimize_route_order": {
+                "return_type": "dict",
+                "return_keys": [
+                    "optimized_stops",
+                    "total_distance",
+                    "savings_percent"
+                ]
+            },
+            "check_route_capacity": {
+                "return_type": "dict",
+                "return_keys": [
+                    "fits",
+                    "total_weight",
+                    "capacity",
+                    "utilization"
+                ]
+            },
+            "generate_fleet_report": {
+                "return_type": "dict",
+                "return_keys": [
+                    "report_text",
+                    "total_vehicles",
+                    "available_count",
+                    "in_transit_count",
+                    "maintenance_count",
+                    "avg_mileage"
+                ]
+            },
+            "calculate_fleet_kpis": {
+                "return_type": "dict",
+                "return_keys": [
+                    "utilization_rate",
+                    "delivery_success_rate",
+                    "avg_route_distance",
+                    "fleet_size"
+                ]
+            },
+            "calculate_fuel_efficiency": {
+                "return_type": "dict",
+                "return_keys": [
+                    "total_fuel_cost",
+                    "total_distance",
+                    "avg_cost_per_km",
+                    "by_fuel_type"
+                ]
+            },
+            "forecast_maintenance_costs": {
+                "return_type": "dict",
+                "return_keys": [
+                    "forecast",
+                    "avg_monthly",
+                    "total"
+                ]
+            }
+        }
     },
-    "style": {
-      "long_lines": { "enabled": true, "level": "soft", "max": 120 }
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "redundancy": {
+            "generic_variable_names": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "single_use_variable": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "over_abstraction": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "apologetic_comments": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "placeholder_code": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "trivial_constant_alias": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "gaming_comments": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "obvious_comments": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "decorative_separators": {
+                "enabled": true,
+                "level": "advisory"
+            }
+        },
+        "code_quality": {
+            "empty_catch": {
+                "enabled": true,
+                "level": "hard"
+            },
+            "dead_conditional": {
+                "enabled": true,
+                "level": "hard"
+            },
+            "dead_code_after_return": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "recursive_no_base_case": {
+                "enabled": true,
+                "level": "soft"
+            },
+            "magic_numbers": {
+                "enabled": true,
+                "level": "soft",
+                "allowed": [
+                    0,
+                    1,
+                    -1,
+                    2,
+                    3,
+                    5,
+                    8,
+                    10,
+                    12,
+                    15,
+                    20,
+                    24,
+                    25,
+                    30,
+                    45,
+                    50,
+                    60,
+                    80,
+                    90,
+                    100,
+                    120,
+                    365,
+                    1000,
+                    0.0,
+                    0.02,
+                    0.09,
+                    0.3,
+                    0.5,
+                    0.8,
+                    0.9,
+                    1.0,
+                    1.2,
+                    1.4,
+                    1.5,
+                    5.0
+                ]
+            },
+            "complex_boolean_expr": {
+                "enabled": true,
+                "level": "soft",
+                "max_operators": 4
+            },
+            "magic_strings": {
+                "enabled": true,
+                "level": "soft"
+            }
+        },
+        "complexity": {
+            "cyclomatic_complexity": {
+                "enabled": true,
+                "level": "soft",
+                "max": 15
+            },
+            "cognitive_complexity": {
+                "enabled": true,
+                "level": "soft",
+                "max": 20
+            }
+        },
+        "style": {
+            "long_lines": {
+                "enabled": true,
+                "level": "soft",
+                "max": 120
+            }
+        },
+        "lang_rules": {
+            "naab": {
+                "value_semantics_bug": {
+                    "enabled": true,
+                    "level": "hard"
+                },
+                "missing_null_check": {
+                    "enabled": true,
+                    "level": "hard"
+                },
+                "dict_bracket_access": {
+                    "enabled": true,
+                    "level": "hard"
+                },
+                "python_return_in_block": {
+                    "enabled": true,
+                    "level": "hard"
+                },
+                "top_level_let": {
+                    "enabled": true,
+                    "level": "hard"
+                }
+            }
+        }
     },
-    "lang_rules": {
-      "naab": {
-        "value_semantics_bug": { "enabled": true, "level": "hard" },
-        "missing_null_check": { "enabled": true, "level": "hard" },
-        "dict_bracket_access": { "enabled": true, "level": "hard" },
-        "python_return_in_block": { "enabled": true, "level": "hard" },
-        "top_level_let": { "enabled": true, "level": "hard" }
-      }
+    "security": {
+        "sandbox_level": "unrestricted"
     }
-  }
 }

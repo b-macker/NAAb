@@ -46,6 +46,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -330,6 +331,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -399,6 +401,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -468,6 +471,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -548,6 +552,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -583,6 +588,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -631,6 +637,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -655,6 +662,7 @@ fi
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -684,6 +692,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": { "enabled": true, "level": "hard" }
   },
@@ -713,6 +722,7 @@ NAAB_EOF
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": { "enabled": true, "level": "hard" }
   }
@@ -776,6 +786,7 @@ rm -rf "$WORK_DIR/.naab"
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": { "enabled": true, "level": "hard" }
   }
@@ -804,6 +815,7 @@ rm -rf "$WORK_DIR/.naab"
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -873,6 +885,7 @@ rm -rf "$WORK_DIR/.naab"
 cat > "$WORK_DIR/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -942,6 +955,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13; restore_trust_store' EXIT
 cat > "$WORK_DIR_13/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -977,6 +991,7 @@ mv "$WORK_DIR_13/govern.json.bak" "$WORK_DIR_13/govern.json"
 cat > "$WORK_DIR_13/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1005,6 +1020,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14; restore_trust_store' EXIT
 cat > "$WORK_DIR_14/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1040,6 +1056,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B; res
 cat > "$WORK_DIR_15/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1091,6 +1108,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WOR
 cat > "$WORK_DIR_17/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1194,6 +1212,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WOR
 cat > "$WORK_DIR_19/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1258,6 +1277,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WOR
 cat > "$WORK_DIR_21/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1384,7 +1404,7 @@ fi # end Python check
 # --- T43: Gate 12 — param named "a" should not match inside "data" ---
 WORK_DIR_22=$(mktemp -d "${TMPDIR:-/tmp}/naab_drift_t43.XXXXXX")
 cat > "$WORK_DIR_22/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t43","mode":"enforce","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_param_utilization":true,"min_param_utilization":0.5,"check_body_hash":false}}}
+{"version":"1.0.0","project_name":"t43","mode":"enforce","sandbox_level":"unrestricted","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_param_utilization":true,"min_param_utilization":0.5,"check_body_hash":false}}}
 EOF
 
 cat > "$WORK_DIR_22/test.naab" << 'NAAB_EOF'
@@ -1428,6 +1448,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WOR
 cat > "$WORK_DIR_23/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1488,6 +1509,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WOR
 cat > "$WORK_DIR_24/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "code_quality": {
     "drift_detection": {
       "enabled": true,
@@ -1561,6 +1583,7 @@ trap 'rm -rf $WORK_DIR $WORK_DIR_13 $WORK_DIR_14 $WORK_DIR_15 $WORK_DIR_15B $WOR
 cat > "$WORK_DIR_25/govern.json" << 'EOF'
 {
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "integrity": {
     "blocked_flags": ["--no-governance", "--tree-walk"]
   }
@@ -1603,7 +1626,7 @@ main {
 }
 NAAB_EOF
 cat > "$WORK_DIR_26/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t50","mode":"enforce","code_quality":{}}
+{"version":"1.0.0","project_name":"t50","mode":"enforce","sandbox_level":"unrestricted","code_quality":{}}
 EOF
 # V-SC-008: Must sign govern.json when key is set
 export NAAB_GOVERN_KEY="test-secret-key-12345"
@@ -1633,7 +1656,7 @@ echo "$NAAB_GOVERN_KEY"
 }
 NAAB_EOF
 cat > "$WORK_DIR_27/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t51","mode":"enforce","capabilities":{"process":{"allow_spawn":true,"allowed_commands":["echo","sh"]}},"code_quality":{}}
+{"version":"1.0.0","project_name":"t51","mode":"enforce","sandbox_level":"unrestricted","capabilities":{"process":{"allow_spawn":true,"allowed_commands":["echo","sh"]}},"code_quality":{}}
 EOF
 # V-SC-008: Must sign govern.json when key is set
 export NAAB_GOVERN_KEY="test-secret-key-12345"
@@ -1665,7 +1688,7 @@ function process(a, b, c, d) { return a + b + c + d }
 main { print(process(1, 2, 3, 4)) }
 NAAB_EOF
 cat > "$WORK_DIR_28/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t52","mode":"enforce","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_signatures":true,"max_param_loss":0.3}}}
+{"version":"1.0.0","project_name":"t52","mode":"enforce","sandbox_level":"unrestricted","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_signatures":true,"max_param_loss":0.3}}}
 EOF
 "$NAAB" --drift-baseline-save "$WORK_DIR_28/test.naab" > /dev/null 2>&1
 # Now gut params
@@ -1692,7 +1715,7 @@ use array
 main { print(math.abs(-1)) }
 NAAB_EOF
 cat > "$WORK_DIR_29/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t53","mode":"enforce","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_imports":true,"max_import_loss":0.0}}}
+{"version":"1.0.0","project_name":"t53","mode":"enforce","sandbox_level":"unrestricted","code_quality":{"drift_detection":{"enabled":true,"level":"hard","baseline_path":".naab/drift-baseline.json","check_imports":true,"max_import_loss":0.0}}}
 EOF
 "$NAAB" --drift-baseline-save "$WORK_DIR_29/test.naab" > /dev/null 2>&1
 # Remove imports
@@ -1755,7 +1778,7 @@ fi
 
 # --- T57: Ed25519 signing creates ed25519: prefixed .sig ---
 cat > "$WORK_DIR_T54/govern.json" << 'EOF'
-{"version":"1.0.0","project_name":"t57","mode":"enforce"}
+{"version":"1.0.0","project_name":"t57","mode":"enforce","sandbox_level":"unrestricted"}
 EOF
 NAAB_SIGNING_KEY="$PRIV_KEY" "$NAAB" --sign-governance "$WORK_DIR_T54/govern.json" > /dev/null 2>&1
 if [ -f "$WORK_DIR_T54/govern.json.sig" ]; then

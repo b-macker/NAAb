@@ -39,7 +39,8 @@ trap cleanup EXIT
 # Governance config: advisory mode with taint tracking
 cat > "$WORK_DIR/govern.json" <<'GOVEOF'
 {
-  "mode": "advisory",
+  "mode": "audit",
+  "sandbox_level": "unrestricted",
   "taint_tracking": {
     "enabled": true,
     "level": "advisory",

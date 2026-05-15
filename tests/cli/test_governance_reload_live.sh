@@ -61,6 +61,7 @@ cat > "$TEST_DIR/govern.json" <<GOVEOF
 {
   "version": "5.0",
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "limits": {
     "execution": {
       "loop_iterations": 1000
@@ -111,6 +112,7 @@ cat > govern.json << 'TIGHTEOF'
 {
   "version": "5.0",
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "update_reason": "test tightening for CI",
   "limits": {
     "execution": {
@@ -203,6 +205,7 @@ cat > "$TEST_DIR/govern.json" <<GOVEOF
 {
   "version": "5.0",
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "limits": {
     "execution": {
       "loop_iterations": 50
@@ -242,6 +245,7 @@ cat > govern.json << 'LOOSEEOF'
 {
   "version": "5.0",
   "mode": "enforce",
+  "sandbox_level": "unrestricted",
   "limits": {
     "execution": {
       "loop_iterations": 9999

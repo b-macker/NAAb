@@ -1,8 +1,11 @@
 {
     "version": "4.0",
-    "description": "Taint aliasing test — maps where taint chain breaks",
+    "description": "Taint aliasing test \u2014 maps where taint chain breaks",
     "languages": {
-        "allowed": ["python", "shell"]
+        "allowed": [
+            "python",
+            "shell"
+        ]
     },
     "capabilities": {
         "network": false,
@@ -11,8 +14,21 @@
     "taint_tracking": {
         "enabled": true,
         "level": "hard",
-        "sources": ["env.get", "polyglot_output"],
-        "sinks": ["shell_exec", "env.set_var"],
-        "sanitizers": ["sanitize_", "validate_", "escape_"]
+        "sources": [
+            "env.get",
+            "polyglot_output"
+        ],
+        "sinks": [
+            "shell_exec",
+            "env.set_var"
+        ],
+        "sanitizers": [
+            "sanitize_",
+            "validate_",
+            "escape_"
+        ]
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
     }
 }

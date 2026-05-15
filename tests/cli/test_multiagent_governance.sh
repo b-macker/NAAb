@@ -60,6 +60,7 @@ cat > "$TEST_DIR/govern.json" << GOVEOF
 {
     "version": "3.0",
     "mode": "enforce",
+  "sandbox_level": "unrestricted",
     "languages": { "allowed": ["python", "shell"] },
     "capabilities": { "filesystem": "write" },
     "telemetry": { "enabled": true, "output_file": "$GOV_TELEM" },
