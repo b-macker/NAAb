@@ -1478,6 +1478,16 @@ interpreter::NaabVal VM::run() {
                                     if (!err.empty()) runtimeError("%s", err.c_str());
                                 }
                             }
+
+                            // Generic dangerous-calls policy check for ALL stdlib modules
+                            // (mirrors tree-walker call_dispatch.cpp:1366 — Finding C parity)
+                            if (governance_->isActive()) {
+                                std::string full_call = mod + "." + method;
+                                int gov_line = CURRENT_CHUNK().getLine(
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                std::string derr = governance_->checkDangerousCall("naab", full_call, gov_line);
+                                if (!derr.empty()) runtimeError("%s", derr.c_str());
+                            }
                         }
 
                         // Governance: check if this is a taint sink (e.g., env.set_var)
@@ -3196,6 +3206,12 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             } else if (mod_name == "http") {
                 std::string err = governance_->checkNetworkAllowed();
                 if (!err.empty()) runtimeError("%s", err.c_str());
+            }
+            // Generic dangerous-calls policy check for ALL modules (Finding C parity)
+            if (governance_->isActive()) {
+                std::string full_call = mod_name + "." + "call";
+                std::string derr = governance_->checkDangerousCall("naab", full_call, 0);
+                if (!derr.empty()) runtimeError("%s", derr.c_str());
             }
             if (governance_->isActive()) {
                 for (int ai = 0; ai < argc; ai++) {

@@ -119,6 +119,35 @@ naab::security::SandboxConfig createEnterpriseConfig() {
     return config;
 }
 
+// Fail-closed: Sync governance capabilities into sandbox (tighten only, never loosen)
+// Called after governance loads and after mid-run reload to ensure both layers agree.
+static void syncGovernanceToSandbox(
+    const naab::governance::GovernanceRules& rules,
+    naab::security::SandboxConfig& config)
+{
+    // Network disabled in governance → remove from sandbox
+    if (!rules.network_allowed) {
+        config.network_enabled = false;
+        config.capabilities.erase(naab::security::Capability::NET_CONNECT);
+    }
+    // Shell disabled in governance → remove exec from sandbox
+    if (!rules.shell_allowed) {
+        config.allow_exec = false;
+        config.capabilities.erase(naab::security::Capability::SYS_EXEC);
+    }
+    // Filesystem mode restrictions
+    if (rules.capabilities.filesystem.mode == "none") {
+        config.capabilities.erase(naab::security::Capability::FS_READ);
+        config.capabilities.erase(naab::security::Capability::FS_WRITE);
+    } else if (rules.capabilities.filesystem.mode == "read") {
+        config.capabilities.erase(naab::security::Capability::FS_WRITE);
+    }
+    // Env vars disabled → remove from sandbox
+    if (!rules.capabilities.env_vars.read) {
+        config.capabilities.erase(naab::security::Capability::SYS_ENV);
+    }
+}
+
 // Phase 7c: Initialize language registry with available executors
 void initialize_executors() {
 #ifndef _WIN32
@@ -1444,6 +1473,55 @@ int main(int argc, char** argv) {
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
                     // Category C: security
                     if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") sandbox_level = rules.sandbox_level_config;
+                    // Fail-closed: enforce mode defaults to standard sandbox (not unrestricted)
+                    bool upgraded_to_standard = false;
+                    if (vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
+                        rules.sandbox_level_config.empty() &&
+                        sandbox_level == "unrestricted") {
+                        sandbox_level = "standard";
+                        security_config = createEnterpriseConfig();
+                        security_config.max_cpu_seconds = timeout;
+                        security_config.max_memory_mb = memory_limit;
+                        upgraded_to_standard = true;
+                    }
+                    // Sync governance capabilities into sandbox (tighten only)
+                    syncGovernanceToSandbox(rules, security_config);
+                    naab::security::SandboxManager::instance().setDefaultConfig(security_config);
+                    // Update the live sandbox with governance-driven restrictions
+                    auto* live_sb = naab::security::ScopedSandbox::getCurrent();
+                    if (live_sb) {
+                        // When upgrading from unrestricted → standard, remove capabilities
+                        // that the standard config doesn't grant
+                        if (upgraded_to_standard) {
+                            // Standard config only has: FS_READ, FS_WRITE, BLOCK_CALL
+                            // Remove everything else the unrestricted config granted
+                            live_sb->removeCapability(naab::security::Capability::SYS_EXEC);
+                            live_sb->removeCapability(naab::security::Capability::NET_CONNECT);
+                            live_sb->removeCapability(naab::security::Capability::NET_LISTEN);
+                            live_sb->removeCapability(naab::security::Capability::NET_RAW);
+                            live_sb->removeCapability(naab::security::Capability::SYS_ENV);
+                            live_sb->removeCapability(naab::security::Capability::RES_UNLIMITED_MEM);
+                            live_sb->removeCapability(naab::security::Capability::RES_UNLIMITED_CPU);
+                            live_sb->removeCapability(naab::security::Capability::UNSAFE);
+                            live_sb->removeCapability(naab::security::Capability::FS_EXECUTE);
+                            live_sb->removeCapability(naab::security::Capability::FS_DELETE);
+                            live_sb->removeCapability(naab::security::Capability::FS_CREATE_DIR);
+                            live_sb->removeCapability(naab::security::Capability::BLOCK_LOAD);
+                            live_sb->setNetworkEnabled(false);
+                            live_sb->setAllowExec(false);
+                        }
+                        if (!rules.network_allowed) {
+                            live_sb->setNetworkEnabled(false);
+                            live_sb->removeCapability(naab::security::Capability::NET_CONNECT);
+                        }
+                        if (!rules.shell_allowed) {
+                            live_sb->setAllowExec(false);
+                            live_sb->removeCapability(naab::security::Capability::SYS_EXEC);
+                        }
+                        if (!rules.capabilities.env_vars.read) {
+                            live_sb->removeCapability(naab::security::Capability::SYS_ENV);
+                        }
+                    }
                     if (rules.allow_network_config || rules.network_allowed) {
                         network_enabled = true;
                         // Update the active sandbox — it was created before governance loaded

@@ -584,6 +584,27 @@ else
     echo "  CLI flag test script not found, skipping"
 fi
 
+# --- Fail-Closed Execution Boundary Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Fail-Closed Execution Boundary Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+FAIL_CLOSED_SCRIPT="tests/cli/test_fail_closed.sh"
+if [ -f "$FAIL_CLOSED_SCRIPT" ]; then
+    if bash "$FAIL_CLOSED_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Fail-closed tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Fail-closed tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("fail-closed-tests")
+    fi
+else
+    echo "  Fail-closed test script not found, skipping"
+fi
+
 # --- GC Flag Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

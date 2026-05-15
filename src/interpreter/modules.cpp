@@ -113,6 +113,15 @@ void Interpreter::visit(ast::UseStatement& node) {
         loaded_blocks_[alias] = metadata;
 
         // Phase 7: Create appropriate executor for this block
+        // Governance check for block module code (same as inline polyglot blocks)
+        if (governance_ && governance_->isActive()) {
+            std::string err = governance_->checkPolyglotBlock(
+                metadata.language, code, current_file_,
+                node.getLocation().line, 0);
+            if (!err.empty()) throw std::runtime_error(err);
+            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+            if (!count_err.empty()) throw std::runtime_error(count_err);
+        }
         std::shared_ptr<BlockValue> block_value;
 
 #ifndef _WIN32

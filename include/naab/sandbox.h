@@ -125,6 +125,12 @@ public:
     // Add a capability (used when governance grants capabilities after sandbox creation)
     void addCapability(Capability cap) { config_.capabilities.insert(cap); }
 
+    // Remove a capability (used when governance tightens sandbox mid-run)
+    void removeCapability(Capability cap) { config_.capabilities.erase(cap); }
+
+    // Update exec permission (used when governance disables shell mid-run)
+    void setAllowExec(bool allowed) { config_.allow_exec = allowed; }
+
     // Audit logging
     void logViolation(const std::string& operation,
                      const std::string& resource,
@@ -149,6 +155,11 @@ public:
 
     // Get current active sandbox (thread-local)
     static Sandbox* getCurrent();
+
+    // Forwarding methods for governance-sandbox sync
+    void removeCapability(Capability cap) { if (sandbox_) sandbox_->removeCapability(cap); }
+    void setNetworkEnabled(bool enabled) { if (sandbox_) sandbox_->setNetworkEnabled(enabled); }
+    void setAllowExec(bool allowed) { if (sandbox_) sandbox_->setAllowExec(allowed); }
 
 private:
     std::unique_ptr<Sandbox> sandbox_;

@@ -8,6 +8,7 @@
 #include "naab/governance.h"
 #include "naab/agent_provider.h"
 #include "naab/thread_pool.h"
+#include "naab/sandbox.h"
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -681,6 +682,8 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
 
     // Capture governance engine pointer for worker threads (thread_local)
     auto* gov_engine_ptr = governance::GovernanceEngine::getCurrent();
+    // Capture sandbox config for worker thread propagation (fail-closed: GAP 7)
+    auto sandbox_config = security::SandboxManager::instance().getDefaultConfig();
 
     // Submit in batches respecting max_concurrent
     std::vector<NaabVal> results(tasks.size());
@@ -692,8 +695,10 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
         for (size_t i = idx; i < batch_end; i++) {
             auto& task = tasks[i];
             futures.push_back(pool.enqueue(
-                [handle = task.handle, message = task.message, gov_engine_ptr]() mutable -> NaabVal {
+                [handle = task.handle, message = task.message, gov_engine_ptr, sandbox_config]() mutable -> NaabVal {
                     GovernanceGuard guard(gov_engine_ptr);
+                    // Activate sandbox in worker thread (propagate from main thread)
+                    security::ScopedSandbox worker_sandbox(sandbox_config);
                     try {
                         std::vector<NaabVal> send_args = {handle, message};
                         return agentSend(send_args);

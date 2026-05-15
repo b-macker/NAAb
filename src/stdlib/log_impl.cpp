@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include <chrono>
 #include <ctime>
 #include <iostream>
@@ -173,8 +174,18 @@ interpreter::NaabVal LogModule::call(
             file_stream_.reset();
         }
         output_ = target;
-        // If switching to a new file, reset stream so it gets re-opened lazily
+        // If switching to a new file, check sandbox and reset stream
         if (target != "stderr" && target != "stdout") {
+            auto* sb = naab::security::ScopedSandbox::getCurrent();
+            if (sb && !sb->canWrite(target)) {
+                sb->logViolation("log.set_output", target,
+                    "FS_WRITE capability required");
+                throw std::runtime_error(
+                    "Security: log.set_output() denied by sandbox\n\n"
+                    "  Path: " + target + "\n"
+                    "  Log file output requires FS_WRITE capability.\n"
+                );
+            }
             file_stream_.reset();
         }
         return interpreter::NaabVal::makeNull();

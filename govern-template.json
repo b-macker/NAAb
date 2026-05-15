@@ -114,6 +114,8 @@
 
   "_comment_rationale": "Any section can include an optional 'rationale' field explaining WHY that rule or tier was chosen. Rationale text appears in governance reports and the audit trail.",
 
+  "_comment_capabilities_sandbox": "capabilities also control runtime sandbox: shell.enabled=false removes SYS_EXEC, network.enabled=false removes NET_CONNECT, filesystem.mode=none removes FS_READ+FS_WRITE",
+
   "capabilities": {
     "network": {
       "enabled": true,

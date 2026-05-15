@@ -8,6 +8,7 @@
 
 #include "naab/python_c_executor.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -92,6 +93,17 @@ static bool splitStatementsAndLastExpr(const std::string& code,
  * On main thread: falls back to PyGILState_Ensure
  */
 interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code) {
+    // Sandbox gate: Python polyglot blocks require BLOCK_CALL capability
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox && !sandbox->getConfig().hasCapability(
+            security::Capability::BLOCK_CALL)) {
+        sandbox->logViolation("executePython", code.substr(0, 100),
+            "BLOCK_CALL capability required");
+        throw std::runtime_error(
+            "Security: Python execution denied by sandbox\n\n"
+            "  Python polyglot blocks require BLOCK_CALL capability.\n"
+        );
+    }
     // Acquire GIL safely (pre-created state on workers, PyGILState on main)
     int gil_handle = python_c_gil_acquire();
 

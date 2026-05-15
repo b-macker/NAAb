@@ -8,6 +8,7 @@
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include "naab/safe_regex.h"
+#include "naab/sandbox.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -2219,6 +2220,19 @@ bool GovernanceEngine::reloadIfChanged() {
         active_ = (rules_.mode != GovernanceMode::OFF);
         loaded_mtime_ns_ = current_mtime;
         reload_count_++;
+
+        // Fail-closed: sync tightened governance into active sandbox
+        auto* sb = security::ScopedSandbox::getCurrent();
+        if (sb) {
+            if (!rules_.network_allowed) {
+                sb->setNetworkEnabled(false);
+                sb->removeCapability(security::Capability::NET_CONNECT);
+            }
+            if (!rules_.shell_allowed) {
+                sb->setAllowExec(false);
+                sb->removeCapability(security::Capability::SYS_EXEC);
+            }
+        }
 
         // Store notices for retrieval by agent.send()
         size_t notice_count = notices.size();

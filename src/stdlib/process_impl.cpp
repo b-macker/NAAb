@@ -83,6 +83,16 @@ interpreter::NaabVal ProcessModule::call(
     }
 
     if (function_name == "exit") {
+        // Sandbox gate: process.exit() requires SYS_EXEC capability
+        auto* sb = naab::security::ScopedSandbox::getCurrent();
+        if (sb && !sb->getConfig().hasCapability(naab::security::Capability::SYS_EXEC)) {
+            sb->logViolation("process.exit", "exit",
+                "SYS_EXEC capability required");
+            throw std::runtime_error(
+                "Security: process.exit() denied by sandbox\n\n"
+                "  Use 'return' at end of main{} to exit cleanly.\n"
+            );
+        }
         int code = 0;
         if (!args.empty()) {
             if (args[0].isInt()) {
