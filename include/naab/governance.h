@@ -2133,6 +2133,8 @@ public:
     // BUG-D: Track if last function return was tainted
     bool lastReturnWasTainted() const;
     void setLastReturnTainted(bool v);
+    void setLastReturnTainted(bool v, const std::string& source_func);
+    const std::string& lastTaintSource() const { return last_taint_source_; }
 
     // --- Hooks ---
     void fireHook(const HookConfig& hook,
@@ -2165,6 +2167,7 @@ private:
     std::unordered_map<std::string, TaintMetadata> taint_lineage_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint
+    std::string last_taint_source_;      // Lineage: which source function produced the taint
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json

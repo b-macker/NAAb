@@ -4565,6 +4565,12 @@ bool GovernanceEngine::lastReturnWasTainted() const {
 
 void GovernanceEngine::setLastReturnTainted(bool v) {
     last_return_tainted_ = v;
+    if (!v) last_taint_source_.clear();
+}
+
+void GovernanceEngine::setLastReturnTainted(bool v, const std::string& source_func) {
+    last_return_tainted_ = v;
+    last_taint_source_ = v ? source_func : "";
 }
 
 bool GovernanceEngine::isTaintSource(const std::string& func_name) const {

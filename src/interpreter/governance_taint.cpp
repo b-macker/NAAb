@@ -170,10 +170,16 @@ bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
                 full_name = obj_id->getName() + ".";
             }
             full_name += member->getMember();
-            if (governance_->isTaintSource(full_name)) return true;
+            if (governance_->isTaintSource(full_name)) {
+                governance_->setLastReturnTainted(true, full_name);
+                return true;
+            }
         }
         if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-            if (governance_->isTaintSource(id->getName())) return true;
+            if (governance_->isTaintSource(id->getName())) {
+                governance_->setLastReturnTainted(true, id->getName());
+                return true;
+            }
         }
     }
     // Polyglot output source

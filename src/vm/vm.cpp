@@ -1214,8 +1214,14 @@ interpreter::NaabVal VM::run() {
                 }
                 it->second = peek(0);
                 if (governance_ && governance_->isActive()) {
-                    if (peekTaint(0)) governance_->markTainted(name);
-                    else governance_->clearTaint(name);
+                    if (peekTaint(0)) {
+                        int gov_line = CURRENT_CHUNK().getLine(
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 2);
+                        governance_->markTainted(name, governance_->lastTaintSource(), "",
+                            current_file_, gov_line);
+                    } else {
+                        governance_->clearTaint(name);
+                    }
                 }
             }
                 VM_NEXT();
@@ -1225,8 +1231,14 @@ interpreter::NaabVal VM::run() {
                 bool t = peekTaint(0);
                 globals_[name] = pop();
                 if (governance_ && governance_->isActive()) {
-                    if (t) governance_->markTainted(name);
-                    else governance_->clearTaint(name);
+                    if (t) {
+                        int gov_line = CURRENT_CHUNK().getLine(
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 2);
+                        governance_->markTainted(name, governance_->lastTaintSource(), "",
+                            current_file_, gov_line);
+                    } else {
+                        governance_->clearTaint(name);
+                    }
                 }
             }
                 VM_NEXT();
@@ -1520,6 +1532,7 @@ interpreter::NaabVal VM::run() {
                         if (governance_ && governance_->isActive()) {
                             if (governance_->isTaintSource(full_method_name)) {
                                 peekTaint(0) = true;
+                                governance_->setLastReturnTainted(true, full_method_name);
                             } else if (governance_->isSanitizer(full_method_name)) {
                                 peekTaint(0) = false;
                             } else if (governance_->lastReturnWasTainted()) {

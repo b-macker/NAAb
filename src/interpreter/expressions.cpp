@@ -99,7 +99,32 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Governance v4: Taint tracking on assignment (REFACTOR-1)
             if (governance_ && governance_->isActive()) {
                 if (checkRhsTainted(node.getRight())) {
-                    governance_->markTainted(id->getName());
+                    std::string origin = governance_->lastTaintSource();
+                    std::string arg_hint;
+                    if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                        if (!call->getArgs().empty()) {
+                            if (auto* lit = dynamic_cast<ast::LiteralExpr*>(call->getArgs()[0].get())) {
+                                if (lit->getLiteralKind() == ast::LiteralKind::String)
+                                    arg_hint = lit->getValue();
+                            }
+                        }
+                    }
+                    // Inherit lineage from source variable if no direct taint source
+                    if (origin.empty()) {
+                        if (auto* rid = dynamic_cast<ast::IdentifierExpr*>(node.getRight())) {
+                            auto* meta = governance_->getTaintLineage(rid->getName());
+                            if (meta) { origin = meta->origin_function; arg_hint = meta->origin_argument; }
+                        } else if (auto* bin = dynamic_cast<ast::BinaryExpr*>(node.getRight())) {
+                            for (auto* side : {bin->getLeft(), bin->getRight()}) {
+                                if (auto* sid = dynamic_cast<ast::IdentifierExpr*>(side)) {
+                                    auto* meta = governance_->getTaintLineage(sid->getName());
+                                    if (meta) { origin = meta->origin_function; arg_hint = meta->origin_argument; break; }
+                                }
+                            }
+                        }
+                    }
+                    governance_->markTainted(id->getName(), origin, arg_hint,
+                        current_file_, node.getLocation().line);
                 } else {
                     governance_->clearTaint(id->getName());
                 }

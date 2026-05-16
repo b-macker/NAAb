@@ -1400,7 +1400,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (governance_ && governance_->isActive()) {
                         std::string full_call = module_alias + "." + func_name;
                         if (governance_->isTaintSource(full_call)) {
-                            governance_->setLastReturnTainted(true);
+                            governance_->setLastReturnTainted(true, full_call);
                         } else if (governance_->isSanitizer(full_call)) {
                             governance_->setLastReturnTainted(false);
                         }
