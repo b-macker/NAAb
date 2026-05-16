@@ -792,7 +792,8 @@
       "enabled": false,
       "algorithm": "sha256",
       "chain_genesis": "NAAB-GOVERNANCE-GENESIS",
-      "hmac_key": ""
+      "hmac_key": "",
+      "hmac_key_env": "NAAB_AUDIT_HMAC_KEY"
     },
     "log_events": {
       "checks_passed": true,

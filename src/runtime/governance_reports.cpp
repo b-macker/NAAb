@@ -381,7 +381,7 @@ std::string GovernanceEngine::generateSarifReport() const {
         // Stable fingerprint for cross-scan deduplication (GitHub code scanning)
         {
             std::string fp_input = r.rule_name + "|" + r.file + "|"
-                + std::to_string(r.line) + "|" + r.message;
+                + std::to_string(r.line);
             result["fingerprints"]["primaryLocationLineHash"]
                 = security::CryptoUtils::sha256(fp_input);
         }
@@ -405,8 +405,11 @@ std::string GovernanceEngine::generateSarifReport() const {
                     nlohmann::json codeFlow, threadFlow;
                     nlohmann::json source_loc, sink_loc;
 
+                    // Extract source description (always present after "taint origin: ")
+                    std::string source_desc = trace.substr(14);
                     auto at_pos = trace.find(" at ");
                     if (at_pos != std::string::npos) {
+                        source_desc = trace.substr(14, at_pos - 14);
                         std::string loc_str = trace.substr(at_pos + 4);
                         auto colon = loc_str.rfind(':');
                         if (colon != std::string::npos) {
@@ -417,9 +420,9 @@ std::string GovernanceEngine::generateSarifReport() const {
                                     = std::stoi(loc_str.substr(colon + 1));
                             } catch (...) {}
                         }
-                        source_loc["location"]["message"]["text"]
-                            = "Taint source: " + trace.substr(14, at_pos - 14);
                     }
+                    // Always set message — SARIF schema requires location.message
+                    source_loc["location"]["message"]["text"] = "Taint source: " + source_desc;
 
                     if (!r.file.empty()) {
                         sink_loc["location"]["physicalLocation"]["artifactLocation"]["uri"] = r.file;

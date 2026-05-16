@@ -1354,6 +1354,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (te.contains("algorithm")) rules_.audit.tamper_evidence.algorithm = te["algorithm"].get<std::string>();
             if (te.contains("chain_genesis")) rules_.audit.tamper_evidence.chain_genesis = te["chain_genesis"].get<std::string>();
             if (te.contains("hmac_key")) rules_.audit.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
+            if (te.contains("hmac_key_env")) {
+                std::string env_name = te["hmac_key_env"].get<std::string>();
+                const char* env_val = std::getenv(env_name.c_str());
+                if (env_val && env_val[0] != '\0') {
+                    rules_.audit.tamper_evidence.hmac_key = env_val;
+                }
+            }
         }
         if (aud.contains("log_events") && aud["log_events"].is_object()) {
             auto& le = aud["log_events"];

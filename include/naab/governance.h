@@ -974,7 +974,8 @@ struct TamperEvidenceConfig {
     bool enabled = false;
     std::string algorithm = "sha256";
     std::string chain_genesis = "NAAB-GOVERNANCE-GENESIS";
-    std::string hmac_key;  // HMAC-SHA256 key; empty = plain SHA-256 fallback
+    std::string hmac_key;      // HMAC-SHA256 key; empty = plain SHA-256 fallback
+    std::string hmac_key_env;  // Env var name to read key from (preferred over literal)
 };
 
 struct LogEventsConfig {

@@ -125,15 +125,6 @@ lookupCweOwasp(const std::string& rule_name) {
         auto suffix = rule_name.substr(dot + 1);
         it = g_cwe_owasp_map.find(suffix);
         if (it != g_cwe_owasp_map.end()) return it->second;
-        // Try middle.suffix for 3-segment names (e.g., "limits.execution.loop_iterations")
-        if (dot > 0) {
-            auto dot2 = rule_name.rfind('.', dot - 1);
-            if (dot2 != std::string::npos) {
-                auto mid_suffix = rule_name.substr(dot2 + 1);
-                it = g_cwe_owasp_map.find(mid_suffix);
-                if (it != g_cwe_owasp_map.end()) return it->second;
-            }
-        }
     }
     return {{}, {}};
 }

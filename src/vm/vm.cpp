@@ -860,13 +860,25 @@ interpreter::NaabVal VM::run() {
                     }
                     uint32_t ru; int32_t ri = ai - bi;
                     std::memcpy(&ru, &ri, sizeof(ru));
-                    bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
+                    bool ta_f = *(taint_top_ - 2), tb_f = *(taint_top_ - 1);
+                    bool combined_t = ta_f || tb_f;
                     a_ref.bits_ = interpreter::NaabVal::TAG_INT | static_cast<uint64_t>(ru);
                     stack_top_--;
                     taint_top_--;
                     *(taint_top_ - 1) = combined_t;
+                    // Lineage propagation (fast path)
+                    if (combined_t && !taint_lineage_map_.empty()) {
+                        size_t a_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        size_t b_off = a_off + 1;
+                        auto lit = taint_lineage_map_.find(ta_f ? a_off : b_off);
+                        if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb_f ? b_off : a_off);
+                        if (lit != taint_lineage_map_.end()) taint_lineage_map_[a_off] = lit->second;
+                        taint_lineage_map_.erase(b_off);
+                    }
                 } else {
                 bool tb = peekTaint(0), ta = peekTaint(1);
+                size_t b_off_slow = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                size_t a_off_slow = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -887,12 +899,23 @@ interpreter::NaabVal VM::run() {
                                  b.getTypeName().c_str(), a.getTypeName().c_str());
                 }
                 peekTaint(0) = ta || tb;
+                // Lineage propagation (slow path)
+                if ((ta || tb) && !taint_lineage_map_.empty()) {
+                    size_t res_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(ta ? a_off_slow : b_off_slow);
+                    if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb ? b_off_slow : a_off_slow);
+                    if (lit != taint_lineage_map_.end()) taint_lineage_map_[res_off] = lit->second;
+                    taint_lineage_map_.erase(b_off_slow);
+                    if (a_off_slow != res_off) taint_lineage_map_.erase(a_off_slow);
+                }
                 } // end slow path
             }
                 VM_NEXT();
 
             VM_CASE(OP_MUL): {
                 bool tb = peekTaint(0), ta = peekTaint(1);
+                size_t b_off_mul = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                size_t a_off_mul = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -935,11 +958,21 @@ interpreter::NaabVal VM::run() {
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
                 peekTaint(0) = ta || tb;
+                if ((ta || tb) && !taint_lineage_map_.empty()) {
+                    size_t res_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(ta ? a_off_mul : b_off_mul);
+                    if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb ? b_off_mul : a_off_mul);
+                    if (lit != taint_lineage_map_.end()) taint_lineage_map_[res_off] = lit->second;
+                    taint_lineage_map_.erase(b_off_mul);
+                    if (a_off_mul != res_off) taint_lineage_map_.erase(a_off_mul);
+                }
             }
                 VM_NEXT();
 
             VM_CASE(OP_DIV): {
                 bool tb = peekTaint(0), ta = peekTaint(1);
+                size_t b_off_div = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                size_t a_off_div = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -955,11 +988,21 @@ interpreter::NaabVal VM::run() {
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
                 peekTaint(0) = ta || tb;
+                if ((ta || tb) && !taint_lineage_map_.empty()) {
+                    size_t res_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(ta ? a_off_div : b_off_div);
+                    if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb ? b_off_div : a_off_div);
+                    if (lit != taint_lineage_map_.end()) taint_lineage_map_[res_off] = lit->second;
+                    taint_lineage_map_.erase(b_off_div);
+                    if (a_off_div != res_off) taint_lineage_map_.erase(a_off_div);
+                }
             }
                 VM_NEXT();
 
             VM_CASE(OP_MOD): {
                 bool tb = peekTaint(0), ta = peekTaint(1);
+                size_t b_off_mod = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                size_t a_off_mod = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -969,6 +1012,14 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Modulo requires integers");
                 }
                 peekTaint(0) = ta || tb;
+                if ((ta || tb) && !taint_lineage_map_.empty()) {
+                    size_t res_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(ta ? a_off_mod : b_off_mod);
+                    if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb ? b_off_mod : a_off_mod);
+                    if (lit != taint_lineage_map_.end()) taint_lineage_map_[res_off] = lit->second;
+                    taint_lineage_map_.erase(b_off_mod);
+                    if (a_off_mod != res_off) taint_lineage_map_.erase(a_off_mod);
+                }
             }
                 VM_NEXT();
 
@@ -1271,7 +1322,17 @@ interpreter::NaabVal VM::run() {
                 }
                 push(it->second);
                 if (governance_ && governance_->isActive()) {
-                    peekTaint(0) = governance_->isTainted(name);
+                    bool tainted = governance_->isTainted(name);
+                    peekTaint(0) = tainted;
+                    // Restore lineage from governance engine's per-variable metadata
+                    if (tainted && governance_->getRules().taint_tracking.lineage) {
+                        auto* meta = governance_->getTaintLineage(name);
+                        if (meta) {
+                            size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                            taint_lineage_map_[tos] = {meta->origin_function, meta->origin_argument,
+                                meta->source_file, meta->source_line};
+                        }
+                    }
                 }
             }
                 VM_NEXT();
@@ -1465,11 +1526,15 @@ interpreter::NaabVal VM::run() {
                         }
                     }
                     peekTaint(0) = return_tainted;
-                    // Carry lineage to the return value's new position
-                    if (return_tainted && governance_ && !governance_->lastTaintSource().empty()) {
+                    // Carry lineage to the return value's new position (preserve existing)
+                    if (return_tainted && governance_) {
                         size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
-                        taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
-                            current_file_, 0};
+                        if (taint_lineage_map_.find(tos) == taint_lineage_map_.end()) {
+                            if (!governance_->lastTaintSource().empty()) {
+                                taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
+                                    current_file_, 0};
+                            }
+                        }
                     }
                     return result;
                 }
@@ -1498,11 +1563,15 @@ interpreter::NaabVal VM::run() {
                     }
                 }
                 peekTaint(0) = return_tainted;
-                // Carry lineage to the return value's new position
-                if (return_tainted && governance_ && !governance_->lastTaintSource().empty()) {
+                // Carry lineage to the return value's new position (preserve existing)
+                if (return_tainted && governance_) {
                     size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
-                    taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
-                        current_file_, 0};
+                    if (taint_lineage_map_.find(tos) == taint_lineage_map_.end()) {
+                        if (!governance_->lastTaintSource().empty()) {
+                            taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
+                                current_file_, 0};
+                        }
+                    }
                 }
                 frame = &frames_[frame_count_ - 1];
             }
@@ -3237,6 +3306,20 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
                 new_uv->location = &new_uv->closed;  // self-referencing
                 new_uv->is_open = false;              // Mark as closed!
                 new_uv->tainted = uv->tainted;
+                // Copy lineage for tainted upvalues
+                if (uv->tainted) {
+                    if (uv->is_open) {
+                        size_t uv_offset = static_cast<size_t>(uv->location - stack_.get());
+                        auto lit = taint_lineage_map_.find(uv_offset);
+                        if (lit != taint_lineage_map_.end()) {
+                            new_uv->lineage_func = lit->second.source_func;
+                            new_uv->lineage_arg = lit->second.source_arg;
+                        }
+                    } else {
+                        new_uv->lineage_func = uv->lineage_func;
+                        new_uv->lineage_arg = uv->lineage_arg;
+                    }
+                }
                 closed_upvalues.push_back(std::move(new_uv));
             }
             // Deep-copy the CompiledFunction tree so async thread has its own
