@@ -1503,6 +1503,17 @@ interpreter::NaabVal VM::run() {
                 }
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
+                    // Capture return value lineage before eviction
+                    VmTaintOrigin saved_lineage;
+                    bool has_saved_lineage = false;
+                    if (return_tainted && !taint_lineage_map_.empty()) {
+                        size_t ret_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        auto lit = taint_lineage_map_.find(ret_off);
+                        if (lit != taint_lineage_map_.end()) {
+                            saved_lineage = lit->second;
+                            has_saved_lineage = true;
+                        }
+                    }
                     // Clear stale slots to release handles
                     interpreter::NaabVal* old_top = stack_top_;
                     stack_top_ = frame->slots;
@@ -1526,17 +1537,28 @@ interpreter::NaabVal VM::run() {
                         }
                     }
                     peekTaint(0) = return_tainted;
-                    // Carry lineage to the return value's new position (preserve existing)
+                    // Restore lineage to the return value's new position
                     if (return_tainted && governance_) {
                         size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
-                        if (taint_lineage_map_.find(tos) == taint_lineage_map_.end()) {
-                            if (!governance_->lastTaintSource().empty()) {
-                                taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
-                                    current_file_, 0};
-                            }
+                        if (has_saved_lineage) {
+                            taint_lineage_map_[tos] = saved_lineage;
+                        } else if (!governance_->lastTaintSource().empty()) {
+                            taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
+                                current_file_, 0};
                         }
                     }
                     return result;
+                }
+                // Capture return value lineage before eviction
+                VmTaintOrigin saved_lineage;
+                bool has_saved_lineage = false;
+                if (return_tainted && !taint_lineage_map_.empty()) {
+                    size_t ret_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(ret_off);
+                    if (lit != taint_lineage_map_.end()) {
+                        saved_lineage = lit->second;
+                        has_saved_lineage = true;
+                    }
                 }
                 {
                     // Clear stale slots to release handles
@@ -1563,14 +1585,14 @@ interpreter::NaabVal VM::run() {
                     }
                 }
                 peekTaint(0) = return_tainted;
-                // Carry lineage to the return value's new position (preserve existing)
+                // Restore lineage to the return value's new position
                 if (return_tainted && governance_) {
                     size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
-                    if (taint_lineage_map_.find(tos) == taint_lineage_map_.end()) {
-                        if (!governance_->lastTaintSource().empty()) {
-                            taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
-                                current_file_, 0};
-                        }
+                    if (has_saved_lineage) {
+                        taint_lineage_map_[tos] = saved_lineage;
+                    } else if (!governance_->lastTaintSource().empty()) {
+                        taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
+                            current_file_, 0};
                     }
                 }
                 frame = &frames_[frame_count_ - 1];
