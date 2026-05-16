@@ -1,0 +1,27 @@
+{
+    "sandbox_level": "elevated",
+    "capabilities": {
+        "network": false,
+        "filesystem": "read",
+        "env_vars": {
+            "read": true
+        }
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "lineage": true,
+        "sources": [
+            "env.get",
+            "io.read_line"
+        ],
+        "sinks": [
+            "shell_exec",
+            "env.set_var"
+        ],
+        "sanitizers": [
+            "validate_",
+            "int("
+        ]
+    }
+}
