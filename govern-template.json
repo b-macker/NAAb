@@ -183,6 +183,7 @@
   "taint_tracking": {
     "enabled": false,
     "level": "soft",
+    "lineage": false,
     "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
     "sinks": ["shell_exec", "python_exec", "go_exec", "javascript_exec", "nim_exec", "file.write", "file.append", "http.", "env.set_var"],
     "sanitizers": ["validate_", "sanitize_", "escape_"],
@@ -790,7 +791,8 @@
     "tamper_evidence": {
       "enabled": false,
       "algorithm": "sha256",
-      "chain_genesis": "NAAB-GOVERNANCE-GENESIS"
+      "chain_genesis": "NAAB-GOVERNANCE-GENESIS",
+      "hmac_key": ""
     },
     "log_events": {
       "checks_passed": true,
@@ -1463,7 +1465,16 @@
     "report_json": "",
     "report_sarif": "",
     "report_junit": "",
-    "no_color": false
+    "no_color": false,
+    "explanations": true,
+    "require_override_reason": false
+  },
+
+  "_comment_approval": "Approval tokens for APPROVAL_REQUIRED enforcement tier. Requires Ed25519 signed tokens.",
+  "approval": {
+    "store_path": ".naab/approvals.json",
+    "approver_keys": [],
+    "default_expiry_hours": 24
   },
 
   "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
