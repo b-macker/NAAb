@@ -47,20 +47,22 @@ GovernanceEngine::~GovernanceEngine() {
 
 std::string GovernanceEngine::levelToString(EnforcementLevel level) {
     switch (level) {
-        case EnforcementLevel::NONE:     return "none";
-        case EnforcementLevel::HARD:     return "hard";
-        case EnforcementLevel::SOFT:     return "soft";
-        case EnforcementLevel::ADVISORY: return "advisory";
+        case EnforcementLevel::NONE:              return "none";
+        case EnforcementLevel::HARD:              return "hard";
+        case EnforcementLevel::APPROVAL_REQUIRED: return "approval_required";
+        case EnforcementLevel::SOFT:              return "soft";
+        case EnforcementLevel::ADVISORY:          return "advisory";
     }
     return "unknown";
 }
 
 std::string GovernanceEngine::levelToTag(EnforcementLevel level) {
     switch (level) {
-        case EnforcementLevel::NONE:     return "NONE";
-        case EnforcementLevel::HARD:     return "HARD-MANDATORY";
-        case EnforcementLevel::SOFT:     return "SOFT-MANDATORY";
-        case EnforcementLevel::ADVISORY: return "ADVISORY";
+        case EnforcementLevel::NONE:              return "NONE";
+        case EnforcementLevel::HARD:              return "HARD-MANDATORY";
+        case EnforcementLevel::APPROVAL_REQUIRED: return "APPROVAL-REQUIRED";
+        case EnforcementLevel::SOFT:              return "SOFT-MANDATORY";
+        case EnforcementLevel::ADVISORY:          return "ADVISORY";
     }
     return "UNKNOWN";
 }
@@ -138,16 +140,18 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
     }
     if (value.is_string()) {
         std::string s = value.get<std::string>();
-        if (s == "hard")     return {true, EnforcementLevel::HARD};
-        if (s == "soft")     return {true, EnforcementLevel::SOFT};
-        if (s == "advisory") return {true, EnforcementLevel::ADVISORY};
+        if (s == "hard")              return {true, EnforcementLevel::HARD};
+        if (s == "approval_required") return {true, EnforcementLevel::APPROVAL_REQUIRED};
+        if (s == "soft")              return {true, EnforcementLevel::SOFT};
+        if (s == "advisory")          return {true, EnforcementLevel::ADVISORY};
     }
     if (value.is_object()) {
         bool enabled = value.value("enabled", true);
         EnforcementLevel level = EnforcementLevel::HARD;
         if (value.contains("level")) {
             std::string s = value["level"].get<std::string>();
-            if (s == "soft") level = EnforcementLevel::SOFT;
+            if (s == "approval_required") level = EnforcementLevel::APPROVAL_REQUIRED;
+            else if (s == "soft") level = EnforcementLevel::SOFT;
             else if (s == "advisory") level = EnforcementLevel::ADVISORY;
         }
         return {enabled, level};
@@ -217,6 +221,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (gov.contains("gc_threshold")) rules_.runtime.gc_threshold = gov["gc_threshold"].get<size_t>();
         if (gov.contains("gc_stats")) rules_.runtime.gc_stats = gov["gc_stats"].get<bool>();
         if (gov.contains("sandbox_level")) rules_.sandbox_level_config = gov["sandbox_level"].get<std::string>();
+        if (gov.contains("explanations")) rules_.explanations_enabled = gov["explanations"].get<bool>();
+        if (gov.contains("require_override_reason")) rules_.require_override_reason = gov["require_override_reason"].get<bool>();
     }
 
     // Runtime limits section
@@ -1347,6 +1353,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (te.contains("enabled")) { rules_.audit.tamper_evidence.enabled = te["enabled"].get<bool>(); rules_.tamper_evidence = rules_.audit.tamper_evidence.enabled; }
             if (te.contains("algorithm")) rules_.audit.tamper_evidence.algorithm = te["algorithm"].get<std::string>();
             if (te.contains("chain_genesis")) rules_.audit.tamper_evidence.chain_genesis = te["chain_genesis"].get<std::string>();
+            if (te.contains("hmac_key")) rules_.audit.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
         }
         if (aud.contains("log_events") && aud["log_events"].is_object()) {
             auto& le = aud["log_events"];
@@ -1690,6 +1697,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("taint_tracking") && j["taint_tracking"].is_object()) {
         auto& tt = j["taint_tracking"];
         if (tt.contains("enabled")) rules_.taint_tracking.enabled = tt["enabled"].get<bool>();
+        if (tt.contains("lineage")) rules_.taint_tracking.lineage = tt["lineage"].get<bool>();
         if (tt.contains("level")) rules_.taint_tracking.level = tt["level"].get<std::string>();
         if (tt.contains("sources") && tt["sources"].is_array()) {
             for (const auto& s : tt["sources"]) {
@@ -1723,6 +1731,18 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
         }
         parseRationale(tt, rules_.taint_tracking.rationale);
+    }
+
+    // --- Approval config (APPROVAL_REQUIRED tier) ---
+    if (j.contains("approval") && j["approval"].is_object()) {
+        auto& ap = j["approval"];
+        if (ap.contains("store_path")) rules_.approval.store_path = ap["store_path"].get<std::string>();
+        if (ap.contains("approver_keys") && ap["approver_keys"].is_array()) {
+            for (const auto& k : ap["approver_keys"]) {
+                rules_.approval.approver_keys.push_back(k.get<std::string>());
+            }
+        }
+        if (ap.contains("default_expiry_hours")) rules_.approval.default_expiry_hours = ap["default_expiry_hours"].get<int>();
     }
 
     // --- Telemetry output config ---

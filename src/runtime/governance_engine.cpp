@@ -58,6 +58,7 @@ namespace interpreter {
 static const std::unordered_map<std::string, std::pair<std::vector<std::string>, std::vector<std::string>>>
     g_cwe_owasp_map = {
     // rule_name_suffix -> {cwe_ids, owasp_ids}
+    // --- Injection / Input Validation ---
     {"no_sql_injection",        {{"CWE-89"},  {"A03:2021"}}},
     {"sql_string_concat",       {{"CWE-89"},  {"A03:2021"}}},
     {"no_path_traversal",       {{"CWE-22"},  {"A01:2021"}}},
@@ -66,34 +67,73 @@ static const std::unordered_map<std::string, std::pair<std::vector<std::string>,
     {"code_injection",          {{"CWE-94"},  {"A03:2021"}}},
     {"no_unsafe_deserialization",{{"CWE-502"}, {"A08:2021"}}},
     {"insecure_deserialization", {{"CWE-502"}, {"A08:2021"}}},
+    {"eval_usage",              {{"CWE-95"},  {"A03:2021"}}},
+    {"sink_violation",          {{"CWE-20"},  {"A03:2021"}}},
+    // --- Secrets / Credentials ---
     {"no_secrets",              {{"CWE-798"}, {"A07:2021"}}},
     {"hardcoded_credentials",   {{"CWE-798"}, {"A07:2021"}}},
-    {"privilege_escalation",    {{"CWE-269"}, {"A04:2021"}}},
-    {"data_exfiltration",       {{"CWE-200"}, {"A01:2021"}}},
-    {"information_disclosure",  {{"CWE-200"}, {"A01:2021"}}},
-    {"crypto",                  {{"CWE-327"}, {"A02:2021"}}},
-    {"weak_crypto",             {{"CWE-327"}, {"A02:2021"}}},
-    {"no_pii",                  {{"CWE-359"}, {}}},
-    {"resource_abuse",          {{"CWE-400"}, {}}},
-    {"encoding",                {{"CWE-116"}, {}}},
-    {"insecure_random",         {{"CWE-330"}, {"A02:2021"}}},
-    {"prototype_pollution",     {{"CWE-1321"},{}}},
-    {"eval_usage",              {{"CWE-95"},  {"A03:2021"}}},
-    {"dangerous_calls",         {{"CWE-676"}, {}}},
     {"no_hardcoded_urls",       {{"CWE-798"}, {}}},
     {"no_hardcoded_ips",        {{"CWE-798"}, {}}},
+    {"vcs_secret_extraction",   {{"CWE-522"}, {"A07:2021"}}},
+    // --- Access Control ---
+    {"privilege_escalation",    {{"CWE-269"}, {"A04:2021"}}},
+    {"imports",                 {{"CWE-829"}, {"A08:2021"}}},
+    // --- Information Exposure ---
+    {"data_exfiltration",       {{"CWE-200"}, {"A01:2021"}}},
+    {"information_disclosure",  {{"CWE-200"}, {"A01:2021"}}},
+    {"no_pii",                  {{"CWE-359"}, {}}},
+    // --- Cryptography ---
+    {"crypto",                  {{"CWE-327"}, {"A02:2021"}}},
+    {"weak_crypto",             {{"CWE-327"}, {"A02:2021"}}},
+    {"insecure_random",         {{"CWE-330"}, {"A02:2021"}}},
+    // --- Resource Exhaustion ---
+    {"resource_abuse",          {{"CWE-400"}, {}}},
+    {"loop_iterations",         {{"CWE-834"}, {}}},
+    {"nesting_depth",           {{"CWE-1124"},{}}},
+    {"string_length",           {{"CWE-400"}, {}}},
+    {"output_size",             {{"CWE-400"}, {}}},
+    {"dict_size",               {{"CWE-400"}, {}}},
+    {"polyglot_blocks",         {{"CWE-400"}, {}}},
+    // --- Code Quality (LLM-specific) ---
+    {"no_hallucinated_apis",    {{"CWE-477"}, {}}},
+    {"no_dead_code",            {{"CWE-561"}, {}}},
+    {"no_debug_artifacts",      {{"CWE-489"}, {"A05:2021"}}},
+    {"no_incomplete_logic",     {{"CWE-480"}, {}}},
+    {"no_mock_data",            {{"CWE-489"}, {"A05:2021"}}},
+    {"no_oversimplification",   {{"CWE-393"}, {}}},
+    {"no_simulation_markers",   {{"CWE-489"}, {"A05:2021"}}},
+    {"no_temporary_code",       {{"CWE-489"}, {"A05:2021"}}},
+    {"no_apologetic_language",  {{"CWE-1078"},{}}},
+    {"intent_validation",       {{"CWE-754"}, {}}},
+    {"semantic_checks",         {{"CWE-670"}, {}}},
+    // --- Complexity ---
+    {"max_complexity",          {{"CWE-1121"},{}}},
+    {"complexity_floor",        {{"CWE-1121"},{}}},
+    // --- Encoding / Other ---
+    {"encoding",                {{"CWE-116"}, {}}},
+    {"prototype_pollution",     {{"CWE-1321"},{}}},
+    {"dangerous_calls",         {{"CWE-676"}, {}}},
 };
 
 std::pair<std::vector<std::string>, std::vector<std::string>>
 lookupCweOwasp(const std::string& rule_name) {
     auto it = g_cwe_owasp_map.find(rule_name);
     if (it != g_cwe_owasp_map.end()) return it->second;
-    // Try suffix match (e.g., "code_quality.no_sql_injection" matches "no_sql_injection")
+    // Try suffix after last dot (e.g., "code_quality.no_sql_injection" -> "no_sql_injection")
     auto dot = rule_name.rfind('.');
     if (dot != std::string::npos) {
         auto suffix = rule_name.substr(dot + 1);
         it = g_cwe_owasp_map.find(suffix);
         if (it != g_cwe_owasp_map.end()) return it->second;
+        // Try middle.suffix for 3-segment names (e.g., "limits.execution.loop_iterations")
+        if (dot > 0) {
+            auto dot2 = rule_name.rfind('.', dot - 1);
+            if (dot2 != std::string::npos) {
+                auto mid_suffix = rule_name.substr(dot2 + 1);
+                it = g_cwe_owasp_map.find(mid_suffix);
+                if (it != g_cwe_owasp_map.end()) return it->second;
+            }
+        }
     }
     return {{}, {}};
 }
@@ -461,7 +501,7 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     std::lock_guard<std::mutex> lock(results_mutex_);
     check_results_.push_back({rule_name, level, true, "", cat, "",
                               current_check_line_, current_check_file_, cwes, owasps,
-                              false, rationale, std::move(t_current_decision_trace)});
+                              false, rationale, std::move(t_current_decision_trace), ""});
     t_current_decision_trace.clear();
     // V-GOV-024: cap telemetry to prevent unbounded memory growth
     if (check_results_.size() > MAX_CHECK_RESULTS) {
@@ -476,16 +516,19 @@ std::string GovernanceEngine::enforce(
 
     // Record the failing check with full context
     std::string cat = rule_name.substr(0, rule_name.find('.'));
-    std::string sev = (level == EnforcementLevel::HARD) ? "critical" :
+    std::string sev = (level == EnforcementLevel::HARD ||
+                       level == EnforcementLevel::APPROVAL_REQUIRED) ? "critical" :
                       (level == EnforcementLevel::SOFT) ? "high" : "medium";
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
     std::string rationale = lookupRationale(rule_name);
+    std::string explanation = generateExplanation(rule_name, level, false, rationale);
     {
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
         check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
                                   current_check_line_, current_check_file_, cwes, owasps,
-                                  preflight_mode_, rationale, std::move(t_current_decision_trace)});
+                                  preflight_mode_, rationale, std::move(t_current_decision_trace),
+                                  explanation});
         t_current_decision_trace.clear();
         // V-GOV-024: cap telemetry — F8: skip preflight entries during eviction
         if (check_results_.size() > MAX_CHECK_RESULTS) {
@@ -553,8 +596,36 @@ std::string GovernanceEngine::enforce(
             g_governance_hard_block = true;
             return violation_message;
 
+        case EnforcementLevel::APPROVAL_REQUIRED: {
+            std::string approver_id;
+            if (hasValidApproval(rule_name, approver_id)) {
+                addTrace("approval_required: valid token found — permitted");
+                logAuditEvent("approval_used", rule_name,
+                    fmt::format("approved by '{}'", approver_id));
+                return "";
+            }
+            g_governance_hard_block = true;
+            return violation_message +
+                "\n\n  This rule requires explicit approval.\n"
+                "  The project owner can provide a signed token.\n";
+        }
+
         case EnforcementLevel::SOFT:
             if (override_enabled_) {
+                // Require reason if configured — block silently if missing
+                if (rules_.require_override_reason && override_reason_.empty()) {
+                    g_governance_hard_block = true;
+                    return violation_message;
+                }
+                // Log override with provenance
+                if (!override_reason_.empty()) {
+                    logAuditEvent("override", rule_name,
+                        fmt::format("agent='{}' reason='{}'", agent_id_, override_reason_));
+                } else {
+                    logAuditEvent("override", rule_name,
+                        fmt::format("agent='{}'", agent_id_));
+                }
+                override_counts_[agent_id_]++;
                 fprintf(stderr, "[governance] OVERRIDE %s\n", rule_name.c_str());
                 return "";  // Don't block
             }
@@ -591,6 +662,117 @@ std::string GovernanceEngine::enforce(
         }
     }
     return "";
+}
+
+// ============================================================================
+// Explanation Generation
+// ============================================================================
+
+std::string GovernanceEngine::generateExplanation(
+    const std::string& rule_name,
+    EnforcementLevel level,
+    bool passed,
+    const std::string& rationale) const {
+    if (passed || !rules_.explanations_enabled) return "";
+
+    std::string action;
+    switch (level) {
+        case EnforcementLevel::HARD:
+            action = "Blocked";
+            break;
+        case EnforcementLevel::APPROVAL_REQUIRED:
+            action = "Requires approval";
+            break;
+        case EnforcementLevel::SOFT:
+            action = override_enabled_ ? "Overridden" : "Blocked";
+            break;
+        case EnforcementLevel::ADVISORY:
+            action = "Warning";
+            break;
+        default:
+            return "";
+    }
+
+    std::string reason = rationale.empty() ? "project governance policy" : rationale;
+    return fmt::format("{}: {} — {}.", action, rule_name, reason);
+}
+
+// ============================================================================
+// Approval Token Verification
+// ============================================================================
+
+bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
+                                         std::string& approver_id_out) const {
+    if (rules_.approval.store_path.empty()) return false;
+
+    // Resolve store path relative to govern.json directory
+    std::string store_path = rules_.approval.store_path;
+    if (!store_path.empty() && store_path[0] != '/') {
+        store_path = govern_json_dir_ + "/" + store_path;
+    }
+
+    std::lock_guard<std::mutex> lock(approval_mutex_);
+
+    // Lazy-reload: check file mtime
+    struct stat st;
+    if (stat(store_path.c_str(), &st) != 0) return false;
+    int64_t mtime = static_cast<int64_t>(st.st_mtime);
+
+    if (mtime != approval_mtime_) {
+        approval_mtime_ = mtime;
+        approval_cache_.clear();
+        try {
+            std::ifstream ifs(store_path);
+            if (!ifs.is_open()) return false;
+            auto j = nlohmann::json::parse(ifs);
+            if (!j.is_object()) return false;
+            for (auto& [key, val] : j.items()) {
+                if (!val.is_object()) continue;
+                ApprovalToken token;
+                token.rule_name = key;
+                token.approver_id = val.value("approver_id", "");
+                token.reason = val.value("reason", "");
+                token.expiry_timestamp = val.value("expiry_timestamp", (int64_t)0);
+                token.signature_b64 = val.value("signature", "");
+                approval_cache_[key] = std::move(token);
+            }
+        } catch (...) {
+            return false;
+        }
+    }
+
+    auto it = approval_cache_.find(rule_name);
+    if (it == approval_cache_.end()) return false;
+    const auto& token = it->second;
+
+    // Check expiry
+    if (token.expiry_timestamp > 0 &&
+        time(nullptr) > token.expiry_timestamp) return false;
+
+    // Verify Ed25519 signature if approver_keys are configured
+    if (!rules_.approval.approver_keys.empty() && !token.signature_b64.empty()) {
+        // Canonical content: "rule_name|approver_id|reason|expiry_timestamp"
+        std::string canonical = token.rule_name + "|" + token.approver_id + "|"
+            + token.reason + "|" + std::to_string(token.expiry_timestamp);
+        // Load trusted keys and check if any matching fingerprint verifies
+        auto keys = security::TrustStore::loadKeys();
+        for (const auto& key_fp : rules_.approval.approver_keys) {
+            for (const auto& [fp, pem] : keys) {
+                if (fp == key_fp) {
+                    if (security::CryptoUtils::ed25519Verify(canonical, token.signature_b64, pem)) {
+                        approver_id_out = token.approver_id;
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+        return false;  // Signature required but didn't verify
+    }
+
+    // No signature verification configured — token presence is sufficient
+    approver_id_out = token.approver_id;
+    return true;
 }
 
 // ============================================================================
@@ -1757,13 +1939,18 @@ void GovernanceEngine::printDashboard() const {
     if (!top_rule.empty())
         fprintf(stderr, "Top block:  %s (%d violation%s)\n",
                 top_rule.c_str(), top_count, top_count != 1 ? "s" : "");
-    // Show rationale for blocked checks (up to 3)
+    // Show explanations for blocked checks (up to 3), fallback to rationale
     {
-        int shown_rationale = 0;
+        int shown = 0;
         for (const auto& r : check_results_) {
-            if (!r.passed && !r.rationale.empty() && shown_rationale < 3) {
-                fprintf(stderr, "  Why:      %s — %s\n", r.rule_name.c_str(), r.rationale.c_str());
-                shown_rationale++;
+            if (!r.passed && shown < 3) {
+                if (!r.explanation.empty()) {
+                    fprintf(stderr, "  Detail:   %s\n", r.explanation.c_str());
+                    shown++;
+                } else if (!r.rationale.empty()) {
+                    fprintf(stderr, "  Why:      %s — %s\n", r.rule_name.c_str(), r.rationale.c_str());
+                    shown++;
+                }
             }
         }
     }

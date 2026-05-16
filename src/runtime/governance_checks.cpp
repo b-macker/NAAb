@@ -4432,7 +4432,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "taint_tracking", "quality_gate", "governance_baseline",
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",
         "runtime", "security", "api", "integrity", "project_name", "scorers",
-        "agent_review", "agent_dispatch", "sandbox_level"
+        "agent_review", "agent_dispatch", "sandbox_level", "approval"
     };
 
     try {
@@ -4489,20 +4489,37 @@ bool GovernanceEngine::looksLikeHex(const std::string& str) {
 }
 
 // --- Taint Tracking ---
-void GovernanceEngine::markTainted(const std::string& var_name) {
+void GovernanceEngine::markTainted(const std::string& var_name,
+                                    const std::string& origin_func,
+                                    const std::string& origin_arg,
+                                    const std::string& file,
+                                    int line) {
     if (!rules_.taint_tracking.enabled) return;
     std::lock_guard<std::mutex> lock(taint_mutex_);
     taint_set_.insert(var_name);
+    if (rules_.taint_tracking.lineage && !origin_func.empty()) {
+        taint_lineage_[var_name] = {origin_func, origin_arg, file, line,
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count()};
+    }
 }
 
 void GovernanceEngine::clearTaint(const std::string& var_name) {
     std::lock_guard<std::mutex> lock(taint_mutex_);
     taint_set_.erase(var_name);
+    taint_lineage_.erase(var_name);
 }
 
 bool GovernanceEngine::isTainted(const std::string& var_name) const {
     std::lock_guard<std::mutex> lock(taint_mutex_);
     return taint_set_.count(var_name) > 0;
+}
+
+const TaintMetadata* GovernanceEngine::getTaintLineage(const std::string& var_name) const {
+    std::lock_guard<std::mutex> lock(taint_mutex_);
+    auto it = taint_lineage_.find(var_name);
+    if (it != taint_lineage_.end()) return &it->second;
+    return nullptr;
 }
 
 // BUG-O: Save/restore taint state for module loading isolation
@@ -4514,6 +4531,11 @@ std::unordered_set<std::string> GovernanceEngine::saveTaintState() const {
 void GovernanceEngine::restoreTaintState(const std::unordered_set<std::string>& state) {
     std::lock_guard<std::mutex> lock(taint_mutex_);
     taint_set_ = state;
+    // Clear lineage for vars no longer in taint set
+    for (auto it = taint_lineage_.begin(); it != taint_lineage_.end(); ) {
+        if (state.count(it->first) == 0) it = taint_lineage_.erase(it);
+        else ++it;
+    }
 }
 
 // V-GOV-004: counter state save/restore for async task inheritance.
@@ -4596,8 +4618,18 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     {
         std::lock_guard<std::mutex> lock(taint_mutex_);
         if (taint_set_.count(var_name) == 0) return "";
+        addTrace(fmt::format("variable '{}' is tainted", var_name));
+        // Lineage: include origin info in trace if available (same lock scope)
+        if (rules_.taint_tracking.lineage) {
+            auto lit = taint_lineage_.find(var_name);
+            if (lit != taint_lineage_.end()) {
+                const auto& meta = lit->second;
+                addTrace(fmt::format("taint origin: {}('{}') at {}:{}",
+                    meta.origin_function, meta.origin_argument,
+                    meta.source_file, meta.source_line));
+            }
+        }
     }
-    addTrace(fmt::format("variable '{}' is tainted", var_name));
 
     // FIX-DX-1: PREFIX match for sink types (not substring)
     // Auto-expand: file.append is equivalent to file.write for taint purposes
@@ -4639,16 +4671,14 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
            "  using it in a '" + sink_type + "' sink. Sanitizers must actually\n"
            "  validate or transform the data — identity functions are detected.\n";
 
-    // Enforce based on level
-    if (rules_.taint_tracking.level == "hard") {
-        return msg;  // Caller will throw
-    } else if (rules_.taint_tracking.level == "soft") {
-        if (!override_enabled_) return msg;
-        // With override, fall through to warning
-    }
-    // Advisory: just warn
-    fmt::print(stderr, "[GOVERNANCE] WARNING: {}\n", msg);
-    return "";
+    // Determine enforcement level from config
+    EnforcementLevel taint_level = EnforcementLevel::HARD;
+    if (rules_.taint_tracking.level == "soft") taint_level = EnforcementLevel::SOFT;
+    else if (rules_.taint_tracking.level == "advisory") taint_level = EnforcementLevel::ADVISORY;
+
+    // Record via enforce() so it appears in reports and audit trail
+    std::string result = enforce("taint_tracking.sink_violation", taint_level, msg);
+    return result;
 }
 
 // FIX-DX-8: Validate scope patterns against actual function names

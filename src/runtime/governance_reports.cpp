@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 5603-7484
 
 #include "naab/governance.h"
+#include "naab/crypto_utils.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
 #include "naab/analyzer/task_pattern_detector.h"
@@ -130,12 +131,12 @@ void GovernanceEngine::logContractCheck(const std::string& func_name,
 }
 
 std::string GovernanceEngine::computeAuditHash(const std::string& data) const {
-    // Simple hash (not cryptographic — for tamper evidence only)
-    std::hash<std::string> hasher;
-    size_t hash = hasher(data);
-    std::ostringstream oss;
-    oss << std::hex << hash;
-    return oss.str();
+    // HMAC-SHA256 when key configured; plain SHA-256 fallback (both cryptographic)
+    if (!rules_.audit.tamper_evidence.hmac_key.empty()) {
+        return security::CryptoUtils::hmacSha256(data,
+            rules_.audit.tamper_evidence.hmac_key);
+    }
+    return security::CryptoUtils::sha256(data);
 }
 
 // --- Hooks ---
@@ -261,6 +262,7 @@ std::string GovernanceEngine::generateJsonReport() const {
             entry["decision_trace"] = nlohmann::json::array();
             for (const auto& step : r.decision_trace) entry["decision_trace"].push_back(step);
         }
+        if (!r.explanation.empty()) entry["explanation"] = r.explanation;
         report["results"].push_back(entry);
     }
     return report.dump(2);
@@ -335,6 +337,7 @@ std::string GovernanceEngine::generateSarifReport() const {
 
         nlohmann::json result;
         result["ruleId"] = r.rule_name;
+        result["kind"] = "fail";  // SARIF §3.27.9 — required by GitHub code scanning
 
         auto it = rule_index_map.find(r.rule_name);
         if (it != rule_index_map.end()) {
@@ -347,8 +350,12 @@ std::string GovernanceEngine::generateSarifReport() const {
         else
             result["level"] = "error";
 
-        // Full message (not truncated)
-        result["message"]["text"] = r.message.empty() ? r.rule_name : r.message;
+        // Full message — prefer explanation (human-friendly) when available
+        if (!r.explanation.empty()) {
+            result["message"]["text"] = r.explanation;
+        } else {
+            result["message"]["text"] = r.message.empty() ? r.rule_name : r.message;
+        }
 
         // Physical location with file and line
         if (!r.file.empty() || r.line > 0) {
@@ -371,6 +378,14 @@ std::string GovernanceEngine::generateSarifReport() const {
             result["locations"] = nlohmann::json::array({location});
         }
 
+        // Stable fingerprint for cross-scan deduplication (GitHub code scanning)
+        {
+            std::string fp_input = r.rule_name + "|" + r.file + "|"
+                + std::to_string(r.line) + "|" + r.message;
+            result["fingerprints"]["primaryLocationLineHash"]
+                = security::CryptoUtils::sha256(fp_input);
+        }
+
         // Properties
         nlohmann::json props;
         if (!r.category.empty()) props["category"] = r.category;
@@ -382,6 +397,43 @@ std::string GovernanceEngine::generateSarifReport() const {
             for (const auto& step : r.decision_trace) props["decisionTrace"].push_back(step);
         }
         result["properties"] = props;
+
+        // SARIF codeFlows for taint lineage visualization
+        if (r.rule_name.find("taint_tracking") != std::string::npos) {
+            for (const auto& trace : r.decision_trace) {
+                if (trace.find("taint origin:") != std::string::npos) {
+                    nlohmann::json codeFlow, threadFlow;
+                    nlohmann::json source_loc, sink_loc;
+
+                    auto at_pos = trace.find(" at ");
+                    if (at_pos != std::string::npos) {
+                        std::string loc_str = trace.substr(at_pos + 4);
+                        auto colon = loc_str.rfind(':');
+                        if (colon != std::string::npos) {
+                            source_loc["location"]["physicalLocation"]["artifactLocation"]["uri"]
+                                = loc_str.substr(0, colon);
+                            try {
+                                source_loc["location"]["physicalLocation"]["region"]["startLine"]
+                                    = std::stoi(loc_str.substr(colon + 1));
+                            } catch (...) {}
+                        }
+                        source_loc["location"]["message"]["text"]
+                            = "Taint source: " + trace.substr(14, at_pos - 14);
+                    }
+
+                    if (!r.file.empty()) {
+                        sink_loc["location"]["physicalLocation"]["artifactLocation"]["uri"] = r.file;
+                        sink_loc["location"]["physicalLocation"]["region"]["startLine"] = r.line;
+                    }
+                    sink_loc["location"]["message"]["text"] = "Taint sink";
+
+                    threadFlow["locations"] = nlohmann::json::array({source_loc, sink_loc});
+                    codeFlow["threadFlows"] = nlohmann::json::array({threadFlow});
+                    result["codeFlows"] = nlohmann::json::array({codeFlow});
+                    break;
+                }
+            }
+        }
 
         results_arr.push_back(result);
     }
@@ -448,6 +500,9 @@ std::string GovernanceEngine::generateJunitReport() const {
             if (!r.rationale.empty()) oss << " rationale=\"" << xmlEscape(r.rationale) << "\"";
             oss << ">"
                 << xmlEscape(r.message.empty() ? r.rule_name : r.message);
+            if (!r.explanation.empty()) {
+                oss << "\n--- Explanation ---\n" << xmlEscape(r.explanation) << "\n";
+            }
             if (!r.decision_trace.empty()) {
                 oss << "\n--- Decision Trace ---\n";
                 for (const auto& step : r.decision_trace) oss << xmlEscape(step) << "\n";
@@ -463,8 +518,18 @@ std::string GovernanceEngine::generateJunitReport() const {
 
 std::string GovernanceEngine::generateCsvReport() const {
     std::ostringstream oss;
-    oss << "rule,level,passed,message,category,severity,file,line,rationale\n";
+    oss << "rule,level,passed,message,category,severity,file,line,cwe,owasp,rationale\n";
     for (const auto& r : check_results_) {
+        // Build semicolon-joined CWE and OWASP strings
+        std::string cwe_str, owasp_str;
+        for (size_t i = 0; i < r.cwe_ids.size(); i++) {
+            if (i > 0) cwe_str += ";";
+            cwe_str += r.cwe_ids[i];
+        }
+        for (size_t i = 0; i < r.owasp_ids.size(); i++) {
+            if (i > 0) owasp_str += ";";
+            owasp_str += r.owasp_ids[i];
+        }
         oss << "\"" << csvEscape(r.rule_name) << "\","
             << levelToString(r.level) << ","
             << (r.passed ? "true" : "false") << ","
@@ -473,6 +538,8 @@ std::string GovernanceEngine::generateCsvReport() const {
             << "\"" << csvEscape(r.severity) << "\","
             << "\"" << csvEscape(r.file) << "\","
             << r.line << ","
+            << "\"" << csvEscape(cwe_str) << "\","
+            << "\"" << csvEscape(owasp_str) << "\","
             << "\"" << csvEscape(r.rationale) << "\"\n";
     }
     return oss.str();
@@ -623,6 +690,10 @@ void GovernanceEngine::writeTelemetry() const {
         if (!r.cwe_ids.empty()) {
             ev["cwe"] = nlohmann::json::array();
             for (const auto& c : r.cwe_ids) ev["cwe"].push_back(c);
+        }
+        if (!r.owasp_ids.empty()) {
+            ev["owasp"] = nlohmann::json::array();
+            for (const auto& o : r.owasp_ids) ev["owasp"].push_back(o);
         }
         std::string line = ev.dump() + "\n";
         fwrite(line.c_str(), 1, line.size(), fp.get());

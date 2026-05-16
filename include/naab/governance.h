@@ -34,10 +34,11 @@ namespace governance {
 // ============================================================================
 
 enum class EnforcementLevel {
-    NONE,       // Not set (use parent level). For contract per-function overrides.
-    HARD,       // Block execution. No override possible.
-    SOFT,       // Block execution. Override with --governance-override.
-    ADVISORY    // Warn only. Execution continues.
+    NONE,              // Not set (use parent level). For contract per-function overrides.
+    HARD,              // Block execution. No override possible.
+    APPROVAL_REQUIRED, // Block unless a signed approval token exists for this rule.
+    SOFT,              // Block execution. Override with --governance-override.
+    ADVISORY           // Warn only. Execution continues.
 };
 
 enum class GovernanceMode {
@@ -973,6 +974,7 @@ struct TamperEvidenceConfig {
     bool enabled = false;
     std::string algorithm = "sha256";
     std::string chain_genesis = "NAAB-GOVERNANCE-GENESIS";
+    std::string hmac_key;  // HMAC-SHA256 key; empty = plain SHA-256 fallback
 };
 
 struct LogEventsConfig {
@@ -1072,6 +1074,24 @@ struct HooksConfig {
     HookConfig on_complete;
     HookConfig pre_check;
     HookConfig post_check;
+};
+
+// ============================================================================
+// Section 12c: Approval Tokens (APPROVAL_REQUIRED tier)
+// ============================================================================
+
+struct ApprovalToken {
+    std::string approver_id;
+    std::string rule_name;
+    std::string reason;
+    int64_t expiry_timestamp = 0;   // unix epoch seconds, 0 = no expiry
+    std::string signature_b64;      // Ed25519 signature over canonical fields
+};
+
+struct ApprovalConfig {
+    std::string store_path = ".naab/approvals.json";
+    std::vector<std::string> approver_keys;  // public key fingerprints
+    int default_expiry_hours = 24;
 };
 
 // ============================================================================
@@ -1340,9 +1360,18 @@ struct BaselinesConfig {
 // Taint Tracking Configuration
 // ============================================================================
 
+struct TaintMetadata {
+    std::string origin_function;   // e.g., "env.get"
+    std::string origin_argument;   // e.g., "SECRET_KEY"
+    std::string source_file;       // file where taint was introduced
+    int source_line = 0;
+    int64_t timestamp = 0;         // epoch ms
+};
+
 struct TaintTrackingConfig {
     bool enabled = false;
-    std::string level = "hard";  // hard, soft, advisory
+    bool lineage = false;          // track origin metadata per tainted var
+    std::string level = "hard";    // hard, soft, advisory
     std::string rationale;
     std::vector<std::string> sources;      // e.g., "env.get", "io.read_line", "file.read", "polyglot_output"
     std::vector<std::string> sinks;        // e.g., "shell_exec", "file.write", "file.append"
@@ -1420,6 +1449,7 @@ struct GovernanceRules {
     TaintTrackingConfig taint_tracking;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
+    ApprovalConfig approval;
 
     // Integrity: HMAC signing of govern.json and drift baselines
     struct IntegrityConfig {
@@ -1429,11 +1459,13 @@ struct GovernanceRules {
 
     // --- Governance behavior (configurable via govern.json or CLI flags) ---
     // CLI flags override these when present.
+    bool explanations_enabled = true;  // governance.explanations (default on)
     bool verbose = false;           // --governance-verbose
     bool dashboard = false;         // --governance-dashboard
     bool baseline_save = false;     // --governance-baseline-save
     bool drift_baseline_save = false; // --drift-baseline-save
     bool allow_override = false;    // --governance-override
+    bool require_override_reason = false;  // governance.require_override_reason
     bool lint_only_config = false;  // --lint-only
     bool record_baselines = false;  // --governance-record-baselines
     bool check_baselines = false;   // --governance-check-baselines
@@ -1566,6 +1598,8 @@ struct CheckResult {
     std::string rationale;
     // Decision trace: HOW the engine reached its verdict (computed at check time)
     std::vector<std::string> decision_trace;
+    // Human-readable explanation: plain-English sentence for end users
+    std::string explanation;
 };
 
 // ============================================================================
@@ -1704,6 +1738,9 @@ public:
     bool isActive() const { return active_; }
     bool isOverrideEnabled() const { return override_enabled_; }
     void setOverrideEnabled(bool enabled) { override_enabled_ = enabled; }
+    void setOverrideReason(const std::string& reason) { override_reason_ = reason; }
+    const std::string& getOverrideReason() const { return override_reason_; }
+    bool hasValidApproval(const std::string& rule_name, std::string& approver_id_out) const;
     const std::string& getLoadedPath() const { return loaded_path_; }
     const std::string& getLastError() const { return last_error_; }
     GovernanceMode getMode() const { return rules_.mode; }
@@ -2015,6 +2052,10 @@ public:
     std::string generateCsvReport() const;
     std::string generateHtmlReport() const;
     void writeReports() const;
+    std::string generateExplanation(const std::string& rule_name,
+                                    EnforcementLevel level,
+                                    bool passed,
+                                    const std::string& rationale) const;
 
     // Agent review: LLM-based governance phase (detection → validation → scoring)
     void runAgentReview(const std::string& source);
@@ -2058,9 +2099,14 @@ public:
     void runPostExecutionAudit();
 
     // --- Taint Tracking ---
-    void markTainted(const std::string& var_name);
+    void markTainted(const std::string& var_name,
+                     const std::string& origin_func = "",
+                     const std::string& origin_arg = "",
+                     const std::string& file = "",
+                     int line = 0);
     void clearTaint(const std::string& var_name);
     bool isTainted(const std::string& var_name) const;
+    const TaintMetadata* getTaintLineage(const std::string& var_name) const;
     std::string checkTaintedSink(const std::string& var_name,
                                   const std::string& sink_type,
                                   const std::string& file, int line);
@@ -2098,6 +2144,11 @@ public:
 private:
     bool active_ = false;
     bool override_enabled_ = false;
+    std::string override_reason_;
+    std::unordered_map<std::string, int> override_counts_;
+    mutable std::unordered_map<std::string, ApprovalToken> approval_cache_;
+    mutable int64_t approval_mtime_ = 0;
+    mutable std::mutex approval_mutex_;
     std::string loaded_path_;
     std::string last_error_;   // "not_found" or empty when loaded successfully
     GovernanceRules rules_;
@@ -2111,6 +2162,7 @@ private:
     std::unordered_set<std::string> emitted_advisories_;  // Dedup advisory warnings
     bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
     std::unordered_set<std::string> taint_set_;
+    std::unordered_map<std::string, TaintMetadata> taint_lineage_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint
 

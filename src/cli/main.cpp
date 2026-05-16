@@ -371,6 +371,7 @@ int main(int argc, char** argv) {
     // e.g., `naab-lang --pipe script.naab` or `naab-lang -v script.naab`
     bool global_pipe_mode = false;
     bool global_governance_override = false;
+    std::string global_override_reason;
     bool global_no_governance = false;
     // V-GOV-007: fail-closed by default — require govern.json unless explicitly opted out.
     // Use --no-governance to run without a governance file (must be explicit).
@@ -413,6 +414,9 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--governance-override") {
             global_governance_override = true;
+            command_arg_index++;
+        } else if (arg == "--override-reason" && command_arg_index + 1 < argc) {
+            global_override_reason = argv[++command_arg_index];
             command_arg_index++;
         } else if (arg == "--no-governance") {
             global_no_governance = true;
@@ -689,6 +693,7 @@ int main(int argc, char** argv) {
         bool debug = global_debug;
         bool pipe_mode = global_pipe_mode;  // Inherit from global pre-scan
         bool governance_override = global_governance_override;
+        std::string override_reason = global_override_reason;
         bool no_governance = global_no_governance;
         bool require_governance = global_require_governance;
         bool governance_verbose = global_governance_verbose;
@@ -749,6 +754,8 @@ int main(int argc, char** argv) {
                 require_governance = true;
             } else if (arg == "--governance-override") {
                 governance_override = true;
+            } else if (arg == "--override-reason" && i + 1 < argc) {
+                override_reason = argv[++i];
             } else if (arg == "--governance-report" && i + 1 < argc) {
                 governance_report_json = argv[++i];
             } else if (arg == "--governance-sarif" && i + 1 < argc) {
@@ -1543,6 +1550,7 @@ int main(int argc, char** argv) {
                     }
                     if (rules.strict_types_config && !strict_types) strict_types = true;
                     if (governance_override) vm_governance.setOverrideEnabled(true);
+                    if (!override_reason.empty()) vm_governance.setOverrideReason(override_reason);
                     // Agent identity and telemetry
                     if (!rules.agent_id_config.empty() && agent_id == "anonymous") agent_id = rules.agent_id_config;
                     vm_governance.setAgentId(agent_id);
