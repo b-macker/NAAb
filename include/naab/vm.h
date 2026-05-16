@@ -276,6 +276,8 @@ struct ObjUpvalue {
     std::shared_ptr<ObjUpvalue> next;          // Linked list (shared for safe cleanup)
     bool is_open = true;
     bool tainted = false;                      // Governance taint tracking
+    std::string lineage_func;                  // Taint lineage: source function (closed upvalues)
+    std::string lineage_arg;                   // Taint lineage: source argument (closed upvalues)
 };
 
 // ============================================================================
@@ -357,6 +359,16 @@ private:
     // Shadow taint stack (mirrors value stack 1:1 for governance taint tracking)
     std::unique_ptr<bool[]> taint_stack_;
     bool* taint_top_;
+
+    // VM taint lineage: maps absolute stack offset → origin info.
+    // Only populated when taint_tracking.lineage is enabled. Zero cost otherwise.
+    struct VmTaintOrigin {
+        std::string source_func;   // e.g., "env.get"
+        std::string source_arg;    // e.g., "HOME"
+        std::string file;
+        int line = 0;
+    };
+    std::unordered_map<size_t, VmTaintOrigin> taint_lineage_map_;
 
     // Call frames (heap-allocated)
     static constexpr size_t FRAMES_MAX = 1024;

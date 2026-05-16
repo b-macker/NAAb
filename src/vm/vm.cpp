@@ -779,13 +779,26 @@ interpreter::NaabVal VM::run() {
                     }
                     uint32_t ru; int32_t ri = ai + bi;
                     std::memcpy(&ru, &ri, sizeof(ru));
-                    bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
+                    bool ta_f = *(taint_top_ - 2), tb_f = *(taint_top_ - 1);
+                    bool combined_t = ta_f || tb_f;
+                    // Lineage: inherit from tainted operand to result slot
+                    if (combined_t && !taint_lineage_map_.empty()) {
+                        size_t a_off = static_cast<size_t>((stack_top_ - 2) - stack_.get());
+                        size_t b_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        auto lit = taint_lineage_map_.find(ta_f ? a_off : b_off);
+                        if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb_f ? b_off : a_off);
+                        if (lit != taint_lineage_map_.end()) taint_lineage_map_[a_off] = lit->second;
+                        taint_lineage_map_.erase(b_off);
+                    }
                     a_ref.bits_ = interpreter::NaabVal::TAG_INT | static_cast<uint64_t>(ru);
                     stack_top_--;
                     taint_top_--;
                     *(taint_top_ - 1) = combined_t;
                 } else {
                 bool tb = peekTaint(0), ta = peekTaint(1);
+                // Capture offsets before pop for lineage propagation
+                size_t a_off_slow = static_cast<size_t>((stack_top_ - 2) - stack_.get());
+                size_t b_off_slow = static_cast<size_t>((stack_top_ - 1) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isString() || b.isString()) {
@@ -817,6 +830,15 @@ interpreter::NaabVal VM::run() {
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
                 peekTaint(0) = ta || tb;
+                // Lineage: inherit from tainted operand to result
+                if ((ta || tb) && !taint_lineage_map_.empty()) {
+                    size_t res_off = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(ta ? a_off_slow : b_off_slow);
+                    if (lit == taint_lineage_map_.end()) lit = taint_lineage_map_.find(tb ? b_off_slow : a_off_slow);
+                    if (lit != taint_lineage_map_.end()) taint_lineage_map_[res_off] = lit->second;
+                    taint_lineage_map_.erase(b_off_slow);
+                    if (a_off_slow != res_off) taint_lineage_map_.erase(a_off_slow);
+                }
                 } // end slow path else
             }
                 VM_NEXT();
@@ -1145,6 +1167,14 @@ interpreter::NaabVal VM::run() {
                 size_t slot_offset = static_cast<size_t>(frame->slots - stack_.get()) + arg;
                 push(frame->slots[arg]);
                 peekTaint(0) = taint_stack_[slot_offset];
+                // Lineage: copy from local slot to TOS
+                if (peekTaint(0) && !taint_lineage_map_.empty()) {
+                    auto lit = taint_lineage_map_.find(slot_offset);
+                    if (lit != taint_lineage_map_.end()) {
+                        size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        taint_lineage_map_[tos] = lit->second;
+                    }
+                }
             }
                 VM_NEXT();
 
@@ -1153,6 +1183,16 @@ interpreter::NaabVal VM::run() {
                 // Copy taint to local's position
                 size_t slot_offset = static_cast<size_t>(frame->slots - stack_.get()) + arg;
                 taint_stack_[slot_offset] = peekTaint(0);
+                // Copy lineage from TOS to local slot
+                if (peekTaint(0) && !taint_lineage_map_.empty()) {
+                    size_t tos_offset = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(tos_offset);
+                    if (lit != taint_lineage_map_.end()) {
+                        taint_lineage_map_[slot_offset] = lit->second;
+                    }
+                } else {
+                    taint_lineage_map_.erase(slot_offset);
+                }
             }
                 VM_NEXT();
 
@@ -1163,9 +1203,22 @@ interpreter::NaabVal VM::run() {
                     // Get taint from the upvalue's stack position
                     size_t uv_offset = static_cast<size_t>(upvalue->location - stack_.get());
                     peekTaint(0) = taint_stack_[uv_offset];
+                    // Copy lineage from upvalue's stack slot to TOS
+                    if (peekTaint(0) && !taint_lineage_map_.empty()) {
+                        auto lit = taint_lineage_map_.find(uv_offset);
+                        if (lit != taint_lineage_map_.end()) {
+                            size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                            taint_lineage_map_[tos] = lit->second;
+                        }
+                    }
                 } else {
                     push(upvalue->closed);
                     peekTaint(0) = upvalue->tainted;
+                    // Copy lineage from closed upvalue to TOS
+                    if (upvalue->tainted && !upvalue->lineage_func.empty()) {
+                        size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        taint_lineage_map_[tos] = {upvalue->lineage_func, upvalue->lineage_arg, "", 0};
+                    }
                 }
             }
                 VM_NEXT();
@@ -1176,9 +1229,31 @@ interpreter::NaabVal VM::run() {
                     *upvalue->location = peek(0);
                     size_t uv_offset = static_cast<size_t>(upvalue->location - stack_.get());
                     taint_stack_[uv_offset] = peekTaint(0);
+                    // Copy lineage from TOS to upvalue's stack slot
+                    if (peekTaint(0) && !taint_lineage_map_.empty()) {
+                        size_t tos_offset = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        auto lit = taint_lineage_map_.find(tos_offset);
+                        if (lit != taint_lineage_map_.end()) {
+                            taint_lineage_map_[uv_offset] = lit->second;
+                        }
+                    } else {
+                        taint_lineage_map_.erase(uv_offset);
+                    }
                 } else {
                     upvalue->closed = peek(0);
                     upvalue->tainted = peekTaint(0);
+                    // Store lineage in closed upvalue
+                    if (peekTaint(0) && !taint_lineage_map_.empty()) {
+                        size_t tos_offset = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        auto lit = taint_lineage_map_.find(tos_offset);
+                        if (lit != taint_lineage_map_.end()) {
+                            upvalue->lineage_func = lit->second.source_func;
+                            upvalue->lineage_arg = lit->second.source_arg;
+                        }
+                    } else {
+                        upvalue->lineage_func.clear();
+                        upvalue->lineage_arg.clear();
+                    }
                 }
             }
                 VM_NEXT();
@@ -1217,7 +1292,18 @@ interpreter::NaabVal VM::run() {
                     if (peekTaint(0)) {
                         int gov_line = CURRENT_CHUNK().getLine(
                             static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 2);
-                        governance_->markTainted(name, governance_->lastTaintSource(), "",
+                        std::string origin_func = governance_->lastTaintSource();
+                        std::string origin_arg;
+                        // Prefer lineage map (more precise) over lastTaintSource
+                        if (!taint_lineage_map_.empty()) {
+                            size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                            auto lit = taint_lineage_map_.find(tos);
+                            if (lit != taint_lineage_map_.end()) {
+                                origin_func = lit->second.source_func;
+                                origin_arg = lit->second.source_arg;
+                            }
+                        }
+                        governance_->markTainted(name, origin_func, origin_arg,
                             current_file_, gov_line);
                     } else {
                         governance_->clearTaint(name);
@@ -1229,12 +1315,24 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_DEFINE_GLOBAL): {
                 const std::string& name = READ_CONSTANT(arg).asString();
                 bool t = peekTaint(0);
+                // Capture lineage before pop destroys the stack slot
+                std::string origin_func_dg;
+                std::string origin_arg_dg;
+                if (t && !taint_lineage_map_.empty()) {
+                    size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    auto lit = taint_lineage_map_.find(tos);
+                    if (lit != taint_lineage_map_.end()) {
+                        origin_func_dg = lit->second.source_func;
+                        origin_arg_dg = lit->second.source_arg;
+                    }
+                }
                 globals_[name] = pop();
                 if (governance_ && governance_->isActive()) {
                     if (t) {
                         int gov_line = CURRENT_CHUNK().getLine(
                             static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 2);
-                        governance_->markTainted(name, governance_->lastTaintSource(), "",
+                        if (origin_func_dg.empty()) origin_func_dg = governance_->lastTaintSource();
+                        governance_->markTainted(name, origin_func_dg, origin_arg_dg,
                             current_file_, gov_line);
                     } else {
                         governance_->clearTaint(name);
@@ -1349,6 +1447,14 @@ interpreter::NaabVal VM::run() {
                     stack_top_ = frame->slots;
                     for (auto* p = stack_top_; p < old_top; p++)
                         *p = interpreter::NaabVal();
+                    // Evict stale lineage entries for reclaimed stack slots
+                    if (!taint_lineage_map_.empty()) {
+                        size_t new_top = static_cast<size_t>(stack_top_ - stack_.get());
+                        for (auto it = taint_lineage_map_.begin(); it != taint_lineage_map_.end(); ) {
+                            if (it->first >= new_top) it = taint_lineage_map_.erase(it);
+                            else ++it;
+                        }
+                    }
                     syncTaintTop();
                     push(result);
                     // Sanitizer functions clear taint on their return value
@@ -1359,6 +1465,12 @@ interpreter::NaabVal VM::run() {
                         }
                     }
                     peekTaint(0) = return_tainted;
+                    // Carry lineage to the return value's new position
+                    if (return_tainted && governance_ && !governance_->lastTaintSource().empty()) {
+                        size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                        taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
+                            current_file_, 0};
+                    }
                     return result;
                 }
                 {
@@ -1367,17 +1479,31 @@ interpreter::NaabVal VM::run() {
                     stack_top_ = frame->slots;
                     for (auto* p = stack_top_; p < old_top; p++)
                         *p = interpreter::NaabVal();
+                    // Evict stale lineage entries for reclaimed stack slots
+                    if (!taint_lineage_map_.empty()) {
+                        size_t new_top = static_cast<size_t>(stack_top_ - stack_.get());
+                        for (auto it = taint_lineage_map_.begin(); it != taint_lineage_map_.end(); ) {
+                            if (it->first >= new_top) it = taint_lineage_map_.erase(it);
+                            else ++it;
+                        }
+                    }
                 }
                 syncTaintTop();
                 push(std::move(result));
                 // Sanitizer functions clear taint on their return value
                 if (return_tainted && governance_ && governance_->isActive()) {
-                    const std::string& fn_name = frames_[frame_count_].function->name;
+                    const std::string& fn_name = frame->function->name;
                     if (!fn_name.empty() && governance_->isSanitizer(fn_name)) {
                         return_tainted = false;
                     }
                 }
                 peekTaint(0) = return_tainted;
+                // Carry lineage to the return value's new position
+                if (return_tainted && governance_ && !governance_->lastTaintSource().empty()) {
+                    size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                    taint_lineage_map_[tos] = {governance_->lastTaintSource(), "",
+                        current_file_, 0};
+                }
                 frame = &frames_[frame_count_ - 1];
             }
                 VM_NEXT();
@@ -1521,6 +1647,11 @@ interpreter::NaabVal VM::run() {
                         }
 
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
+                        // Capture first argument for lineage before call
+                        std::string first_arg_str;
+                        if (argc > 0 && governance_ && governance_->getRules().taint_tracking.lineage) {
+                            first_arg_str = args_ptr[0].toString();
+                        }
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                         // Clear stale slots before adjusting stack pointer
                         for (int si = 0; si < argc + 1; si++)
@@ -1533,6 +1664,13 @@ interpreter::NaabVal VM::run() {
                             if (governance_->isTaintSource(full_method_name)) {
                                 peekTaint(0) = true;
                                 governance_->setLastReturnTainted(true, full_method_name);
+                                // VM lineage: record origin at the result's stack offset
+                                if (governance_->getRules().taint_tracking.lineage) {
+                                    size_t result_offset = static_cast<size_t>((stack_top_ - 1) - stack_.get());
+                                    int src_line = CURRENT_CHUNK().getLine(
+                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                    taint_lineage_map_[result_offset] = {full_method_name, first_arg_str, current_file_, src_line};
+                                }
                             } else if (governance_->isSanitizer(full_method_name)) {
                                 peekTaint(0) = false;
                             } else if (governance_->lastReturnWasTainted()) {
@@ -2380,8 +2518,22 @@ interpreter::NaabVal VM::run() {
                             bool is_tainted = (bi < bound_taints.size() && bound_taints[bi])
                                               || governance_->isTainted(bound_var_names[bi]);
                             if (is_tainted) {
-                                // Temporarily mark tainted so checkTaintedSink can detect it
-                                governance_->markTainted(bound_var_names[bi]);
+                                // Look up lineage from the bound variable's stack offset
+                                std::string origin_func;
+                                std::string origin_arg;
+                                if (!taint_lineage_map_.empty()) {
+                                    // bound vars are at stack positions: stack_top_ - num_vars + bi
+                                    size_t var_offset = static_cast<size_t>(
+                                        (stack_top_ - num_vars + static_cast<int>(bi)) - stack_.get());
+                                    auto lit = taint_lineage_map_.find(var_offset);
+                                    if (lit != taint_lineage_map_.end()) {
+                                        origin_func = lit->second.source_func;
+                                        origin_arg = lit->second.source_arg;
+                                    }
+                                }
+                                // Mark tainted with lineage so checkTaintedSink has origin info
+                                governance_->markTainted(bound_var_names[bi],
+                                    origin_func, origin_arg, current_file_, gov_line);
                                 std::string terr = governance_->checkTaintedSink(
                                     bound_var_names[bi], sink_type, current_file_, gov_line);
                                 if (!terr.empty()) runtimeError("%s", terr.c_str());
@@ -4027,8 +4179,16 @@ void VM::closeUpvalues(interpreter::NaabVal* last) {
         auto upvalue = open_upvalues_;
         // Copy taint from stack position to upvalue before closing
         if (governance_) {
-            ptrdiff_t stack_offset = upvalue->location - stack_.get();
+            size_t stack_offset = static_cast<size_t>(upvalue->location - stack_.get());
             upvalue->tainted = taint_stack_[stack_offset];
+            // Copy lineage from stack slot to closed upvalue
+            if (upvalue->tainted && !taint_lineage_map_.empty()) {
+                auto lit = taint_lineage_map_.find(stack_offset);
+                if (lit != taint_lineage_map_.end()) {
+                    upvalue->lineage_func = lit->second.source_func;
+                    upvalue->lineage_arg = lit->second.source_arg;
+                }
+            }
         }
         upvalue->closed = *upvalue->location;
         upvalue->location = &upvalue->closed;
