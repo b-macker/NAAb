@@ -1743,6 +1743,35 @@ interpreter::NaabVal VM::run() {
                         if (argc > 0 && governance_ && governance_->getRules().taint_tracking.lineage) {
                             first_arg_str = args_ptr[0].toString();
                         }
+                        // BSD pre-execution: block if this action would complete a dangerous sequence
+                        if (governance_ && governance_->isActive() &&
+                            governance_->getRules().behavioral_sequences.enabled) {
+                            governance::RuntimeEventType pre_type{};
+                            bool pre_check = false;
+                            if (full_method_name == "file.write" || full_method_name == "file.append") {
+                                pre_type = governance::RuntimeEventType::FILE_WRITE; pre_check = true;
+                            } else if (full_method_name.rfind("http.", 0) == 0) {
+                                pre_type = governance::RuntimeEventType::NET_CONNECT; pre_check = true;
+                            } else if (full_method_name.rfind("crypto.base64_encode", 0) == 0 ||
+                                       full_method_name.rfind("crypto.hex_encode", 0) == 0) {
+                                pre_type = governance::RuntimeEventType::ENCODE; pre_check = true;
+                            } else if (full_method_name.rfind("process.", 0) == 0) {
+                                pre_type = governance::RuntimeEventType::PROCESS_EXEC; pre_check = true;
+                            } else if (full_method_name == "env.get" || full_method_name == "env.list") {
+                                pre_type = governance::RuntimeEventType::ENV_READ; pre_check = true;
+                            }
+                            if (pre_check) {
+                                std::string pre_detail = full_method_name;
+                                if (argc > 0 && !first_arg_str.empty())
+                                    pre_detail += "('" + first_arg_str.substr(0, 64) + "')";
+                                int pre_line = CURRENT_CHUNK().getLine(
+                                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                std::string block_msg = governance_->checkPreExecution(
+                                    pre_type, pre_detail, current_file_, pre_line);
+                                if (!block_msg.empty()) runtimeError("%s", block_msg.c_str());
+                            }
+                        }
+
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                         // Clear stale slots before adjusting stack pointer
                         for (int si = 0; si < argc + 1; si++)

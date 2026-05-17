@@ -220,6 +220,43 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
     return "unknown";
 }
 
+SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& event) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!config_ || !config_->enabled || config_->patterns.empty()) return {};
+
+    for (const auto& pattern : config_->patterns) {
+        auto it = pattern_states_.find(pattern.name);
+        if (it == pattern_states_.end()) continue;
+        const auto& state = it->second;
+
+        // Only fire if this event would be the FINAL step
+        if (state.current_step == 0) continue;
+        if (state.current_step + 1 != pattern.steps.size()) continue;
+
+        // Gap check: would this event arrive too late?
+        if (pattern.max_gap > 0 && state.last_match_seq_id > 0) {
+            size_t gap = sequence_counter_ + 1 - state.last_match_seq_id;
+            if (gap > static_cast<size_t>(pattern.max_gap)) continue;
+        }
+
+        // Decay check
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+            now - state.last_match_time).count();
+        if (elapsed > pattern.decay_seconds) continue;
+
+        // Does this event match the final step?
+        if (matchesStep(event, pattern.steps[state.current_step])) {
+            SequenceMatchResult result;
+            result.pattern_name = pattern.name;
+            result.pattern = &pattern;
+            result.matched_events = state.matched_events;  // steps so far (not including this one)
+            return result;
+        }
+    }
+    return {};
+}
+
 std::vector<RuntimeEvent> BehavioralSequenceDetector::getEventsForTurn(int turn) const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<RuntimeEvent> result;

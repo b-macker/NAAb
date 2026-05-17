@@ -89,6 +89,9 @@ public:
     // Record a runtime event; returns match result (thread-safe, no TOCTOU)
     SequenceMatchResult recordEvent(const RuntimeEvent& event);
 
+    // Check if adding this event would complete a pattern (read-only, no state mutation)
+    SequenceMatchResult wouldMatch(const RuntimeEvent& event) const;
+
     // Get events from the current turn (for drift analysis)
     std::vector<RuntimeEvent> getEventsForTurn(int turn) const;
 

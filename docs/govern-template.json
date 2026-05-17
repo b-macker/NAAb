@@ -591,7 +591,11 @@
       "check_single_iteration_loops": true,
       "check_bare_raise": true,
       "check_always_true_false": true,
-      "check_missing_validation": true
+      "check_missing_validation": true,
+      "custom_patterns": [
+        "\"[A-Za-z]\\w*\\s+(?:performed|completed|done)\\s+(?:for|on|with)\\s+(?:phase|type|category|step|stage):\\s*\"\\s*\\+\\s*\\w+",
+        "\\bconfidence\\s*=\\s*0\\.[3-5](?:[^\\d.]|$)"
+      ]
     },
     "no_hallucinated_apis": {
       "enabled": true,

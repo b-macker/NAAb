@@ -937,6 +937,16 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "(?:score|accuracy|precision|recall|f1|confidence|similarity)\\s*=\\s*0\\.[89]\\d\\s*(?:#|//|$)",
     // Array of hardcoded floats (fabricated results)
     "\\[\\s*(?:0\\.\\d+,\\s*){4,}\\]",
+
+    // EVA-EXTRA-5: Generic-fallback narrative strings
+    // "X performed/completed/analyzed for phase/type/category: " + variable
+    // Classic LLM stub: looks dynamic but contains no real logic
+    "\"[A-Za-z]\\w*\\s+(?:performed|completed|done|executed|processed|analyzed|finished)\\s+"
+    "(?:for|on|with)\\s+(?:phase|type|category|step|stage|mode|kind|state):\\s*\"\\s*\\+\\s*\\w+",
+
+    // Hardcoded mid-range confidence without any supporting calculation
+    // confidence = 0.3 / 0.4 / 0.5 — tells the caller "I'm unsure" without doing any work
+    "\\bconfidence\\s*=\\s*0\\.[3-5](?:[^\\d.]|$)",
 };
 
 std::string GovernanceEngine::checkEmptyMain(const std::string& source) {

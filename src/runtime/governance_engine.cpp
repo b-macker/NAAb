@@ -1998,6 +1998,11 @@ void GovernanceEngine::printDashboard() const {
                     drift_analyzer_.totalTurnsAnalyzed());
         }
     }
+    if (rules_.taint_tracking.enabled && rules_.taint_tracking.lineage) {
+        size_t sources = taint_lineage_.size();
+        size_t sinks = taint_flows_.size();
+        fprintf(stderr, "Lineage:    %zu tainted values, %zu sink flows\n", sources, sinks);
+    }
     fprintf(stderr, "────────────────────────────────\n");
 }
 
@@ -4584,6 +4589,37 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             "", "context_drift.coherence_loss",
             "The agent appears to be looping or losing context.\n"
             "Consider resetting the conversation or providing clearer instructions.",
+            "", ""));
+}
+
+std::string GovernanceEngine::checkPreExecution(
+    RuntimeEventType type, const std::string& detail,
+    const std::string& file, int line) {
+    if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
+
+    RuntimeEvent ev;
+    ev.type = type;
+    ev.detail = detail;
+    ev.file = file;
+    ev.line = line;
+    ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
+    ev.timestamp = std::chrono::steady_clock::now();
+
+    auto match = sequence_detector_.wouldMatch(ev);
+    if (match.pattern_name.empty()) return "";
+
+    clearTrace();
+    addTrace(fmt::format("BSD pre-check: '{}' would complete sequence '{}'",
+        detail, match.pattern_name));
+
+    return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
+        formatError(match.pattern->level,
+            fmt::format("Behavioral sequence '{}' blocked before execution: '{}' would "
+                "complete a dangerous {}-step pattern",
+                match.pattern_name, detail, match.matched_events.size() + 1),
+            "", "behavioral_sequences." + match.pattern_name,
+            "This action would complete a known dangerous sequence.\n"
+            "The operation was blocked before execution.",
             "", ""));
 }
 

@@ -2118,6 +2118,10 @@ public:
                    const std::string& file = "", int line = 0);
     void setAgentTurn(int handle_id, int turn);
     std::string checkBehavioralSequence(const governance::SequenceMatchResult& match);
+    std::string checkPreExecution(governance::RuntimeEventType type,
+                                   const std::string& detail,
+                                   const std::string& file = "",
+                                   int line = 0);
     std::string checkContextDrift(int handle_id, int turn,
                                   const std::string& error = "");
 

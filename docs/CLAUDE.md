@@ -422,6 +422,7 @@ main {
 48. `array.get(index)` returns null on out-of-bounds (safe access). `array.get(index, default)` returns a default value. Use this for optional CLI args instead of `args[N]` which throws.
 49. Don't create identity sanitizer functions like `fn validate_x(data) { return data }` — governance detects these as bypasses. Functions named `sanitize_*/validate_*/check_*/verify_*` must contain real validation: regex checks, rejection paths (if → return false/throw), type checks, or bounds checks. Cosmetic transforms like `string(x).trim()` or `return param` are blocked.
 50. `array.push(other_array)` pushes the array as ONE element (nesting), NOT spreading its contents. To append all elements: `for item in other { arr.push(item) }`. To create a new combined array: `let combined = arr + other` (the `+` operator concatenates arrays).
+51. `explanations: true` in govern.json generates plain-English explanations for BLOCKED and ADVISORY checks only. Passing checks produce no explanation. If all checks pass, no explanations appear — this is correct behavior.
 
 ## Complexity Scoring (for governance)
 
