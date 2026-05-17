@@ -366,6 +366,7 @@ main {
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
 33. `array.push(other_array)` pushes the array as ONE element (nesting), NOT spreading its contents. To append all elements: `for item in other { arr.push(item) }`. To create a new combined array: `let combined = arr + other` (the `+` operator concatenates arrays).
 34. `explanations: true` in govern.json generates plain-English explanations for BLOCKED and ADVISORY checks only. Passing checks produce no explanation. If all checks pass, no explanations appear — this is correct behavior.
+35. `context_drift.level: "hard"` aborts the `agent.send()` call immediately with a runtime error when coherence drops below threshold. The agent call does not complete and no response is returned. Use `"advisory"` to record drift in telemetry without interrupting execution.
 
 ## Complexity Scoring (for governance)
 

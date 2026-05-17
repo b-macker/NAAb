@@ -1131,8 +1131,9 @@ struct ScoringConfig {
 // ============================================================================
 
 struct SequenceStep {
-    std::vector<std::string> match_any;   // OR-list: ["env.get", "file.read"]
-    std::string detail_glob;              // optional glob on detail: "*KEY*", "/etc/*"
+    std::vector<std::string> match_any;        // OR-list: ["env.get", "file.read"]
+    std::vector<std::string> detail_globs;     // parallel glob per matcher ("" = any)
+    // detail_globs[i] applies to match_any[i]; use "type:glob|type2:glob2" in govern.json
 };
 
 struct SequencePattern {
@@ -2114,8 +2115,8 @@ public:
     void runGovernanceVoice();
 
     // --- Behavioral Sequence Detection ---
-    void emitEvent(RuntimeEventType type, const std::string& detail,
-                   const std::string& file = "", int line = 0);
+    std::string emitEvent(RuntimeEventType type, const std::string& detail,
+                          const std::string& file = "", int line = 0);
     void setAgentTurn(int handle_id, int turn);
     std::string checkBehavioralSequence(const governance::SequenceMatchResult& match);
     std::string checkPreExecution(governance::RuntimeEventType type,

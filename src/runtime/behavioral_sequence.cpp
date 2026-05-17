@@ -118,7 +118,9 @@ bool BehavioralSequenceDetector::matchesStep(const RuntimeEvent& event,
                                               const SequenceStep& step) const {
     std::string type_str = eventTypeToString(event.type);
 
-    for (const auto& matcher : step.match_any) {
+    for (size_t i = 0; i < step.match_any.size(); i++) {
+        const auto& matcher = step.match_any[i];
+        const std::string& glob = (i < step.detail_globs.size()) ? step.detail_globs[i] : "";
         bool type_match = false;
 
         // Check against event detail (includes method name like "env.get('HOME')")
@@ -144,7 +146,7 @@ bool BehavioralSequenceDetector::matchesStep(const RuntimeEvent& event,
                  event.detail.find("compress") != std::string::npos) {
             type_match = true;
         }
-        // Fix #11: backward-compat aliases for NET_CONNECT
+        // Backward-compat aliases for NET_CONNECT
         else if ((matcher == "http.post" || matcher == "http.get" ||
                   matcher == "http" || matcher == "net_connect") &&
                  event.type == RuntimeEventType::NET_CONNECT) {
@@ -152,11 +154,9 @@ bool BehavioralSequenceDetector::matchesStep(const RuntimeEvent& event,
         }
 
         if (type_match) {
-            // If there's a detail glob, also check it
-            if (!step.detail_glob.empty()) {
-                if (!globMatch(event.detail, step.detail_glob)) {
-                    continue;  // Glob didn't match, try next matcher
-                }
+            // Per-matcher detail glob: apply glob[i] for match_any[i]
+            if (!glob.empty() && !globMatch(event.detail, glob)) {
+                continue;  // Glob didn't match, try next matcher
             }
             return true;
         }
@@ -234,16 +234,19 @@ SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& e
         if (state.current_step + 1 != pattern.steps.size()) continue;
 
         // Gap check: would this event arrive too late?
+        // sequence_counter_+1 is the would-be seq_id; -1 to match recordEvent formula
         if (pattern.max_gap > 0 && state.last_match_seq_id > 0) {
-            size_t gap = sequence_counter_ + 1 - state.last_match_seq_id;
+            size_t gap = sequence_counter_ + 1 - state.last_match_seq_id - 1;
             if (gap > static_cast<size_t>(pattern.max_gap)) continue;
         }
 
-        // Decay check
+        // Decay check (time + turn — matches recordEvent logic)
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
             now - state.last_match_time).count();
         if (elapsed > pattern.decay_seconds) continue;
+        if (event.turn > 0 && state.last_match_turn > 0 &&
+            (event.turn - state.last_match_turn) > pattern.decay_turns) continue;
 
         // Does this event match the final step?
         if (matchesStep(event, pattern.steps[state.current_step])) {

@@ -112,6 +112,7 @@ EXPECTED_ERROR_TESTS["anti_patterns.naab"]=1              # single-line polyglot
 EXPECTED_ERROR_TESTS["polyglot_showcase.naab"]=1          # array.len not a function (use len())
 EXPECTED_ERROR_TESTS["before_after_optimization.naab"]=1  # Julia executor failure on Termux
 EXPECTED_ERROR_TESTS["test_instruction_following.naab"]=1 # secret detection now catches AKIA key in NAAb string (BUG-2 fix)
+EXPECTED_ERROR_TESTS["test_sequence_detection.naab"]=1    # BSD: env.get→shell_exec triggers behavioral sequence governance block
 
 # Category 2: Tests that need compilers/executors not installed on this platform
 # NOTE: Termux has g++, nim, node, go, rustc, julia, csc/mono, ruby, php, python3.

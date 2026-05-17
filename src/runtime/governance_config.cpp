@@ -1962,17 +1962,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     for (auto& step_str : pat["sequence"]) {
                         SequenceStep step;
                         std::string s = step_str.get<std::string>();
-                        auto colon = s.find(':');
-                        std::string matchers_part = s;
-                        if (colon != std::string::npos) {
-                            matchers_part = s.substr(0, colon);
-                            step.detail_glob = s.substr(colon + 1);
-                        }
-                        // Split by '|' for OR-matching
-                        std::istringstream iss(matchers_part);
+                        // Split by '|' first, then ':' within each token
+                        // Allows "env.get:*KEY*|env.get:*SECRET*" (per-matcher detail globs)
+                        std::istringstream iss(s);
                         std::string token;
                         while (std::getline(iss, token, '|')) {
-                            if (!token.empty()) step.match_any.push_back(token);
+                            if (token.empty()) continue;
+                            auto colon = token.find(':');
+                            if (colon != std::string::npos) {
+                                step.match_any.push_back(token.substr(0, colon));
+                                step.detail_globs.push_back(token.substr(colon + 1));
+                            } else {
+                                step.match_any.push_back(token);
+                                step.detail_globs.push_back("");
+                            }
                         }
                         sp.steps.push_back(std::move(step));
                     }

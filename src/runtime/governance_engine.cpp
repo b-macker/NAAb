@@ -4511,9 +4511,9 @@ void GovernanceEngine::printValidationReport() {
 // Behavioral Sequence Detection — emitEvent / checkBehavioralSequence / checkContextDrift
 // ============================================================================
 
-void GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
-                                  const std::string& file, int line) {
-    if (!bsd_enabled_.load(std::memory_order_acquire)) return;
+std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
+                                         const std::string& file, int line) {
+    if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     RuntimeEvent ev;
     ev.type = type;
@@ -4525,8 +4525,9 @@ void GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detai
 
     auto match = sequence_detector_.recordEvent(ev);
     if (!match.pattern_name.empty()) {
-        checkBehavioralSequence(match);
+        return checkBehavioralSequence(match);
     }
+    return "";
 }
 
 void GovernanceEngine::setAgentTurn(int handle_id, int turn) {

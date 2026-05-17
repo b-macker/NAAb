@@ -393,7 +393,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             handle_id, current_turn,
             agent_resp.success ? "" : agent_resp.error);
         if (!drift_err.empty()) {
-            gov_notices.push_back("DRIFT: " + drift_err);
+            // Hard/soft enforcement: abort the agent call immediately
+            // (advisory returns "" from enforce(), so only real blocks reach here)
+            throw std::runtime_error(drift_err);
         }
     }
 

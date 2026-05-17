@@ -1738,9 +1738,11 @@ interpreter::NaabVal VM::run() {
                         }
 
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
-                        // Capture first argument for lineage before call
+                        // Capture first argument for lineage and/or BSD event detail before call
                         std::string first_arg_str;
-                        if (argc > 0 && governance_ && governance_->getRules().taint_tracking.lineage) {
+                        if (argc > 0 && governance_ &&
+                            (governance_->getRules().taint_tracking.lineage ||
+                             governance_->getRules().behavioral_sequences.enabled)) {
                             first_arg_str = args_ptr[0].toString();
                         }
                         // BSD pre-execution: block if this action would complete a dangerous sequence
@@ -1822,7 +1824,7 @@ interpreter::NaabVal VM::run() {
                                 }
                                 if (should_emit) {
                                     std::string detail = full_method_name;
-                                    if (argc > 0) detail += "('" + first_arg_str.substr(0, 64) + "')";
+                                    if (argc > 0 && !first_arg_str.empty()) detail += "('" + first_arg_str.substr(0, 64) + "')";
                                     int ev_line = CURRENT_CHUNK().getLine(
                                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                                     governance_->emitEvent(evt_type, detail, current_file_, ev_line);
@@ -2694,14 +2696,17 @@ interpreter::NaabVal VM::run() {
                 }
 
                 // Behavioral sequence: emit shell/polyglot exec event
+                // Check return: if BSD fires here the action must abort before the shell runs
                 if (governance_ && governance_->getRules().behavioral_sequences.enabled) {
+                    std::string bsd_block;
                     if (language == "shell" || language == "sh" || language == "bash") {
-                        governance_->emitEvent(governance::RuntimeEventType::SHELL_EXEC,
+                        bsd_block = governance_->emitEvent(governance::RuntimeEventType::SHELL_EXEC,
                             "shell_exec", current_file_, polyglot_gov_line);
                     } else {
-                        governance_->emitEvent(governance::RuntimeEventType::PROCESS_EXEC,
+                        bsd_block = governance_->emitEvent(governance::RuntimeEventType::PROCESS_EXEC,
                             "polyglot." + language, current_file_, polyglot_gov_line);
                     }
+                    if (!bsd_block.empty()) runtimeError("%s", bsd_block.c_str());
                 }
 
                 // Enterprise Security: Activate sandbox for polyglot execution
