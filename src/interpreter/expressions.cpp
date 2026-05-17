@@ -1213,8 +1213,15 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
         auto& module_env = module_it->second;
         auto struct_it = module_env->exported_structs_.find(actual_struct_name);
         if (struct_it == module_env->exported_structs_.end()) {
-            throw std::runtime_error("Struct '" + actual_struct_name +
-                                   "' not found in module '" + module_alias + "'");
+            throw std::runtime_error(
+                "Struct '" + actual_struct_name + "' not found in module '" + module_alias + "'\n\n"
+                "  Help:\n"
+                "  - Structs must be exported to be visible from other files\n"
+                "  - Add 'export' before the struct definition:\n\n"
+                "  Example:\n"
+                "    export struct " + actual_struct_name + " {\n"
+                "        field: type\n"
+                "    }\n");
         }
         struct_def = struct_it->second;
         struct_name = actual_struct_name;  // Use unqualified name for error messages

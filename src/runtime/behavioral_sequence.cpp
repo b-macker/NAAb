@@ -82,6 +82,7 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
                     result.matched_events = state.matched_events;
                     state.current_step = 0;
                     state.matched_events.clear();
+                    match_count_++;
                     return result;
                 }
             }
@@ -103,6 +104,7 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
                     result.matched_events = state.matched_events;
                     state.current_step = 0;
                     state.matched_events.clear();
+                    match_count_++;
                     return result;
                 }
             }
@@ -233,7 +235,18 @@ void BehavioralSequenceDetector::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     event_buffer_.clear();
     sequence_counter_ = 0;
+    match_count_ = 0;
     pattern_states_.clear();
+}
+
+size_t BehavioralSequenceDetector::totalEventsProcessed() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return sequence_counter_;
+}
+
+size_t BehavioralSequenceDetector::totalPatternsMatched() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return match_count_;
 }
 
 // ============================================================================
@@ -255,6 +268,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                                        const std::string& error_if_any) {
     if (!config_ || !config_->enabled) return false;
     std::lock_guard<std::mutex> lock(mutex_);
+    turns_analyzed_++;
 
     auto& state = drift_states_[handle_id];
     state.handle_id = handle_id;
@@ -399,6 +413,12 @@ bool ContextDriftAnalyzer::isCircular(const DriftState& state,
 void ContextDriftAnalyzer::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     drift_states_.clear();
+    turns_analyzed_ = 0;
+}
+
+size_t ContextDriftAnalyzer::totalTurnsAnalyzed() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return turns_analyzed_;
 }
 
 } // namespace governance

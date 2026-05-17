@@ -364,6 +364,7 @@ main {
 30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
 31. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
+33. `array.push(other_array)` pushes the array as ONE element (nesting), NOT spreading its contents. To append all elements: `for item in other { arr.push(item) }`. To create a new combined array: `let combined = arr + other` (the `+` operator concatenates arrays).
 
 ## Complexity Scoring (for governance)
 

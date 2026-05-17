@@ -1981,6 +1981,23 @@ void GovernanceEngine::printDashboard() const {
     if (rules_.telemetry_output.enabled)
         fprintf(stderr, "Telemetry:  %zu events → %s\n",
                 check_results_.size(), rules_.telemetry_output.output_file.c_str());
+    // BSD/CDD feature summary
+    if (bsd_enabled_.load(std::memory_order_relaxed)) {
+        fprintf(stderr, "BSD:        %zu events, %zu patterns matched\n",
+                sequence_detector_.totalEventsProcessed(),
+                sequence_detector_.totalPatternsMatched());
+    }
+    if (cdd_enabled_.load(std::memory_order_relaxed)) {
+        auto handle = current_agent_handle_.load(std::memory_order_relaxed);
+        auto state = drift_analyzer_.getDriftState(handle);
+        if (state) {
+            fprintf(stderr, "CDD:        coherence=%.2f (%zu turns analyzed)\n",
+                    state->coherence_score, drift_analyzer_.totalTurnsAnalyzed());
+        } else {
+            fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
+                    drift_analyzer_.totalTurnsAnalyzed());
+        }
+    }
     fprintf(stderr, "────────────────────────────────\n");
 }
 

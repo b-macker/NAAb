@@ -98,10 +98,15 @@ public:
     // Check if enabled
     bool isEnabled() const;
 
+    // Telemetry: total events processed and patterns matched
+    size_t totalEventsProcessed() const;
+    size_t totalPatternsMatched() const;
+
 private:
     const BehavioralSequenceConfig* config_ = nullptr;
     std::deque<RuntimeEvent> event_buffer_;
     size_t sequence_counter_ = 0;
+    size_t match_count_ = 0;
     std::unordered_map<std::string, PatternMatchState> pattern_states_;
 
     bool matchesStep(const RuntimeEvent& event, const SequenceStep& step) const;
@@ -131,11 +136,15 @@ public:
 
     bool isEnabled() const;
 
+    // Telemetry: total turns analyzed
+    size_t totalTurnsAnalyzed() const;
+
     void reset();
 
 private:
     const ContextDriftConfig* config_ = nullptr;
     std::unordered_map<int, DriftState> drift_states_;
+    size_t turns_analyzed_ = 0;
     mutable std::mutex mutex_;
 
     std::string computeFingerprint(const std::vector<RuntimeEvent>& events) const;

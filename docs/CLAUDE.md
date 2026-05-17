@@ -252,7 +252,10 @@ year, month, day, hour, minute, second, weekday
 parse, stringify
 
 ### regex
-match, test, replace, split
+search (partial match, returns match or null), matches (full string match, true/false),
+find (returns matched string), find_all (all matches as array),
+replace, replace_first, split, groups, find_groups, escape, is_valid
+**GOTCHA**: `regex.match()` and `regex.test()` do NOT exist — use `regex.search()` or `regex.matches()`
 
 ### env
 get, set_var (NOT set — the function is set_var), list,
@@ -418,6 +421,7 @@ main {
 47. Structs become plain dicts after JSON round-trip (`json.stringify` → `json.parse`). Use `.get("field")` not `.field` on deserialized data. For type-safe reconstruction: `fn Task.from_dict(d) { return new Task { id: d.get("id"), ... } }`
 48. `array.get(index)` returns null on out-of-bounds (safe access). `array.get(index, default)` returns a default value. Use this for optional CLI args instead of `args[N]` which throws.
 49. Don't create identity sanitizer functions like `fn validate_x(data) { return data }` — governance detects these as bypasses. Functions named `sanitize_*/validate_*/check_*/verify_*` must contain real validation: regex checks, rejection paths (if → return false/throw), type checks, or bounds checks. Cosmetic transforms like `string(x).trim()` or `return param` are blocked.
+50. `array.push(other_array)` pushes the array as ONE element (nesting), NOT spreading its contents. To append all elements: `for item in other { arr.push(item) }`. To create a new combined array: `let combined = arr + other` (the `+` operator concatenates arrays).
 
 ## Complexity Scoring (for governance)
 
