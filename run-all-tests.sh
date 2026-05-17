@@ -1301,6 +1301,19 @@ else
     echo "  test_drift_detection.sh: not found, skipping"
 fi
 
+# BSD/CDD targeted fix validation (F1, F2, F6)
+BSD_CDD_SCRIPT="tests/governance_v4/bsd_cdd_targeted/test_bsd_cdd_fixes.sh"
+if [ -f "$BSD_CDD_SCRIPT" ]; then
+    if bash "$BSD_CDD_SCRIPT" 2>&1; then
+        echo "  test_bsd_cdd_fixes.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_cdd_fixes.sh")
+    fi
+else
+    echo "  test_bsd_cdd_fixes.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"
