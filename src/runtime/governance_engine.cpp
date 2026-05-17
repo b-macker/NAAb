@@ -4485,5 +4485,90 @@ void GovernanceEngine::printValidationReport() {
     fmt::print(stderr, "-------------------------------------------------------------------------\n");
 }
 
+// ============================================================================
+// Behavioral Sequence Detection — emitEvent / checkBehavioralSequence / checkContextDrift
+// ============================================================================
+
+void GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
+                                  const std::string& file, int line) {
+    if (!bsd_enabled_.load(std::memory_order_acquire)) return;
+
+    RuntimeEvent ev;
+    ev.type = type;
+    ev.detail = detail;
+    ev.file = file;
+    ev.line = line;
+    ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
+    ev.timestamp = std::chrono::steady_clock::now();
+
+    auto match = sequence_detector_.recordEvent(ev);
+    if (!match.pattern_name.empty()) {
+        checkBehavioralSequence(match);
+    }
+}
+
+void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
+    current_agent_handle_.store(handle_id, std::memory_order_relaxed);
+    current_agent_turn_.store(turn, std::memory_order_relaxed);
+}
+
+std::string GovernanceEngine::checkBehavioralSequence(const SequenceMatchResult& match) {
+    if (!match.pattern) return "";
+
+    clearTrace();
+    addTrace(fmt::format("behavioral sequence '{}' completed", match.pattern_name));
+    for (size_t i = 0; i < match.matched_events.size(); i++) {
+        addTrace(fmt::format("  step {}: {} ('{}') at {}:{}",
+            i + 1, static_cast<int>(match.matched_events[i].type),
+            match.matched_events[i].detail,
+            match.matched_events[i].file, match.matched_events[i].line));
+    }
+
+    return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
+        formatError(match.pattern->level,
+            fmt::format("Behavioral sequence '{}' detected: {} steps completed "
+                "within configured window", match.pattern_name, match.matched_events.size()),
+            "", "behavioral_sequences." + match.pattern_name,
+            "This sequence of operations matches a known dangerous pattern.\n"
+            "Review the action chain and ensure operations are legitimate.",
+            "", ""));
+}
+
+std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
+                                                 const std::string& error) {
+    if (!cdd_enabled_.load(std::memory_order_acquire)) return "";
+
+    // Gather events from this turn
+    std::vector<RuntimeEvent> turn_events = sequence_detector_.getEventsForTurn(turn);
+
+    bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
+    if (!drifted) return "";
+
+    auto state = drift_analyzer_.getDriftState(handle_id);
+    if (!state) return "";
+
+    clearTrace();
+    addTrace(fmt::format("context_drift: coherence={:.2f} (threshold={:.2f})",
+        state->coherence_score, rules_.context_drift.coherence_threshold));
+    if (state->circular_action_count > 0)
+        addTrace(fmt::format("  circular_actions: {}", state->circular_action_count));
+    if (state->repeated_failures > 0)
+        addTrace(fmt::format("  repeated_failures: {}", state->repeated_failures));
+    if (state->scope_creep_count > 0)
+        addTrace(fmt::format("  scope_creep: {}", state->scope_creep_count));
+
+    return enforce("context_drift.coherence_loss", rules_.context_drift.level,
+        formatError(rules_.context_drift.level,
+            fmt::format("Agent context drift detected: coherence score {:.2f} "
+                "below threshold {:.2f} (circular={}, failures={}, scope_creep={})",
+                state->coherence_score, rules_.context_drift.coherence_threshold,
+                state->circular_action_count, state->repeated_failures,
+                state->scope_creep_count),
+            "", "context_drift.coherence_loss",
+            "The agent appears to be looping or losing context.\n"
+            "Consider resetting the conversation or providing clearer instructions.",
+            "", ""));
+}
+
 } // namespace governance
 } // namespace naab

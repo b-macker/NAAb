@@ -24,6 +24,7 @@
 
 #include "naab/project_context.h"
 #include "naab/naab_val.h"
+#include "naab/behavioral_sequence.h"
 
 namespace naab {
 namespace ast { class Program; }  // Forward declaration for drift detection
@@ -1125,6 +1126,53 @@ struct ScoringConfig {
     std::string threshold_mode = "fixed";  // "fixed" or "per_source"
 };
 
+// ============================================================================
+// Behavioral Sequence Detection — config structs
+// ============================================================================
+
+struct SequenceStep {
+    std::vector<std::string> match_any;   // OR-list: ["env.get", "file.read"]
+    std::string detail_glob;              // optional glob on detail: "*KEY*", "/etc/*"
+};
+
+struct SequencePattern {
+    std::string name;                     // "data_exfiltration"
+    std::vector<SequenceStep> steps;      // ordered steps
+    int max_gap = 10;                     // max events between consecutive step matches
+    int decay_seconds = 300;              // events older than this don't count
+    int decay_turns = 20;                 // events older than N turns don't count
+    EnforcementLevel level = EnforcementLevel::SOFT;
+    std::string rationale;
+};
+
+struct BehavioralSequenceConfig {
+    bool enabled = false;
+    std::string rationale;
+    size_t window_size = 200;             // max events in ring buffer
+    std::vector<SequencePattern> patterns;
+};
+
+struct ContextDriftConfig {
+    bool enabled = false;
+    std::string rationale;
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
+    double coherence_threshold = 0.5;
+    int max_contradictions = 5;
+    int check_interval_turns = 3;
+    int fingerprint_window = 20;
+    struct Signals {
+        bool repeated_failures = true;
+        bool circular_actions = true;
+        bool scope_creep = true;
+    } signals;
+    struct Weights {
+        double circular = 0.1;
+        double scope_creep = 0.15;
+        double contradiction = 0.2;
+        double repeated_failure = 0.05;
+    } weights;
+};
+
 // Named scorer configs — loaded from "scorers" section of govern.json
 struct ScorerConfig {
     std::string name;
@@ -1448,6 +1496,8 @@ struct GovernanceRules {
     PolyglotOptimizationConfig polyglot_optimization;
     ContractsConfig contracts;
     TaintTrackingConfig taint_tracking;
+    BehavioralSequenceConfig behavioral_sequences;
+    ContextDriftConfig context_drift;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
     ApprovalConfig approval;
@@ -2063,6 +2113,14 @@ public:
     void setSource(const std::string& source);
     void runGovernanceVoice();
 
+    // --- Behavioral Sequence Detection ---
+    void emitEvent(RuntimeEventType type, const std::string& detail,
+                   const std::string& file = "", int line = 0);
+    void setAgentTurn(int handle_id, int turn);
+    std::string checkBehavioralSequence(const governance::SequenceMatchResult& match);
+    std::string checkContextDrift(int handle_id, int turn,
+                                  const std::string& error = "");
+
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);
 
@@ -2169,6 +2227,14 @@ private:
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint
     std::string last_taint_source_;      // Lineage: which source function produced the taint
+
+    // Behavioral Sequence Detection
+    BehavioralSequenceDetector sequence_detector_;
+    ContextDriftAnalyzer drift_analyzer_;
+    std::atomic<int> current_agent_turn_{0};
+    std::atomic<int> current_agent_handle_{0};
+    std::atomic<bool> bsd_enabled_{false};
+    std::atomic<bool> cdd_enabled_{false};
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json

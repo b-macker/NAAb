@@ -1,0 +1,43 @@
+{
+    "sandbox_level": "elevated",
+    "capabilities": {
+        "network": false,
+        "filesystem": "read",
+        "env_vars": { "read": true }
+    },
+    "behavioral_sequences": {
+        "enabled": true,
+        "window_size": 50,
+        "patterns": [
+            {
+                "name": "env_to_shell",
+                "sequence": ["env.get", "shell_exec"],
+                "max_gap": 5,
+                "level": "soft",
+                "rationale": "Reading env then executing shell suggests injection risk."
+            },
+            {
+                "name": "read_encode_send",
+                "sequence": ["file.read|env.get", "encode", "http.post|agent.send"],
+                "max_gap": 10,
+                "level": "hard",
+                "rationale": "Read-encode-send is the classic exfiltration pattern."
+            },
+            {
+                "name": "credential_harvest",
+                "sequence": ["env.get:*KEY*|env.get:*SECRET*|env.get:*TOKEN*", "file.write|http.post"],
+                "max_gap": 5,
+                "level": "hard",
+                "rationale": "Reading credential env vars then writing/sending them."
+            }
+        ]
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "lineage": true,
+        "sources": ["env.get"],
+        "sinks": ["shell_exec"],
+        "sanitizers": ["validate_"]
+    }
+}

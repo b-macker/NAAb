@@ -1768,6 +1768,37 @@ interpreter::NaabVal VM::run() {
                                 peekTaint(0) = true;
                                 governance_->setLastReturnTainted(false);
                             }
+                            // Behavioral sequence event emission
+                            if (governance_->getRules().behavioral_sequences.enabled) {
+                                governance::RuntimeEventType evt_type{};
+                                bool should_emit = false;
+                                if (full_method_name == "env.get" || full_method_name == "env.list") {
+                                    evt_type = governance::RuntimeEventType::ENV_READ; should_emit = true;
+                                } else if (full_method_name == "env.set_var") {
+                                    evt_type = governance::RuntimeEventType::ENV_WRITE; should_emit = true;
+                                } else if (full_method_name == "file.read") {
+                                    evt_type = governance::RuntimeEventType::FILE_READ; should_emit = true;
+                                } else if (full_method_name == "file.write" || full_method_name == "file.append") {
+                                    evt_type = governance::RuntimeEventType::FILE_WRITE; should_emit = true;
+                                } else if (full_method_name.rfind("http.", 0) == 0) {
+                                    evt_type = governance::RuntimeEventType::NET_CONNECT; should_emit = true;
+                                } else if (full_method_name.rfind("crypto.base64_encode", 0) == 0 ||
+                                           full_method_name.rfind("crypto.hex_encode", 0) == 0) {
+                                    evt_type = governance::RuntimeEventType::ENCODE; should_emit = true;
+                                } else if (full_method_name.rfind("crypto.base64_decode", 0) == 0 ||
+                                           full_method_name.rfind("crypto.hex_decode", 0) == 0) {
+                                    evt_type = governance::RuntimeEventType::DECODE; should_emit = true;
+                                } else if (full_method_name.rfind("process.", 0) == 0) {
+                                    evt_type = governance::RuntimeEventType::PROCESS_EXEC; should_emit = true;
+                                }
+                                if (should_emit) {
+                                    std::string detail = full_method_name;
+                                    if (argc > 0) detail += "('" + first_arg_str.substr(0, 64) + "')";
+                                    int ev_line = CURRENT_CHUNK().getLine(
+                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                    governance_->emitEvent(evt_type, detail, current_file_, ev_line);
+                                }
+                            }
                         }
                         goto done_call_method;
                     }
@@ -2630,6 +2661,17 @@ interpreter::NaabVal VM::run() {
                                 if (!terr.empty()) runtimeError("%s", terr.c_str());
                             }
                         }
+                    }
+                }
+
+                // Behavioral sequence: emit shell/polyglot exec event
+                if (governance_ && governance_->getRules().behavioral_sequences.enabled) {
+                    if (language == "shell" || language == "sh" || language == "bash") {
+                        governance_->emitEvent(governance::RuntimeEventType::SHELL_EXEC,
+                            "shell_exec", current_file_, polyglot_gov_line);
+                    } else {
+                        governance_->emitEvent(governance::RuntimeEventType::PROCESS_EXEC,
+                            "polyglot." + language, current_file_, polyglot_gov_line);
                     }
                 }
 

@@ -1,0 +1,17 @@
+// Test: Behavioral Sequence Detection — 2-step pattern (env_to_shell)
+// Expected: GOVERNANCE_BLOCK (env.get followed by shell_exec within gap=5)
+// Category: error-behavior
+
+use env
+use crypto
+
+main {
+    // Step 1: Read env var (matches "env.get" step of env_to_shell pattern)
+    let home = env.get("HOME")
+
+    // Step 2: Execute shell (matches "shell_exec" step)
+    // This should trigger the env_to_shell pattern -> SOFT enforcement
+    <<shell
+    echo "hello"
+    >>
+}

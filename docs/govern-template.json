@@ -1397,6 +1397,60 @@
     "red_threshold": 25
   },
 
+  "_comment_behavioral_sequences": "Behavioral Sequence Detection — detects dangerous ordered chains of runtime actions. Individual actions are benign; the SEQUENCE is the threat. FSM-based pattern matching over a ring buffer of runtime events.",
+  "behavioral_sequences": {
+    "enabled": false,
+    "rationale": "Detect multi-step attack patterns like data exfiltration (read→encode→send) or credential harvesting.",
+    "window_size": 200,
+    "patterns": [
+      {
+        "name": "data_exfiltration",
+        "sequence": ["env.get|file.read", "encode|base64|compress", "http.post|agent.send"],
+        "max_gap": 10,
+        "decay_seconds": 300,
+        "decay_turns": 20,
+        "level": "hard",
+        "rationale": "Reading sensitive data, encoding it, then sending it out matches exfiltration."
+      },
+      {
+        "name": "credential_harvest",
+        "sequence": ["env.get:*KEY*|env.get:*SECRET*|env.get:*TOKEN*", "file.write|http.post"],
+        "max_gap": 5,
+        "level": "hard",
+        "rationale": "Reading credential env vars then writing/sending them is credential theft."
+      },
+      {
+        "name": "reconnaissance_escalation",
+        "sequence": ["file.read:/etc/*|file.read:/proc/*", "process.exec|shell_exec"],
+        "max_gap": 15,
+        "level": "soft",
+        "rationale": "Reading system files then executing commands suggests privilege escalation."
+      }
+    ]
+  },
+
+  "_comment_context_drift": "Context Drift Detection — monitors agent coherence across multi-turn conversations. Detects circular actions, repeated failures, and loss of focus.",
+  "context_drift": {
+    "enabled": false,
+    "rationale": "Detect when an LLM agent loses context and starts looping or contradicting itself.",
+    "level": "advisory",
+    "coherence_threshold": 0.5,
+    "max_contradictions": 5,
+    "check_interval_turns": 3,
+    "fingerprint_window": 20,
+    "signals": {
+      "repeated_failures": true,
+      "circular_actions": true,
+      "scope_creep": true
+    },
+    "weights": {
+      "circular": 0.1,
+      "scope_creep": 0.15,
+      "contradiction": 0.2,
+      "repeated_failure": 0.05
+    }
+  },
+
   "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
   "agent_review": {
     "enabled": false,

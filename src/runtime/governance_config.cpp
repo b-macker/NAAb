@@ -1937,6 +1937,80 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.agent_dispatch.pool_queue_max = ad["pool_queue_max"].get<int>();
     }
 
+    // --- Behavioral Sequence Detection ---
+    if (j.contains("behavioral_sequences") && j["behavioral_sequences"].is_object()) {
+        auto& bs = j["behavioral_sequences"];
+        auto& cfg = rules_.behavioral_sequences;
+        if (bs.contains("enabled")) cfg.enabled = bs["enabled"].get<bool>();
+        if (bs.contains("window_size")) cfg.window_size = bs["window_size"].get<size_t>();
+        parseRationale(bs, cfg.rationale);
+        if (bs.contains("patterns") && bs["patterns"].is_array()) {
+            for (auto& pat : bs["patterns"]) {
+                SequencePattern sp;
+                sp.name = pat.value("name", "");
+                sp.max_gap = pat.value("max_gap", 10);
+                sp.decay_seconds = pat.value("decay_seconds", 300);
+                sp.decay_turns = pat.value("decay_turns", 20);
+                if (pat.contains("level")) {
+                    auto [en, lv] = parseEnforcementLevel(pat["level"]);
+                    sp.level = lv;
+                } else {
+                    sp.level = EnforcementLevel::SOFT;
+                }
+                if (pat.contains("rationale")) sp.rationale = pat["rationale"].get<std::string>();
+                if (pat.contains("sequence") && pat["sequence"].is_array()) {
+                    for (auto& step_str : pat["sequence"]) {
+                        SequenceStep step;
+                        std::string s = step_str.get<std::string>();
+                        auto colon = s.find(':');
+                        std::string matchers_part = s;
+                        if (colon != std::string::npos) {
+                            matchers_part = s.substr(0, colon);
+                            step.detail_glob = s.substr(colon + 1);
+                        }
+                        // Split by '|' for OR-matching
+                        std::istringstream iss(matchers_part);
+                        std::string token;
+                        while (std::getline(iss, token, '|')) {
+                            if (!token.empty()) step.match_any.push_back(token);
+                        }
+                        sp.steps.push_back(std::move(step));
+                    }
+                }
+                cfg.patterns.push_back(std::move(sp));
+            }
+        }
+    }
+
+    // --- Context Drift Detection ---
+    if (j.contains("context_drift") && j["context_drift"].is_object()) {
+        auto& cd = j["context_drift"];
+        auto& cfg = rules_.context_drift;
+        if (cd.contains("enabled")) cfg.enabled = cd["enabled"].get<bool>();
+        if (cd.contains("level")) {
+            auto [en, lv] = parseEnforcementLevel(cd["level"]);
+            cfg.level = lv;
+        }
+        if (cd.contains("coherence_threshold")) cfg.coherence_threshold = cd["coherence_threshold"].get<double>();
+        if (cd.contains("max_contradictions")) cfg.max_contradictions = cd["max_contradictions"].get<int>();
+        if (cd.contains("check_interval_turns")) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
+        if (cd.contains("fingerprint_window")) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
+        parseRationale(cd, cfg.rationale);
+        if (cd.contains("signals") && cd["signals"].is_object()) {
+            auto& sig = cd["signals"];
+            if (sig.contains("repeated_failures")) cfg.signals.repeated_failures = sig["repeated_failures"].get<bool>();
+            if (sig.contains("circular_actions")) cfg.signals.circular_actions = sig["circular_actions"].get<bool>();
+            if (sig.contains("scope_creep")) cfg.signals.scope_creep = sig["scope_creep"].get<bool>();
+        }
+        if (cd.contains("weights") && cd["weights"].is_object()) {
+            auto& w = cd["weights"];
+            if (w.contains("circular")) cfg.weights.circular = w["circular"].get<double>();
+            if (w.contains("scope_creep")) cfg.weights.scope_creep = w["scope_creep"].get<double>();
+            if (w.contains("contradiction")) cfg.weights.contradiction = w["contradiction"].get<double>();
+            if (w.contains("repeated_failure")) cfg.weights.repeated_failure = w["repeated_failure"].get<double>();
+        }
+    }
+
     // --- Governance Baseline (Feature 4) ---
     if (j.contains("governance_baseline") && j["governance_baseline"].is_object()) {
         auto& gb = j["governance_baseline"];
@@ -2266,6 +2340,20 @@ bool GovernanceEngine::reloadIfChanged() {
             }
         }
 
+        // Re-configure BSD/CDD detectors with new rules
+        if (rules_.behavioral_sequences.enabled) {
+            sequence_detector_.configure(rules_.behavioral_sequences);
+        } else {
+            sequence_detector_.reset();
+        }
+        if (rules_.context_drift.enabled) {
+            drift_analyzer_.configure(rules_.context_drift);
+        } else {
+            drift_analyzer_.reset();
+        }
+        bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
+        cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
+
         // Store notices for retrieval by agent.send()
         size_t notice_count = notices.size();
         {
@@ -2362,6 +2450,16 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels();
+
+        // Configure behavioral sequence + context drift detectors
+        if (rules_.behavioral_sequences.enabled) {
+            sequence_detector_.configure(rules_.behavioral_sequences);
+        }
+        if (rules_.context_drift.enabled) {
+            drift_analyzer_.configure(rules_.context_drift);
+        }
+        bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
+        cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
 
         // Integrity: verify govern.json signature
         if (!verifyFileSignature(path)) {

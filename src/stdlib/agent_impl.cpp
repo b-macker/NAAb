@@ -207,6 +207,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Server-side governance enforcement (immune to handle mutation)
     // Lock to validate tracker state; released before slow API call
     int handle_id = handle["id"].asInt();
+    int current_turn = 0;
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
         auto tracker_it = s_trackers.find(handle_id);
@@ -241,6 +242,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  - Or increase max_total_tokens in govern.json agents config\n",
                 total_used, config->max_total_tokens));
         }
+        current_turn = tracker.turns;
     } // unlock before API call
 
     // Build messages array from handle history + new message
@@ -276,6 +278,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     if (gov_engine && gov_engine->isActive()) {
         gov_engine->reloadIfChanged();
         gov_notices = gov_engine->getAndClearNotices();
+    }
+
+    // Behavioral sequence: emit agent.send event
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().behavioral_sequences.enabled) {
+        gov_engine->setAgentTurn(handle_id, current_turn);
+        gov_engine->emitEvent(governance::RuntimeEventType::AGENT_SEND,
+            "agent.send('" + config_name + "')", "", 0);
     }
 
     // Call provider via shared layer
@@ -369,6 +379,22 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         handle["turns"] = NaabVal::makeInt(tracker.turns);
         handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
         handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+        current_turn = tracker.turns;  // updated turn count
+    }
+
+    // Behavioral sequence: emit agent.response event + context drift check
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().behavioral_sequences.enabled) {
+        gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
+            "agent.response('" + config_name + "', tokens=" +
+            std::to_string(resp_output_tokens) + ")", "", 0);
+        // Context drift check
+        std::string drift_err = gov_engine->checkContextDrift(
+            handle_id, current_turn,
+            agent_resp.success ? "" : agent_resp.error);
+        if (!drift_err.empty()) {
+            gov_notices.push_back("DRIFT: " + drift_err);
+        }
     }
 
     // Build response dict
