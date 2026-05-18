@@ -396,6 +396,7 @@ add_library(naab_security
     src/runtime/ffi_async_callback.cpp       # Phase 1 Item 10: FFI async callback safety
     src/runtime/error_sanitizer.cpp          # V-ERR-002: error message redaction (wired R11)
     src/runtime/trust_store.cpp              # V-SC-009: Ed25519 trust store for governance signing
+    src/runtime/behavioral_sequence.cpp      # BSD + CDD: Behavioral Sequence Detection & Context Drift
 )
 target_include_directories(naab_security PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
@@ -540,7 +541,6 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/lockfile.cpp  # Phase 8.4: Lockfile for deterministic builds
     src/runtime/secure_file.cpp  # R24 V-SC-005: symlink-resistant file writes
     src/runtime/bounded_read.cpp # R24 V-RT-014: size-capped, symlink-rejecting reads
-    src/runtime/behavioral_sequence.cpp  # Behavioral Sequence Detection + Context Drift
     # Phase 7.3: Platform abstraction — source selected at configure time
 
 )
