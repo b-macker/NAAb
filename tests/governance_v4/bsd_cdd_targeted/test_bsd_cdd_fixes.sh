@@ -269,8 +269,11 @@ else
 fi
 
 # T6: Without env.get first, shell should run normally (no BSD trigger)
-# Note: shell output is captured as polyglot return value, must print() it
-cat > "$WORK_F2/test2.naab" << 'NAAB_EOF'
+# Note: shell executor is POSIX-only — skip on Windows
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "$WINDIR" ]]; then
+    pass "T6: Shell block runs when no preceding env.get (skipped — no shell executor on Windows)"
+else
+    cat > "$WORK_F2/test2.naab" << 'NAAB_EOF'
 main {
     let r = <<shell
     echo "ALLOWED"
@@ -279,13 +282,14 @@ main {
 }
 NAAB_EOF
 
-OUTPUT=$("$NAAB" "$WORK_F2/test2.naab" 2>&1)
-RC=$?
-if echo "$OUTPUT" | grep -q "ALLOWED"; then
-    pass "T6: Shell block runs when no preceding env.get (no BSD sequence match)"
-else
-    fail "T6: Shell block should run without env.get preceding it (rc=$RC)"
-    echo "    Output: $(echo "$OUTPUT" | head -8)"
+    OUTPUT=$("$NAAB" "$WORK_F2/test2.naab" 2>&1)
+    RC=$?
+    if echo "$OUTPUT" | grep -q "ALLOWED"; then
+        pass "T6: Shell block runs when no preceding env.get (no BSD sequence match)"
+    else
+        fail "T6: Shell block should run without env.get preceding it (rc=$RC)"
+        echo "    Output: $(echo "$OUTPUT" | head -8)"
+    fi
 fi
 
 # T7: Hard-level BSD pattern also blocks pre-execution
