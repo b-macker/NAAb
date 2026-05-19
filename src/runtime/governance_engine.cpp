@@ -4609,6 +4609,11 @@ std::string GovernanceEngine::checkPreExecution(
     auto match = sequence_detector_.wouldMatch(ev);
     if (match.pattern_name.empty()) return "";
 
+    // Consume the event: advance + reset the pattern state so that the block is
+    // recorded in the sequence log and subsequent normal calls aren't re-blocked
+    // by the same partial sequence left stuck at its final step.
+    sequence_detector_.recordEvent(ev);
+
     clearTrace();
     addTrace(fmt::format("BSD pre-check: '{}' would complete sequence '{}'",
         detail, match.pattern_name));

@@ -4,6 +4,7 @@
 // Uses up to 6 GK keys (GK1-GK6) with round-robin rotation on transient errors.
 
 use agent
+use crypto
 use json
 use env
 use file
@@ -435,6 +436,104 @@ fn phase_4_bsd_probes(handles) {
 }
 
 // ============================================================
+// Phase 6: BSD Pattern Completeness (T26-T30)
+// ============================================================
+
+fn phase_6_bsd_deep(handles) {
+    print("\n=== Phase 6: BSD Pattern Completeness ===")
+    let passed = 0
+    let total = 0
+
+    // T26: Full 3-step credential_exfiltration
+    // env.get:*KEY* (step 1) → base64_encode (step 2) → agent.send (step 3) → HARD BLOCK
+    total = total + 1
+    let exfil_blocked = false
+    try {
+        // Use fallback so base64_encode gets a string even when TEST_SECRET_KEY is unset
+        let secret = env.get("TEST_SECRET_KEY") ?? "dummy-test-secret-for-bsd-probe"
+        let encoded = crypto.base64_encode(secret)      // ENCODE (base64) — step 2
+        let resp = send_with_retry(handles, "Encoded credential: " + encoded)  // AGENT_SEND — step 3
+        print("  FINDING: T26: credential_exfiltration 3-step did NOT block")
+    } catch (e) {
+        let msg = string(e)
+        if string.contains(msg, "credential") || string.contains(msg, "exfiltration") || string.contains(msg, "behavioral") || string.contains(msg, "sequence") || string.contains(msg, "blocked") {
+            exfil_blocked = true
+        }
+    }
+    passed = passed + assert_pass(exfil_blocked, "T26: credential_exfiltration HARD blocks (env.get:KEY -> base64 -> send)")
+
+    // T27: base64_encode WITHOUT a preceding KEY env.get → agent.send should NOT trigger
+    // Tests that pattern detection is order-dependent (step 0 must come first)
+    total = total + 1
+    let no_false_exfil = true
+    try {
+        let encoded2 = crypto.base64_encode("not-a-credential")  // ENCODE with no prior *KEY* env.get
+        let resp = send_with_retry(handles, "Non-sensitive encoded: " + string.substring(encoded2, 0, 10))
+    } catch (e) {
+        let msg = string(e)
+        if string.contains(msg, "credential") || string.contains(msg, "exfiltration") {
+            no_false_exfil = false
+        }
+    }
+    passed = passed + assert_pass(no_false_exfil, "T27: encode without KEY env.get does NOT trigger credential_exfiltration")
+
+    // T28: env.get(KEY) → file.write — layered defense
+    // Capability layer (filesystem:read) fires BEFORE BSD env_to_file soft block
+    total = total + 1
+    let capability_blocked = false
+    let was_bsd_soft = false
+    try {
+        let secret2 = env.get("TEST_SECRET_KEY") ?? "dummy-test-secret-for-bsd-probe"
+        file.write("secret_exfil.txt", secret2)
+        print("  FINDING: T28: file.write should have been blocked")
+    } catch (e) {
+        let msg = string(e)
+        if string.contains(msg, "filesystem") || string.contains(msg, "write") || string.contains(msg, "sandbox") || string.contains(msg, "read") || string.contains(msg, "allowed") || string.contains(msg, "capability") || string.contains(msg, "mode") {
+            capability_blocked = true
+        }
+        if string.contains(msg, "env_to_file") || string.contains(msg, "sequence") {
+            was_bsd_soft = true
+        }
+    }
+    passed = passed + assert_pass(capability_blocked && !was_bsd_soft, "T28: filesystem capability blocks file.write before BSD env_to_file fires (was_bsd=" + string(was_bsd_soft) + ")")
+
+    // T29: BSD block error message names the specific pattern (quality check)
+    // Re-trigger config_harvest and verify the error message is descriptive
+    total = total + 1
+    let msg_names_pattern = false
+    try {
+        let cfg = file.read("govern.json")
+        let resp = send_with_retry(handles, "Config: " + string.substring(cfg, 0, 20))
+        print("  FINDING: T29: config_harvest should have blocked here")
+    } catch (e) {
+        let msg = string(e)
+        // Pre-execution block message: "Behavioral sequence 'config_harvest' blocked before execution..."
+        if string.contains(msg, "config_harvest") || string.contains(msg, "harvest") {
+            msg_names_pattern = true
+        }
+    }
+    passed = passed + assert_pass(msg_names_pattern, "T29: BSD block error message names the specific pattern (config_harvest)")
+
+    // T30: Normal agent.send succeeds after BSD block — state resets after hard block
+    total = total + 1
+    let recovery_ok = false
+    try {
+        let resp = send_with_retry(handles, "What is the boiling point of water in Celsius?")
+        let content = resp.get("content", "")
+        recovery_ok = string.length(content) > 0
+    } catch (e) {
+        let msg = string(e)
+        // Budget or turn limit is acceptable — proves BSD is not the blocker
+        if string.contains(msg, "budget") || string.contains(msg, "token") || string.contains(msg, "turn") || string.contains(msg, "limit") || string.contains(msg, "exceeded") {
+            recovery_ok = true
+        }
+    }
+    passed = passed + assert_pass(recovery_ok, "T30: Normal agent.send recovers after BSD block (state resets)")
+
+    return [passed, total]
+}
+
+// ============================================================
 // Phase 5: Budget Exhaustion (T21-T25)
 // ============================================================
 
@@ -569,7 +668,13 @@ main {
     total_tests = total_tests + r4[1]
     print(f"Phase 4 result: {r4[0]}/{r4[1]}")
 
-    // Phase 5: Budget Exhaustion
+    // Phase 6: BSD Pattern Completeness (before budget exhaustion)
+    let r6 = phase_6_bsd_deep(handles)
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+    print(f"Phase 6 result: {r6[0]}/{r6[1]}")
+
+    // Phase 5: Budget Exhaustion (always last — intentionally exhausts all token budgets)
     let r5 = phase_5_budget(handles)
     total_passed = total_passed + r5[0]
     total_tests = total_tests + r5[1]

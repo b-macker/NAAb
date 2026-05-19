@@ -1763,6 +1763,8 @@ interpreter::NaabVal VM::run() {
                                 pre_type = governance::RuntimeEventType::PROCESS_EXEC; pre_check = true;
                             } else if (full_method_name == "env.get" || full_method_name == "env.list") {
                                 pre_type = governance::RuntimeEventType::ENV_READ; pre_check = true;
+                            } else if (full_method_name == "agent.send") {
+                                pre_type = governance::RuntimeEventType::AGENT_SEND; pre_check = true;
                             }
                             if (pre_check) {
                                 std::string pre_detail = full_method_name;
