@@ -124,7 +124,12 @@ bool BehavioralSequenceDetector::matchesStep(const RuntimeEvent& event,
         bool type_match = false;
 
         // Check against event detail (includes method name like "env.get('HOME')")
-        if (event.detail.find(matcher) != std::string::npos) {
+        // If matcher contains wildcards, use glob matching; otherwise literal substring.
+        if (matcher.find('*') != std::string::npos) {
+            if (globMatch(event.detail, matcher)) {
+                type_match = true;
+            }
+        } else if (event.detail.find(matcher) != std::string::npos) {
             type_match = true;
         }
         // Check against type string directly

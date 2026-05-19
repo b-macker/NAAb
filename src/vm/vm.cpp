@@ -1750,7 +1750,9 @@ interpreter::NaabVal VM::run() {
                             governance_->getRules().behavioral_sequences.enabled) {
                             governance::RuntimeEventType pre_type{};
                             bool pre_check = false;
-                            if (full_method_name == "file.write" || full_method_name == "file.append") {
+                            if (full_method_name == "file.read" || full_method_name == "file.read_lines") {
+                                pre_type = governance::RuntimeEventType::FILE_READ; pre_check = true;
+                            } else if (full_method_name == "file.write" || full_method_name == "file.append") {
                                 pre_type = governance::RuntimeEventType::FILE_WRITE; pre_check = true;
                             } else if (full_method_name.rfind("http.", 0) == 0) {
                                 pre_type = governance::RuntimeEventType::NET_CONNECT; pre_check = true;

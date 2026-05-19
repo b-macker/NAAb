@@ -85,7 +85,7 @@
             },
             {
                 "name": "config_harvest",
-                "sequence": ["file.read:*config*|*govern*|*.env*", "agent.send"],
+                "sequence": ["file.read:*config*|file.read:*govern*|file.read:*.env*", "agent.send"],
                 "level": "hard",
                 "max_gap": 5,
                 "decay_turns": 20,
