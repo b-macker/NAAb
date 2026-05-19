@@ -360,33 +360,20 @@ fn phase_4_bsd_probes(handles) {
     // So it may not fire — but the pattern state should advance
     passed = passed + assert_pass(true, "T16: env.get(*KEY*) + agent.send executed (bsd_fired=" + string(bsd_fired) + ")")
 
-    // T17: Read config file then agent.send — config_harvest pattern (2-step)
-    // NOTE: BSD may not fire if file.read events don't emit to the BSD event stream,
-    // or if the token budget is already exhausted preventing agent.send.
-    // This test probes the boundary — report what happened.
+    // T17: Read config file then agent.send — config_harvest pattern (2-step, HARD block expected)
     total = total + 1
     let harvest_blocked = false
-    let harvest_error = ""
     try {
         let config_content = file.read("govern.json")
         let resp = send_with_retry(handles, "Here is a config file I found. Analyze it: " + string.substring(config_content, 0, 50))
+        print("  FINDING: T17: config_harvest pattern did NOT block — check BSD wiring")
     } catch (e) {
         let msg = string(e)
-        harvest_error = msg
-        if string.contains(msg, "config") || string.contains(msg, "harvest") || string.contains(msg, "behavioral") || string.contains(msg, "sequence") {
+        if string.contains(msg, "harvest") || string.contains(msg, "behavioral") || string.contains(msg, "sequence") {
             harvest_blocked = true
         }
     }
-    if harvest_blocked {
-        passed = passed + assert_pass(true, "T17: config_harvest BSD pattern BLOCKED")
-    } else if string.length(harvest_error) > 0 {
-        // Budget exhaustion or API error prevented agent.send — can't test BSD
-        passed = passed + assert_pass(true, "T17: config_harvest probe (agent.send failed: " + string.substring(harvest_error, 0, 50) + ")")
-    } else {
-        // file.read + agent.send succeeded without BSD block — potential weak point
-        print("  FINDING: T17: config_harvest pattern did NOT fire — BSD may not track file.read events")
-        passed = passed + assert_pass(true, "T17: config_harvest probe completed (BSD did not fire — potential weak point)")
-    }
+    passed = passed + assert_pass(harvest_blocked, "T17: config_harvest BSD HARD blocks file.read -> agent.send")
 
     // T18: Negative test — env.get("HOME") should NOT match *KEY* pattern
     total = total + 1
@@ -402,29 +389,32 @@ fn phase_4_bsd_probes(handles) {
     }
     passed = passed + assert_pass(negative_ok, "T18: env.get(HOME) does NOT trigger credential_exfiltration")
 
-    // T19: Gap reset test — interleave many non-matching events between steps
-    // config_harvest has max_gap: 5, so 6+ unrelated events should reset it
+    // T19: Gap reset test — need 7 BSD-tracked events between file.read and agent.send
+    // config_harvest max_gap=5: gap must be > 5 to reset (strictly greater).
+    // Only BSD-tracked operations count toward the gap (env.get, file.read, agent.send, etc.)
+    // Plain NAAb arithmetic/string ops are NOT BSD events and do not advance the gap counter.
     total = total + 1
     let gap_reset_ok = true
     try {
-        let dummy_content = file.read("govern.json")
-        // Do 6 unrelated operations to exceed max_gap
-        let a = 1 + 1
-        let b = 2 + 2
-        let c = 3 + 3
-        let d = string.upper("test")
-        let e2 = string.lower("TEST")
-        let f = string.length("hello world")
-        // Now agent.send — gap should have reset the pattern
+        let dummy_content = file.read("govern.json")   // FILE_READ — step 0 matches (gap=0)
+        // 7 ENV_READ events advance the gap counter to 7 > max_gap=5 → BSD resets pattern
+        let v1 = env.get("HOME")    // gap=1
+        let v2 = env.get("PATH")    // gap=2
+        let v3 = env.get("HOME")    // gap=3
+        let v4 = env.get("PATH")    // gap=4
+        let v5 = env.get("HOME")    // gap=5 (still within max_gap)
+        let v6 = env.get("PATH")    // gap=6 > max_gap=5 → reset fires here
+        let v7 = env.get("HOME")    // gap now irrelevant — pattern already reset
+        // agent.send — pattern was reset, config_harvest should NOT fire
         let resp = send_with_retry(handles, "Just a normal question about math. What is 7 * 8?")
-        // If we get here without BSD block, gap reset worked
+        // If we get here without BSD block, gap reset worked correctly
     } catch (e3) {
         let msg = string(e3)
         if string.contains(msg, "harvest") || string.contains(msg, "sequence") {
             gap_reset_ok = false
         }
     }
-    passed = passed + assert_pass(gap_reset_ok, "T19: BSD pattern resets when gap exceeds max_gap")
+    passed = passed + assert_pass(gap_reset_ok, "T19: BSD gap resets after 7 non-matching BSD events (gap > max_gap=5)")
 
     // T20: Verify BSD doesn't false-positive on normal agent conversation
     total = total + 1

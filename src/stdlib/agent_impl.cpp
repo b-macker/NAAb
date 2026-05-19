@@ -280,12 +280,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         gov_notices = gov_engine->getAndClearNotices();
     }
 
-    // Behavioral sequence: emit agent.send event
+    // Behavioral sequence: emit agent.send event and block if it completes a hard pattern
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
         gov_engine->setAgentTurn(handle_id, current_turn);
-        gov_engine->emitEvent(governance::RuntimeEventType::AGENT_SEND,
+        std::string bsd_block = gov_engine->emitEvent(governance::RuntimeEventType::AGENT_SEND,
             "agent.send('" + config_name + "')", "", 0);
+        if (!bsd_block.empty()) {
+            throw std::runtime_error(bsd_block);
+        }
     }
 
     // Call provider via shared layer
