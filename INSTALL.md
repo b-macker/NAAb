@@ -84,6 +84,6 @@ cp build/naab-lang build/naab-gov $PREFIX/bin/
 ## Verify Installation
 
 ```bash
-naab-lang --version    # Should print: naab-lang 0.9.0
-naab-gov --version     # Should print: naab-gov 0.9.0
+naab-lang --version    # Should print version info
+naab-gov --version     # Should print version info
 ```

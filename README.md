@@ -79,12 +79,15 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 | **Governance Engine** | 50+ checks, 3-tier policy engine (hard / soft / advisory), `govern.json` config |
 | **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
 | **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
-| **Standard Library** | 19 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, log, uuid, validate, process, io, bolo |
+| **Standard Library** | 21 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, log, uuid, validate, process, io, bolo, agent, governance |
 | **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline, destructuring |
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
 | **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
 | **Developer Tools** | Interactive REPL, URL imports, LLM-friendly syntax (keyword aliases, optional semicolons), 204 error messages |
 | **Bytecode VM** | Stack-based compiler + VM (default engine, ~8x faster than tree-walking), computed goto dispatch, NaN-boxing fast paths, constant folding |
+| **Runtime Security** | Behavioral Sequence Detection (BSD), Context Drift Detection (CDD), VM taint lineage tracking |
+| **Ed25519 Signing** | Trust-anchored governance — `--keygen`, `--sign-governance`, `--trust-key`, one-way ratchet |
+| **Cumulative Scoring** | Advisory findings accumulate weighted scores — green/yellow/red zones with configurable thresholds |
 | **Agent Governance** | Multi-agent role enforcement via `--agent-id`, per-agent path/language restrictions, telemetry JSONL, `--governance-dashboard` |
 
 ---
@@ -238,6 +241,31 @@ naab --agent-id code-bot app.naab
 # View governance dashboard
 naab --agent-id code-bot --governance-dashboard app.naab
 ```
+
+### Runtime Security: BSD & CDD
+
+Beyond static checks, NAAb monitors runtime behavior patterns:
+
+- **Behavioral Sequence Detection (BSD)** — catches multi-step attack patterns like "read secrets → encode → exfiltrate". Patterns are fully configurable in govern.json — no hardcoded rules. Dangerous sequences are blocked *before* the final step executes.
+- **Context Drift Detection (CDD)** — monitors LLM agent conversations for coherence drift: repeated failures, circular actions, scope creep, contradictions. Configurable thresholds and per-signal weights.
+- **VM Taint Lineage** — every tainted value carries a full chain showing where it was tainted and why, making governance violations actionable.
+
+### Ed25519 Governance Signing
+
+Trust-anchored signing ensures govern.json integrity:
+
+```bash
+# Generate keypair
+naab --keygen ./keys/governance
+
+# Sign govern.json
+naab --signing-key ./keys/governance.key --sign-governance
+
+# Install public key on CI/team machines
+naab --trust-key ./keys/governance.pub
+```
+
+Signed governance enforces a one-way ratchet — mid-run config reloads can only tighten restrictions, never loosen them.
 
 ---
 
@@ -458,12 +486,12 @@ main {
 
 ## Standard Library
 
-19 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
+21 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
 
 ```naab
 main {
     // JSON
-    let data = json.parse('{"name": "NAAb", "version": "0.2.0"}')
+    let data = json.parse('{"name": "NAAb", "type": "language"}')
     print(data["name"])
 
     // HTTP
@@ -624,9 +652,9 @@ Source Code (.naab)
   └── Shell executor (subprocess)
 ```
 
-- **95,000+** lines of C++17
-- **398** regression tests, **331** mono test assertions
-- **19** standard library modules with **204** error messages
+- **116,000+** lines of C++17
+- **391** regression tests, **331** mono test assertions
+- **21** standard library modules with **204** error messages
 - Bytecode VM default (~8x faster), tree-walker via `--tree-walk`
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 

@@ -1,6 +1,6 @@
 # NAAb Standard Library API Reference
 
-Version: 0.9.0 | 20 modules
+21 modules
 
 ---
 
@@ -28,6 +28,7 @@ Version: 0.9.0 | 20 modules
 | `log` | info, warn, error, debug, set_level, set_format | No |
 | `uuid` | v4, v5, is_valid, nil | No |
 | `validate` | email, url, ip, int_range, not_empty, length | No |
+| `agent` | create, send, run, batch, fan_out, pipeline, messages, usage | Yes — requires API key env var |
 
 ---
 
@@ -700,3 +701,65 @@ main {
     }
 }
 ```
+
+---
+
+## Module: agent
+
+**Import:** `use agent`
+
+The agent module provides governed LLM conversations with multi-provider support (Anthropic Claude and Google Gemini).
+
+**Requirements:** Set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` environment variable.
+
+| Function | Arguments | Returns | Description |
+|----------|-----------|---------|-------------|
+| `agent.create` | `name: string`, `config?: dict` | `dict` (handle) | Create an LLM-backed agent with optional configuration |
+| `agent.send` | `handle: dict`, `message: string` | `dict` | Send a message and receive a response (single turn) |
+| `agent.run` | `handle: dict`, `message: string` | `dict` | Alias for `agent.send` |
+| `agent.batch` | `handle: dict`, `prompts: array` | `array` | Execute multiple prompts in parallel |
+| `agent.fan_out` | `handle: dict`, `fn: function`, `data: array` | `array` | Map a function over data using the agent |
+| `agent.pipeline` | `handle: dict`, `stages: array` | `dict` | Process data through sequential stages |
+| `agent.messages` | `handle: dict` | `array` | Get conversation history for an agent |
+| `agent.usage` | `handle: dict` | `dict` | Get token and turn usage statistics |
+
+### Configuration Options
+
+Pass a config dict as the second argument to `agent.create`:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `provider` | string | `"anthropic"` | LLM provider (`"anthropic"` or `"gemini"`) |
+| `model` | string | provider default | Model name (e.g., `"claude-sonnet-4-20250514"`, `"gemini-2.0-flash"`) |
+| `max_tokens` | int | 1024 | Maximum tokens per response |
+| `system_prompt` | string | `""` | System prompt for the agent |
+| `max_turns` | int | unlimited | Maximum conversation turns (governance enforcement) |
+| `max_total_tokens` | int | unlimited | Maximum total tokens across all turns |
+
+### Governance Integration
+
+- **Server-side tracking** — turn and token limits enforced server-side, immune to handle dict mutation
+- **Output filtering** — secrets (18 patterns) and PII (5 patterns) blocked in all LLM responses
+- **Tool-use blocking** — agents cannot invoke function calls (defense-in-depth)
+- **Per-agent roles** — use `agent_roles` in govern.json with `--agent-id` for path/language restrictions
+- **Governance notices** — BSD/CDD warnings surfaced in the response dict `governance_notices` field
+
+### Example
+
+```naab
+use agent
+
+main {
+    let handle = agent.create("analyst", {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 512,
+        "system_prompt": "You are a data analyst. Be concise."
+    })
+
+    let response = agent.send(handle, "What is the capital of France?")
+    print(response.get("content"))
+
+    let stats = agent.usage(handle)
+    print(f"Turns: {stats.get('turns')}, Tokens: {stats.get('total_tokens')}")
+}

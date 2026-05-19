@@ -17,7 +17,7 @@ Binary lands at `build/naab-lang`.
 ## Test
 
 ```bash
-# Full suite — 388 tests, 0 unexpected
+# Full suite — 391 tests, 0 unexpected
 cd ~/.naab/language && bash run-all-tests.sh
 
 # Security leak check — 112 checks, 0 failures
@@ -26,7 +26,7 @@ bash tests/security/test_error_msg_leaks.sh
 
 Test categories in `tests/`: governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, polyglot, formatter, lsp, platform, chaos, robustness.
 
-Expected breakdown: ~330 pass, ~47 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
+Expected breakdown: ~332 pass, ~48 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 

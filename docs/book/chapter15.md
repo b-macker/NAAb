@@ -1,49 +1,112 @@
 # Chapter 15: Performance Optimization
 
-Performance is a key concern for any system orchestrator. NAAb is designed to be fast, but knowing how to optimize your code—and when to offload tasks to native modules—is crucial.
+Performance is a key concern for any system orchestrator. NAAb is designed to be fast by default, with a bytecode VM as the primary execution engine. This chapter covers the architecture that makes NAAb fast and how to optimize your code.
 
-## 15.1 Benchmarking Your Code
+## 15.1 Bytecode VM
 
-The `time` module is your primary tool for measuring performance. A simple benchmarking pattern involves recording the start and end time of an operation.
+NAAb uses a **stack-based bytecode VM** as its default execution engine, providing ~8x faster execution than the legacy tree-walking interpreter.
+
+The compilation pipeline:
+
+```
+Source → Lexer → Parser → AST → Compiler → Bytecode → VM
+```
+
+The VM is the default — no flags needed. To fall back to the tree-walker (useful for debugging or features not yet compiled to bytecode), use:
+
+```bash
+naab --tree-walk app.naab
+```
+
+### Computed Goto Dispatch
+
+On GCC and Clang, the VM uses **computed goto** (`__label__` addresses) for opcode dispatch instead of a `switch` statement. This eliminates branch prediction overhead and provides ~20-30% faster dispatch compared to switch-based interpreters.
+
+### Constant Folding
+
+The compiler performs constant folding during compilation — expressions like `3 + 4` or `"hello" + " world"` are evaluated at compile time, producing a single constant in the bytecode.
+
+## 15.2 NaN-Boxing
+
+NAAb values use **NaN-boxing** — encoding type information in the unused bits of IEEE 754 NaN values. This means:
+
+- **8 bytes per value** — int, double, bool, and null are stored inline with zero heap allocation
+- **No boxing/unboxing overhead** — primitive values are manipulated directly without wrapping in objects
+- **Cache-friendly** — the value stack is a contiguous array of 8-byte entries
+
+Factory methods: `NaabVal::makeInt(42)`, `NaabVal::makeString("hi")`, `NaabVal::makeBool(true)`
+
+## 15.3 Benchmarking Your Code
+
+The `time` module is your primary tool for measuring performance:
 
 ```naab
-use time as time
+use time
 
-fn benchmark_operation() {
+fn benchmark(name, iterations, body) {
     let start = time.now_millis()
-    
-    // Operation to measure
-    let list = [1, 2, 3]
-    let i = 0
-    while i < 1000 {
-        list[0] = i
-        i = i + 1
+    for i in 0..iterations {
+        body()
     }
-    
-    let end = time.now_millis()
-    print("Operation took:", end - start, "ms")
+    let elapsed = time.now_millis() - start
+    print(f"{name}: {elapsed}ms ({iterations} iterations)")
+}
+
+main {
+    benchmark("array push", 10000, fn() {
+        let arr = []
+        for i in 0..100 { arr.push(i) }
+    })
 }
 ```
 
-## 15.2 Profiling and Hot Paths
+## 15.4 Profiling
 
-When optimizing, focus on "hot paths"—the sections of code executed most frequently (e.g., inside loops).
+Use the `--profile` flag to get execution timing information:
 
-1.  **Use Native Modules**: As discussed in Chapter 7, operations like sorting or filtering arrays are 10-100x faster using `array.sort` than writing a manual sort in NAAb or Python.
-2.  **Avoid Excessive Crossing**: Calling a polyglot block has a small overhead (marshaling data). Avoid calling a Python block inside a tight loop if possible. Instead, pass the entire dataset to the block and process it there.
+```bash
+naab --profile app.naab
+```
 
-## 15.3 Optimizing Polyglot Blocks
+For fine-grained timing within your code, use `debug.timer()`:
 
-*   **Batch Processing**: Pass large arrays to foreign blocks rather than calling the block once per item.
-*   **Inline C++**: For CPU-bound tasks that cannot be handled by the Standard Library, use `<<cpp>>` blocks. NAAb compiles these to native machine code, providing C++ speed.
+```naab
+main {
+    debug.timer("data_processing")
+    // ... expensive operation ...
+    debug.timer("data_processing")  // prints elapsed time
+}
+```
 
-## 15.4 Inline Code Caching
+## 15.5 Optimizing Polyglot Blocks
 
-NAAb automatically caches the compilation results of `<<cpp>>` blocks. This means the first time your program runs, there might be a delay for compilation, but subsequent runs will be instant as the cached binary is reused.
+Polyglot blocks have startup overhead (process spawning, data marshaling). Optimize by:
 
-## 15.5 Interpreter Optimizations
+1. **Batch processing** — pass large arrays to foreign blocks rather than calling the block once per item:
 
-The NAAb runtime includes built-in optimizations to speed up execution without any code changes from you:
-*   **Variable Lookup Caching**: Repeated access to the same variable is optimized.
-*   **Function Call Caching**: Frequent function calls are accelerated.
-*   **Hot Path Optimization**: The interpreter detects and optimizes frequently executed loops and operations.
+```naab
+// SLOW: one Python call per item
+for item in data {
+    let result = <<python[item]
+    item * 2
+    >>
+}
+
+// FAST: one Python call for all items
+let results = <<python[data]
+[x * 2 for x in data]
+>>
+```
+
+2. **Persistent runtimes** — keep interpreter state across multiple calls using the `runtime` keyword, avoiding repeated process startup.
+
+3. **Use the right language** — Python for data science, Rust/C++ for computation, JavaScript for string processing. Avoid using heavy languages for simple operations that NAAb can handle natively.
+
+4. **Inline C++** — for CPU-bound tasks, `<<cpp>>` blocks compile to native machine code. Compilation is cached, so subsequent runs reuse the compiled binary.
+
+## 15.6 General Tips
+
+- **Avoid excessive polyglot crossing** — calling a polyglot block inside a tight loop is slow. Move the loop inside the block.
+- **Use stdlib functions** — `array.sort`, `array.filter_fn`, `array.map_fn` are implemented in C++ and significantly faster than equivalent NAAb loops.
+- **Minimize copies** — NAAb uses value semantics. Re-assigning nested dicts/arrays inside loops creates copies. Use indexed access (`arr[i] = val`) to modify in place when possible.
+- **GC tuning** — `--gc-threshold N` controls when garbage collection runs. Higher values reduce GC frequency at the cost of memory. `--gc-stats` prints GC statistics for tuning.

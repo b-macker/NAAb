@@ -36,7 +36,7 @@ Place a `govern.json` file in the same directory as your `.naab` file (or any pa
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
 
   "languages": {
@@ -84,7 +84,7 @@ The governance configuration file has 13 sections. All sections are optional —
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "description": "My project governance rules"
 }
@@ -708,7 +708,7 @@ Use `enforce` mode with `--governance-sarif` or `--governance-junit` for machine
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "code_quality": {
     "no_secrets": { "level": "hard" },
@@ -725,7 +725,7 @@ Enable all three LLM anti-drift checks to catch the most common AI code failures
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "code_quality": {
     "no_oversimplification": { "level": "hard" },
@@ -743,7 +743,7 @@ Start with `audit` mode to understand what would be flagged, then switch to `enf
 
 ```json
 {
-  "version": "3.0",
+  "version": "5.0",
   "mode": "audit",
   "description": "Team governance rules (audit mode for rollout)",
   "languages": {
@@ -1185,3 +1185,146 @@ This data can be used for trend analysis, compliance reporting, and monitoring a
 3. **Use telemetry for auditing**: Enable JSONL telemetry to maintain a log of agent activities
 4. **Combine with taint tracking**: Agent roles + taint tracking provides defense-in-depth — even if an agent accesses allowed paths, tainted data is still blocked at sinks
 5. **Test with `--governance-dashboard`**: Use the dashboard flag during development to verify agent restrictions are correctly applied
+
+## 21.16 Behavioral Sequence Detection (BSD)
+
+Beyond static checks, NAAb can detect dangerous multi-step behavior patterns at runtime. BSD uses finite state machine matching over an event ring buffer to catch attack sequences like "read secrets, encode them, then exfiltrate."
+
+### 21.16.1 Configuration
+
+Patterns are fully user-defined in govern.json — there are no hardcoded rules:
+
+```json
+{
+  "behavioral_sequences": {
+    "enabled": true,
+    "window_size": 100,
+    "patterns": [
+      {
+        "name": "data_exfiltration",
+        "sequence": ["env.get:*KEY*|file.read:*secret*", "encode|base64|compress", "http.post|agent.send"],
+        "level": "hard",
+        "max_gap": 10,
+        "decay_seconds": 300,
+        "decay_turns": 20,
+        "rationale": "Reading sensitive data, encoding it, then sending it out matches exfiltration."
+      }
+    ]
+  }
+}
+```
+
+Each step in the sequence is a pipe-separated list of matchers. The optional colon suffix is a detail glob that matches against function arguments (e.g., `env.get:*KEY*` matches `env.get("API_KEY")` but not `env.get("HOME")`).
+
+### 21.16.2 Key Features
+
+- **Pre-execution blocking** — when BSD detects that the next action would complete a dangerous sequence, it blocks that action *before* it executes
+- **Decay/expiry** — events older than `decay_turns` turns or `decay_seconds` seconds no longer count toward sequence matches, preventing false positives from stale context
+- **Detail globs** — per-argument filtering with pipe-separated alternatives (`env.get:*SECRET*|*TOKEN*`)
+- **Cumulative scoring** — BSD matches feed into the cumulative risk score like any advisory check
+
+### 21.16.3 Enforcement Levels
+
+BSD patterns support the same three enforcement levels as other governance checks:
+
+| Level | Behavior |
+|-------|----------|
+| `hard` | Block execution immediately. No override. |
+| `soft` | Block execution unless `--governance-override` is passed. |
+| `advisory` | Warn and add to cumulative risk score. |
+
+## 21.17 Context Drift Detection (CDD)
+
+CDD monitors LLM agent conversations for coherence drift — detecting when an agent's behavior diverges from its declared intent.
+
+### 21.17.1 Configuration
+
+```json
+{
+  "context_drift": {
+    "enabled": true,
+    "level": "advisory",
+    "coherence_threshold": 0.5,
+    "max_contradictions": 3,
+    "check_interval_turns": 5,
+    "fingerprint_window": 10,
+    "signals": {
+      "repeated_failures": true,
+      "circular_actions": true,
+      "scope_creep": true
+    },
+    "weights": {
+      "circular": 0.3,
+      "scope_creep": 0.2,
+      "contradiction": 0.4,
+      "repeated_failure": 0.1
+    }
+  }
+}
+```
+
+### 21.17.2 Drift Signals
+
+| Signal | What It Detects |
+|--------|----------------|
+| `repeated_failures` | Agent retrying the same failing action multiple times |
+| `circular_actions` | Agent cycling through the same set of actions without progress |
+| `scope_creep` | Agent expanding beyond its declared intent |
+| `contradiction` | Agent taking actions that contradict previous decisions |
+
+Each signal has a configurable weight. The coherence score starts at 1.0 and decays as drift signals accumulate. When it drops below `coherence_threshold`, CDD triggers enforcement.
+
+### 21.17.3 Integration with Agent Module
+
+CDD is automatically checked during `agent.send()` and `agent.batch()` calls. Governance notices are surfaced in the return dict via the `governance_notices` field, allowing the calling code to react to drift warnings.
+
+## 21.18 Cumulative Risk Scoring
+
+Advisory findings don't block execution, but they accumulate. NAAb's cumulative scoring system tracks the total weighted risk across all advisory checks in a single execution.
+
+### 21.18.1 How It Works
+
+Each advisory check that fires adds its weight to a cumulative score. The score is compared against configurable thresholds:
+
+| Zone | Default Range | Behavior |
+|------|--------------|----------|
+| Green | 0 — below yellow threshold | No action |
+| Yellow | yellow threshold — below red threshold | Warning emitted |
+| Red | At or above red threshold | Execution blocked (quality gate) |
+
+### 21.18.2 Configuration
+
+Global scoring configuration:
+
+```json
+{
+  "scoring": {
+    "enabled": true,
+    "default_weight": 1.0,
+    "green_threshold": 0,
+    "yellow_threshold": 20,
+    "red_threshold": 40,
+    "threshold_mode": "cumulative"
+  }
+}
+```
+
+Named scorer configurations can override the global defaults for specific contexts (e.g., agent review):
+
+```json
+{
+  "scorers": {
+    "security": {
+      "enabled": true,
+      "default_weight": 1.0,
+      "rule_weights": {},
+      "green_threshold": 0,
+      "yellow_threshold": 20,
+      "red_threshold": 40,
+      "threshold_mode": "cumulative"
+    }
+  }
+}
+```
+
+Named scorers are referenced by `agent_review.scorer` to use a specific scoring profile during AI-assisted code review.

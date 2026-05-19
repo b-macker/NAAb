@@ -753,7 +753,7 @@
                     <div class="tab active">govern.json</div>
                 </div>
 <pre>{
-  <span class="str">"version"</span>: <span class="str">"3.0"</span>,
+  <span class="str">"version"</span>: <span class="str">"5.0"</span>,
   <span class="str">"mode"</span>: <span class="str">"enforce"</span>,
 
   <span class="str">"languages"</span>: {
@@ -1122,6 +1122,21 @@ mean=30, stdev=15.8
                 <h3>Agent Governance</h3>
                 <p>Multi-agent role enforcement via <code>--agent-id</code>. Per-agent path/language restrictions, telemetry JSONL, dashboard output.</p>
             </div>
+            <div class="f-card reveal">
+                <div class="icon icon-red">&#128737;</div>
+                <h3>Behavioral Sequence Detection</h3>
+                <p>FSM-based runtime detection of multi-step attack patterns. User-defined sequences in govern.json. Pre-execution blocking before the final dangerous step runs.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-yellow">&#128269;</div>
+                <h3>Context Drift Detection</h3>
+                <p>Monitors LLM agent coherence across turns. Detects repeated failures, circular actions, scope creep, and contradictions with configurable thresholds.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-green">&#128274;</div>
+                <h3>Ed25519 Signing</h3>
+                <p>Trust-anchored governance signing. <code>--keygen</code>, <code>--sign-governance</code>, <code>--trust-key</code>. One-way ratchet &mdash; mid-run reloads can only tighten, never loosen.</p>
+            </div>
         </div>
     </div>
 </section>
@@ -1232,7 +1247,7 @@ mean=30, stdev=15.8
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">5</strong> scripts</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">4</strong> languages</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">50+</strong> checks</div>
-                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">398</strong> regression tests</div>
+                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">391</strong> regression tests</div>
             </div>
             <a href="https://b-macker.github.io/naab-bolo/" class="btn btn-primary" style="display: inline-block;">Learn More</a>
         </div>

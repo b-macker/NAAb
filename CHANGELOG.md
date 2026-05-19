@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Behavioral Sequence Detection (BSD)** — FSM-based multi-step attack pattern matching
+  - Configurable via `behavioral_sequences` in govern.json — patterns are fully user-defined, no hardcoded rules
+  - Detail globs for per-argument matching (e.g., `env.get:*SECRET*|*TOKEN*`)
+  - Decay/expiry — events older than N turns or N seconds don't match
+  - Pre-execution blocking — dangerous sequences blocked before the final step runs
+- **Context Drift Detection (CDD)** — coherence monitoring for LLM agent conversations
+  - Tracks declared intent vs observed actions across agent turns
+  - Signals: repeated failures, circular actions, scope creep, contradictions
+  - Configurable via `context_drift` in govern.json with per-signal weights and coherence threshold
+- **VM taint lineage tracking** — every tainted value carries a source-to-sink chain
+  - Preserved across `OP_RETURN` frame eviction
+  - Per-language taint sinks (`python_exec`, `go_exec`, etc.)
+  - Makes governance violations actionable — users see exactly where taint originated
+- **govern-template.json sync** — 15 missing keys added, 11 dead fields annotated with comments explaining what replaced them, template restructured into 12 logical groups
+- BSD/CDD dashboard telemetry — `--governance-dashboard` now shows BSD events processed, patterns matched, and CDD coherence state
+
+### Fixed
+- BSD/CDD correctness — 6 post-review findings (detail_glob matching, pre-execution abort, hard enforcement)
+- `behavioral_sequence.cpp` moved to `naab_security` CMake library (fixed linker errors on Sanitizers, Windows, and CodeQL CI)
+- Shell polyglot test T6 skipped on Windows (no shell executor on that platform)
+- Stale regex docs synced with actual patterns
+- Struct helper error message improved
+
 ## [1.4.0] - 2026-04-30
 
 ### Added
