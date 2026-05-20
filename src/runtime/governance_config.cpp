@@ -630,6 +630,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (e.contains("polyglot_blocks")) rules_.limits.execution.polyglot_blocks = e["polyglot_blocks"].get<int>();
             if (e.contains("parallel_blocks")) rules_.limits.execution.parallel_blocks = e["parallel_blocks"].get<int>();
             if (e.contains("total_executions")) rules_.limits.execution.total_executions = e["total_executions"].get<int>();
+            // limits.execution.timeout_seconds is the canonical key for overall script timeout.
+            // Wire it to runtime.timeout so main.cpp enforcement picks it up.
+            if (e.contains("timeout_seconds")) { rules_.runtime.timeout = e["timeout_seconds"].get<int>(); }
         }
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& d = lim["data"];

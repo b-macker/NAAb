@@ -1474,7 +1474,10 @@ int main(int argc, char** argv) {
                     if (!rules.report_junit.empty() && governance_report_junit.empty()) governance_report_junit = rules.report_junit;
                     if (!rules.default_env.empty() && governance_env.empty()) governance_env = rules.default_env;
                     // Category B: runtime limits
-                    if (rules.runtime.timeout != 30 && timeout == 30) timeout = rules.runtime.timeout;
+                    // govern.json is authoritative for timeout: apply if it specifies a non-default
+                    // value, taking the maximum of govern.json and any CLI --timeout override so
+                    // that --timeout can extend but not shrink the govern.json limit.
+                    if (rules.runtime.timeout != 30) timeout = std::max(timeout, (unsigned int)rules.runtime.timeout);
                     if (rules.runtime.memory_limit > 0 && memory_limit == 512) memory_limit = rules.runtime.memory_limit;
                     if (rules.runtime.gc_threshold != 5000 && gc_threshold == 5000) gc_threshold = rules.runtime.gc_threshold;
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
