@@ -31,10 +31,10 @@
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "NAAb",
-        "description": "A polyglot programming language with built-in LLM governance that integrates 12 languages including Python, JavaScript, Rust, C++, Go, Nim, Zig, and Julia. Detects oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.",
+        "description": "NAAb stops AI agents from exfiltrating credentials, harvesting config files, and leaking secrets — before the network call fires. Behavioral Sequence Detection tracks multi-step attack patterns at runtime and blocks the final step pre-execution. No prompt engineering required.",
         "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Linux, macOS",
-        "programmingLanguage": ["C++", "Python", "JavaScript", "Rust", "Go", "Ruby", "PHP", "C#", "Shell", "Nim", "Zig", "Julia"],
+        "operatingSystem": "Linux, macOS, Android",
+        "keywords": "AI agent security, agent governance, credential exfiltration prevention, behavioral sequence detection, LLM security, runtime enforcement",
         "license": "https://opensource.org/licenses/MIT",
         "url": "https://github.com/b-macker/NAAb",
         "codeRepository": "https://github.com/b-macker/NAAb",
@@ -50,34 +50,34 @@
         "mainEntity": [
             {
                 "@type": "Question",
-                "name": "What is NAAb?",
+                "name": "How does NAAb stop AI agents from exfiltrating credentials?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "NAAb is a polyglot programming language that lets you embed Python, JavaScript, Rust, C++, Go, Nim, and 6 more languages inside .naab files. It includes a built-in AI governance engine with 50+ checks to detect hallucinated APIs, oversimplified stubs, and incomplete logic in AI-generated code."
+                    "text": "NAAb uses Behavioral Sequence Detection (BSD) to track multi-step attack patterns at runtime. When an AI agent reads a secret (env.get), encodes it (base64), and attempts to send it (agent.send or http.post), NAAb blocks the final step before the network call fires. The pattern is defined in govern.json — no code changes required."
                 }
             },
             {
                 "@type": "Question",
-                "name": "How fast is NAAb's bytecode VM?",
+                "name": "What is Behavioral Sequence Detection?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "NAAb's stack-based bytecode VM is approximately 8x faster than the tree-walking interpreter, achieving ~50ms vs ~395ms on benchmarks. It uses computed goto dispatch, NaN-boxing fast paths, and constant folding optimizations."
+                    "text": "Behavioral Sequence Detection (BSD) is a finite state machine built into NAAb's runtime that tracks sequences of operations across an entire script execution. You define dangerous patterns in govern.json — for example, reading a credential then encoding it then sending it externally. BSD watches for these sequences and blocks the final step pre-execution, before any network call is made."
                 }
             },
             {
                 "@type": "Question",
-                "name": "What is LLM governance in NAAb?",
+                "name": "How is NAAb different from prompt engineering for AI safety?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "NAAb's governance engine (configured via govern.json) applies 50+ automated checks to AI-generated code at execution time. It detects stub patterns, hallucinated APIs, tainted data flow, and complexity violations with 3-tier enforcement (HARD block, SOFT override, ADVISORY warn). It also supports multi-agent role enforcement via agent_roles."
+                    "text": "Prompt engineering is a suggestion — the AI can ignore it or be manipulated into bypassing it. NAAb enforces rules at the runtime level in the language itself. govern.json policies are enforced before code executes, can be signed with Ed25519 so agents cannot modify them, and use a one-way ratchet so mid-run reloads can only tighten restrictions, never loosen them."
                 }
             },
             {
                 "@type": "Question",
-                "name": "What languages does NAAb support?",
+                "name": "What attack patterns does NAAb block?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "NAAb supports 12 languages: Python, JavaScript, Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, and Julia. Each language runs in its native runtime via polyglot blocks embedded in .naab files."
+                    "text": "NAAb blocks: credential exfiltration (env.get secret → encode → send), config harvesting (file.read govern.json → agent.send), secret leakage in agent responses (JWT tokens, API keys, hardcoded passwords via checkSecrets), tainted data reaching shell execution, and capability abuse (filesystem write, shell execution when disabled). All patterns are user-configurable in govern.json."
                 }
             }
         ]
