@@ -1,4 +1,4 @@
-# NAAb — The Programming Language with Built-in AI Governance
+# NAAb — Stop AI Agents Before They Do Damage
 
 [![CI](https://github.com/b-macker/NAAb/actions/workflows/ci.yml/badge.svg)](https://github.com/b-macker/NAAb/actions/workflows/ci.yml)
 [![Sanitizers](https://github.com/b-macker/NAAb/actions/workflows/sanitizers.yml/badge.svg)](https://github.com/b-macker/NAAb/actions/workflows/sanitizers.yml)
@@ -7,34 +7,76 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-enabled-blue.svg)](https://github.com/b-macker/NAAb/discussions)
 
-**Govern AI-generated code at the language level.** NAAb is a polyglot programming language that applies code quality, security, and correctness policies at runtime — catching mistakes before they execute. A single `govern.json` controls what executes across 12 languages in one file.
+AI agents can read your secrets, encode them, and send them to an external API — all in three steps. NAAb blocks the sequence **before the network call fires.**
+
+```
+$ naab agent_task.naab
+
+[governance] Behavioral sequence 'credential_exfiltration' blocked before execution.
+
+  Pattern matched:
+    Step 1 — env.get("API_SECRET_KEY")        ✓ matched
+    Step 2 — crypto.base64_encode(secret)     ✓ matched
+    Step 3 — agent.send(handle, encoded)      ✗ BLOCKED
+
+  Rule: behavioral_sequences.credential_exfiltration [HARD]
+  The sequence env.get:*KEY* → encode → agent.send matches a known
+  exfiltration pattern. Execution was stopped before the API call.
+```
+
+No prompt engineering. No post-hoc log scanning. The agent never reaches the network.
+
+---
+
+## How It Works
+
+NAAb is a programming language with a governance engine built into the runtime. You define behavioral rules in `govern.json` — multi-step attack patterns, capability limits, secret scanning — and the engine enforces them as your code runs, not after.
 
 ```json
-// govern.json — catches AI hallucinations before they execute
 {
   "version": "5.0",
   "mode": "enforce",
-  "code_quality": {
-    "no_hallucinated_apis": { "level": "hard" },
-    "no_oversimplification": { "level": "hard" },
-    "no_incomplete_logic": { "level": "soft" }
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": [
+      {
+        "name": "credential_exfiltration",
+        "sequence": ["env.get:*KEY*|*SECRET*|*TOKEN*", "encode|base64", "agent.send|http.post"],
+        "level": "hard",
+        "rationale": "Reading credentials then encoding and sending matches exfiltration."
+      },
+      {
+        "name": "config_harvest",
+        "sequence": ["file.read:*config*|file.read:*govern*", "agent.send"],
+        "level": "hard",
+        "rationale": "Reading config files then sending content to an external agent."
+      }
+    ]
   }
 }
 ```
 
-```
-$ naab app.naab
+The patterns are yours to define. The engine tracks event sequences across your entire script — with configurable gap limits, decay timers, and enforcement tiers — and blocks the final step before it executes.
 
-Error: Hallucinated API in python block:
-  ".push()" is not valid Python                        [HARD]
+### What Else Gets Blocked
 
-  Rule: code_quality.no_hallucinated_apis
+| Threat | How NAAb stops it |
+|--------|-------------------|
+| Credential exfiltration | Sequence detection — `env.get(SECRET)` → encode → `agent.send` blocked pre-execution |
+| Config harvesting | `file.read(govern.json)` → `agent.send` blocked before API call |
+| Agent drift | Context Drift Detection tracks coherence across turns — circular loops, scope creep, contradictions |
+| Leaked secrets in responses | `checkSecrets()` scans every agent response — API keys, JWTs, hardcoded passwords hard-blocked |
+| Capability abuse | `filesystem: read` mode, `shell: disabled` — enforced at sandbox level, not by prompt |
+| Tainted data reaching shell | VM taint tracking — `env.get` output reaching `shell_exec` blocked with full lineage trace |
 
-  Help:
-  .push() is JavaScript — in Python, use .append()
+### Governance That Can't Be Bypassed
 
-  ✗ Wrong: my_list.push(item)
-  ✓ Right: my_list.append(item)
+Rules live in `govern.json`, not in prompts. A signed govern.json with Ed25519 means the agent can't modify its own constraints mid-run. A one-way ratchet ensures mid-run reloads can only tighten rules, never loosen them.
+
+```bash
+naab --keygen ./keys/governance
+naab --sign-governance                    # Sign govern.json
+naab --trust-key ./keys/governance.pub   # Install on CI
 ```
 
 ---
