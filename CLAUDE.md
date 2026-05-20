@@ -183,3 +183,5 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 - **No Julia/Zig on Termux** — tests skip gracefully
 - **Polyglot `>>` delimiter** must be at line start (after optional whitespace)
 - **`t_current_decision_trace`** is `static thread_local` in governance_engine.cpp — not a class member in the header
+- **Top-level `const`/`let` parse error** — NAAb only allows `use`, `import`, `export`, `struct`, `enum`, `fn`, and `main {}` at file scope. Constants and variables MUST be declared inside `main {}` or a function.
+- **Sandbox fail-closed on `mode: enforce`** — if govern.json has `"mode": "enforce"` but no `security.sandbox_level`, the runtime silently upgrades the sandbox from `unrestricted` → `standard`. This blocks `file.read("/absolute/path")` and other absolute-path operations. Set `"security": { "sandbox_level": "elevated" }` to restore access. The runtime logs `[governance] Sandbox: upgraded unrestricted → standard` to stderr when this happens.

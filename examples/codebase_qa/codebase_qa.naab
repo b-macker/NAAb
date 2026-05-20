@@ -1,0 +1,295 @@
+use file
+use agent
+use string
+use env
+use path
+use time
+
+// Exact filename matches that always load first
+fn is_priority_file(name) {
+    if name == "main.naab"   { return true }
+    if name == "main.py"     { return true }
+    if name == "main.go"     { return true }
+    if name == "main.rs"     { return true }
+    if name == "main.cpp"    { return true }
+    if name == "index.js"    { return true }
+    if name == "index.ts"    { return true }
+    if name == "app.py"      { return true }
+    if name == "README.md"   { return true }
+    return false
+}
+
+// Files that are likely core/important — load before normal files
+fn is_high_value(name) {
+    if string.contains(name, "engine")     { return true }
+    if string.contains(name, "core")       { return true }
+    if string.contains(name, "compiler")   { return true }
+    if string.contains(name, "manager")    { return true }
+    if string.contains(name, "processor")  { return true }
+    if string.contains(name, "handler")    { return true }
+    if string.contains(name, "dispatcher") { return true }
+    if string.contains(name, "runtime")    { return true }
+    if string.contains(name, "governance") { return true }
+    if string.contains(name, "checks")     { return true }
+    return false
+}
+
+// Files that are likely peripheral — load after normal files
+fn is_low_value(name) {
+    if string.contains(name, "test")    { return true }
+    if string.contains(name, "bench")   { return true }
+    if string.contains(name, "adapter") { return true }
+    if string.contains(name, "bridge")  { return true }
+    if string.contains(name, "_loader") { return true }
+    if string.contains(name, "_registry") { return true }
+    if string.contains(name, "_index")  { return true }
+    if string.contains(name, "logger")  { return true }
+    return false
+}
+
+// Returns true if this file extension is worth including
+fn is_interesting_file(name) {
+    if string.ends_with(name, ".naab") { return true }
+    if string.ends_with(name, ".json") { return true }
+    if string.ends_with(name, ".md")   { return true }
+    if string.ends_with(name, ".py")   { return true }
+    if string.ends_with(name, ".js")   { return true }
+    if string.ends_with(name, ".ts")   { return true }
+    if string.ends_with(name, ".go")   { return true }
+    if string.ends_with(name, ".rs")   { return true }
+    if string.ends_with(name, ".c")    { return true }
+    if string.ends_with(name, ".cpp")  { return true }
+    if string.ends_with(name, ".h")    { return true }
+    if string.ends_with(name, ".toml") { return true }
+    if string.ends_with(name, ".yaml") { return true }
+    if string.ends_with(name, ".yml")  { return true }
+    return false
+}
+
+fn is_skippable(name) {
+    if name == "govern.json"           { return true }
+    if name == "telemetry.jsonl"       { return true }
+    if string.ends_with(name, ".lock") { return true }
+    if string.contains(name, ".min.")  { return true }
+    return false
+}
+
+// Add files from a list of names (in a dir) to all_files using 3-tier ordering:
+// 1. priority names  2. high-value names  3. normal  4. low-value
+fn push_tiered(all_files, dir, names) {
+    // Tier 1: exact priority names
+    for name in names {
+        if !is_interesting_file(name) { continue }
+        if is_skippable(name) { continue }
+        if is_priority_file(name) {
+            all_files.push(path.join(dir, name))
+        }
+    }
+    // Tier 2: high-value, non-priority
+    for name in names {
+        if !is_interesting_file(name) { continue }
+        if is_skippable(name) { continue }
+        if is_priority_file(name) { continue }
+        if is_high_value(name) && !is_low_value(name) {
+            all_files.push(path.join(dir, name))
+        }
+    }
+    // Tier 3: normal (neither high nor low value)
+    for name in names {
+        if !is_interesting_file(name) { continue }
+        if is_skippable(name) { continue }
+        if is_priority_file(name) { continue }
+        if is_high_value(name) { continue }
+        if is_low_value(name) { continue }
+        all_files.push(path.join(dir, name))
+    }
+    // Tier 4: low-value last (includes files that are BOTH high AND low value —
+    // the !is_low_value guard is the only filter, so high+low files are included here)
+    for name in names {
+        if !is_interesting_file(name) { continue }
+        if is_skippable(name) { continue }
+        if is_priority_file(name) { continue }
+        if !is_low_value(name) { continue }
+        all_files.push(path.join(dir, name))
+    }
+    return all_files
+}
+
+// Collect interesting files from a directory (flat + 1 level of subdirs), tiered by importance
+fn collect_files(dir) {
+    let all_files = []
+
+    let top = []
+    try {
+        top = file.list_dir(dir)
+    } catch (e) {
+        return all_files
+    }
+
+    // Root-level files (tiered)
+    all_files = push_tiered(all_files, dir, top)
+
+    // Subdirectories: also tiered within each subdir
+    for name in top {
+        if is_interesting_file(name) { continue }  // not a subdir candidate
+        let subdir = path.join(dir, name)
+        let sub_entries = []
+        try {
+            sub_entries = file.list_dir(subdir)
+        } catch (e) {
+            continue
+        }
+        all_files = push_tiered(all_files, subdir, sub_entries)
+        if len(all_files) >= 300 { break }
+    }
+
+    return all_files
+}
+
+// Reads source files and assembles a context string
+fn build_context(dir) {
+    const MAX_FILE_SIZE = 4000
+    const MAX_FILES = 20
+    const MAX_CONTEXT_CHARS = 40000
+
+    let candidates = collect_files(dir)
+    let context = ""
+    let file_count = 0
+    let total_chars = 0
+    let loaded_names = []
+
+    for filepath in candidates {
+        if file_count >= MAX_FILES { break }
+
+        let content = ""
+        let readable = true
+        try {
+            content = file.read(filepath)
+        } catch (e) {
+            readable = false
+        }
+        if !readable { continue }
+
+        if len(content) > MAX_FILE_SIZE {
+            content = string.substring(content, 0, MAX_FILE_SIZE) + "\n[...truncated]"
+        }
+
+        let name = path.basename(filepath)
+        let chunk = "=== " + name + " ===\n" + content + "\n\n"
+
+        if total_chars + len(chunk) > MAX_CONTEXT_CHARS { break }
+
+        context = context + chunk
+        total_chars = total_chars + len(chunk)
+        file_count = file_count + 1
+        loaded_names.push(name)
+    }
+
+    print("Loaded " + string(file_count) + " file(s) — " + string(total_chars) + " chars")
+    for name in loaded_names {
+        print("  " + name)
+    }
+
+    return context
+}
+
+main {
+    let args = env.get_args()
+    let target_dir = "."
+    if len(args) > 0 {
+        target_dir = args[0]
+    }
+
+    print("")
+    print("=== NAAb Codebase Q&A ===")
+    print("Directory: " + target_dir)
+    print("")
+
+    let context = build_context(target_dir)
+
+    if len(context) == 0 {
+        print("No readable source files found in: " + target_dir)
+        print("(checked immediate directory and one level of subdirectories)")
+        return
+    }
+
+    print("")
+
+    // Initialize the agent
+    let handle = agent.create("gemma_qa")
+
+    // Prime with codebase context — suppress the ack response
+    let prime_msg = "Here are the source files for a codebase I will ask you about:\n\n" + context + "\n\nAcknowledge by saying only: Ready"
+    let primed = true
+    try {
+        agent.send(handle, prime_msg)
+    } catch (e) {
+        print("Failed to initialize agent: " + string(e))
+        primed = false
+    }
+
+    if !primed { return }
+
+    // For large contexts the priming turn burns through the rate limit window.
+    // A short pause lets the token budget partially recover before the first question.
+    if len(context) > 20000 {
+        print("(pausing 5s for rate limit recovery...)")
+        time.sleep(5)
+    }
+
+    print("Agent ready. Ask questions about the codebase.")
+    print("Commands: 'usage' — token stats | 'quit' — exit")
+    print("")
+
+    let consecutive_empty = 0
+
+    while true {
+        io.write("> ")
+        let raw = io.read_line()
+        let question = string.trim(raw)
+
+        if len(question) == 0 {
+            consecutive_empty = consecutive_empty + 1
+            if consecutive_empty >= 2 { break }
+            continue
+        }
+        consecutive_empty = 0
+
+        // Case-insensitive command matching
+        let cmd = string.lower(question)
+
+        if cmd == "quit" || cmd == "exit" || cmd == "q" {
+            break
+        }
+
+        if cmd == "usage" {
+            let u = agent.usage(handle)
+            print("Turns: " + string(u.get("turns") ?? 0) + "  |  Tokens: " + string(u.get("total_tokens") ?? 0))
+            continue
+        }
+
+        if cmd == "help" {
+            print("Commands: usage | quit | <any question about the codebase>")
+            continue
+        }
+
+        try {
+            let resp = agent.send(handle, question)
+            let answer = resp.get("content") ?? ""
+            if string.trim(answer) == "" {
+                print("(agent returned empty response)")
+            } else {
+                print("")
+                print(answer)
+                print("")
+            }
+        } catch (e) {
+            print("Agent error: " + string(e))
+        }
+    }
+
+    let u = agent.usage(handle)
+    print("")
+    print("--- Session ended ---")
+    print("Turns: " + string(u.get("turns") ?? 0) + "  |  Total tokens: " + string(u.get("total_tokens") ?? 0))
+}

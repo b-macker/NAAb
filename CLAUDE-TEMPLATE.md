@@ -612,25 +612,27 @@ main {
 6. `env.set()` does NOT exist — use `env.set_var()`
 7. `catch e { }` will error — must be `catch (e) { }`
 8. `use debug` causes file search error — debug is auto-imported (prelude). Don't import it.
-9. Polyglot blocks inside functions + return: works, but the function must have return AFTER the block
-10. Dict iteration: `for key in my_dict { }` works
-11. Null comparison: use `x == null` not `x === null` (no triple equals)
-12. String concatenation with `+` is permissive (auto-converts numbers)
-13. Arithmetic with strings is STRICT — `"5" + 3` works (string concat), `"5" * 3` errors
-14. `array.find` takes a PREDICATE function, not a value
-15. `||` ALWAYS returns boolean (true/false), NEVER the operand value.
+9. Top-level `const`/`let` causes a parse error — variables and constants MUST be declared
+   inside `main {}` or a function, never at file scope.
+10. Polyglot blocks inside functions + return: works, but the function must have return AFTER the block
+11. Dict iteration: `for key in my_dict { }` works
+12. Null comparison: use `x == null` not `x === null` (no triple equals)
+13. String concatenation with `+` is permissive (auto-converts numbers)
+14. Arithmetic with strings is STRICT — `"5" + 3` works (string concat), `"5" * 3` errors
+15. `array.find` takes a PREDICATE function, not a value
+16. `||` ALWAYS returns boolean (true/false), NEVER the operand value.
     `null || "fallback"` returns `true` (NOT "fallback"!).
     NAAb's `||` is NOT like JavaScript's `||` operator.
     For null coalesce, use the `??` operator: `x ?? default_val`
-16. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
-17. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error.
+17. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
+18. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error.
     Conversely, `new { }` WITHOUT a struct name is also a parse error — plain dicts do NOT use `new`.
     WRONG: `new { "key": val }`   RIGHT: `{ "key": val }`
     `new` is ONLY for struct instantiation: `new StructName { field: value }`.
-18. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
-19. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
-20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
-21. `try` works as both a statement and an expression.
+19. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
+20. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
+21. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
+22. `try` works as both a statement and an expression.
     `let x = try { compute() } catch (e) { default_val }` — returns the value from
     the successful branch or the catch branch. Both branches must be SINGLE EXPRESSIONS.
     WRONG (multi-statement catch in expression form):
@@ -641,14 +643,14 @@ main {
       `let result = 0`
       `try { result = compute() } catch (e) { print(e); result = fallback() }`
     The statement form has no restriction on branch body complexity.
-22. `throw` works as an expression — it CAN appear in match arms and `let` assignments.
+23. `throw` works as an expression — it CAN appear in match arms and `let` assignments.
     `_ => throw "invalid value"` in a match arm is valid.
     Throw expressions diverge (never return), so the type system treats them as compatible
     with any branch type.
-23. `string.match()` does NOT exist — use `regex.search(text, pattern)` for partial match,
+24. `string.match()` does NOT exist — use `regex.search(text, pattern)` for partial match,
     `regex.matches(text, pattern)` for full match, `regex.find_all(text, pattern)` for all matches.
     Requires `use regex`.
-24. `-> JSON` behaves differently per language:
+25. `-> JSON` behaves differently per language:
     **Python**: bare expressions (e.g. `json.dumps(data)`) as the last line are auto-wrapped
     in `print()`. Both `json.dumps(data)` and `print(json.dumps(data))` work.
     **JavaScript**: `-> JSON` is fragile with JS. Prefer dropping `-> JSON` and using
@@ -657,24 +659,24 @@ main {
     **Python double-encoding trap**: do NOT call `json.dumps()` inside `<<python -> JSON` —
     the `-> JSON` pipe already converts the output to a NAAb dict. `json.dumps()` inside
     `-> JSON` causes double-encoding (the output becomes a JSON-encoded JSON string).
-25. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
+26. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
     `if x > 0 and y > 0` -> ERROR. Use: `if x > 0 && y > 0`
     `if not done` -> ERROR. Use: `if !done`
     Do NOT use `== false` as a workaround — `!expr` is the correct negation
-26. `config` is a reserved keyword — do NOT use it as a variable name, import alias, or parameter name
-27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
+27. `config` is a reserved keyword — do NOT use it as a variable name, import alias, or parameter name
+28. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
-28. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
-29. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agents` (or legacy `agent_roles`) in govern.json
-30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
-31. `agents` in govern.json defines per-agent permissions AND LLM configuration (model, max_tokens, system_prompt, tools, max_turns, max_total_tokens, provider). Supports `"provider": "anthropic"` (default) and `"provider": "gemini"`. Legacy `agent_roles` key is still accepted (permissions only, no LLM config).
-32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
-33. `use agent` stdlib — governed LLM conversations. Responses are scanned by `checkSecrets()` (HARD) and `checkPii()` (configurable). `tool_use` responses are blocked. Turn/token limits use server-side tracking (immune to handle mutation).
-34. `scoring` in govern.json enables cumulative risk scoring — advisory findings accumulate weighted scores. Cross `red_threshold` = block (exit 2 via quality gate). Cross `yellow_threshold` = warn once. `default_weight` sets the per-finding weight; `rule_weights` overrides per rule. Deterministic, monotonic, bounded (saturates at 100K), thread-safe (reads and writes protected by results_mutex_), with integrity verification at report time. Pass 2 findings (post-execution audit) are excluded from scoring — they use direct check_results_ push, not enforce(). In audit mode, scoring gate logs "WOULD block" but exits 0. If `cumulative_risk_score` is used as a quality gate condition AND `scoring.red_threshold` is set, the quality gate condition takes precedence (fires first).
-35. Cross-module struct instantiation: `new module.StructName { field: value }`.
+29. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
+30. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agents` (or legacy `agent_roles`) in govern.json
+31. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
+32. `agents` in govern.json defines per-agent permissions AND LLM configuration (model, max_tokens, system_prompt, tools, max_turns, max_total_tokens, provider). Supports `"provider": "anthropic"` (default) and `"provider": "gemini"`. Legacy `agent_roles` key is still accepted (permissions only, no LLM config).
+33. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
+34. `use agent` stdlib — governed LLM conversations. Responses are scanned by `checkSecrets()` (HARD) and `checkPii()` (configurable). `tool_use` responses are blocked. Turn/token limits use server-side tracking (immune to handle mutation).
+35. `scoring` in govern.json enables cumulative risk scoring — advisory findings accumulate weighted scores. Cross `red_threshold` = block (exit 2 via quality gate). Cross `yellow_threshold` = warn once. `default_weight` sets the per-finding weight; `rule_weights` overrides per rule. Deterministic, monotonic, bounded (saturates at 100K), thread-safe (reads and writes protected by results_mutex_), with integrity verification at report time. Pass 2 findings (post-execution audit) are excluded from scoring — they use direct check_results_ push, not enforce(). In audit mode, scoring gate logs "WOULD block" but exits 0. If `cumulative_risk_score` is used as a quality gate condition AND `scoring.red_threshold` is set, the quality gate condition takes precedence (fires first).
+36. Cross-module struct instantiation: `new module.StructName { field: value }`.
     Structs defined in imported files are accessible via the module alias.
     Example: `import "types.naab" as types` then `let p = new types.Point { x: 1, y: 2 }`
-36. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
+37. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
     "Expected ':' after dict key" because `{` opens a dict, not a block.
     Use expression arms only — each arm must be a single expression, not a statement block.
     For multi-step logic in a match arm, extract a helper function or restructure as if/else:
@@ -685,7 +687,7 @@ main {
       `match status { "ok" => handle_ok() }`
     RIGHT (if/else instead of match):
       `if status == "ok" { let x = compute(); x * 2 } else { 0 }`
-37. `json.stringify()` on NAAb structs may produce non-standard output (unquoted keys).
+38. `json.stringify()` on NAAb structs may produce non-standard output (unquoted keys).
     For reliable JSON serialization of structs, convert to a dict first or use Python polyglot:
     ```naab
     // Option A: manual dict conversion
@@ -703,17 +705,17 @@ main {
     in `print()`. But if you then pass the result to `json.parse()`, you get double-parsing.
     Use `-> JSON` only when you want the result parsed into a NAAb dict, not when you need
     a JSON string for file output.
-38. Struct field names in `new` expressions accept both identifiers (`x: 1`) and
+39. Struct field names in `new` expressions accept both identifiers (`x: 1`) and
     quoted strings (`"x": 1`). Both work. If a field name collides with a keyword
     (like `method`, `class`, `type`), use the quoted form: `new Request { "method": "GET" }`.
-39. **Polyglot blocks support auto-dedent.** Content and `>>` can be indented to match
+40. **Polyglot blocks support auto-dedent.** Content and `>>` can be indented to match
     surrounding NAAb code. The runtime strips the common leading whitespace prefix.
     Both styles work:
     Style A (indented): content and `>>` indented to match function body
     Style B (column 0): content and `>>` at column 0 (traditional)
     **Rule:** Do NOT mix tabs and spaces within a polyglot block's indentation.
     Use spaces consistently. The `>>` closer must still be on its OWN line.
-40. **JavaScript polyglot uses QuickJS (embedded), NOT Node.js.** Multi-line JS code is
+41. **JavaScript polyglot uses QuickJS (embedded), NOT Node.js.** Multi-line JS code is
     wrapped in an IIFE `(function() { ...; return (lastExpr); })()` for return capture.
     This means: (a) keep the last line a simple expression or variable, not an arrow function
     or complex statement — multi-line expressions like `JSON.stringify({...})` spanning several
@@ -727,22 +729,22 @@ main {
     that needs `-> JSON` or complex data transformation.** Use JS for simpler operations
     like JSON manipulation, array sorting, or string processing where the last expression
     is a straightforward value.
-41. **Always read data files before writing code that parses them.** JSON files often
+42. **Always read data files before writing code that parses them.** JSON files often
     have wrapper objects (e.g., `{"alerts": [...]}` not `[{...}, ...]`). CSV files may
     have headers that need DictReader. Read the first few lines of each data file
     before writing loader/parser code. Do NOT assume the structure from the filename.
-42. **`0..len(arr)` is correct for iterating all elements.** The `..` operator is exclusive
+43. **`0..len(arr)` is correct for iterating all elements.** The `..` operator is exclusive
     (like Python's `range()`), so `0..len(arr)` visits indices 0 through len-1. Do NOT write
     `0..len(arr) - 1` — that skips the last element. Common mistake from Python habits where
     `range(len(x)-1)` is used for "all but last". In NAAb, `0..len(arr) - 1` IS "all but last".
-43. **`use` imports are file-scoped — they do NOT propagate across `import`.** If module A
+44. **`use` imports are file-scoped — they do NOT propagate across `import`.** If module A
     has `use agent` and module B imports A via `import "a.naab" as a`, module B does NOT need
     `use agent` unless B directly calls agent functions. Only add `use X` for modules your
     file directly uses. Importing a module that uses X does not require you to also `use X`.
-44. **Import paths are relative to the importing file, NOT the project root.** If both
+45. **Import paths are relative to the importing file, NOT the project root.** If both
     `main.naab` and `models.naab` are in `src/`, write `import "models.naab" as models` —
     NOT `import "src/models.naab"`. The `src/` prefix would look for `src/src/models.naab`.
-45. **JavaScript polyglot: if the last expression is multi-line, assign it to a variable.**
+46. **JavaScript polyglot: if the last expression is multi-line, assign it to a variable.**
     The JS executor wraps multi-line code in an IIFE and returns the last expression.
     When the last expression spans multiple lines (e.g. JSON.stringify with a multi-line
     object literal), the return capture can fail.
@@ -750,13 +752,13 @@ main {
       `JSON.stringify({\n    winner: x,\n    margin: 0\n});`
     RIGHT — assign to variable, bare name on last line:
       `const result = JSON.stringify({ winner: x, margin: 0 });\nresult`
-46. **No ternary operators.** Neither C-style `cond ? a : b` nor Python-style `x if cond else y`
+47. **No ternary operators.** Neither C-style `cond ? a : b` nor Python-style `x if cond else y`
     is valid NAAb syntax. NAAb uses `if` as an expression (prefix form):
     WRONG: `let result = score > 0 ? score : 0.0`           // C/JS ternary
     WRONG: `let result = score if score > 0 else 0.0`       // Python ternary
     RIGHT: `let result = if score > 0 { score } else { 0.0 }`
     The `if cond { a } else { b }` form IS an expression — assign it directly.
-47. **JavaScript polyglot: do NOT redeclare bound variable names inside the block.**
+48. **JavaScript polyglot: do NOT redeclare bound variable names inside the block.**
     Variables listed in `<<javascript[x, y, z]` are injected as `const` into the IIFE.
     Redeclaring them with `const` or `let` causes "invalid redefinition of lexical identifier".
     WRONG:
@@ -770,7 +772,7 @@ main {
       `m`
       `>>`
     Use different names for any local variables that transform the bound inputs.
-48. **`let` declarations cannot appear inside if-expressions.**
+49. **`let` declarations cannot appear inside if-expressions.**
     If-expressions are values — their bodies must be pure expressions, not statements.
     WRONG: `let x = if cond { let tmp = compute(); tmp * 2 } else { 0 }`
     RIGHT: extract the intermediate computation before the if:
@@ -779,7 +781,7 @@ main {
     Or restructure as an if-statement with a mutable variable:
       let x = 0
       if cond { x = compute() * 2 }
-49. **Do not sanitize content that has already been hashed, or hash content before sanitizing.**
+50. **Do not sanitize content that has already been hashed, or hash content before sanitizing.**
     Sanitizers change content (e.g. replacing `<>` with HTML entities). If you hash raw content
     then sanitize the same content, the stored hash will not match the sanitized version.
     Pattern for audit trails and hash chains:
@@ -788,13 +790,13 @@ main {
       3. Sanitize only at the file.write() sink: `file.write(path, sanitize_string(raw_content))`
     Do NOT sanitize inside functions that build hash chains — sanitize is a presentation concern,
     not a data integrity concern.
-50. **After editing files with polyglot blocks, verify indentation consistency.**
+51. **After editing files with polyglot blocks, verify indentation consistency.**
     Edit tools may re-indent polyglot content. Auto-dedent handles uniform indentation,
     but if edits produce MIXED indentation (some lines with 4 spaces, others with 8),
     the relative indentation changes and Python code may break. After partial edits,
     verify that all polyglot content lines use the same indentation base.
     Do NOT mix tabs and spaces — auto-dedent compares exact characters, not column widths.
-51. **Python polyglot: `try/except` swallows the return value.** The last expression of
+52. **Python polyglot: `try/except` swallows the return value.** The last expression of
     the block must be AFTER the try/except, not inside it.
     WRONG (returns null — try/except is a statement, not an expression):
       `<<python[data]`
@@ -814,7 +816,7 @@ main {
       `>>`
     The same applies to `if/else` — put the result variable on the LAST LINE of the block,
     not inside a branch. Initialize it before the control flow, update inside, reference after.
-52. **Function names starting with `sanitize_`, `validate_`, `check_`, or `verify_` trigger
+53. **Function names starting with `sanitize_`, `validate_`, `check_`, or `verify_` trigger
     governance inspection.** The runtime verifies these functions contain real validation logic
     (regex, rejection path, type check, bounds check, or allowlist). If your function doesn't
     actually validate/sanitize, use a different name prefix:
@@ -824,11 +826,11 @@ main {
     NOTE: These prefixes also get a LOW complexity threshold (score >= 3), so they don't need
     complex logic to pass the complexity floor — but they DO need real validation logic to
     pass the cosmetic sanitizer check.
-53. **`math.min()`/`math.max()` return float when either argument is float.**
+54. **`math.min()`/`math.max()` return float when either argument is float.**
     When both arguments are integers, they return int. When either is float, the
     result is float. If you need an integer result from mixed-type args, wrap in
     `int()`: `int(math.min(float_val, 10.0))`
-54. **Python polyglot returning a dict/list MUST use `-> JSON` or `json.dumps()`.**
+55. **Python polyglot returning a dict/list MUST use `-> JSON` or `json.dumps()`.**
     Without `-> JSON`, Python's repr output (e.g., `{'key': 'value'}`) is returned
     as a string, not a NAAb dict. This causes contract violations when the function
     is expected to return a dict.
@@ -847,7 +849,7 @@ main {
       `json.dumps({"key": "value", "count": len(data)})`
       `>>`
       `let result = json.parse(raw)`
-55. **Dot-notation array/string methods work WITHOUT `use array`/`use string`.**
+56. **Dot-notation array/string methods work WITHOUT `use array`/`use string`.**
     `arr.push(x)`, `arr.length()`, `s.upper()`, `s.split(" ")` — all work without imports.
     You only need `use array` for module-form calls: `array.map(arr, fn)`, `array.filter_fn(...)`.
     Similarly, `use string` is only needed for `string.contains(s, sub)` module-form calls.
@@ -1034,6 +1036,16 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
     "rationale": "OWASP A07:2021 — hardcoded secrets are a critical risk"
   }
   ```
+
+> **Sandbox note:** When `mode: enforce` is active and no `security.sandbox_level` is
+> set in govern.json, the sandbox automatically upgrades from `unrestricted` → `standard`.
+> This restricts absolute-path file reads (e.g. `file.read("/abs/path")` will be blocked).
+> To allow reading files outside CWD, set:
+> ```json
+> "security": { "sandbox_level": "elevated" }
+> ```
+> The runtime logs `[governance] Sandbox: upgraded unrestricted → standard` to stderr when
+> this upgrade occurs so you can diagnose unexpected "access denied" errors.
 
 ## Module Specifications
 [Describe each .naab file, its exports, and expected behavior]

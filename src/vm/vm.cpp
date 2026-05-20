@@ -1676,7 +1676,9 @@ interpreter::NaabVal VM::run() {
                         if (governance_) {
                             if (mod == "file") {
                                 std::string fs_mode = (method == "read" || method == "read_lines"
-                                                       || method == "exists" || method == "size")
+                                                       || method == "exists" || method == "size"
+                                                       || method == "list_dir" || method == "is_file"
+                                                       || method == "is_dir")
                                                       ? "read" : "write";
                                 std::string err = governance_->checkFilesystemAllowed(fs_mode);
                                 if (!err.empty()) runtimeError("%s", err.c_str());

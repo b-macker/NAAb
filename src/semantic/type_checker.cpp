@@ -199,7 +199,8 @@ TypeChecker::TypeChecker()
     // Module namespaces (treated as Any — no cross-module type propagation)
     for (const auto& mod : {"io", "math", "array", "string", "env", "json",
                              "file", "regex", "http", "path", "os", "time",
-                             "crypto", "base64", "csv", "xml", "yaml"}) {
+                             "crypto", "base64", "csv", "xml", "yaml",
+                             "agent", "process", "uuid", "validate", "log", "bolo"}) {
         env_->define(mod, Type::makeAny());
     }
     // Constants
@@ -948,11 +949,9 @@ void TypeChecker::visit(ast::DictExpr& node) {
 
         entry.second->accept(*this);
         if (!current_type_->isCompatibleWith(*value_type)) {
-            reportError(
-                fmt::format("Dict value type mismatch: expected {}, got {}",
-                           value_type->toString(), current_type_->toString()),
-                loc.line, loc.column
-            );
+            // Heterogeneous dict values — widen to Any rather than error.
+            // Dicts with mixed value types are valid NAAb (e.g. return structs).
+            value_type = Type::makeAny();
         }
     }
 
@@ -977,11 +976,10 @@ void TypeChecker::visit(ast::ListExpr& node) {
     for (size_t i = 1; i < node.getElements().size(); ++i) {
         node.getElements()[i]->accept(*this);
         if (!current_type_->isCompatibleWith(*element_type)) {
-            reportError(
-                fmt::format("List element type mismatch: expected {}, got {}",
-                           element_type->toString(), current_type_->toString()),
-                loc.line, loc.column
-            );
+            // Heterogeneous list — widen to Any rather than error.
+            // Mixed-type lists are valid NAAb (e.g. [str, int, array]).
+            element_type = Type::makeAny();
+            break;
         }
     }
 

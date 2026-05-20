@@ -4451,11 +4451,29 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         if (!ifs.is_open()) return warnings;
         auto j = nlohmann::json::parse(ifs);
 
+        // Common abbreviations and misspellings that Levenshtein can't catch
+        static const std::unordered_map<std::string, std::string> KNOWN_ALIASES = {
+            {"cdd",                      "context_drift"},
+            {"drift",                    "context_drift"},
+            {"context_drift_detection",  "context_drift"},
+            {"bsd",                      "behavioral_sequences"},
+            {"behavioral_sequence",      "behavioral_sequences"},
+            {"sequences",                "behavioral_sequences"},
+            {"sandbox",                  "security"},
+            {"sandbox_level",            "security"},
+            {"agent_config",             "agents"},
+            {"agent_roles_config",       "agents"},
+        };
+
         for (auto& [key, val] : j.items()) {
             bool found = false;
             for (const auto& vk : VALID_TOP_KEYS) { if (key == vk) { found = true; break; } }
             if (!found) {
-                std::string suggestion = suggestKey(key, VALID_TOP_KEYS);
+                // Check aliases first (Levenshtein misses semantic abbreviations)
+                auto alias_it = KNOWN_ALIASES.find(key);
+                std::string suggestion = (alias_it != KNOWN_ALIASES.end())
+                    ? alias_it->second
+                    : suggestKey(key, VALID_TOP_KEYS);
                 if (!suggestion.empty()) {
                     warnings.push_back(fmt::format(
                         "[governance] Warning: Unknown key \"{}\" — did you mean \"{}\"?", key, suggestion));

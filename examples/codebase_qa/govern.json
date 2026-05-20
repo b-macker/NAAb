@@ -1,0 +1,60 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "agents": {
+        "gemma_qa": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK1",
+            "max_tokens": 1024,
+            "max_turns": 100,
+            "max_total_tokens": 120000,
+            "temperature": 0.3,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a code analysis assistant. The user will ask questions about a codebase. Answer concisely and accurately based only on the provided source files. If the answer cannot be determined from the provided code, say so explicitly. Do not speculate beyond what the code shows."
+        }
+    },
+    "security": {
+        "sandbox_level": "elevated",
+        "rationale": "Tool reads source files from arbitrary user-specified directories"
+    },
+    "capabilities": {
+        "filesystem": {
+            "mode": "write",
+            "allow_absolute_paths": true,
+            "rationale": "Tool must read source files from any user-specified directory"
+        },
+        "network": {
+            "enabled": true,
+            "rationale": "Agent requires outbound API calls to Gemini"
+        },
+        "shell": {
+            "enabled": false,
+            "rationale": "No shell execution needed in Q&A tool"
+        }
+    },
+    "context_drift": {
+        "enabled": true,
+        "level": "advisory",
+        "coherence_threshold": 0.20,
+        "max_contradictions": 10,
+        "check_interval_turns": 5,
+        "fingerprint_window": 10,
+        "signals": {
+            "repeated_failures": true,
+            "circular_actions": true,
+            "scope_creep": true
+        },
+        "rationale": "Detect if conversation drifts away from codebase analysis into unrelated territory"
+    },
+    "limits": {
+        "execution": {
+            "timeout_seconds": 3600,
+            "rationale": "Interactive Q&A session may run for an extended period"
+        }
+    },
+    "telemetry": {
+        "enabled": true,
+        "output_file": "telemetry.jsonl"
+    }
+}

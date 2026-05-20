@@ -1495,6 +1495,9 @@ int main(int argc, char** argv) {
                         security_config.max_cpu_seconds = timeout;
                         security_config.max_memory_mb = memory_limit;
                         upgraded_to_standard = true;
+                        fmt::print(stderr,
+                            "[governance] Sandbox: upgraded unrestricted → standard "
+                            "(enforce mode; set security.sandbox_level in govern.json to override)\n");
                     }
                     // Sync governance capabilities into sandbox (tighten only)
                     // Skip when --no-governance — user explicitly opted out

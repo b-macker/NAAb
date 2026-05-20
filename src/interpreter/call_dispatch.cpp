@@ -1327,7 +1327,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                         if (module_alias == "file") {
                             // file.read → read mode, everything else → write mode
                             std::string fs_mode = (func_name == "read" || func_name == "read_lines"
-                                                   || func_name == "exists" || func_name == "size")
+                                                   || func_name == "exists" || func_name == "size"
+                                                   || func_name == "list_dir" || func_name == "is_file"
+                                                   || func_name == "is_dir")
                                                   ? "read" : "write";
                             std::string err = governance_->checkFilesystemAllowed(fs_mode);
                             if (!err.empty()) throw std::runtime_error(err);
