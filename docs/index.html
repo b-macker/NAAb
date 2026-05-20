@@ -743,9 +743,9 @@
 <section class="section" id="governance">
     <div class="container">
         <div class="section-header">
-            <div class="label">LLM Governance Engine</div>
-            <h2>Ship AI-generated code with confidence</h2>
-            <p>Drop a <code>govern.json</code> in your project. NAAb checks every polyglot block against your policies before execution.</p>
+            <div class="label">Runtime Governance</div>
+            <h2>Define the rules. The engine enforces them.</h2>
+            <p>Drop a <code>govern.json</code> in your project. NAAb tracks behavioral sequences across your entire script and blocks the dangerous step before it executes.</p>
         </div>
 
         <div class="code-showcase" style="margin-bottom: 48px;">
@@ -757,16 +757,24 @@
   <span class="str">"version"</span>: <span class="str">"5.0"</span>,
   <span class="str">"mode"</span>: <span class="str">"enforce"</span>,
 
-  <span class="str">"languages"</span>: {
-    <span class="str">"allowed"</span>: [<span class="str">"python"</span>, <span class="str">"javascript"</span>]
-  },
-
-  <span class="str">"code_quality"</span>: {
-    <span class="str">"no_secrets"</span>: { <span class="str">"level"</span>: <span class="str">"hard"</span> },
-    <span class="str">"no_sql_injection"</span>: { <span class="str">"level"</span>: <span class="str">"hard"</span> },
-    <span class="str">"no_oversimplification"</span>: { <span class="str">"level"</span>: <span class="str">"hard"</span> },
-    <span class="str">"no_incomplete_logic"</span>: { <span class="str">"level"</span>: <span class="str">"soft"</span> },
-    <span class="str">"no_hallucinated_apis"</span>: { <span class="str">"level"</span>: <span class="str">"soft"</span> }
+  <span class="str">"behavioral_sequences"</span>: {
+    <span class="str">"enabled"</span>: <span class="kw">true</span>,
+    <span class="str">"patterns"</span>: [{
+      <span class="str">"name"</span>: <span class="str">"credential_exfiltration"</span>,
+      <span class="str">"sequence"</span>: [
+        <span class="str">"env.get:*KEY*|*SECRET*|*TOKEN*"</span>,
+        <span class="str">"encode|base64"</span>,
+        <span class="str">"agent.send|http.post"</span>
+      ],
+      <span class="str">"level"</span>: <span class="str">"hard"</span>
+    }, {
+      <span class="str">"name"</span>: <span class="str">"config_harvest"</span>,
+      <span class="str">"sequence"</span>: [
+        <span class="str">"file.read:*config*|*govern*"</span>,
+        <span class="str">"agent.send"</span>
+      ],
+      <span class="str">"level"</span>: <span class="str">"hard"</span>
+    }]
   }
 }</pre>
             </div>
@@ -774,18 +782,22 @@
                 <div class="tab-bar">
                     <div class="tab active">Terminal</div>
                 </div>
-<pre><span class="ok">$ naab-lang app.naab</span>
+<pre><span class="ok">$ naab agent_task.naab</span>
 
-<span class="err">Error: Hallucinated API in python block:
-  ".push()"</span> <span class="tag-soft" style="font-size:0.75rem">SOFT</span>
+<span class="err">[governance] Behavioral sequence
+'credential_exfiltration' blocked
+before execution.</span>
 
-  Rule: code_quality.no_hallucinated_apis
+  Pattern matched:
+  <span class="ok">Step 1</span> env.get("API_SECRET_KEY") ✓
+  <span class="ok">Step 2</span> crypto.base64_encode(...)  ✓
+  <span class="err">Step 3</span> agent.send(handle, ...)    <span class="err">✗ BLOCKED</span>
 
-  <span class="warn">Help:</span>
-  <span class="warn">.push() is JavaScript</span>
-  <span class="warn">In Python, use .append()</span>
+  Rule: behavioral_sequences
+        .credential_exfiltration
+        [<span class="err">HARD</span>]
 
-  To override: --governance-override</pre>
+  Execution stopped before API call.</pre>
             </div>
         </div>
 
@@ -1054,6 +1066,21 @@ mean=30, stdev=15.8
 
         <div class="features-grid">
             <div class="f-card reveal">
+                <div class="icon icon-red">&#128737;</div>
+                <h3>Behavioral Sequence Detection</h3>
+                <p>FSM-based runtime detection of multi-step attack patterns. User-defined sequences in govern.json. Pre-execution blocking before the final dangerous step runs.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-yellow">&#128269;</div>
+                <h3>Context Drift Detection</h3>
+                <p>Monitors LLM agent coherence across turns. Detects repeated failures, circular actions, scope creep, and contradictions with configurable thresholds.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-green">&#128274;</div>
+                <h3>Ed25519 Signed Governance</h3>
+                <p>Trust-anchored governance signing. <code>--keygen</code>, <code>--sign-governance</code>, <code>--trust-key</code>. One-way ratchet &mdash; mid-run reloads can only tighten, never loosen.</p>
+            </div>
+            <div class="f-card reveal">
                 <div class="icon icon-purple">&#9889;</div>
                 <h3>Pattern Matching</h3>
                 <p>Expressive <code>match</code> with guard clauses, array destructuring, binding patterns, and wildcard matching.</p>
@@ -1122,21 +1149,6 @@ mean=30, stdev=15.8
                 <div class="icon icon-cyan">&#128101;</div>
                 <h3>Agent Governance</h3>
                 <p>Multi-agent role enforcement via <code>--agent-id</code>. Per-agent path/language restrictions, telemetry JSONL, dashboard output.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-red">&#128737;</div>
-                <h3>Behavioral Sequence Detection</h3>
-                <p>FSM-based runtime detection of multi-step attack patterns. User-defined sequences in govern.json. Pre-execution blocking before the final dangerous step runs.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-yellow">&#128269;</div>
-                <h3>Context Drift Detection</h3>
-                <p>Monitors LLM agent coherence across turns. Detects repeated failures, circular actions, scope creep, and contradictions with configurable thresholds.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-green">&#128274;</div>
-                <h3>Ed25519 Signing</h3>
-                <p>Trust-anchored governance signing. <code>--keygen</code>, <code>--sign-governance</code>, <code>--trust-key</code>. One-way ratchet &mdash; mid-run reloads can only tighten, never loosen.</p>
             </div>
         </div>
     </div>
@@ -1221,9 +1233,9 @@ mean=30, stdev=15.8
 <section class="section" id="bolo">
     <div class="container">
         <div class="section-header">
-            <span class="label">Built with NAAb</span>
-            <h2>NAAb BOLO</h2>
-            <p>Enterprise LLM &amp; AI Governance Platform &mdash; 100% NAAb, best language for every task</p>
+            <span class="label">Ecosystem</span>
+            <h2>NAAb BOLO — Catch AI Code Mistakes Before They Ship</h2>
+            <p>50+ static analysis checks for AI-generated code. Hardcoded secrets, hallucinated APIs, stub functions, SQL injection &mdash; caught before they reach production.</p>
         </div>
         <div style="background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-top: 24px;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 24px;">
@@ -1261,9 +1273,9 @@ mean=30, stdev=15.8
 <section class="section" id="pivot">
     <div class="container">
         <div class="section-header">
-            <span class="label">Built with NAAb</span>
-            <h2>NAAb Pivot</h2>
-            <p>Polyglot Code Evolution & Optimization Platform &mdash; 3-60x speedups with proven correctness</p>
+            <span class="label">Ecosystem</span>
+            <h2>NAAb Pivot — Rewrite Slow AI-Generated Code to Fast Compiled Code</h2>
+            <p>AI defaults to Python. Pivot analyzes your slow Python/Ruby/JS, rewrites it to Go/Rust/C++, and proves the output is statistically identical. 3&ndash;60x speedups.</p>
         </div>
         <div style="background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-top: 24px;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 24px;">
@@ -1301,9 +1313,9 @@ mean=30, stdev=15.8
 <section class="section" id="passage">
     <div class="container">
         <div class="section-header">
-            <span class="label">Built with NAAb</span>
-            <h2>NAAb Passage</h2>
-            <p>Sovereign Data Gateway & PII Protection &mdash; Zero leakage with mathematical certainty</p>
+            <span class="label">Ecosystem</span>
+            <h2>NAAb Passage — Stop PII From Reaching Your LLMs</h2>
+            <p>Intercepts SSNs, credit cards, API keys, and health records before they leave your system. Sovereign architecture &mdash; all decisions made locally. HIPAA &middot; GDPR &middot; SOC2.</p>
         </div>
         <div style="background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-top: 24px;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 24px;">
