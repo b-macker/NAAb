@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NAAb — The Polyglot Programming Language with Built-in LLM Governance</title>
-    <meta name="description" content="NAAb is a polyglot programming language that integrates Python, JavaScript, Rust, C++, Go, Nim, Zig, Julia and more with built-in LLM governance — detecting oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.">
-    <meta name="keywords" content="polyglot programming language, LLM governance, AI code quality, hallucinated APIs, code generation, bytecode VM, taint tracking, AI agent governance, multi-agent, NaN-boxing, Python, JavaScript, Rust, C++, Go, Nim, static analysis, polyglot, code review, enterprise, open source">
+    <title>NAAb — Stop AI Agents Before They Do Damage</title>
+    <meta name="description" content="NAAb blocks dangerous AI agent behavior before the network call fires. Credential exfiltration, config harvesting, secret leakage — stopped by behavioral sequence detection at the runtime level, not by prompts.">
+    <meta name="keywords" content="AI agent security, agent governance, credential exfiltration, behavioral sequence detection, LLM security, AI safety, agent sandboxing, polyglot programming language, govern.json, taint tracking, runtime enforcement">
     <meta name="author" content="Brandon Mackert">
     <link rel="canonical" href="https://b-macker.github.io/NAAb/">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -13,8 +13,8 @@
     <meta name="msvalidate.01" content="D2CF5F3B85FF5E7EEF83759F03CA2807" />
     <meta name="yandex-verification" content="84af87a37b679873" />
 
-    <meta property="og:title" content="NAAb — Polyglot Programming Language with AI Governance & Bytecode VM">
-    <meta property="og:description" content="12 languages, 50+ governance checks, bytecode VM (~8x faster), taint tracking, and multi-agent role enforcement. Open source, MIT licensed.">
+    <meta property="og:title" content="NAAb — Stop AI Agents Before They Do Damage">
+    <meta property="og:description" content="Blocks credential exfiltration, config harvesting, and secret leakage before the network call fires. Behavioral sequence detection at the runtime level — not prompts.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://b-macker.github.io/NAAb/">
     <meta property="og:image" content="https://b-macker.github.io/NAAb/og-image.svg">
@@ -22,8 +22,8 @@
     <meta property="og:image:height" content="630">
     <meta property="og:site_name" content="NAAb">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="NAAb — Polyglot Programming Language with AI Governance & Bytecode VM">
-    <meta name="twitter:description" content="12 languages, 50+ governance checks, bytecode VM (~8x faster), taint tracking, multi-agent enforcement. Open source.">
+    <meta name="twitter:title" content="NAAb — Stop AI Agents Before They Do Damage">
+    <meta name="twitter:description" content="Blocks credential exfiltration and config harvesting before the network call fires. Behavioral sequence detection — not prompts. Open source, MIT licensed.">
     <meta name="twitter:image" content="https://b-macker.github.io/NAAb/og-image.svg">
 
     <script type="application/ld+json">
@@ -706,14 +706,15 @@
 <!-- ─── Hero ─── -->
 <section class="hero">
     <div class="container">
-        <div class="badge">The only language with built-in AI governance</div>
+        <div class="badge">Runtime enforcement — not prompt engineering</div>
         <h1>
-            <span class="gradient">Govern AI-generated code</span><br>
-            at the language level
+            <span class="gradient">Stop AI agents</span><br>
+            before they do damage
         </h1>
         <p class="subtitle">
-            NAAb enforces code quality, security, and correctness as runtime constraints &mdash; not suggestions.
-            A single <code>govern.json</code> controls what executes across 12 languages in one file.
+            AI agents can read your secrets, encode them, and send them to an external API &mdash; all in three steps.
+            NAAb blocks the sequence <strong>before the network call fires.</strong>
+            No prompt engineering. No post-hoc log scanning.
         </p>
         <div class="cta">
             <a href="https://github.com/b-macker/NAAb" class="btn btn-primary">Get Started</a>
@@ -728,11 +729,11 @@
 <!-- ─── Stats Bar ─── -->
 <div class="container" style="padding-bottom: 60px;">
     <div class="stats-bar">
-        <div class="stat reveal"><div class="num">50+</div><div class="label">Governance Checks</div></div>
-        <div class="stat reveal reveal-delay-1"><div class="num">3-tier</div><div class="label">Enforcement</div></div>
-        <div class="stat reveal reveal-delay-2"><div class="num">12</div><div class="label">Languages Governed</div></div>
-        <div class="stat reveal reveal-delay-3"><div class="num">13</div><div class="label">Stdlib Modules</div></div>
-        <div class="stat reveal reveal-delay-4"><div class="num">360</div><div class="label">Tests Passing</div></div>
+        <div class="stat reveal"><div class="num">Pre-exec</div><div class="label">Blocks Before API Call</div></div>
+        <div class="stat reveal reveal-delay-1"><div class="num">BSD</div><div class="label">Sequence Detection</div></div>
+        <div class="stat reveal reveal-delay-2"><div class="num">CDD</div><div class="label">Drift Detection</div></div>
+        <div class="stat reveal reveal-delay-3"><div class="num">Ed25519</div><div class="label">Signed Governance</div></div>
+        <div class="stat reveal reveal-delay-4"><div class="num">391</div><div class="label">Tests Passing</div></div>
     </div>
 </div>
 
