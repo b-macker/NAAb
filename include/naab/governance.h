@@ -431,6 +431,12 @@ struct VcsSecretExtractionRestriction {
     std::string rationale;
 };
 
+struct ObfuscationRestriction {
+    bool enabled = true;                                // on by default
+    EnforcementLevel level = EnforcementLevel::SOFT;    // co-occurrence scoring: 2 signals = ADVISORY, 3+ = configured level
+    std::string rationale;
+};
+
 struct RestrictionsConfig {
     PolyglotOutputRestriction polyglot_output;
     DangerousCallsRestriction dangerous_calls;
@@ -443,6 +449,7 @@ struct RestrictionsConfig {
     CodeInjectionRestriction code_injection;
     CryptoRestriction crypto;
     VcsSecretExtractionRestriction vcs_secret_extraction;
+    ObfuscationRestriction obfuscation;
 };
 
 // ============================================================================
@@ -1886,6 +1893,10 @@ public:
                                      const std::string& code, int line = 0);
     std::string checkCryptoWeakness(const std::string& code, int line = 0);
     std::string checkVcsSecretExtraction(const std::string& code, int line = 0);
+    std::string checkObfuscationSignals(const std::string& language,
+                                        const std::string& raw_code,
+                                        const std::string& stripped_code,
+                                        int line = 0);
 
     // Capability checks for polyglot blocks
     std::string checkNetworkImports(const std::string& language,

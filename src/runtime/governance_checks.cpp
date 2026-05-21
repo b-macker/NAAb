@@ -3317,6 +3317,13 @@ static const std::vector<SemanticCheck> PYTHON_EVAL_RAW_CHECKS = {
 static const std::vector<SemanticCheck> PYTHON_EVAL_CHECKS = {
     {"eval\\([^)]*\\+\\s*\\w", "eval() with string concatenation is dangerous — injection risk", "Use ast.literal_eval() or json.loads() for safe parsing"},
     {"__import__\\(", "__import__() dynamic import is hard to audit and potentially dangerous", "Use regular import statements for clarity and safety"},
+    // Obfuscation hardening: compile()+eval, globals chain, __builtins__, __loader__, types.ModuleType, chr chain
+    {"\\bcompile\\s*\\(.*['\"]eval['\"]", "compile() with eval mode is dangerous — dynamic code execution", "Use direct function calls instead of compile()"},
+    {"globals\\s*\\(\\s*\\)\\s*\\[", "globals() dict access — potential dynamic import chain", "Use standard import statements"},
+    {"__builtins__\\s*(?:\\.|\\[)", "Direct __builtins__ access — can bypass import restrictions", "Use standard import statements"},
+    {"__loader__\\s*\\.", "__loader__ access — can load arbitrary modules", "Use standard import statements"},
+    {"types\\.ModuleType\\s*\\(", "types.ModuleType() — dynamic module creation", "Use standard import statements"},
+    {"chr\\s*\\(\\s*\\d+\\s*\\)\\s*\\+\\s*chr\\s*\\(\\s*\\d+\\s*\\)\\s*\\+\\s*chr", "chr() chain (3+) — likely string obfuscation to hide imports", "Use literal strings instead of character code chains"},
 };
 
 // JavaScript API misuse patterns
@@ -3337,6 +3344,8 @@ static const std::vector<SemanticCheck> JS_EVAL_CHECKS = {
     {"eval\\(\\s*`", "eval() with template literal is dangerous — arbitrary code execution", "Use JSON.parse() for data or a safe parser"},
     {"\\.innerHTML\\s*=\\s*[^'\"`\\s;]", "Setting innerHTML with a variable risks XSS attacks", "Use .textContent for plain text, or sanitize with DOMPurify"},
     {"document\\.write\\(", "document.write() is dangerous and can overwrite the entire page", "Use DOM methods: .appendChild(), .textContent, .innerHTML with sanitized input"},
+    // Obfuscation hardening: dynamic import()
+    {"import\\s*\\(\\s*['\"]", "Dynamic import() can load arbitrary modules at runtime", "Use static import/require statements"},
 };
 
 // Shell syntax validation patterns
@@ -3352,11 +3361,62 @@ static const std::vector<SemanticCheck> SHELL_SAFETY_CHECKS = {
     {"rm\\s+-[rR]f\\s+/\\s", "rm -rf / is extremely dangerous — will destroy the filesystem", "Never use rm -rf / — specify exact paths"},
     {"rm\\s+-[rR]f\\s+/\\n", "rm -rf / is extremely dangerous — will destroy the filesystem", "Never use rm -rf / — specify exact paths"},
     {"rm\\s+-[rR]f\\s+\"?\\$\\{?\\w*\\}?\"?/", "rm -rf with variable — if variable is empty, becomes rm -rf /", "Guard: [ -n \"$VAR\" ] && rm -rf \"$VAR/path\""},
+    // Obfuscation hardening: hex/octal escape sequences in $'...'
+    {"\\$['\"]\\\\x[0-9a-fA-F]", "Hex escape in $'...' — potential command obfuscation", "Use literal command names — hex escapes can hide dangerous commands"},
+    {"\\$['\"]\\\\[0-7]{3}", "Octal escape in $'...' — potential command obfuscation", "Use literal command names — octal escapes can hide dangerous commands"},
 };
 
 // Unquoted variable check for shell (separate because more complex)
 static const std::vector<SemanticCheck> SHELL_UNQUOTED_VAR_CHECKS = {
     {"(?:rm|mv|cp)\\s+(?:-[a-zA-Z]+\\s+)*[^\"']*\\$[a-zA-Z_]", "Unquoted variable in rm/mv/cp — empty variable causes unexpected behavior", "Always quote variables: rm \"$file\" not rm $file"},
+};
+
+// --- Language-specific safety checks for languages missing semantic coverage ---
+
+static const std::vector<SemanticCheck> GO_SAFETY_CHECKS = {
+    {"\\bunsafe\\.Pointer\\b", "unsafe.Pointer bypasses Go's type system — memory safety risk", "Avoid unsafe package in governed code"},
+    {"exec\\.Command\\s*\\(", "os/exec.Command() — command execution", "Use NAAb stdlib process.run()"},
+};
+
+static const std::vector<SemanticCheck> RUST_SAFETY_CHECKS = {
+    {"\\bunsafe\\s*\\{", "unsafe block bypasses Rust's safety guarantees", "Avoid unsafe in governed polyglot code"},
+    {"Command::new\\s*\\(", "std::process::Command — command execution", "Use NAAb stdlib process.run()"},
+    {"\\blibc::", "Raw libc FFI calls bypass safety", "Avoid libc in governed polyglot code"},
+};
+
+static const std::vector<SemanticCheck> CPP_SAFETY_CHECKS = {
+    {"\\bsystem\\s*\\(", "system() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\bpopen\\s*\\(", "popen() — command execution with pipe", "Use NAAb stdlib process.run()"},
+    {"\\b__asm__\\b|\\basm\\s*\\(", "Inline assembly bypasses all safety", "Avoid inline assembly in governed code"},
+    {"\\bdlopen\\s*\\(", "dlopen() — dynamic library loading", "Avoid dynamic library loading in governed code"},
+};
+
+static const std::vector<SemanticCheck> CSHARP_SAFETY_CHECKS = {
+    {"Process\\.Start\\s*\\(", "Process.Start() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\bunsafe\\s*\\{", "unsafe block — raw pointer operations", "Avoid unsafe code in governed blocks"},
+    {"\\bDllImport\\b", "DllImport — native interop", "Avoid P/Invoke in governed blocks"},
+};
+
+static const std::vector<SemanticCheck> RUBY_SAFETY_CHECKS = {
+    {"\\bsystem\\s*\\(", "system() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\beval\\s*\\(", "eval() — arbitrary code execution", "Avoid dynamic code execution"},
+    {"\\binstance_eval\\b", "instance_eval — arbitrary code in object context", "Use direct method calls"},
+    {"\\bsend\\s*\\(", "send() — dynamic method dispatch", "Use direct method calls"},
+};
+
+static const std::vector<SemanticCheck> PHP_SAFETY_CHECKS = {
+    {"\\bsystem\\s*\\(", "system() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\bexec\\s*\\(", "exec() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\beval\\s*\\(", "eval() — arbitrary code execution", "Avoid dynamic code execution"},
+    {"\\bshell_exec\\s*\\(", "shell_exec() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\bpassthru\\s*\\(", "passthru() — command execution with output", "Use NAAb stdlib process.run()"},
+};
+
+static const std::vector<SemanticCheck> NIM_SAFETY_CHECKS = {
+    {"\\bexecProcess\\s*\\(", "execProcess() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\bstartProcess\\s*\\(", "startProcess() — command execution", "Use NAAb stdlib process.run()"},
+    {"\\{\\.importc\\b", "importc pragma — C FFI", "Avoid FFI in governed code"},
+    {"\\{\\.emit\\b", "emit pragma — raw code injection", "Avoid emit in governed code"},
 };
 
 std::string GovernanceEngine::checkSemanticIssues(
@@ -3587,6 +3647,55 @@ std::string GovernanceEngine::checkSemanticIssues(
             if (!err.empty()) return err;
         }
     }
+    // === GO ===
+    else if (language == "go" || language == "golang") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(GO_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+    // === RUST ===
+    else if (language == "rust") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(RUST_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+    // === C++ ===
+    else if (language == "cpp" || language == "c++") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(CPP_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+    // === C# ===
+    else if (language == "csharp" || language == "cs") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(CSHARP_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+    // === RUBY ===
+    else if (language == "ruby" || language == "rb") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(RUBY_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+    // === PHP ===
+    else if (language == "php") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(PHP_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+    // === NIM ===
+    else if (language == "nim") {
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(NIM_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
 
     recordPass("code_quality.semantic_checks", cfg.level);
     return "";
@@ -3629,7 +3738,36 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
         pats.push_back("(?:SELECT|INSERT|UPDATE|DELETE)\\s+.*['\"]\\s*\\+");
         pats.push_back("f['\"].*(?:SELECT|INSERT|UPDATE|DELETE).*\\{");
     }
-    if (cfg.block_command_injection) { pats.push_back("os\\.system\\s*\\("); pats.push_back("subprocess\\.call.*shell\\s*=\\s*True"); }
+    if (cfg.block_command_injection) {
+        if (language == "python") {
+            pats.push_back("os\\.system\\s*\\(");
+            pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call).*shell\\s*=\\s*True");
+            pats.push_back("ctypes\\.(?:CDLL|cdll)\\s*\\(");
+        } else if (language == "go" || language == "golang") {
+            pats.push_back("exec\\.Command\\s*\\(");
+        } else if (language == "rust") {
+            pats.push_back("Command::new\\s*\\(");
+        } else if (language == "cpp" || language == "c++") {
+            pats.push_back("\\bsystem\\s*\\(");
+            pats.push_back("\\bpopen\\s*\\(");
+        } else if (language == "csharp" || language == "cs") {
+            pats.push_back("Process\\.Start\\s*\\(");
+        } else if (language == "ruby" || language == "rb") {
+            pats.push_back("\\bsystem\\s*\\(");
+        } else if (language == "php") {
+            pats.push_back("\\bsystem\\s*\\(");
+            pats.push_back("\\bexec\\s*\\(");
+            pats.push_back("\\bshell_exec\\s*\\(");
+            pats.push_back("\\bpassthru\\s*\\(");
+        } else if (language == "nim") {
+            pats.push_back("\\bexecProcess\\s*\\(");
+            pats.push_back("\\bstartProcess\\s*\\(");
+        } else {
+            // Fallback for unknown languages
+            pats.push_back("os\\.system\\s*\\(");
+            pats.push_back("subprocess\\.call.*shell\\s*=\\s*True");
+        }
+    }
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         return enforce("restrictions.code_injection", cfg.level,
@@ -3883,6 +4021,123 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     }
 
     recordPass("restrictions.vcs_secret_extraction", cfg.level);
+    return "";
+}
+
+// --- Security: Obfuscation Signal Co-occurrence Detection ---
+// Detects multi-statement obfuscation chains (e.g., base64 decode → exec,
+// chr() concatenation → __import__, globals()['__builtins__'] chains).
+// Uses signal co-occurrence (same approach as checkVcsSecretExtraction):
+// Signal 1 (exec sink) + Signal 2 (encoding) + Signal 3 (dynamic access) + Signal 4 (indirection)
+// Scoring: sink + 1 other = ADVISORY, sink + 2 others = configured level
+std::string GovernanceEngine::checkObfuscationSignals(
+    const std::string& language, const std::string& raw_code,
+    const std::string& stripped_code, int line) {
+    auto& cfg = rules_.restrictions.obfuscation;
+    if (!cfg.enabled) return "";
+    clearTrace();
+
+    // Helper: check if any pattern matches
+    auto has_signal = [](const std::string& code, const std::vector<std::string>& patterns) -> bool {
+        for (const auto& pat : patterns) {
+            try {
+                if (std::regex_search(code, std::regex(pat))) return true;
+            } catch (...) {
+                if (code.find(pat) != std::string::npos) return true;
+            }
+        }
+        return false;
+    };
+
+    bool has_sink = false, has_encoding = false, has_dynamic = false, has_indirect = false;
+
+    if (language == "python") {
+        // Signal 1: Execution sinks
+        has_sink = has_signal(stripped_code, {
+            "\\bexec\\s*\\(", "\\beval\\s*\\(", "\\bcompile\\s*\\("
+        });
+
+        // Signal 2: Payload encoding/reconstruction (use raw_code — encoded payloads live in strings)
+        has_encoding = has_signal(raw_code, {
+            "base64\\.b64decode", "codecs\\.decode",
+            "chr\\s*\\(\\s*\\d+\\s*\\)\\s*\\+",
+            "bytearray\\(", "binascii\\.unhexlify"
+        });
+
+        // Signal 3: Dynamic import/attribute access
+        has_dynamic = has_signal(stripped_code, {
+            "globals\\s*\\(\\s*\\)\\s*\\[", "__builtins__",
+            "__import__", "__loader__", "types\\.ModuleType",
+            "__subclasses__"
+        });
+
+        // Signal 4: Indirection mechanisms
+        has_indirect = has_signal(stripped_code, {
+            "ctypes\\.(?:CDLL|cdll)", "setattr\\s*\\(",
+            "__mro__", "__dict__\\s*\\["
+        });
+    } else if (language == "javascript") {
+        has_sink = has_signal(stripped_code, {
+            "\\beval\\s*\\(", "\\bFunction\\s*\\(",
+            "setTimeout\\s*\\(", "setInterval\\s*\\("
+        });
+        has_encoding = has_signal(raw_code, {
+            "\\batob\\s*\\(", "String\\.fromCharCode",
+            "decodeURIComponent", "\\bunescape\\s*\\("
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "Reflect\\.", "Proxy\\s*\\(", "constructor\\s*\\["
+        });
+        has_indirect = false;  // JS has 3 signal groups
+    } else {
+        // Other languages: skip co-occurrence (covered by DANGEROUS_PATTERNS_DB)
+        recordPass("restrictions.obfuscation", cfg.level);
+        return "";
+    }
+
+    // Count signals present
+    int signal_count = (has_sink ? 1 : 0) + (has_encoding ? 1 : 0)
+                     + (has_dynamic ? 1 : 0) + (has_indirect ? 1 : 0);
+
+    // Build description of what was detected
+    if (has_sink && signal_count >= 3) {
+        // Sink + 2 or more other signals = configured enforcement level
+        std::string signals;
+        if (has_encoding) signals += "payload encoding, ";
+        if (has_dynamic) signals += "dynamic access, ";
+        if (has_indirect) signals += "indirection, ";
+        if (!signals.empty()) signals = signals.substr(0, signals.size() - 2);
+
+        addTrace(fmt::format("Obfuscation co-occurrence: exec sink + {} ({} signals total)",
+                             signals, signal_count));
+        return enforce("restrictions.obfuscation", cfg.level,
+            formatError(cfg.level,
+                fmt::format("Obfuscation pattern in {} block: execution sink combined with {}",
+                            language, signals),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "restrictions.obfuscation",
+                "Multiple obfuscation signals detected in the same code block.\n"
+                "This pattern resembles an attempt to bypass import or execution restrictions.\n"
+                "Use standard import statements and direct function calls.",
+                "", ""));
+    } else if (has_sink && signal_count == 2) {
+        // Sink + 1 other signal = ADVISORY warning
+        std::string signal_name = has_encoding ? "payload encoding"
+                                : has_dynamic ? "dynamic access"
+                                : "indirection";
+        addTrace(fmt::format("Obfuscation advisory: exec sink + {}", signal_name));
+        return enforce("restrictions.obfuscation", EnforcementLevel::ADVISORY,
+            formatError(EnforcementLevel::ADVISORY,
+                fmt::format("Potential obfuscation in {} block: execution sink combined with {}",
+                            language, signal_name),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "restrictions.obfuscation",
+                "This code combines dynamic execution with encoding or indirect access.\n"
+                "While it may be legitimate, this pattern is commonly used for obfuscation.",
+                "", ""));
+    }
+
+    recordPass("restrictions.obfuscation", cfg.level);
     return "";
 }
 
@@ -4367,6 +4622,8 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkCryptoWeakness(stripped, line);
     if (!err.empty()) return err;
     err = checkVcsSecretExtraction(code, line);  // uses raw code — secret targets live in strings
+    if (!err.empty()) return err;
+    err = checkObfuscationSignals(lang, code, stripped, line);  // co-occurrence: raw + stripped
     if (!err.empty()) return err;
 
     // Capability checks for polyglot blocks

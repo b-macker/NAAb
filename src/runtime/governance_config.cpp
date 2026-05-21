@@ -757,6 +757,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (vs.contains("level")) { auto [en, lv] = parseEnforcementLevel(vs["level"]); rules_.restrictions.vcs_secret_extraction.level = lv; }
             parseRationale(vs, rules_.restrictions.vcs_secret_extraction.rationale);
         }
+        if (res.contains("obfuscation") && res["obfuscation"].is_object()) {
+            auto& ob = res["obfuscation"];
+            if (ob.contains("enabled")) rules_.restrictions.obfuscation.enabled = ob["enabled"].get<bool>();
+            if (ob.contains("level")) { auto [en, lv] = parseEnforcementLevel(ob["level"]); rules_.restrictions.obfuscation.level = lv; }
+            parseRationale(ob, rules_.restrictions.obfuscation.rationale);
+        }
         if (res.contains("imports") && res["imports"].is_object()) {
             auto& im = res["imports"];
             rules_.restrictions.imports.enabled = true;

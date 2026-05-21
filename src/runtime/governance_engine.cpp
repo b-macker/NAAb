@@ -180,6 +180,16 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
      "Use direct attribute access instead of dynamic lookup"},
     {"python", "\\bimportlib\\.",    "importlib usage (dynamic imports)",
      "Use standard import statements"},
+    // EVA-EXTRA-3: Python obfuscation hardening
+    {"python", "subprocess\\.(?:Popen|run|check_output|check_call)\\s*\\(.*shell\\s*=\\s*True",
+     "subprocess with shell=True",
+     "Use subprocess.run() with shell=False and argument lists"},
+    {"python", "subprocess\\.Popen\\s*\\(",
+     "subprocess.Popen() call",
+     "Use NAAb stdlib process.run()"},
+    {"python", "ctypes\\.(?:CDLL|cdll|windll)\\s*\\(",
+     "ctypes dynamic library loading (can execute native code)",
+     "Use NAAb stdlib instead"},
 
     // JavaScript
     {"javascript", "\\beval\\s*\\(",       "eval() call",
@@ -189,6 +199,16 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"javascript", "require\\s*\\(\\s*['\"]child_process['\"]\\s*\\)",
      "child_process import",
      "Use NAAb stdlib for subprocess execution"},
+    // EVA-EXTRA-3: JavaScript hardening
+    {"javascript", "import\\s*\\(\\s*['\"]child_process['\"]",
+     "dynamic import of child_process",
+     "Use NAAb stdlib process.run()"},
+    {"javascript", "process\\.env\\b",
+     "process.env access (environment variable exposure)",
+     "Use NAAb stdlib env.get()"},
+    {"javascript", "vm\\.run(?:InNewContext|InThisContext)\\s*\\(",
+     "vm.run*() (sandbox escape risk)",
+     "Avoid Node.js vm module"},
 
     // Shell
     {"shell", "rm\\s+-rf\\s+/",           "rm -rf / (recursive root delete)",
@@ -205,6 +225,120 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
      "Download and inspect scripts before executing"},
     {"shell", "wget[^|]*\\|\\s*(?:ba)?sh\\b", "wget | sh (remote code execution)",
      "Download and inspect scripts before executing"},
+    // EVA-EXTRA-3: Shell hardening
+    {"shell", "\\bsource\\s+",
+     "source command (loads external script)",
+     "Inline the script content directly"},
+    {"shell", "\\bIFS\\s*=",
+     "IFS manipulation (word splitting evasion)",
+     "Avoid modifying IFS in governed code"},
+
+    // Go
+    {"go", "exec\\.Command\\s*\\(",
+     "os/exec.Command() (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"go", "syscall\\.(?:Exec|ForkExec|RawSyscall)",
+     "syscall direct call",
+     "Avoid raw syscalls in polyglot blocks"},
+    {"go", "\\bunsafe\\.Pointer",
+     "unsafe.Pointer (memory unsafe)",
+     "Avoid unsafe package in governed code"},
+    {"go", "plugin\\.Open\\s*\\(",
+     "plugin.Open() (dynamic code loading)",
+     "Avoid dynamic plugin loading"},
+
+    // Rust
+    {"rust", "Command::new\\s*\\(",
+     "std::process::Command (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"rust", "\\bunsafe\\s*\\{",
+     "unsafe block",
+     "Avoid unsafe blocks in governed polyglot code"},
+    {"rust", "\\blibc::",
+     "libc FFI calls",
+     "Avoid raw libc calls in governed code"},
+
+    // C++
+    {"cpp", "\\bsystem\\s*\\(",
+     "system() call (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"cpp", "\\bpopen\\s*\\(",
+     "popen() call",
+     "Use NAAb stdlib process.run()"},
+    {"cpp", "\\bexecl?p?\\s*\\(",
+     "exec*() call (process replacement)",
+     "Use NAAb stdlib process.run()"},
+    {"cpp", "\\bdlopen\\s*\\(",
+     "dlopen() (dynamic library loading)",
+     "Avoid dynamic library loading"},
+    {"cpp", "\\bsocket\\s*\\(",
+     "socket() (raw network access)",
+     "Use NAAb stdlib http module"},
+    {"cpp", "\\b__asm__\\b|\\basm\\s*\\(",
+     "inline assembly",
+     "Avoid inline assembly in governed code"},
+
+    // C#
+    {"csharp", "Process\\.Start\\s*\\(",
+     "Process.Start() (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"csharp", "Reflection\\.Emit",
+     "Reflection.Emit (dynamic code gen)",
+     "Avoid dynamic code generation"},
+    {"csharp", "\\bDllImport\\b",
+     "DllImport (native interop)",
+     "Avoid P/Invoke in governed code"},
+    {"csharp", "\\bunsafe\\s*\\{",
+     "unsafe block (raw pointers)",
+     "Avoid unsafe code in governed blocks"},
+
+    // Ruby
+    {"ruby", "\\bsystem\\s*\\(",
+     "system() call (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"ruby", "\\beval\\s*\\(",
+     "eval() call",
+     "Avoid dynamic code execution"},
+    {"ruby", "\\binstance_eval\\b",
+     "instance_eval (arbitrary code in context)",
+     "Use direct method calls"},
+    {"ruby", "\\bsend\\s*\\(",
+     "send() (dynamic dispatch)",
+     "Use direct method calls"},
+
+    // PHP
+    {"php", "\\bsystem\\s*\\(",
+     "system() call",
+     "Use NAAb stdlib process.run()"},
+    {"php", "\\bexec\\s*\\(",
+     "exec() call",
+     "Use NAAb stdlib process.run()"},
+    {"php", "\\bshell_exec\\s*\\(",
+     "shell_exec() call",
+     "Use NAAb stdlib process.run()"},
+    {"php", "\\bpassthru\\s*\\(",
+     "passthru() call",
+     "Use NAAb stdlib process.run()"},
+    {"php", "\\beval\\s*\\(",
+     "eval() (arbitrary code execution)",
+     "Avoid dynamic code execution"},
+    {"php", "preg_replace\\s*\\(.*['\"/].*e",
+     "preg_replace with /e modifier",
+     "Use preg_replace_callback()"},
+
+    // Nim
+    {"nim", "\\bexecProcess\\s*\\(",
+     "execProcess() (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"nim", "\\bstartProcess\\s*\\(",
+     "startProcess() (command execution)",
+     "Use NAAb stdlib process.run()"},
+    {"nim", "\\{\\s*\\.importc\\b",
+     "importc pragma (FFI)",
+     "Avoid FFI in governed code"},
+    {"nim", "\\{\\s*\\.emit\\b",
+     "emit pragma (inline code)",
+     "Avoid emit in governed code"},
 
     // Any language
     {"any", "\\bsudo\\s",                 "sudo (privilege escalation)",
@@ -231,6 +365,21 @@ static const std::vector<DangerousPattern> NETWORK_IMPORT_PATTERNS = {
     {"ruby", "require\\s+['\"]open-uri['\"]",    "open-uri require (network access)", ""},
     // Go
     {"go", "\"net/http\"",                        "net/http import (network access)", ""},
+    // C++
+    {"cpp", "#include\\s*<.*(?:curl|socket|netdb|arpa|netinet).*>",
+     "network header include", ""},
+    // Rust
+    {"rust", "std::net::",                  "std::net (network access)", ""},
+    {"rust", "\\breqwest::",               "reqwest (HTTP client)", ""},
+    // C#
+    {"csharp", "System\\.Net\\b",          "System.Net (network access)", ""},
+    {"csharp", "HttpClient",               "HttpClient (HTTP access)", ""},
+    // PHP
+    {"php", "\\bcurl_init\\s*\\(",         "curl_init() (network access)", ""},
+    {"php", "\\bfsockopen\\s*\\(",         "fsockopen() (network access)", ""},
+    // Nim
+    {"nim", "\\bHttpClient\\b",            "HttpClient (network access)", ""},
+    {"nim", "\\bnewSocket\\b",             "newSocket() (network access)", ""},
 };
 
 // Filesystem operation patterns (for capabilities.filesystem enforcement in polyglot blocks)
@@ -291,6 +440,27 @@ static const std::vector<DangerousPattern> FILESYSTEM_IMPORT_PATTERNS = {
     {"shell", "\\brm\\s+-[rRf]",
      "rm -r/-f (recursive/forced file deletion)",
      "Use NAAb stdlib file.delete() for single-file deletion"},
+    // Go
+    {"go", "os\\.(?:Open|Create|ReadFile|WriteFile|Remove|Mkdir)\\s*\\(",
+     "os file operation", "Use NAAb stdlib file module"},
+    // Rust
+    {"rust", "std::fs::",                   "std::fs (filesystem access)", "Use NAAb stdlib file module"},
+    {"rust", "File::(?:open|create)\\s*\\(", "File::open/create", "Use NAAb stdlib file module"},
+    // C++
+    {"cpp", "\\bfopen\\s*\\(",             "fopen() (filesystem access)", "Use NAAb stdlib file module"},
+    {"cpp", "std::(?:i|o)?fstream",        "fstream (filesystem access)", "Use NAAb stdlib file module"},
+    // C#
+    {"csharp", "System\\.IO\\.",           "System.IO (filesystem access)", "Use NAAb stdlib file module"},
+    // Ruby
+    {"ruby", "File\\.(?:open|read|write|delete)", "File operation", "Use NAAb stdlib file module"},
+    // PHP
+    {"php", "\\bf(?:open|read|write|close)\\s*\\(",
+     "file I/O function", "Use NAAb stdlib file module"},
+    {"php", "file_(?:get|put)_contents\\s*\\(",
+     "file_get/put_contents()", "Use NAAb stdlib file module"},
+    // Nim
+    {"nim", "\\breadFile\\s*\\(",          "readFile() (filesystem)", "Use NAAb stdlib file module"},
+    {"nim", "\\bwriteFile\\s*\\(",         "writeFile() (filesystem)", "Use NAAb stdlib file module"},
 };
 
 static const std::vector<std::string> PLACEHOLDER_PATTERNS_DB = {
