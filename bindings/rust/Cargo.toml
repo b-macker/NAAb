@@ -1,0 +1,11 @@
+[package]
+name = "naab-governance"
+version = "0.9.0"
+edition = "2021"
+description = "Rust bindings for the NAAb governance engine"
+license = "MIT"
+repository = "https://github.com/b-macker/NAAb"
+
+[lib]
+name = "naab_governance"
+path = "src/lib.rs"
