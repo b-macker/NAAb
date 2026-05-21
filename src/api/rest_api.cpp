@@ -8,6 +8,7 @@
 #include "naab/crypto_utils.h"
 #include "naab/stdlib.h"
 #include "naab/resource_limits.h"
+#include "naab/governance.h"
 #include <sstream>
 #include <filesystem>
 #include <atomic>
@@ -329,6 +330,97 @@ public:
             }
         });
 
+        // Governance check endpoint — static analysis without code execution
+        server.Post("/api/v1/check", [](const httplib::Request& req, httplib::Response& res) {
+            try {
+                auto body = json::parse(req.body);
+                std::string code = body.value("code", "");
+                std::string language = body.value("language", "");
+
+                if (code.empty() || language.empty()) {
+                    res.status = 400;
+                    res.set_content(json{
+                        {"error", "Missing required fields: 'code' and 'language'"},
+                        {"status", "error"}
+                    }.dump(2), "application/json");
+                    return;
+                }
+
+                std::string source_file = body.value("source_file", "api-check");
+                int start_line = body.value("line", 1);
+
+                // Fresh engine per request — thread-safe, no state leakage
+                naab::governance::GovernanceEngine engine;
+
+                // Inline config from request body, or discover from CWD
+                if (body.contains("config") && body["config"].is_object()) {
+                    if (!engine.loadFromString(body["config"].dump())) {
+                        res.status = 400;
+                        res.set_content(json{
+                            {"error", "Invalid governance config"},
+                            {"status", "error"}
+                        }.dump(2), "application/json");
+                        return;
+                    }
+                } else {
+                    engine.discoverAndLoad(std::filesystem::current_path().string());
+                }
+
+                engine.setCheckContext(source_file, start_line);
+                engine.checkPolyglotBlock(language, code, source_file, start_line);
+
+                // Build violation array
+                json violations = json::array();
+                for (const auto& cr : engine.getCheckResults()) {
+                    if (!cr.passed) {
+                        json v;
+                        v["rule"] = cr.rule_name;
+                        v["level"] = static_cast<int>(cr.level);
+                        v["message"] = cr.message;
+                        v["severity"] = cr.severity;
+                        v["line"] = cr.line;
+                        if (!cr.cwe_ids.empty()) v["cwe_ids"] = cr.cwe_ids;
+                        if (!cr.owasp_ids.empty()) v["owasp_ids"] = cr.owasp_ids;
+                        violations.push_back(std::move(v));
+                    }
+                }
+
+                json response;
+                response["blocked"] = engine.wasBlocked();
+                response["violations"] = violations;
+                response["violation_count"] = violations.size();
+
+                // Include full report if violations found
+                if (!violations.empty()) {
+                    std::string json_report = engine.generateJsonReport();
+                    if (!json_report.empty()) {
+                        try {
+                            response["report"] = json::parse(json_report);
+                        } catch (...) {
+                            response["report"] = json::object();
+                        }
+                    }
+                }
+
+                res.set_content(response.dump(2), "application/json");
+
+            } catch (const json::exception& e) {
+                res.status = 400;
+                res.set_content(json{
+                    {"error", "Invalid JSON"},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
+                    {"status", "error"}
+                }.dump(2), "application/json");
+            } catch (const std::exception& e) {
+                res.status = 500;
+                res.set_content(json{
+                    {"error", "Internal server error"},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
+                    {"status", "error"}
+                }.dump(2), "application/json");
+            }
+        });
+
         // 404 handler
         server.set_error_handler([](const httplib::Request&, httplib::Response& res) {
             json error_response = {
@@ -445,6 +537,7 @@ bool RestApiServer::start() {
     spdlog::info("  GET  /api/v1/blocks         - List blocks");
     spdlog::info("  GET  /api/v1/blocks/search  - Search blocks");
     spdlog::info("  GET  /api/v1/stats          - Usage statistics");
+    spdlog::info("  POST /api/v1/check          - Governance check");
 
     running_ = true;
     bool success = impl_->server.listen(host_.c_str(), port_);
