@@ -204,7 +204,7 @@ run_test() {
 
     # Governance tests need governance enabled; all others disable it for speed
     local gov_flag="--no-governance"
-    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]] || [[ "$test_file" == *"/robustness/"* ]] || [[ "$test_file" == *"/governance_plugins/"* ]]; then
+    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]] || [[ "$test_file" == *"/robustness/"* ]] || [[ "$test_file" == *"/governance_plugins/"* ]] || [[ "$test_file" == *"/adversarial/"* ]]; then
         gov_flag=""
     fi
 

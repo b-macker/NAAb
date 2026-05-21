@@ -3324,6 +3324,8 @@ static const std::vector<SemanticCheck> PYTHON_EVAL_CHECKS = {
     {"__loader__\\s*\\.", "__loader__ access — can load arbitrary modules", "Use standard import statements"},
     {"types\\.ModuleType\\s*\\(", "types.ModuleType() — dynamic module creation", "Use standard import statements"},
     {"chr\\s*\\(\\s*\\d+\\s*\\)\\s*\\+\\s*chr\\s*\\(\\s*\\d+\\s*\\)\\s*\\+\\s*chr", "chr() chain (3+) — likely string obfuscation to hide imports", "Use literal strings instead of character code chains"},
+    {"__subclasses__\\s*\\(", "__subclasses__() — class hierarchy introspection can escape sandboxes", "Avoid __subclasses__() in governed code"},
+    {"\\b__mro__\\b", "__mro__ — method resolution order access can walk to dangerous base classes", "Avoid __mro__ in governed code"},
 };
 
 // JavaScript API misuse patterns
@@ -4079,7 +4081,8 @@ std::string GovernanceEngine::checkObfuscationSignals(
     } else if (language == "javascript") {
         has_sink = has_signal(stripped_code, {
             "\\beval\\s*\\(", "\\bFunction\\s*\\(",
-            "setTimeout\\s*\\(", "setInterval\\s*\\("
+            "setTimeout\\s*\\(", "setInterval\\s*\\(",
+            "Reflect\\.apply\\s*\\(\\s*eval"
         });
         has_encoding = has_signal(raw_code, {
             "\\batob\\s*\\(", "String\\.fromCharCode",

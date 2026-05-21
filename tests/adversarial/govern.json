@@ -1,0 +1,127 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "description": "Adversarial scanner test config — all languages, all checks, obfuscation detection",
+    "languages": {
+        "allowed": [
+            "python", "javascript", "shell", "go", "rust",
+            "cpp", "csharp", "ruby", "php", "nim"
+        ],
+        "per_language": {
+            "python": {
+                "timeout": 15,
+                "banned_functions": ["eval(", "exec(", "compile("],
+                "imports": {
+                    "mode": "blocklist",
+                    "blocked": ["subprocess", "ctypes", "os.system", "pickle"]
+                }
+            },
+            "javascript": {
+                "timeout": 10,
+                "banned_functions": ["eval(", "Function("],
+                "imports": {
+                    "mode": "blocklist",
+                    "blocked": ["child_process", "fs", "net"]
+                }
+            }
+        }
+    },
+    "capabilities": {
+        "network": {
+            "enabled": false
+        },
+        "filesystem": {
+            "mode": "none"
+        },
+        "shell": {
+            "enabled": false
+        }
+    },
+    "limits": {
+        "timeout": {
+            "global": 60,
+            "per_block": 15
+        },
+        "execution": {
+            "call_depth": 50,
+            "polyglot_blocks": 20
+        },
+        "code": {
+            "max_lines_per_block": 200,
+            "max_nesting_depth": 8
+        }
+    },
+    "requirements": {
+        "main_block": {
+            "level": "soft"
+        }
+    },
+    "restrictions": {
+        "dangerous_calls": {
+            "level": "hard"
+        },
+        "shell_injection": {
+            "level": "hard"
+        },
+        "code_injection": {
+            "level": "hard"
+        },
+        "privilege_escalation": {
+            "level": "hard"
+        },
+        "imports": {
+            "level": "hard",
+            "mode": "blocklist",
+            "blocked": {
+                "python": ["subprocess", "ctypes", "pickle", "os.system"],
+                "javascript": ["child_process", "fs", "net"]
+            }
+        },
+        "obfuscation": {
+            "enabled": true,
+            "level": "soft"
+        }
+    },
+    "code_quality": {
+        "semantic_checks": {
+            "level": "hard",
+            "check_imports": true,
+            "check_api_signatures": true,
+            "check_shell_syntax": true,
+            "check_dangerous_eval": true
+        },
+        "no_secrets": {
+            "level": "hard"
+        },
+        "no_unsafe_deserialization": {
+            "level": "hard"
+        },
+        "no_sql_injection": {
+            "level": "hard"
+        },
+        "no_oversimplification": {
+            "level": "soft"
+        },
+        "no_incomplete_logic": {
+            "level": "soft"
+        },
+        "encoding": {
+            "level": "advisory",
+            "block_null_bytes": true,
+            "block_unicode_bidi": true
+        }
+    },
+    "security": {
+        "sandbox_level": "unrestricted"
+    },
+    "output": {
+        "summary": {
+            "enabled": false
+        },
+        "errors": {
+            "verbose": false,
+            "show_help": false,
+            "max_errors_per_rule": 1
+        }
+    }
+}

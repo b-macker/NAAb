@@ -378,7 +378,7 @@ static const std::vector<DangerousPattern> NETWORK_IMPORT_PATTERNS = {
     {"php", "\\bcurl_init\\s*\\(",         "curl_init() (network access)", ""},
     {"php", "\\bfsockopen\\s*\\(",         "fsockopen() (network access)", ""},
     // Nim
-    {"nim", "\\bHttpClient\\b",            "HttpClient (network access)", ""},
+    {"nim", "HttpClient",                  "HttpClient (network access)", ""},
     {"nim", "\\bnewSocket\\b",             "newSocket() (network access)", ""},
 };
 
