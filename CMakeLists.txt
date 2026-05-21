@@ -914,6 +914,12 @@ install(TARGETS naab_governance
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+# Python package: install .so alongside the Python bindings
+install(TARGETS naab_governance
+    COMPONENT python_lib
+    LIBRARY DESTINATION bindings/python
+    RUNTIME DESTINATION bindings/python
+)
 install(FILES include/naab/public/naab_governance.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/naab
 )
