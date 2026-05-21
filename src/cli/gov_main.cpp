@@ -25,6 +25,14 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#define STDIN_FILENO _fileno(stdin)
+#else
+#include <unistd.h>
+#endif
+
 #define NAAB_GOV_VERSION "0.10.0"
 
 namespace fs = std::filesystem;
@@ -302,6 +310,9 @@ static int cmdCheck(const std::vector<std::string>& args) {
             return 1;
         }
     } else {
+        if (isatty(STDIN_FILENO)) {
+            std::cerr << "naab-gov check: reading from stdin (press Ctrl+D when done, or use --file)\n";
+        }
         std::ostringstream ss;
         ss << std::cin.rdbuf();
         code = ss.str();

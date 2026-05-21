@@ -135,6 +135,52 @@ impl GovernanceEngine {
         })
     }
 
+    /// Run a single named governance check on the given code.
+    pub fn check(
+        &self,
+        check_name: &str,
+        language: &str,
+        code: &str,
+        start_line: i32,
+    ) -> Result<ScanResult, Error> {
+        let c_name = CString::new(check_name).map_err(|_| Error {
+            message: "check_name contains null byte".into(),
+        })?;
+        let c_lang = CString::new(language).map_err(|_| Error {
+            message: "language contains null byte".into(),
+        })?;
+        let c_code = CString::new(code).map_err(|_| Error {
+            message: "code contains null byte".into(),
+        })?;
+
+        let raw = unsafe {
+            ffi::naab_gov_check(
+                self.handle,
+                c_name.as_ptr(),
+                c_lang.as_ptr(),
+                c_code.as_ptr(),
+                start_line,
+            )
+        };
+        if raw.is_null() {
+            return Err(Error {
+                message: self.last_error().unwrap_or("check returned null".into()),
+            });
+        }
+
+        let json_str = unsafe { CStr::from_ptr(raw) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe { ffi::naab_gov_free_string(raw) };
+
+        let blocked = unsafe { ffi::naab_gov_was_blocked(self.handle) == 1 };
+
+        Ok(ScanResult {
+            blocked,
+            raw_json: json_str,
+        })
+    }
+
     /// Returns true if the last scan had a HARD governance block.
     pub fn was_blocked(&self) -> bool {
         unsafe { ffi::naab_gov_was_blocked(self.handle) == 1 }

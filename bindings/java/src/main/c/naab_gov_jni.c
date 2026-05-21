@@ -71,7 +71,11 @@ Java_org_naab_governance_GovernanceEngine_nativeScan(JNIEnv *env, jclass cls,
     (*env)->ReleaseStringUTFChars(env, sourceFile, c_file);
 
     if (result == NULL) {
-        return (*env)->NewStringUTF(env, "{}");
+        const char *err = naab_gov_last_error(to_engine(handle));
+        (*env)->ThrowNew(env,
+            (*env)->FindClass(env, "java/lang/RuntimeException"),
+            err ? err : "Governance scan failed (null result)");
+        return NULL;
     }
     jstring jresult = (*env)->NewStringUTF(env, result);
     naab_gov_free_string(result);

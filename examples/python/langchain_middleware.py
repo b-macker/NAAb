@@ -36,7 +36,7 @@ POLICY = {
         "no_secrets": {"level": "hard"},
         "semantic_checks": {"level": "hard", "check_dangerous_eval": True},
     },
-    "security": {"sandbox_level": "unrestricted"},
+    "security": {"sandbox_level": "standard"},
 }
 
 

@@ -29,12 +29,14 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"unsafe"
 )
 
 // Engine wraps a NAAb governance engine instance.
 type Engine struct {
-	handle C.naab_gov_engine_t
+	handle    C.naab_gov_engine_t
+	closeOnce sync.Once
 }
 
 // ScanResult contains the result of a governance scan.
@@ -55,12 +57,15 @@ func NewEngine() (*Engine, error) {
 	return e, nil
 }
 
-// Close destroys the engine and frees resources. Safe to call multiple times.
+// Close destroys the engine and frees resources. Safe to call multiple times
+// and concurrently (e.g., explicit Close + GC finalizer).
 func (e *Engine) Close() {
-	if e.handle != nil {
-		C.naab_gov_destroy(e.handle)
-		e.handle = nil
-	}
+	e.closeOnce.Do(func() {
+		if e.handle != nil {
+			C.naab_gov_destroy(e.handle)
+			e.handle = nil
+		}
+	})
 }
 
 // LoadConfig loads governance rules from a govern.json file.

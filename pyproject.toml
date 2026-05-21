@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "naab-governance"
-version = "0.9.0"
+version = "0.10.0"
 description = "NAAb governance scanning for AI agent frameworks — static analysis via FFI"
 requires-python = ">=3.8"
 license = {text = "MIT"}

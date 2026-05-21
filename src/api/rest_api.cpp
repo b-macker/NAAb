@@ -363,7 +363,14 @@ public:
                         return;
                     }
                 } else {
-                    engine.discoverAndLoad(std::filesystem::current_path().string());
+                    if (!engine.discoverAndLoad(std::filesystem::current_path().string())) {
+                        res.status = 400;
+                        res.set_content(json{
+                            {"error", "No governance config: provide 'config' in request body or place govern.json in server working directory"},
+                            {"status", "error"}
+                        }.dump(2), "application/json");
+                        return;
+                    }
                 }
 
                 engine.setCheckContext(source_file, start_line);
@@ -389,6 +396,7 @@ public:
                 response["blocked"] = engine.wasBlocked();
                 response["violations"] = violations;
                 response["violation_count"] = violations.size();
+                response["config_loaded"] = engine.isActive();
 
                 // Include full report if violations found
                 if (!violations.empty()) {
@@ -421,13 +429,18 @@ public:
             }
         });
 
-        // 404 handler
-        server.set_error_handler([](const httplib::Request&, httplib::Response& res) {
-            json error_response = {
+        // 404 handler — only set content if the route handler didn't already
+        server.set_error_handler([](const httplib::Request&, httplib::Response& res)
+                                     -> httplib::Server::HandlerResponse {
+            if (!res.body.empty()) {
+                // Route handler already set an error response — keep it
+                return httplib::Server::HandlerResponse::Handled;
+            }
+            res.set_content(json{
                 {"error", "Endpoint not found"},
                 {"status", "error"}
-            };
-            res.set_content(error_response.dump(2), "application/json");
+            }.dump(2), "application/json");
+            return httplib::Server::HandlerResponse::Handled;
         });
     }
 
