@@ -1,0 +1,29 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "capabilities": {
+        "filesystem": {
+            "mode": "write",
+            "rationale": "Task tracker reads and writes tasks.json"
+        },
+        "network": {
+            "enabled": false,
+            "rationale": "Task tracker is fully offline — no network calls permitted"
+        },
+        "shell": {
+            "enabled": false,
+            "rationale": "No subprocess execution permitted"
+        }
+    },
+    "security": {
+        "sandbox_level": "standard"
+    },
+    "languages": {
+        "per_language": {
+            "python": {
+                "banned_imports": ["requests", "urllib", "httplib", "socket", "subprocess"],
+                "rationale": "No network or shell access from Python polyglot blocks"
+            }
+        }
+    }
+}

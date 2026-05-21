@@ -69,9 +69,9 @@ public:
     );
 
     /**
-     * Get captured output (STUB - not yet implemented for C API)
+     * Get captured output (STUB - Python uses StringIO capture internally)
      *
-     * @return Empty string (output capture not implemented)
+     * @return Empty string (output returned via executeWithReturn value)
      */
     std::string getCapturedOutput();
 

@@ -89,6 +89,18 @@ static json httpPost(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
+    // On Termux (Android) the system curl CA bundle is not at the standard path.
+    // Honour the standard env vars; if unset, try the known Termux location.
+    const char* ca_env = std::getenv("SSL_CERT_FILE");
+    if (!ca_env) ca_env = std::getenv("CURL_CA_BUNDLE");
+    if (ca_env && ca_env[0]) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, ca_env);
+    } else {
+        // Fallback: Termux default cert bundle
+        curl_easy_setopt(curl, CURLOPT_CAINFO,
+            "/data/data/com.termux/files/usr/etc/tls/cert.pem");
+    }
+
     struct curl_slist* headers = nullptr;
     for (const auto& h : header_lines) {
         headers = curl_slist_append(headers, h.c_str());
@@ -100,12 +112,14 @@ static json httpPost(
     curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
+        std::string curl_err = curl_easy_strerror(res);
         curl_easy_cleanup(curl);
-        throw std::runtime_error(
-            "Agent error: Network request failed\n\n"
+        throw std::runtime_error(fmt::format(
+            "Agent error: Network request failed ({})\n\n"
             "  Help:\n"
             "  - Check network connectivity\n"
-            "  - The API endpoint may be unreachable\n");
+            "  - The API endpoint may be unreachable\n",
+            curl_err));
     }
 
     curl_easy_cleanup(curl);

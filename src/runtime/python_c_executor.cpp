@@ -69,6 +69,12 @@ static bool splitStatementsAndLastExpr(const std::string& code,
     // Last non-empty line is the expression to return
     last_expr_out = trimRight(lines.back());
 
+    // If the last line has leading whitespace, it's inside a block (for/if/while/etc.)
+    // and can't be executed standalone — don't split
+    if (!last_expr_out.empty() && (last_expr_out[0] == ' ' || last_expr_out[0] == '\t')) {
+        return false;
+    }
+
     // Everything before is statements to exec
     statements_out.clear();
     for (size_t i = 0; i + 1 < lines.size(); i++) {
@@ -262,9 +268,9 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                         std::string captured = captureAndRestoreStdout();
                         python_c_gil_release(gil_handle);
                         if (!captured.empty()) {
-                            return std::make_shared<interpreter::Value>(captured);
+                            return interpreter::NaabVal::makeString(captured);
                         }
-                        return std::make_shared<interpreter::Value>();
+                        return interpreter::NaabVal::makeNull();
                     }
 
                     // Not a SyntaxError — real error in the statements
@@ -340,17 +346,17 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                     }
                     Py_DECREF(exec_result);
 
-                    // Statement-only block: check for captured stdout (print() output)
+                    // Return captured stdout as value
                     std::string captured = captureAndRestoreStdout();
                     python_c_gil_release(gil_handle);
                     if (!captured.empty()) {
-                        return std::make_shared<interpreter::Value>(captured);
+                        return interpreter::NaabVal::makeString(captured);
                     }
-                    return std::make_shared<interpreter::Value>();
+                    return interpreter::NaabVal::makeNull();
                 }
             } else {
-                // Can't split (single line that's not an expression)
-                // Try exec mode and return None
+                // Can't split (last line is indented or single statement)
+                // Execute entire code as file input
                 PyObject* exec_result = PyRun_String(code.c_str(), Py_file_input, globals, globals);
                 if (!exec_result) {
                     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
@@ -383,7 +389,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                 }
                 Py_DECREF(exec_result);
 
-                // Single-line statement: check for captured stdout (print() output)
+                // Return captured stdout as value
                 std::string captured = captureAndRestoreStdout();
                 python_c_gil_release(gil_handle);
                 if (!captured.empty()) {
@@ -400,7 +406,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     // Release the Python object
     Py_DECREF(py_result);
 
-    // Check: if result is None/null, check for captured stdout
+    // Check: if result is None/null, return captured stdout as value
     bool is_null = value.isNull();
     std::string captured = captureAndRestoreStdout();
     python_c_gil_release(gil_handle);
@@ -565,7 +571,7 @@ interpreter::NaabVal PythonCExecutor::callFunction(
 }
 
 /**
- * Get captured output (STUB)
+ * Get captured output (STUB - Python uses StringIO capture internally)
  */
 std::string PythonCExecutor::getCapturedOutput() {
     return "";

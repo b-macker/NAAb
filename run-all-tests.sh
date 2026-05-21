@@ -302,9 +302,15 @@ for dir in "${TEST_DIRS[@]}"; do
     elif [ "$dir" = "examples" ]; then
         # Exclude agent-governance (requires run.sh setup with test data)
         # Exclude codebase_qa (interactive Q&A tool, requires stdin + live API key)
+        # Exclude governed_codegen (LLM codegen orchestrator, requires live API key)
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"
-        done < <(find "$dir" -name "*.naab" -type f -not -path "*/agent-governance/*" -not -path "*/codebase_qa/*" -print0 | sort -z)
+        done < <(find "$dir" -name "*.naab" -type f \
+            -not -path "*/agent-governance/*" \
+            -not -path "*/codebase_qa/*" \
+            -not -path "*/governed_codegen/*" \
+            -not -path "*/governed_codegen_py/*" \
+            -print0 | sort -z)
     else
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"

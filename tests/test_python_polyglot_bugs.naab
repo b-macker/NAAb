@@ -1,0 +1,88 @@
+// Regression tests for Python polyglot executor bug:
+//   IndentationError when last Python line is indented (inside for/if/elif)
+//   Root cause: splitStatementsAndLastExpr split off indented last line,
+//   which can't execute standalone → IndentationError: unexpected indent
+
+fn test_indentation_for_loop() {
+    // Last line inside for loop body (indented)
+    let r = <<python
+tasks = [{"id": 1, "text": "hello", "done": False}]
+for t in tasks:
+    mark = "[x]" if t["done"] else "[ ]"
+    print(f"{t['id']} {mark} {t['text']}")
+>>
+    return r
+}
+
+fn test_indentation_if_elif() {
+    // Last line inside elif block (indented)
+    let r = <<python
+x = 10
+if x > 20:
+    print("big")
+elif x > 5:
+    print("medium")
+>>
+    return r
+}
+
+fn test_indentation_nested() {
+    // Last line deeply nested (indented)
+    let r = <<python
+data = {"a": [1, 2, 3]}
+for key in data:
+    for val in data[key]:
+        if val > 1:
+            print(f"  {key}: {val}")
+>>
+    return r
+}
+
+fn test_return_value_still_works() {
+    // Verify return values still work
+    let r = <<python
+result = 42
+result
+>>
+    return r
+}
+
+main {
+    print("=== Python Polyglot Bug Regression Tests ===")
+
+    // Bug: IndentationError on indented last lines
+    print("Test 1a: for loop with indented last line...")
+    let r1 = test_indentation_for_loop()
+    if string.contains(r1, "hello") {
+        print("  PASS")
+    } else {
+        print("  FAIL (got: " + string(r1) + ")")
+    }
+
+    print("Test 1b: if/elif with indented last line...")
+    let r2 = test_indentation_if_elif()
+    if string.contains(r2, "medium") {
+        print("  PASS")
+    } else {
+        print("  FAIL (got: " + string(r2) + ")")
+    }
+
+    print("Test 1c: deeply nested indented last line...")
+    let r3 = test_indentation_nested()
+    if string.contains(r3, "a: 2") {
+        print("  PASS")
+    } else {
+        print("  FAIL (got: " + string(r3) + ")")
+    }
+
+    // Non-regression: return values
+    print("Test 2: return value still works...")
+    let rv = test_return_value_still_works()
+    if rv == 42 {
+        print("  PASS (got 42)")
+    } else {
+        print("  FAIL (got " + string(rv) + ")")
+    }
+
+    print("ALL PYTHON POLYGLOT BUG TESTS PASS")
+}

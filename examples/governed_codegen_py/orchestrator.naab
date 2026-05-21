@@ -1,0 +1,198 @@
+use agent
+use file
+use process
+use string
+use env
+use json
+use time
+
+fn extract_code(raw) {
+    let lines = string.split(raw, "\n")
+    let collecting = false
+    let result = []
+    for line in lines {
+        let trimmed = string.trim(line)
+        if trimmed.starts_with("```") {
+            if !collecting {
+                collecting = true
+            } else {
+                break
+            }
+            continue
+        }
+        if collecting {
+            result.push(line)
+        }
+    }
+    if len(result) == 0 {
+        return raw
+    }
+    return string.join(result, "\n")
+}
+
+fn setup_output_dir(out_dir, govern_content) {
+    process.run("mkdir", ["-p", out_dir])
+    file.write(out_dir + "/govern.json", govern_content)
+}
+
+fn run_check(naab_bin, code_file) {
+    return process.run(naab_bin, [code_file, "--governance-dashboard"])
+}
+
+fn governance_passed(result) {
+    return result.exit_code == 0
+}
+
+fn format_check_output(result) {
+    let out = ""
+    if len(result.stdout) > 0 {
+        out = out + result.stdout
+    }
+    if len(result.stderr) > 0 {
+        out = out + result.stderr
+    }
+    return out + "\n[exit code: " + json.stringify(result.exit_code) + "]"
+}
+
+fn looks_complete(code) {
+    let has_python = string.contains(code, "<<python")
+    let has_load = string.contains(code, "def load_tasks")
+    let has_save = string.contains(code, "def save_tasks")
+    let has_add = string.contains(code, "def add_task")
+    return has_python && has_load && has_save && has_add
+}
+
+fn call_with_retry(handle, prompt) {
+    let max_retries = 2
+    let base_wait = 20.0
+    let response = ""
+    for i in 0..max_retries {
+        try {
+            let raw = agent.send(handle, prompt)
+            response = raw.get("content")
+        } catch (e) {
+            print("  API error: " + e)
+            let wait = base_wait * (i + 1)
+            if i < max_retries - 1 {
+                print("  Retrying in " + json.stringify(wait) + "s...")
+                time.sleep(wait)
+            }
+        }
+        if len(response) > 0 {
+            break
+        }
+    }
+    return response
+}
+
+fn build_fix_prompt(last_code, check_output) {
+    return "The NAAb+Python program below failed a GOVERNANCE CHECK.\n\n" +
+        "GOVERNANCE ERROR:\n" + check_output + "\n\n" +
+        "CURRENT CODE:\n```naab\n" + last_code + "\n```\n\n" +
+        "HOW TO FIX:\n" +
+        "  - Remove any banned imports: requests, urllib, socket, subprocess\n" +
+        "  - Remove any functions that use those banned imports\n" +
+        "  - Remove calls to those removed functions\n" +
+        "  - Keep all other Python logic intact\n" +
+        "  - Keep the NAAb wrapper (use/fn/main) intact\n\n" +
+        "NAAb POLYGLOT SYNTAX RULES:\n" +
+        "  - <<python[cmd, arg] passes NAAb variables cmd and arg into Python scope\n" +
+        "  - The >> that closes the Python block MUST be at the very start of the line (column 0)\n" +
+        "  - <<python[...] MUST also be at column 0 (no leading spaces)\n" +
+        "  - Python code inside the block starts at column 0 — standard Python indentation\n\n" +
+        "Output the COMPLETE fixed program in a ```naab code block."
+}
+
+fn int_str(n) {
+    return json.stringify(n)
+}
+
+fn print_divider(label) {
+    print("")
+    print("══════════════════════════════════════════════════")
+    print("  " + label)
+    print("══════════════════════════════════════════════════")
+}
+
+main {
+    let max_attempts = 5
+    let home = env.get("HOME")
+    let project = home + "/.naab/language"
+    let naab_bin = project + "/build/naab-lang"
+    let out_dir = project + "/examples/governed_codegen_py/output"
+    let code_file = out_dir + "/task_tracker.naab"
+    let govern_src = project + "/examples/governed_codegen_py/target_govern.json"
+    let seed_file = project + "/examples/governed_codegen_py/seed_code.naab"
+
+    print_divider("Governed Python Codegen — Self-Correcting Agent Loop")
+    print("Target rules:  " + govern_src)
+    print("Max attempts:  " + int_str(max_attempts))
+    print("Output file:   " + code_file)
+
+    let govern_content = file.read(govern_src)
+    setup_output_dir(out_dir, govern_content)
+
+    let passed = false
+    let final_code = ""
+    let attempt = 0
+    let last_code = file.read(seed_file)
+    let last_error = ""
+
+    for i in 0..max_attempts {
+        attempt = i + 1
+        print_divider("Attempt " + int_str(attempt) + " of " + int_str(max_attempts))
+
+        let code = last_code
+        if i > 0 {
+            let handle = agent.create("codegen_agent")
+            let prompt = build_fix_prompt(last_code, last_error)
+            let response = call_with_retry(handle, prompt)
+            if len(response) == 0 {
+                print("All retries exhausted — skipping attempt")
+                continue
+            }
+            code = extract_code(response)
+        }
+
+        print("Received " + int_str(len(code)) + " chars. Running governance check...")
+        file.write(code_file, code)
+        last_code = code
+
+        let result = run_check(naab_bin, code_file)
+        let check_out = format_check_output(result)
+        print(check_out)
+        last_error = check_out
+
+        if governance_passed(result) && looks_complete(code) {
+            passed = true
+            final_code = code
+            break
+        }
+        if governance_passed(result) && !looks_complete(code) {
+            print("Governance passed but Python task tracker functions are missing. Retrying...")
+            last_error = "Code passed governance but is missing Python functions: def load_tasks, def save_tasks, def add_task"
+        }
+
+        print("Governance violations found. Sending to agent for correction...")
+    }
+
+    print_divider("FINAL RESULT")
+
+    if passed {
+        print("PASS — Governance-compliant Python task tracker produced on attempt " + int_str(attempt))
+        print("")
+        print("GENERATED CODE:")
+        print("─────────────────────────────────────────────────")
+        print(final_code)
+        print("─────────────────────────────────────────────────")
+        print("")
+        print("To run it:")
+        print("  cd " + out_dir)
+        print("  " + naab_bin + " task_tracker.naab add \"my first task\"")
+        print("  " + naab_bin + " task_tracker.naab list")
+        print("  " + naab_bin + " task_tracker.naab done 1")
+    } else {
+        print("FAIL — Agent could not produce compliant code in " + int_str(max_attempts) + " attempts")
+        print("Last attempt saved at: " + code_file)
+    }
+}

@@ -1,0 +1,79 @@
+use env
+use file
+use json
+
+// GOVERNANCE VIOLATION: Python block imports 'requests' for cloud sync.
+// Governance bans 'requests', 'urllib', 'socket', 'subprocess'.
+// The agent must remove the sync_to_cloud function and its call.
+
+fn run_tracker(cmd, arg) {
+<<python[cmd, arg]
+import json
+import os
+import requests
+
+TASKS_FILE = "tasks.json"
+
+def load_tasks():
+    try:
+        with open(TASKS_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_tasks(tasks):
+    with open(TASKS_FILE, "w") as f:
+        json.dump(tasks, f)
+
+def add_task(tasks, text):
+    next_id = len(tasks) + 1
+    tasks.append({"id": next_id, "text": text.strip(), "done": False})
+    return tasks
+
+def complete_task(tasks, task_id):
+    for t in tasks:
+        if t["id"] == task_id:
+            t["done"] = True
+    return tasks
+
+def list_tasks(tasks):
+    if not tasks:
+        print("No tasks.")
+        return
+    for t in tasks:
+        mark = "[x]" if t["done"] else "[ ]"
+        print(f"{t['id']} {mark} {t['text']}")
+
+def sync_to_cloud(tasks):
+    """Sync tasks to remote backup — governance violation."""
+    resp = requests.post("https://tasks.example.com/sync", json=tasks)
+    print("Synced:", resp.status_code)
+
+tasks = load_tasks()
+
+if cmd == "add":
+    tasks = add_task(tasks, arg)
+    save_tasks(tasks)
+    print("Task added.")
+elif cmd == "list" or cmd == "":
+    list_tasks(tasks)
+    sync_to_cloud(tasks)
+elif cmd == "done":
+    tasks = complete_task(tasks, int(arg))
+    save_tasks(tasks)
+    print("Done.")
+>>
+}
+
+main {
+    let args = env.get_args()
+    let cmd = ""
+    let arg = ""
+    if len(args) > 0 {
+        cmd = args[0]
+    }
+    if len(args) > 1 {
+        arg = args[1]
+    }
+    run_tracker(cmd, arg)
+}
