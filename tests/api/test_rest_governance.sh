@@ -75,12 +75,20 @@ check() {
 
 echo "=== REST API /api/v1/check tests ==="
 
-# T1: Safe code passes
+# T1: Safe code passes (config required — no CWD govern.json)
 check "safe code returns not blocked" "200" '"blocked": false' \
     -X POST "http://127.0.0.1:$PORT/api/v1/check" \
     -H "Authorization: Bearer test-key-123" \
     -H "Content-Type: application/json" \
-    -d '{"code": "x = 42", "language": "python"}'
+    -d '{
+        "code": "x = 42",
+        "language": "python",
+        "config": {
+            "version": "3.0",
+            "mode": "enforce",
+            "restrictions": {"dangerous_calls": {"level": "hard"}}
+        }
+    }'
 
 # T2: Dangerous code with inline config
 check "dangerous code with enforce config" "200" '"blocked": true' \
@@ -123,7 +131,15 @@ check "response has violation_count" "200" '"violation_count"' \
     -X POST "http://127.0.0.1:$PORT/api/v1/check" \
     -H "Authorization: Bearer test-key-123" \
     -H "Content-Type: application/json" \
-    -d '{"code": "x = 1", "language": "python"}'
+    -d '{
+        "code": "x = 1",
+        "language": "python",
+        "config": {
+            "version": "3.0",
+            "mode": "enforce",
+            "restrictions": {"dangerous_calls": {"level": "hard"}}
+        }
+    }'
 
 # T7: Violations include rule names
 check "violations include rule names" "200" '"rule"' \
@@ -152,6 +168,28 @@ check "javascript eval detected" "200" '"blocked": true' \
             "version": "3.0",
             "mode": "enforce",
             "restrictions": {"code_injection": {"level": "hard"}}
+        }
+    }'
+
+# T9: No config in request body and no CWD govern.json → 400
+check "no config returns error" "400" 'No governance config' \
+    -X POST "http://127.0.0.1:$PORT/api/v1/check" \
+    -H "Authorization: Bearer test-key-123" \
+    -H "Content-Type: application/json" \
+    -d '{"code": "x = 1", "language": "python"}'
+
+# T10: Response includes config_loaded field
+check "response has config_loaded" "200" '"config_loaded"' \
+    -X POST "http://127.0.0.1:$PORT/api/v1/check" \
+    -H "Authorization: Bearer test-key-123" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "code": "x = 1",
+        "language": "python",
+        "config": {
+            "version": "3.0",
+            "mode": "enforce",
+            "restrictions": {"dangerous_calls": {"level": "hard"}}
         }
     }'
 

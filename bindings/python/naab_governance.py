@@ -2,7 +2,8 @@
 NAAb Governance — Python Bindings
 
 ctypes wrapper for libnaab-governance, the C API shared library.
-Provides in-process governance scanning for AI agent frameworks.
+Falls back to subprocess mode (naab-gov CLI) when no shared library
+is available (e.g., on ARM64 Android/bionic where only static builds work).
 
 Usage:
     from naab_governance import GovernanceEngine
@@ -18,6 +19,8 @@ import ctypes
 import ctypes.util
 import json
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -30,8 +33,12 @@ class GovernanceViolation(Exception):
         super().__init__(result.get("error", "Governance violation"))
 
 
-def _find_library() -> str:
-    """Locate libnaab-governance shared/static library."""
+_SHARED_LIB_NAMES = ("libnaab-governance.so", "libnaab-governance.dylib",
+                      "naab-governance.dll")
+
+
+def _find_shared_library():
+    """Locate libnaab-governance shared library. Returns path or None."""
     # 1. Environment variable override
     env_path = os.environ.get("NAAB_GOV_LIB")
     if env_path and os.path.isfile(env_path):
@@ -39,8 +46,7 @@ def _find_library() -> str:
 
     # 2. Alongside this Python file
     this_dir = Path(__file__).parent
-    for name in ("libnaab-governance.so", "libnaab-governance.dylib",
-                 "naab-governance.dll"):
+    for name in _SHARED_LIB_NAMES:
         candidate = this_dir / name
         if candidate.is_file():
             return str(candidate)
@@ -50,8 +56,7 @@ def _find_library() -> str:
         this_dir.parent.parent / "build",
         Path.home() / ".naab" / "language" / "build",
     ]:
-        for name in ("libnaab-governance.so", "libnaab-governance.dylib",
-                     "naab-governance.dll"):
+        for name in _SHARED_LIB_NAMES:
             candidate = build_dir / name
             if candidate.is_file():
                 return str(candidate)
@@ -61,11 +66,32 @@ def _find_library() -> str:
     if found:
         return found
 
-    raise FileNotFoundError(
-        "Cannot find libnaab-governance. Set NAAB_GOV_LIB environment variable "
-        "or place the library alongside this file. Build with: "
-        "cd build && cmake .. && make naab_governance"
-    )
+    return None
+
+
+def _find_cli_binary():
+    """Locate naab-gov CLI binary for subprocess fallback. Returns path or None."""
+    # 1. Environment variable override
+    env_path = os.environ.get("NAAB_GOV_BIN")
+    if env_path and os.path.isfile(env_path):
+        return env_path
+
+    # 2. Build directory
+    this_dir = Path(__file__).parent
+    for build_dir in [
+        this_dir.parent.parent / "build",
+        Path.home() / ".naab" / "language" / "build",
+    ]:
+        candidate = build_dir / "naab-gov"
+        if candidate.is_file():
+            return str(candidate)
+
+    # 3. PATH
+    found = shutil.which("naab-gov")
+    if found:
+        return found
+
+    return None
 
 
 class GovernanceEngine:
@@ -73,6 +99,9 @@ class GovernanceEngine:
 
     Each instance is independent — create multiple engines for
     concurrent scanning with different policies.
+
+    Falls back to subprocess mode (naab-gov CLI) when the shared
+    library is not available (e.g., static-only builds on ARM64 Android).
     """
 
     def __init__(self, lib_path: str = None):
@@ -81,14 +110,41 @@ class GovernanceEngine:
         Args:
             lib_path: Optional explicit path to libnaab-governance.
                       If None, searches standard locations.
+                      Falls back to subprocess mode if no shared library found.
         """
-        path = lib_path or _find_library()
-        self._lib = ctypes.CDLL(path)
-        self._setup_functions()
+        self._subprocess_mode = False
+        self._subprocess_bin = None
+        self._subprocess_config = None
+        self._last_result = {}
 
-        self._handle = self._lib.naab_gov_create()
-        if not self._handle:
-            raise MemoryError("Failed to create governance engine")
+        path = lib_path or _find_shared_library()
+        if path:
+            try:
+                self._lib = ctypes.CDLL(path)
+                self._setup_functions()
+                self._handle = self._lib.naab_gov_create()
+                if not self._handle:
+                    raise MemoryError("Failed to create governance engine")
+                # Save destroy function reference for safe __del__ (Fix #5:
+                # prevents segfault if _lib is GC'd before this object)
+                self._destroy_fn = self._lib.naab_gov_destroy
+                return
+            except OSError:
+                pass  # Fall through to subprocess mode
+
+        # Subprocess fallback: use naab-gov CLI binary
+        cli = _find_cli_binary()
+        if not cli:
+            raise FileNotFoundError(
+                "Cannot find libnaab-governance shared library or naab-gov CLI. "
+                "Set NAAB_GOV_LIB or NAAB_GOV_BIN environment variable, or build with: "
+                "cd build && cmake .. && make naab_governance naab-gov"
+            )
+        self._subprocess_mode = True
+        self._subprocess_bin = cli
+        self._lib = None
+        self._handle = None
+        self._destroy_fn = None
 
     def _setup_functions(self):
         """Configure ctypes function signatures."""
@@ -157,8 +213,8 @@ class GovernanceEngine:
         lib.naab_gov_version_string.argtypes = []
 
     def __del__(self):
-        if hasattr(self, "_handle") and self._handle:
-            self._lib.naab_gov_destroy(self._handle)
+        if hasattr(self, "_destroy_fn") and self._destroy_fn and self._handle:
+            self._destroy_fn(self._handle)
             self._handle = None
 
     def _check_error(self, rc: int, operation: str):
@@ -171,20 +227,76 @@ class GovernanceEngine:
     def _encode(self, s: str) -> bytes:
         return s.encode("utf-8") if isinstance(s, str) else s
 
+    def _subprocess_scan(self, language: str, code: str, config=None) -> dict:
+        """Run governance scan via naab-gov CLI subprocess."""
+        cmd = [self._subprocess_bin, "check", "--language", language]
+        if config:
+            # Write temp config file
+            import tempfile
+            tmpdir = os.environ.get("TMPDIR", "/tmp")
+            cfg_path = os.path.join(tmpdir, f"naab_gov_py_{os.getpid()}.json")
+            try:
+                with open(cfg_path, "w") as f:
+                    json.dump(config if isinstance(config, dict) else json.loads(config), f)
+                cmd.extend(["--config", cfg_path])
+                proc = subprocess.run(
+                    cmd, input=code, capture_output=True, text=True, timeout=30
+                )
+            finally:
+                try:
+                    os.unlink(cfg_path)
+                except OSError:
+                    pass
+        else:
+            proc = subprocess.run(
+                cmd, input=code, capture_output=True, text=True, timeout=30
+            )
+        if proc.returncode == 1:
+            raise RuntimeError(f"naab-gov check failed: {proc.stderr.strip()}")
+        if proc.returncode == 4:
+            raise RuntimeError(f"naab-gov config error: {proc.stderr.strip()}")
+        try:
+            result = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            raise RuntimeError(f"naab-gov returned invalid JSON: {proc.stdout[:200]}")
+        self._last_result = result
+        return result
+
     # --- Configuration ---
 
     def load_config(self, path: str):
         """Load governance policy from a govern.json file."""
+        if self._subprocess_mode:
+            with open(path) as f:
+                self._subprocess_config = json.load(f)
+            return
         rc = self._lib.naab_gov_load_config(self._handle, self._encode(path))
         self._check_error(rc, "load_config")
 
     def discover_config(self, directory: str = "."):
         """Walk up from directory to find and load govern.json."""
+        if self._subprocess_mode:
+            # Walk up to find govern.json, same as C++ discoverAndLoad
+            d = Path(directory).resolve()
+            while True:
+                candidate = d / "govern.json"
+                if candidate.is_file():
+                    with open(candidate) as f:
+                        self._subprocess_config = json.load(f)
+                    return
+                parent = d.parent
+                if parent == d:
+                    break
+                d = parent
+            raise RuntimeError("discover_config failed: govern.json not found")
         rc = self._lib.naab_gov_discover_config(self._handle, self._encode(directory))
         self._check_error(rc, "discover_config")
 
     def load_config_dict(self, config: dict):
         """Load governance policy from a Python dict."""
+        if self._subprocess_mode:
+            self._subprocess_config = config
+            return
         json_str = json.dumps(config)
         rc = self._lib.naab_gov_load_config_string(self._handle,
                                                      self._encode(json_str))
@@ -192,6 +304,9 @@ class GovernanceEngine:
 
     def load_config_string(self, json_config: str):
         """Load governance policy from a JSON string."""
+        if self._subprocess_mode:
+            self._subprocess_config = json.loads(json_config)
+            return
         rc = self._lib.naab_gov_load_config_string(self._handle,
                                                      self._encode(json_config))
         self._check_error(rc, "load_config_string")
@@ -199,6 +314,8 @@ class GovernanceEngine:
     @property
     def is_active(self) -> bool:
         """True if a config is loaded and active."""
+        if self._subprocess_mode:
+            return self._subprocess_config is not None
         return self._lib.naab_gov_is_active(self._handle) == 1
 
     # --- Scanning ---
@@ -209,6 +326,8 @@ class GovernanceEngine:
 
         Returns a dict with keys: blocked (bool), error (str), report (dict).
         """
+        if self._subprocess_mode:
+            return self._subprocess_scan(language, code, self._subprocess_config)
         raw = self._lib.naab_gov_scan(
             self._handle,
             self._encode(language),
@@ -234,6 +353,9 @@ class GovernanceEngine:
         incomplete_logic, encoding, path_traversal, data_exfiltration,
         crypto_weakness.
         """
+        if self._subprocess_mode:
+            # Subprocess mode doesn't support single-check; run full scan
+            return self._subprocess_scan(language, code, self._subprocess_config)
         raw = self._lib.naab_gov_check(
             self._handle,
             self._encode(check_name),
@@ -261,11 +383,15 @@ class GovernanceEngine:
     @property
     def was_blocked(self) -> bool:
         """True if the last scan had a HARD block."""
+        if self._subprocess_mode:
+            return self._last_result.get("blocked", False)
         return self._lib.naab_gov_was_blocked(self._handle) == 1
 
     @property
     def json_report(self) -> dict:
         """Full JSON report from the last scan."""
+        if self._subprocess_mode:
+            return self._last_result
         raw = self._lib.naab_gov_json_report(self._handle)
         if not raw:
             return {}
@@ -274,6 +400,8 @@ class GovernanceEngine:
     @property
     def sarif_report(self) -> dict:
         """SARIF report from the last scan."""
+        if self._subprocess_mode:
+            return {}  # SARIF not available in subprocess mode
         raw = self._lib.naab_gov_sarif_report(self._handle)
         if not raw:
             return {}
@@ -282,16 +410,25 @@ class GovernanceEngine:
     @property
     def summary(self) -> str:
         """Human-readable summary from the last scan."""
+        if self._subprocess_mode:
+            r = self._last_result
+            vc = r.get("violation_count", 0)
+            return f"{'BLOCKED' if r.get('blocked') else 'CLEAN'}: {vc} violation(s)"
         raw = self._lib.naab_gov_summary(self._handle)
         return raw.decode("utf-8") if raw else ""
 
     @property
     def result_count(self) -> int:
         """Number of check results from the last scan."""
+        if self._subprocess_mode:
+            return self._last_result.get("violation_count", 0)
         return self._lib.naab_gov_result_count(self._handle)
 
     def reset(self):
         """Clear results for next scan."""
+        if self._subprocess_mode:
+            self._last_result = {}
+            return
         self._lib.naab_gov_reset(self._handle)
 
     # --- Info ---
@@ -299,11 +436,22 @@ class GovernanceEngine:
     @property
     def last_error(self) -> str:
         """Last error message (empty if none)."""
+        if self._subprocess_mode:
+            return ""
         raw = self._lib.naab_gov_last_error(self._handle)
         return raw.decode("utf-8", errors="replace") if raw else ""
 
     @property
     def version(self) -> str:
         """Library version string."""
+        if self._subprocess_mode:
+            try:
+                proc = subprocess.run(
+                    [self._subprocess_bin, "--version"],
+                    capture_output=True, text=True, timeout=5
+                )
+                return proc.stdout.strip().replace("naab-gov ", "")
+            except (subprocess.SubprocessError, OSError):
+                return "unknown"
         raw = self._lib.naab_gov_version_string()
         return raw.decode("utf-8") if raw else ""

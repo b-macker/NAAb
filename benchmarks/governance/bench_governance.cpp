@@ -192,6 +192,22 @@ static void benchThroughput(const char* label, const char* code, int duration_se
            label, count, elapsed, count / elapsed);
 }
 
+static Stats benchColdStart(const char* code, int iterations) {
+    std::vector<double> times;
+    times.reserve(iterations);
+
+    for (int i = 0; i < iterations; i++) {
+        auto start = Clock::now();
+        GovernanceEngine engine;
+        engine.loadFromString(TEST_CONFIG);
+        engine.checkPolyglotBlock("python", code, "bench.py", 1);
+        auto end = Clock::now();
+        times.push_back(std::chrono::duration<double, std::micro>(end - start).count());
+    }
+
+    return computeStats(times);
+}
+
 static void benchConcurrent(int thread_count, const char* code, int per_thread) {
     std::atomic<int> total{0};
     auto start = Clock::now();
@@ -257,6 +273,13 @@ int main() {
     printStats("clean_code",     benchSingleScan(CLEAN_PYTHON, iters), iters);
     printStats("violation_code", benchSingleScan(VIOLATION_PYTHON, iters), iters);
     printStats("medium_code",    benchSingleScan(MEDIUM_PYTHON, iters), iters);
+    printf("\n");
+
+    // 1b. Cold-start latency (engine create + config load + scan per iteration)
+    int cold_iters = std::max(iters / 10, 3);
+    printf("--- Cold Start Latency (n=%d) ---\n", cold_iters);
+    printStats("clean_code",     benchColdStart(CLEAN_PYTHON, cold_iters), cold_iters);
+    printStats("violation_code", benchColdStart(VIOLATION_PYTHON, cold_iters), cold_iters);
     printf("\n");
 
     // 2. Throughput

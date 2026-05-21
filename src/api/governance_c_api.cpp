@@ -24,7 +24,7 @@ struct naab_gov_engine_s {
 };
 
 /* --- Version --- */
-static const char* const NAAB_GOV_VERSION = "0.9.0";
+static const char* const NAAB_GOV_VERSION = "0.10.0";
 
 /* --- RAII guard: set/restore thread-local current engine --- */
 struct CurrentEngineGuard {
@@ -223,7 +223,7 @@ char* naab_gov_check(naab_gov_engine_t engine,
 
         nlohmann::json result;
         result["check"] = check_name;
-        result["blocked"] = !err.empty();
+        result["blocked"] = engine->engine.wasBlocked();
         result["error"] = err;
 
         /* Include individual check results */

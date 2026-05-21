@@ -40,7 +40,7 @@ DEFAULT_POLICY = {
         "no_secrets": {"level": "hard"},
         "semantic_checks": {"level": "hard"},
     },
-    "security": {"sandbox_level": "unrestricted"},
+    "security": {"sandbox_level": "standard"},
 }
 
 
