@@ -280,7 +280,7 @@ for dir in "${TEST_DIRS[@]}"; do
     elif [ "$dir" = "tests/chapter_verification" ]; then
         timeout="30s"
     elif [ "$dir" = "examples" ]; then
-        timeout="30s"
+        timeout="60s"  # Examples run multiple polyglot blocks with governance scanning
     elif [ "$dir" = "tests/integration" ]; then
         timeout="30s"
     elif [ "$dir" = "tests/security" ]; then
