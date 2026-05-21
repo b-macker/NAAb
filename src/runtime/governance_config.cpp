@@ -2527,5 +2527,38 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
     }
 }
 
+bool GovernanceEngine::loadFromString(const std::string& json_config) {
+    try {
+        nlohmann::json j = nlohmann::json::parse(json_config);
+        if (!checkJsonArrayWidth(j)) {
+            last_error_ = "Config rejected: JSON array exceeds element cap (V-GOV-019)";
+            return false;
+        }
+        loadFromJson(j, rules_);
+        loaded_path_ = "<inline>";
+        active_ = (rules_.mode != GovernanceMode::OFF);
+
+        enforceMinimumLevels();
+
+        if (rules_.behavioral_sequences.enabled)
+            sequence_detector_.configure(rules_.behavioral_sequences);
+        if (rules_.context_drift.enabled)
+            drift_analyzer_.configure(rules_.context_drift);
+        bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
+        cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
+
+        return true;
+    } catch (const nlohmann::json::parse_error& e) {
+        last_error_ = std::string("JSON parse error: ") + e.what();
+        return false;
+    } catch (const std::exception& e) {
+        last_error_ = std::string("Config error: ") + e.what();
+        return false;
+    } catch (...) {
+        last_error_ = "Unknown error loading config";
+        return false;
+    }
+}
+
 } // namespace governance
 } // namespace naab

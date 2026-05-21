@@ -1786,6 +1786,7 @@ public:
 
     // --- Loading ---
     bool loadFromFile(const std::string& path);
+    bool loadFromString(const std::string& json_config);
     bool discoverAndLoad(const std::string& start_dir);
 
     // --- Mid-run reload (Governance Under Survivability) ---
