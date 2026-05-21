@@ -2,6 +2,7 @@
 //
 // Usage:
 //   naab-gov lint <file.naab> [--config <govern.json>] [--sarif <out.sarif>]
+//   naab-gov check --language <lang> [options]    (reads from stdin or --file)
 //   naab-gov scan <path> [--language <lang>]
 //   naab-gov --version
 //   naab-gov --help
@@ -15,6 +16,7 @@
 
 #include "naab/governance.h"
 #include "naab/scanner.h"
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -45,6 +47,7 @@ static void printHelp() {
         "\n"
         "USAGE:\n"
         "  naab-gov lint <file.naab> [options]   Lint a NAAb file (static governance checks)\n"
+        "  naab-gov check --language <lang> [options]  Check code from stdin or file\n"
         "  naab-gov scan <path> [options]         Scan code for quality issues\n"
         "  naab-gov --version                     Print version and exit\n"
         "  naab-gov --help                        Print this help and exit\n"
@@ -55,6 +58,13 @@ static void printHelp() {
         "                          (default: discover from CWD — safer for untrusted files)\n"
         "  --sarif <file>          Write findings as SARIF to <file>\n"
         "  --junit <file>          Write findings as JUnit XML to <file>\n"
+        "  --env <name>            Apply named environment overlay from govern.json\n"
+        "\n"
+        "check OPTIONS:\n"
+        "  --language <lang>       Target language (required: python, javascript, go, ...)\n"
+        "  --file <path>           Read code from file instead of stdin\n"
+        "  --config <govern.json>  Use this govern.json instead of auto-discovery\n"
+        "  --sarif                 Output SARIF instead of JSON\n"
         "  --env <name>            Apply named environment overlay from govern.json\n"
         "\n"
         "scan OPTIONS:\n"
@@ -242,6 +252,129 @@ static int cmdLint(const std::vector<std::string>& args) {
 }
 
 // ---------------------------------------------------------------------------
+// check command — polyglot governance via stdin or file
+// ---------------------------------------------------------------------------
+
+static int cmdCheck(const std::vector<std::string>& args) {
+    std::string language;
+    std::string file_path;
+    std::string config_path;
+    std::string env_name;
+    bool sarif_output = false;
+
+    // Parse args
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--language" && i + 1 < args.size()) {
+            language = args[++i];
+        } else if (args[i] == "--file" && i + 1 < args.size()) {
+            file_path = args[++i];
+        } else if (args[i] == "--config" && i + 1 < args.size()) {
+            config_path = args[++i];
+        } else if (args[i] == "--env" && i + 1 < args.size()) {
+            env_name = args[++i];
+        } else if (args[i] == "--sarif") {
+            sarif_output = true;
+        } else {
+            std::cerr << "naab-gov check: unknown option: " << args[i] << "\n";
+            return 1;
+        }
+    }
+
+    if (language.empty()) {
+        std::cerr << "naab-gov check: --language is required\n"
+                     "Usage: naab-gov check --language <lang> [--file <path>] [--config govern.json]\n";
+        return 1;
+    }
+
+    // Read code from --file or stdin
+    std::string code;
+    std::string source_file = "stdin";
+    if (!file_path.empty()) {
+        if (!fs::exists(file_path)) {
+            std::cerr << "naab-gov check: file not found: " << file_path << "\n";
+            return 1;
+        }
+        try {
+            code = readFile(file_path);
+            source_file = file_path;
+        } catch (const std::exception& e) {
+            std::cerr << "naab-gov check: " << e.what() << "\n";
+            return 1;
+        }
+    } else {
+        std::ostringstream ss;
+        ss << std::cin.rdbuf();
+        code = ss.str();
+    }
+
+    if (code.empty()) {
+        std::cerr << "naab-gov check: no input (pipe code to stdin or use --file)\n";
+        return 1;
+    }
+
+    // Load governance config
+    naab::governance::GovernanceEngine engine;
+
+    bool loaded = false;
+    if (!config_path.empty()) {
+        if (!fs::exists(config_path)) {
+            std::cerr << "naab-gov check: govern.json not found: " << config_path << "\n";
+            return 4;
+        }
+        loaded = engine.loadFromFile(config_path);
+        if (!loaded) {
+            std::cerr << "naab-gov check: failed to parse: " << config_path << "\n";
+            return 4;
+        }
+    } else {
+        loaded = engine.discoverAndLoad(fs::current_path().string());
+        // No config is fine — pattern checks still run
+    }
+
+    if (!env_name.empty() && loaded) {
+        engine.applyEnvironment(env_name);
+    }
+
+    // Run polyglot governance checks
+    engine.setCheckContext(source_file, 1);
+    engine.checkPolyglotBlock(language, code, source_file, 1);
+
+    // Output
+    if (sarif_output) {
+        std::cout << engine.generateSarifReport() << "\n";
+    } else {
+        // Build structured JSON output
+        using json = nlohmann::json;
+        json result;
+        result["blocked"] = engine.wasBlocked();
+
+        json violations = json::array();
+        for (const auto& cr : engine.getCheckResults()) {
+            if (!cr.passed) {
+                json v;
+                v["rule"] = cr.rule_name;
+                v["level"] = static_cast<int>(cr.level);
+                v["message"] = cr.message;
+                v["severity"] = cr.severity;
+                if (!cr.cwe_ids.empty()) v["cwe_ids"] = cr.cwe_ids;
+                if (!cr.owasp_ids.empty()) v["owasp_ids"] = cr.owasp_ids;
+                violations.push_back(std::move(v));
+            }
+        }
+        result["violations"] = violations;
+        result["violation_count"] = violations.size();
+
+        std::cout << result.dump(2) << "\n";
+    }
+
+    // Exit code
+    if (naab::governance::g_governance_hard_block || engine.wasBlocked()) {
+        return 3;
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // scan command
 // ---------------------------------------------------------------------------
 
@@ -332,6 +465,10 @@ int main(int argc, char* argv[]) {
 
     if (cmd == "lint") {
         return cmdLint(rest);
+    }
+
+    if (cmd == "check") {
+        return cmdCheck(rest);
     }
 
     if (cmd == "scan") {

@@ -33,6 +33,7 @@ SECURITY_FILES=(
     "src/stdlib/http_impl.cpp"
     "src/stdlib/process_impl.cpp"
     "src/vm/vm.cpp"
+    "src/api/governance_c_api.cpp"
 )
 
 # Patterns that should NEVER appear in string literals within these files

@@ -875,6 +875,82 @@ target_link_libraries(naab-gov
 install(TARGETS naab-gov DESTINATION ${CMAKE_INSTALL_BINDIR})
 message(STATUS "  ✓ naab-gov (standalone governance CLI, Phase 8.2)")
 
+# libnaab-governance — C API library for agent governance (Phase 8.3)
+# ARM64 Android (bionic): thread_local uses local-exec TLS which is incompatible
+# with shared libraries. Build as STATIC on bionic, SHARED everywhere else.
+if(EXISTS "/data/data/com.termux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+    add_library(naab_governance STATIC src/api/governance_c_api.cpp)
+    set_target_properties(naab_governance PROPERTIES OUTPUT_NAME "naab-governance")
+else()
+    add_library(naab_governance SHARED src/api/governance_c_api.cpp)
+    set_target_properties(naab_governance PROPERTIES
+        OUTPUT_NAME "naab-governance"
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
+endif()
+target_compile_definitions(naab_governance PRIVATE NAAB_GOV_BUILDING_DLL=1)
+target_include_directories(naab_governance
+    PUBLIC  include/naab/public
+    PRIVATE include
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+)
+target_link_libraries(naab_governance
+    naab_security
+    naab_interpreter
+    naab_scanner
+    naab_semantic
+    naab_lexer
+    naab_parser
+    naab_stdlib
+    naab_runtime
+    spdlog::spdlog
+    fmt::fmt
+)
+install(TARGETS naab_governance
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+# Python package: install .so alongside the Python bindings
+install(TARGETS naab_governance
+    COMPONENT python_lib
+    LIBRARY DESTINATION bindings/python
+    RUNTIME DESTINATION bindings/python
+)
+install(FILES include/naab/public/naab_governance.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/naab
+)
+message(STATUS "  ✓ libnaab-governance (C API shared library, Phase 8.3)")
+
+# C API integration test
+add_executable(test_governance_c_api tests/api/test_governance_c_api.c)
+target_include_directories(test_governance_c_api PRIVATE include/naab/public)
+target_link_libraries(test_governance_c_api naab_governance)
+add_test(NAME governance_c_api COMMAND test_governance_c_api)
+
+# Governance performance benchmarks
+add_executable(bench_governance benchmarks/governance/bench_governance.cpp)
+target_include_directories(bench_governance PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+)
+target_link_libraries(bench_governance
+    naab_security
+    naab_interpreter
+    naab_scanner
+    naab_semantic
+    naab_lexer
+    naab_parser
+    naab_stdlib
+    naab_runtime
+    spdlog::spdlog
+    fmt::fmt
+)
+message(STATUS "  ✓ Governance benchmarks (bench_governance)")
+
 # REPL executable
 add_executable(naab-repl
     src/repl/repl.cpp
