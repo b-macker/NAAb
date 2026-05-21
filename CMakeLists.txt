@@ -925,6 +925,26 @@ target_include_directories(test_governance_c_api PRIVATE include/naab/public)
 target_link_libraries(test_governance_c_api naab_governance)
 add_test(NAME governance_c_api COMMAND test_governance_c_api)
 
+# Governance performance benchmarks
+add_executable(bench_governance benchmarks/governance/bench_governance.cpp)
+target_include_directories(bench_governance PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+)
+target_link_libraries(bench_governance
+    naab_security
+    naab_interpreter
+    naab_scanner
+    naab_semantic
+    naab_lexer
+    naab_parser
+    naab_stdlib
+    naab_runtime
+    spdlog::spdlog
+    fmt::fmt
+)
+message(STATUS "  ✓ Governance benchmarks (bench_governance)")
+
 # REPL executable
 add_executable(naab-repl
     src/repl/repl.cpp
