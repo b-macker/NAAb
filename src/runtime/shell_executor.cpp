@@ -342,11 +342,11 @@ std::string ShellExecutor::getCapturedOutput() {
 }
 
 bool ShellExecutor::runCommand(const std::string& command) {
-    // Check sandbox permissions for command execution
+    // Check sandbox permissions for command execution (SYS_EXEC, not BLOCK_CALL)
     auto* sandbox = naab::security::ScopedSandbox::getCurrent();
-    if (sandbox && !sandbox->getConfig().hasCapability(naab::security::Capability::BLOCK_CALL)) {
-        fmt::print("[ERROR] Sandbox violation: Shell execution denied\n");
-        sandbox->logViolation("executeShell", command, "BLOCK_CALL capability required");
+    if (sandbox && (!sandbox->getConfig().allow_exec ||
+        !sandbox->getConfig().hasCapability(naab::security::Capability::SYS_EXEC))) {
+        sandbox->logViolation("executeShell", command, "SYS_EXEC capability required");
         throw std::runtime_error("Shell execution denied by sandbox");
     }
 
