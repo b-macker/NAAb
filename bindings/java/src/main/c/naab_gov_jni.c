@@ -33,6 +33,7 @@ Java_org_naab_governance_GovernanceEngine_nativeLoadConfig(JNIEnv *env, jclass c
                                                            jlong handle, jstring path) {
     (void)cls;
     const char *c_path = (*env)->GetStringUTFChars(env, path, NULL);
+    if (!c_path) return -1;  /* H1 fix: OOM, exception already pending */
     jint rc = (jint)naab_gov_load_config(to_engine(handle), c_path);
     (*env)->ReleaseStringUTFChars(env, path, c_path);
     return rc;
@@ -43,6 +44,7 @@ Java_org_naab_governance_GovernanceEngine_nativeLoadConfigString(JNIEnv *env, jc
                                                                  jlong handle, jstring json) {
     (void)cls;
     const char *c_json = (*env)->GetStringUTFChars(env, json, NULL);
+    if (!c_json) return -1;  /* H1 fix: OOM */
     jint rc = (jint)naab_gov_load_config_string(to_engine(handle), c_json);
     (*env)->ReleaseStringUTFChars(env, json, c_json);
     return rc;
@@ -60,9 +62,20 @@ Java_org_naab_governance_GovernanceEngine_nativeScan(JNIEnv *env, jclass cls,
                                                      jstring code, jstring sourceFile,
                                                      jint startLine) {
     (void)cls;
+    /* H1 fix: cascading NULL checks with cleanup on OOM */
     const char *c_lang = (*env)->GetStringUTFChars(env, language, NULL);
+    if (!c_lang) return NULL;
     const char *c_code = (*env)->GetStringUTFChars(env, code, NULL);
+    if (!c_code) {
+        (*env)->ReleaseStringUTFChars(env, language, c_lang);
+        return NULL;
+    }
     const char *c_file = (*env)->GetStringUTFChars(env, sourceFile, NULL);
+    if (!c_file) {
+        (*env)->ReleaseStringUTFChars(env, language, c_lang);
+        (*env)->ReleaseStringUTFChars(env, code, c_code);
+        return NULL;
+    }
 
     char *result = naab_gov_scan(to_engine(handle), c_lang, c_code, c_file, (int)startLine);
 
@@ -72,9 +85,11 @@ Java_org_naab_governance_GovernanceEngine_nativeScan(JNIEnv *env, jclass cls,
 
     if (result == NULL) {
         const char *err = naab_gov_last_error(to_engine(handle));
-        (*env)->ThrowNew(env,
-            (*env)->FindClass(env, "java/lang/RuntimeException"),
-            err ? err : "Governance scan failed (null result)");
+        if (!(*env)->ExceptionCheck(env)) {
+            (*env)->ThrowNew(env,
+                (*env)->FindClass(env, "java/lang/RuntimeException"),
+                err ? err : "Governance scan failed (null result)");
+        }
         return NULL;
     }
     jstring jresult = (*env)->NewStringUTF(env, result);

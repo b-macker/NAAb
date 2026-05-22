@@ -169,11 +169,9 @@ static int cmdLint(const std::vector<std::string>& args) {
             : fs::current_path().string();
         loaded = engine.discoverAndLoad(dir);
         if (!loaded) {
-            std::cerr << "naab-gov lint: no govern.json found (starting from "
-                      << dir << ")\n"
-                         "  Run without --config to lint with default rules only, or\n"
-                         "  create a govern.json at your project root.\n";
-            // Proceed without governance — static pattern checks still run
+            std::cerr << "naab-gov lint: no governance config found (govern.json or --config required)\n"
+                         "  Searched from: " << dir << "\n";
+            return 4;
         }
     }
 

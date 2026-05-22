@@ -117,6 +117,19 @@ public:
                     auto req_interpreter = std::make_shared<interpreter::Interpreter>();
                     auto cwd = std::filesystem::current_path().string();
                     req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
+
+                    // C1 fix: pre-execution governance scans on submitted code.
+                    // The interpreter loads governance from CWD via setSourceCode(),
+                    // but main.cpp also does source-level checks before execution.
+                    // Replicate those here for the REST path.
+                    auto* gov = req_interpreter->getGovernance();
+                    if (gov && gov->isActive()) {
+                        std::string gov_err = gov->checkSecrets(code, 0);
+                        if (gov_err.empty()) gov_err = gov->checkPii(code, 0);
+                        if (!gov_err.empty()) {
+                            throw std::runtime_error(gov_err);
+                        }
+                    }
                     // V-API-004 (R24): bound execution to api_timeout_seconds
                     // so that an infinite-loop script can't permanently pin a
                     // cpp-httplib worker thread. ScopedTimeout installs a
@@ -207,7 +220,7 @@ public:
                 res.status = 500;
                 json error_response = {
                     {"error", "Internal server error"},
-                    {"message", e.what()},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
                     {"status", "error"}
                 };
                 res.set_content(error_response.dump(2), "application/json");
@@ -263,7 +276,7 @@ public:
                 res.status = 500;
                 json error_response = {
                     {"error", "Internal server error"},
-                    {"message", e.what()},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
                     {"status", "error"}
                 };
                 res.set_content(error_response.dump(2), "application/json");
@@ -323,7 +336,7 @@ public:
                 res.status = 500;
                 json error_response = {
                     {"error", "Internal server error"},
-                    {"message", e.what()},
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
                     {"status", "error"}
                 };
                 res.set_content(error_response.dump(2), "application/json");

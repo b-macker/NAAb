@@ -2288,7 +2288,14 @@ interpreter::NaabVal VM::run() {
                 if (inclusive) end++;
                 std::vector<interpreter::NaabVal> range_list;
                 if (start <= end) {
-                    range_list.reserve(end - start);
+                    // C10 fix: enforce governance array size limit (matching OP_LIST)
+                    int64_t range_size = end - start;
+                    naab::limits::checkArraySize(static_cast<int>(std::min(range_size, (int64_t)INT32_MAX)));
+                    if (governance_ && governance_->isActive()) {
+                        std::string gerr = governance_->checkArraySize(static_cast<size_t>(range_size));
+                        if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                    }
+                    range_list.reserve(range_size);
                     for (int64_t i = start; i < end; i++) {
                         range_list.push_back(interpreter::NaabVal::makeInt(i));
                     }
@@ -2567,8 +2574,10 @@ interpreter::NaabVal VM::run() {
                 }
                 ExceptionHandler handler = exception_handlers_.back();
                 exception_handlers_.pop_back();
-                // Restore stack and frame
+                // C6 fix: close upvalues for each frame being unwound,
+                // matching OP_RETURN behavior (prevents dangling upvalue pointers)
                 while (frame_count_ - 1 > handler.frame_index) {
+                    closeUpvalues(frames_[frame_count_ - 1].slots);
                     frame_count_--;
                 }
                 frame = &frames_[frame_count_ - 1];
@@ -4195,9 +4204,16 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                 for (const auto& [k, v] : dict) { (void)v; keys.push_back(k); }
                 auto suggestion = naab::error::suggestDictKey(key, keys);
                 if (!suggestion.empty()) {
+                    // H5 fix: protect static set from concurrent async VM access
+                    static std::mutex hints_mutex;
                     static std::unordered_set<std::string> seen_hints;
                     auto hint_key = key + "→" + suggestion;
-                    if (seen_hints.insert(hint_key).second) {
+                    bool is_new;
+                    {
+                        std::lock_guard<std::mutex> lock(hints_mutex);
+                        is_new = seen_hints.insert(hint_key).second;
+                    }
+                    if (is_new) {
                         fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
                                 key.c_str(), suggestion.c_str());
                     }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 # Project with semantic versioning
 project(naab_lang
-    VERSION 0.9.0
+    VERSION 0.10.0
     DESCRIPTION "NAAb Block Assembly Language"
     LANGUAGES C CXX
 )
@@ -684,7 +684,7 @@ target_link_libraries(naab_packages
     tomlplusplus::tomlplusplus
     ${NAAB_CURL_LIB}
 )
-if(OpenSSL_FOUND)
+if(OPENSSL_FOUND)  # H10 fix: was OpenSSL_FOUND (wrong case)
     target_link_libraries(naab_packages OpenSSL::SSL OpenSSL::Crypto)
 endif()
 message(STATUS "  ✓ Package manager")
@@ -1343,6 +1343,8 @@ target_link_libraries(test_string_methods
 message(STATUS "  ✓ String methods test (Phase 2.1)")
 
 # LSP Integration Test (Phase 4.1 - Week 1)
+# M1 fix: guard with GoogleTest availability check
+if(EXISTS "${CMAKE_SOURCE_DIR}/external/googletest/CMakeLists.txt")
 add_executable(lsp_integration_test
     tests/lsp/lsp_integration_test.cpp
     tools/naab-lsp/json_rpc.cpp
@@ -1366,6 +1368,7 @@ target_link_libraries(lsp_integration_test PRIVATE
 )
 add_test(NAME LSPIntegrationTest COMMAND lsp_integration_test)
 message(STATUS "  ✓ LSP integration test (Phase 4.1)")
+endif()
 
 # Composition Validator Test (Phase 2.4 - Comprehensive)
 # DISABLED: Test file requires refactoring - BlockLoader/BlockRegistry are not mockable

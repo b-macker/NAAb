@@ -37,6 +37,7 @@ import (
 type Engine struct {
 	handle    C.naab_gov_engine_t
 	closeOnce sync.Once
+	mu        sync.RWMutex // H3 fix: protect handle from Close vs method races
 }
 
 // ScanResult contains the result of a governance scan.
@@ -61,6 +62,8 @@ func NewEngine() (*Engine, error) {
 // and concurrently (e.g., explicit Close + GC finalizer).
 func (e *Engine) Close() {
 	e.closeOnce.Do(func() {
+		e.mu.Lock()
+		defer e.mu.Unlock()
 		if e.handle != nil {
 			C.naab_gov_destroy(e.handle)
 			e.handle = nil
@@ -103,12 +106,22 @@ func (e *Engine) LoadConfigString(jsonConfig string) error {
 
 // IsActive returns true if governance rules have been loaded.
 func (e *Engine) IsActive() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return false
+	}
 	return C.naab_gov_is_active(e.handle) == 1
 }
 
 // Scan runs all governance checks on the given code.
 // Returns a ScanResult with blocked status and full report.
 func (e *Engine) Scan(language, code, sourceFile string, startLine int) (*ScanResult, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return nil, errors.New("naabgov: engine closed")
+	}
 	cLang := C.CString(language)
 	cCode := C.CString(code)
 	cFile := C.CString(sourceFile)
@@ -131,16 +144,31 @@ func (e *Engine) Scan(language, code, sourceFile string, startLine int) (*ScanRe
 
 // WasBlocked returns true if the last scan had a HARD governance block.
 func (e *Engine) WasBlocked() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return false
+	}
 	return C.naab_gov_was_blocked(e.handle) == 1
 }
 
 // Reset clears check results for the next scan.
 func (e *Engine) Reset() {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return
+	}
 	C.naab_gov_reset(e.handle)
 }
 
 // ResultCount returns the number of check results from the last scan.
 func (e *Engine) ResultCount() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return 0
+	}
 	return int(C.naab_gov_result_count(e.handle))
 }
 

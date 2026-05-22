@@ -151,10 +151,13 @@ void NaabVal::release() {
     ValueBox* box = resolveHandle(handle);
     if (!box) return;  // Already freed by another thread — safe to skip
     if (box->refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-        // Only free if this handle is in our thread's range(s).
-        // Cross-thread shared handles (e.g., CompiledFunction constants accessed
-        // by async VMs) must NOT be freed by non-owning threads — doing so nulls
-        // the page table entry causing "Dangling handle" on the owning thread.
+        // C7 fix: Re-verify page table entry still points to this box.
+        // Guards against the narrow TOCTOU window where another thread freed
+        // this handle between our resolveHandle and fetch_sub.
+        ValueBox* current = g_pages[handle >> PAGE_BITS][handle & PAGE_MASK]
+                                .load(std::memory_order_acquire);
+        if (current != box) return;  // Already freed/reused — don't double-free
+
         auto* alloc = getOrCreateAllocator();
         bool is_mine = false;
         for (auto& [rs, re] : alloc->all_ranges) {
@@ -164,9 +167,15 @@ void NaabVal::release() {
             freeHandle(handle);
             delete box;
         } else {
-            // Cross-range: restore refcount, don't free.
-            // The owning thread will free it when its last reference drops.
-            box->refcount.fetch_add(1, std::memory_order_relaxed);
+            // H2 fix: Free cross-thread exclusive handles instead of leaking.
+            // Deep-copied handles (args, upvalues, globals for async VMs) are
+            // exclusively owned by the async thread — refcount reached 0, so
+            // no other thread references this box. Null the page table entry
+            // but don't recycle the handle number (it's in another thread's
+            // range and we can't push to that thread's free_handles safely).
+            g_pages[handle >> PAGE_BITS][handle & PAGE_MASK]
+                .store(nullptr, std::memory_order_release);
+            delete box;
         }
     }
 }

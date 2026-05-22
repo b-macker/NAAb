@@ -1843,6 +1843,10 @@ public:
     std::string checkCallDepth(size_t current_depth);
     std::string checkArraySize(size_t size);
     std::string checkPolyglotOutput(const std::string& output);
+    // C2 fix: preprocess code the same way checkPolyglotBlock does
+    // (normalizeUnicode, normalizeWhitespace, stripStringLiterals, expandDangerousAliases)
+    std::string preprocessCode(const std::string& language, const std::string& code);
+
     std::string checkDangerousCall(const std::string& language,
                                     const std::string& code, int line = 0);
     std::string checkSecrets(const std::string& code, int line = 0);

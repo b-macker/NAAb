@@ -36,7 +36,8 @@ static std::string stripStringLiterals(const std::string& code) {
     for (size_t i = 0; i < code.size(); ++i) {
         char c = code[i];
         if (escaped) { escaped = false; continue; }
-        if (c == '\\' && (in_single || in_double)) { escaped = true; continue; }
+        // C11 fix: track escapes in backtick strings too (JS template literals)
+        if (c == '\\' && (in_single || in_double || in_backtick)) { escaped = true; continue; }
 
         // V-GOV-001: consume Python/JS string prefixes (f, b, r, u and two-letter
         // combinations rb, br, rf, fr) before quote detection. Without this, the
@@ -447,13 +448,17 @@ static std::string expandDangerousAliases(const std::string& language,
         {"eval",       "eval",       true},
     };
 
+    // M9 fix: normalize language aliases before REFS table lookup
+    // so "js", "bash", "golang" etc. resolve correctly
+    std::string lang = normalizeLanguage(language);
+
     const std::vector<DangerousAliasRef>* refs = nullptr;
-    if (language == "python")          refs = &PYTHON_REFS;
-    else if (language == "javascript") refs = &JS_REFS;
-    else if (language == "go" || language == "golang") refs = &GO_REFS;
-    else if (language == "rust")       refs = &RUST_REFS;
-    else if (language == "ruby")       refs = &RUBY_REFS;
-    else if (language == "php")        refs = &PHP_REFS;
+    if (lang == "python")          refs = &PYTHON_REFS;
+    else if (lang == "javascript") refs = &JS_REFS;
+    else if (lang == "go")         refs = &GO_REFS;
+    else if (lang == "rust")       refs = &RUST_REFS;
+    else if (lang == "ruby")       refs = &RUBY_REFS;
+    else if (lang == "php")        refs = &PHP_REFS;
     else return code;
 
     std::string assign_op = (language == "go" || language == "golang") ? ":?=" : "=";
@@ -1158,11 +1163,12 @@ std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
                 "data = \"hello\\x00world\"  # hidden null byte",
                 "data = \"helloworld\"  # clean string"));
     }
-    if (cfg.block_unicode_bidi) {
+    if (cfg.block_unicode_bidi && code.size() >= 3) {
+        // H8 fix: guard against size_t underflow when code.size() < 3
         // Check for Unicode bidirectional override characters
-        for (size_t i = 0; i < code.size() - 2; i++) {
+        for (size_t i = 0; i <= code.size() - 3; i++) {
             unsigned char c1 = code[i], c2 = code[i+1], c3 = code[i+2];
-            // U+202A-U+202E, U+2066-U+2069 (UTF-8 encoded)
+            // U+202A-U+202E (bidi overrides, UTF-8: E2 80 AA-AE)
             if (c1 == 0xE2 && c2 == 0x80 && (c3 >= 0xAA && c3 <= 0xAE)) {
                 return enforce("code_quality.encoding", cfg.level,
                     formatError(cfg.level, "Unicode bidirectional override character detected",
@@ -1170,6 +1176,16 @@ std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
                         "Bidi override characters can be used for trojan source attacks.\n"
                         "These invisible Unicode characters make code appear different from what executes.",
                         "access_level = \"user\u202Enimda\"  # hidden bidi override",
+                        "access_level = \"admin\"  # plain ASCII string"));
+            }
+            // U+2066-U+2069 (directional isolates, UTF-8: E2 81 A6-A9)
+            if (c1 == 0xE2 && c2 == 0x81 && (c3 >= 0xA6 && c3 <= 0xA9)) {
+                return enforce("code_quality.encoding", cfg.level,
+                    formatError(cfg.level, "Unicode directional isolate character detected",
+                        line > 0 ? fmt::format("line {}", line) : "", "code_quality.encoding.block_unicode_bidi",
+                        "Directional isolate characters can be used for trojan source attacks.\n"
+                        "These invisible Unicode characters make code appear different from what executes.",
+                        "access_level = \"user\u2066nimda\"  # hidden directional isolate",
                         "access_level = \"admin\"  # plain ASCII string"));
             }
         }
@@ -3599,7 +3615,8 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         for (size_t i = 0; i < code.size(); ++i) {
             char c = code[i];
             if (escaped) { escaped = false; continue; }
-            if (c == '\\' && (in_single || in_double)) { escaped = true; continue; }
+            // C11 fix: track escapes in backtick strings too
+            if (c == '\\' && (in_single || in_double || in_backtick)) { escaped = true; continue; }
             if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
             if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
             if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
@@ -5057,6 +5074,17 @@ std::string GovernanceEngine::checkPolyglotBlock(
 
     // Delegate to existing comprehensive check
     return checkPolyglotBlock(language, code, source_file, line);
+}
+
+// C2 fix: expose preprocessing pipeline so naab_gov_check() C API can
+// apply the same normalization as checkPolyglotBlock before dispatch
+std::string GovernanceEngine::preprocessCode(const std::string& language, const std::string& code) {
+    std::string lang = normalizeLanguage(language);
+    std::string result = normalizeUnicode(code);
+    result = normalizeWhitespace(result);
+    result = stripStringLiterals(result);
+    result = expandDangerousAliases(lang, result);
+    return result;
 }
 
 std::string GovernanceEngine::checkPolyglotBlock(

@@ -216,9 +216,15 @@ char* naab_gov_check(naab_gov_engine_t engine,
         }
 
         engine->engine.resetCheckResults();
+        // C2 fix: preprocess code the same way checkPolyglotBlock does
+        // (normalizeUnicode, normalizeWhitespace, stripStringLiterals,
+        // expandDangerousAliases) so single-check API can't be bypassed
+        // with homoglyphs, zero-width chars, or aliased functions
+        std::string preprocessed = engine->engine.preprocessCode(
+            std::string(language), std::string(code));
         std::string err = it->second(engine->engine,
                                       std::string(language),
-                                      std::string(code),
+                                      preprocessed,
                                       start_line);
 
         nlohmann::json result;

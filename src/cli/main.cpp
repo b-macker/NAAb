@@ -976,6 +976,9 @@ int main(int argc, char** argv) {
         auto gov_script_dir = gov_abs_file.parent_path();
         bool gov_loaded = shared_governance.discoverAndLoad(gov_script_dir.string());
 
+        // Pre-flight authority — persists to VM-path check below
+        bool _has_authority = false;
+
         // Pre-flight: blocked_flags enforcement for BOTH execution paths
         // Must run before interpreter.disableGovernance() which skips tree-walker governance entirely
         {
@@ -992,7 +995,7 @@ int main(int argc, char** argv) {
                 const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
                 const char* _signing_key = std::getenv("NAAB_SIGNING_KEY");
                 // F1: Validate key against project's signature — not just existence
-                bool _has_authority = false;
+                // _has_authority declared in outer scope for VM-path reuse
                 {
                     std::string gov_dir = shared_governance.getGovernDir();
                     std::string sig_path = gov_dir + "/govern.json.sig";
@@ -1584,11 +1587,10 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // Integrity: check for blocked CLI flags (bypassed when signing key is set — authorized user)
-                const char* _govern_key = std::getenv("NAAB_GOVERN_KEY");
-                const char* _signing_key2 = std::getenv("NAAB_SIGNING_KEY");
-                bool _has_authority2 = (_govern_key && *_govern_key) || (_signing_key2 && *_signing_key2);
-                if (gov_loaded && vm_governance.isActive() && !_has_authority2) {
+                // Integrity: check for blocked CLI flags
+                // C4 fix: reuse pre-flight _has_authority (Ed25519/HMAC verified)
+                // instead of bare env var presence check
+                if (gov_loaded && vm_governance.isActive() && !_has_authority) {
                     // Gap 4/13/16: Implicit blocks in enforce mode (mirrors pre-flight check)
                     auto checkBlocked = [&](const std::string& flag, bool was_used) {
                         if (was_used && vm_governance.isBlockedFlag(flag)) {

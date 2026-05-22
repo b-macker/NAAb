@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <atomic>
 #include "naab/interpreter.h"
 #include "naab/block_loader.h"
 
@@ -92,7 +93,7 @@ private:
 
     int port_;
     std::string host_;
-    bool running_;
+    std::atomic<bool> running_;  // H4 fix: atomic for thread safety
     std::string api_key_;
     size_t max_body_bytes_ = 1048576; // 1 MiB default
 };

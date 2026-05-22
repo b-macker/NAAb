@@ -170,13 +170,15 @@ class GovernanceEngine:
         lib.naab_gov_is_active.restype = ctypes.c_int
         lib.naab_gov_is_active.argtypes = [ctypes.c_void_p]
 
-        # Scanning
-        lib.naab_gov_scan.restype = ctypes.c_char_p
+        # Scanning — C8 fix: use c_void_p instead of c_char_p for owned strings
+        # to prevent ctypes from auto-converting and leaking the malloc'd pointer.
+        # We manually copy and free via naab_gov_free_string.
+        lib.naab_gov_scan.restype = ctypes.c_void_p
         lib.naab_gov_scan.argtypes = [ctypes.c_void_p, ctypes.c_char_p,
                                        ctypes.c_char_p, ctypes.c_char_p,
                                        ctypes.c_int]
 
-        lib.naab_gov_check.restype = ctypes.c_char_p
+        lib.naab_gov_check.restype = ctypes.c_void_p
         lib.naab_gov_check.argtypes = [ctypes.c_void_p, ctypes.c_char_p,
                                         ctypes.c_char_p, ctypes.c_char_p,
                                         ctypes.c_int]
@@ -185,13 +187,13 @@ class GovernanceEngine:
         lib.naab_gov_was_blocked.restype = ctypes.c_int
         lib.naab_gov_was_blocked.argtypes = [ctypes.c_void_p]
 
-        lib.naab_gov_json_report.restype = ctypes.c_char_p
+        lib.naab_gov_json_report.restype = ctypes.c_void_p
         lib.naab_gov_json_report.argtypes = [ctypes.c_void_p]
 
-        lib.naab_gov_sarif_report.restype = ctypes.c_char_p
+        lib.naab_gov_sarif_report.restype = ctypes.c_void_p
         lib.naab_gov_sarif_report.argtypes = [ctypes.c_void_p]
 
-        lib.naab_gov_summary.restype = ctypes.c_char_p
+        lib.naab_gov_summary.restype = ctypes.c_void_p
         lib.naab_gov_summary.argtypes = [ctypes.c_void_p]
 
         lib.naab_gov_result_count.restype = ctypes.c_int
@@ -223,6 +225,17 @@ class GovernanceEngine:
             err = self._lib.naab_gov_last_error(self._handle)
             msg = err.decode("utf-8", errors="replace") if err else "Unknown error"
             raise RuntimeError(f"{operation} failed: {msg}")
+
+    def _owned_string(self, ptr):
+        """C8 fix: safely extract a malloc'd C string and free it.
+        Returns the string as Python str, or None if ptr is NULL/0."""
+        if not ptr:
+            return None
+        try:
+            raw = ctypes.string_at(ptr)
+            return raw.decode("utf-8", errors="replace")
+        finally:
+            self._lib.naab_gov_free_string(ctypes.cast(ptr, ctypes.c_char_p))
 
     def _encode(self, s: str) -> bytes:
         return s.encode("utf-8") if isinstance(s, str) else s
@@ -328,20 +341,20 @@ class GovernanceEngine:
         """
         if self._subprocess_mode:
             return self._subprocess_scan(language, code, self._subprocess_config)
-        raw = self._lib.naab_gov_scan(
+        raw_ptr = self._lib.naab_gov_scan(
             self._handle,
             self._encode(language),
             self._encode(code),
             self._encode(source_file),
             start_line
         )
-        if not raw:
+        raw_str = self._owned_string(raw_ptr)
+        if raw_str is None:
             err = self._lib.naab_gov_last_error(self._handle)
             raise RuntimeError(
                 f"scan failed: {err.decode('utf-8', errors='replace') if err else 'NULL result'}"
             )
-        result = json.loads(raw.decode("utf-8"))
-        return result
+        return json.loads(raw_str)
 
     def check(self, check_name: str, language: str, code: str,
               start_line: int = 1) -> dict:
@@ -356,19 +369,20 @@ class GovernanceEngine:
         if self._subprocess_mode:
             # Subprocess mode doesn't support single-check; run full scan
             return self._subprocess_scan(language, code, self._subprocess_config)
-        raw = self._lib.naab_gov_check(
+        raw_ptr = self._lib.naab_gov_check(
             self._handle,
             self._encode(check_name),
             self._encode(language),
             self._encode(code),
             start_line
         )
-        if not raw:
+        raw_str = self._owned_string(raw_ptr)
+        if raw_str is None:
             err = self._lib.naab_gov_last_error(self._handle)
             raise RuntimeError(
                 f"check failed: {err.decode('utf-8', errors='replace') if err else 'NULL result'}"
             )
-        return json.loads(raw.decode("utf-8"))
+        return json.loads(raw_str)
 
     def scan_or_raise(self, language: str, code: str,
                       source_file: str = "", start_line: int = 1) -> dict:
@@ -392,20 +406,20 @@ class GovernanceEngine:
         """Full JSON report from the last scan."""
         if self._subprocess_mode:
             return self._last_result
-        raw = self._lib.naab_gov_json_report(self._handle)
-        if not raw:
+        raw_str = self._owned_string(self._lib.naab_gov_json_report(self._handle))
+        if raw_str is None:
             return {}
-        return json.loads(raw.decode("utf-8"))
+        return json.loads(raw_str)
 
     @property
     def sarif_report(self) -> dict:
         """SARIF report from the last scan."""
         if self._subprocess_mode:
             return {}  # SARIF not available in subprocess mode
-        raw = self._lib.naab_gov_sarif_report(self._handle)
-        if not raw:
+        raw_str = self._owned_string(self._lib.naab_gov_sarif_report(self._handle))
+        if raw_str is None:
             return {}
-        return json.loads(raw.decode("utf-8"))
+        return json.loads(raw_str)
 
     @property
     def summary(self) -> str:
@@ -414,8 +428,8 @@ class GovernanceEngine:
             r = self._last_result
             vc = r.get("violation_count", 0)
             return f"{'BLOCKED' if r.get('blocked') else 'CLEAN'}: {vc} violation(s)"
-        raw = self._lib.naab_gov_summary(self._handle)
-        return raw.decode("utf-8") if raw else ""
+        raw_str = self._owned_string(self._lib.naab_gov_summary(self._handle))
+        return raw_str if raw_str else ""
 
     @property
     def result_count(self) -> int:

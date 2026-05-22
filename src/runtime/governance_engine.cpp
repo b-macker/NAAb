@@ -884,7 +884,7 @@ std::string GovernanceEngine::enforce(
     // Audit mode: never block, just log — except safety-critical checks
     if (rules_.mode == GovernanceMode::AUDIT) {
         // F3: no_secrets and no_pii always enforce, even in AUDIT mode
-        if (rule_name != "restrictions.no_secrets" &&
+        if (rule_name != "code_quality.no_secrets" &&
             rule_name != "code_quality.no_pii") {
             fprintf(stderr, "[governance] AUDIT %s: %s\n",
                     rule_name.c_str(),
@@ -1076,9 +1076,13 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
         return false;  // Signature required but didn't verify
     }
 
-    // No signature verification configured — token presence is sufficient
-    approver_id_out = token.approver_id;
-    return true;
+    // H6 fix: fail-closed when approver_keys not configured.
+    // Without configured keys, approval system is not meaningful.
+    if (rules_.approval.approver_keys.empty()) {
+        return false;
+    }
+    // Signature required but not provided
+    return false;
 }
 
 // ============================================================================

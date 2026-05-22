@@ -103,9 +103,16 @@ impl GovernanceEngine {
         source_file: &str,
         start_line: i32,
     ) -> Result<ScanResult, Error> {
-        let c_lang = CString::new(language).unwrap();
-        let c_code = CString::new(code).unwrap();
-        let c_file = CString::new(source_file).unwrap();
+        // C9 fix: use map_err instead of unwrap to prevent panic through FFI
+        let c_lang = CString::new(language).map_err(|_| Error {
+            message: "language contains null byte".into(),
+        })?;
+        let c_code = CString::new(code).map_err(|_| Error {
+            message: "code contains null byte".into(),
+        })?;
+        let c_file = CString::new(source_file).map_err(|_| Error {
+            message: "source_file contains null byte".into(),
+        })?;
 
         let raw = unsafe {
             ffi::naab_gov_scan(
