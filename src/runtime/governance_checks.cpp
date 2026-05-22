@@ -199,12 +199,23 @@ static std::string searchPatterns(const std::string& code,
 //   s = os.system        →  alias: s → os.system
 //   s("rm")              →  expanded to: os.system("rm")
 //
-// Also handles Python `from module import func [as alias]`.
+// Handles: direct assignment, Python from-import (single/multi/star/as),
+// module aliasing (import X as Y), and transitive chains (b = a = os.system).
 
 struct DangerousAliasRef {
     std::string pattern;     // Regex for the function reference
     std::string canonical;   // Plain-text canonical form for expansion
     bool builtin;            // true = bare name (check not preceded by '.')
+};
+
+// Modules containing dangerous functions — used for module aliasing and star imports
+static const std::unordered_map<std::string, std::vector<std::string>> DANGEROUS_MODULE_FUNCS = {
+    {"os",         {"system", "popen"}},
+    {"subprocess", {"call", "Popen", "run", "check_output", "check_call"}},
+    {"pickle",     {"load", "loads"}},
+    {"ctypes",     {"CDLL", "cdll"}},
+    {"yaml",       {"load"}},
+    {"importlib",  {"import_module"}},
 };
 
 static std::string expandDangerousAliases(const std::string& language,
@@ -267,27 +278,62 @@ static std::string expandDangerousAliases(const std::string& language,
     else if (language == "php")        refs = &PHP_REFS;
     else return code;
 
-    // Phase 1: Collect aliases from assignment patterns
-    // Pattern: identifier =|:= dangerous_ref (NOT followed by open paren → reference, not call)
-    std::unordered_map<std::string, std::string> aliases;  // alias → canonical
+    std::string assign_op = (language == "go" || language == "golang") ? ":?=" : "=";
 
+    // Function aliases: alias → canonical (e.g., "s" → "os.system")
+    std::unordered_map<std::string, std::string> aliases;
+
+    // ── Phase 0: Module aliasing (import X as Y) — expand first ─────────
+    // Module aliases must be resolved before function alias collection so that
+    // `import subprocess as sp; fn = sp.Popen` correctly recognizes sp.Popen.
+    std::string working = code;
+    if (language == "python") {
+        std::unordered_map<std::string, std::string> module_aliases;
+        try {
+            std::regex re("\\bimport\\s+(\\w+(?:\\.\\w+)*)\\s+as\\s+(\\w+)",
+                          std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                std::string mod = (*m)[1].str();
+                std::string alias = (*m)[2].str();
+                if (DANGEROUS_MODULE_FUNCS.count(mod)) {
+                    module_aliases[alias] = mod;
+                }
+            }
+        } catch (const std::regex_error&) {}
+
+        // Expand module aliases: alias.func → module.func for dangerous funcs
+        for (const auto& kv : module_aliases) {
+            auto mod_it = DANGEROUS_MODULE_FUNCS.find(kv.second);
+            if (mod_it == DANGEROUS_MODULE_FUNCS.end()) continue;
+            for (const auto& func : mod_it->second) {
+                try {
+                    std::string pat = "\\b" + kv.first + "\\." + func + "\\b";
+                    std::regex re(pat, std::regex::ECMAScript);
+                    working = std::regex_replace(working, re, kv.second + "." + func);
+                } catch (const std::regex_error&) {}
+            }
+        }
+    }
+
+    // ── Phase 1: Direct assignment aliases ──────────────────────────────
+    // Pattern: identifier = dangerous_ref (NOT followed by open paren → reference, not call)
+    // Runs on module-expanded code so `fn = sp.Popen` → `fn = subprocess.Popen` is matched.
     for (const auto& ref : *refs) {
-        std::string assign_op = (language == "go" || language == "golang") ? ":?=" : "=";
         std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b(" +
                           ref.pattern + ")\\b(?!\\s*\\()";
         try {
             std::regex re(pat, std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
+            auto begin = std::sregex_iterator(working.begin(), working.end(), re);
             auto end_it = std::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
-                // Skip attribute assignment (preceded by '.')
                 auto lhs_pos = static_cast<size_t>((*m).position(1));
-                if (lhs_pos > 0 && code[lhs_pos - 1] == '.') continue;
+                if (lhs_pos > 0 && working[lhs_pos - 1] == '.') continue;
 
-                // For builtins, skip if RHS is module-qualified (preceded by '.')
                 if (ref.builtin) {
                     auto rhs_pos = static_cast<size_t>((*m).position(2));
-                    if (rhs_pos > 0 && code[rhs_pos - 1] == '.') continue;
+                    if (rhs_pos > 0 && working[rhs_pos - 1] == '.') continue;
                 }
 
                 std::string alias = (*m)[1].str();
@@ -298,7 +344,7 @@ static std::string expandDangerousAliases(const std::string& language,
         } catch (const std::regex_error&) {}
     }
 
-    // Phase 2: Python "from module import func [as alias]"
+    // ── Phase 2: Python from-import patterns ────────────────────────────
     if (language == "python") {
         static const std::unordered_map<std::string, std::string> IMPORT_MAP = {
             {"os.system",               "os.system"},
@@ -316,7 +362,7 @@ static std::string expandDangerousAliases(const std::string& language,
             {"importlib.import_module",  "importlib.import_module"},
         };
 
-        // "from module import func as alias"
+        // 2a: "from module import func as alias"
         try {
             std::regex re(
                 "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(\\w+)\\s+as\\s+(\\w+)",
@@ -332,37 +378,118 @@ static std::string expandDangerousAliases(const std::string& language,
             }
         } catch (const std::regex_error&) {}
 
-        // "from module import func" (bare — func name is now a local alias)
+        // 2b: "from module import name1, name2, ..." (multi-import with optional "as")
         try {
-            std::regex re(
-                "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(\\w+)\\b(?!\\s+as\\b)",
+            std::regex from_re(
+                "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(.+)",
                 std::regex::ECMAScript);
-            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
+            auto begin = std::sregex_iterator(code.begin(), code.end(), from_re);
             auto end_it = std::sregex_iterator();
             for (auto m = begin; m != end_it; ++m) {
-                std::string full = (*m)[1].str() + "." + (*m)[2].str();
-                auto it = IMPORT_MAP.find(full);
-                if (it != IMPORT_MAP.end()) {
-                    aliases[(*m)[2].str()] = it->second;
+                std::string mod = (*m)[1].str();
+                std::string imports_str = (*m)[2].str();
+
+                // Trim at newline/semicolon (stop at statement boundary)
+                auto nl = imports_str.find_first_of("\n;");
+                if (nl != std::string::npos) imports_str = imports_str.substr(0, nl);
+
+                // Split by comma and process each token
+                std::istringstream ss(imports_str);
+                std::string token;
+                while (std::getline(ss, token, ',')) {
+                    // Trim whitespace
+                    size_t s = token.find_first_not_of(" \t");
+                    size_t e = token.find_last_not_of(" \t");
+                    if (s == std::string::npos) continue;
+                    token = token.substr(s, e - s + 1);
+
+                    // Check for "name as alias"
+                    std::string func_name, alias_name;
+                    auto as_pos = token.find(" as ");
+                    if (as_pos != std::string::npos) {
+                        func_name = token.substr(0, as_pos);
+                        alias_name = token.substr(as_pos + 4);
+                        // Trim both
+                        func_name.erase(0, func_name.find_first_not_of(" \t"));
+                        func_name.erase(func_name.find_last_not_of(" \t") + 1);
+                        alias_name.erase(0, alias_name.find_first_not_of(" \t"));
+                        alias_name.erase(alias_name.find_last_not_of(" \t") + 1);
+                    } else {
+                        func_name = token;
+                        alias_name = token;
+                    }
+
+                    if (func_name == "*") continue;  // star handled separately
+
+                    std::string full = mod + "." + func_name;
+                    auto it = IMPORT_MAP.find(full);
+                    if (it != IMPORT_MAP.end()) {
+                        aliases[alias_name] = it->second;
+                    }
+                }
+            }
+        } catch (const std::regex_error&) {}
+
+        // 2c: "from module import *" — expand known dangerous functions from module
+        try {
+            std::regex star_re("\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+\\*",
+                               std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(code.begin(), code.end(), star_re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                std::string mod = (*m)[1].str();
+                auto mod_it = DANGEROUS_MODULE_FUNCS.find(mod);
+                if (mod_it != DANGEROUS_MODULE_FUNCS.end()) {
+                    for (const auto& func : mod_it->second) {
+                        aliases[func] = mod + "." + func;
+                    }
                 }
             }
         } catch (const std::regex_error&) {}
     }
 
-    if (aliases.empty()) return code;
+    // ── Phase 3: Transitive alias chaining ──────────────────────────────
+    // If b = a and a is already an alias, then b → canonical(a)
+    for (int iter = 0; iter < 3; ++iter) {
+        std::unordered_map<std::string, std::string> new_aliases;
+        for (const auto& kv : aliases) {
+            std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b" +
+                              kv.first + "\\b(?!\\s*\\()";
+            try {
+                std::regex re(pat, std::regex::ECMAScript);
+                auto begin = std::sregex_iterator(working.begin(), working.end(), re);
+                auto end_it = std::sregex_iterator();
+                for (auto m = begin; m != end_it; ++m) {
+                    auto pos = static_cast<size_t>((*m).position(1));
+                    if (pos > 0 && working[pos - 1] == '.') continue;
+                    std::string new_alias = (*m)[1].str();
+                    if (new_alias != kv.first &&
+                        aliases.find(new_alias) == aliases.end() &&
+                        new_aliases.find(new_alias) == new_aliases.end()) {
+                        new_aliases[new_alias] = kv.second;
+                    }
+                }
+            } catch (const std::regex_error&) {}
+        }
+        if (new_aliases.empty()) break;
+        for (const auto& kv : new_aliases) {
+            aliases[kv.first] = kv.second;
+        }
+    }
 
-    // Phase 3: Expand alias calls → canonical form
+    if (aliases.empty()) return working;
+
+    // ── Phase 4: Expand function aliases in code ────────────────────────
     // Replace alias( with canonical( so downstream pattern checks match
-    std::string result = code;
     for (const auto& kv : aliases) {
         try {
             std::string call_pat = "\\b" + kv.first + "(\\s*\\()";
             std::regex call_re(call_pat, std::regex::ECMAScript);
-            result = std::regex_replace(result, call_re, kv.second + "$1");
+            working = std::regex_replace(working, call_re, kv.second + "$1");
         } catch (const std::regex_error&) {}
     }
 
-    return result;
+    return working;
 }
 
 // --- PII Detection ---

@@ -149,6 +149,80 @@ print(system)'
 
 echo ""
 
+# ─── Python: Module aliasing ───────────────────────────────────────────
+
+echo "--- Python: Module aliasing (import X as Y) ---"
+
+check_blocked "import os as o; o.system(cmd)" \
+    python 'import os as o
+o.system("rm -rf /")'
+
+check_blocked "import subprocess as sp; sp.Popen(cmd)" \
+    python 'import subprocess as sp
+sp.Popen(["rm", "-rf", "/"])'
+
+check_blocked "module alias + func alias combined" \
+    python 'import subprocess as sp
+fn = sp.Popen
+fn(["rm", "-rf", "/"])'
+
+check_not_blocked "import json as j (safe module)" \
+    python 'import json as j
+data = j.loads("{}")'
+
+echo ""
+
+# ─── Python: Star imports ──────────────────────────────────────────────
+
+echo "--- Python: Star imports ---"
+
+check_blocked "from os import *; system(cmd)" \
+    python 'from os import *
+system("rm -rf /")'
+
+check_blocked "from subprocess import *; Popen(cmd)" \
+    python 'from subprocess import *
+Popen(["rm", "-rf", "/"])'
+
+check_not_blocked "from os import *; safe function" \
+    python 'from os import *
+cwd = getcwd()'
+
+echo ""
+
+# ─── Python: Multi-import ──────────────────────────────────────────────
+
+echo "--- Python: Multi-import ---"
+
+check_blocked "from os import path, system; system(cmd)" \
+    python 'from os import path, system
+system("rm -rf /")'
+
+check_blocked "from os import system as s, popen as p; s(cmd)" \
+    python 'from os import system as s, popen as p
+s("rm -rf /")'
+
+echo ""
+
+# ─── Python: Transitive alias chains ───────────────────────────────────
+
+echo "--- Python: Transitive alias chains ---"
+
+check_blocked "2-level chain: a = os.system; b = a; b(cmd)" \
+    python 'import os
+a = os.system
+b = a
+b("rm -rf /")'
+
+check_blocked "3-level chain: a = os.system; b = a; c = b; c(cmd)" \
+    python 'import os
+a = os.system
+b = a
+c = b
+c("rm -rf /")'
+
+echo ""
+
 # ─── JavaScript ─────────────────────────────────────────────────────────
 
 echo "--- JavaScript aliases ---"
