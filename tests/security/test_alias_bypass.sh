@@ -60,6 +60,51 @@ check_not_blocked() {
 echo "=== Dangerous Function Alias Detection Tests ==="
 echo ""
 
+# ─── Unicode/homoglyph evasion ────────────────────────────────────────
+
+echo "--- Unicode/homoglyph evasion ---"
+
+# Cyrillic о (U+043E) looks identical to Latin o
+check_blocked "Cyrillic о in os.system()" \
+    python "$(printf 'import os; \xd0\xbes.system(\"rm\")')"
+
+# Cyrillic ѕ (U+0455) looks identical to Latin s
+check_blocked "Cyrillic ѕ in os.system()" \
+    python "$(printf 'import os; os.\xd1\x95ystem(\"rm\")')"
+
+# Fullwidth Latin letters (U+FF41-FF5A)
+check_blocked "fullwidth eval()" \
+    python "$(printf '\xef\xbd\x85\xef\xbd\x96\xef\xbd\x81\xef\xbd\x8c(\"code\")')"
+
+# Zero-width joiner (U+200B) inserted into keyword
+check_blocked "zero-width character in eval()" \
+    python "$(printf 'ev\xe2\x80\x8bal(\"code\")')"
+
+check_not_blocked "safe code with no Unicode tricks" \
+    python 'x = 42
+print(x)'
+
+echo ""
+
+# ─── Whitespace/newline evasion ───────────────────────────────────────
+
+echo "--- Whitespace/newline evasion ---"
+
+check_blocked "newline splitting os.system()" \
+    python "$(printf 'import os\nos.\nsystem(\"rm\")')"
+
+check_blocked "spaces around dot in os.system()" \
+    python 'import os; os . system("rm")'
+
+check_blocked "line continuation in os.system()" \
+    python "$(printf 'import os\nos.\\\nsystem(\"rm\")')"
+
+check_not_blocked "normal dotted access (json.loads)" \
+    python 'import json
+data = json.loads("{}")'
+
+echo ""
+
 # ─── Python: Direct assignment aliases ──────────────────────────────────
 
 echo "--- Python: Direct assignment aliases ---"

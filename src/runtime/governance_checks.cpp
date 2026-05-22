@@ -126,6 +126,184 @@ static std::string stripStringLiterals(const std::string& code) {
     return result;
 }
 
+// Normalize Unicode homoglyphs and zero-width characters to prevent evasion.
+// Replaces confusable characters (Cyrillic/Greek lookalikes, fullwidth Latin,
+// zero-width joiners/spaces) with their ASCII equivalents so regex patterns match.
+static std::string normalizeUnicode(const std::string& code) {
+    std::string result;
+    result.reserve(code.size());
+
+    for (size_t i = 0; i < code.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(code[i]);
+
+        // ASCII passthrough (fast path)
+        if (c < 0x80) {
+            result += code[i];
+            continue;
+        }
+
+        // 2-byte UTF-8 sequences (0xC0-0xDF lead byte)
+        if (c >= 0xC0 && c <= 0xDF && i + 1 < code.size()) {
+            unsigned char c2 = static_cast<unsigned char>(code[i + 1]);
+            uint16_t cp = static_cast<uint16_t>(((c & 0x1F) << 6) | (c2 & 0x3F));
+
+            // Zero-width characters — remove entirely
+            // U+00AD SOFT HYPHEN
+            if (cp == 0x00AD) { i += 1; continue; }
+
+            // Cyrillic confusables (U+0400-U+04FF)
+            char replacement = 0;
+            switch (cp) {
+                case 0x0410: replacement = 'A'; break; // А
+                case 0x0412: replacement = 'B'; break; // В
+                case 0x0421: replacement = 'C'; break; // С
+                case 0x0415: replacement = 'E'; break; // Е
+                case 0x041D: replacement = 'H'; break; // Н
+                case 0x041A: replacement = 'K'; break; // К
+                case 0x041C: replacement = 'M'; break; // М
+                case 0x041E: replacement = 'O'; break; // О
+                case 0x0420: replacement = 'P'; break; // Р
+                case 0x0422: replacement = 'T'; break; // Т
+                case 0x0425: replacement = 'X'; break; // Х
+                case 0x0430: replacement = 'a'; break; // а
+                case 0x0441: replacement = 'c'; break; // с
+                case 0x0435: replacement = 'e'; break; // е
+                case 0x043E: replacement = 'o'; break; // о
+                case 0x0440: replacement = 'p'; break; // р
+                case 0x0455: replacement = 's'; break; // ѕ
+                case 0x0445: replacement = 'x'; break; // х
+                case 0x0443: replacement = 'y'; break; // у
+                // Greek confusables
+                case 0x0391: replacement = 'A'; break; // Α
+                case 0x0392: replacement = 'B'; break; // Β
+                case 0x0395: replacement = 'E'; break; // Ε
+                case 0x0397: replacement = 'H'; break; // Η
+                case 0x0399: replacement = 'I'; break; // Ι
+                case 0x039A: replacement = 'K'; break; // Κ
+                case 0x039C: replacement = 'M'; break; // Μ
+                case 0x039D: replacement = 'N'; break; // Ν
+                case 0x039F: replacement = 'O'; break; // Ο
+                case 0x03A1: replacement = 'P'; break; // Ρ
+                case 0x03A4: replacement = 'T'; break; // Τ
+                case 0x03A5: replacement = 'Y'; break; // Υ
+                case 0x03B1: replacement = 'a'; break; // α (marginal)
+                case 0x03BF: replacement = 'o'; break; // ο
+                default: break;
+            }
+            if (replacement) {
+                result += replacement;
+                i += 1;
+                continue;
+            }
+
+            // Pass through other 2-byte sequences unchanged
+            result += code[i];
+            result += code[i + 1];
+            i += 1;
+            continue;
+        }
+
+        // 3-byte UTF-8 sequences (0xE0-0xEF lead byte)
+        if (c >= 0xE0 && c <= 0xEF && i + 2 < code.size()) {
+            unsigned char c2 = static_cast<unsigned char>(code[i + 1]);
+            unsigned char c3 = static_cast<unsigned char>(code[i + 2]);
+            uint16_t cp = static_cast<uint16_t>(((c & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F));
+
+            // Zero-width characters — remove entirely
+            if (cp == 0x200B || cp == 0x200C || cp == 0x200D || // ZWS, ZWNJ, ZWJ
+                cp == 0x2060 || cp == 0xFEFF) {                 // Word Joiner, BOM
+                i += 2;
+                continue;
+            }
+
+            // Fullwidth Latin letters (U+FF21-FF3A = A-Z, U+FF41-FF5A = a-z)
+            if (cp >= 0xFF21 && cp <= 0xFF3A) {
+                result += static_cast<char>('A' + (cp - 0xFF21));
+                i += 2;
+                continue;
+            }
+            if (cp >= 0xFF41 && cp <= 0xFF5A) {
+                result += static_cast<char>('a' + (cp - 0xFF41));
+                i += 2;
+                continue;
+            }
+            // Fullwidth digits (U+FF10-FF19 = 0-9)
+            if (cp >= 0xFF10 && cp <= 0xFF19) {
+                result += static_cast<char>('0' + (cp - 0xFF10));
+                i += 2;
+                continue;
+            }
+            // Fullwidth punctuation
+            if (cp == 0xFF08) { result += '('; i += 2; continue; } // （
+            if (cp == 0xFF09) { result += ')'; i += 2; continue; } // ）
+            if (cp == 0xFF0E) { result += '.'; i += 2; continue; } // ．
+            if (cp == 0xFF3B) { result += '['; i += 2; continue; } // ［
+            if (cp == 0xFF3D) { result += ']'; i += 2; continue; } // ］
+
+            // Pass through other 3-byte sequences unchanged
+            result += code[i];
+            result += code[i + 1];
+            result += code[i + 2];
+            i += 2;
+            continue;
+        }
+
+        // 4-byte UTF-8 sequences — pass through unchanged
+        if (c >= 0xF0 && c <= 0xF7 && i + 3 < code.size()) {
+            result += code[i];
+            result += code[i + 1];
+            result += code[i + 2];
+            result += code[i + 3];
+            i += 3;
+            continue;
+        }
+
+        // Invalid UTF-8 — pass through
+        result += code[i];
+    }
+    return result;
+}
+
+// Normalize whitespace in code to prevent evasion via newlines/spaces in
+// dotted access (os.\nsystem, os . system) and line continuations (os.\\\nsystem).
+// Collapses whitespace around dots and removes Python line continuations.
+static std::string normalizeWhitespace(const std::string& code) {
+    // Pass 1: Remove line continuation (backslash + newline)
+    std::string pass1;
+    pass1.reserve(code.size());
+    for (size_t i = 0; i < code.size(); ++i) {
+        if (code[i] == '\\' && i + 1 < code.size() && code[i + 1] == '\n') {
+            i += 1; // skip both backslash and newline
+            continue;
+        }
+        pass1 += code[i];
+    }
+
+    // Pass 2: Collapse whitespace (including newlines) around dots in
+    // identifier.identifier patterns — e.g., "os . system" → "os.system"
+    std::string result;
+    result.reserve(pass1.size());
+    for (size_t i = 0; i < pass1.size(); ++i) {
+        // When we see a dot, collapse surrounding whitespace
+        if (pass1[i] == '.') {
+            // Remove trailing whitespace before the dot
+            while (!result.empty() && (result.back() == ' ' || result.back() == '\t' ||
+                                        result.back() == '\n' || result.back() == '\r')) {
+                result.pop_back();
+            }
+            result += '.';
+            // Skip leading whitespace after the dot
+            while (i + 1 < pass1.size() && (pass1[i + 1] == ' ' || pass1[i + 1] == '\t' ||
+                                              pass1[i + 1] == '\n' || pass1[i + 1] == '\r')) {
+                i++;
+            }
+            continue;
+        }
+        result += pass1[i];
+    }
+    return result;
+}
+
 // FIX 16: Strip comments (Python #, JS //, C /* */) for checks that shouldn't trigger on comments
 static std::string stripComments(const std::string& code) {
     std::string result;
@@ -4891,9 +5069,16 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // FIX 18: Normalize language aliases (bash→shell, js→javascript, etc.)
     std::string lang = normalizeLanguage(language);
 
+    // Pre-process code — normalize Unicode homoglyphs and whitespace to prevent
+    // evasion via confusable characters (Cyrillic е→e, fullwidth ｅ→e, zero-width
+    // removals) and whitespace tricks (os.\nsystem, os . system, line continuations).
+    // Normalization runs on BOTH raw code and stripped code paths.
+    std::string normalized = normalizeUnicode(code);
+    normalized = normalizeWhitespace(normalized);
+
     // FIX 16: Pre-process code — strip string literals for pattern matching
     // This prevents false positives from code/paths inside strings
-    std::string stripped = stripStringLiterals(code);
+    std::string stripped = stripStringLiterals(normalized);
 
     // Expand dangerous function aliases (e.g., s = os.system; s("rm") → os.system("rm"))
     // so downstream pattern-based checks catch indirect calls through variables
@@ -4930,8 +5115,8 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkDangerousCall(lang, stripped, line);
     if (!err.empty()) return err;
     // Some dangerous patterns require string content visible (e.g., preg_replace /e
-    // modifier is inside the regex string). Check raw code for these.
-    err = checkDangerousCall(lang, code, line);
+    // modifier is inside the regex string). Check normalized (but not string-stripped) code.
+    err = checkDangerousCall(lang, normalized, line);
     if (!err.empty()) return err;
 
     // New v3.0 checks — use stripped (strings removed, comments preserved)
@@ -4967,9 +5152,9 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkIncompleteLogic(stripped, line);
     if (!err.empty()) return err;
-    err = checkHallucinatedApis(lang, code, line);  // Has its own stripping
+    err = checkHallucinatedApis(lang, normalized, line);  // Has its own stripping
     if (!err.empty()) return err;
-    err = checkSemanticIssues(lang, code, line);  // Has its own stripping
+    err = checkSemanticIssues(lang, normalized, line);  // Has its own stripping
     if (!err.empty()) return err;
 
     // NOTE: Complexity floor intentionally NOT applied to polyglot blocks.
@@ -4992,9 +5177,9 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkCryptoWeakness(stripped, line);
     if (!err.empty()) return err;
-    err = checkVcsSecretExtraction(code, line);  // uses raw code — secret targets live in strings
+    err = checkVcsSecretExtraction(normalized, line);  // uses normalized raw code — secret targets in strings
     if (!err.empty()) return err;
-    err = checkObfuscationSignals(lang, code, stripped, line);  // co-occurrence: raw + stripped
+    err = checkObfuscationSignals(lang, normalized, stripped, line);  // co-occurrence: normalized + stripped
     if (!err.empty()) return err;
 
     // Capability checks for polyglot blocks
