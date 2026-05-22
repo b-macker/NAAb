@@ -342,6 +342,7 @@ std::string normalizeLanguage(const std::string& language) {
     if (language == "rb") return "ruby";
     if (language == "js") return "javascript";
     if (language == "node") return "javascript";
+    if (language == "py") return "python";
     return language;
 }
 
