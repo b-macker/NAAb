@@ -192,6 +192,179 @@ static std::string searchPatterns(const std::string& code,
     return "";
 }
 
+// ─── Dangerous Alias Expansion ──────────────────────────────────────────────
+// Detects variable aliasing of dangerous functions and expands alias calls
+// so that downstream pattern-based checks catch indirect invocations.
+//
+//   s = os.system        →  alias: s → os.system
+//   s("rm")              →  expanded to: os.system("rm")
+//
+// Also handles Python `from module import func [as alias]`.
+
+struct DangerousAliasRef {
+    std::string pattern;     // Regex for the function reference
+    std::string canonical;   // Plain-text canonical form for expansion
+    bool builtin;            // true = bare name (check not preceded by '.')
+};
+
+static std::string expandDangerousAliases(const std::string& language,
+                                           const std::string& code) {
+    static const std::vector<DangerousAliasRef> PYTHON_REFS = {
+        // Module-qualified dangerous functions
+        {"os\\.system",               "os.system",               false},
+        {"os\\.popen",                "os.popen",                false},
+        {"subprocess\\.call",         "subprocess.call",         false},
+        {"subprocess\\.Popen",        "subprocess.Popen",        false},
+        {"subprocess\\.run",          "subprocess.run",          false},
+        {"subprocess\\.check_output", "subprocess.check_output", false},
+        {"subprocess\\.check_call",   "subprocess.check_call",   false},
+        {"pickle\\.load(?!s)",        "pickle.load",             false},
+        {"pickle\\.loads",            "pickle.loads",            false},
+        {"ctypes\\.CDLL",             "ctypes.CDLL",             false},
+        {"ctypes\\.cdll",             "ctypes.cdll",             false},
+        {"yaml\\.load",               "yaml.load",               false},
+        {"importlib\\.import_module",  "importlib.import_module", false},
+        // Bare dangerous builtins
+        {"eval",                      "eval",                    true},
+        {"exec",                      "exec",                    true},
+        {"__import__",                "__import__",              true},
+        {"getattr",                   "getattr",                 true},
+    };
+
+    static const std::vector<DangerousAliasRef> JS_REFS = {
+        {"eval",     "eval",     true},
+        {"Function", "Function", true},
+    };
+
+    static const std::vector<DangerousAliasRef> GO_REFS = {
+        {"exec\\.Command", "exec.Command", false},
+    };
+
+    static const std::vector<DangerousAliasRef> RUST_REFS = {
+        {"Command::new", "Command::new", false},
+    };
+
+    static const std::vector<DangerousAliasRef> RUBY_REFS = {
+        {"system", "system", true},
+        {"exec",   "exec",   true},
+        {"eval",   "eval",   true},
+    };
+
+    static const std::vector<DangerousAliasRef> PHP_REFS = {
+        {"system",     "system",     true},
+        {"exec",       "exec",       true},
+        {"shell_exec", "shell_exec", true},
+        {"passthru",   "passthru",   true},
+        {"eval",       "eval",       true},
+    };
+
+    const std::vector<DangerousAliasRef>* refs = nullptr;
+    if (language == "python")          refs = &PYTHON_REFS;
+    else if (language == "javascript") refs = &JS_REFS;
+    else if (language == "go" || language == "golang") refs = &GO_REFS;
+    else if (language == "rust")       refs = &RUST_REFS;
+    else if (language == "ruby")       refs = &RUBY_REFS;
+    else if (language == "php")        refs = &PHP_REFS;
+    else return code;
+
+    // Phase 1: Collect aliases from assignment patterns
+    // Pattern: identifier =|:= dangerous_ref (NOT followed by open paren → reference, not call)
+    std::unordered_map<std::string, std::string> aliases;  // alias → canonical
+
+    for (const auto& ref : *refs) {
+        std::string assign_op = (language == "go" || language == "golang") ? ":?=" : "=";
+        std::string pat = "(\\w+)\\s*" + assign_op + "\\s*\\b(" +
+                          ref.pattern + ")\\b(?!\\s*\\()";
+        try {
+            std::regex re(pat, std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                // Skip attribute assignment (preceded by '.')
+                auto lhs_pos = static_cast<size_t>((*m).position(1));
+                if (lhs_pos > 0 && code[lhs_pos - 1] == '.') continue;
+
+                // For builtins, skip if RHS is module-qualified (preceded by '.')
+                if (ref.builtin) {
+                    auto rhs_pos = static_cast<size_t>((*m).position(2));
+                    if (rhs_pos > 0 && code[rhs_pos - 1] == '.') continue;
+                }
+
+                std::string alias = (*m)[1].str();
+                if (alias != ref.canonical) {
+                    aliases[alias] = ref.canonical;
+                }
+            }
+        } catch (const std::regex_error&) {}
+    }
+
+    // Phase 2: Python "from module import func [as alias]"
+    if (language == "python") {
+        static const std::unordered_map<std::string, std::string> IMPORT_MAP = {
+            {"os.system",               "os.system"},
+            {"os.popen",                "os.popen"},
+            {"subprocess.call",         "subprocess.call"},
+            {"subprocess.Popen",        "subprocess.Popen"},
+            {"subprocess.run",          "subprocess.run"},
+            {"subprocess.check_output", "subprocess.check_output"},
+            {"subprocess.check_call",   "subprocess.check_call"},
+            {"pickle.load",             "pickle.load"},
+            {"pickle.loads",            "pickle.loads"},
+            {"ctypes.CDLL",             "ctypes.CDLL"},
+            {"ctypes.cdll",             "ctypes.cdll"},
+            {"yaml.load",               "yaml.load"},
+            {"importlib.import_module",  "importlib.import_module"},
+        };
+
+        // "from module import func as alias"
+        try {
+            std::regex re(
+                "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(\\w+)\\s+as\\s+(\\w+)",
+                std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                std::string full = (*m)[1].str() + "." + (*m)[2].str();
+                auto it = IMPORT_MAP.find(full);
+                if (it != IMPORT_MAP.end()) {
+                    aliases[(*m)[3].str()] = it->second;
+                }
+            }
+        } catch (const std::regex_error&) {}
+
+        // "from module import func" (bare — func name is now a local alias)
+        try {
+            std::regex re(
+                "\\bfrom\\s+(\\w+(?:\\.\\w+)*)\\s+import\\s+(\\w+)\\b(?!\\s+as\\b)",
+                std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(code.begin(), code.end(), re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                std::string full = (*m)[1].str() + "." + (*m)[2].str();
+                auto it = IMPORT_MAP.find(full);
+                if (it != IMPORT_MAP.end()) {
+                    aliases[(*m)[2].str()] = it->second;
+                }
+            }
+        } catch (const std::regex_error&) {}
+    }
+
+    if (aliases.empty()) return code;
+
+    // Phase 3: Expand alias calls → canonical form
+    // Replace alias( with canonical( so downstream pattern checks match
+    std::string result = code;
+    for (const auto& kv : aliases) {
+        try {
+            std::string call_pat = "\\b" + kv.first + "(\\s*\\()";
+            std::regex call_re(call_pat, std::regex::ECMAScript);
+            result = std::regex_replace(result, call_re, kv.second + "$1");
+        } catch (const std::regex_error&) {}
+    }
+
+    return result;
+}
+
 // --- PII Detection ---
 static const std::vector<std::pair<std::string, std::string>> DEFAULT_PII_PATTERNS = {
     {"\\b\\d{3}-\\d{2}-\\d{4}\\b", "SSN"},
@@ -4535,6 +4708,11 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // FIX 16: Pre-process code — strip string literals for pattern matching
     // This prevents false positives from code/paths inside strings
     std::string stripped = stripStringLiterals(code);
+
+    // Expand dangerous function aliases (e.g., s = os.system; s("rm") → os.system("rm"))
+    // so downstream pattern-based checks catch indirect calls through variables
+    stripped = expandDangerousAliases(lang, stripped);
+
     std::string stripped_all = stripComments(stripped);  // Also strip comments
 
     std::string err;
