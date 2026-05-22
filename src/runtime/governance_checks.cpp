@@ -4929,6 +4929,10 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkDangerousCall(lang, stripped, line);
     if (!err.empty()) return err;
+    // Some dangerous patterns require string content visible (e.g., preg_replace /e
+    // modifier is inside the regex string). Check raw code for these.
+    err = checkDangerousCall(lang, code, line);
+    if (!err.empty()) return err;
 
     // New v3.0 checks — use stripped (strings removed, comments preserved)
     err = checkTemporaryCode(stripped, line);

@@ -206,6 +206,29 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"python", "\\.__dict__\\s*\\[",
      "__dict__ attribute access (reflection-based function lookup)",
      "Access attributes directly instead of through __dict__"},
+    // Class hierarchy sandbox escape vectors
+    {"python", "\\.__class__\\s*\\.\\s*__bases__",
+     "__class__.__bases__ access (class hierarchy traversal for sandbox escape)",
+     "Avoid class hierarchy introspection in governed code"},
+    {"python", "\\.__class__\\s*\\.\\s*__mro__",
+     "__class__.__mro__ access (method resolution order traversal)",
+     "Avoid class hierarchy introspection in governed code"},
+    {"python", "\\btype\\s*\\([^)]*\\)\\s*\\.\\s*__subclasses__",
+     "type().__subclasses__() (sandbox escape via class hierarchy)",
+     "Avoid class hierarchy introspection in governed code"},
+    {"python", "\\.__reduce__",
+     "__reduce__ access (pickle-like arbitrary execution)",
+     "Avoid __reduce__ — it enables arbitrary code execution during deserialization"},
+    // Missing os functions
+    {"python", "os\\.popen\\s*\\(",
+     "os.popen() call (command execution)",
+     "Use subprocess.run() with shell=False"},
+    {"python", "os\\.exec[lv]p?e?\\s*\\(",
+     "os.exec*() call (process replacement)",
+     "Use subprocess.run() with shell=False"},
+    {"python", "os\\.spawn[lv]p?e?\\s*\\(",
+     "os.spawn*() call (process spawning)",
+     "Use subprocess.run() with shell=False"},
 
     // JavaScript
     {"javascript", "\\beval\\s*\\(",       "eval() call",
@@ -243,6 +266,20 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"javascript", "\\bReflect\\.construct\\s*\\(",
      "Reflect.construct() (reflection-based constructor invocation)",
      "Use new Constructor() directly"},
+    // Constructor chain sandbox escape
+    {"javascript", "\\.constructor\\s*\\.\\s*constructor\\s*\\(",
+     "constructor.constructor() chain (Function constructor access via prototype)",
+     "Define functions statically — constructor chains can access Function()"},
+    {"javascript", "\\.constructor\\s*\\[",
+     "constructor[] bracket access (prototype-based function lookup)",
+     "Access properties directly instead of through constructor[]"},
+    // setTimeout/setInterval with string argument (acts as eval)
+    {"javascript", "setTimeout\\s*\\(\\s*[^(,]*\\+",
+     "setTimeout() with string concatenation (acts as eval)",
+     "Use a function: setTimeout(() => { ... }, ms)"},
+    {"javascript", "setInterval\\s*\\(\\s*[^(,]*\\+",
+     "setInterval() with string concatenation (acts as eval)",
+     "Use a function: setInterval(() => { ... }, ms)"},
 
     // Shell
     {"shell", "rm\\s+-rf\\s+/",           "rm -rf / (recursive root delete)",
@@ -381,6 +418,13 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"ruby", "\\bconst_get\\s*\\(",
      "const_get (dynamic constant/class lookup)",
      "Reference classes directly by name"},
+    // Shell execution syntax
+    {"ruby", "`[^`]+`",
+     "Backtick execution (shell command)",
+     "Use NAAb stdlib process.run() instead of backtick shell execution"},
+    {"ruby", "%x[({]",
+     "%x() execution (shell command)",
+     "Use NAAb stdlib process.run() instead of %x shell execution"},
 
     // PHP
     {"php", "\\bsystem\\s*\\(",
@@ -423,6 +467,9 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"php", "\\$\\{\\s*\\$",
      "Variable variables ($$var — dynamic variable access)",
      "Use arrays or explicit variable names"},
+    {"php", "\\$\\w+\\s*=\\s*['\"]\\w*['\"]\\s*\\.\\s*['\"]\\w*['\"]",
+     "String concatenation to build function name (evasion technique)",
+     "Use direct function calls instead of concatenating function names"},
 
     // Nim
     {"nim", "\\bexecProcess\\s*\\(",

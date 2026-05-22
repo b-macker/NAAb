@@ -277,6 +277,34 @@ fn("rm")'
 
 echo ""
 
+# ─── Python: Class hierarchy / sandbox escape ─────────────────────────
+
+echo "--- Python: Class hierarchy sandbox escape ---"
+
+check_blocked "__class__.__bases__ traversal" \
+    python '().__class__.__bases__[0].__subclasses__()[59].__init__.__globals__["sys"].modules["os"].system("rm")'
+
+check_blocked "type().__subclasses__() sandbox escape" \
+    python "type('').__subclasses__()"
+
+check_blocked "__reduce__ pickle-like execution" \
+    python 'import os; os.__class__.__reduce__ = lambda s: (os.system, ("rm",))'
+
+check_blocked "os.popen() command execution" \
+    python 'import os; os.popen("rm -rf /").read()'
+
+check_blocked "os.execvp() process replacement" \
+    python 'import os; os.execvp("/bin/rm", ["rm", "-rf", "/"])'
+
+check_blocked "os.spawnlp() process spawning" \
+    python 'import os; os.spawnlp(os.P_NOWAIT, "rm", "rm", "-rf", "/")'
+
+check_not_blocked "safe type() usage (no __subclasses__)" \
+    python 'x = type(42)
+print(x)'
+
+echo ""
+
 # ─── JavaScript ─────────────────────────────────────────────────────────
 
 echo "--- JavaScript aliases ---"
@@ -316,6 +344,12 @@ check_blocked "Reflect.apply in JS" \
 
 check_blocked "Reflect.construct in JS" \
     javascript 'Reflect.construct(Function, ["return 1"])()'
+
+check_blocked "constructor.constructor chain in JS" \
+    javascript 'this.constructor.constructor("return eval")()("alert(1)")'
+
+check_blocked "array constructor chain in JS" \
+    javascript '[].constructor.constructor("return eval")()'
 
 check_not_blocked "safe JS code (no reflection)" \
     javascript 'const x = 42; console.log(x)'
@@ -392,6 +426,16 @@ puts x.length'
 
 echo ""
 
+echo "--- Ruby: Shell execution syntax ---"
+
+check_blocked "backtick shell execution in Ruby" \
+    ruby '`rm -rf /`'
+
+check_blocked "%x() shell execution in Ruby" \
+    ruby '%x(rm -rf /)'
+
+echo ""
+
 # ─── PHP ────────────────────────────────────────────────────────────────
 
 echo "--- PHP aliases ---"
@@ -430,6 +474,16 @@ check_blocked "variable variables in PHP" \
 check_not_blocked "safe PHP code (no reflection)" \
     php '$x = 42;
 echo $x;'
+
+echo ""
+
+echo "--- PHP: String obfuscation ---"
+
+check_blocked "preg_replace with /e modifier" \
+    php 'preg_replace("/.*/e", "system(\"rm\")", "x")'
+
+check_blocked "string concat to build function name in PHP" \
+    php '$fn = "sys"."tem"; $fn("rm -rf /")'
 
 echo ""
 
