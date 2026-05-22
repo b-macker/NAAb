@@ -33,11 +33,13 @@ static std::string stripStringLiterals(const std::string& code) {
     result.reserve(code.size());
     bool in_single = false, in_double = false, in_backtick = false;
     bool escaped = false;
+    bool in_raw = false;  // Track Python raw strings — no escape processing
     for (size_t i = 0; i < code.size(); ++i) {
         char c = code[i];
         if (escaped) { escaped = false; continue; }
         // C11 fix: track escapes in backtick strings too (JS template literals)
-        if (c == '\\' && (in_single || in_double || in_backtick)) { escaped = true; continue; }
+        // Skip escape processing in raw strings (r"..." / r'...')
+        if (c == '\\' && (in_single || in_double || in_backtick) && !in_raw) { escaped = true; continue; }
 
         // V-GOV-001: consume Python/JS string prefixes (f, b, r, u and two-letter
         // combinations rb, br, rf, fr) before quote detection. Without this, the
@@ -53,6 +55,7 @@ static std::string stripStringLiterals(const std::string& code) {
                     std::string two = {lc, lc2};
                     if ((two == "rb" || two == "br" || two == "rf" || two == "fr") &&
                         (q2 == '"' || q2 == '\'')) {
+                        bool is_raw = (lc == 'r' || lc2 == 'r');
                         result += "  ";  // replace two-char prefix with spaces
                         i += 2;
                         c = q2; // fall through to quote handling below
@@ -75,13 +78,14 @@ static std::string stripStringLiterals(const std::string& code) {
                             }
                             continue;
                         }
-                        if (c == '"')  { in_double  = true; continue; }
-                        if (c == '\'') { in_single  = true; continue; }
+                        if (c == '"')  { in_double  = true; in_raw = is_raw; continue; }
+                        if (c == '\'') { in_single  = true; in_raw = is_raw; continue; }
                         continue;
                     }
                 }
                 // Check for single-letter prefix followed by quote
                 if (i + 1 < code.size() && (code[i+1] == '"' || code[i+1] == '\'')) {
+                    if (lc == 'r') in_raw = true;
                     result += ' ';  // replace prefix with space
                     i++;
                     c = code[i];
@@ -117,8 +121,8 @@ static std::string stripStringLiterals(const std::string& code) {
             continue;
         }
 
-        if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
-        if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
+        if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; if (!in_double) in_raw = false; continue; }
+        if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; if (!in_single) in_raw = false; continue; }
         if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
         if (!in_single && !in_double && !in_backtick) {
             result += c;
@@ -130,6 +134,51 @@ static std::string stripStringLiterals(const std::string& code) {
 // Normalize Unicode homoglyphs and zero-width characters to prevent evasion.
 // Replaces confusable characters (Cyrillic/Greek lookalikes, fullwidth Latin,
 // zero-width joiners/spaces) with their ASCII equivalents so regex patterns match.
+// Map Mathematical Alphanumeric Symbols (U+1D400-U+1D7FF) to ASCII equivalents.
+// These 4-byte UTF-8 codepoints include 13 alphabet variants (Bold, Italic,
+// Bold Italic, Script, Bold Script, Fraktur, Bold Fraktur, Double-Struck,
+// Sans-Serif, Sans-Serif Bold, Sans-Serif Italic, Sans-Serif Bold Italic,
+// Monospace) plus digit variants, used to evade pattern matching.
+static char mapMathAlpha(uint32_t cp) {
+    // Mathematical alphabet ranges — each variant has 52 chars (A-Z then a-z)
+    // with some holes for characters borrowed from other blocks
+    struct AlphaRange { uint32_t upper_start; uint32_t lower_start; };
+    static const AlphaRange ranges[] = {
+        {0x1D400, 0x1D41A}, // Bold
+        {0x1D434, 0x1D44E}, // Italic
+        {0x1D468, 0x1D482}, // Bold Italic
+        {0x1D49C, 0x1D4B6}, // Script
+        {0x1D4D0, 0x1D4EA}, // Bold Script
+        {0x1D504, 0x1D51E}, // Fraktur
+        {0x1D538, 0x1D552}, // Double-Struck
+        {0x1D56C, 0x1D586}, // Bold Fraktur
+        {0x1D5A0, 0x1D5BA}, // Sans-Serif
+        {0x1D5D4, 0x1D5EE}, // Sans-Serif Bold
+        {0x1D608, 0x1D622}, // Sans-Serif Italic
+        {0x1D63C, 0x1D656}, // Sans-Serif Bold Italic
+        {0x1D670, 0x1D68A}, // Monospace
+    };
+    for (const auto& r : ranges) {
+        if (cp >= r.upper_start && cp < r.upper_start + 26)
+            return static_cast<char>('A' + (cp - r.upper_start));
+        if (cp >= r.lower_start && cp < r.lower_start + 26)
+            return static_cast<char>('a' + (cp - r.lower_start));
+    }
+    // Mathematical digit variants (Bold through Monospace, 5 ranges of 10)
+    static const uint32_t digit_ranges[] = {
+        0x1D7CE, // Bold digits
+        0x1D7D8, // Double-Struck digits
+        0x1D7E2, // Sans-Serif digits
+        0x1D7EC, // Sans-Serif Bold digits
+        0x1D7F6, // Monospace digits
+    };
+    for (uint32_t dr : digit_ranges) {
+        if (cp >= dr && cp < dr + 10)
+            return static_cast<char>('0' + (cp - dr));
+    }
+    return 0; // Not a mathematical alphanumeric
+}
+
 static std::string normalizeUnicode(const std::string& code) {
     std::string result;
     result.reserve(code.size());
@@ -249,8 +298,22 @@ static std::string normalizeUnicode(const std::string& code) {
             continue;
         }
 
-        // 4-byte UTF-8 sequences — pass through unchanged
+        // 4-byte UTF-8 sequences (0xF0-0xF7 lead byte)
         if (c >= 0xF0 && c <= 0xF7 && i + 3 < code.size()) {
+            unsigned char c2 = static_cast<unsigned char>(code[i+1]);
+            unsigned char c3 = static_cast<unsigned char>(code[i+2]);
+            unsigned char c4 = static_cast<unsigned char>(code[i+3]);
+            uint32_t cp = (static_cast<uint32_t>(c & 0x07) << 18) |
+                          (static_cast<uint32_t>(c2 & 0x3F) << 12) |
+                          (static_cast<uint32_t>(c3 & 0x3F) << 6) |
+                          static_cast<uint32_t>(c4 & 0x3F);
+            char mapped = mapMathAlpha(cp);
+            if (mapped) {
+                result += mapped;
+                i += 3;
+                continue;
+            }
+            // Pass through other 4-byte sequences unchanged
             result += code[i];
             result += code[i + 1];
             result += code[i + 2];
