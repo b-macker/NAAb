@@ -247,10 +247,13 @@ class GovernanceEngine:
             # Write temp config file
             import tempfile
             tmpdir = os.environ.get("TMPDIR", "/tmp")
-            cfg_path = os.path.join(tmpdir, f"naab_gov_py_{os.getpid()}.json")
+            cfg_fd = tempfile.NamedTemporaryFile(
+                mode="w", delete=False, dir=tmpdir, suffix=".json", prefix="naab_gov_"
+            )
+            cfg_path = cfg_fd.name
             try:
-                with open(cfg_path, "w") as f:
-                    json.dump(config if isinstance(config, dict) else json.loads(config), f)
+                json.dump(config if isinstance(config, dict) else json.loads(config), cfg_fd)
+                cfg_fd.close()
                 cmd.extend(["--config", cfg_path])
                 proc = subprocess.run(
                     cmd, input=code, capture_output=True, text=True, timeout=30
