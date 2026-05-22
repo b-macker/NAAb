@@ -1057,9 +1057,14 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
 
     // Verify Ed25519 signature if approver_keys are configured
     if (!rules_.approval.approver_keys.empty() && !token.signature_b64.empty()) {
-        // Canonical content: "rule_name|approver_id|reason|expiry_timestamp"
-        std::string canonical = token.rule_name + "|" + token.approver_id + "|"
-            + token.reason + "|" + std::to_string(token.expiry_timestamp);
+        // Length-prefixed canonical encoding — prevents pipe injection in reason field.
+        // Format: "len:rule_name""len:approver_id""len:reason""expiry_timestamp"
+        // Breaking change: pre-existing signed tokens will fail verification.
+        auto lpEncode = [](const std::string& s) -> std::string {
+            return std::to_string(s.size()) + ":" + s;
+        };
+        std::string canonical = lpEncode(token.rule_name) + lpEncode(token.approver_id)
+            + lpEncode(token.reason) + std::to_string(token.expiry_timestamp);
         // Load trusted keys and check if any matching fingerprint verifies
         auto keys = security::TrustStore::loadKeys();
         for (const auto& key_fp : rules_.approval.approver_keys) {

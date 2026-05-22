@@ -182,10 +182,12 @@ interpreter::NaabVal CryptoModule::call(
             throw std::runtime_error("random_int() min must be <= max");
         }
 
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(min, max);
-        return makeInt(dis(gen));
+        // Use CSPRNG for crypto module consistency
+        std::string rand_bytes = generate_random_bytes(8);
+        uint64_t raw;
+        std::memcpy(&raw, rand_bytes.data(), sizeof(raw));
+        uint64_t range = static_cast<uint64_t>(max - min) + 1;
+        return makeInt(static_cast<int>(min + static_cast<int64_t>(raw % range)));
     }
 
     // Function 12: compare_digest - Constant-time string comparison
@@ -227,17 +229,18 @@ interpreter::NaabVal CryptoModule::call(
         return makeString(hex_encode(random));
     }
 
-    // Function 14: hash_password - Simple password hashing using SHA256
+    // Function 14: hash_password - removed (unsalted SHA-256 is not password hashing)
     if (function_name == "hash_password") {
-        if (args.size() != 1) {
-            throw std::runtime_error("hash_password() takes exactly 1 argument");
-        }
-        std::string password = getString(args[0]);
-
-        // Simple SHA256 hash (in production, use bcrypt or argon2)
-        // Note: This is for compatibility; proper password hashing needs salt + iterations
-        std::string hashed = hash_sha256(password);
-        return makeString(hashed);
+        throw std::runtime_error(
+            "crypto.hash_password() is not available — use a polyglot block with bcrypt instead\n\n"
+            "  Help:\n"
+            "  - NAAb does not include a password hashing algorithm (bcrypt/argon2)\n"
+            "  - Use a Python polyglot block for password hashing\n\n"
+            "  Example:\n"
+            "    <<python\n"
+            "    import bcrypt\n"
+            "    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())\n"
+            "    >>\n");
     }
 
     // Hash dispatcher: crypto.hash("sha256", data)
