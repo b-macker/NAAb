@@ -805,10 +805,18 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (!args.empty()) {
                         // Sort with comparator function: arr.sort(fn(a, b) { return -1/0/1 })
                         NaabVal comp_fn = args[0];
-                        std::sort(arr.begin(), arr.end(), [this, &comp_fn](const NaabVal& a, const NaabVal& b) {
-                            auto res = callFunction(comp_fn, {a, b});
-                            return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                        std::exception_ptr sort_ex;
+                        std::sort(arr.begin(), arr.end(), [this, &comp_fn, &sort_ex](const NaabVal& a, const NaabVal& b) -> bool {
+                            if (sort_ex) return false;
+                            try {
+                                auto res = callFunction(comp_fn, {a, b});
+                                return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                            } catch (...) {
+                                sort_ex = std::current_exception();
+                                return false;
+                            }
                         });
+                        if (sort_ex) std::rethrow_exception(sort_ex);
                     } else {
                         // Default sort: numeric then string comparison
                         std::sort(arr.begin(), arr.end(), [](const NaabVal& a, const NaabVal& b) {
@@ -1750,10 +1758,18 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (method_name == "sort") {
                 if (!args.empty()) {
                     NaabVal comp_fn = args[0];
-                    std::sort(arr.begin(), arr.end(), [this, &comp_fn](const NaabVal& a, const NaabVal& b) {
-                        auto res = callFunction(comp_fn, {a, b});
-                        return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                    std::exception_ptr sort_ex;
+                    std::sort(arr.begin(), arr.end(), [this, &comp_fn, &sort_ex](const NaabVal& a, const NaabVal& b) -> bool {
+                        if (sort_ex) return false;
+                        try {
+                            auto res = callFunction(comp_fn, {a, b});
+                            return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                        } catch (...) {
+                            sort_ex = std::current_exception();
+                            return false;
+                        }
                     });
+                    if (sort_ex) std::rethrow_exception(sort_ex);
                 } else {
                     std::sort(arr.begin(), arr.end(), [](const NaabVal& a, const NaabVal& b) {
                         bool a_num = a.isInt() || a.isDouble();

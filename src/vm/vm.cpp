@@ -746,14 +746,8 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_COPY_VALUE): {
                 // Deep copy TOS if it's a list or dict (value semantics)
                 interpreter::NaabVal& top = peek(0);
-                if (top.isList()) {
-                    const auto& list = top.asListConst();
-                    std::vector<interpreter::NaabVal> new_list(list.begin(), list.end());
-                    top = interpreter::NaabVal::makeList(std::move(new_list));
-                } else if (top.isDict()) {
-                    const auto& dict = top.asDictConst();
-                    std::unordered_map<std::string, interpreter::NaabVal> new_dict(dict.begin(), dict.end());
-                    top = interpreter::NaabVal::makeDict(std::move(new_dict));
+                if (top.isList() || top.isDict()) {
+                    top = top.deepCopy();
                 }
                 // Other types: no-op (ints, strings, bools are value types)
             }
@@ -939,7 +933,10 @@ interpreter::NaabVal VM::run() {
                     int64_t count = b.asInt();
                     if (count > 0) {
                         const std::string& s = a.asString();
-                        result.reserve(s.size() * count);
+                        size_t total = s.size() * static_cast<size_t>(count);
+                        if (total > naab::limits::MAX_STRING_LENGTH)
+                            runtimeError("String repetition too large: %zu bytes exceeds limit", total);
+                        result.reserve(total);
                         for (int64_t i = 0; i < count; i++) result += s;
                     }
                     push(interpreter::NaabVal::makeString(std::move(result)));
@@ -949,7 +946,10 @@ interpreter::NaabVal VM::run() {
                     int64_t count = a.asInt();
                     if (count > 0) {
                         const std::string& s = b.asString();
-                        result.reserve(s.size() * count);
+                        size_t total = s.size() * static_cast<size_t>(count);
+                        if (total > naab::limits::MAX_STRING_LENGTH)
+                            runtimeError("String repetition too large: %zu bytes exceeds limit", total);
+                        result.reserve(total);
                         for (int64_t i = 0; i < count; i++) result += s;
                     }
                     push(interpreter::NaabVal::makeString(std::move(result)));
@@ -1197,7 +1197,20 @@ interpreter::NaabVal VM::run() {
                 if (container.isList()) {
                     bool found = false;
                     for (auto& elem : container.asList()) {
-                        if (elem.toString() == item.toString()) { found = true; break; }
+                        // Type-aware equality matching OP_EQ semantics
+                        bool eq = false;
+                        if (elem.isNull() && item.isNull()) {
+                            eq = true;
+                        } else if (elem.isNull() || item.isNull()) {
+                            eq = false;
+                        } else if (elem.isBool() && item.isBool()) {
+                            eq = elem.toBool() == item.toBool();
+                        } else if ((elem.isInt() || elem.isDouble()) && (item.isInt() || item.isDouble())) {
+                            eq = elem.toFloat() == item.toFloat();
+                        } else if (elem.isString() && item.isString()) {
+                            eq = elem.toString() == item.toString();
+                        }
+                        if (eq) { found = true; break; }
                     }
                     push(interpreter::NaabVal::makeBool(found));
                 } else if (container.isDict()) {
@@ -2329,7 +2342,9 @@ interpreter::NaabVal VM::run() {
                         auto fn_it = dict.find("__generator__");
                         auto args_it = dict.find("__args__");
                         if (fn_it != dict.end() && fn_it->second.isVMClosure()) {
-                            auto& gen_args = args_it->second.asListConst();
+                            std::vector<interpreter::NaabVal> empty_args;
+                            const auto& gen_args = (args_it != dict.end() && args_it->second.isList())
+                                ? args_it->second.asListConst() : empty_args;
                             // Save and set generator collection target
                             auto* saved_gen = generator_values_;
                             std::vector<interpreter::NaabVal> collected;
@@ -3255,6 +3270,7 @@ interpreter::NaabVal VM::run() {
             ExceptionHandler handler = exception_handlers_.back();
             exception_handlers_.pop_back();
             while (frame_count_ - 1 > handler.frame_index) {
+                closeUpvalues(frames_[frame_count_ - 1].slots);
                 frame_count_--;
             }
             frame = &frames_[frame_count_ - 1];
@@ -3274,6 +3290,7 @@ interpreter::NaabVal VM::run() {
             ExceptionHandler handler = exception_handlers_.back();
             exception_handlers_.pop_back();
             while (frame_count_ - 1 > handler.frame_index) {
+                closeUpvalues(frames_[frame_count_ - 1].slots);
                 frame_count_--;
             }
             frame = &frames_[frame_count_ - 1];
@@ -4084,12 +4101,20 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             if (argc >= 1 && args[0].isVMClosure()) {
                 // Comparator sort: fn(a, b) returns <0, 0, >0
                 auto comp_fn = args[0];
-                std::sort(arr.begin(), arr.end(), [this, &comp_fn](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
-                    auto res = callNaabFunction(comp_fn, {a, b});
-                    if (res.isInt()) return res.asInt() < 0;
-                    if (res.isDouble()) return res.asDouble() < 0;
-                    return false;
+                std::exception_ptr sort_ex;
+                std::sort(arr.begin(), arr.end(), [this, &comp_fn, &sort_ex](const interpreter::NaabVal& a, const interpreter::NaabVal& b) -> bool {
+                    if (sort_ex) return false;
+                    try {
+                        auto res = callNaabFunction(comp_fn, {a, b});
+                        if (res.isInt()) return res.asInt() < 0;
+                        if (res.isDouble()) return res.asDouble() < 0;
+                        return false;
+                    } catch (...) {
+                        sort_ex = std::current_exception();
+                        return false;
+                    }
                 });
+                if (sort_ex) std::rethrow_exception(sort_ex);
             } else {
                 // Default sort: numeric then string
                 std::sort(arr.begin(), arr.end(), [](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
