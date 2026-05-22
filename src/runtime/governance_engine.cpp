@@ -190,6 +190,22 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     {"python", "ctypes\\.(?:CDLL|cdll|windll)\\s*\\(",
      "ctypes dynamic library loading (can execute native code)",
      "Use NAAb stdlib instead"},
+    // Reflection-based function lookup (evasion vectors)
+    {"python", "\\bglobals\\s*\\(\\s*\\)\\s*\\[",
+     "globals() dict access (reflection-based function lookup)",
+     "Call functions directly instead of through globals()"},
+    {"python", "\\blocals\\s*\\(\\s*\\)\\s*\\[",
+     "locals() dict access (reflection-based function lookup)",
+     "Call functions directly instead of through locals()"},
+    {"python", "\\bvars\\s*\\(\\s*\\)\\s*\\[",
+     "vars() dict access (reflection-based function lookup)",
+     "Call functions directly instead of through vars()"},
+    {"python", "\\b__builtins__\\s*[\\[.]",
+     "__builtins__ access (direct builtin manipulation)",
+     "Use standard function calls instead of __builtins__ access"},
+    {"python", "\\.__dict__\\s*\\[",
+     "__dict__ attribute access (reflection-based function lookup)",
+     "Access attributes directly instead of through __dict__"},
 
     // JavaScript
     {"javascript", "\\beval\\s*\\(",       "eval() call",

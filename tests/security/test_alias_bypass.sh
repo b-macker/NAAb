@@ -223,6 +223,60 @@ c("rm -rf /")'
 
 echo ""
 
+# ─── Python: Dict/list indirection ─────────────────────────────────────
+
+echo "--- Python: Dict/list indirection ---"
+
+check_blocked "dict subscript: d[key] = os.system; d[key](cmd)" \
+    python 'import os
+d = {}
+d["fn"] = os.system
+d["fn"]("rm -rf /")'
+
+check_blocked "list literal: fns = [os.system]; fns[0](cmd)" \
+    python 'import os
+fns = [os.system]
+fns[0]("rm -rf /")'
+
+check_blocked "dict with subprocess.Popen" \
+    python 'import subprocess
+handlers = {}
+handlers["run"] = subprocess.Popen
+handlers["run"](["rm"])'
+
+check_not_blocked "dict with safe values only" \
+    python 'handlers = {}
+handlers["greet"] = print
+handlers["greet"]("hello")'
+
+echo ""
+
+# ─── Python: Reflection access ─────────────────────────────────────────
+
+echo "--- Python: Reflection access ---"
+
+check_blocked "globals() dict access" \
+    python 'globals()["eval"]("code")'
+
+check_blocked "locals() dict access" \
+    python 'locals()["exec"]("code")'
+
+check_blocked "vars() dict access" \
+    python 'vars()["eval"]("code")'
+
+check_blocked "__builtins__ bracket access" \
+    python '__builtins__["eval"]("code")'
+
+check_blocked "__builtins__.__dict__ access" \
+    python '__builtins__.__dict__["eval"]("code")'
+
+check_blocked "os.__dict__ function extraction" \
+    python 'import os
+fn = os.__dict__["system"]
+fn("rm")'
+
+echo ""
+
 # ─── JavaScript ─────────────────────────────────────────────────────────
 
 echo "--- JavaScript aliases ---"

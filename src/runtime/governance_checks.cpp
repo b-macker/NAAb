@@ -344,6 +344,55 @@ static std::string expandDangerousAliases(const std::string& language,
         } catch (const std::regex_error&) {}
     }
 
+    // ── Phase 1c: Dict/list indirection ─────────────────────────────────
+    // Detect two patterns:
+    //   container[key] = dangerous_ref  (subscript assignment)
+    //   container = [...dangerous_ref...]  (list literal containing ref)
+    // Expand: container[...](  → canonical(
+    std::unordered_map<std::string, std::string> dict_aliases;  // container → canonical
+
+    for (const auto& ref : *refs) {
+        // Subscript assignment: d["key"] = os.system
+        std::string sub_pat = "(\\w+)\\s*\\[[^\\]]*\\]\\s*" + assign_op + "\\s*\\b(" +
+                              ref.pattern + ")\\b(?!\\s*\\()";
+        try {
+            std::regex re(sub_pat, std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(working.begin(), working.end(), re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                auto lhs_pos = static_cast<size_t>((*m).position(1));
+                if (lhs_pos > 0 && working[lhs_pos - 1] == '.') continue;
+
+                if (ref.builtin) {
+                    auto rhs_pos = static_cast<size_t>((*m).position(2));
+                    if (rhs_pos > 0 && working[rhs_pos - 1] == '.') continue;
+                }
+
+                dict_aliases[(*m)[1].str()] = ref.canonical;
+            }
+        } catch (const std::regex_error&) {}
+
+        // List literal: fns = [os.system] or fns = [x, os.system, y]
+        std::string list_pat = "(\\w+)\\s*" + assign_op + "\\s*\\[[^\\]]*\\b(" +
+                               ref.pattern + ")\\b(?!\\s*\\()[^\\]]*\\]";
+        try {
+            std::regex re(list_pat, std::regex::ECMAScript);
+            auto begin = std::sregex_iterator(working.begin(), working.end(), re);
+            auto end_it = std::sregex_iterator();
+            for (auto m = begin; m != end_it; ++m) {
+                auto lhs_pos = static_cast<size_t>((*m).position(1));
+                if (lhs_pos > 0 && working[lhs_pos - 1] == '.') continue;
+
+                if (ref.builtin) {
+                    auto rhs_pos = static_cast<size_t>((*m).position(2));
+                    if (rhs_pos > 0 && working[rhs_pos - 1] == '.') continue;
+                }
+
+                dict_aliases[(*m)[1].str()] = ref.canonical;
+            }
+        } catch (const std::regex_error&) {}
+    }
+
     // ── Phase 2: Python from-import patterns ────────────────────────────
     if (language == "python") {
         static const std::unordered_map<std::string, std::string> IMPORT_MAP = {
@@ -477,15 +526,25 @@ static std::string expandDangerousAliases(const std::string& language,
         }
     }
 
-    if (aliases.empty()) return working;
+    if (aliases.empty() && dict_aliases.empty()) return working;
 
-    // ── Phase 4: Expand function aliases in code ────────────────────────
-    // Replace alias( with canonical( so downstream pattern checks match
+    // ── Phase 4: Expand aliases in code ─────────────────────────────────
+
+    // 4a: Function aliases — replace alias( with canonical(
     for (const auto& kv : aliases) {
         try {
             std::string call_pat = "\\b" + kv.first + "(\\s*\\()";
             std::regex call_re(call_pat, std::regex::ECMAScript);
             working = std::regex_replace(working, call_re, kv.second + "$1");
+        } catch (const std::regex_error&) {}
+    }
+
+    // 4b: Dict/list indirection — replace container[...](  with canonical(
+    for (const auto& kv : dict_aliases) {
+        try {
+            std::string pat = "\\b" + kv.first + "\\s*\\[[^\\]]*\\](\\s*\\()";
+            std::regex re(pat, std::regex::ECMAScript);
+            working = std::regex_replace(working, re, kv.second + "$1");
         } catch (const std::regex_error&) {}
     }
 
