@@ -292,6 +292,39 @@ check_not_blocked "safe JS code (no alias)" \
 
 echo ""
 
+# ─── JavaScript: Reflection access ────────────────────────────────────
+
+echo "--- JavaScript: Reflection access ---"
+
+check_blocked "eval alias in JS" \
+    javascript 'const fn = eval; fn("alert(1)")'
+
+check_blocked "Function alias in JS" \
+    javascript 'const create = Function; create("return 1")()'
+
+check_blocked "window bracket access in JS" \
+    javascript 'window["eval"]("alert(1)")'
+
+check_blocked "globalThis bracket access in JS" \
+    javascript 'globalThis["eval"]("alert(1)")'
+
+check_blocked "global bracket access in JS" \
+    javascript 'global["eval"]("alert(1)")'
+
+check_blocked "Reflect.apply in JS" \
+    javascript 'Reflect.apply(eval, null, ["alert(1)"])'
+
+check_blocked "Reflect.construct in JS" \
+    javascript 'Reflect.construct(Function, ["return 1"])()'
+
+check_not_blocked "safe JS code (no reflection)" \
+    javascript 'const x = 42; console.log(x)'
+
+check_not_blocked "safe window dot property access in JS" \
+    javascript 'const w = window.innerWidth; console.log(w)'
+
+echo ""
+
 # ─── Go ─────────────────────────────────────────────────────────────────
 
 echo "--- Go aliases ---"
@@ -300,6 +333,22 @@ check_blocked "exec.Command alias in Go" \
     go 'import "os/exec"
 fn := exec.Command
 fn("rm", "-rf", "/")'
+
+echo ""
+
+echo "--- Go: Reflection access ---"
+
+check_blocked "reflect.ValueOf in Go" \
+    go 'import "reflect"
+reflect.ValueOf(exec.Command).Call(args)'
+
+check_blocked "reflect.New in Go" \
+    go 'import "reflect"
+reflect.New(someType)'
+
+check_not_blocked "safe Go code (no reflection)" \
+    go 'import "fmt"
+fmt.Println("hello")'
 
 echo ""
 
@@ -313,6 +362,36 @@ run("rm -rf /")'
 
 echo ""
 
+echo "--- Ruby: Reflection access ---"
+
+check_blocked "send() dynamic dispatch in Ruby" \
+    ruby 'obj.send(:system, "rm -rf /")'
+
+check_blocked "public_send() dynamic dispatch in Ruby" \
+    ruby 'obj.public_send(:exec, "rm")'
+
+check_blocked "method(:sym) extraction in Ruby" \
+    ruby 'fn = method(:system)
+fn.call("rm")'
+
+check_blocked "instance_eval in Ruby" \
+    ruby 'obj.instance_eval("system(\"rm\")")'
+
+check_blocked "class_eval in Ruby" \
+    ruby 'String.class_eval("def x; system(\"rm\"); end")'
+
+check_blocked "module_eval in Ruby" \
+    ruby 'Kernel.module_eval("system(\"rm\")")'
+
+check_blocked "const_get in Ruby" \
+    ruby 'Object.const_get(:FileUtils)'
+
+check_not_blocked "safe Ruby code (no reflection)" \
+    ruby 'x = [1, 2, 3]
+puts x.length'
+
+echo ""
+
 # ─── PHP ────────────────────────────────────────────────────────────────
 
 echo "--- PHP aliases ---"
@@ -320,6 +399,65 @@ echo "--- PHP aliases ---"
 check_blocked "system alias in PHP" \
     php 'fn = system
 fn("rm -rf /")'
+
+echo ""
+
+echo "--- PHP: Reflection access ---"
+
+check_blocked "call_user_func in PHP" \
+    php 'call_user_func("system", "rm -rf /")'
+
+check_blocked "call_user_func_array in PHP" \
+    php 'call_user_func_array("exec", ["rm -rf /"])'
+
+check_blocked "create_function in PHP" \
+    php 'create_function("", "system(\"rm\");")'
+
+check_blocked "assert() code execution in PHP" \
+    php 'assert("system(\"rm\")")'
+
+check_blocked "ReflectionFunction in PHP" \
+    php '$f = new ReflectionFunction("system");
+$f->invoke("rm")'
+
+check_blocked "ReflectionMethod in PHP" \
+    php '$m = new ReflectionMethod($obj, "exec");
+$m->invoke($obj, "rm")'
+
+check_blocked "variable variables in PHP" \
+    php '${$var}("rm -rf /")'
+
+check_not_blocked "safe PHP code (no reflection)" \
+    php '$x = 42;
+echo $x;'
+
+echo ""
+
+# ─── C# ────────────────────────────────────────────────────────────────
+
+echo "--- C#: Reflection access ---"
+
+check_blocked "Type.GetType reflection in C#" \
+    csharp 'Type.GetType("System.Diagnostics.Process")'
+
+check_blocked "GetMethod reflection in C#" \
+    csharp 'type.GetMethod("Start")'
+
+check_blocked "MethodInfo.Invoke in C#" \
+    csharp 'method.Invoke(null, args)'
+
+check_blocked "Activator.CreateInstance in C#" \
+    csharp 'Activator.CreateInstance(processType)'
+
+check_blocked "Assembly.Load in C#" \
+    csharp 'Assembly.Load("System.Diagnostics")'
+
+check_blocked "Assembly.LoadFrom in C#" \
+    csharp 'Assembly.LoadFrom("/path/to/evil.dll")'
+
+check_not_blocked "safe C# code (no reflection)" \
+    csharp 'var x = 42;
+Console.WriteLine(x);'
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
