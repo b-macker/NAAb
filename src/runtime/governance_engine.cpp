@@ -12,6 +12,7 @@
 #include "naab/crypto_utils.h"
 #include "naab/trust_store.h"
 #include "naab/secure_file.h"
+#include "naab/subprocess_helpers.h"
 #include "naab/ast.h"
 #include "naab/interpreter.h"
 #include "naab/analyzer/syntactic_analyzer.h"
@@ -22,6 +23,7 @@
 #include <sstream>
 #include <regex>
 #include <chrono>
+#include <ctime>
 #include <algorithm>
 #ifndef _WIN32
 #  include <sys/file.h>
@@ -1671,6 +1673,19 @@ std::string GovernanceEngine::checkPlaceholders(
                 if (start != std::string::npos) {
                     matched_line = matched_line.substr(start);
                 }
+
+                // Skip false positives: match arms (e.g. "Draft => ...") and
+                // enum declarations (e.g. "Draft,") — these are identifiers, not placeholders
+                {
+                    std::regex arm_pat("\\b" + placeholder + "\\s*=>",
+                                      std::regex::icase);
+                    std::regex enum_pat("^\\s*" + placeholder + "\\s*[,}]",
+                                        std::regex::icase);
+                    if (std::regex_search(matched_line, arm_pat) ||
+                        std::regex_search(matched_line, enum_pat)) {
+                        continue;  // Not a real placeholder — skip
+                    }
+                }
                 if (matched_line.size() > 80) {
                     matched_line = matched_line.substr(0, 80) + "...";
                 }
@@ -3105,12 +3120,20 @@ static std::string detectSignatureType(const std::string& sig) {
     return "legacy";  // raw hex, assume HMAC (backward compat)
 }
 
-// Trust store check. Cached per-process — safe because --keygen/--trust-key
-// always exit(0) immediately, so the cache is never stale during a run.
+// Trust store check. Re-validates each call to detect mid-run deletion.
 static bool hasTrustStoreKeys() {
-    static int cached = -1;
-    if (cached < 0) cached = security::TrustStore::hasKeys() ? 1 : 0;
-    return cached == 1;
+    return security::TrustStore::hasKeys();
+}
+
+// Tracks whether the trust store had keys on first check.
+// Returns true if keys existed initially but are now gone (tamper signal).
+// Thread-safe: agent worker threads may call governance checks concurrently.
+static bool trustStoreTampered() {
+    static std::atomic<int> first_state{-1};  // -1=unchecked, 0=empty, 1=populated
+    bool current = security::TrustStore::hasKeys();
+    int expected = -1;
+    first_state.compare_exchange_strong(expected, current ? 1 : 0);
+    return first_state.load(std::memory_order_acquire) == 1 && !current;
 }
 
 // Does the process have any signing capability?
@@ -3182,7 +3205,9 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
                     file_path.c_str());
             return false;
         }
-        sig_content = std::string(SIG_PREFIX_ED25519) + b64_sig;
+        // Authority Decay: append unix timestamp as metadata (not signed content)
+        sig_content = std::string(SIG_PREFIX_ED25519) + b64_sig + ":"
+                      + std::to_string(static_cast<int64_t>(std::time(nullptr)));
     } else {
         // Legacy HMAC fallback
         const char* key = std::getenv(GOVERN_KEY_ENV);
@@ -3217,6 +3242,13 @@ bool GovernanceEngine::verifySignatureImpl(
     const char* hmac_key = std::getenv(GOVERN_KEY_ENV);
     bool have_hmac_key = hmac_key && *hmac_key;
 
+    // Detect mid-process trust store deletion (keys existed at startup, now gone)
+    if (trustStoreTampered()) {
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: trust store keys removed during execution\n");
+        return false;
+    }
+
     // Open .sig directly to avoid TOCTOU race between exists() and open()
     std::ifstream sig_ifs(sig_path);
     bool sig_exists = sig_ifs.is_open();
@@ -3236,9 +3268,8 @@ bool GovernanceEngine::verifySignatureImpl(
         // V-SC-008 legacy: HMAC key set → BLOCK
         if (have_hmac_key) {
             fprintf(stderr,
-                "[governance] INTEGRITY BLOCK: %s.sig missing but NAAB_GOVERN_KEY is set.\n"
-                "  When the signing key is present, all governance files must be signed.\n"
-                "  Sign with: naab-lang --sign-governance (or --sign-baseline)\n",
+                "[governance] INTEGRITY BLOCK: %s.sig missing but signing key is configured.\n"
+                "  When a signing key is present, all governance files must be signed.\n",
                 file_path.c_str());
             return false;
         }
@@ -3264,30 +3295,87 @@ bool GovernanceEngine::verifySignatureImpl(
     std::string sig_type = detectSignatureType(stored_sig);
 
     if (sig_type == "ed25519") {
-        std::string b64_sig = stored_sig.substr(strlen(SIG_PREFIX_ED25519));
+        // Parse envelope: "ed25519:<base64-sig>" or "ed25519:<base64-sig>:<unix-timestamp>"
+        std::string remainder = stored_sig.substr(strlen(SIG_PREFIX_ED25519));
+        std::string b64_sig = remainder;
+        int64_t signed_at = 0;
+
+        auto colon_pos = remainder.find(':');
+        if (colon_pos != std::string::npos) {
+            b64_sig = remainder.substr(0, colon_pos);
+            try {
+                signed_at = std::stoll(remainder.substr(colon_pos + 1));
+            } catch (...) {
+                // Malformed timestamp — ignore, treat as no timestamp
+            }
+        }
 
         if (have_trust_keys) {
             // Verify against each trusted key
             auto keys = security::TrustStore::loadKeys();
+            if (keys.empty()) {
+                // Trust store was populated at hasTrustStoreKeys() but loadKeys() returned empty
+                fprintf(stderr,
+                    "[governance] INTEGRITY BLOCK: trust store directory emptied during verification\n");
+                return false;
+            }
+            bool verified = false;
             for (const auto& [fingerprint, pem] : keys) {
                 if (security::CryptoUtils::ed25519Verify(content, b64_sig, pem)) {
-                    return true;  // Verified against a trusted key
+                    verified = true;
+                    break;
                 }
             }
-            fprintf(stderr,
-                "[governance] INTEGRITY BLOCK: %s signature does not match any trusted key.\n"
-                "  The Ed25519 signature was checked against %zu trusted key(s) — none matched.\n"
-                "  This file may have been signed with an untrusted key or tampered with.\n",
-                file_path.c_str(), keys.size());
-            return false;
+            if (!verified) {
+                fprintf(stderr,
+                    "[governance] INTEGRITY BLOCK: %s signature does not match any trusted key.\n"
+                    "  The Ed25519 signature was checked against %zu trusted key(s) — none matched.\n"
+                    "  This file may have been signed with an untrusted key or tampered with.\n",
+                    file_path.c_str(), keys.size());
+                return false;
+            }
+
+            // Authority Decay: check signature staleness
+            if (signed_at > 0 && rules_.trust_policy.max_signature_age_days > 0) {
+                int64_t now = static_cast<int64_t>(std::time(nullptr));
+                int64_t age_days = (now - signed_at) / 86400;
+                if (age_days > rules_.trust_policy.max_signature_age_days) {
+                    if (rules_.trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
+                        fprintf(stderr,
+                            "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
+                            "  Re-sign with: naab-lang --sign-governance\n",
+                            file_path.c_str(), static_cast<long long>(age_days),
+                            rules_.trust_policy.max_signature_age_days);
+                        return false;
+                    } else if (rules_.trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
+                        fprintf(stderr,
+                            "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
+                            "  Re-sign with: naab-lang --sign-governance\n",
+                            file_path.c_str(), static_cast<long long>(age_days),
+                            rules_.trust_policy.max_signature_age_days);
+                        // SOFT: block unless override enabled
+                        if (!override_enabled_) return false;
+                    } else {
+                        fprintf(stderr,
+                            "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
+                            "  Consider re-signing: naab-lang --sign-governance\n",
+                            file_path.c_str(), static_cast<long long>(age_days),
+                            rules_.trust_policy.max_signature_age_days);
+                    }
+                }
+            }
+
+            return true;  // Verified against a trusted key
         }
 
-        // Ed25519 sig but no trust store keys → WARN once per file, proceed unsigned
+        // Ed25519 sig but no trust store keys.
+        // If keys were present at startup but disappeared → tamper (caught above by trustStoreTampered()).
+        // If keys were never present → unconfigured environment, warn and proceed.
         if (signature_warned_files_.find(file_path) == signature_warned_files_.end()) {
             signature_warned_files_.insert(file_path);
             fprintf(stderr,
-                "[governance] WARNING: %s is Ed25519-signed but no trusted keys installed.\n"
-                "  Cannot verify signature. Install the public key: naab-lang --trust-key <pubkey.pem>\n",
+                "[governance] WARNING: %s is Ed25519-signed but no trusted keys are installed.\n"
+                "  Signature cannot be verified.\n",
                 file_path.c_str());
         }
         return true;
@@ -3298,7 +3386,7 @@ bool GovernanceEngine::verifySignatureImpl(
         // Trust store has Ed25519 keys but sig is HMAC → must re-sign
         fprintf(stderr,
             "[governance] INTEGRITY BLOCK: %s has legacy HMAC signature but Ed25519 trusted keys are installed.\n"
-            "  Re-sign with Ed25519: export NAAB_SIGNING_KEY=<path-to-private-key> && naab-lang --sign-governance\n",
+            "  Re-sign with Ed25519 to match the trust store.\n",
             file_path.c_str());
         return false;
     }
@@ -3307,9 +3395,8 @@ bool GovernanceEngine::verifySignatureImpl(
     if (!have_hmac_key) {
         // V-SC-007: .sig exists but no HMAC key → fail closed
         fprintf(stderr,
-            "[governance] INTEGRITY BLOCK: %s.sig exists but NAAB_GOVERN_KEY is not set.\n"
-            "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n"
-            "  Set NAAB_GOVERN_KEY to verify, or contact the project owner.\n",
+            "[governance] INTEGRITY BLOCK: %s.sig exists but the signing key is not available.\n"
+            "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n",
             file_path.c_str());
         return false;
     }
@@ -3418,10 +3505,8 @@ std::string GovernanceEngine::checkDriftDetection(
             if (!have_hmac) {
                 std::string msg =
                     "Drift baseline records that governance signing was previously configured, "
-                    "but no signing keys are currently available (no trusted Ed25519 keys, no NAAB_GOVERN_KEY). "
-                    "This may indicate tampering — signing keys should not disappear.\n"
-                    "  Fix: Install the trusted public key: naab-lang --trust-key <pubkey.pem>\n"
-                    "  Or restore NAAB_GOVERN_KEY environment variable.";
+                    "but no signing keys are currently available. "
+                    "Signing keys should not disappear.";
                 fprintf(stderr, "[governance] INTEGRITY BLOCK: %s\n", msg.c_str());
                 enforce("drift_detection.trust_anchor", EnforcementLevel::HARD, msg);
                 return "[governance] Drift detection FAILED:\n  " + msg + "\n";
@@ -4141,8 +4226,7 @@ void GovernanceEngine::saveDriftBaseline(
         if (!hasSigningCapability()) {
             fprintf(stderr,
             "[governance] INTEGRITY BLOCK: Cannot overwrite signed baseline %s\n"
-            "  This baseline is signed. Only the project owner with NAAB_SIGNING_KEY (Ed25519)\n"
-            "  or NAAB_GOVERN_KEY (legacy HMAC) can save a new baseline.\n",
+            "  This baseline is signed. Signing keys must be available to save a new baseline.\n",
             resolved.c_str());
             return;
         }
@@ -4172,8 +4256,7 @@ void GovernanceEngine::saveDriftBaseline(
                     fprintf(stderr,
                         "[governance] INTEGRITY BLOCK: Cannot overwrite baseline %s\n"
                         "  This baseline records that governance signing was previously configured.\n"
-                        "  Signing keys must be present to save a new baseline.\n"
-                        "  Install the trusted public key: naab-lang --trust-key <pubkey.pem>\n",
+                        "  Signing keys must be present to save a new baseline.\n",
                         resolved.c_str());
                     return;
                 }
@@ -4453,6 +4536,250 @@ void GovernanceEngine::checkRuntimeVersions(const std::string& language,
         }
         break;  // Only one pin per language
     }
+}
+
+// ============================================================================
+// Environment Attestation (Prerequisites)
+// ============================================================================
+
+std::vector<AttestationResult> GovernanceEngine::runAttestation() {
+    attestation_results_.clear();
+    attestation_passed_ = true;
+
+    if (!rules_.prerequisites.enabled) return attestation_results_;
+
+    for (const auto& check : rules_.prerequisites.checks) {
+        AttestationResult result;
+        result.check_type = check.type;
+        result.check_name = check.name;
+        result.required = check.required;
+        result.level = check.level;
+
+        if (check.type == "env_var") {
+            const char* val = std::getenv(check.name.c_str());
+            if (val) {
+                result.observed = val;
+                if (check.required == "exists" || check.required.empty()) {
+                    result.passed = true;
+                } else {
+                    result.passed = (std::string(val) == check.required);
+                }
+            } else {
+                result.observed = "<not set>";
+                result.passed = false;
+            }
+        } else if (check.type == "python_version") {
+            std::string out, err;
+            int rc = naab::runtime::execute_subprocess_with_pipes("python3", {"--version"}, out, err);
+            if (rc == 0) {
+                // "Python 3.11.5\n" → "3.11.5"
+                std::string ver = out;
+                auto pos = ver.find(' ');
+                if (pos != std::string::npos) ver = ver.substr(pos + 1);
+                while (!ver.empty() && (ver.back() == '\n' || ver.back() == '\r')) ver.pop_back();
+                result.observed = ver;
+                result.passed = versionSatisfies(ver, check.required);
+            } else {
+                result.observed = "<not found>";
+                result.passed = false;
+            }
+        } else if (check.type == "tool") {
+            std::string out, err;
+            int rc = naab::runtime::execute_subprocess_with_pipes("which", {check.name}, out, err);
+            result.passed = (rc == 0);
+            result.observed = result.passed ? "installed" : "<not found>";
+        } else if (check.type == "package") {
+            // Format: "pip:requests" or "npm:express"
+            auto colon = check.name.find(':');
+            if (colon != std::string::npos) {
+                std::string mgr = check.name.substr(0, colon);
+                std::string pkg = check.name.substr(colon + 1);
+                std::string out, err;
+                int rc = -1;
+                if (mgr == "pip") {
+                    rc = naab::runtime::execute_subprocess_with_pipes("pip", {"show", pkg}, out, err);
+                    if (rc == 0) {
+                        // Parse "Version: X.Y.Z" from pip show output
+                        auto vpos = out.find("Version: ");
+                        if (vpos != std::string::npos) {
+                            std::string ver = out.substr(vpos + 9);
+                            auto nl = ver.find('\n');
+                            if (nl != std::string::npos) ver = ver.substr(0, nl);
+                            result.observed = ver;
+                            result.passed = versionSatisfies(ver, check.required);
+                        } else {
+                            result.observed = "installed (version unknown)";
+                            result.passed = (check.required == "exists");
+                        }
+                    } else {
+                        result.observed = "<not found>";
+                        result.passed = false;
+                    }
+                } else if (mgr == "npm") {
+                    rc = naab::runtime::execute_subprocess_with_pipes("npm", {"list", pkg, "--depth=0"}, out, err);
+                    result.passed = (rc == 0);
+                    result.observed = result.passed ? "installed" : "<not found>";
+                } else {
+                    result.observed = "<unsupported package manager: " + mgr + ">";
+                    result.passed = false;
+                }
+            } else {
+                result.observed = "<invalid format: use manager:package>";
+                result.passed = false;
+            }
+        } else if (check.type == "command") {
+            // Run arbitrary command, check exit code 0
+            std::string out, err;
+            int rc = naab::runtime::execute_subprocess_with_pipes("/bin/sh", {"-c", check.name}, out, err);
+            result.passed = (rc == 0);
+            result.observed = result.passed ? "exit 0" : fmt::format("exit {}", rc);
+        } else {
+            result.observed = "<unknown check type: " + check.type + ">";
+            result.passed = false;
+        }
+
+        if (!result.passed) {
+            result.message = check.message.empty()
+                ? fmt::format("Prerequisite failed: {} '{}' requires '{}', got '{}'",
+                    check.type, check.name, check.required, result.observed)
+                : check.message;
+
+            enforce("prerequisite." + check.type + "." + check.name, check.level,
+                    formatError(check.level, result.message, result.observed, result.required,
+                        "Install or configure the missing prerequisite", "", ""));
+            attestation_passed_ = false;
+        } else {
+            recordPass("prerequisite." + check.type + "." + check.name, check.level);
+        }
+
+        attestation_results_.push_back(std::move(result));
+    }
+
+    return attestation_results_;
+}
+
+// ============================================================================
+// Contradiction Detection
+// ============================================================================
+
+std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
+    std::vector<ContradictionResult> results;
+    if (!rules_.contradiction_detection.enabled) return results;
+
+    auto level = rules_.contradiction_detection.max_level;
+
+    // CONTRA-001: shell disabled but "shell" in allowed languages
+    if (!rules_.capabilities.shell.enabled) {
+        if (rules_.languages.allowed.count("shell") ||
+            rules_.allowed_languages.count("shell")) {
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-001";
+            c.description = "Shell capability is disabled but 'shell' is in allowed languages";
+            c.level = governance::EnforcementLevel::SOFT;
+            c.resolution = "Remove 'shell' from allowed languages or enable capabilities.shell";
+            results.push_back(c);
+        }
+    }
+
+    // CONTRA-002: network disabled but allowed_hosts non-empty
+    if (!rules_.capabilities.network.enabled &&
+        !rules_.capabilities.network.allowed_hosts.empty()) {
+        ContradictionResult c;
+        c.pattern_id = "CONTRA-002";
+        c.description = "Network capability is disabled but allowed_hosts is non-empty";
+        c.level = level;
+        c.resolution = "Enable network capability or clear allowed_hosts list";
+        results.push_back(c);
+    }
+
+    // CONTRA-003: no_hardcoded_urls enabled but allowed_hosts non-empty
+    if (rules_.code_quality.no_hardcoded_urls.enabled &&
+        !rules_.capabilities.network.allowed_hosts.empty()) {
+        ContradictionResult c;
+        c.pattern_id = "CONTRA-003";
+        c.description = "no_hardcoded_urls is enabled but network.allowed_hosts is non-empty";
+        c.level = level;
+        c.resolution = "Reconcile URL policy: either allow specific hosts or ban hardcoded URLs";
+        results.push_back(c);
+    }
+
+    // CONTRA-004: high complexity_floor with very low duplicate_calls threshold
+    if (rules_.code_quality.complexity_floor.enabled &&
+        rules_.code_quality.complexity_floor.min_score >= 20 &&
+        rules_.code_quality.duplicate_calls.enabled &&
+        rules_.code_quality.duplicate_calls.threshold > 0 &&
+        rules_.code_quality.duplicate_calls.threshold <= 2) {
+        ContradictionResult c;
+        c.pattern_id = "CONTRA-004";
+        c.description = "High complexity floor (>= 20) with very low duplicate_calls threshold (<= 2)";
+        c.level = level;
+        c.resolution = "High complexity requires repeated calls; raise duplicate_calls.threshold or lower complexity_floor";
+        results.push_back(c);
+    }
+
+    // CONTRA-005: filesystem mode=none but taint sinks include file operations
+    if (rules_.capabilities.filesystem.mode == "none" &&
+        rules_.taint_tracking.enabled) {
+        for (const auto& sink : rules_.taint_tracking.sinks) {
+            if (sink.find("file") != std::string::npos) {
+                ContradictionResult c;
+                c.pattern_id = "CONTRA-005";
+                c.description = "Filesystem mode is 'none' but taint sinks include file operations";
+                c.level = level;
+                c.resolution = "Remove file-related taint sinks or change filesystem.mode";
+                results.push_back(c);
+                break;
+            }
+        }
+    }
+
+    // CONTRA-007: language in both allowed and blocked lists
+    for (const auto& lang : rules_.languages.allowed) {
+        if (rules_.languages.blocked.count(lang)) {
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-007";
+            c.description = fmt::format("Language '{}' appears in both allowed and blocked lists", lang);
+            c.level = governance::EnforcementLevel::SOFT;
+            c.resolution = fmt::format("Remove '{}' from either the allowed or blocked language list", lang);
+            results.push_back(c);
+        }
+    }
+
+    // CONTRA-008: contract defined for a function that is also banned
+    for (const auto& [func_name, contract] : rules_.contracts.functions) {
+        for (const auto& [lang, lang_cfg] : rules_.languages.per_language) {
+            for (const auto& banned : lang_cfg.banned_functions) {
+                if (banned == func_name) {
+                    ContradictionResult c;
+                    c.pattern_id = "CONTRA-008";
+                    c.description = fmt::format("Contract defined for '{}' but it is banned in '{}'",
+                                                 func_name, lang);
+                    c.level = level;
+                    c.resolution = fmt::format("Remove contract for '{}' or unban it in '{}'", func_name, lang);
+                    results.push_back(c);
+                }
+            }
+        }
+    }
+
+    // CONTRA-009: audit level=full but output_file empty
+    if (rules_.audit.level == "full" && rules_.audit.output_file.empty()) {
+        ContradictionResult c;
+        c.pattern_id = "CONTRA-009";
+        c.description = "Audit level is 'full' but audit.output_file is empty";
+        c.level = level;
+        c.resolution = "Set audit.output_file to capture the full audit trail";
+        results.push_back(c);
+    }
+
+    // Record each contradiction as a governance finding
+    for (const auto& c : results) {
+        std::string rule_name = "contradiction." + c.pattern_id;
+        enforce(rule_name, c.level,
+                formatError(c.level, c.description, "", "", c.resolution, "", ""));
+    }
+
+    return results;
 }
 
 // ============================================================================

@@ -1104,6 +1104,61 @@ struct ApprovalConfig {
 };
 
 // ============================================================================
+// Section 12c: Trust Policy (Authority Decay & Key Lifecycle)
+// ============================================================================
+
+struct TrustPolicyConfig {
+    int max_signature_age_days = 0;     // 0 = no staleness check
+    bool require_fresh_signature = false;
+    EnforcementLevel stale_signature_level = EnforcementLevel::ADVISORY;
+    bool check_key_expiry = true;
+    bool check_revocation = true;
+};
+
+// ============================================================================
+// Section 12d: Environment Attestation (Prerequisites)
+// ============================================================================
+
+struct PrerequisiteCheck {
+    std::string type;       // "python_version", "package", "tool", "env_var", "command"
+    std::string name;       // package name, tool name, env var name
+    std::string required;   // version constraint or "exists"
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string message;
+};
+
+struct PrerequisitesConfig {
+    bool enabled = false;
+    std::vector<PrerequisiteCheck> checks;
+};
+
+struct AttestationResult {
+    std::string check_type;
+    std::string check_name;
+    bool passed = false;
+    std::string observed;
+    std::string required;
+    std::string message;
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
+};
+
+// ============================================================================
+// Section 12e: Contradiction Detection
+// ============================================================================
+
+struct ContradictionResult {
+    std::string pattern_id;     // "CONTRA-001"
+    std::string description;
+    EnforcementLevel level;
+    std::string resolution;
+};
+
+struct ContradictionDetectionConfig {
+    bool enabled = true;        // on by default (cheap static analysis)
+    EnforcementLevel max_level = EnforcementLevel::ADVISORY;
+};
+
+// ============================================================================
 // Section 12b: Quality Gate
 // ============================================================================
 
@@ -1278,6 +1333,7 @@ struct FunctionContract {
     bool return_not_null = false;
     std::string return_matches;        // regex pattern the string return value must match
     std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
+    std::vector<std::string> must_call; // v5: patterns that MUST appear in function body (static analysis)
 };
 
 struct ContractsConfig {
@@ -1509,6 +1565,9 @@ struct GovernanceRules {
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
     ApprovalConfig approval;
+    TrustPolicyConfig trust_policy;
+    PrerequisitesConfig prerequisites;
+    ContradictionDetectionConfig contradiction_detection;
 
     // Integrity: HMAC signing of govern.json and drift baselines
     struct IntegrityConfig {
@@ -1981,6 +2040,13 @@ public:
                                       const std::string& function_name,
                                       int line = 0);
 
+    // --- Behavioral Contract Check ---
+    // Verifies function body contains required call patterns (must_call)
+    std::string checkFunctionBehavioralContract(
+        const std::string& func_name,
+        const std::string& func_body,
+        int line = 0);
+
     // --- NAAb Function Body Quality Check ---
     // Scans ALL NAAb function bodies for stubs/oversimplification
     std::string checkNaabFunctionBody(const std::string& function_name,
@@ -2049,6 +2115,12 @@ public:
     int getCumulativeScore() const { return cumulative_score_; }
     std::string formatScoreBreakdown() const;
     bool verifyScoreIntegrity() const;
+
+    // --- Environment Attestation ---
+    std::vector<AttestationResult> runAttestation();
+
+    // --- Contradiction Detection ---
+    std::vector<ContradictionResult> detectContradictions();
 
     // Feature 4: Governance baseline regression detection
     void saveGovernanceBaseline() const;
@@ -2274,6 +2346,10 @@ private:
     bool governance_voiced_ = false;    // true when governance voice summary was printed
     std::string governance_voice_summary_;  // synthesized remediation guide
     std::string source_;                    // script source (for voice phase)
+
+    // Attestation results (populated by runAttestation())
+    bool attestation_passed_ = true;
+    std::vector<AttestationResult> attestation_results_;
 
     // Cumulative risk scoring
     // INVARIANT: cumulative_score_ >= 0 (monotonic — only increases)

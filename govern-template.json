@@ -648,6 +648,31 @@
     "blocked_flags": ["--drift-baseline-save", "--governance-override"]
   },
 
+  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. check_key_expiry/check_revocation skip expired/revoked keys at load time.",
+  "trust": {
+    "max_signature_age_days": 90,
+    "require_fresh_signature": false,
+    "stale_signature_level": "advisory",
+    "check_key_expiry": true,
+    "check_revocation": true
+  },
+
+  "_comment_prerequisites": "Environment Attestation: verify prerequisites before execution. Types: python_version, package (pip:pkg or npm:pkg), tool, env_var, command. Set enabled:true to activate.",
+  "prerequisites": {
+    "enabled": false,
+    "checks": [
+      { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory" },
+      { "type": "tool", "name": "jq", "required": "exists", "level": "advisory" },
+      { "type": "env_var", "name": "DATABASE_URL", "required": "exists", "level": "soft" }
+    ]
+  },
+
+  "_comment_contradiction_detection": "Contradiction Detection: static analysis of govern.json for conflicting rules. Cheap in-memory check, always useful. Patterns: CONTRA-001 through CONTRA-009.",
+  "contradiction_detection": {
+    "enabled": true,
+    "max_level": "advisory"
+  },
+
   "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
   "contracts": {
     "level": "soft",

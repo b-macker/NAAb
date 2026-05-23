@@ -3776,6 +3776,7 @@ VM::importModule(const std::string& module_path) {
 
     // Compile the module (skip main blocks)
     Compiler module_compiler;
+    module_compiler.setGovernance(governance_);
     auto* module_fn = module_compiler.compileModule(*module->ast, module_path);
     if (!module_fn) {
         runtimeError("Failed to compile module: %s (%s)",
