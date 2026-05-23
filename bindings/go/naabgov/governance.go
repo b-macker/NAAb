@@ -73,33 +73,48 @@ func (e *Engine) Close() {
 
 // LoadConfig loads governance rules from a govern.json file.
 func (e *Engine) LoadConfig(path string) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return fmt.Errorf("naabgov: engine closed")
+	}
 	cs := C.CString(path)
 	defer C.free(unsafe.Pointer(cs))
 	rc := C.naab_gov_load_config(e.handle, cs)
 	if rc != C.NAAB_GOV_OK {
-		return fmt.Errorf("naabgov: load config failed: %s", e.LastError())
+		return fmt.Errorf("naabgov: load config failed: %s", e.lastError())
 	}
 	return nil
 }
 
 // DiscoverConfig walks up from dir to find and load govern.json.
 func (e *Engine) DiscoverConfig(dir string) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return fmt.Errorf("naabgov: engine closed")
+	}
 	cs := C.CString(dir)
 	defer C.free(unsafe.Pointer(cs))
 	rc := C.naab_gov_discover_config(e.handle, cs)
 	if rc != C.NAAB_GOV_OK {
-		return fmt.Errorf("naabgov: discover config failed: %s", e.LastError())
+		return fmt.Errorf("naabgov: discover config failed: %s", e.lastError())
 	}
 	return nil
 }
 
 // LoadConfigString loads governance rules from a JSON string.
 func (e *Engine) LoadConfigString(jsonConfig string) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return fmt.Errorf("naabgov: engine closed")
+	}
 	cs := C.CString(jsonConfig)
 	defer C.free(unsafe.Pointer(cs))
 	rc := C.naab_gov_load_config_string(e.handle, cs)
 	if rc != C.NAAB_GOV_OK {
-		return fmt.Errorf("naabgov: load config string failed: %s", e.LastError())
+		return fmt.Errorf("naabgov: load config string failed: %s", e.lastError())
 	}
 	return nil
 }
@@ -131,7 +146,7 @@ func (e *Engine) Scan(language, code, sourceFile string, startLine int) (*ScanRe
 
 	raw := C.naab_gov_scan(e.handle, cLang, cCode, cFile, C.int(startLine))
 	if raw == nil {
-		return nil, fmt.Errorf("naabgov: scan failed: %s", e.LastError())
+		return nil, fmt.Errorf("naabgov: scan failed: %s", e.lastError())
 	}
 	defer C.naab_gov_free_string(raw)
 
@@ -172,13 +187,23 @@ func (e *Engine) ResultCount() int {
 	return int(C.naab_gov_result_count(e.handle))
 }
 
-// LastError returns the last error message (internal pointer, do not free).
-func (e *Engine) LastError() string {
+// lastError returns the last error message without locking (for internal use).
+func (e *Engine) lastError() string {
 	p := C.naab_gov_last_error(e.handle)
 	if p == nil {
 		return ""
 	}
 	return C.GoString(p)
+}
+
+// LastError returns the last error message (internal pointer, do not free).
+func (e *Engine) LastError() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == nil {
+		return ""
+	}
+	return e.lastError()
 }
 
 // Version returns the library version string.

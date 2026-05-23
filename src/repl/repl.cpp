@@ -18,6 +18,8 @@
 #include <fstream>
 #include <sstream>
 #include <new>  // For placement new
+#include <fcntl.h>  // For open(), O_WRONLY, O_CREAT, O_TRUNC
+#include <unistd.h> // For close()
 
 namespace naab {
 namespace repl {
@@ -138,6 +140,9 @@ private:
             // Use placement new to reconstruct interpreter (copy assignment is deleted)
             interpreter_.~Interpreter();
             new (&interpreter_) interpreter::Interpreter();
+            // Reconstruct command_handler_ to refresh its interpreter reference
+            command_handler_.~ReplCommandHandler();
+            new (&command_handler_) ReplCommandHandler(interpreter_);
             accumulated_program_.clear();
             line_number_ = 1;
             fmt::print("[SUCCESS] State reset complete\n");
@@ -318,6 +323,9 @@ private:
     void saveHistory() {
         // Save last 100 commands
         std::string history_file = naab::paths::history_file();
+        // Create file with 0600 permissions before opening with ofstream
+        int fd = ::open(history_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd >= 0) ::close(fd);
         std::ofstream file(history_file);
         if (file.is_open()) {
             size_t start = history_.size() > 100 ? history_.size() - 100 : 0;

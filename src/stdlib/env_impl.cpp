@@ -208,8 +208,12 @@ interpreter::NaabVal EnvModule::call(
         }
 #endif
         // V-SC-002: strip NAAb-internal secrets before returning to user script
-        for (const auto& blocked : NAAB_INTERNAL_ENV_VARS) {
-            env_map.erase(blocked);
+        // Use isBlockedEnvVar() for case-insensitive matching
+        for (auto it = env_map.begin(); it != env_map.end(); ) {
+            if (isBlockedEnvVar(it->first))
+                it = env_map.erase(it);
+            else
+                ++it;
         }
         return makeMap(env_map);
     }
@@ -228,6 +232,13 @@ interpreter::NaabVal EnvModule::call(
         }
         if (args.size() > 2) {
             throw std::runtime_error("load_dotenv() takes 0-2 arguments (path?, strict?)");
+        }
+
+        // Check filesystem sandbox — load_dotenv reads files
+        auto* fs_sandbox = security::ScopedSandbox::getCurrent();
+        if (fs_sandbox && !fs_sandbox->canRead(path)) {
+            throw std::runtime_error(
+                "Security: env.load_dotenv() denied — FS_READ capability required for: " + path);
         }
 
         std::ifstream file(path);

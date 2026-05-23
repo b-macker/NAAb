@@ -17,6 +17,7 @@
 #include <chrono>
 
 #include <unistd.h>
+#include <fcntl.h>
 #include <limits.h>
 
 #ifdef __APPLE__
@@ -115,6 +116,12 @@ bool atomicWrite(const std::string& path, const std::string& content) {
     std::string tmp_path = path + ".naab_tmp";
 
     {
+        // Create temp file with restricted permissions (0600) before writing
+        int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd < 0) {
+            throw std::runtime_error("atomicWrite: cannot create temp file: " + tmp_path);
+        }
+        ::close(fd);
         std::ofstream ofs(tmp_path, std::ios::out | std::ios::trunc);
         if (!ofs.is_open()) {
             throw std::runtime_error(

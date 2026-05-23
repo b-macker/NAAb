@@ -250,13 +250,7 @@ std::string CryptoUtils::ed25519Fingerprint(const std::string& pem) {
 
     EVP_PKEY* pkey = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
     BIO_free(bio);
-    if (!pkey) {
-        // Try as private key
-        BIO* bio2 = BIO_new_mem_buf(pem.data(), static_cast<int>(pem.size()));
-        pkey = PEM_read_bio_PrivateKey(bio2, nullptr, nullptr, nullptr);
-        BIO_free(bio2);
-        if (!pkey) return "";
-    }
+    if (!pkey) return "";  // Only accept public keys — no private key fallback
 
     // Extract raw public key bytes (32 bytes for Ed25519)
     size_t raw_len = 0;

@@ -39,10 +39,21 @@ public:
     std::unordered_map<std::string, TokenBucket> rate_buckets_;
 
     // Returns true if the request is allowed, false if rate-limited.
+    static constexpr size_t MAX_RATE_BUCKETS = 65536;
+
     bool checkRateLimit(const std::string& key) {
         unsigned int limit = api_rate_limit_rpm.load(std::memory_order_relaxed);
         if (limit == 0) return true;
         std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+        // Evict oldest bucket if at capacity to prevent unbounded growth
+        if (rate_buckets_.size() > MAX_RATE_BUCKETS) {
+            auto oldest = rate_buckets_.begin();
+            for (auto it = rate_buckets_.begin(); it != rate_buckets_.end(); ++it) {
+                if (it->second.last_refill < oldest->second.last_refill)
+                    oldest = it;
+            }
+            rate_buckets_.erase(oldest);
+        }
         auto now = std::chrono::steady_clock::now();
         auto& bucket = rate_buckets_[key];
         if (bucket.last_refill.time_since_epoch().count() == 0) {
@@ -344,7 +355,7 @@ public:
         });
 
         // Governance check endpoint — static analysis without code execution
-        server.Post("/api/v1/check", [](const httplib::Request& req, httplib::Response& res) {
+        server.Post("/api/v1/check", [this](const httplib::Request& req, httplib::Response& res) {
             try {
                 auto body = json::parse(req.body);
                 std::string code = body.value("code", "");
@@ -365,29 +376,18 @@ public:
                 // Fresh engine per request — thread-safe, no state leakage
                 naab::governance::GovernanceEngine engine;
 
-                // Inline config from request body, or discover from CWD
-                if (body.contains("config") && body["config"].is_object()) {
-                    if (!engine.loadFromString(body["config"].dump())) {
-                        res.status = 400;
-                        res.set_content(json{
-                            {"error", "Invalid governance config"},
-                            {"status", "error"}
-                        }.dump(2), "application/json");
-                        return;
-                    }
-                } else {
-                    if (!engine.discoverAndLoad(std::filesystem::current_path().string())) {
-                        res.status = 400;
-                        res.set_content(json{
-                            {"error", "No governance config: provide 'config' in request body or place govern.json in server working directory"},
-                            {"status", "error"}
-                        }.dump(2), "application/json");
-                        return;
-                    }
-                }
+                // Always use server-side governance config — never accept client-supplied config
+                engine.discoverAndLoad(std::filesystem::current_path().string());
 
                 engine.setCheckContext(source_file, start_line);
-                engine.checkPolyglotBlock(language, code, source_file, start_line);
+                // V-API-004: Apply same timeout to /check as /execute to prevent ReDoS
+                unsigned int t = api_timeout_seconds.load();
+                if (t > 0) {
+                    naab::security::ScopedTimeout _to(t);
+                    engine.checkPolyglotBlock(language, code, source_file, start_line);
+                } else {
+                    engine.checkPolyglotBlock(language, code, source_file, start_line);
+                }
 
                 // Build violation array
                 json violations = json::array();

@@ -74,9 +74,6 @@ public:
 
 private:
     std::unordered_map<std::string, std::unique_ptr<Executor>> executors_;
-
-    // Singleton instance
-    static LanguageRegistry* instance_;
 };
 
 } // namespace runtime

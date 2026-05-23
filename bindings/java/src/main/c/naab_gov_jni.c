@@ -32,6 +32,11 @@ JNIEXPORT jint JNICALL
 Java_org_naab_governance_GovernanceEngine_nativeLoadConfig(JNIEnv *env, jclass cls,
                                                            jlong handle, jstring path) {
     (void)cls;
+    if (!path) {
+        (*env)->ThrowNew(env, (*env)->FindClass(env, "java/lang/NullPointerException"),
+            "path must not be null");
+        return -1;
+    }
     const char *c_path = (*env)->GetStringUTFChars(env, path, NULL);
     if (!c_path) return -1;  /* H1 fix: OOM, exception already pending */
     jint rc = (jint)naab_gov_load_config(to_engine(handle), c_path);
@@ -43,6 +48,11 @@ JNIEXPORT jint JNICALL
 Java_org_naab_governance_GovernanceEngine_nativeLoadConfigString(JNIEnv *env, jclass cls,
                                                                  jlong handle, jstring json) {
     (void)cls;
+    if (!json) {
+        (*env)->ThrowNew(env, (*env)->FindClass(env, "java/lang/NullPointerException"),
+            "json must not be null");
+        return -1;
+    }
     const char *c_json = (*env)->GetStringUTFChars(env, json, NULL);
     if (!c_json) return -1;  /* H1 fix: OOM */
     jint rc = (jint)naab_gov_load_config_string(to_engine(handle), c_json);
@@ -62,6 +72,22 @@ Java_org_naab_governance_GovernanceEngine_nativeScan(JNIEnv *env, jclass cls,
                                                      jstring code, jstring sourceFile,
                                                      jint startLine) {
     (void)cls;
+    /* Null jstring checks — GetStringUTFChars(env, NULL, NULL) is UB */
+    if (!language) {
+        (*env)->ThrowNew(env, (*env)->FindClass(env, "java/lang/NullPointerException"),
+            "language must not be null");
+        return NULL;
+    }
+    if (!code) {
+        (*env)->ThrowNew(env, (*env)->FindClass(env, "java/lang/NullPointerException"),
+            "code must not be null");
+        return NULL;
+    }
+    if (!sourceFile) {
+        (*env)->ThrowNew(env, (*env)->FindClass(env, "java/lang/NullPointerException"),
+            "sourceFile must not be null");
+        return NULL;
+    }
     /* H1 fix: cascading NULL checks with cleanup on OOM */
     const char *c_lang = (*env)->GetStringUTFChars(env, language, NULL);
     if (!c_lang) return NULL;

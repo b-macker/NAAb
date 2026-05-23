@@ -16,6 +16,8 @@
 #include <map>          // For std::map
 #include <cstring>      // For strerror / strsignal
 #include <cstdlib>      // For mkstemp/environ (POSIX) or _putenv_s (Windows)
+#include <unordered_set> // For secret env var scrubbing
+#include <string_view>   // For efficient env var parsing
 #include <cerrno>       // For errno
 
 #ifndef _WIN32
@@ -403,13 +405,12 @@ int execute_subprocess_with_pipes(
     int stderr_fd = mkstemp(&stderr_tmp[0]);
 
     if (stdout_fd == -1 || stderr_fd == -1) {
-        // Fallback paths if mkstemp fails
-        stdout_tmp = fmt::format("{}/naab_out_{}", tmp, getpid());
-        stderr_tmp = fmt::format("{}/naab_err_{}", tmp, getpid());
-    } else {
-        close(stdout_fd);
-        close(stderr_fd);
+        if (stdout_fd >= 0) close(stdout_fd);
+        if (stderr_fd >= 0) close(stderr_fd);
+        throw std::runtime_error("Failed to create temp files for subprocess I/O");
     }
+    close(stdout_fd);
+    close(stderr_fd);
 
     // Build argv array for execvp (no shell interpretation)
     std::vector<const char*> argv;
@@ -425,8 +426,17 @@ int execute_subprocess_with_pipes(
     bool use_custom_env = false;
     if (env && !env->empty()) {
         use_custom_env = true;
-        // Inherit current environment
+        // Inherit current environment, scrubbing NAAb-internal secrets
+        static const std::unordered_set<std::string> SCRUB_VARS = {
+            "NAAB_GOVERN_KEY", "NAAB_LOCK_KEY", "NAAB_SIGNING_KEY"
+        };
         for (char** e = environ; *e != nullptr; ++e) {
+            std::string_view entry(*e);
+            auto eq = entry.find('=');
+            if (eq != std::string_view::npos) {
+                std::string key(entry.substr(0, eq));
+                if (SCRUB_VARS.count(key)) continue;
+            }
             env_strings.push_back(*e);
         }
         // Add/override with custom vars

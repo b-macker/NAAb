@@ -9,8 +9,7 @@
 namespace naab {
 namespace runtime {
 
-// Initialize singleton instance
-LanguageRegistry* LanguageRegistry::instance_ = nullptr;
+// Singleton instance now uses function-local static (C++11 thread-safe)
 
 LanguageRegistry::LanguageRegistry() {
     // Language registry initialized (silent)
@@ -64,10 +63,8 @@ void LanguageRegistry::unregisterExecutor(const std::string& language) {
 }
 
 LanguageRegistry& LanguageRegistry::instance() {
-    if (!instance_) {
-        instance_ = new LanguageRegistry();
-    }
-    return *instance_;
+    static LanguageRegistry instance;
+    return instance;
 }
 
 } // namespace runtime
