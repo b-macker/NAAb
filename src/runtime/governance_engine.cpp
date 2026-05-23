@@ -3107,12 +3107,20 @@ static std::string detectSignatureType(const std::string& sig) {
     return "legacy";  // raw hex, assume HMAC (backward compat)
 }
 
-// Trust store check. Cached per-process — safe because --keygen/--trust-key
-// always exit(0) immediately, so the cache is never stale during a run.
+// Trust store check. Re-validates each call to detect mid-run deletion.
 static bool hasTrustStoreKeys() {
-    static int cached = -1;
-    if (cached < 0) cached = security::TrustStore::hasKeys() ? 1 : 0;
-    return cached == 1;
+    return security::TrustStore::hasKeys();
+}
+
+// Tracks whether the trust store had keys on first check.
+// Returns true if keys existed initially but are now gone (tamper signal).
+// Thread-safe: agent worker threads may call governance checks concurrently.
+static bool trustStoreTampered() {
+    static std::atomic<int> first_state{-1};  // -1=unchecked, 0=empty, 1=populated
+    bool current = security::TrustStore::hasKeys();
+    int expected = -1;
+    first_state.compare_exchange_strong(expected, current ? 1 : 0);
+    return first_state.load(std::memory_order_acquire) == 1 && !current;
 }
 
 // Does the process have any signing capability?
@@ -3221,6 +3229,13 @@ bool GovernanceEngine::verifySignatureImpl(
     const char* hmac_key = std::getenv(GOVERN_KEY_ENV);
     bool have_hmac_key = hmac_key && *hmac_key;
 
+    // Detect mid-process trust store deletion (keys existed at startup, now gone)
+    if (trustStoreTampered()) {
+        fprintf(stderr,
+            "[governance] INTEGRITY BLOCK: trust store keys removed during execution\n");
+        return false;
+    }
+
     // Open .sig directly to avoid TOCTOU race between exists() and open()
     std::ifstream sig_ifs(sig_path);
     bool sig_exists = sig_ifs.is_open();
@@ -3240,9 +3255,8 @@ bool GovernanceEngine::verifySignatureImpl(
         // V-SC-008 legacy: HMAC key set → BLOCK
         if (have_hmac_key) {
             fprintf(stderr,
-                "[governance] INTEGRITY BLOCK: %s.sig missing but NAAB_GOVERN_KEY is set.\n"
-                "  When the signing key is present, all governance files must be signed.\n"
-                "  Sign with: naab-lang --sign-governance (or --sign-baseline)\n",
+                "[governance] INTEGRITY BLOCK: %s.sig missing but signing key is configured.\n"
+                "  When a signing key is present, all governance files must be signed.\n",
                 file_path.c_str());
             return false;
         }
@@ -3286,6 +3300,12 @@ bool GovernanceEngine::verifySignatureImpl(
         if (have_trust_keys) {
             // Verify against each trusted key
             auto keys = security::TrustStore::loadKeys();
+            if (keys.empty()) {
+                // Trust store was populated at hasTrustStoreKeys() but loadKeys() returned empty
+                fprintf(stderr,
+                    "[governance] INTEGRITY BLOCK: trust store directory emptied during verification\n");
+                return false;
+            }
             bool verified = false;
             for (const auto& [fingerprint, pem] : keys) {
                 if (security::CryptoUtils::ed25519Verify(content, b64_sig, pem)) {
@@ -3335,12 +3355,14 @@ bool GovernanceEngine::verifySignatureImpl(
             return true;  // Verified against a trusted key
         }
 
-        // Ed25519 sig but no trust store keys → WARN once per file, proceed unsigned
+        // Ed25519 sig but no trust store keys.
+        // If keys were present at startup but disappeared → tamper (caught above by trustStoreTampered()).
+        // If keys were never present → unconfigured environment, warn and proceed.
         if (signature_warned_files_.find(file_path) == signature_warned_files_.end()) {
             signature_warned_files_.insert(file_path);
             fprintf(stderr,
-                "[governance] WARNING: %s is Ed25519-signed but no trusted keys installed.\n"
-                "  Cannot verify signature. Install the public key: naab-lang --trust-key <pubkey.pem>\n",
+                "[governance] WARNING: %s is Ed25519-signed but no trusted keys are installed.\n"
+                "  Signature cannot be verified.\n",
                 file_path.c_str());
         }
         return true;
@@ -3351,7 +3373,7 @@ bool GovernanceEngine::verifySignatureImpl(
         // Trust store has Ed25519 keys but sig is HMAC → must re-sign
         fprintf(stderr,
             "[governance] INTEGRITY BLOCK: %s has legacy HMAC signature but Ed25519 trusted keys are installed.\n"
-            "  Re-sign with Ed25519: export NAAB_SIGNING_KEY=<path-to-private-key> && naab-lang --sign-governance\n",
+            "  Re-sign with Ed25519 to match the trust store.\n",
             file_path.c_str());
         return false;
     }
@@ -3360,9 +3382,8 @@ bool GovernanceEngine::verifySignatureImpl(
     if (!have_hmac_key) {
         // V-SC-007: .sig exists but no HMAC key → fail closed
         fprintf(stderr,
-            "[governance] INTEGRITY BLOCK: %s.sig exists but NAAB_GOVERN_KEY is not set.\n"
-            "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n"
-            "  Set NAAB_GOVERN_KEY to verify, or contact the project owner.\n",
+            "[governance] INTEGRITY BLOCK: %s.sig exists but the signing key is not available.\n"
+            "  This file is HMAC-signed. Without the key, the signature cannot be verified.\n",
             file_path.c_str());
         return false;
     }
@@ -3471,10 +3492,8 @@ std::string GovernanceEngine::checkDriftDetection(
             if (!have_hmac) {
                 std::string msg =
                     "Drift baseline records that governance signing was previously configured, "
-                    "but no signing keys are currently available (no trusted Ed25519 keys, no NAAB_GOVERN_KEY). "
-                    "This may indicate tampering — signing keys should not disappear.\n"
-                    "  Fix: Install the trusted public key: naab-lang --trust-key <pubkey.pem>\n"
-                    "  Or restore NAAB_GOVERN_KEY environment variable.";
+                    "but no signing keys are currently available. "
+                    "Signing keys should not disappear.";
                 fprintf(stderr, "[governance] INTEGRITY BLOCK: %s\n", msg.c_str());
                 enforce("drift_detection.trust_anchor", EnforcementLevel::HARD, msg);
                 return "[governance] Drift detection FAILED:\n  " + msg + "\n";
@@ -4194,8 +4213,7 @@ void GovernanceEngine::saveDriftBaseline(
         if (!hasSigningCapability()) {
             fprintf(stderr,
             "[governance] INTEGRITY BLOCK: Cannot overwrite signed baseline %s\n"
-            "  This baseline is signed. Only the project owner with NAAB_SIGNING_KEY (Ed25519)\n"
-            "  or NAAB_GOVERN_KEY (legacy HMAC) can save a new baseline.\n",
+            "  This baseline is signed. Signing keys must be available to save a new baseline.\n",
             resolved.c_str());
             return;
         }
@@ -4225,8 +4243,7 @@ void GovernanceEngine::saveDriftBaseline(
                     fprintf(stderr,
                         "[governance] INTEGRITY BLOCK: Cannot overwrite baseline %s\n"
                         "  This baseline records that governance signing was previously configured.\n"
-                        "  Signing keys must be present to save a new baseline.\n"
-                        "  Install the trusted public key: naab-lang --trust-key <pubkey.pem>\n",
+                        "  Signing keys must be present to save a new baseline.\n",
                         resolved.c_str());
                     return;
                 }

@@ -51,6 +51,25 @@ naab --trust-key /path/to/their-key.pub
 naab --signing-key /path/to/other.pem --sign-governance
 ```
 
+### Key Mismatch Troubleshooting
+
+If you see "INTEGRITY BLOCK: signature does not match any trusted key", the signing key
+and the trusted public key are from different keypairs. This happens when:
+- You regenerated keys with `--keygen` but didn't re-sign govern.json
+- The trust store has a key from a different machine or user
+- Someone deleted and recreated the trust store
+
+Fix: ensure the private key in `NAAB_SIGNING_KEY` and the public key in
+`~/.naab/trusted-keys/` are from the same `--keygen` invocation. Then re-sign:
+
+```bash
+naab --sign-governance        # signs with NAAB_SIGNING_KEY
+naab --list-keys              # verify fingerprint matches
+```
+
+If the trust store was emptied entirely, the runtime will now BLOCK with
+"no trusted keys are installed" — this is intentional fail-closed behavior.
+
 ### Why Signing Matters
 
 When an LLM (Gemini, Claude, etc.) runs NAAb code, governance rules in `govern.json` control what it can do — blocked imports, banned functions, taint tracking, complexity floors. Without signing, the LLM could modify `govern.json` to weaken or disable these rules. Ed25519 signatures make `govern.json` tamper-evident: any modification invalidates the signature, and NAAb refuses to run with an invalid or missing signature when trusted keys are installed.

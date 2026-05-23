@@ -1333,6 +1333,7 @@ struct FunctionContract {
     bool return_not_null = false;
     std::string return_matches;        // regex pattern the string return value must match
     std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
+    std::vector<std::string> must_call; // v5: patterns that MUST appear in function body (static analysis)
 };
 
 struct ContractsConfig {
@@ -2038,6 +2039,13 @@ public:
     std::string checkComplexityFloor(const std::string& code,
                                       const std::string& function_name,
                                       int line = 0);
+
+    // --- Behavioral Contract Check ---
+    // Verifies function body contains required call patterns (must_call)
+    std::string checkFunctionBehavioralContract(
+        const std::string& func_name,
+        const std::string& func_body,
+        int line = 0);
 
     // --- NAAb Function Body Quality Check ---
     // Scans ALL NAAb function bodies for stubs/oversimplification

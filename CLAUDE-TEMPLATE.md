@@ -395,7 +395,10 @@ parse, stringify
 ### regex
 search (partial match, returns match or null), matches (full string match, true/false),
 find (returns matched string), find_all (all matches as array),
-replace, replace_first, split, groups, find_groups, escape, is_valid
+replace, replace_first, split, groups, escape, is_valid
+find_groups — returns **2D array**: `[[full_match, group1, group2, ...], ...]`
+  Each inner array is one match. First capture group: `result[0][1]` (NOT `result[1]`).
+  No match: returns `[]`. Guard with: `if len(groups) > 0 { ... }`
 **GOTCHA**: `regex.match()` and `regex.test()` do NOT exist — use `regex.search()` or `regex.matches()`
 
 ### env
@@ -687,6 +690,9 @@ main {
       `match status { "ok" => handle_ok() }`
     RIGHT (if/else instead of match):
       `if status == "ok" { let x = compute(); x * 2 } else { 0 }`
+    NOTE: Single-expression arms always work fine — the dict-literal issue only
+    affects multi-statement bodies with `{ ... }`. Simple value mapping is ideal for match:
+      `let name = match sev { Severity.Critical => "Critical", Severity.High => "High", _ => "Unknown" }`
 38. `json.stringify()` on NAAb structs may produce non-standard output (unquoted keys).
     For reliable JSON serialization of structs, convert to a dict first or use Python polyglot:
     ```naab
@@ -854,6 +860,15 @@ main {
     You only need `use array` for module-form calls: `array.map(arr, fn)`, `array.filter_fn(...)`.
     Similarly, `use string` is only needed for `string.contains(s, sub)` module-form calls.
     **Do NOT add `use array` just because you use `.push()` or `len()` — it wastes an import.**
+57. **`regex.find_groups()` returns a 2D array, not a flat array.**
+    Each inner array is one match: `[full_match, group1, group2, ...]`.
+    WRONG: `let ts = regex.find_groups(line, pat)[1]`  — this is the second match, not first group
+    RIGHT:  `let ts = regex.find_groups(line, pat)[0][1]`  — first match, first capture group
+    Empty outer array `[]` means no match. Always guard: `if len(groups) > 0 { ... }`
+58. **On Termux, `/tmp` does not exist. Use relative paths or `env.get("TMPDIR")`.**
+    WRONG: `file.write("/tmp/report.txt", content)`
+    RIGHT:  `file.write("report.txt", content)`  — writes to current directory
+    RIGHT:  `file.write(env.get("TMPDIR") + "/report.txt", content)`
 
 ## Complexity Scoring (for governance)
 
@@ -942,6 +957,11 @@ return "idle"
 let result = base_damage - defense
 return int(math.max(0, result))  // Clamp to 0
 ```
+
+**return_keys_non_empty: true:**
+When set in a contract, ALL `return_keys` values must be substantive —
+not `""`, `[]`, `{}`, or `null`. Use this for functions where empty values
+indicate a stub implementation rather than a legitimate empty result.
 
 ---
 

@@ -1689,6 +1689,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("params") && fn_obj["params"].is_array()) {
                     for (auto& p : fn_obj["params"]) fc.params.push_back(p.get<std::string>());
                 }
+                if (fn_obj.contains("must_call") && fn_obj["must_call"].is_array()) {
+                    for (auto& mc : fn_obj["must_call"]) fc.must_call.push_back(mc.get<std::string>());
+                }
                 parseRationale(fn_obj, fc.rationale);
                 rules_.contracts.functions[fn_name] = std::move(fc);
             }

@@ -1764,31 +1764,56 @@ int main(int argc, char** argv) {
                     naab::scanner::ScannerEngine preflight_scanner;
                     preflight_scanner.loadConfigFromPath(vm_governance.getLoadedPath(), true);
                     if (preflight_scanner.hasConfig()) {
-                        auto scan_result = preflight_scanner.scan(filename, "auto");
-                        if (!scan_result.issues.empty()) {
-                            int adv_count = 0;
-                            for (const auto& issue : scan_result.issues) {
-                                if (issue.level == "advisory") adv_count++;
+                        // Collect all files to scan: main file + imported modules
+                        std::vector<std::string> scan_files = {filename};
+                        std::filesystem::path main_dir = std::filesystem::path(filename).parent_path();
+                        for (const auto& imp : program->getModuleImports()) {
+                            const std::string& mp = imp->getModulePath();
+                            // Skip stdlib imports (bare names without .naab extension)
+                            if (mp.find('/') == std::string::npos &&
+                                mp.find('\\') == std::string::npos &&
+                                (mp.size() < 5 || mp.substr(mp.size() - 5) != ".naab")) {
+                                continue;
                             }
-                            if (adv_count > 0) {
-                                fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", adv_count);
-                                int shown = 0;
-                                for (const auto& issue : scan_result.issues) {
-                                    if (issue.level == "advisory" && shown < 10) {
-                                        fprintf(stderr, "  - Line %d: %s.%s — %s\n",
-                                                issue.line, issue.category.c_str(),
-                                                issue.rule.c_str(), issue.message.c_str());
-                                        if (!issue.fix.empty()) {
-                                            fprintf(stderr, "    Fix: %s\n", issue.fix.c_str());
+                            auto resolved = main_dir / mp;
+                            if (std::filesystem::exists(resolved)) {
+                                scan_files.push_back(resolved.string());
+                            }
+                        }
+
+                        int total_adv_count = 0;
+                        std::vector<std::string> adv_lines;
+                        for (const auto& scan_file : scan_files) {
+                            auto scan_result = preflight_scanner.scan(scan_file, "auto");
+                            for (const auto& issue : scan_result.issues) {
+                                if (issue.level == "advisory") {
+                                    total_adv_count++;
+                                    if (adv_lines.size() < 10) {
+                                        std::string line_str = fmt::format("  - Line {}: {}.{} — {}",
+                                            issue.line, issue.category, issue.rule, issue.message);
+                                        if (scan_file != filename) {
+                                            // Show relative path for imported files
+                                            line_str = fmt::format("  - {} Line {}: {}.{} — {}",
+                                                std::filesystem::path(scan_file).filename().string(),
+                                                issue.line, issue.category, issue.rule, issue.message);
                                         }
-                                        shown++;
+                                        if (!issue.fix.empty()) {
+                                            line_str += fmt::format("\n    Fix: {}", issue.fix);
+                                        }
+                                        adv_lines.push_back(line_str);
                                     }
                                 }
-                                if (adv_count > 10) {
-                                    fprintf(stderr, "  ... and %d more\n", adv_count - 10);
-                                }
-                                fprintf(stderr, "\n");
                             }
+                        }
+                        if (total_adv_count > 0) {
+                            fprintf(stderr, "\n[scanner] Pre-flight notes (%d advisory):\n", total_adv_count);
+                            for (const auto& line : adv_lines) {
+                                fprintf(stderr, "%s\n", line.c_str());
+                            }
+                            if (total_adv_count > 10) {
+                                fprintf(stderr, "  ... and %d more\n", total_adv_count - 10);
+                            }
+                            fprintf(stderr, "\n");
                         }
                     }
                 }

@@ -1370,6 +1370,7 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     "(?:#|//)\\s*(?:for|in)\\s+(?:demonstration|demo|testing|test|example|simplicity|now|this exercise)\\s*(?:purposes?|only)?",
     "(?:#|//)\\s*(?:this is|this was|here we|we just|i just|just)\\s+(?:a simplified|just a|only a|a basic|a rough|a naive|a quick|a temporary|a stopgap|using a simple)",
     "(?:#|//)\\s*(?:for now|temporary|interim|stopgap|quick and dirty|quick fix|short.?term|band.?aid)",
+    "(?:#|//).*\\bsimplified\\b.*\\bfor now\\b",
     "(?:#|//)\\s*(?:no.op|noop|no operation|does nothing|empty|stub|pass.?through|identity|dummy|skip|bypass|shortcut)",
     "(?:#|//)\\s*(?:would normally|would actually|should actually|in reality|ideally|in practice)\\s+(?:do|use|call|implement|process|compute|calculate|analyze|check|validate)",
     "(?:#|//)\\s*(?:skipping|omitting|ignoring|bypassing|not doing|not implementing|eliding)\\s+(?:actual|real|proper|full|the)\\s+(?:logic|implementation|computation|analysis|processing|validation|checking)",
@@ -3283,6 +3284,60 @@ std::string GovernanceEngine::checkComplexityFloor(
     return "";
 }
 
+// --- Behavioral Contract Check (must_call) ---
+
+std::string GovernanceEngine::checkFunctionBehavioralContract(
+    const std::string& func_name,
+    const std::string& func_body,
+    int line) {
+
+    auto it = rules_.contracts.functions.find(func_name);
+    if (it == rules_.contracts.functions.end()) return "";
+
+    const auto& contract = it->second;
+    if (contract.must_call.empty()) return "";
+
+    clearTrace();
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    for (const auto& required : contract.must_call) {
+        // Check if the required pattern appears in the function body.
+        // For simple identifiers, use word boundary + opening paren.
+        // For patterns like "<<python", check literal presence.
+        bool found = false;
+        if (required.find("<<") != std::string::npos) {
+            // Polyglot block pattern — literal string search
+            found = func_body.find(required) != std::string::npos;
+        } else {
+            // Function call pattern — word boundary + paren
+            try {
+                std::regex call_pat("\\b" + required + "\\s*\\(");
+                found = std::regex_search(func_body, call_pat);
+            } catch (...) {
+                // Invalid regex — fall back to literal search
+                found = func_body.find(required) != std::string::npos;
+            }
+        }
+
+        if (!found) {
+            addTrace(fmt::format("function '{}' must call '{}' but does not", func_name, required));
+            return enforce("contracts." + func_name + ".must_call", level,
+                formatError(level,
+                    fmt::format("Behavioral contract: '{}' must call '{}'", func_name, required),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_call",
+                    fmt::format("Function '{}' is required to call '{}' but no such call was found in the function body.",
+                        func_name, required),
+                    "fn " + func_name + "(...) { return {\"key\": \"value\"} }",
+                    "fn " + func_name + "(...) { let r = " + required + "(...); return r }"));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".must_call", level);
+    return "";
+}
+
 // --- NAAb Function Body Quality Check ---
 
 std::string GovernanceEngine::checkNaabFunctionBody(
@@ -3351,6 +3406,10 @@ std::string GovernanceEngine::checkNaabFunctionBody(
             if (!err.empty()) return err;
         }
     }
+
+    // Behavioral contract check (must_call)
+    err = checkFunctionBehavioralContract(function_name, source_code, line);
+    if (!err.empty()) return err;
 
     // FIX-DX-6: Detect duplicate function calls — deferred to grouped output
     {
@@ -5348,7 +5407,8 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "environments", "runtime_versions", "agent_roles", "agents", "telemetry", "scoring",
         "runtime", "security", "api", "integrity", "project_name", "scorers",
         "agent_review", "agent_dispatch", "sandbox_level", "approval",
-        "behavioral_sequences", "context_drift"
+        "behavioral_sequences", "context_drift",
+        "trust", "prerequisites", "contradiction_detection"
     };
 
     try {
