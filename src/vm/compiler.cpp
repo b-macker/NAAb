@@ -1075,13 +1075,20 @@ void Compiler::visit(ast::StructDecl& node) {
 
 void Compiler::visit(ast::EnumDecl& node) {
     int line = node.getLocation().line;
-    // Store enum as a dict: variant_name -> integer value
-    std::unordered_map<std::string, interpreter::NaabVal> variants;
+    // Build variant list for registry
+    std::vector<std::pair<std::string, int>> variant_pairs;
     int next_val = 0;
     for (auto& v : node.getVariants()) {
         if (v.value.has_value()) next_val = v.value.value();
-        variants[v.name] = interpreter::NaabVal::makeInt(next_val);
+        variant_pairs.emplace_back(v.name, next_val);
         next_val++;
+    }
+    // Register enum and get ID for TAG_ENUM values
+    uint16_t enum_id = interpreter::NaabVal::registerEnum(node.getName(), variant_pairs);
+    // Store enum as a dict: variant_name -> TAG_ENUM value
+    std::unordered_map<std::string, interpreter::NaabVal> variants;
+    for (auto& [name, val] : variant_pairs) {
+        variants[name] = interpreter::NaabVal::makeEnum(val, enum_id);
     }
     variants["__enum_name__"] = interpreter::NaabVal::makeString(node.getName());
     int idx = makeConstant(interpreter::NaabVal::makeDict(std::move(variants)));

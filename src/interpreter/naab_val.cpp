@@ -130,6 +130,41 @@ struct ValueBox {
 };
 
 // ============================================================================
+// Enum registry: maps (enum_id, value) → variant name for TAG_ENUM toString()
+// ============================================================================
+
+namespace {
+    struct EnumInfo {
+        std::string name;
+        std::unordered_map<int, std::string> value_to_name;
+    };
+    static std::mutex s_enum_registry_mutex;
+    static std::vector<EnumInfo> s_enum_registry;
+}
+
+uint16_t NaabVal::registerEnum(const std::string& name,
+                                const std::vector<std::pair<std::string, int>>& variants) {
+    std::lock_guard<std::mutex> lock(s_enum_registry_mutex);
+    uint16_t id = static_cast<uint16_t>(s_enum_registry.size());
+    EnumInfo info;
+    info.name = name;
+    for (auto& [vname, val] : variants)
+        info.value_to_name[val] = vname;
+    s_enum_registry.push_back(std::move(info));
+    return id;
+}
+
+std::string NaabVal::enumVariantName(uint16_t enum_id, int value) {
+    std::lock_guard<std::mutex> lock(s_enum_registry_mutex);
+    if (enum_id < s_enum_registry.size()) {
+        auto& info = s_enum_registry[enum_id];
+        auto it = info.value_to_name.find(value);
+        if (it != info.value_to_name.end()) return it->second;
+    }
+    return std::to_string(value);
+}
+
+// ============================================================================
 // NaabVal — reference counting (called from inline destructor/copy)
 // ============================================================================
 
@@ -457,6 +492,7 @@ NaabVal NaabVal::deepCopy(int depth, std::unordered_set<const void*>* visited) c
 std::string NaabVal::toString() const {
     if (isNull()) return "null";
     if (isBool()) return asBool() ? "true" : "false";
+    if (isEnum()) return enumVariantName(asEnumId(), asInt());
     if (isInt()) return std::to_string(asInt());
     if (isDouble()) {
         char buf[64];
@@ -496,6 +532,7 @@ double NaabVal::toFloat() const {
 std::string NaabVal::getTypeName() const {
     if (isNull()) return "null";
     if (isBool()) return "bool";
+    if (isEnum()) return "enum";
     if (isInt()) return "int";
     if (isDouble()) return "float";
     if (!isHeap()) return "unknown";

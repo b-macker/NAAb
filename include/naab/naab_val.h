@@ -49,6 +49,7 @@ class NaabVal {
     static constexpr uint64_t TAG_BOOL = 0x7FFA000000000000ULL; // bits[50:48] = 010
     static constexpr uint64_t TAG_INT  = 0x7FFB000000000000ULL; // bits[50:48] = 011
     static constexpr uint64_t TAG_HEAP = 0x7FFC000000000000ULL; // bits[50:48] = 100
+    static constexpr uint64_t TAG_ENUM = 0x7FFD000000000000ULL; // bits[50:48] = 101 (enum: bits[47:32]=enum_id, bits[31:0]=int value)
     static constexpr uint64_t TAG_MASK = 0xFFFF000000000000ULL;
     static constexpr uint64_t PTR_MASK = 0x0000FFFFFFFFFFFFULL;
 
@@ -127,12 +128,20 @@ public:
         return v;
     }
 
+    static NaabVal makeEnum(int value, uint16_t enum_id) {
+        NaabVal v;
+        uint32_t u;
+        std::memcpy(&u, &value, sizeof(u));
+        v.bits_ = TAG_ENUM | (static_cast<uint64_t>(enum_id) << 32) | static_cast<uint64_t>(u);
+        return v;
+    }
+
     static NaabVal makeDouble(double d) {
         NaabVal v;
         std::memcpy(&v.bits_, &d, 8);
         // Canonicalize NaN values that would collide with our tag space
         uint64_t tag = v.bits_ & TAG_MASK;
-        if (tag == TAG_NULL || tag == TAG_BOOL || tag == TAG_INT || tag == TAG_HEAP) {
+        if (tag == TAG_NULL || tag == TAG_BOOL || tag == TAG_INT || tag == TAG_HEAP || tag == TAG_ENUM) {
             v.bits_ = QNAN; // Canonical quiet NaN
         }
         return v;
@@ -158,12 +167,14 @@ public:
 
     bool isNull() const { return (bits_ & TAG_MASK) == TAG_NULL; }
     bool isBool() const { return (bits_ & TAG_MASK) == TAG_BOOL; }
-    bool isInt()  const { return (bits_ & TAG_MASK) == TAG_INT; }
+    bool isInt()  const { return (bits_ & TAG_MASK) == TAG_INT || (bits_ & TAG_MASK) == TAG_ENUM; }
+    bool isEnum() const { return (bits_ & TAG_MASK) == TAG_ENUM; }
+    bool isPureInt() const { return (bits_ & TAG_MASK) == TAG_INT; }
     bool isHeap() const { return (bits_ & TAG_MASK) == TAG_HEAP; }
 
     bool isDouble() const {
         uint64_t tag = bits_ & TAG_MASK;
-        return tag != TAG_NULL && tag != TAG_BOOL && tag != TAG_INT && tag != TAG_HEAP;
+        return tag != TAG_NULL && tag != TAG_BOOL && tag != TAG_INT && tag != TAG_HEAP && tag != TAG_ENUM;
     }
 
     // High-level type checks (out-of-line, dispatch on ValueBox kind)
@@ -199,6 +210,10 @@ public:
         int i;
         std::memcpy(&i, &u, sizeof(i));
         return i;
+    }
+
+    uint16_t asEnumId() const {
+        return static_cast<uint16_t>((bits_ >> 32) & 0xFFFF);
     }
 
     ValueBox* asHeap() const;  // out-of-line (uses handle table on ARM64)
@@ -239,6 +254,11 @@ public:
 
     // Get type name as string (for error messages)
     std::string getTypeName() const;
+
+    // Enum registry — maps enum_id + value to variant name
+    static uint16_t registerEnum(const std::string& name,
+                                  const std::vector<std::pair<std::string, int>>& variants);
+    static std::string enumVariantName(uint16_t enum_id, int value);
 
     // ========================================================================
     // Legacy conversion bridge

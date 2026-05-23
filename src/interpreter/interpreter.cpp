@@ -1271,27 +1271,29 @@ void Interpreter::visit(ast::EnumDecl& node) {
     explain("Defining enum '" + node.getName() + "' with " +
             std::to_string(node.getVariants().size()) + " variants");
 
-    // Assign values to variants (either explicit or auto-increment)
+    // Build variant list and register for TAG_ENUM name resolution
+    std::vector<std::pair<std::string, int>> variant_pairs;
     int next_value = 0;
     for (const auto& variant : node.getVariants()) {
         int variant_value = variant.value.value_or(next_value);
+        variant_pairs.emplace_back(variant.name, variant_value);
+        next_value = variant_value + 1;
+    }
+    uint16_t enum_id = NaabVal::registerEnum(node.getName(), variant_pairs);
 
-        // Store enum variant as: EnumName.VariantName = value
-        std::string full_name = node.getName() + "." + variant.name;
-        auto value = NaabVal::makeInt(variant_value);
+    // Define each variant as TAG_ENUM
+    for (auto& [vname, val] : variant_pairs) {
+        std::string full_name = node.getName() + "." + vname;
+        auto value = NaabVal::makeEnum(val, enum_id);
         current_env_->define(full_name, value);
-        // Also define in global_env_ for cross-scope access
         if (current_env_ != global_env_) {
             global_env_->define(full_name, value);
         }
-
-        next_value = variant_value + 1;
     }
 
     LOG_DEBUG("[INFO] Defined enum: {} with {} variants\n",
                node.getName(), node.getVariants().size());
 
-    // Enum declarations don't produce values
     result_ = NaabVal::makeNull();
 }
 

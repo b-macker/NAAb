@@ -621,10 +621,12 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
     // Import exported enums (Phase 4.1: Module System)
     for (const auto& [name, enum_def] : module_env->exported_enums_) {
-        // Define all enum variants in global environment
+        // Register enum for TAG_ENUM name resolution
+        uint16_t enum_id = NaabVal::registerEnum(enum_def->name, enum_def->variants);
+        // Define all enum variants in global environment as TAG_ENUM
         for (const auto& [variant_name, value] : enum_def->variants) {
             std::string full_name = enum_def->name + "." + variant_name;
-            global_env_->define(full_name, NaabVal::makeInt(value));
+            global_env_->define(full_name, NaabVal::makeEnum(value, enum_id));
         }
         LOG_DEBUG("[SUCCESS] Imported enum: {}\n", name);
     }
