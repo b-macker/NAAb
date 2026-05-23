@@ -1673,6 +1673,19 @@ std::string GovernanceEngine::checkPlaceholders(
                 if (start != std::string::npos) {
                     matched_line = matched_line.substr(start);
                 }
+
+                // Skip false positives: match arms (e.g. "Draft => ...") and
+                // enum declarations (e.g. "Draft,") — these are identifiers, not placeholders
+                {
+                    std::regex arm_pat("\\b" + placeholder + "\\s*=>",
+                                      std::regex::icase);
+                    std::regex enum_pat("^\\s*" + placeholder + "\\s*[,}]",
+                                        std::regex::icase);
+                    if (std::regex_search(matched_line, arm_pat) ||
+                        std::regex_search(matched_line, enum_pat)) {
+                        continue;  // Not a real placeholder — skip
+                    }
+                }
                 if (matched_line.size() > 80) {
                     matched_line = matched_line.substr(0, 80) + "...";
                 }
