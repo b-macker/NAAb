@@ -1,9 +1,11 @@
 #include "naab/trust_store.h"
 #include "naab/crypto_utils.h"
+#include <nlohmann/json.hpp>
 #include <filesystem>
 #include <fstream>
 #include <cstdlib>
 #include <cstdio>
+#include <ctime>
 #ifndef _WIN32
 #  include <sys/stat.h>
 #endif
@@ -74,6 +76,18 @@ std::vector<std::pair<std::string, std::string>> TrustStore::loadKeys() {
             continue;
         }
 
+        // Skip expired/revoked keys
+        KeyMetadata meta = loadKeyMetadata(fp);
+        if (isKeyExpired(meta)) {
+            fprintf(stderr, "[trust-store] WARNING: Skipping expired key: %s\n", fp.c_str());
+            continue;
+        }
+        if (meta.revoked) {
+            fprintf(stderr, "[trust-store] WARNING: Skipping revoked key: %s (%s)\n",
+                    fp.c_str(), meta.revoked_reason.c_str());
+            continue;
+        }
+
         keys.emplace_back(fp, pem);
     }
     return keys;
@@ -120,6 +134,15 @@ bool TrustStore::installKey(const std::string& public_key_pem) {
     chmod(key_path.c_str(), 0644);
 #endif
 
+    // Stamp key metadata (created_at) if no metadata exists yet
+    KeyMetadata existing_meta = loadKeyMetadata(fp);
+    if (existing_meta.created_at == 0) {
+        KeyMetadata meta;
+        meta.fingerprint = fp;
+        meta.created_at = static_cast<int64_t>(std::time(nullptr));
+        saveKeyMetadata(fp, meta);
+    }
+
     // Create default.pub if it doesn't exist (first key installed)
     std::string default_path = store + "/default.pub";
     if (!std::filesystem::exists(default_path, ec)) {
@@ -143,6 +166,97 @@ std::vector<std::string> TrustStore::listKeyFingerprints() {
         fingerprints.push_back(fp);
     }
     return fingerprints;
+}
+
+// ============================================================================
+// Key Metadata (Authority Decay)
+// ============================================================================
+
+KeyMetadata TrustStore::loadKeyMetadata(const std::string& fingerprint) {
+    KeyMetadata meta;
+    meta.fingerprint = fingerprint;
+    std::string meta_path = getStorePath() + "/" + fingerprint + ".meta.json";
+    std::ifstream ifs(meta_path);
+    if (!ifs.is_open()) return meta;  // No metadata file — backward compat
+
+    try {
+        nlohmann::json j = nlohmann::json::parse(ifs);
+        if (j.contains("fingerprint")) meta.fingerprint = j["fingerprint"].get<std::string>();
+        if (j.contains("label")) meta.label = j["label"].get<std::string>();
+        if (j.contains("created_at")) meta.created_at = j["created_at"].get<int64_t>();
+        if (j.contains("expires_at")) meta.expires_at = j["expires_at"].get<int64_t>();
+        if (j.contains("revoked")) meta.revoked = j["revoked"].get<bool>();
+        if (j.contains("revoked_reason")) meta.revoked_reason = j["revoked_reason"].get<std::string>();
+        if (j.contains("revoked_at")) meta.revoked_at = j["revoked_at"].get<int64_t>();
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[trust-store] WARNING: Invalid metadata for key %s: %s\n",
+                fingerprint.c_str(), e.what());
+    }
+    return meta;
+}
+
+bool TrustStore::saveKeyMetadata(const std::string& fingerprint, const KeyMetadata& meta) {
+    std::string store = getStorePath();
+    std::error_code ec;
+    std::filesystem::create_directories(store, ec);
+    if (ec) return false;
+
+    nlohmann::json j;
+    j["fingerprint"] = meta.fingerprint.empty() ? fingerprint : meta.fingerprint;
+    j["label"] = meta.label;
+    j["created_at"] = meta.created_at;
+    j["expires_at"] = meta.expires_at;
+    j["revoked"] = meta.revoked;
+    j["revoked_reason"] = meta.revoked_reason;
+    j["revoked_at"] = meta.revoked_at;
+
+    std::string meta_path = store + "/" + fingerprint + ".meta.json";
+    std::ofstream ofs(meta_path);
+    if (!ofs.is_open()) {
+        fprintf(stderr, "[trust-store] Error: Cannot write metadata: %s\n", meta_path.c_str());
+        return false;
+    }
+    ofs << j.dump(2) << "\n";
+    ofs.close();
+#ifndef _WIN32
+    chmod(meta_path.c_str(), 0644);
+#endif
+    return true;
+}
+
+std::vector<KeyMetadata> TrustStore::loadKeysWithMetadata() {
+    std::vector<KeyMetadata> result;
+    auto keys = loadKeys();
+    for (const auto& [fp, pem] : keys) {
+        result.push_back(loadKeyMetadata(fp));
+    }
+    return result;
+}
+
+bool TrustStore::isKeyExpired(const KeyMetadata& meta) {
+    return meta.expires_at > 0 && std::time(nullptr) > meta.expires_at;
+}
+
+bool TrustStore::isKeyRevoked(const std::string& fingerprint) {
+    KeyMetadata meta = loadKeyMetadata(fingerprint);
+    return meta.revoked;
+}
+
+bool TrustStore::revokeKey(const std::string& fingerprint, const std::string& reason) {
+    // Verify key exists
+    std::string key_path = getStorePath() + "/" + fingerprint + ".pub";
+    std::error_code ec;
+    if (!std::filesystem::exists(key_path, ec)) {
+        fprintf(stderr, "[trust-store] Error: Key not found: %s\n", fingerprint.c_str());
+        return false;
+    }
+
+    KeyMetadata meta = loadKeyMetadata(fingerprint);
+    meta.fingerprint = fingerprint;
+    meta.revoked = true;
+    meta.revoked_reason = reason;
+    meta.revoked_at = static_cast<int64_t>(std::time(nullptr));
+    return saveKeyMetadata(fingerprint, meta);
 }
 
 } // namespace security

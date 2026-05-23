@@ -566,6 +566,77 @@ int main(int argc, char** argv) {
                 }
             }
             return 0;
+        } else if (arg == "--key-info") {
+            // Authority Decay: show key metadata
+            if (command_arg_index + 1 >= argc) {
+                fprintf(stderr, "Error: --key-info requires a fingerprint argument\n");
+                return 1;
+            }
+            std::string fp = argv[++command_arg_index];
+            auto meta = naab::security::TrustStore::loadKeyMetadata(fp);
+            fprintf(stdout, "Key: %s\n", fp.c_str());
+            if (!meta.label.empty())
+                fprintf(stdout, "  Label:      %s\n", meta.label.c_str());
+            if (meta.created_at > 0) {
+                char buf[64];
+                time_t t = static_cast<time_t>(meta.created_at);
+                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                fprintf(stdout, "  Created:    %s\n", buf);
+            }
+            if (meta.expires_at > 0) {
+                char buf[64];
+                time_t t = static_cast<time_t>(meta.expires_at);
+                strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                fprintf(stdout, "  Expires:    %s%s\n", buf,
+                        naab::security::TrustStore::isKeyExpired(meta) ? " (EXPIRED)" : "");
+            } else {
+                fprintf(stdout, "  Expires:    never\n");
+            }
+            fprintf(stdout, "  Revoked:    %s\n", meta.revoked ? "YES" : "no");
+            if (meta.revoked && !meta.revoked_reason.empty())
+                fprintf(stdout, "  Reason:     %s\n", meta.revoked_reason.c_str());
+            return 0;
+        } else if (arg == "--revoke-key") {
+            // Authority Decay: revoke a trusted key
+            if (command_arg_index + 1 >= argc) {
+                fprintf(stderr, "Error: --revoke-key requires a fingerprint argument\n");
+                return 1;
+            }
+            std::string fp = argv[++command_arg_index];
+            std::string reason = "revoked via CLI";
+            if (command_arg_index + 1 < argc && argv[command_arg_index + 1][0] != '-') {
+                reason = argv[++command_arg_index];
+            }
+            if (!naab::security::TrustStore::revokeKey(fp, reason)) {
+                fprintf(stderr, "Error: Failed to revoke key %s\n", fp.c_str());
+                return 1;
+            }
+            fprintf(stderr, "Key revoked: %s (reason: %s)\n", fp.c_str(), reason.c_str());
+            return 0;
+        } else if (arg == "--attest") {
+            // Environment Attestation: verify prerequisites from govern.json
+            naab::governance::GovernanceEngine gov;
+            gov.discoverAndLoad(".");
+            if (!gov.isActive()) {
+                fprintf(stderr, "No govern.json found or governance is disabled\n");
+                return 4;
+            }
+            auto results = gov.runAttestation();
+            if (results.empty()) {
+                fprintf(stdout, "No prerequisites configured\n");
+                return 0;
+            }
+            bool all_passed = true;
+            for (const auto& r : results) {
+                const char* status = r.passed ? "PASS" : "FAIL";
+                fprintf(stdout, "  [%s] %s:%s — required: %s, observed: %s\n",
+                        status, r.check_type.c_str(), r.check_name.c_str(),
+                        r.required.c_str(), r.observed.c_str());
+                if (!r.passed) all_passed = false;
+            }
+            fprintf(stdout, "\nAttestation: %s (%zu checks)\n",
+                    all_passed ? "PASSED" : "FAILED", results.size());
+            return all_passed ? 0 : 3;
         } else if (arg == "--sign-governance") {
             // Sign govern.json (Ed25519 via NAAB_SIGNING_KEY, or legacy HMAC via NAAB_GOVERN_KEY)
             naab::governance::GovernanceEngine gov;

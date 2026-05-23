@@ -1761,6 +1761,59 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (ap.contains("default_expiry_hours")) rules_.approval.default_expiry_hours = ap["default_expiry_hours"].get<int>();
     }
 
+    // --- Trust Policy (Authority Decay) ---
+    if (j.contains("trust") && j["trust"].is_object()) {
+        auto& tp = j["trust"];
+        if (tp.contains("max_signature_age_days"))
+            rules_.trust_policy.max_signature_age_days = tp["max_signature_age_days"].get<int>();
+        if (tp.contains("require_fresh_signature"))
+            rules_.trust_policy.require_fresh_signature = tp["require_fresh_signature"].get<bool>();
+        if (tp.contains("stale_signature_level")) {
+            std::string lev = tp["stale_signature_level"].get<std::string>();
+            if (lev == "hard") rules_.trust_policy.stale_signature_level = EnforcementLevel::HARD;
+            else if (lev == "soft") rules_.trust_policy.stale_signature_level = EnforcementLevel::SOFT;
+            else rules_.trust_policy.stale_signature_level = EnforcementLevel::ADVISORY;
+        }
+        if (tp.contains("check_key_expiry"))
+            rules_.trust_policy.check_key_expiry = tp["check_key_expiry"].get<bool>();
+        if (tp.contains("check_revocation"))
+            rules_.trust_policy.check_revocation = tp["check_revocation"].get<bool>();
+    }
+
+    // --- Prerequisites (Environment Attestation) ---
+    if (j.contains("prerequisites") && j["prerequisites"].is_object()) {
+        auto& pr = j["prerequisites"];
+        if (pr.contains("enabled")) rules_.prerequisites.enabled = pr["enabled"].get<bool>();
+        if (pr.contains("checks") && pr["checks"].is_array()) {
+            for (const auto& chk : pr["checks"]) {
+                PrerequisiteCheck pc;
+                if (chk.contains("type")) pc.type = chk["type"].get<std::string>();
+                if (chk.contains("name")) pc.name = chk["name"].get<std::string>();
+                if (chk.contains("required")) pc.required = chk["required"].get<std::string>();
+                if (chk.contains("level")) {
+                    std::string lev = chk["level"].get<std::string>();
+                    if (lev == "hard") pc.level = EnforcementLevel::HARD;
+                    else if (lev == "soft") pc.level = EnforcementLevel::SOFT;
+                    else pc.level = EnforcementLevel::ADVISORY;
+                }
+                if (chk.contains("message")) pc.message = chk["message"].get<std::string>();
+                rules_.prerequisites.checks.push_back(std::move(pc));
+            }
+        }
+    }
+
+    // --- Contradiction Detection ---
+    if (j.contains("contradiction_detection") && j["contradiction_detection"].is_object()) {
+        auto& cd = j["contradiction_detection"];
+        if (cd.contains("enabled")) rules_.contradiction_detection.enabled = cd["enabled"].get<bool>();
+        if (cd.contains("max_level")) {
+            std::string lev = cd["max_level"].get<std::string>();
+            if (lev == "hard") rules_.contradiction_detection.max_level = EnforcementLevel::HARD;
+            else if (lev == "soft") rules_.contradiction_detection.max_level = EnforcementLevel::SOFT;
+            else rules_.contradiction_detection.max_level = EnforcementLevel::ADVISORY;
+        }
+    }
+
     // --- Telemetry output config ---
     if (j.contains("telemetry") && j["telemetry"].is_object()) {
         auto& tel = j["telemetry"];
@@ -2505,6 +2558,12 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
                 }
             }
         }
+
+        // Contradiction Detection: static analysis of config conflicts
+        detectContradictions();
+
+        // Environment Attestation: verify prerequisites if configured
+        runAttestation();
 
         return true;
     } catch (const nlohmann::json::parse_error& e) {
