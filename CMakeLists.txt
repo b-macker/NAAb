@@ -95,8 +95,10 @@ if(ENABLE_HARDENING AND NOT MSVC)
     add_compile_options(-fPIE)
     add_link_options(-pie)
 
-    # Fortify source (buffer overflow detection)
-    add_compile_definitions(_FORTIFY_SOURCE=2)
+    # Fortify source (buffer overflow detection) — requires -O1+, inactive in Debug
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_definitions(_FORTIFY_SOURCE=2)
+    endif()
 
     # Integer conversion warnings
     add_compile_options(

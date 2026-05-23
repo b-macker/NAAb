@@ -123,11 +123,16 @@ interpreter::NaabVal performRequest(
         }
     }
 
-    // Initialize curl
+    // Initialize curl with RAII cleanup
+    struct CurlCleanup {
+        CURL* curl;
+        ~CurlCleanup() { if (curl) curl_easy_cleanup(curl); }
+    };
     CURL* curl = curl_easy_init();
     if (!curl) {
         throw std::runtime_error("Failed to initialize curl");
     }
+    CurlCleanup curl_guard{curl};
 
     // Response buffers
     std::string response_body;
@@ -204,18 +209,14 @@ interpreter::NaabVal performRequest(
         curl_slist_free_all(header_list);
     }
 
-    // Check for errors
+    // Check for errors (curl_guard handles cleanup on any exit path)
     if (res != CURLE_OK) {
-        std::string error_msg = fmt::format(
+        throw std::runtime_error(fmt::format(
             "HTTP request failed: {} ({})",
             curl_easy_strerror(res),
             static_cast<int>(res)
-        );
-        curl_easy_cleanup(curl);
-        throw std::runtime_error(error_msg);
+        ));
     }
-
-    curl_easy_cleanup(curl);
 
     // Build response object
     std::unordered_map<std::string, interpreter::NaabVal> response;
