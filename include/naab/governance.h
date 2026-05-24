@@ -1333,7 +1333,8 @@ struct FunctionContract {
     bool return_not_null = false;
     std::string return_matches;        // regex pattern the string return value must match
     std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
-    std::vector<std::string> must_call; // v5: patterns that MUST appear in function body (static analysis)
+    std::vector<std::string> must_call;    // v5: patterns that MUST appear in function body (static analysis)
+    std::vector<std::string> must_contain; // v5: literal strings that MUST appear in function body
 };
 
 struct ContractsConfig {

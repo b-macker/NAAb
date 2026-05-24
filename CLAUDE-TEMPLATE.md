@@ -963,6 +963,17 @@ When set in a contract, ALL `return_keys` values must be substantive —
 not `""`, `[]`, `{}`, or `null`. Use this for functions where empty values
 indicate a stub implementation rather than a legitimate empty result.
 
+**must_contain:**
+Literal string patterns that must appear in the function body.
+Use for enforcing language construct requirements:
+- `"|>"` — function must use pipeline operator
+- `"match "` — function must use match expression (trailing space avoids matching `regex.matches`)
+- `"try {"` — function must use try/catch
+
+Unlike `must_call` (which matches function calls via `\bname\s*\(`), `must_contain`
+does plain string search. Use `must_call` for function calls, `must_contain` for operators
+and syntax patterns.
+
 ---
 
 ## Code Quality Scanner
