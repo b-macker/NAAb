@@ -640,6 +640,11 @@ static const std::vector<HardcodedResultPattern> HARDCODED_RESULT_PATTERNS_DB = 
     {"(?:#|//)\\s*not implemented",   "Not implemented marker"},
     {"(?:#|//)\\s*basic implementation", "Basic implementation marker"},
     {"(?:#|//)\\s*minimal",           "Minimal implementation marker"},
+    // Hardcoded computation constants — variables that should be computed from input
+    {"(?:max_possible|max_score|max_total|min_score|total_possible|total_weight)\\s*=\\s*\\d{2,}",
+     "Hardcoded computation constant (should be derived from input)"},
+    {"(?:denominator|divisor|normalizer|scale_factor)\\s*=\\s*\\d{2,}",
+     "Hardcoded normalization constant (should be computed)"},
 };
 
 // --- Core Engine Implementation (extracted from governance.cpp) ---

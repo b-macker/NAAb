@@ -468,6 +468,71 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
             }
         }
     }
+
+    // 14. polyglot_magic_numbers — detect magic numbers inside polyglot blocks
+    if (isEnabled(CAT, "polyglot_magic_numbers")) {
+        std::unordered_set<double> allowed = {0, 1, -1, 2, 10, 100, 1000};
+        auto cfg_allowed = getNumListOption("code_quality", "magic_numbers");
+        if (!cfg_allowed.empty()) {
+            allowed.clear();
+            for (double v : cfg_allowed) allowed.insert(v);
+        }
+
+        static const std::regex poly_open_pat(R"(<<(\w+))");
+        static const std::regex poly_close_pat(R"(^\s*>>)");
+        static const std::regex num_pat(R"((-?\d+\.?\d*))");
+        static const std::regex py_const_def(R"(^\s*[A-Z][A-Z0-9_]*\s*=)");
+
+        bool in_poly = false;
+        std::string poly_lang;
+
+        for (size_t i = 0; i < orig_lines.size(); ++i) {
+            std::string trimmed = nb_trim(orig_lines[i]);
+            std::smatch lang_match;
+
+            if (!in_poly && std::regex_search(trimmed, lang_match, poly_open_pat)) {
+                in_poly = true;
+                poly_lang = lang_match[1].str();
+                continue;
+            }
+            if (in_poly && std::regex_match(trimmed, poly_close_pat)) {
+                in_poly = false;
+                continue;
+            }
+            if (!in_poly) continue;
+
+            if (trimmed.empty() || trimmed[0] == '#' || trimmed.rfind("//", 0) == 0) continue;
+            if (trimmed.rfind("import ", 0) == 0 || trimmed.rfind("from ", 0) == 0) continue;
+            if (std::regex_search(orig_lines[i], py_const_def)) continue;
+
+            std::sregex_iterator it(orig_lines[i].begin(), orig_lines[i].end(), num_pat);
+            std::sregex_iterator end;
+            for (; it != end; ++it) {
+                auto pos = (*it).position();
+                if (pos > 0) {
+                    char before = orig_lines[i][pos - 1];
+                    if (std::isalnum(before) || before == '_' || before == '.') continue;
+                }
+                auto end_pos = pos + (*it).length();
+                if (end_pos < static_cast<long>(orig_lines[i].size())) {
+                    char after = orig_lines[i][end_pos];
+                    if (std::isalnum(after) || after == '_' || after == '.') continue;
+                }
+                try {
+                    double val = std::stod((*it)[1].str());
+                    if (allowed.count(val) == 0 && std::abs(val) >= 3) {
+                        addIssue(issues, filepath, static_cast<int>(i + 1),
+                                 "polyglot_magic_numbers", CAT,
+                                 fmt::format("Magic number {} in {} polyglot block",
+                                             (*it)[1].str(), poly_lang),
+                                 trimmed,
+                                 "Extract to named constant or compute from input data");
+                        break;
+                    }
+                } catch (...) {}
+            }
+        }
+    }
 }
 
 } // namespace scanner
