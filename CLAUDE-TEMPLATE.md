@@ -869,6 +869,13 @@ main {
     WRONG: `file.write("/tmp/report.txt", content)`
     RIGHT:  `file.write("report.txt", content)`  — writes to current directory
     RIGHT:  `file.write(env.get("TMPDIR") + "/report.txt", content)`
+59. **Integer division truncates.** `int / int` produces `int` in NAAb, NOT float.
+    `12 / 8` evaluates to `1`, not `1.5`. For float division, cast one operand:
+    WRONG: `let days = total_hours / 8`        // 12/8 = 1 (truncated)
+    RIGHT: `let days = float(total_hours) / 8`  // 12.0/8 = 1.5
+    RIGHT: `let days = total_hours / 8.0`       // 12/8.0 = 1.5
+    This is the same as Python 2, C, Java, and Go integer division. If either operand
+    is float, the result is float.
 
 ## Complexity Scoring (for governance)
 
