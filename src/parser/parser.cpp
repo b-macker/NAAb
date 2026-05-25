@@ -3374,9 +3374,9 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
             }
         }
 
-        // Use parseLogicalOr for body to avoid greedy newline consumption
+        // Use parseNullCoalesce for body — not parsePipeline (greedy newline consumption)
         parser_context_->in_match_arm = true;
-        auto body = parseLogicalOr();
+        auto body = parseNullCoalesce();
         parser_context_->in_match_arm = false;
         skipNewlines();
 
