@@ -1,0 +1,97 @@
+use agent
+use json
+
+import "models.naab" as models
+
+export fn check_agent_available(config_name) {
+    return agent.check(config_name)
+}
+
+export fn generate_interpretation_prompt(rule, entity) {
+    let lines = []
+    lines.push("Rule: " + rule.get("name"))
+    lines.push("Description: " + rule.get("description"))
+    lines.push("")
+    lines.push("Entity: " + entity.get("name"))
+    lines.push("Type: " + models.entity_type_name(entity.get("entity_type")))
+    lines.push("")
+    lines.push("Attributes:")
+    let attrs = entity.get("attributes")
+    for key in attrs {
+        lines.push("  " + key + ": " + string(attrs.get(key)))
+    }
+    return lines.join("\n")
+}
+
+export fn interpret_rule(rule, entity, context) {
+    let check = check_agent_available("rule_interpreter")
+    if check.get("available") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": "agent not available",
+            "alternatives": []
+        }
+    }
+
+    try {
+        let handle = agent.create("rule_interpreter")
+        let prompt = generate_interpretation_prompt(rule, entity)
+        let resp = agent.send(handle, prompt)
+        let content = resp.get("content") ?? ""
+
+        return {
+            "interpretation": content,
+            "confidence": 1,
+            "reasoning": "agent analysis",
+            "alternatives": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "alternatives": []
+        }
+    }
+}
+
+export fn batch_interpret(rules, entity) {
+    let results = []
+    for rule in rules {
+        let result = interpret_rule(rule, entity, {})
+        results.push(result)
+    }
+    return results
+}
+
+export fn analyze_rule_conflicts(rules) {
+    let data = <<python[rules] -> JSON
+import json
+
+conflicts = []
+for i in range(len(rules)):
+    for j in range(i + 1, len(rules)):
+        r1 = rules[i]
+        r2 = rules[j]
+        if r1.get("category") == r2.get("category"):
+            conflicts.append({
+                "rule_a": r1.get("id"),
+                "rule_b": r2.get("id"),
+                "field": "category",
+                "reason": "same category"
+            })
+
+resolutions = []
+if conflicts:
+    resolutions.append("Review conflicting rules for contradictory conditions")
+
+json.dumps({
+    "conflicts": conflicts,
+    "count": len(conflicts),
+    "resolutions": resolutions
+})
+>>
+
+    return data
+}

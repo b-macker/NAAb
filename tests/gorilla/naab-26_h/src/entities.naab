@@ -1,0 +1,80 @@
+use uuid
+
+import "models.naab" as models
+
+export fn register_entity(registry, entity) {
+    for existing in registry {
+        if existing.get("id") == entity.get("id") {
+            return {
+                "registry": registry,
+                "success": false,
+                "error": "duplicate id"
+            }
+        }
+    }
+
+    let new_registry = registry
+    new_registry.push(entity)
+
+    return {
+        "registry": new_registry,
+        "success": true
+    }
+}
+
+export fn get_entity_by_id(registry, id) {
+    for entity in registry {
+        if entity.get("id") == id {
+            return entity
+        }
+    }
+    return null
+}
+
+export fn get_entities_by_type(registry, entity_type) {
+    return array.filter(registry, fn(e) {
+        return e.get("entity_type") == entity_type
+    })
+}
+
+export fn update_entity_attribute(registry, entity_id, key, value) {
+    for i in 0..len(registry) {
+        let entity = registry[i]
+        if entity.get("id") == entity_id {
+            let attrs = entity.get("attributes")
+            attrs[key] = value
+            entity["attributes"] = attrs
+            registry[i] = entity
+            return {
+                "registry": registry,
+                "success": true
+            }
+        }
+    }
+    return {
+        "registry": registry,
+        "success": false
+    }
+}
+
+export fn get_entity_attributes(entity) {
+    return entity.get("attributes")
+}
+
+export fn filter_entities_by_tag(registry, tag) {
+    return array.filter(registry, fn(e) {
+        let tags = e.get("tags") ?? []
+        return array.contains(tags, tag)
+    })
+}
+
+export fn count_entities_by_type(registry) {
+    let counts = {}
+    for entity in registry {
+        let et = entity.get("entity_type")
+        let type_name = models.entity_type_name(et)
+        let current = counts.get(type_name) ?? 0
+        counts[type_name] = current + 1
+    }
+    return counts
+}
