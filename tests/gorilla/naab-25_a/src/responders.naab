@@ -1,0 +1,124 @@
+use validate
+use math
+use array
+
+import "models.naab" as models
+
+export fn register_responder(roster, responder) {
+    let email = responder.get("email")
+    if !validate.email(email) {
+        return {"roster": roster, "success": false, "error": "invalid email"}
+    }
+
+    for r in roster {
+        if r.get("id") == responder.get("id") {
+            return {"roster": roster, "success": false, "error": "duplicate id"}
+        }
+    }
+
+    roster.push(responder)
+    return {"roster": roster, "success": true}
+}
+
+export fn find_best_responder(roster, severity, required_skills) {
+    let best = null
+    let best_score = -1
+    let best_reason = "no available responder"
+
+    for r in roster {
+        if !r.get("on_call") { continue }
+        if r.get("current_load") >= r.get("max_load") { continue }
+
+        let score = 0
+
+        if severity == models.Severity.Critical {
+            score = score + 60
+        } else {
+            score = score + 30
+        }
+
+        let load_ratio = r.get("current_load") / r.get("max_load")
+        if load_ratio < 0.5 {
+            score = score + 20
+        }
+
+        let r_skills = r.get("skills")
+        for skill in required_skills {
+            if array.contains(r_skills, skill) {
+                score = score + 10
+            }
+        }
+
+        if score > best_score {
+            best = r
+            best_score = score
+            best_reason = "on-call, skills match"
+        }
+    }
+
+    if best == null {
+        return {"responder": null, "score": 0, "reason": "no available responder"}
+    }
+    return {"responder": best, "score": best_score, "reason": best_reason}
+}
+
+export fn assign_responder(roster, responder_id, incident_id) {
+    let found = null
+    for i in 0..len(roster) {
+        let r = roster[i]
+        if r.get("id") == responder_id {
+            let new_load = r.get("current_load") + 1
+            r["current_load"] = new_load
+            roster[i] = r
+            found = r
+            break
+        }
+    }
+    if found == null {
+        return {"roster": roster, "responder": null, "success": false}
+    }
+    return {"roster": roster, "responder": found, "success": true}
+}
+
+export fn release_responder(roster, responder_id) {
+    for i in 0..len(roster) {
+        let r = roster[i]
+        if r.get("id") == responder_id {
+            let new_load = int(math.max(0, r.get("current_load") - 1))
+            r["current_load"] = new_load
+            roster[i] = r
+            return {"roster": roster, "success": true}
+        }
+    }
+    return {"roster": roster, "success": false}
+}
+
+export fn get_on_call(roster) {
+    let result = []
+    for r in roster {
+        if r.get("on_call") == true {
+            result.push(r)
+        }
+    }
+    return result
+}
+
+export fn calculate_responder_load(responder) {
+    let current = responder.get("current_load")
+    let max_l = responder.get("max_load")
+    let load_pct = if max_l > 0 { int((current * 100) / max_l) } else { 100 }
+    let avail = if max_l > current { max_l - current } else { 0 }
+    let over = current >= max_l
+    return {"load_percent": load_pct, "available_capacity": avail, "overloaded": over}
+}
+
+export fn validate_contact_info(responder) {
+    let errors = []
+    let email = responder.get("email")
+    if !validate.email(email) {
+        errors.push("invalid email: " + string(email))
+    }
+    return {"valid": len(errors) == 0, "errors": errors}
+}
+
+main {}

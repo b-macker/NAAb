@@ -1,0 +1,166 @@
+use uuid
+use time
+use json
+
+import "models.naab" as models
+
+export fn open_incident(title, severity, alerts, sla_policies) {
+    let inc_id = uuid.v4()
+    let corr_id = uuid.v4()
+    let now = time.now()
+
+    let deadline_minutes = 0
+    let sla_deadline = 0
+    for policy in sla_policies {
+        if policy.get("severity") == severity {
+            deadline_minutes = policy.get("response_minutes")
+            sla_deadline = now + deadline_minutes * 60
+            break
+        }
+    }
+
+    let inc_dict = {
+        "id": inc_id,
+        "title": title,
+        "severity": severity,
+        "status": models.IncidentStatus.Open,
+        "alerts": alerts,
+        "responder_id": "",
+        "created_at": now,
+        "updated_at": now,
+        "resolved_at": 0,
+        "sla_deadline": sla_deadline,
+        "correlation_id": corr_id
+    }
+    return {"incident": inc_dict, "sla_deadline_minutes": deadline_minutes}
+}
+
+export fn acknowledge_incident(incident, responder_id) {
+    if incident.get("status") != models.IncidentStatus.Open {
+        return incident
+    }
+
+    let result = {
+        "id": incident.get("id"),
+        "title": incident.get("title"),
+        "severity": incident.get("severity"),
+        "status": models.IncidentStatus.Acknowledged,
+        "alerts": incident.get("alerts"),
+        "responder_id": responder_id,
+        "created_at": incident.get("created_at"),
+        "updated_at": time.now(),
+        "resolved_at": incident.get("resolved_at"),
+        "sla_deadline": incident.get("sla_deadline"),
+        "correlation_id": incident.get("correlation_id")
+    }
+    return result
+}
+
+export fn start_investigation(incident) {
+    if incident.get("status") != models.IncidentStatus.Acknowledged {
+        return incident
+    }
+
+    let result = {
+        "id": incident.get("id"),
+        "title": incident.get("title"),
+        "severity": incident.get("severity"),
+        "status": models.IncidentStatus.Investigating,
+        "alerts": incident.get("alerts"),
+        "responder_id": incident.get("responder_id"),
+        "created_at": incident.get("created_at"),
+        "updated_at": time.now(),
+        "resolved_at": incident.get("resolved_at"),
+        "sla_deadline": incident.get("sla_deadline"),
+        "correlation_id": incident.get("correlation_id")
+    }
+    return result
+}
+
+export fn resolve_incident(incident, resolution_notes) {
+    if incident.get("status") != models.IncidentStatus.Investigating {
+        return incident
+    }
+
+    let result = {
+        "id": incident.get("id"),
+        "title": incident.get("title"),
+        "severity": incident.get("severity"),
+        "status": models.IncidentStatus.Resolved,
+        "alerts": incident.get("alerts"),
+        "responder_id": incident.get("responder_id"),
+        "created_at": incident.get("created_at"),
+        "updated_at": time.now(),
+        "resolved_at": time.now(),
+        "sla_deadline": incident.get("sla_deadline"),
+        "correlation_id": incident.get("correlation_id")
+    }
+    return result
+}
+
+export fn close_incident(incident) {
+    if incident.get("status") != models.IncidentStatus.Resolved {
+        return incident
+    }
+
+    let result = {
+        "id": incident.get("id"),
+        "title": incident.get("title"),
+        "severity": incident.get("severity"),
+        "status": models.IncidentStatus.Closed,
+        "alerts": incident.get("alerts"),
+        "responder_id": incident.get("responder_id"),
+        "created_at": incident.get("created_at"),
+        "updated_at": time.now(),
+        "resolved_at": incident.get("resolved_at"),
+        "sla_deadline": incident.get("sla_deadline"),
+        "correlation_id": incident.get("correlation_id")
+    }
+    return result
+}
+
+export fn merge_incidents(primary, secondary) {
+    let combined_alerts = primary.get("alerts") + secondary.get("alerts")
+    let absorbed = len(secondary.get("alerts"))
+
+    let merged = {
+        "id": primary.get("id"),
+        "title": primary.get("title"),
+        "severity": primary.get("severity"),
+        "status": primary.get("status"),
+        "alerts": combined_alerts,
+        "responder_id": primary.get("responder_id"),
+        "created_at": primary.get("created_at"),
+        "updated_at": primary.get("updated_at"),
+        "resolved_at": primary.get("resolved_at"),
+        "sla_deadline": primary.get("sla_deadline"),
+        "correlation_id": primary.get("correlation_id")
+    }
+    return {"merged": merged, "absorbed_count": absorbed}
+}
+
+export fn get_incidents_by_status(incidents, status) {
+    let result = []
+    for inc in incidents {
+        if inc.get("status") == status {
+            result.push(inc)
+        }
+    }
+    return result
+}
+
+export fn calculate_mttr(incidents) {
+    let mttr = <<python[incidents] -> JSON
+import json
+resolved = [i for i in incidents if i.get("status") == 3]
+if not resolved:
+    json.dumps({"mttr": 0.0})
+else:
+    total_seconds = sum(i["resolved_at"] - i["created_at"] for i in resolved)
+    avg_hours = (total_seconds / len(resolved)) / 3600.0
+    json.dumps({"mttr": round(avg_hours, 2)})
+>>
+    return mttr.get("mttr")
+}
+
+main {}

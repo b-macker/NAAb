@@ -1,0 +1,62 @@
+use regex
+use validate
+use string
+import "models.naab" as models
+
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+    let s = string.trim(input)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+    let cleaned = regex.replace(line, "\x1b\\[[0-9;]*m", "")
+    return sanitize_string(cleaned)
+}
+
+export fn validate_incident_data(data) {
+    let errors = []
+    let title = data.get("title")
+    if title == null || title == "" {
+        errors.push("title is required")
+    }
+    let sev = data.get("severity")
+    if sev == null {
+        errors.push("severity is required")
+    }
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_email_address(email) {
+    return validate.email(email)
+}
+
+export fn validate_ip_address(ip) {
+    return validate.ip(ip)
+}
+
+export fn validate_severity(sev) {
+    if sev == models.Severity.Critical {
+        return true
+    } else if sev == models.Severity.High {
+        return true
+    } else if sev == models.Severity.Medium {
+        return true
+    } else if sev == models.Severity.Low {
+        return true
+    } else {
+        return false
+    }
+}
+
+main {}

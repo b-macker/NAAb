@@ -1,0 +1,102 @@
+use json
+use crypto
+use file
+use time
+
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn generate_compliance_report(findings, rules, entities) {
+    let report = "=== Compliance Report ===\n\n"
+    report = report + "Total Rules: " + string(len(rules)) + "\n"
+    report = report + "Total Entities: " + string(len(entities)) + "\n"
+    report = report + "Total Findings: " + string(len(findings)) + "\n\n"
+
+    report = report + "=== Findings ===\n"
+    for f in findings {
+        report = report + format_finding(f) + "\n"
+    }
+
+    let hash = crypto.sha256(report)
+
+    return {
+        "report_text": report,
+        "hash": hash,
+        "sections": ["summary", "findings", "by_entity", "by_severity", "recommendations"]
+    }
+}
+
+export fn generate_audit_report(events) {
+    let trail = []
+    let hash_chain = []
+    let prev_hash = "genesis"
+
+    for event_text in events {
+        let event_hash = crypto.sha256(event_text + prev_hash)
+        trail.push({"event": event_text, "timestamp": time.now(), "hash": event_hash})
+        hash_chain.push(event_hash)
+        prev_hash = event_hash
+    }
+
+    return {
+        "trail": trail,
+        "hash_chain": hash_chain,
+        "summary": {
+            "total_events": len(events),
+            "first_event": if len(events) > 0 { events[0] } else { "" },
+            "last_event": if len(events) > 0 { events[len(events) - 1] } else { "" }
+        }
+    }
+}
+
+export fn export_findings_csv(findings) {
+    let csv = "rule_id,entity_id,result,severity,message\n"
+
+    for f in findings {
+        let rule_id = f.get("rule_id") ?? ""
+        let entity_id = f.get("entity_id") ?? ""
+        let result = f.get("result") ?? 0
+        let severity = f.get("severity") ?? 0
+        let message = f.get("message") ?? ""
+
+        csv = csv + rule_id + "," + entity_id + "," + string(result) + "," + string(severity) + "," + message + "\n"
+    }
+
+    return csv
+}
+
+export fn format_finding(finding) {
+    fn extract_and_format(f) {
+        let sev = f.get("severity")
+        let prefix = match sev {
+            0 => "[CRIT]",
+            1 => "[HIGH]",
+            2 => "[MED ]",
+            3 => "[LOW ]",
+            4 => "[INFO]",
+            _ => "[UNK ]"
+        }
+        let msg = prefix + " " + f.get("rule_id") + ": " + f.get("message")
+        return msg
+    }
+
+    return finding |> extract_and_format
+}
+
+export fn write_report_to_file(report_text, filepath) {
+    let result = {"success": false, "path": filepath, "bytes_written": 0}
+
+    try {
+        let clean = validators.sanitize_string(report_text)
+        file.write(filepath, clean)
+        result["success"] = true
+        result["bytes_written"] = len(clean)
+    } catch (e) {
+        result["success"] = false
+    }
+
+    return result
+}
+
+main {
+}

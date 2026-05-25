@@ -1,0 +1,179 @@
+import "models.naab" as models
+
+export fn build_dependency_graph(rules) {
+    let graph = {}
+    for rule in rules {
+        if rule.get("status") == models.RuleStatus.Active {
+            graph[rule.get("id")] = rule.get("dependencies") ?? []
+        }
+    }
+    return graph
+}
+
+export fn resolve_rule_dependencies(rules) {
+    let graph = build_dependency_graph(rules)
+
+    let result = <<python[graph] -> JSON
+import json
+from collections import deque
+
+in_degree = {}
+adj = {}
+
+for node in graph:
+    if node not in in_degree:
+        in_degree[node] = 0
+    if node not in adj:
+        adj[node] = []
+
+for node in graph:
+    for dep in graph[node]:
+        if dep not in in_degree:
+            in_degree[dep] = 0
+        adj[dep].append(node)
+        in_degree[node] += 1
+
+queue = deque([n for n in in_degree if in_degree[n] == 0])
+order = []
+
+while queue:
+    n = queue.popleft()
+    order.append(n)
+    for neighbor in adj[n]:
+        in_degree[neighbor] -= 1
+        if in_degree[neighbor] == 0:
+            queue.append(neighbor)
+
+unresolvable = [n for n in in_degree if in_degree[n] > 0]
+cycles = []
+
+json.dumps({"order": order, "cycles": cycles, "unresolvable": unresolvable})
+>>
+
+    return result
+}
+
+export fn detect_circular_dependencies(graph) {
+    let state = {"has_cycles": false, "cycles": [], "affected_rules": [], "colors": {}, "rec_stack": {}}
+
+    fn dfs(node, colors, rec_stack, path) {
+        colors[node] = "gray"
+        rec_stack[node] = true
+        path.push(node)
+
+        let deps = graph.get(node) ?? []
+        for dep in deps {
+            if !colors.get(dep) {
+                dfs(dep, colors, rec_stack, path)
+            } else if rec_stack.get(dep) {
+                state["has_cycles"] = true
+                let cycle_start = -1
+                for i in 0..len(path) {
+                    if path[i] == dep {
+                        cycle_start = i
+                    }
+                }
+                if cycle_start >= 0 {
+                    let cycle = []
+                    for i in cycle_start..len(path) {
+                        cycle.push(path[i])
+                    }
+                    let cycles = state.get("cycles")
+                    cycles.push(cycle)
+                    state["cycles"] = cycles
+                }
+            }
+        }
+
+        path.pop()
+        rec_stack[node] = false
+        colors[node] = "black"
+    }
+
+    let colors = {}
+    let rec_stack = {}
+
+    for node in graph.keys() {
+        if !colors.get(node) {
+            let path = []
+            dfs(node, colors, rec_stack, path)
+        }
+    }
+
+    if state.get("has_cycles") {
+        let affected = {}
+        for cycle in state.get("cycles") {
+            for node in cycle {
+                affected[node] = true
+            }
+        }
+        state["affected_rules"] = affected.keys()
+    }
+
+    return {
+        "has_cycles": state.get("has_cycles"),
+        "cycles": state.get("cycles"),
+        "affected_rules": state.get("affected_rules")
+    }
+}
+
+export fn traverse_dependency_tree(graph, root_id, visited) {
+    if !graph.get(root_id) {
+        return []
+    }
+
+    if visited.get(root_id) {
+        return []
+    }
+
+    let new_visited = visited
+    new_visited[root_id] = true
+
+    let result = []
+    let deps = graph.get(root_id) ?? []
+
+    for dep in deps {
+        result.push(dep)
+        let transitive = traverse_dependency_tree(graph, dep, new_visited)
+        for t in transitive {
+            result.push(t)
+        }
+    }
+
+    return result
+}
+
+export fn calculate_dependency_depth(graph, rule_id, memo) {
+    if memo.get(rule_id) != null {
+        return memo.get(rule_id)
+    }
+
+    let deps = graph.get(rule_id) ?? []
+
+    if len(deps) == 0 {
+        memo[rule_id] = 0
+        return 0
+    }
+
+    let max_dep_depth = 0
+    for dep in deps {
+        if memo.get(dep) == null {
+            let dep_depth = calculate_dependency_depth(graph, dep, memo)
+            if dep_depth > max_dep_depth {
+                max_dep_depth = dep_depth
+            }
+        } else {
+            let dep_depth = memo.get(dep)
+            if dep_depth > max_dep_depth {
+                max_dep_depth = dep_depth
+            }
+        }
+    }
+
+    let result = 1 + max_dep_depth
+    memo[rule_id] = result
+    return result
+}
+
+main {
+}

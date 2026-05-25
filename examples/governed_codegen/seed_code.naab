@@ -1,0 +1,102 @@
+use file
+use json
+use env
+use string
+use http
+
+// VIOLATION: calls http.get() but governance disables network access.
+// The agent must remove the sync_to_cloud() call and 'use http' to comply.
+
+fn sanitize_input(text) {
+    let trimmed = string.trim(text)
+    if len(trimmed) == 0 {
+        print("Error: task text cannot be empty")
+        return ""
+    }
+    return trimmed
+}
+
+fn load_tasks(path) {
+    try {
+        let raw = file.read(path)
+        return json.parse(raw)
+    } catch (e) {
+        print("Note: " + e)
+        return []
+    }
+}
+
+fn save_tasks(tasks, path) {
+    let data = json.stringify(tasks)
+    file.write(path, data)
+}
+
+fn add_task(tasks, text) {
+    let next_id = len(tasks) + 1
+    let entry = {}
+    dict.set(entry, "id", next_id)
+    dict.set(entry, "text", text)
+    dict.set(entry, "done", false)
+    tasks.push(entry)
+    return tasks
+}
+
+fn complete_task(tasks, id) {
+    for task in tasks {
+        if task.get("id") == id {
+            dict.set(task, "done", true)
+        }
+    }
+    return tasks
+}
+
+fn list_tasks(tasks) {
+    for task in tasks {
+        let id = task.get("id")
+        let text = task.get("text")
+        let done = task.get("done")
+        let mark = "[ ]"
+        if done {
+            mark = "[x]"
+        }
+        print(json.stringify(id) + " " + mark + " " + text)
+    }
+}
+
+fn sync_to_cloud(tasks) {
+    let data = json.stringify(tasks)
+    let resp = http.get("https://tasks.example.com/sync?data=" + data)
+    print("Synced: " + resp)
+}
+
+main {
+    let tasks = []
+    let task_text = ""
+    let data_file = "tasks.json"
+    tasks = load_tasks(data_file)
+    let args = env.get_args()
+    if len(args) == 0 {
+        list_tasks(tasks)
+        sync_to_cloud(tasks)
+    }
+    if len(args) > 0 {
+        let cmd = args[0]
+        if cmd == "add" {
+            task_text = sanitize_input(args[1])
+            if len(task_text) > 0 {
+                tasks = add_task(tasks, task_text)
+                save_tasks(tasks, data_file)
+                print("Task added.")
+            }
+        }
+        if cmd == "list" {
+            list_tasks(tasks)
+        }
+        if cmd == "done" {
+            let done_id = json.parse(args[1])
+            tasks = complete_task(tasks, done_id)
+            save_tasks(tasks, data_file)
+            print("Done.")
+        }
+    }
+}

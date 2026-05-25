@@ -1,0 +1,90 @@
+use uuid
+
+import "models.naab" as models
+
+export fn register_entity(registry, entity) {
+    for e in registry {
+        if e.get("id") == entity.get("id") {
+            return {"registry": registry, "success": false, "error": "duplicate id"}
+        }
+    }
+
+    let new_registry = registry + [entity]
+    return {"registry": new_registry, "success": true}
+}
+
+export fn get_entity_by_id(registry, id) {
+    for entity in registry {
+        if entity.get("id") == id {
+            return entity
+        }
+    }
+    return null
+}
+
+export fn get_entities_by_type(registry, entity_type) {
+    let result = []
+    for entity in registry {
+        if entity.get("entity_type") == entity_type {
+            result.push(entity)
+        }
+    }
+    return result
+}
+
+export fn update_entity_attribute(registry, entity_id, key, value) {
+    for i in 0..len(registry) {
+        let e = registry[i]
+        if e.get("id") == entity_id {
+            let attrs = e.get("attributes")
+            attrs[key] = value
+            e["attributes"] = attrs
+            registry[i] = e
+            return {"registry": registry, "success": true}
+        }
+    }
+    return {"registry": registry, "success": false}
+}
+
+export fn get_entity_attributes(entity) {
+    return entity.get("attributes") ?? {}
+}
+
+export fn filter_entities_by_tag(registry, tag) {
+    let result = []
+    for entity in registry {
+        let tags = entity.get("tags") ?? []
+        for t in tags {
+            if t == tag {
+                result.push(entity)
+                break
+            }
+        }
+    }
+    return result
+}
+
+export fn count_entities_by_type(registry) {
+    fn extract_types(reg) {
+        let types = []
+        for entity in reg {
+            types.push(entity.get("entity_type"))
+        }
+        return types
+    }
+
+    fn count_by_type(types) {
+        let counts = {}
+        for t in types {
+            let type_name = models.entity_type_name(t)
+            let current = counts.get(type_name) ?? 0
+            counts[type_name] = current + 1
+        }
+        return counts
+    }
+
+    return registry |> extract_types |> count_by_type
+}
+
+main {
+}

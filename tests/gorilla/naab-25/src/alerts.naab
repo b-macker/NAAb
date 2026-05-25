@@ -1,0 +1,202 @@
+use regex
+use string
+use json
+use math
+import "models.naab" as models
+
+export fn parse_log_line(raw_line) {
+    let pattern = "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}) \\[(\\w+)\\] (\\w+): (.+)"
+    let groups_result = regex.find_groups(raw_line, pattern)
+    if groups_result == null || len(groups_result) == 0 {
+        return {
+            "timestamp": null,
+            "level": null,
+            "service": null,
+            "message": raw_line
+        }
+    }
+    let groups = groups_result[0]
+    if len(groups) < 5 {
+        return {
+            "timestamp": null,
+            "level": null,
+            "service": null,
+            "message": raw_line
+        }
+    }
+    return {
+        "timestamp": groups[1],
+        "level": groups[2],
+        "service": groups[3],
+        "message": groups[4]
+    }
+}
+
+export fn classify_alert(alert) {
+    let msg = string.lower(alert.get("message"))
+    let patterns_matched = 0
+    let category = "unknown"
+    let confidence = 50
+
+    if string.contains(msg, "oom") || string.contains(msg, "out of memory") || string.contains(msg, "memory") {
+        category = "memory"
+        confidence = 90
+        patterns_matched = 1
+    } else if string.contains(msg, "5xx") || string.contains(msg, "503") || string.contains(msg, "502") || string.contains(msg, "500") {
+        category = "http_error"
+        confidence = 85
+        patterns_matched = 1
+    } else if string.contains(msg, "timeout") || string.contains(msg, "timed out") {
+        category = "timeout"
+        confidence = 80
+        patterns_matched = 1
+    } else if string.contains(msg, "disk") || string.contains(msg, "storage") || string.contains(msg, "space") {
+        category = "disk"
+        confidence = 85
+        patterns_matched = 1
+    } else if string.contains(msg, "cpu") || string.contains(msg, "load") {
+        category = "cpu"
+        confidence = 75
+        patterns_matched = 1
+    }
+
+    return {
+        "category": category,
+        "confidence": confidence,
+        "patterns_matched": patterns_matched
+    }
+}
+
+export fn correlate_alerts(alerts, window_seconds) {
+    if len(alerts) == 0 {
+        return []
+    }
+
+    let groups = []
+    let current_group = []
+    let prev_service = ""
+    let prev_ts = 0
+
+    for i in 0..len(alerts) {
+        let alert = alerts[i]
+        let ts = alert.get("timestamp")
+        let tags = alert.get("tags")
+        let service = if len(tags) > 0 { tags[0] } else { "unknown" }
+
+        if i == 0 {
+            current_group.push(alert)
+            prev_service = service
+            prev_ts = ts
+        } else {
+            let time_diff = ts - prev_ts
+            if time_diff <= window_seconds && service == prev_service {
+                current_group.push(alert)
+            } else {
+                groups.push(current_group)
+                current_group = [alert]
+                prev_service = service
+                prev_ts = ts
+            }
+        }
+    }
+
+    if len(current_group) > 0 {
+        groups.push(current_group)
+    }
+
+    return groups
+}
+
+export fn deduplicate_alerts(alerts) {
+    let result = []
+    let seen = []
+
+    for alert in alerts {
+        let msg = alert.get("message")
+        let source = alert.get("source")
+        let ts = alert.get("timestamp")
+        let key = msg + "|" + string(source)
+
+        let is_duplicate = false
+        for s in seen {
+            if s.get("key") == key {
+                let time_diff = ts - s.get("timestamp")
+                if time_diff <= 60 {
+                    is_duplicate = true
+                    break
+                }
+            }
+        }
+
+        if !is_duplicate {
+            result.push(alert)
+            seen.push({
+                "key": key,
+                "timestamp": ts
+            })
+        }
+    }
+
+    return result
+}
+
+fn parse_to_alert(raw_line) {
+    let parsed = parse_log_line(raw_line)
+    let sev = if parsed.get("level") == "ERROR" { models.Severity.Critical }
+              else if parsed.get("level") == "WARN" { models.Severity.High }
+              else { models.Severity.Medium }
+    let alert = models.create_alert(
+        "pipeline-" + string(math.random(1000, 9999)),
+        models.AlertSource.Prometheus,
+        parsed.get("message") ?? raw_line,
+        sev,
+        0,
+        [parsed.get("service") ?? "unknown"],
+        raw_line
+    )
+    return alert
+}
+
+fn classify_single(alert) {
+    let classification = classify_alert(alert)
+    return { "alert": alert, "classification": classification }
+}
+
+export fn build_alert_pipeline(raw_lines) {
+    let result = []
+    for line in raw_lines {
+        let output = line |> parse_to_alert |> classify_single
+        result.push(output)
+    }
+    return result
+}
+
+export fn score_alert_urgency(alert, active_incidents) {
+    let result = <<python[alert, active_incidents] -> JSON
+import json
+severity = alert.get("severity", 3)
+base_scores = {0: 80, 1: 60, 2: 40, 3: 20}
+score = base_scores.get(severity, 20)
+
+alert_tags = alert.get("tags", [])
+alert_service = alert_tags[0] if alert_tags else "unknown"
+for inc in active_incidents:
+    inc_alerts = inc.get("alerts", [])
+    for ia in inc_alerts:
+        ia_tags = ia.get("tags", [])
+        if ia_tags and ia_tags[0] == alert_service:
+            score += 10
+            break
+    break
+
+msg = alert.get("message", "").lower()
+if "oom" in msg or "memory" in msg or "5xx" in msg or "503" in msg:
+    score += 10
+
+score = min(score, 100)
+json.dumps({"score": score})
+>>
+    return int(result.get("score"))
+}
+
+main {}

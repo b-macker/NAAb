@@ -1,0 +1,109 @@
+use agent
+use json
+
+import "models.naab" as models
+
+export fn check_agent_available(config_name) {
+    let check_result = agent.check(config_name)
+    return {"available": check_result.get("valid") == true, "reason": check_result.get("error") ?? ""}
+}
+
+export fn generate_interpretation_prompt(rule, entity) {
+    let prompt = "Rule: " + rule.get("name") + "\n"
+    prompt = prompt + "Description: " + rule.get("description") + "\n"
+    prompt = prompt + "Entity: " + entity.get("name") + "\n"
+    prompt = prompt + "Attributes: " + string(entity.get("attributes")) + "\n"
+    return prompt
+}
+
+export fn interpret_rule(rule, entity, context) {
+    try {
+        let handle = agent.create("rule_interpreter")
+        let prompt = generate_interpretation_prompt(rule, entity)
+        let response = agent.send(handle, prompt)
+
+        let content = response.get("content") ?? ""
+
+        return {
+            "interpretation": content,
+            "confidence": 0.95,
+            "reasoning": "agent analysis",
+            "alternatives": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "alternatives": []
+        }
+    }
+}
+
+export fn batch_interpret(rules, entity) {
+    let handles = []
+    let messages = []
+
+    for i in 0..1 {
+        try {
+            let h = agent.create("rule_interpreter")
+            handles.push(h)
+            let msg = generate_interpretation_prompt(rules[i], entity)
+            messages.push(msg)
+        } catch (e) {
+        }
+    }
+
+    try {
+        let responses = agent.batch(handles, messages)
+        let results = []
+        for resp in responses {
+            results.push({
+                interpretation: resp.get("content") ?? "unavailable",
+                confidence: 0.9,
+                reasoning: "batch analysis",
+                alternatives: []
+            })
+        }
+        return results
+    } catch (e) {
+        return [
+            {interpretation: "unavailable", confidence: 0, reasoning: string(e), alternatives: []}
+        ]
+    }
+}
+
+export fn analyze_rule_conflicts(rules) {
+    let result = <<python[rules] -> JSON
+    import json
+
+    conflicts = []
+    resolutions = []
+
+    for i in 0..len(rules):
+        for j in (i+1)..len(rules):
+            rule_a = rules[i]
+            rule_b = rules[j]
+
+            if rule_a.get("category") == rule_b.get("category"):
+                conflicts.append({
+                    "rule_a": rule_a.get("id"),
+                    "rule_b": rule_b.get("id"),
+                    "field": "category",
+                    "reason": "same category"
+                })
+                resolutions.append("resolve " + rule_a.get("id") + " vs " + rule_b.get("id"))
+
+    return json.dumps({
+        "conflicts": conflicts,
+        "count": len(conflicts),
+        "resolutions": resolutions
+    })
+    >>
+
+    return result
+}
+
+main {
+    print("interpreter module loaded")
+}

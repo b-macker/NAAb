@@ -1,0 +1,69 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "agents": {
+        "codegen_agent": {
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "api_key_env": "GK6",
+            "max_tokens": 2048,
+            "max_turns": 20,
+            "max_total_tokens": 200000,
+            "temperature": 0.5,
+            "timeout_seconds": 300,
+            "system_prompt": "You are an expert NAAb programmer. You write clean, correct, governance-compliant NAAb code. You always output complete, runnable programs. When given governance violations, you fix every single one before responding."
+        }
+    },
+    "security": {
+        "sandbox_level": "elevated",
+        "rationale": "Orchestrator writes generated code to /tmp and runs naab-lang as a subprocess"
+    },
+    "capabilities": {
+        "filesystem": {
+            "mode": "write",
+            "allow_absolute_paths": true,
+            "rationale": "Must write generated code to tmp dir and read target_govern.json"
+        },
+        "network": {
+            "enabled": true,
+            "rationale": "Agent requires outbound API calls to Gemini"
+        },
+        "shell": {
+            "enabled": true,
+            "rationale": "Orchestrator runs naab-lang on generated code to check governance compliance"
+        }
+    },
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "code_quality": {
+            "god_functions": {
+                "enabled": true,
+                "level": "soft",
+                "max_lines": 40,
+                "rationale": "Orchestrator functions should be reasonably sized"
+            },
+            "deep_nesting": {
+                "enabled": true,
+                "level": "soft",
+                "max_depth": 4,
+                "rationale": "Avoid deeply nested orchestration logic"
+            },
+            "empty_catch": {
+                "enabled": true,
+                "level": "hard",
+                "rationale": "Errors must not be silently swallowed"
+            }
+        }
+    },
+    "limits": {
+        "execution": {
+            "timeout_seconds": 1800,
+            "rationale": "Multi-attempt codegen loop with LLM calls can take several minutes"
+        }
+    },
+    "telemetry": {
+        "enabled": true,
+        "output_file": "codegen_telemetry.jsonl"
+    }
+}

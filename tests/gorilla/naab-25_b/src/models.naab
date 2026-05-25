@@ -1,0 +1,229 @@
+use time
+
+export enum Severity {
+    Critical,
+    High,
+    Medium,
+    Low
+}
+
+export enum IncidentStatus {
+    Open,
+    Acknowledged,
+    Investigating,
+    Resolved,
+    Closed
+}
+
+export enum AlertSource {
+    Prometheus,
+    Grafana,
+    CloudWatch,
+    PagerDuty,
+    Manual
+}
+
+export enum EscalationLevel {
+    L1,
+    L2,
+    L3,
+    Executive
+}
+
+export enum ResponderRole {
+    Engineer,
+    SRE,
+    Manager,
+    Executive
+}
+
+export struct Alert {
+    id: string
+    source: int
+    message: string
+    severity: int
+    timestamp: int
+    tags: array
+    raw_log: string
+}
+
+export struct Incident {
+    id: string
+    title: string
+    severity: int
+    status: int
+    alerts: array
+    responder_id: string
+    created_at: int
+    updated_at: int
+    resolved_at: int
+    sla_deadline: int
+    correlation_id: string
+}
+
+export struct Responder {
+    id: string
+    name: string
+    email: string
+    role: int
+    on_call: bool
+    current_load: int
+    max_load: int
+    skills: array
+}
+
+export struct Escalation {
+    id: string
+    incident_id: string
+    from_level: int
+    to_level: int
+    reason: string
+    escalated_at: int
+}
+
+export struct PostMortem {
+    id: string
+    incident_id: string
+    root_cause: string
+    timeline: array
+    action_items: array
+    created_by: string
+}
+
+export struct SLAPolicy {
+    id: string
+    name: string
+    severity: int
+    response_minutes: int
+    resolution_minutes: int
+}
+
+export fn create_alert(id, source, message, severity, timestamp, tags, raw_log) {
+    return new Alert {
+        id: id,
+        source: source,
+        message: message,
+        severity: severity,
+        timestamp: timestamp,
+        tags: tags,
+        raw_log: raw_log
+    }
+}
+
+export fn create_incident(id, title, severity, alerts, sla_deadline) {
+    return new Incident {
+        id: id,
+        title: title,
+        severity: severity,
+        status: IncidentStatus.Open,
+        alerts: alerts,
+        responder_id: "",
+        created_at: time.now(),
+        updated_at: time.now(),
+        resolved_at: 0,
+        sla_deadline: sla_deadline,
+        correlation_id: ""
+    }
+}
+
+export fn create_responder(id, name, email, role, on_call, max_load, skills) {
+    return new Responder {
+        id: id,
+        name: name,
+        email: email,
+        role: role,
+        on_call: on_call,
+        current_load: 0,
+        max_load: max_load,
+        skills: skills
+    }
+}
+
+export fn create_sla_policy(id, name, severity, response_min, resolution_min) {
+    return new SLAPolicy {
+        id: id,
+        name: name,
+        severity: severity,
+        response_minutes: response_min,
+        resolution_minutes: resolution_min
+    }
+}
+
+export fn severity_name(sev) {
+    if sev == Severity.Critical {
+        return "Critical"
+    } else if sev == Severity.High {
+        return "High"
+    } else if sev == Severity.Medium {
+        return "Medium"
+    } else if sev == Severity.Low {
+        return "Low"
+    }
+    return "Unknown"
+}
+
+export fn status_name(status) {
+    if status == IncidentStatus.Open {
+        return "Open"
+    } else if status == IncidentStatus.Acknowledged {
+        return "Acknowledged"
+    } else if status == IncidentStatus.Investigating {
+        return "Investigating"
+    } else if status == IncidentStatus.Resolved {
+        return "Resolved"
+    } else if status == IncidentStatus.Closed {
+        return "Closed"
+    }
+    return "Unknown"
+}
+
+export fn source_name(source) {
+    if source == AlertSource.Prometheus {
+        return "Prometheus"
+    } else if source == AlertSource.Grafana {
+        return "Grafana"
+    } else if source == AlertSource.CloudWatch {
+        return "CloudWatch"
+    } else if source == AlertSource.PagerDuty {
+        return "PagerDuty"
+    } else if source == AlertSource.Manual {
+        return "Manual"
+    }
+    return "Unknown"
+}
+
+export fn validate_alert(alert) {
+    let errors = []
+    let id = alert.get("id")
+    if id == null || id == "" {
+        errors.push("id is required")
+    }
+    let message = alert.get("message")
+    if message == null || message == "" {
+        errors.push("message is required")
+    }
+    let tags = alert.get("tags")
+    if tags == null {
+        errors.push("tags is required")
+    }
+    return {"valid": len(errors) == 0, "errors": errors}
+}
+
+export fn validate_responder(responder) {
+    let errors = []
+    let id = responder.get("id")
+    if id == null || id == "" {
+        errors.push("id is required")
+    }
+    let name = responder.get("name")
+    if name == null || name == "" {
+        errors.push("name is required")
+    }
+    let max_load = responder.get("max_load")
+    if max_load == null || max_load <= 0 {
+        errors.push("max_load must be positive")
+    }
+    return {"valid": len(errors) == 0, "errors": errors}
+}
+
+main {}

@@ -1,0 +1,117 @@
+use uuid
+
+import "models.naab" as models
+
+// Register entity in registry
+export fn register_entity(registry, entity) {
+    // Check for duplicate id
+    for existing in registry {
+        if existing.get("id") == entity.get("id") {
+            return {
+                "registry": registry,
+                "success": false,
+                "error": "duplicate id"
+            }
+        }
+    }
+
+    // Push to registry
+    registry.push(entity)
+    return {
+        "registry": registry,
+        "success": true
+    }
+}
+
+// Get entity by id
+export fn get_entity_by_id(registry, id) {
+    for entity in registry {
+        if entity.get("id") == id {
+            return entity
+        }
+    }
+    return null
+}
+
+// Get entities by type
+export fn get_entities_by_type(registry, entity_type) {
+    let result = []
+    for entity in registry {
+        if entity.get("entity_type") == entity_type {
+            result.push(entity)
+        }
+    }
+    return result
+}
+
+// Update entity attribute: CRITICAL VALUE SEMANTICS
+export fn update_entity_attribute(registry, entity_id, key, value) {
+    let found_index = -1
+
+    // Find entity by id
+    for i in 0..len(registry) {
+        let entity = registry[i]
+        if entity.get("id") == entity_id {
+            found_index = i
+        }
+    }
+
+    if found_index == -1 {
+        return {
+            "registry": registry,
+            "success": false
+        }
+    }
+
+    // Update entity (value semantics: must re-assign)
+    let entity = registry[found_index]
+    let attrs = entity.get("attributes")
+    attrs[key] = value
+    entity["attributes"] = attrs
+    registry[found_index] = entity
+
+    return {
+        "registry": registry,
+        "success": true
+    }
+}
+
+// Get entity attributes
+export fn get_entity_attributes(entity) {
+    return entity.get("attributes") ?? {}
+}
+
+// Filter entities by tag
+export fn filter_entities_by_tag(registry, tag) {
+    let result = []
+    for entity in registry {
+        let tags = entity.get("tags") ?? []
+        let has_tag = false
+        for t in tags {
+            if t == tag {
+                has_tag = true
+            }
+        }
+        if has_tag {
+            result.push(entity)
+        }
+    }
+    return result
+}
+
+// Count entities by type: PIPELINE approach
+export fn count_entities_by_type(registry) {
+    let counts = {}
+
+    for entity in registry {
+        let et = entity.get("entity_type")
+        let et_name = models.entity_type_name(et)
+
+        if counts.get(et_name) == null {
+            counts[et_name] = 0
+        }
+        counts[et_name] = int(counts.get(et_name)) + 1
+    }
+
+    return counts
+}

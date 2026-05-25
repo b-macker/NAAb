@@ -1,0 +1,310 @@
+use agent
+use file
+use process
+use string
+use env
+use json
+use time
+
+fn extract_code(raw) {
+    let lines = string.split(raw, "\n")
+    let collecting = false
+    let result = []
+    for line in lines {
+        let trimmed = string.trim(line)
+        if trimmed.starts_with("```") {
+            if !collecting {
+                collecting = true
+            } else {
+                break
+            }
+            continue
+        }
+        if collecting {
+            result.push(line)
+        }
+    }
+    if len(result) == 0 {
+        return raw
+    }
+    return string.join(result, "\n")
+}
+
+fn setup_test_dir(test_dir, govern_content) {
+    process.run("mkdir", ["-p", test_dir])
+    file.write(test_dir + "/govern.json", govern_content)
+}
+
+fn run_check(naab_bin, code_file) {
+    return process.run(naab_bin, [code_file, "--governance-dashboard"])
+}
+
+fn governance_passed(result) {
+    return result.exit_code == 0
+}
+
+fn looks_complete(code) {
+    let has_main = string.contains(code, "main {")
+    let has_load = string.contains(code, "load_tasks")
+    let has_save = string.contains(code, "save_tasks")
+    let has_add = string.contains(code, "add_task")
+    return has_main && has_load && has_save && has_add
+}
+
+fn format_check_output(result) {
+    let out = ""
+    if len(result.stdout) > 0 {
+        out = out + result.stdout
+    }
+    if len(result.stderr) > 0 {
+        out = out + result.stderr
+    }
+    return out + "\n[exit code: " + json.stringify(result.exit_code) + "]"
+}
+
+fn build_task_spec() {
+    return "Build a NAAb CLI task tracker. Requirements:\n\n" +
+        "COMMANDS (via env.get_args()):\n" +
+        "  add <text>   — add a new task\n" +
+        "  list         — show all tasks with id and status\n" +
+        "  done <id>    — mark task complete by numeric id\n\n" +
+        "REQUIRED FUNCTIONS (each must be <= 25 lines):\n" +
+        "  sanitize_input(text)       — trims whitespace, rejects empty string, returns clean text\n" +
+        "  load_tasks(path)           — reads JSON from path via file.read(), returns [] if missing\n" +
+        "  save_tasks(tasks, path)    — writes tasks array as JSON to path via file.write()\n" +
+        "  add_task(tasks, text)      — appends {id, text, done: false} dict, returns updated array\n" +
+        "  complete_task(tasks, id)   — sets done:true for matching id, returns updated array\n" +
+        "  list_tasks(tasks)          — prints each task formatted as: [id] [x/ ] text\n\n" +
+        "RULES:\n" +
+        "  - In main{}: declare 'let tasks = ...' and 'let task_text = ...' (governance requires it)\n" +
+        "  - Pass user text through sanitize_input() BEFORE storing or writing\n" +
+        "  - Use named constants for any numbers (e.g. let max_id = 9999)\n" +
+        "  - No network, no shell, no hardcoded passwords or tokens\n" +
+        "  - Data file: tasks.json in current directory\n" +
+        "  - use: file, json, env, string (and others as needed)"
+}
+
+fn build_initial_prompt(spec) {
+    return "You are an expert NAAb programmer.\n\n" +
+        "STUDY THIS COMPLETE NAAb EXAMPLE CAREFULLY — follow this exact syntax:\n\n" +
+        "```naab\n" +
+        "use file\n" +
+        "use json\n" +
+        "use env\n" +
+        "use string\n" +
+        "use array\n" +
+        "\n" +
+        "fn load_items(path) {\n" +
+        "    try {\n" +
+        "        let raw = file.read(path)\n" +
+        "        return json.parse(raw)\n" +
+        "    } catch (e) {\n" +
+        "        print(\"Could not load file: \" + e)\n" +
+        "        return []\n" +
+        "    }\n" +
+        "}\n" +
+        "\n" +
+        "fn save_items(items, path) {\n" +
+        "    let data = json.stringify(items)\n" +
+        "    file.write(path, data)\n" +
+        "}\n" +
+        "\n" +
+        "fn add_item(items, name) {\n" +
+        "    let max_id = 9999\n" +
+        "    let next_id = len(items) + 1\n" +
+        "    let entry = {}\n" +
+        "    dict.set(entry, \"id\", next_id)\n" +
+        "    dict.set(entry, \"name\", name)\n" +
+        "    dict.set(entry, \"done\", false)\n" +
+        "    items.push(entry)\n" +
+        "    return items\n" +
+        "}\n" +
+        "\n" +
+        "fn show_items(items) {\n" +
+        "    for item in items {\n" +
+        "        let id = item.get(\"id\")\n" +
+        "        let name = item.get(\"name\")\n" +
+        "        let done = item.get(\"done\")\n" +
+        "        let mark = \"[ ]\"\n" +
+        "        if done {\n" +
+        "            mark = \"[x]\"\n" +
+        "        }\n" +
+        "        print(json.stringify(id) + \" \" + mark + \" \" + name)\n" +
+        "    }\n" +
+        "}\n" +
+        "\n" +
+        "main {\n" +
+        "    let data_file = \"items.json\"\n" +
+        "    let items = load_items(data_file)\n" +
+        "    let args = env.get_args()\n" +
+        "    if len(args) == 0 {\n" +
+        "        show_items(items)\n" +
+        "    }\n" +
+        "    if len(args) > 0 {\n" +
+        "        let cmd = args[0]\n" +
+        "        if cmd == \"add\" {\n" +
+        "            let item_name = args[1]\n" +
+        "            items = add_item(items, item_name)\n" +
+        "            save_items(items, data_file)\n" +
+        "        }\n" +
+        "    }\n" +
+        "}\n" +
+        "```\n\n" +
+        "KEY SYNTAX RULES (do NOT deviate from the example above):\n" +
+        "  - Entry point: 'main {}' — NOT fn main() or function main()\n" +
+        "  - NO semicolons anywhere\n" +
+        "  - Top-level: ONLY use/fn/main — NO top-level let/const\n" +
+        "  - 'new' is reserved — use 'new_task', 'new_entry' etc\n" +
+        "  - Empty dict: let d = {}   Set field: dict.set(d,\"k\",v)   Get field: d.get(\"k\")\n" +
+        "  - Valid modules: file, json, env, string, array, dict, math, time\n" +
+        "  - array.push() mutates in place. for item in arr { } or for i in 0..len(arr) { }\n\n" +
+        "TASK:\n" + spec + "\n\n" +
+        "GOVERNANCE RULES (hard = blocks execution, soft = warning):\n" +
+        "  HARD: every function must be <= 25 lines\n" +
+        "  HARD: nesting depth <= 3 levels\n" +
+        "  HARD: no empty catch blocks\n" +
+        "  HARD: no hardcoded passwords/tokens/secrets\n" +
+        "  SOFT: no magic number literals — use named constants\n" +
+        "  SOFT: functions must have real logic (not empty stubs)\n" +
+        "  REQUIRED: declare 'let tasks = ...' and 'let task_text = ...' in main{}\n\n" +
+        "Output ONLY the complete NAAb program in a ```naab block. No explanation."
+}
+
+fn build_fix_prompt(spec, last_code, check_output) {
+    return "The NAAb program below failed a GOVERNANCE CHECK. Fix it by modifying the code.\n\n" +
+        "GOVERNANCE ERROR:\n" + check_output + "\n\n" +
+        "CURRENT CODE (fix this — keep all working functions, only remove what violates governance):\n" +
+        "```naab\n" + last_code + "\n```\n\n" +
+        "WHAT TO FIX:\n" +
+        "  - If 'Network access is not allowed': remove 'use http' and any http.get/http.post calls\n" +
+        "  - If 'Shell access is not allowed': remove 'use process' and any process.run calls\n" +
+        "  - If parse error 'let at top level': move the let inside a function or main{}\n" +
+        "  - Keep all other functions intact\n\n" +
+        "NAAb syntax (do NOT change these things that already work):\n" +
+        "  - use/fn/main at top level only (no top-level let)\n" +
+        "  - fn name(args) { body }   main { body }   No semicolons\n" +
+        "  - arr[0] for array index   d.get(\"k\") for dict get   dict.set(d,\"k\",v) for dict set\n\n" +
+        "Output the COMPLETE fixed NAAb program in a ```naab code block."
+}
+
+fn call_with_retry(handle, prompt) {
+    let max_retries = 2
+    let base_wait = 20.0
+    let response = ""
+    for i in 0..max_retries {
+        try {
+            let raw = agent.send(handle, prompt)
+            response = raw.get("content")
+        } catch (e) {
+            print("  API error: " + e)
+            let wait = base_wait * (i + 1)
+            if i < max_retries - 1 {
+                print("  Retrying in " + json.stringify(wait) + "s...")
+                time.sleep(wait)
+            }
+        }
+        if len(response) > 0 {
+            break
+        }
+    }
+    return response
+}
+
+fn int_str(n) {
+    return json.stringify(n)
+}
+
+fn print_divider(label) {
+    print("")
+    print("══════════════════════════════════════════════════")
+    print("  " + label)
+    print("══════════════════════════════════════════════════")
+}
+
+main {
+    let max_attempts = 5
+    let home = env.get("HOME")
+    let project = home + "/.naab/language"
+    let naab_bin = project + "/build/naab-lang"
+    let test_dir = project + "/examples/governed_codegen/output"
+    let code_file = test_dir + "/task_tracker.naab"
+    let govern_src = project + "/examples/governed_codegen/target_govern.json"
+
+    print_divider("Governed Codegen — Self-Correcting Agent Loop")
+    print("Target rules:  " + govern_src)
+    print("Max attempts:  " + int_str(max_attempts))
+    print("Output file:   " + code_file)
+
+    let govern_content = file.read(govern_src)
+    setup_test_dir(test_dir, govern_content)
+
+    let task_spec = build_task_spec()
+    let seed_file = project + "/examples/governed_codegen/seed_code.naab"
+
+    let passed = false
+    let final_code = ""
+    let attempt = 0
+    let last_code = file.read(seed_file)
+    let last_error = "Seed code loaded — running initial governance check."
+
+    for i in 0..max_attempts {
+        attempt = i + 1
+        print_divider("Attempt " + int_str(attempt) + " of " + int_str(max_attempts))
+
+        let code = last_code
+        if i > 0 {
+            let handle = agent.create("codegen_agent")
+            let prompt = build_fix_prompt(task_spec, last_code, last_error)
+            let response = call_with_retry(handle, prompt)
+            if len(response) == 0 {
+                print("All retries exhausted — skipping attempt")
+                continue
+            }
+            code = extract_code(response)
+        }
+
+        print("Received " + int_str(len(code)) + " chars of code. Running governance check...")
+        file.write(code_file, code)
+        last_code = code
+
+        let result = run_check(naab_bin, code_file)
+        let check_out = format_check_output(result)
+        print(check_out)
+        last_error = check_out
+
+        if governance_passed(result) && looks_complete(code) {
+            passed = true
+            final_code = code
+            break
+        }
+        if governance_passed(result) && !looks_complete(code) {
+            print("Code passed governance but is incomplete (missing required functions). Retrying...")
+            last_error = "Code passed governance but is missing required functions: load_tasks, save_tasks, add_task, complete_task, main{}"
+        }
+
+        print("Governance violations detected. Sending feedback to agent...")
+    }
+
+    print_divider("FINAL RESULT")
+
+    if passed {
+        print("PASS — Agent produced governance-compliant code on attempt " + int_str(attempt))
+        print("")
+        print("GENERATED CODE:")
+        print("─────────────────────────────────────────────────")
+        print(final_code)
+        print("─────────────────────────────────────────────────")
+        print("")
+        print("Saved at: " + code_file)
+        print("")
+        print("To run it:")
+        print("  cd " + test_dir)
+        print("  " + naab_bin + " task_tracker.naab add \"my first task\"")
+        print("  " + naab_bin + " task_tracker.naab list")
+        print("  " + naab_bin + " task_tracker.naab done 1")
+    } else {
+        print("FAIL — Agent could not produce compliant code in " + int_str(max_attempts) + " attempts")
+        print("Last attempt saved at: " + code_file)
+        print("Review violations above to see where the agent struggled")
+    }
+}

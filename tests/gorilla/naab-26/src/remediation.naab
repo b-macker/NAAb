@@ -1,0 +1,127 @@
+use uuid
+
+import "models.naab" as models
+
+// Find best remediation action for a finding
+export fn find_best_remediation(finding, available_actions) {
+    let severity = finding.get("severity") ?? 0
+
+    // Assign priority based on severity: MATCH EXPRESSION
+    let priority = match severity {
+        models.Severity.Critical => models.RemediationPriority.Immediate,
+        models.Severity.High => models.RemediationPriority.High,
+        models.Severity.Medium => models.RemediationPriority.Medium,
+        models.Severity.Low => models.RemediationPriority.Low,
+        _ => models.RemediationPriority.Deferred
+    }
+
+    // Select first available action (simplified scoring)
+    let best_action = null
+    if len(available_actions) > 0 {
+        best_action = available_actions[0]
+    }
+
+    return {
+        "action": best_action,
+        "priority": priority,
+        "estimated_effort": 4,
+        "dependencies": []
+    }
+}
+
+// Build remediation plan from findings
+export fn build_remediation_plan(findings, available_actions) {
+    let steps = []
+    let total_effort = 0
+
+    for finding in findings {
+        let remediation = find_best_remediation(finding, available_actions)
+        let step_id = uuid.v4()
+
+        let step = new models.RemediationStep {
+            id: step_id,
+            finding_id: finding.get("rule_id") ?? "",
+            action: string(remediation.get("action")),
+            priority: remediation.get("priority") ?? 0,
+            estimated_hours: remediation.get("estimated_effort") ?? 4,
+            blocked_by: remediation.get("dependencies") ?? [],
+            completed: false
+        }
+
+        steps.push(step)
+        total_effort = total_effort + (remediation.get("estimated_effort") ?? 0)
+    }
+
+    // Sort by priority (simpler than topological)
+    let priority_order = []
+    for step in steps {
+        priority_order.push(step.get("id"))
+    }
+
+    return {
+        "steps": steps,
+        "total_effort": total_effort,
+        "priority_order": priority_order,
+        "blocked_by": {}
+    }
+}
+
+// Estimate total effort
+export fn estimate_total_effort(steps) {
+    let total_hours = 0
+
+    for step in steps {
+        let hours = step.get("estimated_hours") ?? 0
+        total_hours = total_hours + int(hours)
+    }
+
+    let days = float(total_hours) / 8.0
+    let cost_estimate = total_hours * 150
+
+    return {
+        "hours": total_hours,
+        "days": days,
+        "cost_estimate": cost_estimate
+    }
+}
+
+// Get actionable steps (not blocked)
+export fn get_actionable_steps(steps) {
+    let actionable = []
+
+    for step in steps {
+        let blocked_by = step.get("blocked_by") ?? []
+        let is_blocked = false
+
+        for blocker_id in blocked_by {
+            // Check if blocker is completed
+            for other_step in steps {
+                if other_step.get("id") == blocker_id {
+                    if other_step.get("completed") != true {
+                        is_blocked = true
+                    }
+                }
+            }
+        }
+
+        if !is_blocked {
+            actionable.push(step)
+        }
+    }
+
+    return actionable
+}
+
+// Mark step as completed: VALUE SEMANTICS
+export fn mark_step_completed(steps, step_id) {
+    let result = []
+
+    for step in steps {
+        if step.get("id") == step_id {
+            step["completed"] = true
+        }
+        result.push(step)
+    }
+
+    return result
+}

@@ -1,0 +1,235 @@
+use array
+use string
+use math
+use json
+use csv
+use dict
+
+import "./models.naab" as models
+import "./scoring.naab" as scoring
+
+// ─── Dashboard Generation ───────────────────────────────────────────
+
+export fn generate_dashboard(alerts, incidents) {
+    let total_alerts = len(alerts)
+    let total_incidents = len(incidents)
+
+    // Count by severity
+    let sev_dist = scoring.severity_distribution(alerts)
+
+    // Count incidents by status
+    let status_counts = {
+        "open": 0, "investigating": 0, "contained": 0,
+        "remediated": 0, "closed": 0
+    }
+    for inc in incidents {
+        let status = inc.get("status")
+        if status == models.IncidentStatus.Open {
+            status_counts["open"] = int(status_counts.get("open", 0)) + 1
+        } else if status == models.IncidentStatus.Investigating {
+            status_counts["investigating"] = int(status_counts.get("investigating", 0)) + 1
+        } else if status == models.IncidentStatus.Contained {
+            status_counts["contained"] = int(status_counts.get("contained", 0)) + 1
+        } else if status == models.IncidentStatus.Remediated {
+            status_counts["remediated"] = int(status_counts.get("remediated", 0)) + 1
+        } else if status == models.IncidentStatus.Closed {
+            status_counts["closed"] = int(status_counts.get("closed", 0)) + 1
+        }
+    }
+
+    // Active = not closed/remediated
+    let active = int(status_counts.get("open", 0)) +
+                 int(status_counts.get("investigating", 0)) +
+                 int(status_counts.get("contained", 0))
+
+    // Risk posture
+    let risk = scoring.calculate_cumulative_risk(alerts)
+
+    return {
+        "total_alerts": total_alerts,
+        "total_incidents": total_incidents,
+        "active_incidents": active,
+        "severity_distribution": sev_dist,
+        "status_counts": status_counts,
+        "cumulative_risk": risk,
+        "risk_level": scoring.assess_risk_level(risk.get("avg_risk", 0.0)).get("level")
+    }
+}
+
+// ─── CSV Export ──────────────────────────────────────────────────────
+
+export fn export_alerts_csv(alerts) {
+    let rows = []
+    let header = "id,title,severity,category,score,acknowledged,source_ip"
+    array.push(rows, header)
+
+    for alert in alerts {
+        let row = string(alert.get("id", 0)) + "," +
+                  string(alert.get("title", "")) + "," +
+                  models.severity_name(alert.get("severity")) + "," +
+                  models.category_name(alert.get("category")) + "," +
+                  string(alert.get("score", 0.0)) + "," +
+                  string(alert.get("acknowledged", false)) + "," +
+                  string(alert.get("source_ip", ""))
+        array.push(rows, row)
+    }
+    return string.join(rows, "\n")
+}
+
+export fn export_incidents_csv(incidents) {
+    let rows = []
+    let header = "id,title,severity,status,alert_count,assignee"
+    array.push(rows, header)
+
+    for inc in incidents {
+        let row = string(inc.get("id", 0)) + "," +
+                  string(inc.get("title", "")) + "," +
+                  models.severity_name(inc.get("severity")) + "," +
+                  models.status_label(inc.get("status")) + "," +
+                  string(inc.get("alert_count", 0)) + "," +
+                  string(inc.get("assignee", "unassigned"))
+        array.push(rows, row)
+    }
+    return string.join(rows, "\n")
+}
+
+// ─── KPI Calculation ────────────────────────────────────────────────
+
+export fn calculate_kpis(alerts, incidents, deliveries_completed) {
+    let total_alerts = len(alerts)
+    let total_incidents = len(incidents)
+
+    // Alert-to-incident ratio
+    let alert_ratio = if total_incidents > 0 {
+        float(total_alerts) / float(total_incidents)
+    } else {
+        0.0
+    }
+
+    // False positive estimate: unacknowledged low-severity alerts
+    let false_positives = array.filter_fn(alerts, fn(a) {
+        let sev = a.get("severity")
+        return (sev == models.Severity.Info or sev == models.Severity.Low) and
+               not bool(a.get("acknowledged", false))
+    })
+    let fp_rate = if total_alerts > 0 {
+        float(len(false_positives)) / float(total_alerts) * 100.0
+    } else {
+        0.0
+    }
+
+    // Resolution rate
+    let closed = array.filter_fn(incidents, fn(inc) {
+        let s = inc.get("status")
+        return s == models.IncidentStatus.Closed or s == models.IncidentStatus.Remediated
+    })
+    let resolution_rate = if total_incidents > 0 {
+        float(len(closed)) / float(total_incidents) * 100.0
+    } else {
+        0.0
+    }
+
+    return {
+        "total_alerts": total_alerts,
+        "total_incidents": total_incidents,
+        "alert_to_incident_ratio": alert_ratio,
+        "false_positive_rate": fp_rate,
+        "resolution_rate": resolution_rate,
+        "open_incidents": total_incidents - len(closed)
+    }
+}
+
+// ─── Trend Forecasting (Python Polyglot) ────────────────────────────
+
+export fn forecast_alert_volume(historical_counts, periods) {
+    let result = <<python[historical_counts, periods] -> JSON
+import json
+import math
+
+n = len(historical_counts)
+if n < 2:
+    print(json.dumps({"forecast": historical_counts[:], "confidence": "low"}))
+else:
+    # Simple exponential smoothing
+    alpha = 0.3
+    smoothed = [historical_counts[0]]
+    for i in range(1, n):
+        s = alpha * historical_counts[i] + (1 - alpha) * smoothed[-1]
+        smoothed.append(round(s, 2))
+
+    # Forecast future periods
+    forecast = []
+    last = smoothed[-1]
+    for p in range(periods):
+        forecast.append(round(last, 2))
+
+    # Confidence based on data size
+    confidence = "high" if n >= 10 else ("medium" if n >= 5 else "low")
+
+    print(json.dumps({
+        "smoothed": smoothed,
+        "forecast": forecast,
+        "last_smoothed": round(last, 2),
+        "confidence": confidence
+    }))
+>>
+    return result
+}
+
+// ─── Report Text ────────────────────────────────────────────────────
+
+export fn generate_summary_text(dashboard) {
+    let lines = []
+    array.push(lines, "=== THREAT INTELLIGENCE DASHBOARD ===")
+    array.push(lines, "")
+    array.push(lines, f"Total Alerts:     {dashboard.get('total_alerts', 0)}")
+    array.push(lines, f"Total Incidents:  {dashboard.get('total_incidents', 0)}")
+    array.push(lines, f"Active Incidents: {dashboard.get('active_incidents', 0)}")
+    array.push(lines, f"Risk Level:       {dashboard.get('risk_level', 'UNKNOWN')}")
+    array.push(lines, "")
+
+    let sev = dashboard.get("severity_distribution", {})
+    array.push(lines, "Severity Breakdown:")
+    array.push(lines, f"  Critical: {sev.get('Critical', 0)}")
+    array.push(lines, f"  High:     {sev.get('High', 0)}")
+    array.push(lines, f"  Medium:   {sev.get('Medium', 0)}")
+    array.push(lines, f"  Low:      {sev.get('Low', 0)}")
+    array.push(lines, f"  Info:     {sev.get('Info', 0)}")
+
+    return string.join(lines, "\n")
+}
+
+// ─── Top Threats ────────────────────────────────────────────────────
+
+export fn top_threat_sources(alerts, limit) {
+    // Aggregate by source IP, count occurrences
+    let counts = {}
+    for alert in alerts {
+        let ip = string(alert.get("source_ip", "unknown"))
+        let current = counts.get(ip, 0)
+        counts[ip] = int(current) + 1
+    }
+
+    // Convert to sorted list
+    let entries = []
+    let keys = dict.keys(counts)
+    for key in keys {
+        array.push(entries, {"ip": key, "count": int(counts.get(key, 0))})
+    }
+
+    array.sort(entries, fn(a, b) {
+        let ca = int(a.get("count", 0))
+        let cb = int(b.get("count", 0))
+        if ca > cb { return -1 }
+        if ca < cb { return 1 }
+        return 0
+    })
+
+    // Return top N
+    let result = []
+    let n = math.min(int(limit), len(entries))
+    for i in 0..n {
+        array.push(result, entries[i])
+    }
+    return result
+}

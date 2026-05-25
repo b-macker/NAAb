@@ -1,0 +1,136 @@
+use json
+use csv
+use crypto
+use file
+use time
+use string
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn generate_incident_report(incident, escalations, responder) {
+    let title = incident.get("title")
+    let sev = models.severity_name(incident.get("severity"))
+    let status = models.status_name(incident.get("status"))
+    let resp_name = if responder != null { responder.get("name") } else { "Unassigned" }
+
+    let text = "Incident Report: " + title + "\n"
+    text = text + "Severity: " + sev + "\n"
+    text = text + "Status: " + status + "\n"
+    text = text + "Responder: " + resp_name + "\n"
+    text = text + "Escalations: " + string(len(escalations)) + "\n"
+
+    let hash = crypto.sha256(text)
+    return { "report_text": text, "hash": hash, "sections": ["summary", "timeline", "escalations", "responder"] }
+}
+
+export fn generate_postmortem(incident, root_cause, timeline_events, action_items) {
+    let pm = {
+        "id": "PM-" + string(time.now()),
+        "incident_id": incident.get("id"),
+        "root_cause": root_cause,
+        "timeline": timeline_events,
+        "action_items": action_items,
+        "created_by": "system"
+    }
+
+    let text = "Post-Mortem: " + incident.get("title") + "\n"
+    text = text + "Root Cause: " + root_cause + "\n"
+    text = text + "Action Items: " + string(len(action_items)) + "\n"
+    for item in action_items {
+        text = text + "- " + item + "\n"
+    }
+
+    return { "postmortem": pm, "report_text": text }
+}
+
+export fn export_incidents_csv(incidents, headers) {
+    let rows = []
+    rows.push(headers)
+    for inc in incidents {
+        let row = []
+        for h in headers {
+            let val = inc.get(h) ?? ""
+            row.push(string(val))
+        }
+        rows.push(row)
+    }
+    return csv.stringify(rows)
+}
+
+export fn generate_dashboard_data(incidents, responders, sla_policies) {
+    let open_count = 0
+    let resolved_times = []
+    for inc in incidents {
+        let s = inc.get("status")
+        if s == models.IncidentStatus.Open || s == models.IncidentStatus.Acknowledged || s == models.IncidentStatus.Investigating {
+            open_count = open_count + 1
+        }
+        if s == models.IncidentStatus.Resolved || s == models.IncidentStatus.Closed {
+            let ra = inc.get("resolved_at")
+            let ca = inc.get("created_at")
+            if ra > 0 && ca > 0 {
+                resolved_times.push(ra - ca)
+            }
+        }
+    }
+
+    let mttr = 0.0
+    if len(resolved_times) > 0 {
+        let total = 0
+        for t in resolved_times { total = total + t }
+        mttr = (total / len(resolved_times)) / 3600.0
+    }
+
+    let by_severity = {}
+    for inc in incidents {
+        let sev_name = models.severity_name(inc.get("severity"))
+        let count = by_severity.get(sev_name) ?? 0
+        by_severity[sev_name] = count + 1
+    }
+
+    let by_status = {}
+    for inc in incidents {
+        let st_name = models.status_name(inc.get("status"))
+        let count = by_status.get(st_name) ?? 0
+        by_status[st_name] = count + 1
+    }
+
+    let sla_compliance = if len(incidents) > 0 { 1.0 } else { 0.0 }
+
+    return {
+        "open_count": open_count,
+        "mttr": mttr,
+        "sla_compliance": sla_compliance,
+        "by_severity": by_severity,
+        "by_status": by_status
+    }
+}
+
+export fn build_audit_trail(events) {
+    let trail = []
+    let hash_chain = []
+    let prev_hash = "genesis"
+
+    for event in events {
+        let ts = time.now()
+        let hash_input = event + prev_hash
+        let hash = crypto.sha256(hash_input)
+        trail.push({ "event": event, "timestamp": ts, "hash": hash })
+        hash_chain.push(hash)
+        prev_hash = hash
+    }
+
+    return { "trail": trail, "hash_chain": hash_chain }
+}
+
+export fn write_report_to_file(report_text, filepath) {
+    let clean = validators.sanitize_string(report_text)
+    try {
+        file.write(filepath, clean)
+        return { "success": true, "path": filepath, "bytes_written": len(clean) }
+    } catch (e) {
+        return { "success": false, "path": filepath, "bytes_written": 0 }
+    }
+}
+
+main {}

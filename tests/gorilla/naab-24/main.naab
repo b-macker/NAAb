@@ -1,0 +1,815 @@
+use array
+use string
+use math
+use json
+use dict
+use crypto
+use time
+
+import "./models.naab" as models
+import "./ingest.naab" as ingest
+import "./scoring.naab" as scoring
+import "./response.naab" as response
+import "./reporting.naab" as reporting
+
+// ════════════════════════════════════════════════════════════════════
+//  naab-24: Threat Intelligence Platform — Full System Integration
+// ════════════════════════════════════════════════════════════════════
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+
+    // 1. IOC creation returns all required keys
+    total = total + 1
+    let ioc = models.create_ioc(models.IOCType.IPAddress, "192.168.1.100", "scanner", 0.85)
+    if ioc.has("id") and ioc.has("type") and ioc.has("value") and ioc.has("confidence") and
+       ioc.has("first_seen") and ioc.has("sightings") {
+        passed = passed + 1
+    }
+
+    // 2. IOC fingerprint is a 12-char hex substring of SHA-256
+    total = total + 1
+    let fp = string(ioc.get("id"))
+    if fp.length() == 12 {
+        passed = passed + 1
+    }
+
+    // 3. Alert creation with correct types
+    total = total + 1
+    let alert = models.create_alert(1, "Suspicious Login", models.Severity.High,
+        models.ThreatCategory.BruteForce, [ioc], "10.0.0.5")
+    if int(alert.get("id")) == 1 and string(alert.get("title")) == "Suspicious Login" and
+       bool(alert.get("acknowledged")) == false {
+        passed = passed + 1
+    }
+
+    // 4. Incident creation links alerts
+    total = total + 1
+    let inc = models.create_incident(100, "Brute Force Campaign", models.Severity.High, [alert])
+    if int(inc.get("id")) == 100 and int(inc.get("alert_count")) == 1 and
+       inc.get("status") == models.IncidentStatus.Open {
+        passed = passed + 1
+    }
+
+    // 5. IOC validation catches bad IP
+    total = total + 1
+    let bad_ioc = models.create_ioc(models.IOCType.IPAddress, "999.888.777.666", "test", 0.5)
+    let v = models.validate_ioc(bad_ioc)
+    if bool(v.get("valid")) == false and len(v.get("errors")) > 0 {
+        passed = passed + 1
+    }
+
+    // 6. IOC validation passes for valid domain
+    total = total + 1
+    let dom_ioc = models.create_ioc(models.IOCType.Domain, "evil.example.com", "intel", 0.9)
+    let dv = models.validate_ioc(dom_ioc)
+    if bool(dv.get("valid")) == true {
+        passed = passed + 1
+    }
+
+    // 7. Domain validation catches bare word
+    total = total + 1
+    let bad_dom = models.create_ioc(models.IOCType.Domain, "nodots", "test", 0.5)
+    let bdv = models.validate_ioc(bad_dom)
+    if bool(bdv.get("valid")) == false {
+        passed = passed + 1
+    }
+
+    // 8. Alert validation catches missing fields
+    total = total + 1
+    let bad_alert = {"id": -1, "title": "", "severity": null, "category": null}
+    let av = models.validate_alert(bad_alert)
+    if bool(av.get("valid")) == false and len(av.get("errors")) >= 3 {
+        passed = passed + 1
+    }
+
+    // 9. Severity weights are correctly ordered
+    total = total + 1
+    if models.severity_weight(models.Severity.Critical) > models.severity_weight(models.Severity.High) and
+       models.severity_weight(models.Severity.High) > models.severity_weight(models.Severity.Medium) and
+       models.severity_weight(models.Severity.Medium) > models.severity_weight(models.Severity.Low) and
+       models.severity_weight(models.Severity.Low) > models.severity_weight(models.Severity.Info) {
+        passed = passed + 1
+    }
+
+    // 10. Status labels match expected strings
+    total = total + 1
+    if models.status_label(models.IncidentStatus.Open) == "OPEN" and
+       models.status_label(models.IncidentStatus.Closed) == "CLOSED" and
+       models.status_label(models.IncidentStatus.Investigating) == "INVESTIGATING" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_ingest() {
+    let passed = 0
+    let total = 0
+
+    // 1. Parse a valid log line
+    total = total + 1
+    let entry = ingest.parse_log_line("2026-05-22T10:00:00|10.0.0.5|192.168.1.1|LOGIN_FAIL|username=admin")
+    if bool(entry.get("parsed")) == true and entry.get("src_ip") == "10.0.0.5" {
+        passed = passed + 1
+    }
+
+    // 2. Parse rejects malformed line
+    total = total + 1
+    let bad = ingest.parse_log_line("incomplete|data")
+    if bool(bad.get("parsed")) == false {
+        passed = passed + 1
+    }
+
+    // 3. Batch parse with mixed valid/invalid
+    total = total + 1
+    let lines = [
+        "2026-05-22T10:00:00|10.0.0.1|192.168.1.1|SCAN|port_sweep",
+        "bad line",
+        "2026-05-22T10:00:01|10.0.0.2|192.168.1.2|LOGIN_FAIL|admin",
+        "",
+        "2026-05-22T10:00:02|10.0.0.3|192.168.1.3|DATA_EXPORT|large_file"
+    ]
+    let batch = ingest.parse_log_batch(lines)
+    if int(batch.get("parsed_count")) == 3 and int(batch.get("error_count")) == 1 {
+        passed = passed + 1
+    }
+
+    // 4. Extract IPs from text
+    total = total + 1
+    let ips = ingest.extract_ips("Connection from 192.168.1.50 to 10.0.0.1 detected at 172.16.0.1")
+    if len(ips) == 3 and array.contains(ips, "192.168.1.50") and array.contains(ips, "10.0.0.1") {
+        passed = passed + 1
+    }
+
+    // 5. Extract domains from text
+    total = total + 1
+    let domains = ingest.extract_domains("Beacon to evil.example.com and c2.badsite.net detected")
+    if len(domains) == 2 and array.contains(domains, "evil.example.com") {
+        passed = passed + 1
+    }
+
+    // 6. Extract file hashes
+    total = total + 1
+    let md5 = "d41d8cd98f00b204e9800998ecf8427e"
+    let sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    let hashes = ingest.extract_file_hashes("Found hash " + md5 + " and " + sha256 + " in sample")
+    if len(hashes) == 2 and array.contains(hashes, md5) {
+        passed = passed + 1
+    }
+
+    // 7. Enrichment with threat feed
+    total = total + 1
+    let log_entry = models.create_log_entry("2026-01-01", "10.0.0.5", "192.168.1.1", "SCAN", "scanning evil.example.com")
+    let feeds = [
+        {"name": "blocklist", "weight": 8.0, "ips": ["10.0.0.5"], "domains": ["evil.example.com"]}
+    ]
+    let enriched = ingest.enrich_log_entry(log_entry, feeds)
+    if float(enriched.get("risk_score")) > 0.0 and len(enriched.get("indicators")) >= 2 {
+        passed = passed + 1
+    }
+
+    // 8. Deduplication merges same IOCs
+    total = total + 1
+    let ioc1 = models.create_ioc(models.IOCType.IPAddress, "10.0.0.5", "scan1", 0.7)
+    let ioc2 = models.create_ioc(models.IOCType.IPAddress, "10.0.0.5", "scan2", 0.9)
+    let ioc3 = models.create_ioc(models.IOCType.Domain, "evil.com", "intel", 0.8)
+    let dedup = ingest.deduplicate_iocs([ioc1, ioc2, ioc3])
+    if len(dedup.get("unique")) == 2 and int(dedup.get("duplicates_merged")) == 1 {
+        passed = passed + 1
+    }
+
+    // 9. Deduplicated IOC keeps higher confidence
+    total = total + 1
+    let merged_iocs = dedup.get("unique")
+    let ip_ioc = null
+    for ioc in merged_iocs {
+        if string(ioc.get("value")) == "10.0.0.5" {
+            ip_ioc = ioc
+        }
+    }
+    if ip_ioc != null and float(ip_ioc.get("confidence")) == 0.9 and int(ip_ioc.get("sightings")) == 2 {
+        passed = passed + 1
+    }
+
+    // 10. Correlation detects burst from single source
+    total = total + 1
+    let entries = []
+    for i in 0..5 {
+        array.push(entries, models.create_log_entry("2026-01-01", "10.0.0.99", "192.168.1.1", "SCAN", "attempt " + string(i)))
+    }
+    array.push(entries, models.create_log_entry("2026-01-01", "10.0.0.50", "192.168.1.1", "LOGIN", "ok"))
+    let corr = ingest.correlate_entries(entries, 60)
+    if int(corr.get("burst_count")) == 1 {
+        let burst = corr.get("bursts")[0]
+        if burst.get("source_ip") == "10.0.0.99" and int(burst.get("event_count")) == 5 {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_scoring() {
+    let passed = 0
+    let total = 0
+
+    // 1. Critical malware alert gets high score
+    total = total + 1
+    let ioc = models.create_ioc(models.IOCType.FileHash, "abc123", "sandbox", 0.95)
+    let alert = models.create_alert(1, "Ransomware Detected", models.Severity.Critical,
+        models.ThreatCategory.Malware, [ioc], "10.0.0.5")
+    let result = scoring.score_alert(alert, [])
+    if float(result.get("final_score")) > 15.0 {
+        passed = passed + 1
+    }
+
+    // 2. Info recon alert gets low score
+    total = total + 1
+    let low_alert = models.create_alert(2, "Port Scan", models.Severity.Info,
+        models.ThreatCategory.Recon, [], "10.0.0.10")
+    let low_result = scoring.score_alert(low_alert, [])
+    if float(low_result.get("final_score")) < 2.0 {
+        passed = passed + 1
+    }
+
+    // 3. Data exfil category multiplier > brute force
+    total = total + 1
+    let exfil_alert = models.create_alert(3, "Exfil", models.Severity.High,
+        models.ThreatCategory.DataExfil, [], "10.0.0.1")
+    let bf_alert = models.create_alert(4, "Brute", models.Severity.High,
+        models.ThreatCategory.BruteForce, [], "10.0.0.2")
+    let exfil_score = scoring.score_alert(exfil_alert, [])
+    let bf_score = scoring.score_alert(bf_alert, [])
+    if float(exfil_score.get("category_multiplier")) > float(bf_score.get("category_multiplier")) {
+        passed = passed + 1
+    }
+
+    // 4. Rank alerts orders by score descending
+    total = total + 1
+    let alerts = [low_alert, alert, exfil_alert]
+    let ranked = scoring.rank_alerts(alerts, [])
+    if float(ranked[0].get("score")) >= float(ranked[1].get("score")) and
+       float(ranked[1].get("score")) >= float(ranked[2].get("score")) {
+        passed = passed + 1
+    }
+
+    // 5. Anomaly detection finds outlier
+    total = total + 1
+    let counts = [10, 12, 11, 10, 13, 11, 50, 12, 10, 11]
+    let anomalies = scoring.detect_anomalies(counts)
+    if len(anomalies.get("anomalies")) >= 1 {
+        let first = anomalies.get("anomalies")[0]
+        if int(first.get("value")) == 50 and first.get("direction") == "high" {
+            passed = passed + 1
+        }
+    }
+
+    // 6. Anomaly detection returns valid statistics
+    total = total + 1
+    if float(anomalies.get("mean")) > 0 and float(anomalies.get("stddev")) > 0 {
+        passed = passed + 1
+    }
+
+    // 7. Trend detection identifies increasing pattern
+    total = total + 1
+    let increasing = [5, 8, 12, 15, 20, 25, 30]
+    let trend = scoring.calculate_trend(increasing)
+    if trend.get("direction") == "increasing" and float(trend.get("slope")) > 0 {
+        passed = passed + 1
+    }
+
+    // 8. Trend detection identifies flat pattern
+    total = total + 1
+    let flat = [10, 10, 10, 10, 10]
+    let flat_trend = scoring.calculate_trend(flat)
+    if flat_trend.get("direction") == "flat" {
+        passed = passed + 1
+    }
+
+    // 9. Risk level assessment tiers
+    total = total + 1
+    let crit_risk = scoring.assess_risk_level(20.0)
+    let med_risk = scoring.assess_risk_level(6.0)
+    let info_risk = scoring.assess_risk_level(1.0)
+    if crit_risk.get("level") == "CRITICAL" and med_risk.get("level") == "MEDIUM" and
+       info_risk.get("level") == "INFO" {
+        passed = passed + 1
+    }
+
+    // 10. Cumulative risk across alerts
+    total = total + 1
+    let scored_alerts = scoring.rank_alerts([alert, exfil_alert, low_alert], [])
+    let cum = scoring.calculate_cumulative_risk(scored_alerts)
+    if float(cum.get("total_risk")) > 0.0 and int(cum.get("alert_count")) == 3 and
+       float(cum.get("max_risk")) >= float(cum.get("avg_risk")) {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_response() {
+    let passed = 0
+    let total = 0
+
+    // 1. Malware playbook selected correctly
+    total = total + 1
+    let alert = models.create_alert(1, "Malware", models.Severity.Critical,
+        models.ThreatCategory.Malware, [], "10.0.0.5")
+    let playbook = response.select_playbook(alert)
+    if playbook.get("name") == "malware_containment" and
+       bool(playbook.get("auto_contain")) == true and len(playbook.get("steps")) >= 4 {
+        passed = passed + 1
+    }
+
+    // 2. Critical severity halves SLA
+    total = total + 1
+    let phish_alert = models.create_alert(2, "Phish", models.Severity.Critical,
+        models.ThreatCategory.Phishing, [], "10.0.0.1")
+    let phish_pb = response.select_playbook(phish_alert)
+    // Phishing SLA=8, critical halves to 4
+    if int(phish_pb.get("sla_hours")) == 4 {
+        passed = passed + 1
+    }
+
+    // 3. Incident lifecycle: assign
+    total = total + 1
+    let inc = models.create_incident(1, "Test Incident", models.Severity.High, [alert])
+    let assigned = response.assign_incident(inc, "analyst-1")
+    if assigned.get("assignee") == "analyst-1" and
+       assigned.get("status") == models.IncidentStatus.Investigating and
+       len(assigned.get("timeline")) == 1 {
+        passed = passed + 1
+    }
+
+    // 4. Incident lifecycle: contain
+    total = total + 1
+    let contained = response.contain_incident(assigned, ["blocked_ip", "isolated_host"])
+    if contained.get("status") == models.IncidentStatus.Contained and
+       len(contained.get("timeline")) == 2 {
+        passed = passed + 1
+    }
+
+    // 5. Incident lifecycle: remediate
+    total = total + 1
+    let remediated = response.remediate_incident(contained, "Reimaged workstation, rotated credentials")
+    if remediated.get("status") == models.IncidentStatus.Remediated and
+       len(remediated.get("timeline")) == 3 {
+        passed = passed + 1
+    }
+
+    // 6. Incident lifecycle: close with root cause
+    total = total + 1
+    let closed = response.close_incident(remediated, "Phishing email", "Improve email filtering")
+    if closed.get("status") == models.IncidentStatus.Closed and
+       closed.get("root_cause") == "Phishing email" and
+       len(closed.get("timeline")) == 4 {
+        passed = passed + 1
+    }
+
+    // 7. SLA breach escalation
+    total = total + 1
+    let open_inc = models.create_incident(2, "Stale", models.Severity.Critical, [])
+    let esc = response.should_escalate(open_inc, 5)
+    if bool(esc.get("escalate")) == true and esc.get("reason") == "sla_breach" {
+        passed = passed + 1
+    }
+
+    // 8. No escalation when within SLA
+    total = total + 1
+    let low_inc = models.create_incident(3, "Minor", models.Severity.Low, [])
+    let no_esc = response.should_escalate(low_inc, 24)
+    if bool(no_esc.get("escalate")) == false {
+        passed = passed + 1
+    }
+
+    // 9. Auto-triage sorts by score
+    total = total + 1
+    let a1 = models.create_alert(10, "C1", models.Severity.Critical, models.ThreatCategory.Malware, [], "1.1.1.1")
+    a1["score"] = 20.0
+    let a2 = models.create_alert(11, "M1", models.Severity.Medium, models.ThreatCategory.Recon, [], "2.2.2.2")
+    a2["score"] = 6.0
+    let a3 = models.create_alert(12, "L1", models.Severity.Low, models.ThreatCategory.Recon, [], "3.3.3.3")
+    a3["score"] = 2.0
+    let triage = response.auto_triage([a1, a2, a3])
+    if len(triage.get("critical")) == 1 and len(triage.get("medium")) == 1 and
+       len(triage.get("low")) == 1 and int(triage.get("needs_immediate")) == 1 {
+        passed = passed + 1
+    }
+
+    // 10. MTTR calculation for closed incidents
+    total = total + 1
+    let closed_incs = []
+    for i in 0..3 {
+        let ci = models.create_incident(100 + i, "Closed " + string(i), models.Severity.Medium, [])
+        let ci2 = response.assign_incident(ci, "analyst")
+        let ci3 = response.contain_incident(ci2, ["action"])
+        let ci4 = response.close_incident(ci3, "cause", "lesson")
+        array.push(closed_incs, ci4)
+    }
+    let mttr = response.calculate_mttr(closed_incs)
+    if float(mttr.get("mttr_hours")) > 0 and int(mttr.get("sample_size")) == 3 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_reporting() {
+    let passed = 0
+    let total = 0
+
+    // Build test data
+    let alerts = []
+    let ioc1 = models.create_ioc(models.IOCType.IPAddress, "10.0.0.5", "scan", 0.8)
+    array.push(alerts, models.create_alert(1, "Alert A", models.Severity.Critical, models.ThreatCategory.Malware, [ioc1], "10.0.0.5"))
+    array.push(alerts, models.create_alert(2, "Alert B", models.Severity.High, models.ThreatCategory.Phishing, [], "10.0.0.6"))
+    array.push(alerts, models.create_alert(3, "Alert C", models.Severity.Medium, models.ThreatCategory.BruteForce, [], "10.0.0.5"))
+    array.push(alerts, models.create_alert(4, "Alert D", models.Severity.Low, models.ThreatCategory.Recon, [], "10.0.0.7"))
+    array.push(alerts, models.create_alert(5, "Alert E", models.Severity.Info, models.ThreatCategory.Recon, [], "10.0.0.8"))
+
+    // Score them for triage
+    let scored = scoring.rank_alerts(alerts, [])
+
+    let inc1 = models.create_incident(1, "Inc A", models.Severity.Critical, [alerts[0]])
+    let inc2 = models.create_incident(2, "Inc B", models.Severity.High, [alerts[1]])
+    let inc2_closed = response.close_incident(
+        response.contain_incident(
+            response.assign_incident(inc2, "analyst"),
+            ["blocked"]
+        ),
+        "phishing", "training"
+    )
+    let incidents = [inc1, inc2_closed]
+
+    // 1. Dashboard returns all expected keys
+    total = total + 1
+    let dashboard = reporting.generate_dashboard(scored, incidents)
+    if dashboard.has("total_alerts") and dashboard.has("total_incidents") and
+       dashboard.has("active_incidents") and dashboard.has("severity_distribution") and
+       dashboard.has("risk_level") {
+        passed = passed + 1
+    }
+
+    // 2. Dashboard counts are correct
+    total = total + 1
+    if int(dashboard.get("total_alerts")) == 5 and int(dashboard.get("total_incidents")) == 2 and
+       int(dashboard.get("active_incidents")) == 1 {
+        passed = passed + 1
+    }
+
+    // 3. Severity distribution sums to total alerts
+    total = total + 1
+    let sev = dashboard.get("severity_distribution")
+    let sev_total = int(sev.get("Critical", 0)) + int(sev.get("High", 0)) +
+                    int(sev.get("Medium", 0)) + int(sev.get("Low", 0)) +
+                    int(sev.get("Info", 0))
+    if sev_total == 5 {
+        passed = passed + 1
+    }
+
+    // 4. CSV export has correct line count
+    total = total + 1
+    let csv_out = reporting.export_alerts_csv(scored)
+    let csv_lines = string.split(csv_out, "\n")
+    if len(csv_lines) == 6 {
+        passed = passed + 1
+    }
+
+    // 5. CSV header is correct
+    total = total + 1
+    if csv_lines[0] == "id,title,severity,category,score,acknowledged,source_ip" {
+        passed = passed + 1
+    }
+
+    // 6. Incident CSV export
+    total = total + 1
+    let inc_csv = reporting.export_incidents_csv(incidents)
+    let inc_lines = string.split(inc_csv, "\n")
+    if len(inc_lines) == 3 {
+        passed = passed + 1
+    }
+
+    // 7. KPI calculation
+    total = total + 1
+    let kpis = reporting.calculate_kpis(scored, incidents, 10)
+    if int(kpis.get("total_alerts")) == 5 and int(kpis.get("total_incidents")) == 2 and
+       float(kpis.get("resolution_rate")) == 50.0 {
+        passed = passed + 1
+    }
+
+    // 8. Forecast produces valid output
+    total = total + 1
+    let hist = [10, 15, 12, 18, 22, 20, 25]
+    let forecast = reporting.forecast_alert_volume(hist, 3)
+    if len(forecast.get("forecast")) == 3 and forecast.get("confidence") == "medium" {
+        passed = passed + 1
+    }
+
+    // 9. Summary text contains key information
+    total = total + 1
+    let text = reporting.generate_summary_text(dashboard)
+    if string.contains(text, "THREAT INTELLIGENCE DASHBOARD") and
+       string.contains(text, "Total Alerts") and
+       string.contains(text, "Severity Breakdown") {
+        passed = passed + 1
+    }
+
+    // 10. Top threat sources identifies correct IP
+    total = total + 1
+    let tops = reporting.top_threat_sources(scored, 3)
+    if len(tops) >= 1 {
+        // 10.0.0.5 appears in 2 alerts (Alert A and Alert C)
+        let top = tops[0]
+        if top.get("ip") == "10.0.0.5" and int(top.get("count")) == 2 {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_integration() {
+    let passed = 0
+    let total = 0
+
+    // Full pipeline: raw logs → parsed → enriched → scored → triaged → reported
+
+    // 1. Parse raw logs
+    total = total + 1
+    let raw_logs = [
+        "2026-05-22T10:00:00|10.0.0.5|192.168.1.1|LOGIN_FAIL|username=admin attempt=1",
+        "2026-05-22T10:00:01|10.0.0.5|192.168.1.1|LOGIN_FAIL|username=admin attempt=2",
+        "2026-05-22T10:00:02|10.0.0.5|192.168.1.1|LOGIN_FAIL|username=admin attempt=3",
+        "2026-05-22T10:00:03|10.0.0.5|192.168.1.1|LOGIN_FAIL|username=admin attempt=4",
+        "2026-05-22T10:00:04|10.0.0.5|192.168.1.1|LOGIN_FAIL|username=admin attempt=5",
+        "2026-05-22T10:01:00|172.16.0.1|192.168.1.2|DATA_EXPORT|size=500MB dest=evil.example.com",
+        "2026-05-22T10:02:00|192.168.1.50|192.168.1.1|LOGIN_OK|username=jdoe"
+    ]
+    let batch = ingest.parse_log_batch(raw_logs)
+    if int(batch.get("parsed_count")) == 7 {
+        passed = passed + 1
+    }
+
+    // 2. Enrich with threat feeds
+    total = total + 1
+    let entries = batch.get("entries")
+    let feeds = [
+        {"name": "known_bad", "weight": 9.0, "ips": ["10.0.0.5"], "domains": ["evil.example.com"]}
+    ]
+    let enriched = []
+    for entry in entries {
+        array.push(enriched, ingest.enrich_log_entry(entry, feeds))
+    }
+    let high_risk = array.filter_fn(enriched, fn(e) { return float(e.get("risk_score", 0)) > 0 })
+    if len(high_risk) >= 5 {
+        passed = passed + 1
+    }
+
+    // 3. Correlate finds burst
+    total = total + 1
+    let correlation = ingest.correlate_entries(entries, 60)
+    if int(correlation.get("burst_count")) >= 1 {
+        passed = passed + 1
+    }
+
+    // 4. Create alerts from enriched data and score them
+    total = total + 1
+    let alert1 = models.create_alert(1, "Brute Force: 10.0.0.5", models.Severity.High,
+        models.ThreatCategory.BruteForce,
+        [models.create_ioc(models.IOCType.IPAddress, "10.0.0.5", "logs", 0.9)],
+        "10.0.0.5")
+    let alert2 = models.create_alert(2, "Data Exfil: evil.example.com", models.Severity.Critical,
+        models.ThreatCategory.DataExfil,
+        [models.create_ioc(models.IOCType.Domain, "evil.example.com", "logs", 0.95)],
+        "172.16.0.1")
+    let ranked = scoring.rank_alerts([alert1, alert2], [])
+    // Data exfil should rank higher than brute force
+    if ranked[0].get("title") == "Data Exfil: evil.example.com" {
+        passed = passed + 1
+    }
+
+    // 5. Create and manage incident
+    total = total + 1
+    let incident = models.create_incident(1, "Coordinated Attack", models.Severity.Critical, ranked)
+    let pb = response.select_playbook(alert2)
+    let managed = response.assign_incident(incident, "soc-lead")
+    managed = response.contain_incident(managed, ["blocked_egress", "isolated_172.16.0.1"])
+    if managed.get("status") == models.IncidentStatus.Contained and len(managed.get("timeline")) == 2 {
+        passed = passed + 1
+    }
+
+    // 6. Generate full dashboard
+    total = total + 1
+    let dashboard = reporting.generate_dashboard(ranked, [managed])
+    if int(dashboard.get("total_alerts")) == 2 and int(dashboard.get("active_incidents")) == 1 {
+        passed = passed + 1
+    }
+
+    // 7. Export CSV and verify structure
+    total = total + 1
+    let csv_data = reporting.export_alerts_csv(ranked)
+    let lines = string.split(csv_data, "\n")
+    if len(lines) == 3 and string.contains(lines[0], "severity") {
+        passed = passed + 1
+    }
+
+    // 8. KPIs reflect open incident
+    total = total + 1
+    let kpis = reporting.calculate_kpis(ranked, [managed], 0)
+    if int(kpis.get("open_incidents")) == 1 and float(kpis.get("resolution_rate")) == 0.0 {
+        passed = passed + 1
+    }
+
+    // 9. System timestamp via shell polyglot
+    total = total + 1
+    let sys_time = <<shell[]
+date '+%Y-%m-%d'
+>>
+    if string.contains(string(sys_time), "2026") or string.length(string.trim(string(sys_time))) >= 8 {
+        passed = passed + 1
+    }
+
+    // 10. Crypto: hash consistency
+    total = total + 1
+    let data = "threat_intel_test"
+    let hash1 = crypto.sha256(data)
+    let hash2 = crypto.sha256(data)
+    if hash1 == hash2 and string.length(hash1) == 64 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_edge_cases() {
+    let passed = 0
+    let total = 0
+
+    // 1. Empty alert list handling — rank, cumulative risk, and triage all cope
+    total = total + 1
+    let empty_ranked = scoring.rank_alerts([], [])
+    let empty_cum = scoring.calculate_cumulative_risk([])
+    let empty_triage = response.auto_triage([])
+    if len(empty_ranked) == 0 and float(empty_cum.get("total_risk")) == 0.0 {
+        if int(empty_triage.get("total")) == 0 and int(empty_triage.get("needs_immediate")) == 0 {
+            passed = passed + 1
+        }
+    }
+
+    // 2. Anomaly detection with < 3 data points — should return no anomalies
+    total = total + 1
+    let small = scoring.detect_anomalies([5])
+    let small2 = scoring.detect_anomalies([3, 7])
+    if len(small.get("anomalies")) == 0 and len(small2.get("anomalies")) == 0 {
+        passed = passed + 1
+    }
+
+    // 3. Trend with single value and flat data
+    total = total + 1
+    let single_trend = scoring.calculate_trend([42])
+    let flat_trend = scoring.calculate_trend([10, 10, 10, 10])
+    if single_trend.get("direction") == "flat" and flat_trend.get("direction") == "flat" {
+        passed = passed + 1
+    }
+
+    // 4. IOC boundary validation — test all boundary confidence values
+    total = total + 1
+    let boundary_results = []
+    let boundary_confs = [0.0, 0.5, 1.0]
+    for conf in boundary_confs {
+        let ioc = models.create_ioc(models.IOCType.IPAddress, "10.0.0.1", "edge-test", conf)
+        let v = models.validate_ioc(ioc)
+        array.push(boundary_results, bool(v.get("valid")))
+    }
+    let all_valid = array.reduce_fn(boundary_results, fn(acc, v) {
+        if not v { return false }
+        return acc
+    }, true)
+    if all_valid {
+        passed = passed + 1
+    }
+
+    // 5. Confidence out of range — both too high and negative
+    total = total + 1
+    let bad_high = models.create_ioc(models.IOCType.Domain, "test.com", "test", 1.5)
+    let bad_neg = models.create_ioc(models.IOCType.Domain, "test.com", "test", -0.1)
+    let v_high = models.validate_ioc(bad_high)
+    let v_neg = models.validate_ioc(bad_neg)
+    if bool(v_high.get("valid")) == false and bool(v_neg.get("valid")) == false {
+        passed = passed + 1
+    }
+
+    // 6. Empty and malformed log batch processing
+    total = total + 1
+    let empty_batch = ingest.parse_log_batch([])
+    let whitespace_batch = ingest.parse_log_batch(["", "   ", ""])
+    if int(empty_batch.get("parsed_count")) == 0 and int(empty_batch.get("error_count")) == 0 {
+        if int(whitespace_batch.get("parsed_count")) == 0 {
+            passed = passed + 1
+        }
+    }
+
+    // 7. No-escalation for closed/remediated incidents
+    total = total + 1
+    let closed_inc = models.create_incident(99, "Done", models.Severity.Critical, [])
+    closed_inc["status"] = models.IncidentStatus.Closed
+    let remediated_inc = models.create_incident(100, "Fixed", models.Severity.High, [])
+    remediated_inc["status"] = models.IncidentStatus.Remediated
+    let esc_c = response.should_escalate(closed_inc, 999)
+    let esc_r = response.should_escalate(remediated_inc, 999)
+    if bool(esc_c.get("escalate")) == false and bool(esc_r.get("escalate")) == false {
+        if esc_c.get("reason") == "already_resolved" and esc_r.get("reason") == "already_resolved" {
+            passed = passed + 1
+        }
+    }
+
+    // 8. Forecast with varying data sizes — check confidence levels
+    total = total + 1
+    let fc_low = reporting.forecast_alert_volume([5], 3)
+    let fc_med = reporting.forecast_alert_volume([1,2,3,4,5,6,7], 2)
+    try {
+        if fc_low.get("confidence") == "low" and fc_med.get("confidence") == "medium" {
+            passed = passed + 1
+        }
+    } catch (e) {
+        // Forecast edge case failure — acceptable
+    }
+
+    // 9. Severity distribution with no alerts — all zeros
+    total = total + 1
+    let empty_dist = scoring.severity_distribution([])
+    let sev_keys = ["Critical", "High", "Medium", "Low", "Info"]
+    let all_zero = true
+    for key in sev_keys {
+        if int(empty_dist.get(key, 0)) != 0 {
+            all_zero = false
+        }
+    }
+    if all_zero {
+        passed = passed + 1
+    }
+
+    // 10. MTTR with no closed incidents + dashboard with empty data
+    total = total + 1
+    let empty_mttr = response.calculate_mttr([])
+    let empty_dash = reporting.generate_dashboard([], [])
+    if float(empty_mttr.get("mttr_hours")) == 0.0 and int(empty_mttr.get("sample_size")) == 0 {
+        if int(empty_dash.get("total_alerts")) == 0 and int(empty_dash.get("active_incidents")) == 0 {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Test Runner
+// ════════════════════════════════════════════════════════════════════
+
+main {
+    print("═══════════════════════════════════════════════════════════")
+    print("  naab-24: Threat Intelligence Platform")
+    print("  Full System Integration Test")
+    print("═══════════════════════════════════════════════════════════")
+    print("")
+
+    let suites = [
+        ["models",      test_models()],
+        ["ingest",      test_ingest()],
+        ["scoring",     test_scoring()],
+        ["response",    test_response()],
+        ["reporting",   test_reporting()],
+        ["integration", test_integration()],
+        ["edge_cases",  test_edge_cases()]
+    ]
+
+    let grand_pass = 0
+    let grand_total = 0
+
+    for suite in suites {
+        let name = suite[0]
+        let results = suite[1]
+        let p = int(results[0])
+        let t = int(results[1])
+        grand_pass = grand_pass + p
+        grand_total = grand_total + t
+
+        let status = if p == t { "PASS" } else { "FAIL" }
+        let pad = string.repeat(" ", 14 - string.length(string(name)))
+        print(f"  {status}  {name}{pad} {p}/{t}")
+    }
+
+    print("")
+    print("───────────────────────────────────────────────────────────")
+    print(f"  TOTAL: {grand_pass}/{grand_total}")
+
+    if grand_pass == grand_total {
+        print("  STATUS: ALL TESTS PASSED")
+    } else {
+        print(f"  STATUS: {grand_total - grand_pass} FAILURES")
+    }
+    print("═══════════════════════════════════════════════════════════")
+}

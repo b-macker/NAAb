@@ -1,0 +1,100 @@
+use json
+use crypto
+use file
+
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn generate_compliance_report(findings, rules, entities) {
+    let report_text = "=== Compliance Report ===\n\n"
+    report_text = report_text + "Total Findings: " + string(len(findings)) + "\n"
+    report_text = report_text + "Total Rules: " + string(len(rules)) + "\n"
+    report_text = report_text + "Total Entities: " + string(len(entities)) + "\n\n"
+
+    report_text = report_text + "Findings:\n"
+    for finding in findings {
+        report_text = report_text + "  - " + finding.get("rule_id") + " on " + finding.get("entity_id") + "\n"
+    }
+
+    let hash_val = crypto.sha256(report_text)
+
+    return {"report_text": report_text, "hash": hash_val, "sections": ["summary", "findings", "by_entity", "by_severity", "recommendations"]}
+}
+
+export fn generate_audit_report(events) {
+    let trail = []
+    let hash_chain = []
+    let prev_hash = "genesis"
+
+    for event in events {
+        let event_hash = crypto.sha256(event + prev_hash)
+        trail.push({event: event, timestamp: time.now(), hash: event_hash})
+        hash_chain.push(event_hash)
+        prev_hash = event_hash
+    }
+
+    let summary = {
+        total_events: len(events),
+        first_event: if len(events) > 0 { events[0] } else { "" },
+        last_event: if len(events) > 0 { events[len(events) - 1] } else { "" }
+    }
+
+    return {"trail": trail, "hash_chain": hash_chain, "summary": summary}
+}
+
+export fn export_findings_csv(findings) {
+    let csv = "rule_id,entity_id,result,severity,message\n"
+
+    for finding in findings {
+        let rule_id = finding.get("rule_id")
+        let entity_id = finding.get("entity_id")
+        let result = models.result_name(finding.get("result"))
+        let severity = models.severity_name(finding.get("severity"))
+        let message = finding.get("message")
+
+        csv = csv + rule_id + "," + entity_id + "," + result + "," + severity + "," + message + "\n"
+    }
+
+    return csv
+}
+
+fn build_finding_line(data) {
+    let prefix = data.get("prefix")
+    let rule_id = data.get("rule_id")
+    let entity_id = data.get("entity_id")
+    let message = data.get("message")
+    return prefix + " " + rule_id + " on " + entity_id + ": " + message
+}
+
+export fn format_finding(finding) {
+    let prefix = match finding.get("severity") {
+        models.Severity.Critical => "[CRIT]",
+        models.Severity.High => "[HIGH]",
+        models.Severity.Medium => "[MED ]",
+        models.Severity.Low => "[LOW ]",
+        _ => "[INFO]"
+    }
+
+    let line_data = {
+        prefix: prefix,
+        rule_id: finding.get("rule_id"),
+        entity_id: finding.get("entity_id"),
+        message: finding.get("message")
+    }
+    let line = line_data |> build_finding_line
+    return line
+}
+
+export fn write_report_to_file(report_text, filepath) {
+    let clean = validators.sanitize_string(report_text)
+    try {
+        file.write(filepath, clean)
+        return {"success": true, "path": filepath, "bytes_written": len(clean)}
+    } catch (e) {
+        return {"success": false, "path": filepath, "bytes_written": 0}
+    }
+}
+
+main {
+    print("reports module loaded")
+}

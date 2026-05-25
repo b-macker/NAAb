@@ -1,0 +1,364 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
+        "require_explicit": true
+    },
+
+    "capabilities": {
+        "network": { "enabled": true },
+        "filesystem": { "mode": "read_write" },
+        "shell": {
+            "enabled": true,
+            "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "mkfs"]
+        },
+        "env": { "enabled": true }
+    },
+
+    "trust": {
+        "max_signature_age_days": 90,
+        "require_fresh_signature": false,
+        "stale_signature_level": "advisory",
+        "check_key_expiry": true,
+        "check_revocation": true
+    },
+
+    "prerequisites": {
+        "enabled": true,
+        "checks": [
+            { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory" },
+            { "type": "tool", "name": "jq", "required": "exists", "level": "advisory" }
+        ]
+    },
+
+    "contradiction_detection": {
+        "enabled": true,
+        "max_level": "advisory"
+    },
+
+    "requirements": {
+        "main_block": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "variable_binding": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "naming_conventions": {
+            "enabled": true,
+            "level": "soft",
+            "variables": "snake_case",
+            "functions": "snake_case",
+            "constants": "UPPER_SNAKE_CASE"
+        }
+    },
+
+    "restrictions": {
+        "dangerous_calls": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "shell_injection": {
+            "enabled": true,
+            "level": "hard"
+        }
+    },
+
+    "taint_tracking": {
+        "enabled": true,
+        "sources": ["env.get", "polyglot_output"],
+        "sinks": ["file.write", "file.append"],
+        "sanitizers": ["sanitize_", "validate_", "int("]
+    },
+
+    "code_quality": {
+        "no_secrets": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_placeholders": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_hardcoded_results": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_temporary_code": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_simulation_markers": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "complexity_floor": {
+            "enabled": true,
+            "level": "soft",
+            "min_lines_for_check": 6,
+            "rules": [
+                {
+                    "names": ["test_"],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "calculate_mttr",
+                        "calculate_sla_metrics",
+                        "calculate_blast_radius",
+                        "calculate_responder_load",
+                        "predict_breach_risk",
+                        "score_alert_urgency",
+                        "analyze_root_cause"
+                    ],
+                    "min_score": 20,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "classify_alert",
+                        "correlate_alerts",
+                        "find_best_responder",
+                        "check_escalation_needed",
+                        "check_sla_compliance",
+                        "generate_incident_report",
+                        "generate_postmortem",
+                        "generate_dashboard_data",
+                        "build_audit_trail",
+                        "auto_escalate_batch",
+                        "generate_sla_summary",
+                        "get_breach_timeline",
+                        "batch_analyze",
+                        "build_alert_pipeline",
+                        "deduplicate_alerts"
+                    ],
+                    "min_score": 15,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "severity_name",
+                        "status_name",
+                        "source_name"
+                    ],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "create_",
+                        "open_",
+                        "acknowledge_",
+                        "start_",
+                        "resolve_",
+                        "close_",
+                        "merge_",
+                        "get_",
+                        "register_",
+                        "assign_",
+                        "release_",
+                        "escalate_",
+                        "update_",
+                        "validate_",
+                        "sanitize_",
+                        "export_",
+                        "write_",
+                        "parse_",
+                        "check_",
+                        "generate_rca_prompt",
+                        "main"
+                    ],
+                    "min_score": 3,
+                    "require_branching_or_loops": false
+                }
+            ]
+        }
+    },
+
+    "contracts": {
+        "level": "soft",
+        "functions": {
+            "open_incident": {
+                "return_type": "dict",
+                "return_keys": ["incident", "sla_deadline_minutes"]
+            },
+            "find_best_responder": {
+                "return_type": "dict",
+                "return_keys": ["responder", "score", "reason"]
+            },
+            "calculate_responder_load": {
+                "return_type": "dict",
+                "return_keys": ["load_percent", "available_capacity", "overloaded"]
+            },
+            "check_escalation_needed": {
+                "return_type": "dict",
+                "return_keys": ["needed", "reason", "target_level"]
+            },
+            "calculate_blast_radius": {
+                "return_type": "dict",
+                "return_keys": ["affected_services", "depth", "critical_path"]
+            },
+            "check_sla_compliance": {
+                "return_type": "dict",
+                "return_keys": ["compliant", "response_compliant", "resolution_compliant", "time_remaining_minutes", "breach_severity"]
+            },
+            "calculate_sla_metrics": {
+                "return_type": "dict",
+                "return_keys": ["total", "compliant_count", "breach_count", "compliance_rate", "avg_response_minutes", "avg_resolution_minutes"]
+            },
+            "predict_breach_risk": {
+                "return_type": "dict",
+                "return_keys": ["risk_score", "risk_level", "estimated_resolution_minutes"]
+            },
+            "generate_incident_report": {
+                "return_type": "dict",
+                "return_keys": ["report_text", "hash", "sections"]
+            },
+            "generate_dashboard_data": {
+                "return_type": "dict",
+                "return_keys": ["open_count", "mttr", "sla_compliance", "by_severity", "by_status"]
+            },
+            "build_audit_trail": {
+                "return_type": "dict",
+                "return_keys": ["trail", "hash_chain"]
+            },
+            "analyze_root_cause": {
+                "return_type": "dict",
+                "return_keys": ["root_cause", "confidence", "reasoning", "suggestions"]
+            },
+            "register_responder": {
+                "return_type": "dict",
+                "return_keys": ["roster", "success"]
+            },
+            "assign_responder": {
+                "return_type": "dict",
+                "return_keys": ["roster", "responder", "success"]
+            },
+            "validate_contact_info": {
+                "return_type": "dict",
+                "return_keys": ["valid", "errors"]
+            }
+        }
+    },
+
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "redundancy": {
+            "generic_variable_names": { "enabled": true, "level": "soft" },
+            "single_use_variable": { "enabled": true, "level": "soft" },
+            "over_abstraction": { "enabled": true, "level": "soft" },
+            "apologetic_comments": { "enabled": true, "level": "soft" },
+            "placeholder_code": { "enabled": true, "level": "soft" },
+            "gaming_comments": { "enabled": true, "level": "soft" },
+            "obvious_comments": { "enabled": true, "level": "soft" },
+            "decorative_separators": { "enabled": true, "level": "advisory" }
+        },
+        "code_quality": {
+            "empty_catch": { "enabled": true, "level": "hard" },
+            "dead_conditional": { "enabled": true, "level": "hard" },
+            "dead_code_after_return": { "enabled": true, "level": "soft" },
+            "recursive_no_base_case": { "enabled": true, "level": "soft" },
+            "magic_numbers": {
+                "enabled": true,
+                "level": "soft",
+                "allowed": [
+                    0, 1, -1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 60, 90, 100, 120, 180, 300, 1000,
+                    0.0, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0, 5.0
+                ]
+            },
+            "complex_boolean_expr": { "enabled": true, "level": "soft", "max_operators": 4 },
+            "magic_strings": { "enabled": true, "level": "soft" }
+        },
+        "complexity": {
+            "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+            "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+        },
+        "style": {
+            "long_lines": { "enabled": true, "level": "soft", "max": 120 }
+        },
+        "lang_rules": {
+            "naab": {
+                "value_semantics_bug": { "enabled": true, "level": "hard" },
+                "missing_null_check": { "enabled": true, "level": "hard" },
+                "dict_bracket_access": { "enabled": true, "level": "hard" },
+                "python_return_in_block": { "enabled": true, "level": "hard" },
+                "top_level_let": { "enabled": true, "level": "hard" }
+            }
+        }
+    },
+
+    "agents": {
+        "rca_agent": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK1",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.7,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a DevOps incident analysis expert. Analyze incidents and determine root causes. Be concise and precise."
+        },
+        "rca_agent_b1": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK2",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.7,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a DevOps incident analysis expert. Analyze incidents and determine root causes. Be concise and precise."
+        },
+        "rca_agent_b2": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK3",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.7,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a DevOps incident analysis expert. Analyze incidents and determine root causes. Be concise and precise."
+        }
+    },
+
+    "agent_dispatch": {
+        "max_concurrent": 3,
+        "pool_size": 3,
+        "pool_queue_max": 10
+    },
+
+    "scoring": {
+        "enabled": true,
+        "default_weight": 1.0,
+        "green_threshold": 0,
+        "yellow_threshold": 15,
+        "red_threshold": 30,
+        "threshold_mode": "cumulative"
+    },
+
+    "limits": {
+        "execution": {
+            "call_depth": 100,
+            "loop_iterations": 200000,
+            "polyglot_blocks": 40,
+            "timeout_seconds": 300
+        },
+        "code": {
+            "max_lines_per_block": 50,
+            "max_functions": 100,
+            "max_nesting_depth": 5
+        }
+    },
+
+    "security": {
+        "sandbox_level": "unrestricted"
+    }
+}

@@ -1,0 +1,150 @@
+use regex
+use validate
+
+import "models.naab" as models
+
+// Sanitize a string: strip < and >, preserve JSON chars, trim
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+
+    let s = string(input)
+    s = string.trim(s)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+// Sanitize log line: strip ANSI codes, then sanitize_string
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+
+    let s = string(line)
+    // Strip ANSI escape codes: \x1b[...m
+    s = regex.replace(s, "\\x1b\\[[0-9;]*m", "")
+    return sanitize_string(s)
+}
+
+// Validate rule syntax from a definition dict
+export fn validate_rule_syntax(definition) {
+    let errors = []
+
+    // Check id
+    let id = definition.get("id")
+    if id == null || id == "" {
+        errors.push("Rule id is required and must be non-empty")
+    }
+
+    // Check name
+    let name = definition.get("name")
+    if name == null || name == "" {
+        errors.push("Rule name is required and must be non-empty")
+    }
+
+    // Check category
+    let category = definition.get("category")
+    let valid_categories = ["access_control", "encryption", "audit", "network", "data_protection", "authentication"]
+    if category == null || len(string(category)) == 0 {
+        errors.push("Rule category is required")
+    } else {
+        let found = false
+        for cat in valid_categories {
+            if cat == string(category) {
+                found = true
+            }
+        }
+        if !found {
+            errors.push("Invalid category: " + string(category))
+        }
+    }
+
+    // Check severity
+    let severity = definition.get("severity")
+    if severity == null {
+        errors.push("Rule severity is required")
+    } else {
+        let sev_int = int(severity)
+        if sev_int < 0 || sev_int > 4 {
+            errors.push("Severity must be between 0 and 4")
+        }
+    }
+
+    // Check conditions
+    let conditions = definition.get("conditions")
+    if conditions == null || len(conditions) == 0 {
+        errors.push("Rule must have at least one condition")
+    }
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+// Validate email address format
+export fn validate_email_address(email) {
+    return validate.email(email)
+}
+
+// Validate condition tree: RECURSIVE
+// Uses container pattern for mutable state (errors and max_depth)
+export fn validate_condition_tree(conditions) {
+    let state = {"errors": [], "max_depth": 0}
+
+    fn validate_node(node, depth, st) {
+        // Update max depth
+        if depth > st.get("max_depth") {
+            st["max_depth"] = depth
+        }
+
+        let op = node.get("op")
+
+        // Leaf operators: Equals through Matches (0-7)
+        if op >= models.ConditionOp.Equals && op <= models.ConditionOp.Matches {
+            let field = node.get("field")
+            if field == null || field == "" {
+                st["errors"].push("Missing field at depth " + string(depth))
+            }
+            let value = node.get("value")
+            if value == null {
+                st["errors"].push("Missing value at depth " + string(depth))
+            }
+        }
+
+        // And/Or (8-9): require children
+        if op == models.ConditionOp.And || op == models.ConditionOp.Or {
+            let children = node.get("children") ?? []
+            if len(children) == 0 {
+                st["errors"].push("AND/OR requires at least one child at depth " + string(depth))
+            }
+            for child in children {
+                validate_node(child, depth + 1, st)
+            }
+        }
+
+        // Not (10): exactly 1 child
+        if op == models.ConditionOp.Not {
+            let children = node.get("children") ?? []
+            if len(children) != 1 {
+                st["errors"].push("NOT requires exactly 1 child at depth " + string(depth))
+            }
+            for child in children {
+                validate_node(child, depth + 1, st)
+            }
+        }
+    }
+
+    // Validate each top-level condition
+    for cond in conditions {
+        validate_node(cond, 0, state)
+    }
+
+    return {
+        "valid": len(state.get("errors")) == 0,
+        "errors": state.get("errors"),
+        "depth": state.get("max_depth")
+    }
+}

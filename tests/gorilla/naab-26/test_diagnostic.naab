@@ -1,0 +1,120 @@
+import "src/models.naab" as models
+import "src/conditions.naab" as conditions
+
+main {
+    for test_num in 1..11 {
+        let passed = 0
+        let total = 1
+
+        if test_num == 1 {
+            // Test 1: Equals match
+            let eq_cond = {"op": models.ConditionOp.Equals, "field": "role", "value": "admin", "children": []}
+            let eq_result = conditions.evaluate_condition(eq_cond, {"role": "admin"})
+            if eq_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 2 {
+            // Test 2: Equals mismatch
+            let eq_cond2 = {"op": models.ConditionOp.Equals, "field": "role", "value": "admin", "children": []}
+            let eq_result2 = conditions.evaluate_condition(eq_cond2, {"role": "user"})
+            if eq_result2.get("passed") == false {
+                passed = 1
+            }
+        }
+
+        if test_num == 3 {
+            // Test 3: GreaterThan
+            let gt_cond = {"op": models.ConditionOp.GreaterThan, "field": "port", "value": "1024", "children": []}
+            let gt_result = conditions.evaluate_condition(gt_cond, {"port": "8080"})
+            if gt_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 4 {
+            // Test 4: LessThan
+            let lt_cond = {"op": models.ConditionOp.LessThan, "field": "age_days", "value": "90", "children": []}
+            let lt_result = conditions.evaluate_condition(lt_cond, {"age_days": "30"})
+            if lt_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 5 {
+            // Test 5: Contains
+            let cont_cond = {"op": models.ConditionOp.Contains, "field": "name", "value": "prod", "children": []}
+            let cont_result = conditions.evaluate_condition(cont_cond, {"name": "prod-db-01"})
+            if cont_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 6 {
+            // Test 6: And both pass
+            let and_cond = {"op": models.ConditionOp.And, "field": "", "value": "", "children": [
+                {"op": models.ConditionOp.Equals, "field": "role", "value": "admin", "children": []},
+                {"op": models.ConditionOp.Equals, "field": "active", "value": "true", "children": []}
+            ]}
+            let and_result = conditions.evaluate_condition(and_cond, {"role": "admin", "active": "true"})
+            if and_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 7 {
+            // Test 7: And one fails
+            let and_cond2 = {"op": models.ConditionOp.And, "field": "", "value": "", "children": [
+                {"op": models.ConditionOp.Equals, "field": "role", "value": "admin", "children": []},
+                {"op": models.ConditionOp.Equals, "field": "active", "value": "true", "children": []}
+            ]}
+            let and_result2 = conditions.evaluate_condition(and_cond2, {"role": "user", "active": "true"})
+            if and_result2.get("passed") == false {
+                passed = 1
+            }
+        }
+
+        if test_num == 8 {
+            // Test 8: Or one passes
+            let or_cond = {"op": models.ConditionOp.Or, "field": "", "value": "", "children": [
+                {"op": models.ConditionOp.Equals, "field": "env", "value": "prod", "children": []},
+                {"op": models.ConditionOp.Equals, "field": "env", "value": "staging", "children": []}
+            ]}
+            let or_result = conditions.evaluate_condition(or_cond, {"env": "staging"})
+            if or_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 9 {
+            // Test 9: Not inverts
+            let not_cond = {"op": models.ConditionOp.Not, "field": "", "value": "", "children": [
+                {"op": models.ConditionOp.Equals, "field": "disabled", "value": "true", "children": []}
+            ]}
+            let not_result = conditions.evaluate_condition(not_cond, {"disabled": "false"})
+            if not_result.get("passed") == true {
+                passed = 1
+            }
+        }
+
+        if test_num == 10 {
+            // Test 10: count_conditions
+            let count_cond = {"op": models.ConditionOp.And, "field": "", "value": "", "children": [
+                {"op": models.ConditionOp.Equals, "field": "a", "value": "1", "children": []},
+                {"op": models.ConditionOp.Equals, "field": "b", "value": "2", "children": []},
+                {"op": models.ConditionOp.Or, "field": "", "value": "", "children": [
+                    {"op": models.ConditionOp.Equals, "field": "c", "value": "3", "children": []},
+                    {"op": models.ConditionOp.Equals, "field": "d", "value": "4", "children": []}
+                ]}
+            ]}
+            let count = conditions.count_conditions(count_cond)
+            print("count_conditions result: " + string(count))
+            if count == 5 {
+                passed = 1
+            }
+        }
+
+        print("Test " + string(test_num) + ": " + string(passed) + "/" + string(total))
+    }
+}

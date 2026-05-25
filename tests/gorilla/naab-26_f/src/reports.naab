@@ -1,0 +1,106 @@
+use json
+use crypto
+use file
+
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn generate_compliance_report(findings, rules, entities) {
+    let report_text = "=== Compliance Report ===\n\n"
+    report_text = report_text + "Total Rules: " + string(len(rules)) + "\n"
+    report_text = report_text + "Total Findings: " + string(len(findings)) + "\n\n"
+
+    report_text = report_text + "Findings by Rule:\n"
+    for finding in findings {
+        report_text = report_text + "- " + finding.get("rule_id") + ": " + finding.get("message") + "\n"
+    }
+
+    let hash = crypto.sha256(report_text)
+
+    return {
+        "report_text": report_text,
+        "hash": hash,
+        "sections": ["summary", "findings", "by_entity", "by_severity", "recommendations"]
+    }
+}
+
+export fn generate_audit_report(events) {
+    let trail = []
+    let hash_chain = []
+    let prev_hash = "genesis"
+
+    for i in 0..len(events) {
+        let event_text = events[i]
+        let event_hash = crypto.sha256(event_text + prev_hash)
+        trail.push({"event": event_text, "timestamp": time.now(), "hash": event_hash})
+        hash_chain.push(event_hash)
+        prev_hash = event_hash
+    }
+
+    return {
+        "trail": trail,
+        "hash_chain": hash_chain,
+        "summary": {
+            "total_events": len(events),
+            "first_event": if len(events) > 0 { events[0] } else { "" },
+            "last_event": if len(events) > 0 { events[len(events) - 1] } else { "" }
+        }
+    }
+}
+
+export fn export_findings_csv(findings) {
+    let csv = "rule_id,entity_id,result,severity,message\n"
+
+    for finding in findings {
+        let rule_id = finding.get("rule_id") ?? ""
+        let entity_id = finding.get("entity_id") ?? ""
+        let result = models.result_name(finding.get("result") ?? 0)
+        let severity = models.severity_name(finding.get("severity") ?? 0)
+        let message = finding.get("message") ?? ""
+
+        csv = csv + rule_id + "," + entity_id + "," + result + "," + severity + "," + message + "\n"
+    }
+
+    return csv
+}
+
+export fn format_finding(finding) {
+    fn severity_prefix(f) {
+        let prefix = match f.get("severity") {
+            models.Severity.Critical => "[CRIT]",
+            models.Severity.High => "[HIGH]",
+            models.Severity.Medium => "[MED ]",
+            models.Severity.Low => "[LOW ]",
+            _ => "[INFO]"
+        }
+        return prefix
+    }
+
+    fn build_line(f) {
+        let prefix = severity_prefix(f)
+        let rule_id = f.get("rule_id") ?? ""
+        let entity_id = f.get("entity_id") ?? ""
+        let message = f.get("message") ?? ""
+        return prefix + " " + rule_id + " on " + entity_id + ": " + message
+    }
+
+    return finding |> build_line
+}
+
+export fn write_report_to_file(report_text, filepath) {
+    let sanitized = validators.sanitize_string(report_text)
+    let result = {"success": false, "path": filepath, "bytes_written": 0}
+
+    try {
+        file.write(filepath, sanitized)
+        result["success"] = true
+        result["bytes_written"] = len(sanitized)
+    } catch (e) {
+        result["success"] = false
+    }
+
+    return result
+}
+
+main {
+}

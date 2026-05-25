@@ -1,0 +1,167 @@
+use time
+
+import "models.naab" as models
+import "conditions.naab" as conditions
+import "rules.naab" as rules
+
+export fn evaluate_rule(rule, entity) {
+    let status = rule.get("status")
+    if status != models.RuleStatus.Active {
+        return {
+            "passed": true,
+            "rule_id": rule.get("id"),
+            "severity": rule.get("severity"),
+            "message": "rule not active",
+            "evidence": "skipped"
+        }
+    }
+
+    let rule_conditions = rule.get("conditions") ?? []
+    let entity_attrs = entity.get("attributes")
+    let all_passed = true
+    let evidence_parts = []
+
+    for cond in rule_conditions {
+        let cond_result = conditions.evaluate_condition(cond, entity_attrs)
+        evidence_parts.push(cond_result.get("evidence"))
+        if cond_result.get("passed") != true {
+            all_passed = false
+        }
+    }
+
+    let combined_evidence = ""
+    for i in 0..len(evidence_parts) {
+        if i > 0 {
+            combined_evidence = combined_evidence + "; "
+        }
+        combined_evidence = combined_evidence + evidence_parts[i]
+    }
+
+    let severity = rule.get("severity")
+    let result_msg = match severity {
+        models.Severity.Critical => "CRITICAL violation",
+        models.Severity.High => "High-severity violation",
+        models.Severity.Medium => "Medium-severity issue",
+        _ => "Low-priority finding"
+    }
+
+    return {
+        "passed": all_passed,
+        "rule_id": rule.get("id"),
+        "severity": severity,
+        "message": result_msg,
+        "evidence": combined_evidence
+    }
+}
+
+export fn evaluate_entity(rule_array, entity) {
+    fn filter_active(r) {
+        return rules.filter_active_rules(r)
+    }
+
+    fn eval_each(active_rules) {
+        let findings = []
+        let passed_count = 0
+        let failed_count = 0
+
+        for rule in active_rules {
+            let eval_result = evaluate_rule(rule, entity)
+            if eval_result.get("passed") == true {
+                passed_count = passed_count + 1
+            } else {
+                failed_count = failed_count + 1
+                let finding = models.create_finding(
+                    rule.get("id"),
+                    entity.get("id"),
+                    models.ComplianceResult.Fail,
+                    eval_result.get("severity"),
+                    eval_result.get("message"),
+                    eval_result.get("evidence")
+                )
+                findings.push(finding)
+            }
+        }
+
+        return {
+            "entity_id": entity.get("id"),
+            "total_rules": len(active_rules),
+            "passed": passed_count,
+            "failed": failed_count,
+            "findings": findings
+        }
+    }
+
+    return rule_array |> filter_active |> eval_each
+}
+
+export fn batch_evaluate(rule_array, entities) {
+    let all_results = []
+    let total_evals = 0
+    let total_passed = 0
+    let total_failed = 0
+
+    for entity in entities {
+        let active_rules = rules.filter_active_rules(rule_array)
+        let passed_count = 0
+        let failed_count = 0
+
+        for rule in active_rules {
+            let eval_res = evaluate_rule(rule, entity)
+            total_evals = total_evals + 1
+
+            if eval_res.get("passed") {
+                passed_count = passed_count + 1
+                total_passed = total_passed + 1
+            } else {
+                failed_count = failed_count + 1
+                total_failed = total_failed + 1
+            }
+        }
+
+        all_results.push({
+            "entity_id": entity.get("id"),
+            "rules_evaluated": len(active_rules),
+            "passed": passed_count,
+            "failed": failed_count
+        })
+    }
+
+    return {
+        "results": all_results,
+        "total": total_evals,
+        "passed_count": total_passed,
+        "failed_count": total_failed
+    }
+}
+
+export fn aggregate_findings(findings, group_by) {
+    let groups = {}
+
+    for f in findings {
+        let key = match group_by {
+            "severity" => models.severity_name(f.get("severity")),
+            "category" => string(f.get("category") ?? "unknown"),
+            "entity" => string(f.get("entity_id")),
+            _ => "other"
+        }
+
+        let current = groups.get(key) ?? 0
+        groups[key] = current + 1
+    }
+
+    return groups
+}
+
+export fn get_critical_findings(findings) {
+    let critical = []
+    for f in findings {
+        let sev = f.get("severity")
+        if sev == models.Severity.Critical || sev == models.Severity.High {
+            critical.push(f)
+        }
+    }
+    return critical
+}
+
+main {
+}

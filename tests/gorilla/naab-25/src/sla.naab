@@ -1,0 +1,195 @@
+use math
+use time
+use json
+import "models.naab" as models
+
+export fn check_sla_compliance(incident, sla_policy, current_time) {
+    let created = incident.get("created_at")
+    let response_limit = sla_policy.get("response_minutes") * 60
+    let resolution_limit = sla_policy.get("resolution_minutes") * 60
+
+    let ack_time = incident.get("updated_at")
+    let status = incident.get("status")
+    let response_elapsed = if status != models.IncidentStatus.Open { ack_time - created } else { current_time - created }
+    let response_ok = response_elapsed <= response_limit
+
+    let resolved_at = incident.get("resolved_at")
+    let resolution_elapsed = if resolved_at > 0 { resolved_at - created } else { current_time - created }
+    let resolution_ok = resolution_elapsed <= resolution_limit
+
+    let remaining_seconds = (created + resolution_limit) - current_time
+    let remaining_minutes = int(math.floor(remaining_seconds / 60))
+
+    let is_compliant = response_ok && resolution_ok
+    let breach_sev = if !is_compliant { models.severity_name(incident.get("severity")) } else { "none" }
+
+    return {
+        "compliant": is_compliant,
+        "response_compliant": response_ok,
+        "resolution_compliant": resolution_ok,
+        "time_remaining_minutes": remaining_minutes,
+        "breach_severity": breach_sev
+    }
+}
+
+export fn calculate_sla_metrics(incidents, sla_policies) {
+    let now = time.now()
+    let metrics = <<python[incidents, sla_policies, now] -> JSON
+import json
+total = len(incidents)
+if total == 0:
+    json.dumps({"total": 0, "compliant_count": 0, "breach_count": 0,
+                "compliance_rate": 0.0, "avg_response_minutes": 0.0, "avg_resolution_minutes": 0.0})
+else:
+    compliant = 0
+    response_times = []
+    resolution_times = []
+    for inc in incidents:
+        sev = inc.get("severity", 3)
+        policy = None
+        for p in sla_policies:
+            if p.get("severity") == sev:
+                policy = p
+                break
+        if policy is None:
+            continue
+        created = inc.get("created_at", 0)
+        resolved = inc.get("resolved_at", 0)
+        resp_limit = policy.get("response_minutes", 60) * 60
+        res_limit = policy.get("resolution_minutes", 180) * 60
+        resp_elapsed = (inc.get("updated_at", now) - created) if inc.get("status", 0) != 0 else (now - created)
+        res_elapsed = (resolved - created) if resolved > 0 else (now - created)
+        response_times.append(resp_elapsed / 60.0)
+        resolution_times.append(res_elapsed / 60.0)
+        if resp_elapsed <= resp_limit and res_elapsed <= res_limit:
+            compliant += 1
+    breach = total - compliant
+    rate = round(compliant / total, 2) if total > 0 else 0.0
+    avg_resp = round(sum(response_times) / len(response_times), 2) if response_times else 0.0
+    avg_res = round(sum(resolution_times) / len(resolution_times), 2) if resolution_times else 0.0
+    json.dumps({"total": total, "compliant_count": compliant, "breach_count": breach,
+                "compliance_rate": rate, "avg_response_minutes": avg_resp, "avg_resolution_minutes": avg_res})
+>>
+    return metrics
+}
+
+export fn predict_breach_risk(incident, sla_policy, current_time) {
+    let prediction = <<python[incident, sla_policy, current_time] -> JSON
+import json
+created = incident.get("created_at", 0)
+elapsed = current_time - created
+total_allowed = sla_policy.get("resolution_minutes", 60) * 60
+ratio = elapsed / total_allowed if total_allowed > 0 else 1.0
+risk_score = min(int(ratio * 100), 100)
+if risk_score >= 80:
+    risk_level = "critical"
+elif risk_score >= 60:
+    risk_level = "high"
+elif risk_score >= 40:
+    risk_level = "medium"
+else:
+    risk_level = "low"
+est_remaining = max(0, (total_allowed - elapsed)) / 60.0
+json.dumps({"risk_score": risk_score, "risk_level": risk_level, "estimated_resolution_minutes": round(est_remaining, 1)})
+>>
+    return prediction
+}
+
+fn group_by_severity(incidents) {
+    let groups = {}
+    for inc in incidents {
+        let sev_name = models.severity_name(inc.get("severity"))
+        let existing = groups.get(sev_name) ?? []
+        existing.push(inc)
+        groups[sev_name] = existing
+    }
+    return groups
+}
+
+fn compute_compliance_for_group(group_name, incidents, sla_policies) {
+    let compliant_count = 0
+    let now = time.now()
+    for inc in incidents {
+        let sev = inc.get("severity")
+        let policy = null
+        for p in sla_policies {
+            if p.get("severity") == sev {
+                policy = p
+                break
+            }
+        }
+        if policy != null {
+            let check = check_sla_compliance(inc, policy, now)
+            if check.get("compliant") {
+                compliant_count = compliant_count + 1
+            }
+        }
+    }
+    let count = len(incidents)
+    let rate = if count > 0 { (compliant_count * 100) / count } else { 0 }
+    return { "group_name": group_name, "count": count, "compliant_count": compliant_count, "compliance_rate": rate }
+}
+
+export fn generate_sla_summary(incidents, sla_policies) {
+    let now = time.now()
+    let grouped = incidents |> group_by_severity
+    let by_severity = {}
+    let worst_breach = "none"
+    let worst_rate = 100
+
+    for key in grouped.keys() {
+        let group_incidents = grouped.get(key)
+        let result = compute_compliance_for_group(key, group_incidents, sla_policies)
+        by_severity[key] = result
+        if result.get("compliance_rate") < worst_rate {
+            worst_rate = result.get("compliance_rate")
+            worst_breach = key
+        }
+    }
+
+    let total_incidents = len(incidents)
+    let compliant_total = 0
+    for key in by_severity.keys() {
+        let entry = by_severity.get(key)
+        compliant_total = compliant_total + entry.get("compliant_count")
+    }
+    let overall = if total_incidents > 0 { (compliant_total * 100) / total_incidents } else { 0 }
+
+    return {
+        "by_severity": by_severity,
+        "overall_compliance": overall,
+        "worst_breach": worst_breach
+    }
+}
+
+export fn get_breach_timeline(incidents, sla_policies) {
+    let timeline = []
+    for inc in incidents {
+        let sev = inc.get("severity")
+        let policy = null
+        for p in sla_policies {
+            if p.get("severity") == sev {
+                policy = p
+                break
+            }
+        }
+        if policy == null { continue }
+
+        let now = time.now()
+        let check = check_sla_compliance(inc, policy, now)
+        if !check.get("compliant") {
+            let breach_type = if !check.get("response_compliant") { "response" } else { "resolution" }
+            let created = inc.get("created_at")
+            let elapsed_minutes = int((now - created) / 60)
+            timeline.push({
+                "incident_id": inc.get("id"),
+                "severity": models.severity_name(sev),
+                "breach_type": breach_type,
+                "breached_at_minutes": elapsed_minutes
+            })
+        }
+    }
+    return timeline
+}
+
+main {}

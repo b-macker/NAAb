@@ -1,0 +1,260 @@
+use time
+
+export enum Severity {
+    Critical,
+    High,
+    Medium,
+    Low,
+    Info
+}
+
+export enum RuleStatus {
+    Active,
+    Draft,
+    Deprecated,
+    Suspended
+}
+
+export enum ComplianceResult {
+    Pass,
+    Fail,
+    Skip,
+    Error
+}
+
+export enum ConditionOp {
+    Equals,
+    NotEquals,
+    GreaterThan,
+    LessThan,
+    GreaterOrEqual,
+    LessOrEqual,
+    Contains,
+    Matches,
+    And,
+    Or,
+    Not
+}
+
+export enum EntityType {
+    Server,
+    Database,
+    Application,
+    Network,
+    User,
+    Policy
+}
+
+export enum RemediationPriority {
+    Immediate,
+    High,
+    Medium,
+    Low,
+    Deferred
+}
+
+export struct Rule {
+    id: string
+    name: string
+    description: string
+    severity: int
+    status: int
+    category: string
+    conditions: array
+    dependencies: array
+    tags: array
+    version: int
+}
+
+export struct Condition {
+    op: int
+    field: string
+    value: string
+    children: array
+}
+
+export struct Entity {
+    id: string
+    name: string
+    entity_type: int
+    attributes: dict
+    tags: array
+    owner: string
+    created_at: int
+}
+
+export struct Finding {
+    rule_id: string
+    entity_id: string
+    result: int
+    severity: int
+    message: string
+    evidence: string
+    timestamp: int
+}
+
+export struct RemediationStep {
+    id: string
+    finding_id: string
+    action: string
+    priority: int
+    estimated_hours: int
+    blocked_by: array
+    completed: bool
+}
+
+export fn create_rule(id, name, description, severity, category, conditions, dependencies, tags) {
+    return new Rule {
+        id: id,
+        name: name,
+        description: description,
+        severity: severity,
+        status: RuleStatus.Active,
+        category: category,
+        conditions: conditions,
+        dependencies: dependencies,
+        tags: tags,
+        version: 1
+    }
+}
+
+export fn create_condition(op, field, value, children) {
+    return {
+        "op": op,
+        "field": field,
+        "value": value,
+        "children": children
+    }
+}
+
+export fn create_entity(id, name, entity_type, attributes, tags, owner) {
+    return new Entity {
+        id: id,
+        name: name,
+        entity_type: entity_type,
+        attributes: attributes,
+        tags: tags,
+        owner: owner,
+        created_at: time.now()
+    }
+}
+
+export fn create_finding(rule_id, entity_id, result, severity, message, evidence) {
+    return new Finding {
+        rule_id: rule_id,
+        entity_id: entity_id,
+        result: result,
+        severity: severity,
+        message: message,
+        evidence: evidence,
+        timestamp: time.now()
+    }
+}
+
+export fn severity_name(sev) {
+    return match sev {
+        Critical => "Critical",
+        High => "High",
+        Medium => "Medium",
+        Low => "Low",
+        Info => "Info",
+        _ => "Unknown"
+    }
+}
+
+export fn status_name(status) {
+    return match status {
+        Active => "Active",
+        Draft => "Draft",
+        Deprecated => "Deprecated",
+        Suspended => "Suspended",
+        _ => "Unknown"
+    }
+}
+
+export fn result_name(result) {
+    return match result {
+        Pass => "Pass",
+        Fail => "Fail",
+        Skip => "Skip",
+        Error => "Error",
+        _ => "Unknown"
+    }
+}
+
+export fn op_name(op) {
+    return match op {
+        Equals => "==",
+        NotEquals => "!=",
+        GreaterThan => ">",
+        LessThan => "<",
+        GreaterOrEqual => ">=",
+        LessOrEqual => "<=",
+        Contains => "contains",
+        Matches => "matches",
+        And => "AND",
+        Or => "OR",
+        Not => "NOT",
+        _ => "unknown"
+    }
+}
+
+export fn entity_type_name(et) {
+    return match et {
+        Server => "Server",
+        Database => "Database",
+        Application => "Application",
+        Network => "Network",
+        User => "User",
+        Policy => "Policy",
+        _ => "Unknown"
+    }
+}
+
+export fn priority_name(p) {
+    return match p {
+        Immediate => "Immediate",
+        High => "High",
+        Medium => "Medium",
+        Low => "Low",
+        Deferred => "Deferred",
+        _ => "Unknown"
+    }
+}
+
+export fn validate_rule(rule) {
+    let errors = []
+    if rule.id == null || rule.id == "" {
+        errors.push("rule id is required")
+    }
+    if rule.name == null || rule.name == "" {
+        errors.push("rule name is required")
+    }
+    if rule.category == null || rule.category == "" {
+        errors.push("rule category is required")
+    }
+    if rule.conditions == null || len(rule.conditions) == 0 {
+        errors.push("rule must have at least one condition")
+    }
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_entity(entity) {
+    let errors = []
+    if entity.id == null || entity.id == "" {
+        errors.push("entity id is required")
+    }
+    if entity.name == null || entity.name == "" {
+        errors.push("entity name is required")
+    }
+    if entity.owner == null || entity.owner == "" {
+        errors.push("entity owner is required")
+    }
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}

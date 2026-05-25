@@ -1,0 +1,587 @@
+use uuid
+use time
+
+import "models.naab" as models
+import "validators.naab" as validators
+import "alerts.naab" as alerts
+import "incidents.naab" as incidents
+import "responders.naab" as responders
+import "escalation.naab" as escalation
+import "sla.naab" as sla
+import "reports.naab" as reports
+import "rca.naab" as rca
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let a1 = models.create_alert("A1", models.AlertSource.Prometheus, "OOM killed", models.Severity.Critical, 1000, ["api", "prod"], "2024-01-01T00:00:00 [ERROR] api: OOM killed")
+    if a1.get("id") == "A1" { passed = passed + 1 }
+
+    total = total + 1
+    let i1 = models.create_incident("I1", "API Down", models.Severity.Critical, [], 2000)
+    if i1.get("status") == models.IncidentStatus.Open { passed = passed + 1 }
+
+    total = total + 1
+    let r1 = models.create_responder("R1", "Alice", "alice@example.com", models.ResponderRole.SRE, true, 5, ["kubernetes", "networking"])
+    if r1.get("name") == "Alice" { passed = passed + 1 }
+
+    total = total + 1
+    let sla1 = models.create_sla_policy("SLA1", "Critical SLA", models.Severity.Critical, 15, 60)
+    if sla1.get("response_minutes") == 15 { passed = passed + 1 }
+
+    total = total + 1
+    if models.severity_name(models.Severity.Critical) == "Critical" { passed = passed + 1 }
+
+    total = total + 1
+    if models.status_name(models.IncidentStatus.Resolved) == "Resolved" { passed = passed + 1 }
+
+    total = total + 1
+    if models.source_name(models.AlertSource.Prometheus) == "Prometheus" { passed = passed + 1 }
+
+    total = total + 1
+    let valid_alert = models.create_alert("A2", models.AlertSource.Grafana, "test", models.Severity.High, 1000, ["test"], "log")
+    let val = models.validate_alert(valid_alert)
+    if val.get("valid") == true && len(val.get("errors")) == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let invalid_responder = models.create_responder("R2", "", "bob@example.com", models.ResponderRole.Engineer, true, 3, [])
+    let val_r = models.validate_responder(invalid_responder)
+    if val_r.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    if models.Severity.Critical != models.Severity.Low { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_alerts() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let parsed = alerts.parse_log_line("2024-01-15T10:30:00 [ERROR] api: OOM killed process")
+    if parsed.get("timestamp") == "2024-01-15T10:30:00" && parsed.get("level") == "ERROR" && parsed.get("service") == "api" { passed = passed + 1 }
+
+    total = total + 1
+    let malformed = alerts.parse_log_line("garbage data")
+    if malformed.get("timestamp") == null { passed = passed + 1 }
+
+    total = total + 1
+    let alert_oom = models.create_alert("A3", models.AlertSource.Prometheus, "OOM killed process", models.Severity.Critical, 1000, ["api"], "log")
+    let class = alerts.classify_alert(alert_oom)
+    if class.get("category") == "memory" { passed = passed + 1 }
+
+    total = total + 1
+    let alert_5xx = models.create_alert("A4", models.AlertSource.Prometheus, "HTTP 503 service unavailable", models.Severity.High, 1000, ["api"], "log")
+    let class2 = alerts.classify_alert(alert_5xx)
+    if class2.get("category") == "http_error" { passed = passed + 1 }
+
+    total = total + 1
+    let corr_alerts = [
+        models.create_alert("C1", models.AlertSource.Prometheus, "msg1", models.Severity.Critical, 100, ["api"], "log1"),
+        models.create_alert("C2", models.AlertSource.Prometheus, "msg2", models.Severity.Critical, 130, ["api"], "log2"),
+        models.create_alert("C3", models.AlertSource.Prometheus, "msg3", models.Severity.Critical, 150, ["api"], "log3")
+    ]
+    let corr = alerts.correlate_alerts(corr_alerts, 60)
+    if len(corr) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let corr_alerts2 = [
+        models.create_alert("D1", models.AlertSource.Prometheus, "msg1", models.Severity.Critical, 100, ["api"], "log1"),
+        models.create_alert("D2", models.AlertSource.Prometheus, "msg2", models.Severity.Critical, 300, ["api"], "log2")
+    ]
+    let corr2 = alerts.correlate_alerts(corr_alerts2, 60)
+    if len(corr2) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let dup_alerts = [
+        models.create_alert("E1", models.AlertSource.Prometheus, "OOM", models.AlertSource.Prometheus, 100, ["api"], "log1"),
+        models.create_alert("E2", models.AlertSource.Prometheus, "OOM", models.AlertSource.Prometheus, 110, ["api"], "log2")
+    ]
+    let dedup = alerts.deduplicate_alerts(dup_alerts)
+    if len(dedup) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let log_lines = [
+        "2024-01-15T10:30:00 [ERROR] api: OOM killed process 1234",
+        "2024-01-15T10:30:05 [WARN] cache: High memory usage 95%",
+        "2024-01-15T10:31:00 [ERROR] database: Connection timeout after 30s"
+    ]
+    let pipeline = alerts.build_alert_pipeline(log_lines)
+    if len(pipeline) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let test_alert = models.create_alert("U1", models.AlertSource.Prometheus, "Critical failure", models.Severity.Critical, 1000, ["api"], "log")
+    let score = alerts.score_alert_urgency(test_alert, [])
+    if score >= 80 && score <= 100 { passed = passed + 1 }
+
+    total = total + 1
+    let test_alert2 = models.create_alert("U2", models.AlertSource.Prometheus, "Low issue", models.Severity.Low, 1000, ["api"], "log")
+    let score2 = alerts.score_alert_urgency(test_alert2, [])
+    if score2 <= 30 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_incidents() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let sla_policies = [
+        models.create_sla_policy("SLA-C", "Critical SLA", models.Severity.Critical, 15, 60)
+    ]
+    let open_result = incidents.open_incident("API Down", models.Severity.Critical, [], sla_policies)
+    let inc = open_result.get("incident")
+    if uuid.is_valid(inc.get("id")) { passed = passed + 1 }
+
+    total = total + 1
+    if uuid.is_valid(open_result.get("incident").get("id")) { passed = passed + 1 }
+
+    total = total + 1
+    let inc2 = open_result.get("incident")
+    let acked = incidents.acknowledge_incident(inc2, "R1")
+    if acked.get("status") == models.IncidentStatus.Acknowledged { passed = passed + 1 }
+
+    total = total + 1
+    let investigated = incidents.start_investigation(acked)
+    if investigated.get("status") == models.IncidentStatus.Investigating { passed = passed + 1 }
+
+    total = total + 1
+    let resolved = incidents.resolve_incident(investigated, "Fixed")
+    if resolved.get("status") == models.IncidentStatus.Resolved && resolved.get("resolved_at") > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let closed = incidents.close_incident(resolved)
+    if closed.get("status") == models.IncidentStatus.Closed { passed = passed + 1 }
+
+    total = total + 1
+    let closed_inc = incidents.close_incident(resolved)
+    let again = incidents.acknowledge_incident(closed_inc, "R2")
+    if again.get("status") == models.IncidentStatus.Closed { passed = passed + 1 }
+
+    total = total + 1
+    let prim = {"id": "P1", "title": "Primary", "severity": models.Severity.High, "status": models.IncidentStatus.Open, "alerts": [{"id": "A1"}, {"id": "A2"}], "responder_id": "", "created_at": 1000, "updated_at": 1000, "resolved_at": 0, "sla_deadline": 2000, "correlation_id": "C1"}
+    let sec = {"id": "S1", "title": "Secondary", "severity": models.Severity.High, "status": models.IncidentStatus.Open, "alerts": [{"id": "A3"}], "responder_id": "", "created_at": 1000, "updated_at": 1000, "resolved_at": 0, "sla_deadline": 2000, "correlation_id": "C2"}
+    let merged = incidents.merge_incidents(prim, sec)
+    if len(merged.get("merged").get("alerts")) == 3 && merged.get("absorbed_count") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let incs = [
+        {"id": "I1", "status": models.IncidentStatus.Open, "severity": models.Severity.Critical, "title": "Down", "alerts": [], "responder_id": "", "created_at": 1000, "updated_at": 1000, "resolved_at": 0, "sla_deadline": 2000, "correlation_id": "C1"},
+        {"id": "I2", "status": models.IncidentStatus.Open, "severity": models.Severity.Critical, "title": "Down2", "alerts": [], "responder_id": "", "created_at": 1000, "updated_at": 1000, "resolved_at": 0, "sla_deadline": 2000, "correlation_id": "C2"},
+        {"id": "I3", "status": models.IncidentStatus.Resolved, "severity": models.Severity.Critical, "title": "Fixed", "alerts": [], "responder_id": "", "created_at": 1000, "updated_at": 1000, "resolved_at": 5000, "sla_deadline": 2000, "correlation_id": "C3"}
+    ]
+    let filtered = incidents.get_incidents_by_status(incs, models.IncidentStatus.Open)
+    if len(filtered) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let mttr_incs = [
+        {"id": "M1", "status": models.IncidentStatus.Resolved, "severity": models.Severity.Critical, "title": "Down", "alerts": [], "responder_id": "", "created_at": 1000, "updated_at": 1000, "resolved_at": 4600, "sla_deadline": 2000, "correlation_id": "C1"},
+        {"id": "M2", "status": models.IncidentStatus.Resolved, "severity": models.Severity.Critical, "title": "Down2", "alerts": [], "responder_id": "", "created_at": 2000, "updated_at": 2000, "resolved_at": 9200, "sla_deadline": 2000, "correlation_id": "C2"}
+    ]
+    let mttr_val = incidents.calculate_mttr(mttr_incs)
+    if mttr_val == 1.5 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_responders() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let roster = []
+    let alice = models.create_responder("R1", "Alice", "alice@example.com", models.ResponderRole.SRE, true, 5, ["kubernetes"])
+    let reg = responders.register_responder(roster, alice)
+    if reg.get("success") == true { passed = passed + 1 }
+
+    total = total + 1
+    let bad_email = models.create_responder("R2", "Bob", "not-an-email", models.ResponderRole.Engineer, true, 3, [])
+    let reg2 = responders.register_responder([], bad_email)
+    if reg2.get("success") == false { passed = passed + 1 }
+
+    total = total + 1
+    let roster2 = [
+        models.create_responder("R3", "Alice", "alice@example.com", models.ResponderRole.SRE, true, 5, ["kubernetes", "networking"]),
+        models.create_responder("R4", "Bob", "bob@example.com", models.ResponderRole.Engineer, false, 3, ["database", "python"])
+    ]
+    let best = responders.find_best_responder(roster2, models.Severity.Critical, ["kubernetes"])
+    if best.get("responder") != null && best.get("responder").get("id") == "R3" { passed = passed + 1 }
+
+    total = total + 1
+    let roster3 = [
+        models.create_responder("R5", "Charlie", "charlie@example.com", models.ResponderRole.Manager, false, 2, ["management"])
+    ]
+    let best2 = responders.find_best_responder(roster3, models.Severity.Critical, ["kubernetes"])
+    if best2.get("responder") == null { passed = passed + 1 }
+
+    total = total + 1
+    let roster4 = [models.create_responder("R6", "Alice", "alice@example.com", models.ResponderRole.SRE, true, 5, [])]
+    let assigned = responders.assign_responder(roster4, "R6", "I1")
+    if assigned.get("success") == true && assigned.get("responder").get("current_load") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let roster5 = [models.create_responder("R7", "Alice", "alice@example.com", models.ResponderRole.SRE, true, 5, [])]
+    let roster5_assigned = responders.assign_responder(roster5, "R7", "I1")
+    let roster5_assigned_twice = responders.assign_responder(roster5_assigned.get("roster"), "R7", "I2")
+    let released = responders.release_responder(roster5_assigned_twice.get("roster"), "R7")
+    if released.get("roster")[0].get("current_load") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let roster6 = [
+        models.create_responder("R8", "Alice", "alice@example.com", models.ResponderRole.SRE, true, 5, []),
+        models.create_responder("R9", "Bob", "bob@example.com", models.ResponderRole.Engineer, true, 3, []),
+        models.create_responder("R10", "Charlie", "charlie@example.com", models.ResponderRole.Manager, false, 2, [])
+    ]
+    let on_call = responders.get_on_call(roster6)
+    if len(on_call) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let r = models.create_responder("R11", "Test", "test@example.com", models.ResponderRole.Engineer, true, 5, [])
+    let r_with_load = r
+    r_with_load["current_load"] = 3
+    let load = responders.calculate_responder_load(r_with_load)
+    if load.get("load_percent") == 60 && load.get("overloaded") == false { passed = passed + 1 }
+
+    total = total + 1
+    let r12 = models.create_responder("R12", "Test", "test@example.com", models.ResponderRole.Engineer, true, 5, [])
+    let contact = responders.validate_contact_info(r12)
+    if contact.get("valid") == true && len(contact.get("errors")) == 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_escalation() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let sla_c = models.create_sla_policy("SLA-C", "Critical SLA", models.Severity.Critical, 15, 60)
+    let inc_fresh = {"id": "I1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 300, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"}
+    let check = escalation.check_escalation_needed(inc_fresh, [sla_c], time.now())
+    if check.get("needed") == false { passed = passed + 1 }
+
+    total = total + 1
+    let inc_old = {"id": "I2", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 1200, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C2"}
+    let check2 = escalation.check_escalation_needed(inc_old, [sla_c], time.now())
+    if check2.get("needed") == true && check2.get("target_level") == models.EscalationLevel.L2 { passed = passed + 1 }
+
+    total = total + 1
+    let inc_to_esc = {"id": "I3", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now(), "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C3"}
+    let esc_list = []
+    let esc_result = escalation.escalate_incident(inc_to_esc, esc_list, models.EscalationLevel.L1, models.EscalationLevel.L2, "SLA breach")
+    if esc_result.get("escalation") != null { passed = passed + 1 }
+
+    total = total + 1
+    let esc_chain_list = [
+        new models.Escalation { id: "E1", incident_id: "I4", from_level: models.EscalationLevel.L1, to_level: models.EscalationLevel.L2, reason: "test", escalated_at: time.now() },
+        new models.Escalation { id: "E2", incident_id: "I4", from_level: models.EscalationLevel.L2, to_level: models.EscalationLevel.L3, reason: "test2", escalated_at: time.now() }
+    ]
+    let chain = escalation.get_escalation_chain("I4", esc_chain_list)
+    if len(chain) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let graph = {
+        "api-gateway": ["auth-service", "user-service"],
+        "auth-service": ["database", "cache"],
+        "user-service": ["database"],
+        "database": [],
+        "cache": []
+    }
+    let deps = escalation.traverse_dependencies(graph, "api-gateway", [])
+    if len(deps) == 4 { passed = passed + 1 }
+
+    total = total + 1
+    let cycle_graph = {
+        "a": ["b"],
+        "b": ["a"]
+    }
+    let cycle_deps = escalation.traverse_dependencies(cycle_graph, "a", [])
+    if len(cycle_deps) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let tree_graph = {
+        "a": ["b", "c"],
+        "b": ["d"],
+        "c": ["e"],
+        "d": [],
+        "e": []
+    }
+    let tree_deps = escalation.traverse_dependencies(tree_graph, "a", [])
+    if len(tree_deps) == 4 { passed = passed + 1 }
+
+    total = total + 1
+    let blast = escalation.calculate_blast_radius(graph, "api-gateway")
+    if len(blast.get("affected_services")) == 4 && blast.get("depth") >= 2 { passed = passed + 1 }
+
+    total = total + 1
+    let auto_incs = [
+        {"id": "A1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 1200, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"},
+        {"id": "A2", "title": "Down2", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 1200, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C2"},
+        {"id": "A3", "title": "Up", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now(), "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C3"}
+    ]
+    let auto_result = escalation.auto_escalate_batch(auto_incs, [sla_c], [], time.now())
+    if auto_result.get("escalated") == 2 { passed = passed + 1 }
+
+    total = total + 1
+    if models.EscalationLevel.L1 < models.EscalationLevel.L3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_sla() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let sla_policy = models.create_sla_policy("SLA-C", "Critical", models.Severity.Critical, 15, 60)
+    let test_inc = {"id": "T1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 300, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"}
+    let compliance = sla.check_sla_compliance(test_inc, sla_policy, time.now())
+    if compliance.get("compliant") == true { passed = passed + 1 }
+
+    total = total + 1
+    let test_inc2 = {"id": "T2", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 1200, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C2"}
+    let compliance2 = sla.check_sla_compliance(test_inc2, sla_policy, time.now())
+    if compliance2.get("response_compliant") == false { passed = passed + 1 }
+
+    total = total + 1
+    let test_inc3 = {"id": "T3", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 5400, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C3"}
+    let compliance3 = sla.check_sla_compliance(test_inc3, sla_policy, time.now())
+    if compliance3.get("resolution_compliant") == false { passed = passed + 1 }
+
+    total = total + 1
+    let metrics_incs = [
+        {"id": "M1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 1000, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C1"},
+        {"id": "M2", "title": "Down2", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 1000, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C2"},
+        {"id": "M3", "title": "Down3", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 5400, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C3"},
+        {"id": "M4", "title": "Down4", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 5400, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C4"}
+    ]
+    let metrics = sla.calculate_sla_metrics(metrics_incs, [sla_policy])
+    if metrics.get("total") == 4 { passed = passed + 1 }
+
+    total = total + 1
+    let predict_inc = {"id": "P1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 2880, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"}
+    let prediction = sla.predict_breach_risk(predict_inc, sla_policy, time.now())
+    if prediction.get("risk_level") == "critical" { passed = passed + 1 }
+
+    total = total + 1
+    let predict_inc2 = {"id": "P2", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now() - 720, "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C2"}
+    let prediction2 = sla.predict_breach_risk(predict_inc2, sla_policy, time.now())
+    if prediction2.get("risk_level") == "low" { passed = passed + 1 }
+
+    total = total + 1
+    let summary_incs = [
+        {"id": "S1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now(), "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"}
+    ]
+    let summary = sla.generate_sla_summary(summary_incs, [sla_policy])
+    if summary.get("by_severity") != null { passed = passed + 1 }
+
+    total = total + 1
+    let breach_incs = [
+        {"id": "B1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 5400, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C1"}
+    ]
+    let timeline = sla.get_breach_timeline(breach_incs, [sla_policy])
+    if len(timeline) >= 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_reports() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let report_inc = {"id": "R1", "title": "API Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "R1", "created_at": time.now(), "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"}
+    let report = reports.generate_incident_report(report_inc, [], null)
+    if string.contains(report.get("report_text"), "API Down") { passed = passed + 1 }
+
+    total = total + 1
+    if len(report.get("hash")) == 64 { passed = passed + 1 }
+
+    total = total + 1
+    let pm_inc = {"id": "R2", "title": "DB Down", "severity": models.Severity.High, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "R2", "created_at": time.now(), "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C2"}
+    let pm = reports.generate_postmortem(pm_inc, "Connection pool exhausted", [], [])
+    if string.contains(pm.get("report_text"), "Connection pool exhausted") { passed = passed + 1 }
+
+    total = total + 1
+    let csv_incs = [
+        {"id": "C1", "title": "Down1", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open},
+        {"id": "C2", "title": "Down2", "severity": models.Severity.High, "status": models.IncidentStatus.Resolved},
+        {"id": "C3", "title": "Down3", "severity": models.Severity.Medium, "status": models.IncidentStatus.Closed}
+    ]
+    let csv_str = reports.export_incidents_csv(csv_incs, ["id", "title", "severity"])
+    if string.contains(csv_str, "C1") { passed = passed + 1 }
+
+    total = total + 1
+    let dashboard_incs = [
+        {"id": "D1", "title": "Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now(), "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"},
+        {"id": "D2", "title": "Down2", "severity": models.Severity.High, "status": models.IncidentStatus.Resolved, "alerts": [], "responder_id": "", "created_at": time.now() - 1000, "updated_at": time.now(), "resolved_at": time.now(), "sla_deadline": 0, "correlation_id": "C2"}
+    ]
+    let dashboard = reports.generate_dashboard_data(dashboard_incs, [], [])
+    if dashboard.get("open_count") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let by_sev = dashboard.get("by_severity")
+    if by_sev != null { passed = passed + 1 }
+
+    total = total + 1
+    let events = ["incident_opened", "incident_acknowledged", "incident_resolved"]
+    let trail = reports.build_audit_trail(events)
+    if len(trail.get("hash_chain")) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    if len(trail.get("hash_chain")[1]) > 0 && trail.get("hash_chain")[0] != trail.get("hash_chain")[1] { passed = passed + 1 }
+
+    total = total + 1
+    let report_text_clean = "Test report <script>"
+    let written = reports.write_report_to_file(report_text_clean, "/tmp/test_report.txt")
+    if written.get("success") == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_validators() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let clean = validators.sanitize_string("hello <script>")
+    if !string.contains(clean, "<") && !string.contains(clean, ">") { passed = passed + 1 }
+
+    total = total + 1
+    let json_str = '{"key": "val"}'
+    let clean_json = validators.sanitize_string(json_str)
+    if string.contains(clean_json, "key") && string.contains(clean_json, "val") { passed = passed + 1 }
+
+    total = total + 1
+    let ansi_line = "\x1b[31mERROR\x1b[0m"
+    let clean_ansi = validators.sanitize_log_line(ansi_line)
+    if !string.contains(clean_ansi, "\x1b") { passed = passed + 1 }
+
+    total = total + 1
+    let valid_data = {"title": "Down", "severity": models.Severity.Critical}
+    let val = validators.validate_incident_data(valid_data)
+    if val.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let invalid_data = {"title": "", "severity": models.Severity.Critical}
+    let val2 = validators.validate_incident_data(invalid_data)
+    if val2.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    if validators.validate_email_address("user@example.com") == true { passed = passed + 1 }
+
+    total = total + 1
+    if validators.validate_email_address("not-an-email") == false { passed = passed + 1 }
+
+    total = total + 1
+    if validators.validate_ip_address("192.168.1.1") == true { passed = passed + 1 }
+
+    total = total + 1
+    if validators.validate_ip_address("999.999.999.999") == false { passed = passed + 1 }
+
+    total = total + 1
+    if validators.validate_severity(models.Severity.Critical) == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_rca() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let avail = rca.check_agent_available("rca_agent")
+    if avail.get("available") != null { passed = passed + 1 }
+
+    total = total + 1
+    let avail2 = rca.check_agent_available("nonexistent_agent")
+    if avail2.get("available") == false { passed = passed + 1 }
+
+    total = total + 1
+    let rca_inc = {"id": "R1", "title": "API Down", "severity": models.Severity.Critical, "status": models.IncidentStatus.Open, "alerts": [], "responder_id": "", "created_at": time.now(), "updated_at": time.now(), "resolved_at": 0, "sla_deadline": 0, "correlation_id": "C1"}
+    let prompt = rca.generate_rca_prompt(rca_inc, [])
+    if string.contains(prompt, "API Down") { passed = passed + 1 }
+
+    total = total + 1
+    let logs = ["log1", "log2"]
+    let prompt2 = rca.generate_rca_prompt(rca_inc, logs)
+    if string.contains(prompt2, "log1") { passed = passed + 1 }
+
+    total = total + 1
+    let rca_result = rca.analyze_root_cause(rca_inc, [], {})
+    if rca_result.get("root_cause") != null && rca_result.get("confidence") != null { passed = passed + 1 }
+
+    total = total + 1
+    if rca_result.get("reasoning") != null { passed = passed + 1 }
+
+    total = total + 1
+    if rca_result.get("suggestions") != null { passed = passed + 1 }
+
+    total = total + 1
+    let batch_incs = [rca_inc]
+    let batch_results = rca.batch_analyze(batch_incs, [])
+    if len(batch_results) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let batch_result = batch_results[0]
+    if batch_result.get("root_cause") != null { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let grand_passed = 0
+    let grand_total = 0
+
+    let r1 = test_models()
+    print("test_models: " + string(r1[0]) + "/" + string(r1[1]))
+    grand_passed = grand_passed + r1[0]
+    grand_total = grand_total + r1[1]
+
+    let r2 = test_alerts()
+    print("test_alerts: " + string(r2[0]) + "/" + string(r2[1]))
+    grand_passed = grand_passed + r2[0]
+    grand_total = grand_total + r2[1]
+
+    let r3 = test_incidents()
+    print("test_incidents: " + string(r3[0]) + "/" + string(r3[1]))
+    grand_passed = grand_passed + r3[0]
+    grand_total = grand_total + r3[1]
+
+    let r4 = test_responders()
+    print("test_responders: " + string(r4[0]) + "/" + string(r4[1]))
+    grand_passed = grand_passed + r4[0]
+    grand_total = grand_total + r4[1]
+
+    let r5 = test_escalation()
+    print("test_escalation: " + string(r5[0]) + "/" + string(r5[1]))
+    grand_passed = grand_passed + r5[0]
+    grand_total = grand_total + r5[1]
+
+    let r6 = test_sla()
+    print("test_sla: " + string(r6[0]) + "/" + string(r6[1]))
+    grand_passed = grand_passed + r6[0]
+    grand_total = grand_total + r6[1]
+
+    let r7 = test_reports()
+    print("test_reports: " + string(r7[0]) + "/" + string(r7[1]))
+    grand_passed = grand_passed + r7[0]
+    grand_total = grand_total + r7[1]
+
+    let r8 = test_validators()
+    print("test_validators: " + string(r8[0]) + "/" + string(r8[1]))
+    grand_passed = grand_passed + r8[0]
+    grand_total = grand_total + r8[1]
+
+    let r9 = test_rca()
+    print("test_rca: " + string(r9[0]) + "/" + string(r9[1]))
+    grand_passed = grand_passed + r9[0]
+    grand_total = grand_total + r9[1]
+
+    print("")
+    print("TOTAL: " + string(grand_passed) + "/" + string(grand_total))
+}

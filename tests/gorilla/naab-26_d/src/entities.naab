@@ -1,0 +1,84 @@
+use uuid
+
+import "models.naab" as models
+
+export fn register_entity(registry, entity) {
+    for existing in registry {
+        if existing.get("id") == entity.get("id") {
+            return {"registry": registry, "success": false, "error": "duplicate id"}
+        }
+    }
+    registry.push(entity)
+    return {"registry": registry, "success": true}
+}
+
+export fn get_entity_by_id(registry, id) {
+    for entity in registry {
+        if entity.get("id") == id {
+            return entity
+        }
+    }
+    return null
+}
+
+export fn get_entities_by_type(registry, entity_type) {
+    let result = []
+    for entity in registry {
+        if entity.get("entity_type") == entity_type {
+            result.push(entity)
+        }
+    }
+    return result
+}
+
+export fn update_entity_attribute(registry, entity_id, key, value) {
+    let result = []
+    let found = false
+
+    for entity in registry {
+        if entity.get("id") == entity_id {
+            let attrs = entity.get("attributes")
+            attrs[key] = value
+            entity["attributes"] = attrs
+            result.push(entity)
+            found = true
+        } else {
+            result.push(entity)
+        }
+    }
+
+    return {"registry": result, "success": found}
+}
+
+export fn get_entity_attributes(entity) {
+    return entity.get("attributes") ?? {}
+}
+
+export fn filter_entities_by_tag(registry, tag) {
+    let result = []
+    for entity in registry {
+        let tags = entity.get("tags") ?? []
+        if array.contains(tags, tag) {
+            result.push(entity)
+        }
+    }
+    return result
+}
+
+export fn count_entities_by_type(registry) {
+    fn build_counts(entities) {
+        let counts = {}
+        for entity in entities {
+            let type_id = entity.get("entity_type")
+            let type_name = models.entity_type_name(type_id)
+            let current = counts.get(type_name) ?? 0
+            counts[type_name] = current + 1
+        }
+        return counts
+    }
+
+    return registry |> build_counts
+}
+
+main {
+}
