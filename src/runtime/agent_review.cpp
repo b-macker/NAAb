@@ -107,7 +107,13 @@ static std::string buildDetectionPrompt(const std::string& categories,
     prompt += "- Cosmetic sanitizer: `fn sanitize_x(d) { let s = string(d); return s.trim() }` — trim() on JSON is a no-op, not real sanitization\n";
     prompt += "- Complexity padding: loops or code added solely to increase complexity score, with comments admitting it\n";
     prompt += "- Hardcoded contract values: return keys that are always literal constants (e.g., `\"widest_section\": 0`) instead of computed\n";
-    prompt += "- Unsafe subscript: `args[N]` without length check — crashes on missing args\n\n";
+    prompt += "- Unsafe subscript: `args[N]` without length check — crashes on missing args\n";
+    prompt += "- Hardcoded computation constants in polyglot blocks: variables like "
+              "max_possible, total_score assigned literal numbers instead of being computed "
+              "from input data (e.g., `max_possible = 400` instead of "
+              "`max_possible = sum(weights.values()) * max_count`)\n";
+    prompt += "- Polyglot shortcuts: Python blocks that hardcode intermediate values instead "
+              "of computing them from bound variables\n\n";
     // Intent validation section: owner intents (ground truth) + LLM @intent (claims)
     {
         const auto& iv = rules.code_quality.intent_validation;

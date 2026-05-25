@@ -123,6 +123,15 @@ arr.push(new Point { x: 1, y: 2 })
 // let p = Point { x: 1, y: 2 }     // Missing `new`
 ```
 
+### Dict Literals
+```naab
+let d = {"name": "Alice", "age": 30}   // Quoted keys (always valid)
+let d = {name: "Alice", age: 30}       // Bare identifier keys (also valid)
+let d = {method: "GET", class: "A"}    // Keywords work as keys too
+```
+Both forms produce identical dicts. Keys are always stored as strings.
+For computed keys, use parenthesized expressions: `let k = "x"; let d = {(k): val}`.
+
 ### Type Casts (builtins)
 - `int(value)` — convert to integer
 - `float(value)` — convert to float
@@ -388,7 +397,8 @@ main {
     NAAb's `||`/`or` is NOT like JavaScript's `||` or Python's `or` operator.
     For null coalesce, use the `??` operator: `x ?? default_val`
 16. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
-17. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error
+17. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error.
+    Plain dicts do NOT use `new`: `{name: "Alice"}` or `{"name": "Alice"}` — both work.
 18. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
 19. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
 20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`

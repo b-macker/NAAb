@@ -1,0 +1,208 @@
+use array
+use math
+use string
+use json
+
+import "./models.naab" as models
+
+// ─── Threat Scoring ─────────────────────────────────────────────────
+
+export fn score_alert(alert, ioc_db) {
+    // Composite score: severity weight + IOC confidence + category risk
+    let base_score = models.severity_weight(alert.get("severity"))
+
+    // IOC contribution: average confidence of associated IOCs
+    let iocs = alert.get("iocs", [])
+    let ioc_score = 0.0
+    if len(iocs) > 0 {
+        let total_conf = array.reduce_fn(iocs, fn(acc, ioc) {
+            return acc + float(ioc.get("confidence", 0.5))
+        }, 0.0)
+        ioc_score = (total_conf / float(len(iocs))) * 5.0
+    }
+
+    // Category risk multiplier
+    let category = alert.get("category")
+    let cat_mult = match category {
+        models.ThreatCategory.DataExfil => 1.5,
+        models.ThreatCategory.Malware => 1.4,
+        models.ThreatCategory.InsiderThreat => 1.3,
+        models.ThreatCategory.SupplyChain => 1.3,
+        models.ThreatCategory.BruteForce => 1.1,
+        models.ThreatCategory.Phishing => 1.2,
+        models.ThreatCategory.DDoS => 1.0,
+        models.ThreatCategory.Recon => 0.8,
+        _ => 1.0
+    }
+
+    // Recency bonus: acknowledged alerts are slightly deprioritized
+    let ack_factor = if bool(alert.get("acknowledged", false)) { 0.9 } else { 1.0 }
+
+    let final_score = (base_score + ioc_score) * cat_mult * ack_factor
+    // Cap at 100
+    if final_score > 100.0 {
+        final_score = 100.0
+    }
+
+    return {
+        "alert_id": alert.get("id"),
+        "base_score": base_score,
+        "ioc_score": ioc_score,
+        "category_multiplier": cat_mult,
+        "ack_factor": ack_factor,
+        "final_score": final_score
+    }
+}
+
+export fn rank_alerts(alerts, ioc_db) {
+    // Score and sort alerts by priority
+    let scored = []
+    for alert in alerts {
+        let result = score_alert(alert, ioc_db)
+        let enriched = alert
+        enriched["score"] = result.get("final_score")
+        array.push(scored, enriched)
+    }
+
+    // Sort descending by score
+    array.sort(scored, fn(a, b) {
+        let sa = float(a.get("score", 0.0))
+        let sb = float(b.get("score", 0.0))
+        if sa > sb { return -1 }
+        if sa < sb { return 1 }
+        return 0
+    })
+
+    return scored
+}
+
+// ─── Statistical Analysis (Python Polyglot) ─────────────────────────
+
+export fn detect_anomalies(event_counts) {
+    // Use Python for statistical anomaly detection (z-score method)
+    let result = <<python[event_counts] -> JSON
+import json
+import math
+
+counts = event_counts
+n = len(counts)
+if n < 3:
+    print(json.dumps({"anomalies": [], "mean": 0, "stddev": 0, "threshold": 0}))
+else:
+    mean = sum(counts) / n
+    variance = sum((x - mean) ** 2 for x in counts) / n
+    stddev = math.sqrt(variance) if variance > 0 else 0.001
+    threshold = mean + 2 * stddev
+
+    anomalies = []
+    for i, count in enumerate(counts):
+        z = (count - mean) / stddev if stddev > 0 else 0
+        if abs(z) > 2.0:
+            anomalies.append({
+                "index": i,
+                "value": count,
+                "z_score": round(z, 3),
+                "direction": "high" if z > 0 else "low"
+            })
+
+    print(json.dumps({
+        "anomalies": anomalies,
+        "mean": round(mean, 3),
+        "stddev": round(stddev, 3),
+        "threshold": round(threshold, 3)
+    }))
+>>
+    return result
+}
+
+export fn calculate_trend(values) {
+    // Linear regression via Python to detect upward/downward trends
+    let result = <<python[values] -> JSON
+import json
+
+n = len(values)
+if n < 2:
+    print(json.dumps({"slope": 0, "direction": "flat", "r_squared": 0}))
+else:
+    x_vals = list(range(n))
+    x_mean = sum(x_vals) / n
+    y_mean = sum(values) / n
+
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_vals, values))
+    denominator = sum((x - x_mean) ** 2 for x in x_vals)
+
+    slope = numerator / denominator if denominator != 0 else 0
+    intercept = y_mean - slope * x_mean
+
+    # R-squared
+    ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(x_vals, values))
+    ss_tot = sum((y - y_mean) ** 2 for y in values)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+
+    direction = "increasing" if slope > 0.1 else ("decreasing" if slope < -0.1 else "flat")
+
+    print(json.dumps({
+        "slope": round(slope, 4),
+        "intercept": round(intercept, 4),
+        "direction": direction,
+        "r_squared": round(r_squared, 4)
+    }))
+>>
+    return result
+}
+
+// ─── Risk Assessment ────────────────────────────────────────────────
+
+export fn assess_risk_level(score) {
+    let s = float(score)
+    if s >= 15.0 {
+        return {"level": "CRITICAL", "color": "red", "action": "immediate_response"}
+    }
+    if s >= 10.0 {
+        return {"level": "HIGH", "color": "orange", "action": "escalate"}
+    }
+    if s >= 5.0 {
+        return {"level": "MEDIUM", "color": "yellow", "action": "investigate"}
+    }
+    if s >= 2.0 {
+        return {"level": "LOW", "color": "blue", "action": "monitor"}
+    }
+    return {"level": "INFO", "color": "green", "action": "log"}
+}
+
+export fn calculate_cumulative_risk(alerts) {
+    // Aggregate risk across all open alerts
+    if len(alerts) == 0 {
+        return {"total_risk": 0.0, "avg_risk": 0.0, "max_risk": 0.0, "alert_count": 0}
+    }
+
+    let scores = array.map_fn(alerts, fn(a) { return float(a.get("score", 0.0)) })
+    let total = array.reduce_fn(scores, fn(acc, s) { return acc + s }, 0.0)
+    let max_score = scores[0]
+    for s in scores {
+        if float(s) > float(max_score) {
+            max_score = s
+        }
+    }
+
+    return {
+        "total_risk": total,
+        "avg_risk": total / float(len(alerts)),
+        "max_risk": float(max_score),
+        "alert_count": len(alerts)
+    }
+}
+
+// ─── Severity Distribution ──────────────────────────────────────────
+
+export fn severity_distribution(alerts) {
+    let dist = {
+        "Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Info": 0
+    }
+    for alert in alerts {
+        let sev = models.severity_name(alert.get("severity"))
+        let current = dist.get(sev, 0)
+        dist[sev] = int(current) + 1
+    }
+    return dist
+}

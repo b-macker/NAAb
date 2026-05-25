@@ -1,0 +1,243 @@
+use array
+use string
+use time
+use dict
+
+import "./models.naab" as models
+
+// ─── Playbook Selection ─────────────────────────────────────────────
+
+export fn select_playbook(alert) {
+    let category = alert.get("category")
+    let severity = alert.get("severity")
+
+    let playbook = match category {
+        models.ThreatCategory.Malware => {
+            "name": "malware_containment",
+            "steps": ["isolate_host", "collect_artifacts", "scan_network", "block_c2", "remediate"],
+            "auto_contain": true,
+            "sla_hours": 4
+        },
+        models.ThreatCategory.Phishing => {
+            "name": "phishing_response",
+            "steps": ["quarantine_email", "check_clicks", "reset_creds", "scan_attachments", "notify_users"],
+            "auto_contain": false,
+            "sla_hours": 8
+        },
+        models.ThreatCategory.BruteForce => {
+            "name": "brute_force_block",
+            "steps": ["block_source_ip", "check_compromise", "enforce_mfa", "review_logs"],
+            "auto_contain": true,
+            "sla_hours": 2
+        },
+        models.ThreatCategory.DataExfil => {
+            "name": "data_exfil_response",
+            "steps": ["block_egress", "identify_data", "preserve_evidence", "legal_notify", "forensics"],
+            "auto_contain": true,
+            "sla_hours": 1
+        },
+        models.ThreatCategory.DDoS => {
+            "name": "ddos_mitigation",
+            "steps": ["enable_scrubbing", "rate_limit", "scale_infra", "analyze_vectors", "report"],
+            "auto_contain": true,
+            "sla_hours": 1
+        },
+        models.ThreatCategory.InsiderThreat => {
+            "name": "insider_investigation",
+            "steps": ["restrict_access", "preserve_logs", "hr_notify", "forensic_imaging", "interview"],
+            "auto_contain": false,
+            "sla_hours": 24
+        },
+        _ => {
+            "name": "generic_investigation",
+            "steps": ["triage", "investigate", "contain", "remediate", "review"],
+            "auto_contain": false,
+            "sla_hours": 12
+        }
+    }
+
+    // Adjust SLA for severity
+    let sla = int(playbook.get("sla_hours", 12))
+    if severity == models.Severity.Critical {
+        sla = math.max(1, int(math.floor(float(sla) * 0.5)))
+    } else if severity == models.Severity.High {
+        sla = math.max(1, int(math.floor(float(sla) * 0.75)))
+    }
+    playbook["sla_hours"] = sla
+
+    return playbook
+}
+
+// ─── Incident Lifecycle ─────────────────────────────────────────────
+
+export fn assign_incident(incident, analyst) {
+    let updated = incident
+    updated["assignee"] = string(analyst)
+    updated["status"] = models.IncidentStatus.Investigating
+    updated["updated_at"] = string(time.now())
+
+    let timeline = updated.get("timeline", [])
+    array.push(timeline, {
+        "action": "assigned",
+        "detail": "Assigned to " + string(analyst),
+        "timestamp": string(time.now())
+    })
+    updated["timeline"] = timeline
+    return updated
+}
+
+export fn contain_incident(incident, actions_taken) {
+    let updated = incident
+    updated["status"] = models.IncidentStatus.Contained
+    updated["updated_at"] = string(time.now())
+
+    let timeline = updated.get("timeline", [])
+    array.push(timeline, {
+        "action": "contained",
+        "detail": "Containment actions: " + string.join(actions_taken, ", "),
+        "timestamp": string(time.now())
+    })
+    updated["timeline"] = timeline
+    return updated
+}
+
+export fn remediate_incident(incident, remediation_notes) {
+    let updated = incident
+    updated["status"] = models.IncidentStatus.Remediated
+    updated["updated_at"] = string(time.now())
+
+    let timeline = updated.get("timeline", [])
+    array.push(timeline, {
+        "action": "remediated",
+        "detail": string(remediation_notes),
+        "timestamp": string(time.now())
+    })
+    updated["timeline"] = timeline
+    return updated
+}
+
+export fn close_incident(incident, root_cause, lessons_learned) {
+    let updated = incident
+    updated["status"] = models.IncidentStatus.Closed
+    updated["updated_at"] = string(time.now())
+    updated["root_cause"] = string(root_cause)
+    updated["lessons_learned"] = string(lessons_learned)
+
+    let timeline = updated.get("timeline", [])
+    array.push(timeline, {
+        "action": "closed",
+        "detail": "Root cause: " + string(root_cause),
+        "timestamp": string(time.now())
+    })
+    updated["timeline"] = timeline
+    return updated
+}
+
+// ─── Escalation Logic ───────────────────────────────────────────────
+
+export fn should_escalate(incident, elapsed_hours) {
+    let severity = incident.get("severity")
+    let status = incident.get("status")
+
+    // Already resolved — no escalation
+    if status == models.IncidentStatus.Closed or
+       status == models.IncidentStatus.Remediated {
+        return {"escalate": false, "reason": "already_resolved"}
+    }
+
+    // SLA-based escalation
+    let sla_limit = match severity {
+        models.Severity.Critical => 2,
+        models.Severity.High => 4,
+        models.Severity.Medium => 12,
+        models.Severity.Low => 48,
+        _ => 72
+    }
+
+    if int(elapsed_hours) > sla_limit {
+        return {
+            "escalate": true,
+            "reason": "sla_breach",
+            "sla_hours": sla_limit,
+            "elapsed_hours": int(elapsed_hours),
+            "overdue_by": int(elapsed_hours) - sla_limit
+        }
+    }
+
+    // Alert count escalation — too many alerts in one incident
+    let alert_count = int(incident.get("alert_count", 0))
+    if alert_count >= 10 and status == models.IncidentStatus.Open {
+        return {
+            "escalate": true,
+            "reason": "high_alert_volume",
+            "alert_count": alert_count
+        }
+    }
+
+    return {"escalate": false, "reason": "within_sla"}
+}
+
+// ─── Triage ─────────────────────────────────────────────────────────
+
+export fn auto_triage(alerts) {
+    // Automatically group and prioritize alerts
+    let critical = []
+    let high = []
+    let medium = []
+    let low = []
+
+    for alert in alerts {
+        let score = float(alert.get("score", 0.0))
+        if score >= 15.0 {
+            array.push(critical, alert)
+        } else if score >= 10.0 {
+            array.push(high, alert)
+        } else if score >= 5.0 {
+            array.push(medium, alert)
+        } else {
+            array.push(low, alert)
+        }
+    }
+
+    return {
+        "critical": critical,
+        "high": high,
+        "medium": medium,
+        "low": low,
+        "total": len(alerts),
+        "needs_immediate": len(critical)
+    }
+}
+
+// ─── Metrics ────────────────────────────────────────────────────────
+
+export fn calculate_mttr(incidents) {
+    // Mean Time To Resolve for closed incidents
+    let closed = array.filter_fn(incidents, fn(inc) {
+        return inc.get("status") == models.IncidentStatus.Closed
+    })
+
+    if len(closed) == 0 {
+        return {"mttr_hours": 0.0, "sample_size": 0, "fastest": 0.0, "slowest": 0.0}
+    }
+
+    // Use timeline length as proxy for resolution time (each step ~1 hour)
+    let times = array.map_fn(closed, fn(inc) {
+        return float(len(inc.get("timeline", [])))
+    })
+
+    let total = array.reduce_fn(times, fn(acc, t) { return acc + t }, 0.0)
+    let min_t = times[0]
+    let max_t = times[0]
+    for t in times {
+        if float(t) < float(min_t) { min_t = t }
+        if float(t) > float(max_t) { max_t = t }
+    }
+
+    return {
+        "mttr_hours": total / float(len(closed)),
+        "sample_size": len(closed),
+        "fastest": float(min_t),
+        "slowest": float(max_t)
+    }
+}

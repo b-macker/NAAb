@@ -197,6 +197,14 @@ std::vector<std::string> ScannerEngine::getListOption(
     return it->second.list_options;
 }
 
+std::vector<double> ScannerEngine::getNumListOption(
+    const std::string& category, const std::string& check_id) const {
+    auto cfg_key = category + "." + check_id;
+    auto it = config_.checks.find(cfg_key);
+    if (it == config_.checks.end()) return {};
+    return it->second.num_list_options;
+}
+
 void ScannerEngine::addIssue(std::vector<Issue>& issues,
                               const std::string& filepath, int line,
                               const std::string& rule, const std::string& category,
@@ -292,6 +300,8 @@ static void loadCheckConfigs(const json& category_json,
                 for (auto& elem : val) {
                     if (elem.is_string()) {
                         cc.list_options.push_back(elem.get<std::string>());
+                    } else if (elem.is_number()) {
+                        cc.num_list_options.push_back(elem.get<double>());
                     }
                 }
             }

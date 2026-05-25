@@ -1,0 +1,131 @@
+use regex
+
+import "models.naab" as models
+
+export fn evaluate_condition(condition, entity_attributes) {
+    let op = condition.get("op")
+
+    if op == models.ConditionOp.Equals || op == models.ConditionOp.NotEquals ||
+       op == models.ConditionOp.GreaterThan || op == models.ConditionOp.LessThan ||
+       op == models.ConditionOp.GreaterOrEqual || op == models.ConditionOp.LessOrEqual ||
+       op == models.ConditionOp.Contains || op == models.ConditionOp.Matches {
+
+        let field = condition.get("field")
+        let expected = condition.get("value")
+        let actual = entity_attributes.get(field)
+
+        if actual == null {
+            return {"passed": false, "evidence": "missing field: " + field}
+        }
+
+        let passed = match op {
+            models.ConditionOp.Equals => string(actual) == string(expected),
+            models.ConditionOp.NotEquals => string(actual) != string(expected),
+            models.ConditionOp.GreaterThan => int(actual) > int(expected),
+            models.ConditionOp.LessThan => int(actual) < int(expected),
+            models.ConditionOp.GreaterOrEqual => int(actual) >= int(expected),
+            models.ConditionOp.LessOrEqual => int(actual) <= int(expected),
+            models.ConditionOp.Contains => string.contains(string(actual), expected),
+            _ => regex.matches(string(actual), expected)
+        }
+
+        let evidence = field + " " + models.op_name(op) + " " + expected + " -> " + string(passed)
+        return {"passed": passed, "evidence": evidence}
+    }
+
+    if op == models.ConditionOp.And {
+        let children = condition.get("children") ?? []
+        let all_passed = true
+        let evidences = []
+        for child in children {
+            let result = evaluate_condition(child, entity_attributes)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") != true {
+                all_passed = false
+            }
+        }
+        return {"passed": all_passed, "evidence": evidences |> fn(e) { return string.join(e, " AND ") }}
+    }
+
+    if op == models.ConditionOp.Or {
+        let children = condition.get("children") ?? []
+        let any_passed = false
+        let evidences = []
+        for child in children {
+            let result = evaluate_condition(child, entity_attributes)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") == true {
+                any_passed = true
+            }
+        }
+        return {"passed": any_passed, "evidence": evidences |> fn(e) { return string.join(e, " OR ") }}
+    }
+
+    if op == models.ConditionOp.Not {
+        let children = condition.get("children") ?? []
+        if len(children) == 0 {
+            return {"passed": false, "evidence": "NOT: no child condition"}
+        }
+        let result = evaluate_condition(children[0], entity_attributes)
+        return {"passed": result.get("passed") != true, "evidence": "NOT(" + result.get("evidence") + ")"}
+    }
+
+    return {"passed": false, "evidence": "unknown operator"}
+}
+
+export fn count_conditions(condition) {
+    let op = condition.get("op")
+
+    if op <= models.ConditionOp.Matches {
+        return 1
+    }
+
+    let children = condition.get("children") ?? []
+    let total = 1
+    for child in children {
+        total = total + count_conditions(child)
+    }
+    return total
+}
+
+export fn flatten_conditions(condition) {
+    let op = condition.get("op")
+
+    if op <= models.ConditionOp.Matches {
+        return [condition]
+    }
+
+    let result = []
+    let children = condition.get("children") ?? []
+    for child in children {
+        let flat = flatten_conditions(child)
+        result = result + flat
+    }
+    return result
+}
+
+export fn max_depth(condition) {
+    let op = condition.get("op")
+
+    if op <= models.ConditionOp.Matches {
+        return 1
+    }
+
+    let children = condition.get("children") ?? []
+    if len(children) == 0 {
+        return 1
+    }
+
+    let max_d = 0
+    for child in children {
+        let d = max_depth(child)
+        if d > max_d {
+            max_d = d
+        }
+    }
+    return 1 + max_d
+}
+
+main {
+    print("conditions module loaded")
+}

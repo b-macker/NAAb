@@ -1,0 +1,8 @@
+=== Compliance Report ===
+
+Total Rules: 0
+Total Entities: 0
+Total Findings: 1
+
+Findings:
+[CRIT] R1 (E1): test

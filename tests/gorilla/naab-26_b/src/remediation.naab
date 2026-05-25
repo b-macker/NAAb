@@ -1,0 +1,122 @@
+use uuid
+
+import "models.naab" as models
+
+export fn find_best_remediation(finding, available_actions) {
+    let priority = match finding.severity {
+        models.Severity.Critical => models.RemediationPriority.Immediate,
+        models.Severity.High => models.RemediationPriority.High,
+        models.Severity.Medium => models.RemediationPriority.Medium,
+        _ => models.RemediationPriority.Low
+    }
+
+    let best_action = null
+    let best_score = -1
+
+    for action in available_actions {
+        let action_effort = action.get("effort") ?? 10
+        let action_deps = action.get("dependencies") ?? []
+        let score = 100 - action_effort - len(action_deps)
+
+        if score > best_score {
+            best_score = score
+            best_action = action
+        }
+    }
+
+    if best_action == null {
+        best_action = {"name": "manual_review", "effort": 5, "dependencies": []}
+    }
+
+    return {
+        "action": best_action.get("name"),
+        "priority": priority,
+        "estimated_effort": best_action.get("effort") ?? 5,
+        "dependencies": best_action.get("dependencies") ?? []
+    }
+}
+
+export fn build_remediation_plan(findings, available_actions) {
+    let steps = []
+
+    for finding in findings {
+        let remediation = find_best_remediation(finding, available_actions)
+        let step = new models.RemediationStep {
+            id: uuid.v4(),
+            finding_id: finding.rule_id + "_" + finding.entity_id,
+            action: remediation.get("action"),
+            priority: remediation.get("priority"),
+            estimated_hours: remediation.get("estimated_effort"),
+            blocked_by: remediation.get("dependencies"),
+            completed: false
+        }
+        steps.push(step)
+    }
+
+    let total_effort = 0
+    for step in steps {
+        total_effort = total_effort + step.estimated_hours
+    }
+
+    return {
+        "steps": steps,
+        "total_effort": total_effort,
+        "priority_order": steps,
+        "blocked_by": {}
+    }
+}
+
+export fn estimate_total_effort(steps) {
+    let hours = 0
+    for step in steps {
+        hours = hours + step.estimated_hours
+    }
+
+    let days = if hours > 0 { float(hours) / 8.0 } else { 0.0 }
+    let cost_estimate = hours * 150
+
+    return {
+        "hours": hours,
+        "days": days,
+        "cost_estimate": cost_estimate
+    }
+}
+
+export fn get_actionable_steps(steps) {
+    let result = []
+    for step in steps {
+        let is_actionable = true
+        for blocker_id in step.blocked_by {
+            let found = false
+            for other_step in steps {
+                if other_step.id == blocker_id && other_step.completed {
+                    found = true
+                }
+            }
+            if !found {
+                is_actionable = false
+            }
+        }
+
+        if is_actionable {
+            result.push(step)
+        }
+    }
+    return result
+}
+
+export fn mark_step_completed(steps, step_id) {
+    for i in 0..len(steps) {
+        let step = steps[i]
+        if step.id == step_id {
+            step.completed = true
+            steps[i] = step
+            return steps
+        }
+    }
+    return steps
+}
+
+main {
+    print("remediation.naab loaded")
+}

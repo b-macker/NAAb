@@ -1,0 +1,43 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"]
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": true }
+    },
+    "security": {
+        "sandbox_level": "unrestricted",
+        "no_secrets": "hard",
+        "no_placeholders": "hard",
+        "no_simulation_markers": "hard"
+    },
+    "code_quality": {
+        "no_hardcoded_results": "advisory",
+        "complexity_floor": {
+            "enabled": true,
+            "min_score": 8,
+            "min_lines_for_check": 6
+        },
+        "scanner_checks": {
+            "empty_catch": "hard",
+            "dead_conditional": "advisory",
+            "value_semantics_bug": "hard",
+            "missing_null_check": "advisory",
+            "dict_bracket_access": "hard",
+            "python_return_in_block": "hard",
+            "top_level_let": "hard"
+        }
+    },
+    "polyglot": {
+        "variable_binding": "hard"
+    },
+    "limits": {
+        "timeout": 30,
+        "call_depth": 100
+    }
+}

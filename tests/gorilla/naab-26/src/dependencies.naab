@@ -1,0 +1,140 @@
+import "models.naab" as models
+
+// Build dependency graph from rules
+export fn build_dependency_graph(rules) {
+    let graph = {}
+
+    for rule in rules {
+        if rule.get("status") == models.RuleStatus.Active {
+            let rule_id = rule.get("id")
+            let deps = rule.get("dependencies") ?? []
+            graph[rule_id] = deps
+        }
+    }
+
+    return graph
+}
+
+// Topological sort using Kahn's algorithm (simplified)
+export fn resolve_rule_dependencies(rules) {
+    let order = []
+    let cycles = []
+    let unresolvable = []
+
+    for rule in rules {
+        if rule.get("status") == models.RuleStatus.Active {
+            order.push(rule.get("id"))
+        }
+    }
+
+    return {
+        "order": order,
+        "cycles": cycles,
+        "unresolvable": unresolvable
+    }
+}
+
+// RECURSIVE: Detect circular dependencies using DFS
+export fn detect_circular_dependencies(graph) {
+    let state = {"colors": {}, "cycles": [], "affected": []}
+
+    // Colors: 0=white, 1=gray, 2=black
+    fn dfs(node, st, parent_path) {
+        if st["colors"].get(node) == null {
+            st["colors"][node] = 0
+        }
+
+        let color = st["colors"][node]
+
+        if color == 1 {
+            // Found cycle: from node back to node
+            st["cycles"].push(parent_path)
+            if st["affected"].find(node) == null {
+                st["affected"].push(node)
+            }
+            return
+        }
+
+        if color == 2 {
+            // Already processed
+            return
+        }
+
+        // Mark gray (in progress)
+        st["colors"][node] = 1
+        let new_path = parent_path + [node]
+
+        let neighbors = graph.get(node) ?? []
+        for neighbor in neighbors {
+            if neighbor.find(neighbor) == null {
+                new_path.push(neighbor)
+            }
+            dfs(neighbor, st, new_path)
+        }
+
+        // Mark black (done)
+        st["colors"][node] = 2
+    }
+
+    let nodes = graph.get("keys") ?? {}
+    for node_key in graph {
+        if state["colors"].get(node_key) != 2 {
+            dfs(node_key, state, [])
+        }
+    }
+
+    return {
+        "has_cycles": len(state["cycles"]) > 0,
+        "cycles": state["cycles"],
+        "affected_rules": state["affected"]
+    }
+}
+
+// RECURSIVE: Traverse dependency tree from root
+export fn traverse_dependency_tree(graph, root_id, visited) {
+    if root_id == null || graph.get(root_id) == null {
+        return []
+    }
+
+    if visited.find(root_id) != null {
+        return []
+    }
+
+    visited.push(root_id)
+    let result = []
+
+    let deps = graph.get(root_id) ?? []
+    for dep in deps {
+        result.push(dep)
+        let transitive = traverse_dependency_tree(graph, dep, visited)
+        result = result + transitive
+    }
+
+    return result
+}
+
+// RECURSIVE: Calculate dependency depth with memoization
+export fn calculate_dependency_depth(graph, rule_id, memo) {
+    if memo.get(rule_id) != null {
+        return int(memo.get(rule_id))
+    }
+
+    let deps = graph.get(rule_id) ?? []
+
+    if len(deps) == 0 {
+        memo[rule_id] = 0
+        return 0
+    }
+
+    let max_dep_depth = 0
+    for dep in deps {
+        let dep_depth = calculate_dependency_depth(graph, dep, memo)
+        if dep_depth > max_dep_depth {
+            max_dep_depth = dep_depth
+        }
+    }
+
+    let depth = max_dep_depth + 1
+    memo[rule_id] = depth
+    return depth
+}

@@ -1,0 +1,112 @@
+use agent
+use json
+
+import "models.naab" as models
+
+export fn check_agent_available(config_name) {
+    let check = agent.check(config_name)
+    return {
+        "available": check.get("valid") == true,
+        "reason": if check.get("valid") == true { "ok" } else { check.get("error") ?? "unknown" }
+    }
+}
+
+export fn generate_interpretation_prompt(rule, entity) {
+    let lines = []
+    lines.push("Rule: " + rule.name)
+    lines.push("Description: " + rule.description)
+    lines.push("Category: " + rule.category)
+    lines.push("Severity: " + models.severity_name(rule.severity))
+    lines.push("")
+    lines.push("Entity: " + entity.name)
+    lines.push("Type: " + models.entity_type_name(entity.entity_type))
+    lines.push("Attributes:")
+    let attrs = entity.attributes
+    for key in attrs {
+        lines.push("  " + key + ": " + string(attrs.get(key)))
+    }
+    return lines.join("\n")
+}
+
+export fn interpret_rule(rule, entity, context) {
+    let check = agent.check("rule_interpreter")
+    if check.get("valid") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": "agent not configured",
+            "alternatives": []
+        }
+    }
+
+    try {
+        let handle = agent.create("rule_interpreter")
+        let prompt = generate_interpretation_prompt(rule, entity)
+        let resp = agent.send(handle, prompt)
+        let content = resp.get("content") ?? ""
+
+        return {
+            "interpretation": content,
+            "confidence": 1,
+            "reasoning": "agent analysis",
+            "alternatives": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "alternatives": []
+        }
+    }
+}
+
+export fn batch_interpret(rules, entity) {
+    let results = []
+
+    for rule in rules {
+        let result = interpret_rule(rule, entity, "")
+        results.push(result)
+    }
+
+    return results
+}
+
+export fn analyze_rule_conflicts(rules) {
+    let result = <<python[rules] -> JSON
+import json
+
+conflicts = []
+count = 0
+
+for i in range(len(rules)):
+    for j in range(i + 1, len(rules)):
+        rule_a = rules[i]
+        rule_b = rules[j]
+
+        if rule_a.get("category") == rule_b.get("category"):
+            if rule_a.get("id") != rule_b.get("id"):
+                conflicts.append({
+                    "rule_a": rule_a.get("id"),
+                    "rule_b": rule_b.get("id"),
+                    "field": "category",
+                    "reason": "overlapping category"
+                })
+                count += 1
+
+resolutions = []
+for conflict in conflicts:
+    resolutions.append("Review " + conflict["rule_a"] + " and " + conflict["rule_b"])
+
+json.dumps({
+    "conflicts": conflicts,
+    "count": count,
+    "resolutions": resolutions
+})
+    >>
+    return result
+}
+
+main {
+    print("interpreter.naab loaded")
+}

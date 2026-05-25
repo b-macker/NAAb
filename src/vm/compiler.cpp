@@ -1004,7 +1004,9 @@ void Compiler::visit(ast::FunctionDecl& node) {
     int line = node.getLocation().line;
 
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
-    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
+    // Skip during module loading to avoid checking imported functions — matches tree-walker
+    // behavior (interpreter.cpp uses module_loading_depth_ == 0 guard).
+    if (governance_ && governance_->isActive() && !skip_main_ && line > 0 && !source_file_.empty()) {
         std::ifstream src_file(source_file_);
         if (src_file.is_open()) {
             std::vector<std::string> src_lines;
@@ -1014,10 +1016,18 @@ void Compiler::visit(ast::FunctionDecl& node) {
             }
             src_file.close();
             if (line <= static_cast<int>(src_lines.size())) {
+                // Search backward from AST line to find the actual fn declaration,
+                // which may be a few lines earlier (e.g., export fn on a prior line)
+                size_t start_idx = static_cast<size_t>(line - 1);
+                std::string fn_pat = "fn " + node.getName() + "(";
+                for (int back = 0; back < 5 && start_idx > 0; ++back) {
+                    if (src_lines[start_idx].find(fn_pat) != std::string::npos) break;
+                    --start_idx;
+                }
                 std::string body_text;
                 int brace_depth = 0;
                 bool found_start = false;
-                for (size_t i = static_cast<size_t>(line - 1); i < src_lines.size(); ++i) {
+                for (size_t i = start_idx; i < src_lines.size(); ++i) {
                     body_text += src_lines[i] + "\n";
                     for (char c : src_lines[i]) {
                         if (c == '{') { brace_depth++; found_start = true; }
@@ -1107,7 +1117,8 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
     int line = decl->getLocation().line;
 
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
-    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
+    // Skip during module loading — matches tree-walker behavior.
+    if (governance_ && governance_->isActive() && !skip_main_ && line > 0 && !source_file_.empty()) {
         std::ifstream src_file(source_file_);
         if (src_file.is_open()) {
             std::vector<std::string> lines;
@@ -1117,10 +1128,17 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
             }
             src_file.close();
             if (line <= static_cast<int>(lines.size())) {
+                // Search backward from AST line to find the actual fn declaration
+                size_t start_idx = static_cast<size_t>(line - 1);
+                std::string fn_pat = "fn " + decl->getName() + "(";
+                for (int back = 0; back < 5 && start_idx > 0; ++back) {
+                    if (lines[start_idx].find(fn_pat) != std::string::npos) break;
+                    --start_idx;
+                }
                 std::string body_text;
                 int brace_depth = 0;
                 bool found_start = false;
-                for (size_t i = static_cast<size_t>(line - 1); i < lines.size(); ++i) {
+                for (size_t i = start_idx; i < lines.size(); ++i) {
                     body_text += lines[i] + "\n";
                     for (char c : lines[i]) {
                         if (c == '{') { brace_depth++; found_start = true; }

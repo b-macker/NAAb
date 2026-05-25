@@ -1,0 +1,184 @@
+use json
+
+import "models.naab" as models
+
+fn map_op_string_to_enum(op_str) {
+    return match op_str {
+        "==" => models.ConditionOp.Equals,
+        "!=" => models.ConditionOp.NotEquals,
+        ">" => models.ConditionOp.GreaterThan,
+        "<" => models.ConditionOp.LessThan,
+        ">=" => models.ConditionOp.GreaterOrEqual,
+        "<=" => models.ConditionOp.LessOrEqual,
+        "contains" => models.ConditionOp.Contains,
+        "matches" => models.ConditionOp.Matches,
+        "AND" => models.ConditionOp.And,
+        "OR" => models.ConditionOp.Or,
+        "NOT" => models.ConditionOp.Not,
+        _ => 0
+    }
+}
+
+fn parse_condition_tree_recursive(raw_conditions) {
+    let result = []
+    for raw in raw_conditions {
+        let op_str = raw.get("op")
+        let op_enum = map_op_string_to_enum(op_str)
+        let field = raw.get("field") ?? ""
+        let value = raw.get("value") ?? ""
+        let children_raw = raw.get("children") ?? []
+
+        let children = []
+        if len(children_raw) > 0 {
+            children = parse_condition_tree_recursive(children_raw)
+        }
+
+        result.push({
+            "op": op_enum,
+            "field": field,
+            "value": value,
+            "children": children
+        })
+    }
+    return result
+}
+
+export fn parse_rule_definition(text) {
+    let parsed = try { json.parse(text) } catch (e) { null }
+
+    if parsed == null {
+        return {"rule": null, "valid": false, "errors": ["invalid JSON"]}
+    }
+
+    let errors = []
+    let id = parsed.get("id")
+    let name = parsed.get("name")
+    let description = parsed.get("description")
+    let severity = parsed.get("severity")
+    let category = parsed.get("category")
+    let raw_conditions = parsed.get("conditions")
+    let dependencies = parsed.get("dependencies") ?? []
+    let tags = parsed.get("tags") ?? []
+
+    if id == null || id == "" {
+        errors.push("id is required")
+    }
+    if name == null || name == "" {
+        errors.push("name is required")
+    }
+    if description == null {
+        errors.push("description is required")
+    }
+    if severity == null {
+        errors.push("severity is required")
+    }
+    if category == null || category == "" {
+        errors.push("category is required")
+    }
+    if raw_conditions == null || type(raw_conditions) != "array" || len(raw_conditions) == 0 {
+        errors.push("conditions is required and must be non-empty array")
+    }
+
+    if len(errors) > 0 {
+        return {"rule": null, "valid": false, "errors": errors}
+    }
+
+    let conditions = parse_condition_tree_recursive(raw_conditions)
+    let rule = models.create_rule(id, name, description, severity, category, conditions, dependencies, tags)
+
+    return {"rule": rule, "valid": true, "errors": []}
+}
+
+export fn parse_condition_tree(raw_conditions) {
+    return parse_condition_tree_recursive(raw_conditions)
+}
+
+export fn filter_rules_by_category(rules, category) {
+    let result = []
+    for rule in rules {
+        if rule.category == category {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn filter_rules_by_severity(rules, min_severity) {
+    let result = []
+    for rule in rules {
+        if rule.severity <= min_severity {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn filter_active_rules(rules) {
+    let result = []
+    for rule in rules {
+        if rule.status == models.RuleStatus.Active {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn get_rule_by_id(rules, id) {
+    for rule in rules {
+        if rule.id == id {
+            return rule
+        }
+    }
+    return null
+}
+
+export fn update_rule_status(rule, new_status) {
+    let updated = {
+        "id": rule.id,
+        "name": rule.name,
+        "description": rule.description,
+        "severity": rule.severity,
+        "status": new_status,
+        "category": rule.category,
+        "conditions": rule.conditions,
+        "dependencies": rule.dependencies,
+        "tags": rule.tags,
+        "version": rule.version + 1
+    }
+    return updated
+}
+
+export fn merge_rule_tags(rule, new_tags) {
+    let existing = rule.tags ?? []
+    let all_tags = existing + new_tags
+    let unique = []
+    for tag in all_tags {
+        let found = false
+        for u in unique {
+            if u == tag {
+                found = true
+            }
+        }
+        if !found {
+            unique.push(tag)
+        }
+    }
+
+    let merged = {
+        "id": rule.id,
+        "name": rule.name,
+        "description": rule.description,
+        "severity": rule.severity,
+        "status": rule.status,
+        "category": rule.category,
+        "conditions": rule.conditions,
+        "dependencies": rule.dependencies,
+        "tags": unique,
+        "version": rule.version
+    }
+    return merged
+}
+
+main {
+    print("rules.naab loaded")
+}

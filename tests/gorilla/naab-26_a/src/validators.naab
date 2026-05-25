@@ -1,0 +1,121 @@
+use regex
+use validate
+
+import "models.naab" as models
+
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+    let s = string.trim(input)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+    let s = string.trim(line)
+    s = regex.replace(s, "\u001b\\[[0-9;]*m", "")
+    return sanitize_string(s)
+}
+
+export fn validate_rule_syntax(definition) {
+    let errors = []
+
+    let id = definition.get("id") ?? ""
+    if id == "" {
+        errors.push("id is required and must be non-empty")
+    }
+
+    let name = definition.get("name") ?? ""
+    if name == "" {
+        errors.push("name is required and must be non-empty")
+    }
+
+    let category = definition.get("category") ?? ""
+    let valid_categories = ["access_control", "encryption", "audit", "network", "data_protection", "authentication"]
+    let is_valid_category = false
+    for cat in valid_categories {
+        if category == cat {
+            is_valid_category = true
+        }
+    }
+    if !is_valid_category {
+        errors.push("category must be one of: access_control, encryption, audit, network, data_protection, authentication")
+    }
+
+    let severity = definition.get("severity") ?? -1
+    if severity < 0 || severity > 4 {
+        errors.push("severity must be valid enum value (0-4)")
+    }
+
+    let conditions = definition.get("conditions") ?? []
+    if len(conditions) == 0 {
+        errors.push("conditions must be non-empty array")
+    }
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_email_address(email) {
+    return validate.email(email)
+}
+
+export fn validate_condition_tree(conditions) {
+    let state = {"max_depth": 0, "errors": []}
+
+    fn validate_node(node, depth, st) {
+        if depth > st.get("max_depth") {
+            st["max_depth"] = depth
+        }
+
+        let op = node.get("op")
+
+        if op <= models.ConditionOp.Matches {
+            let field = node.get("field") ?? ""
+            if field == "" {
+                st.get("errors").push("missing field at depth " + string(depth))
+            }
+            let value = node.get("value")
+            if value == null {
+                st.get("errors").push("missing value at depth " + string(depth))
+            }
+        }
+
+        if op == models.ConditionOp.And || op == models.ConditionOp.Or {
+            let children = node.get("children") ?? []
+            if len(children) == 0 {
+                st.get("errors").push("AND/OR requires children at depth " + string(depth))
+            }
+            for child in children {
+                validate_node(child, depth + 1, st)
+            }
+        }
+
+        if op == models.ConditionOp.Not {
+            let children = node.get("children") ?? []
+            if len(children) != 1 {
+                st.get("errors").push("NOT requires exactly 1 child at depth " + string(depth))
+            }
+            for child in children {
+                validate_node(child, depth + 1, st)
+            }
+        }
+    }
+
+    for cond in conditions {
+        validate_node(cond, 0, state)
+    }
+
+    return {
+        "valid": len(state.get("errors")) == 0,
+        "errors": state.get("errors"),
+        "depth": state.get("max_depth")
+    }
+}

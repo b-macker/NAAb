@@ -1,0 +1,150 @@
+use agent
+use json
+use string
+import "models.naab" as models
+
+export fn check_agent_available(config_name) {
+    let result = agent.check(config_name)
+    let is_valid = result.get("valid")
+    let err = result.get("error") ?? "ready"
+    return { "available": is_valid == true, "reason": err }
+}
+
+export fn generate_rca_prompt(incident, logs) {
+    let sev_name = models.severity_name(incident.get("severity"))
+    let prompt = "Analyze this incident:\n"
+    prompt = prompt + "Title: " + string(incident.get("title")) + "\n"
+    prompt = prompt + "Severity: " + sev_name + "\n"
+    prompt = prompt + "Status: " + models.status_name(incident.get("status")) + "\n"
+    prompt = prompt + "\nRelated logs:\n"
+    for log_line in logs {
+        prompt = prompt + "  " + string(log_line) + "\n"
+    }
+    prompt = prompt + "\nWhat is the most likely root cause? Respond with: root_cause, confidence (0-100), reasoning, and suggestions."
+    return prompt
+}
+
+export fn analyze_root_cause(incident, logs, service_graph) {
+    let avail = check_agent_available("rca_agent")
+    if avail.get("available") != true {
+        return {
+            "root_cause": "unavailable",
+            "confidence": 0,
+            "reasoning": "agent not configured: " + string(avail.get("reason")),
+            "suggestions": []
+        }
+    }
+
+    try {
+        let handle = agent.create("rca_agent")
+
+        let prompt = generate_rca_prompt(incident, logs)
+        let resp1 = agent.send(handle, prompt)
+        let content = resp1.get("content") ?? ""
+
+        let graph_str = json.stringify(service_graph)
+        let follow_up = "Here is the service dependency graph: " + graph_str + "\nDoes this change your analysis? What is the final root cause?"
+        let resp2 = agent.send(handle, follow_up)
+        let final_content = resp2.get("content") ?? content
+
+        return {
+            "root_cause": final_content,
+            "confidence": 1,
+            "reasoning": "agent analysis complete",
+            "suggestions": ["review service dependencies", "check resource limits"]
+        }
+    } catch (e) {
+        return {
+            "root_cause": "unavailable",
+            "confidence": 0,
+            "reasoning": "agent error: " + string(e),
+            "suggestions": []
+        }
+    }
+}
+
+export fn batch_analyze(incidents, logs) {
+    let results = []
+    let agent_configs = ["rca_agent", "rca_agent_b1", "rca_agent_b2"]
+
+    let handles = []
+    let messages = []
+    let valid_indices = []
+
+    for i in 0..len(incidents) {
+        if i >= len(agent_configs) { break }
+        let config_name = agent_configs[i]
+        let avail = check_agent_available(config_name)
+        if avail.get("available") == true {
+            try {
+                let h = agent.create(config_name)
+                handles.push(h)
+                let prompt = generate_rca_prompt(incidents[i], logs)
+                messages.push(prompt)
+                valid_indices.push(i)
+            } catch (e) {
+                results.push({
+                    "root_cause": "unavailable",
+                    "confidence": 0,
+                    "reasoning": "agent creation failed: " + string(e),
+                    "suggestions": []
+                })
+            }
+        } else {
+            results.push({
+                "root_cause": "unavailable",
+                "confidence": 0,
+                "reasoning": "agent not available",
+                "suggestions": []
+            })
+        }
+    }
+
+    if len(handles) > 0 {
+        try {
+            let responses = agent.batch(handles, messages)
+            for j in 0..len(responses) {
+                let resp = responses[j]
+                let content = resp.get("content") ?? ""
+                let success = resp.get("success")
+                if success == false {
+                    results.push({
+                        "root_cause": "unavailable",
+                        "confidence": 0,
+                        "reasoning": resp.get("error") ?? "batch call failed",
+                        "suggestions": []
+                    })
+                } else {
+                    results.push({
+                        "root_cause": content,
+                        "confidence": 1,
+                        "reasoning": "batch analysis complete",
+                        "suggestions": []
+                    })
+                }
+            }
+        } catch (e) {
+            for idx in valid_indices {
+                results.push({
+                    "root_cause": "unavailable",
+                    "confidence": 0,
+                    "reasoning": "batch error: " + string(e),
+                    "suggestions": []
+                })
+            }
+        }
+    }
+
+    while len(results) < len(incidents) {
+        results.push({
+            "root_cause": "unavailable",
+            "confidence": 0,
+            "reasoning": "no agent available",
+            "suggestions": []
+        })
+    }
+
+    return results
+}
+
+main {}

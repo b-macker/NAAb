@@ -1,0 +1,161 @@
+use json
+use regex
+
+import "models.naab" as models
+
+export fn parse_rule_definition(text) {
+    let parsed = try { json.parse(text) } catch (e) { null }
+
+    if parsed == null {
+        return {"rule": null, "valid": false, "errors": ["invalid JSON"]}
+    }
+
+    let id = parsed.get("id")
+    let name = parsed.get("name")
+    let description = parsed.get("description")
+    let severity = parsed.get("severity")
+    let category = parsed.get("category")
+    let conditions_raw = parsed.get("conditions")
+    let dependencies = parsed.get("dependencies") ?? []
+    let tags = parsed.get("tags") ?? []
+
+    let errors = []
+
+    if id == null || id == "" {
+        errors.push("missing id")
+    }
+    if name == null || name == "" {
+        errors.push("missing name")
+    }
+    if description == null {
+        errors.push("missing description")
+    }
+    if severity == null {
+        errors.push("missing severity")
+    }
+    if category == null || category == "" {
+        errors.push("missing category")
+    }
+    if conditions_raw == null {
+        errors.push("missing conditions")
+    }
+
+    if len(errors) > 0 {
+        return {"rule": null, "valid": false, "errors": errors}
+    }
+
+    let conditions = parse_condition_tree(conditions_raw)
+    let rule = models.create_rule(id, name, description, severity, category, conditions, dependencies, tags)
+
+    return {"rule": rule, "valid": true, "errors": []}
+}
+
+export fn parse_condition_tree(raw_conditions) {
+    let result = []
+
+    fn parse_node(raw_node) {
+        let op_str = raw_node.get("op")
+        let op = match op_str {
+            "==" => 0,
+            "!=" => 1,
+            ">" => 2,
+            "<" => 3,
+            ">=" => 4,
+            "<=" => 5,
+            "contains" => 6,
+            "matches" => 7,
+            "AND" => 8,
+            "OR" => 9,
+            "NOT" => 10,
+            _ => 0
+        }
+
+        let field = raw_node.get("field") ?? ""
+        let value = raw_node.get("value") ?? ""
+        let children_raw = raw_node.get("children") ?? []
+        let children = []
+
+        for child_raw in children_raw {
+            children.push(parse_node(child_raw))
+        }
+
+        return models.create_condition(op, field, value, children)
+    }
+
+    for raw in raw_conditions {
+        result.push(parse_node(raw))
+    }
+
+    return result
+}
+
+export fn filter_rules_by_category(rules, category) {
+    let result = []
+    for rule in rules {
+        if rule.get("category") == category {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn filter_rules_by_severity(rules, min_severity) {
+    let result = []
+    for rule in rules {
+        if rule.get("severity") <= min_severity {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn filter_active_rules(rules) {
+    let result = []
+    for rule in rules {
+        if rule.get("status") == 0 {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn get_rule_by_id(rules, id) {
+    for rule in rules {
+        if rule.get("id") == id {
+            return rule
+        }
+    }
+    return null
+}
+
+export fn update_rule_status(rule, new_status) {
+    let updated = rule
+    updated["status"] = new_status
+    updated["version"] = rule.get("version") + 1
+    return updated
+}
+
+export fn merge_rule_tags(rule, new_tags) {
+    let existing = rule.get("tags") ?? []
+    let combined = existing + new_tags
+
+    fn deduplicate_tags(tags) {
+        let seen = {}
+        let unique = []
+        for tag in tags {
+            if seen.get(tag) == null {
+                unique.push(tag)
+                seen[tag] = true
+            }
+        }
+        return unique
+    }
+
+    let unique = combined |> deduplicate_tags
+    let updated = rule
+    updated["tags"] = unique
+    return updated
+}
+
+main {
+}

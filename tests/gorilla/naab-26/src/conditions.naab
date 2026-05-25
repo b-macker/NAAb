@@ -1,0 +1,171 @@
+use regex
+
+import "models.naab" as models
+
+// RECURSIVE: Evaluate a condition tree against entity attributes
+export fn evaluate_condition(condition, entity_attributes) {
+    let op = condition.get("op")
+
+    // Leaf operators: Equals, NotEquals, GreaterThan, LessThan, GreaterOrEqual, LessOrEqual
+    if op == models.ConditionOp.Equals || op == models.ConditionOp.NotEquals ||
+       op == models.ConditionOp.GreaterThan || op == models.ConditionOp.LessThan ||
+       op == models.ConditionOp.GreaterOrEqual || op == models.ConditionOp.LessOrEqual ||
+       op == models.ConditionOp.Contains || op == models.ConditionOp.Matches {
+
+        let field = condition.get("field")
+        let expected = condition.get("value")
+        let actual = entity_attributes.get(field)
+
+        if actual == null {
+            return {
+                "passed": false,
+                "evidence": "missing field: " + field
+            }
+        }
+
+        let passed = match op {
+            models.ConditionOp.Equals => string(actual) == string(expected),
+            models.ConditionOp.NotEquals => string(actual) != string(expected),
+            models.ConditionOp.GreaterThan => int(actual) > int(expected),
+            models.ConditionOp.LessThan => int(actual) < int(expected),
+            models.ConditionOp.GreaterOrEqual => int(actual) >= int(expected),
+            models.ConditionOp.LessOrEqual => int(actual) <= int(expected),
+            models.ConditionOp.Contains => string.contains(string(actual), string(expected)),
+            models.ConditionOp.Matches => regex.matches(string(actual), string(expected)),
+            _ => false
+        }
+
+        let evidence = field + " " + models.op_name(op) + " " + string(expected) + " -> " + string(passed)
+        return {
+            "passed": passed,
+            "evidence": evidence
+        }
+    }
+
+    // AND operator: all children must pass
+    if op == models.ConditionOp.And {
+        let children = condition.get("children") ?? []
+        let all_passed = true
+        let evidences = []
+
+        for child in children {
+            let result = evaluate_condition(child, entity_attributes)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") != true {
+                all_passed = false
+            }
+        }
+
+        return {
+            "passed": all_passed,
+            "evidence": evidences.join(" AND ")
+        }
+    }
+
+    // OR operator: any child must pass
+    if op == models.ConditionOp.Or {
+        let children = condition.get("children") ?? []
+        let any_passed = false
+        let evidences = []
+
+        for child in children {
+            let result = evaluate_condition(child, entity_attributes)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") == true {
+                any_passed = true
+            }
+        }
+
+        return {
+            "passed": any_passed,
+            "evidence": evidences.join(" OR ")
+        }
+    }
+
+    // NOT operator: invert single child
+    if op == models.ConditionOp.Not {
+        let children = condition.get("children") ?? []
+        if len(children) == 0 {
+            return {
+                "passed": false,
+                "evidence": "NOT: no child condition"
+            }
+        }
+
+        let result = evaluate_condition(children[0], entity_attributes)
+        return {
+            "passed": result.get("passed") != true,
+            "evidence": "NOT(" + result.get("evidence") + ")"
+        }
+    }
+
+    return {
+        "passed": false,
+        "evidence": "unknown operator"
+    }
+}
+
+// RECURSIVE: Count total nodes in condition tree
+export fn count_conditions(condition) {
+    let op = condition.get("op")
+    let children = condition.get("children") ?? []
+
+    // Leaf node: count = 1
+    if op <= models.ConditionOp.Matches {
+        return 1
+    }
+
+    // Branch node: 1 + sum of children
+    let total = 1
+    for child in children {
+        total = total + count_conditions(child)
+    }
+
+    return total
+}
+
+// RECURSIVE: Flatten tree into array of leaf conditions
+export fn flatten_conditions(condition) {
+    let op = condition.get("op")
+    let children = condition.get("children") ?? []
+
+    // Leaf node: return [condition]
+    if op <= models.ConditionOp.Matches {
+        return [condition]
+    }
+
+    // Branch node: recurse into children
+    let result = []
+    for child in children {
+        let flattened = flatten_conditions(child)
+        result = result + flattened
+    }
+
+    return result
+}
+
+// RECURSIVE: Calculate max depth of tree
+export fn max_depth(condition) {
+    let op = condition.get("op")
+    let children = condition.get("children") ?? []
+
+    // Leaf node: depth = 1
+    if op <= models.ConditionOp.Matches {
+        return 1
+    }
+
+    // Branch node: 1 + max of children depths
+    if len(children) == 0 {
+        return 1
+    }
+
+    let max_child_depth = 0
+    for child in children {
+        let child_depth = max_depth(child)
+        if child_depth > max_child_depth {
+            max_child_depth = child_depth
+        }
+    }
+
+    return 1 + max_child_depth
+}

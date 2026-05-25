@@ -1,0 +1,114 @@
+import "models.naab" as models
+use agent
+use json
+
+export fn check_agent_available(config_name) {
+    let check = agent.check(config_name)
+    return {
+        "available": check.get("valid") ?? false,
+        "reason": check.get("error") ?? "unknown"
+    }
+}
+
+export fn generate_interpretation_prompt(rule, entity) {
+    let lines = []
+    lines.push("Rule: " + rule.get("name"))
+    lines.push("Description: " + rule.get("description"))
+    lines.push("")
+    lines.push("Entity: " + entity.get("name"))
+    lines.push("Attributes: " + json.stringify(entity.get("attributes")))
+
+    return lines.join("\n")
+}
+
+export fn interpret_rule(rule, entity, context) {
+    let check = check_agent_available("rule_interpreter")
+    if check.get("available") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": check.get("reason"),
+            "alternatives": []
+        }
+    }
+
+    let handle = null
+    let response = null
+    let error_msg = ""
+    let success = false
+
+    try {
+        handle = agent.create("rule_interpreter")
+        let prompt = generate_interpretation_prompt(rule, entity)
+        response = agent.send(handle, prompt)
+        success = true
+    } catch (e) {
+        error_msg = string(e)
+    }
+
+    if success {
+        return {
+            "interpretation": response.get("content") ?? "no response",
+            "confidence": 0.8,
+            "reasoning": "agent analysis",
+            "alternatives": []
+        }
+    } else {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": error_msg,
+            "alternatives": []
+        }
+    }
+}
+
+export fn batch_interpret(rules, entity) {
+    let results = []
+
+    for rule in rules {
+        let interp = interpret_rule(rule, entity, {})
+        results.push(interp)
+    }
+
+    return results
+}
+
+export fn analyze_rule_conflicts(rules) {
+    return <<python[rules] -> JSON
+    import json
+
+    conflicts = []
+    for i, rule_a in enumerate(rules):
+        for j, rule_b in enumerate(rules):
+            if i >= j:
+                continue
+
+            cat_a = rule_a.get("category", "")
+            cat_b = rule_b.get("category", "")
+
+            if cat_a == cat_b and cat_a:
+                conflict = {
+                    "rule_a": rule_a.get("id", ""),
+                    "rule_b": rule_b.get("id", ""),
+                    "field": cat_a,
+                    "reason": "same category, potential overlap"
+                }
+                conflicts.append(conflict)
+
+    resolutions = []
+    if conflicts:
+        resolutions.append("review rule priorities")
+        resolutions.append("consolidate overlapping rules")
+
+    output = {
+        "conflicts": conflicts,
+        "count": len(conflicts),
+        "resolutions": resolutions
+    }
+    json.dumps(output)
+    >>
+}
+
+main {
+}

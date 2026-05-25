@@ -1,0 +1,32 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "capabilities": {
+        "filesystem": {
+            "mode": "write",
+            "rationale": "Task tracker reads and writes tasks.json"
+        },
+        "network": {
+            "enabled": false,
+            "rationale": "Task tracker is fully offline — no network access permitted"
+        },
+        "shell": {
+            "enabled": false,
+            "rationale": "No subprocess execution permitted in user-facing tool"
+        }
+    },
+    "security": {
+        "sandbox_level": "standard"
+    },
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "security": {
+            "hardcoded_credentials": {
+                "enabled": true,
+                "level": "hard",
+                "rationale": "No secrets may be embedded in source code"
+            }
+        }
+    }
+}

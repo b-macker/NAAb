@@ -28,6 +28,7 @@ struct CheckConfig {
     std::unordered_map<std::string, double> num_options;
     std::unordered_map<std::string, std::string> str_options;
     std::vector<std::string> list_options;  // for "names" lists etc.
+    std::vector<double> num_list_options;   // for numeric lists (e.g., magic_numbers.allowed)
 };
 
 // Scanner configuration (loaded from govern.json "scanner" section)
@@ -105,6 +106,7 @@ public:
     std::string getStrOption(const std::string& category, const std::string& check_id,
                              const std::string& key, const std::string& default_val) const;
     std::vector<std::string> getListOption(const std::string& category, const std::string& check_id) const;
+    std::vector<double> getNumListOption(const std::string& category, const std::string& check_id) const;
 
     // Issue helper
     void addIssue(std::vector<Issue>& issues,

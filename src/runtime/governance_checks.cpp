@@ -3295,7 +3295,7 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
     if (it == rules_.contracts.functions.end()) return "";
 
     const auto& contract = it->second;
-    if (contract.must_call.empty()) return "";
+    if (contract.must_call.empty() && contract.must_contain.empty()) return "";
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
@@ -3334,7 +3334,23 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
         }
     }
 
-    recordPass("contracts." + func_name + ".must_call", level);
+    // must_contain: literal string search for operators, keywords, syntax patterns
+    for (const auto& required : contract.must_contain) {
+        if (func_body.find(required) == std::string::npos) {
+            addTrace(fmt::format("function '{}' must contain '{}' but does not", func_name, required));
+            return enforce("contracts." + func_name + ".must_contain", level,
+                formatError(level,
+                    fmt::format("Behavioral contract: '{}' must contain '{}'", func_name, required),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_contain",
+                    fmt::format("Function '{}' is required to contain '{}' but the pattern was not found in the function body.",
+                        func_name, required),
+                    "fn " + func_name + "(...) { ... }",
+                    "fn " + func_name + "(...) { ... " + required + " ... }"));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".behavioral", level);
     return "";
 }
 

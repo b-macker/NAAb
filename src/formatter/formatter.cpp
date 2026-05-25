@@ -976,9 +976,8 @@ void Formatter::visitDictExpr(const ast::DictExpr& node) {
 
         for (size_t i = 0; i < entries.size(); ++i) {
             writeIndent();
-            write("\"");
             visitExpressionNode(entries[i].first.get());  // Key expression
-            write("\": ");
+            write(": ");
 
             visitExpressionNode(entries[i].second.get());  // Value expression
 
@@ -998,9 +997,8 @@ void Formatter::visitDictExpr(const ast::DictExpr& node) {
         // Single-line
         write("{");
         for (size_t i = 0; i < entries.size(); ++i) {
-            write("\"");
             visitExpressionNode(entries[i].first.get());  // Key expression
-            write("\": ");
+            write(": ");
 
             visitExpressionNode(entries[i].second.get());  // Value expression
 

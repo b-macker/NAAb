@@ -1,0 +1,142 @@
+use regex
+
+import "models.naab" as models
+
+export fn evaluate_condition(condition, entity_attributes) {
+    let op = condition.get("op")
+
+    if op <= 7 {
+        let field = condition.get("field")
+        let expected = condition.get("value")
+        let actual = entity_attributes.get(field)
+
+        if actual == null {
+            return {"passed": false, "evidence": "missing field: " + field}
+        }
+
+        let passed = match op {
+            0 => string(actual) == string(expected),
+            1 => string(actual) != string(expected),
+            2 => int(actual) > int(expected),
+            3 => int(actual) < int(expected),
+            4 => int(actual) >= int(expected),
+            5 => int(actual) <= int(expected),
+            6 => string.contains(string(actual), expected),
+            7 => regex.matches(string(actual), expected),
+            _ => false
+        }
+
+        let evidence = field + " " + models.op_name(op) + " " + expected + " -> " + string(passed)
+        return {"passed": passed, "evidence": evidence}
+    }
+
+    if op == 8 {
+        let children = condition.get("children") ?? []
+        let all_passed = true
+        let evidences = []
+        for child in children {
+            let result = evaluate_condition(child, entity_attributes)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") != true {
+                all_passed = false
+            }
+        }
+        return {"passed": all_passed, "evidence": evidences.join(" AND ")}
+    }
+
+    if op == 9 {
+        let children = condition.get("children") ?? []
+        let any_passed = false
+        let evidences = []
+        for child in children {
+            let result = evaluate_condition(child, entity_attributes)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") == true {
+                any_passed = true
+            }
+        }
+        return {"passed": any_passed, "evidence": evidences.join(" OR ")}
+    }
+
+    if op == 10 {
+        let children = condition.get("children") ?? []
+        if len(children) == 0 {
+            return {"passed": false, "evidence": "NOT: no child condition"}
+        }
+        let result = evaluate_condition(children[0], entity_attributes)
+        return {"passed": result.get("passed") != true, "evidence": "NOT(" + result.get("evidence") + ")"}
+    }
+
+    return {"passed": false, "evidence": "unknown operator"}
+}
+
+export fn count_conditions(condition) {
+    let op = condition.get("op")
+
+    if op <= 7 {
+        return 1
+    }
+
+    if op == 8 || op == 9 {
+        let children = condition.get("children") ?? []
+        let count = 1
+        for child in children {
+            count = count + count_conditions(child)
+        }
+        return count
+    }
+
+    if op == 10 {
+        let children = condition.get("children") ?? []
+        let count = 1
+        for child in children {
+            count = count + count_conditions(child)
+        }
+        return count
+    }
+
+    return 1
+}
+
+export fn flatten_conditions(condition) {
+    let op = condition.get("op")
+
+    if op <= 7 {
+        return [condition]
+    }
+
+    let children = condition.get("children") ?? []
+    let result = []
+    for child in children {
+        let flattened = flatten_conditions(child)
+        for item in flattened {
+            result.push(item)
+        }
+    }
+    return result
+}
+
+export fn max_depth(condition) {
+    let op = condition.get("op")
+
+    if op <= 7 {
+        return 1
+    }
+
+    let children = condition.get("children") ?? []
+    if len(children) == 0 {
+        return 1
+    }
+
+    let max_child_depth = 0
+    for child in children {
+        let child_depth = max_depth(child)
+        if child_depth > max_child_depth {
+            max_child_depth = child_depth
+        }
+    }
+    return 1 + max_child_depth
+}
+
+main {
+}

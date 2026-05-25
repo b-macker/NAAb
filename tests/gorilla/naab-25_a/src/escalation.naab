@@ -1,0 +1,157 @@
+use uuid
+use time
+use array
+
+import "models.naab" as models
+
+export fn check_escalation_needed(incident, sla_policies, current_time) {
+    let created = incident.get("created_at")
+    let elapsed = current_time - created
+    let status = incident.get("status")
+    let severity = incident.get("severity")
+
+    let policy = null
+    for p in sla_policies {
+        if p.get("severity") == severity {
+            policy = p
+            break
+        }
+    }
+    if policy == null {
+        return {"needed": false, "reason": "no matching SLA policy", "target_level": models.EscalationLevel.L1}
+    }
+
+    let response_limit = policy.get("response_minutes") * 60
+    let resolution_limit = policy.get("resolution_minutes") * 60
+
+    if elapsed > resolution_limit && status != models.IncidentStatus.Resolved && status != models.IncidentStatus.Closed {
+        return {"needed": true, "reason": "resolution SLA breached", "target_level": models.EscalationLevel.L3}
+    }
+
+    if elapsed > response_limit && status == models.IncidentStatus.Open {
+        return {"needed": true, "reason": "response SLA breached", "target_level": models.EscalationLevel.L2}
+    }
+
+    return {"needed": false, "reason": "within SLA", "target_level": models.EscalationLevel.L1}
+}
+
+export fn escalate_incident(incident, escalations, from_level, to_level, reason) {
+    let esc_id = uuid.v4()
+    let esc = new models.Escalation {
+        id: esc_id,
+        incident_id: incident.get("id"),
+        from_level: from_level,
+        to_level: to_level,
+        reason: reason,
+        escalated_at: time.now()
+    }
+    escalations.push(esc)
+
+    let updated_incident = incident
+    if to_level == models.EscalationLevel.L3 || to_level == models.EscalationLevel.Executive {
+        updated_incident = {
+            "id": incident.get("id"),
+            "title": incident.get("title"),
+            "severity": models.Severity.Critical,
+            "status": incident.get("status"),
+            "alerts": incident.get("alerts"),
+            "responder_id": incident.get("responder_id"),
+            "created_at": incident.get("created_at"),
+            "updated_at": time.now(),
+            "resolved_at": incident.get("resolved_at"),
+            "sla_deadline": incident.get("sla_deadline"),
+            "correlation_id": incident.get("correlation_id")
+        }
+    }
+
+    return {"incident": updated_incident, "escalation": esc, "escalations": escalations}
+}
+
+export fn get_escalation_chain(incident_id, escalations) {
+    let chain = []
+    for esc in escalations {
+        if esc.get("incident_id") == incident_id {
+            chain.push(esc)
+        }
+    }
+    return chain
+}
+
+export fn traverse_dependencies(service_graph, root_service, visited) {
+    if !service_graph.has(root_service) {
+        return []
+    }
+    if array.contains(visited, root_service) {
+        return []
+    }
+
+    visited.push(root_service)
+    let deps = service_graph.get(root_service)
+    let all_affected = []
+
+    for dep in deps {
+        if !array.contains(visited, dep) {
+            all_affected.push(dep)
+            let sub = traverse_dependencies(service_graph, dep, visited)
+            for s in sub {
+                if !array.contains(all_affected, s) {
+                    all_affected.push(s)
+                }
+            }
+        }
+    }
+
+    return all_affected
+}
+
+export fn calculate_blast_radius(service_graph, failed_service) {
+    let visited = []
+    let affected = traverse_dependencies(service_graph, failed_service, visited)
+    let depth = 0
+
+    let current_level = [failed_service]
+    let seen = [failed_service]
+    let d = 0
+    while len(current_level) > 0 {
+        let next_level = []
+        for svc in current_level {
+            let neighbors = service_graph.get(svc) ?? []
+            for n in neighbors {
+                if !array.contains(seen, n) {
+                    next_level.push(n)
+                    seen.push(n)
+                }
+            }
+        }
+        if len(next_level) > 0 {
+            d = d + 1
+        }
+        current_level = next_level
+    }
+
+    return {
+        "affected_services": affected,
+        "depth": d,
+        "critical_path": affected
+    }
+}
+
+export fn auto_escalate_batch(incidents, sla_policies, escalations, current_time) {
+    let escalated_count = 0
+    let summary = []
+    for i in 0..len(incidents) {
+        let inc = incidents[i]
+        let check = check_escalation_needed(inc, sla_policies, current_time)
+        if check.get("needed") == true {
+            let target = check.get("target_level")
+            let esc_result = escalate_incident(inc, escalations, models.EscalationLevel.L1, target, check.get("reason"))
+            escalations = esc_result.get("escalations")
+            incidents[i] = esc_result.get("incident")
+            escalated_count = escalated_count + 1
+            summary.push({"incident_id": inc.get("id"), "target_level": target})
+        }
+    }
+    return {"escalated": escalated_count, "escalations": escalations, "summary": summary}
+}
+
+main {}

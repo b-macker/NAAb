@@ -1,0 +1,123 @@
+import "models.naab" as models
+
+export fn build_dependency_graph(rules) {
+    let graph = {}
+    for rule in rules {
+        if rule.status == models.RuleStatus.Active {
+            graph[rule.id] = rule.dependencies
+        }
+    }
+    return graph
+}
+
+export fn resolve_rule_dependencies(rules) {
+    let graph = build_dependency_graph(rules)
+
+    let result = <<python[graph] -> JSON
+import json
+from collections import deque
+
+in_degree = {n: 0 for n in graph}
+for node in graph:
+    for dep in graph[node]:
+        if dep in in_degree:
+            in_degree[dep] = in_degree.get(dep, 0) + 1
+
+queue = deque([n for n, d in in_degree.items() if d == 0])
+order = []
+while queue:
+    n = queue.popleft()
+    order.append(n)
+    for node in graph:
+        if n in graph[node]:
+            graph[node].remove(n)
+            in_degree[node] -= 1
+            if in_degree[node] == 0:
+                queue.append(node)
+
+cycles = []
+unresolvable = [n for n in in_degree if n not in order]
+json.dumps({"order": order, "cycles": cycles, "unresolvable": unresolvable})
+    >>
+    return result
+}
+
+export fn detect_circular_dependencies(graph) {
+    let state = {"has_cycles": false, "cycles": [], "affected_rules": [], "visited": {}, "rec_stack": {}}
+
+    fn dfs(node, st) {
+        st.get("visited")[node] = "gray"
+        st.get("rec_stack")[node] = true
+
+        let deps = graph.get(node) ?? []
+        for dep in deps {
+            if st.get("visited").get(dep) == null {
+                dfs(dep, st)
+            } else if st.get("rec_stack").get(dep) == true {
+                st["has_cycles"] = true
+                let cycle = [dep, node]
+                st.get("cycles").push(cycle)
+                if !array.contains(st.get("affected_rules"), dep) {
+                    st.get("affected_rules").push(dep)
+                }
+                if !array.contains(st.get("affected_rules"), node) {
+                    st.get("affected_rules").push(node)
+                }
+            }
+        }
+
+        st.get("rec_stack")[node] = false
+    }
+
+    for node in graph {
+        if state.get("visited").get(node) == null {
+            dfs(node, state)
+        }
+    }
+
+    return {
+        "has_cycles": state.get("has_cycles"),
+        "cycles": state.get("cycles"),
+        "affected_rules": state.get("affected_rules")
+    }
+}
+
+export fn traverse_dependency_tree(graph, root_id, visited) {
+    if graph.get(root_id) == null || array.contains(visited, root_id) {
+        return []
+    }
+
+    visited.push(root_id)
+    let result = [root_id]
+
+    let deps = graph.get(root_id) ?? []
+    for dep in deps {
+        let transitive = traverse_dependency_tree(graph, dep, visited)
+        result = result + transitive
+    }
+
+    return result
+}
+
+export fn calculate_dependency_depth(graph, rule_id, memo) {
+    if memo.get(rule_id) != null {
+        return memo.get(rule_id)
+    }
+
+    let deps = graph.get(rule_id) ?? []
+    if len(deps) == 0 {
+        memo[rule_id] = 0
+        return 0
+    }
+
+    let max_depth = 0
+    for dep in deps {
+        let dep_depth = calculate_dependency_depth(graph, dep, memo)
+        if dep_depth > max_depth {
+            max_depth = dep_depth
+        }
+    }
+
+    memo[rule_id] = 1 + max_depth
+    return 1 + max_depth
+}

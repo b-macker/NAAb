@@ -1,0 +1,135 @@
+use regex
+use validate
+
+import "models.naab" as models
+
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+    let s = string(input)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    s = string.trim(s)
+    return s
+}
+
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+    let s = string(line)
+    s = regex.replace(s, "\\x1b\\[[0-9;]*m", "")
+    return sanitize_string(s)
+}
+
+export fn validate_rule_syntax(definition) {
+    let errors = []
+
+    if definition == null {
+        return {"valid": false, "errors": ["definition is null"]}
+    }
+
+    let id = definition.get("id")
+    if id == null || id == "" {
+        errors.push("id is required and non-empty")
+    }
+
+    let name = definition.get("name")
+    if name == null || name == "" {
+        errors.push("name is required and non-empty")
+    }
+
+    let category = definition.get("category")
+    if category == null || category == "" {
+        errors.push("category is required")
+    } else {
+        let valid_cats = ["access_control", "encryption", "audit", "network", "data_protection", "authentication"]
+        let found = false
+        for cat in valid_cats {
+            if category == cat {
+                found = true
+            }
+        }
+        if !found {
+            errors.push("category must be one of: access_control, encryption, audit, network, data_protection, authentication")
+        }
+    }
+
+    let severity = definition.get("severity")
+    if severity == null || severity < 0 || severity > 4 {
+        errors.push("severity must be valid enum value (0-4)")
+    }
+
+    let conditions = definition.get("conditions")
+    if conditions == null || type(conditions) != "array" || len(conditions) == 0 {
+        errors.push("conditions must be non-empty array")
+    }
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_email_address(email) {
+    let pattern = "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+    return validate.email(email)
+}
+
+export fn validate_condition_tree(conditions) {
+    let state = {"max_depth": 0, "errors": []}
+
+    fn validate_node(node, depth, st) {
+        if depth > st.get("max_depth") {
+            st["max_depth"] = depth
+        }
+
+        let op = node.get("op")
+
+        if op <= models.ConditionOp.Matches {
+            if node.get("field") == null || node.get("field") == "" {
+                st["errors"].push("missing field at depth " + string(depth))
+            }
+            if node.get("value") == null {
+                st["errors"].push("missing value at depth " + string(depth))
+            }
+        }
+
+        if op == models.ConditionOp.And || op == models.ConditionOp.Or {
+            let children = node.get("children") ?? []
+            if len(children) == 0 {
+                st["errors"].push("AND/OR requires children at depth " + string(depth))
+            }
+            for child in children {
+                validate_node(child, depth + 1, st)
+            }
+        }
+
+        if op == models.ConditionOp.Not {
+            let children = node.get("children") ?? []
+            if len(children) != 1 {
+                st["errors"].push("NOT requires exactly 1 child at depth " + string(depth))
+            }
+            for child in children {
+                validate_node(child, depth + 1, st)
+            }
+        }
+
+        return st
+    }
+
+    for cond in conditions {
+        state = validate_node(cond, 0, state)
+    }
+
+    return {
+        "valid": len(state.get("errors")) == 0,
+        "errors": state.get("errors"),
+        "depth": state.get("max_depth")
+    }
+}
+
+main {
+    print("validators.naab loaded")
+}

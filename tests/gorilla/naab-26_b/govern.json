@@ -1,0 +1,397 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
+        "require_explicit": true
+    },
+
+    "capabilities": {
+        "network": { "enabled": true },
+        "filesystem": { "mode": "read_write" },
+        "shell": {
+            "enabled": true,
+            "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "mkfs"]
+        },
+        "env": { "enabled": true }
+    },
+
+    "trust": {
+        "max_signature_age_days": 90,
+        "require_fresh_signature": false,
+        "stale_signature_level": "advisory",
+        "check_key_expiry": true,
+        "check_revocation": true
+    },
+
+    "prerequisites": {
+        "enabled": true,
+        "checks": [
+            { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory" },
+            { "type": "tool", "name": "jq", "required": "exists", "level": "advisory" }
+        ]
+    },
+
+    "contradiction_detection": {
+        "enabled": true,
+        "max_level": "advisory"
+    },
+
+    "requirements": {
+        "main_block": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "variable_binding": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "naming_conventions": {
+            "enabled": true,
+            "level": "soft",
+            "variables": "snake_case",
+            "functions": "snake_case",
+            "constants": "UPPER_SNAKE_CASE"
+        }
+    },
+
+    "restrictions": {
+        "dangerous_calls": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "shell_injection": {
+            "enabled": true,
+            "level": "hard"
+        }
+    },
+
+    "taint_tracking": {
+        "enabled": true,
+        "sources": ["env.get", "polyglot_output"],
+        "sinks": ["file.write", "file.append"],
+        "sanitizers": ["sanitize_", "validate_", "int("]
+    },
+
+    "code_quality": {
+        "no_secrets": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_placeholders": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_hardcoded_results": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_temporary_code": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_simulation_markers": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "complexity_floor": {
+            "enabled": true,
+            "level": "soft",
+            "min_lines_for_check": 6,
+            "rules": [
+                {
+                    "names": ["test_"],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "calculate_risk_score",
+                        "calculate_portfolio_risk",
+                        "calculate_compliance_metrics",
+                        "analyze_rule_conflicts",
+                        "analyze_entity_compliance"
+                    ],
+                    "min_score": 20,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "evaluate_rule",
+                        "evaluate_condition",
+                        "evaluate_entity",
+                        "resolve_rule_dependencies",
+                        "parse_rule_definition",
+                        "find_best_remediation",
+                        "generate_compliance_report",
+                        "generate_audit_report",
+                        "build_dependency_graph",
+                        "detect_circular_dependencies",
+                        "batch_evaluate",
+                        "aggregate_findings",
+                        "generate_risk_matrix",
+                        "build_remediation_plan"
+                    ],
+                    "min_score": 15,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "severity_name",
+                        "status_name",
+                        "category_name",
+                        "level_name"
+                    ],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "create_",
+                        "open_",
+                        "close_",
+                        "get_",
+                        "register_",
+                        "update_",
+                        "validate_",
+                        "sanitize_",
+                        "export_",
+                        "write_",
+                        "parse_",
+                        "check_",
+                        "format_",
+                        "generate_interpretation_prompt",
+                        "main"
+                    ],
+                    "min_score": 3,
+                    "require_branching_or_loops": false
+                }
+            ]
+        }
+    },
+
+    "contracts": {
+        "level": "soft",
+        "functions": {
+            "evaluate_rule": {
+                "return_type": "dict",
+                "return_keys": ["passed", "rule_id", "severity", "message", "evidence"]
+            },
+            "evaluate_entity": {
+                "return_type": "dict",
+                "return_keys": ["entity_id", "total_rules", "passed", "failed", "findings"],
+                "must_call": ["evaluate_rule"],
+                "must_contain": ["|>"]
+            },
+            "calculate_risk_score": {
+                "return_type": "dict",
+                "return_keys": ["score", "risk_level", "contributing_factors", "breakdown"],
+                "must_call": ["<<python"]
+            },
+            "calculate_portfolio_risk": {
+                "return_type": "dict",
+                "return_keys": ["total_entities", "avg_risk_score", "high_risk_count", "by_category"],
+                "must_call": ["<<python"]
+            },
+            "calculate_compliance_metrics": {
+                "return_type": "dict",
+                "return_keys": ["total_rules", "compliance_rate", "by_severity", "by_category", "trend"],
+                "must_call": ["<<python"]
+            },
+            "resolve_rule_dependencies": {
+                "return_type": "dict",
+                "return_keys": ["order", "cycles", "unresolvable"],
+                "must_call": ["<<python"]
+            },
+            "detect_circular_dependencies": {
+                "return_type": "dict",
+                "return_keys": ["has_cycles", "cycles", "affected_rules"],
+                "must_call": ["dfs"]
+            },
+            "find_best_remediation": {
+                "return_type": "dict",
+                "return_keys": ["action", "priority", "estimated_effort", "dependencies"]
+            },
+            "generate_compliance_report": {
+                "return_type": "dict",
+                "return_keys": ["report_text", "hash", "sections"]
+            },
+            "generate_audit_report": {
+                "return_type": "dict",
+                "return_keys": ["trail", "hash_chain", "summary"]
+            },
+            "analyze_rule_conflicts": {
+                "return_type": "dict",
+                "return_keys": ["conflicts", "count", "resolutions"],
+                "must_call": ["<<python"]
+            },
+            "build_remediation_plan": {
+                "return_type": "dict",
+                "return_keys": ["steps", "total_effort", "priority_order", "blocked_by"]
+            },
+            "parse_rule_definition": {
+                "return_type": "dict",
+                "return_keys": ["rule", "valid", "errors"]
+            },
+            "register_entity": {
+                "return_type": "dict",
+                "return_keys": ["registry", "success"]
+            },
+            "validate_rule_syntax": {
+                "return_type": "dict",
+                "return_keys": ["valid", "errors"]
+            },
+            "interpret_rule": {
+                "return_type": "dict",
+                "return_keys": ["interpretation", "confidence", "reasoning", "alternatives"]
+            },
+            "batch_evaluate": {
+                "return_type": "dict",
+                "return_keys": ["results", "total", "passed_count", "failed_count"],
+                "must_call": ["evaluate_rule"]
+            },
+            "generate_risk_matrix": {
+                "return_type": "dict",
+                "return_keys": ["matrix", "high_risk_cells", "coverage"]
+            },
+            "aggregate_findings": {
+                "return_type": "dict",
+                "must_contain": ["match "]
+            },
+            "format_finding": {
+                "return_type": "string",
+                "must_contain": ["match ", "|>"]
+            },
+            "rank_entities_by_risk": {
+                "return_type": "array",
+                "must_contain": ["|>"]
+            },
+            "merge_rule_tags": {
+                "return_type": "dict",
+                "must_contain": ["|>"]
+            },
+            "count_entities_by_type": {
+                "return_type": "dict",
+                "must_contain": ["|>"]
+            }
+        }
+    },
+
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "redundancy": {
+            "generic_variable_names": { "enabled": true, "level": "soft" },
+            "single_use_variable": { "enabled": true, "level": "soft" },
+            "over_abstraction": { "enabled": true, "level": "soft" },
+            "apologetic_comments": { "enabled": true, "level": "soft" },
+            "placeholder_code": { "enabled": true, "level": "soft" },
+            "gaming_comments": { "enabled": true, "level": "soft" },
+            "obvious_comments": { "enabled": true, "level": "soft" },
+            "decorative_separators": { "enabled": true, "level": "advisory" }
+        },
+        "code_quality": {
+            "empty_catch": { "enabled": true, "level": "hard" },
+            "dead_conditional": { "enabled": true, "level": "hard" },
+            "dead_code_after_return": { "enabled": true, "level": "soft" },
+            "recursive_no_base_case": { "enabled": true, "level": "soft" },
+            "magic_numbers": {
+                "enabled": true,
+                "level": "soft",
+                "allowed": [
+                    0, 1, -1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 50, 60, 75, 80, 90, 100,
+                    0.0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0
+                ]
+            },
+            "complex_boolean_expr": { "enabled": true, "level": "soft", "max_operators": 4 },
+            "magic_strings": { "enabled": true, "level": "soft" }
+        },
+        "complexity": {
+            "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+            "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+        },
+        "style": {
+            "long_lines": { "enabled": true, "level": "soft", "max": 120 }
+        },
+        "lang_rules": {
+            "naab": {
+                "value_semantics_bug": { "enabled": true, "level": "hard" },
+                "missing_null_check": { "enabled": true, "level": "hard" },
+                "dict_bracket_access": { "enabled": true, "level": "hard" },
+                "python_return_in_block": { "enabled": true, "level": "hard" },
+                "top_level_let": { "enabled": true, "level": "hard" }
+            }
+        }
+    },
+
+    "agents": {
+        "rule_interpreter": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK1",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.5,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a regulatory compliance expert. Interpret compliance rules precisely and explain their requirements. Be concise."
+        },
+        "rule_interpreter_b1": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK2",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.5,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a regulatory compliance expert. Interpret compliance rules precisely and explain their requirements. Be concise."
+        },
+        "rule_interpreter_b2": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK3",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.5,
+            "timeout_seconds": 120,
+            "system_prompt": "You are a regulatory compliance expert. Interpret compliance rules precisely and explain their requirements. Be concise."
+        }
+    },
+
+    "agent_dispatch": {
+        "max_concurrent": 3,
+        "pool_size": 3,
+        "pool_queue_max": 10
+    },
+
+    "scoring": {
+        "enabled": true,
+        "default_weight": 1.0,
+        "green_threshold": 0,
+        "yellow_threshold": 15,
+        "red_threshold": 30,
+        "threshold_mode": "cumulative"
+    },
+
+    "limits": {
+        "execution": {
+            "call_depth": 100,
+            "loop_iterations": 200000,
+            "polyglot_blocks": 40,
+            "timeout_seconds": 300
+        },
+        "code": {
+            "max_lines_per_block": 50,
+            "max_functions": 120,
+            "max_nesting_depth": 5
+        }
+    },
+
+    "security": {
+        "sandbox_level": "unrestricted"
+    }
+}

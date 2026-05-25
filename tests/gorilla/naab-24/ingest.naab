@@ -1,0 +1,260 @@
+use array
+use string
+use regex
+use json
+use dict
+use crypto
+
+import "./models.naab" as models
+
+// ─── Log Parsing ────────────────────────────────────────────────────
+
+export fn parse_log_line(line) {
+    // Format: "TIMESTAMP|SRC_IP|DST_IP|ACTION|DETAILS"
+    let parts = string.split(line, "|")
+    if len(parts) < 5 {
+        return {"parsed": false, "error": "Insufficient fields: expected 5, got " + string(len(parts))}
+    }
+
+    let entry = models.create_log_entry(
+        string.trim(parts[0]),
+        string.trim(parts[1]),
+        string.trim(parts[2]),
+        string.trim(parts[3]),
+        string.trim(parts[4])
+    )
+    entry["parsed"] = true
+    return entry
+}
+
+export fn parse_log_batch(lines) {
+    let parsed = []
+    let errors = []
+    let line_num = 0
+    for line in lines {
+        line_num = line_num + 1
+        let trimmed = string.trim(line)
+        if trimmed.length() == 0 {
+            continue
+        }
+        try {
+            let entry = parse_log_line(trimmed)
+            if bool(entry.get("parsed")) {
+                array.push(parsed, entry)
+            } else {
+                array.push(errors, {
+                    "line": line_num,
+                    "error": entry.get("error", "Unknown parse error")
+                })
+            }
+        } catch (e) {
+            array.push(errors, {
+                "line": line_num,
+                "error": "Exception: " + string(e.get("message", e))
+            })
+        }
+    }
+    return {
+        "entries": parsed,
+        "errors": errors,
+        "total_lines": len(lines),
+        "parsed_count": len(parsed),
+        "error_count": len(errors)
+    }
+}
+
+// ─── IOC Extraction ─────────────────────────────────────────────────
+
+export fn extract_ips(text) {
+    // Extract IPv4 addresses from text
+    let found = []
+    let words = string.split(text, " ")
+    for word in words {
+        let clean = string.trim(word)
+        let parts = string.split(clean, ".")
+        if len(parts) == 4 {
+            let valid = true
+            for part in parts {
+                try {
+                    let n = int(part)
+                    if n < 0 or n > 255 {
+                        valid = false
+                    }
+                } catch (e) {
+                    valid = false
+                }
+            }
+            if valid and not array.contains(found, clean) {
+                array.push(found, clean)
+            }
+        }
+    }
+    return found
+}
+
+export fn extract_domains(text) {
+    // Extract domain-like patterns from text
+    let found = []
+    let words = string.split(text, " ")
+    for word in words {
+        let clean = string.trim(word)
+        // Skip IPs
+        let parts = string.split(clean, ".")
+        if len(parts) >= 2 {
+            let is_ip = true
+            for part in parts {
+                try {
+                    let n = int(part)
+                    if n < 0 or n > 255 {
+                        is_ip = false
+                    }
+                } catch (e) {
+                    is_ip = false
+                }
+            }
+            if not is_ip and string.contains(clean, ".") {
+                let tld = parts[len(parts) - 1]
+                if tld.length() >= 2 and tld.length() <= 6 {
+                    if not array.contains(found, clean) {
+                        array.push(found, clean)
+                    }
+                }
+            }
+        }
+    }
+    return found
+}
+
+export fn extract_file_hashes(text) {
+    // Look for hex strings that could be MD5 (32), SHA1 (40), or SHA256 (64)
+    let found = []
+    let words = string.split(text, " ")
+    for word in words {
+        let clean = string.trim(word)
+        let slen = clean.length()
+        if slen == 32 or slen == 40 or slen == 64 {
+            let all_hex = true
+            for i in 0..slen {
+                let ch = string.char_at(clean, i)
+                let lower_ch = string.lower(ch)
+                if not string.contains("0123456789abcdef", lower_ch) {
+                    all_hex = false
+                    break
+                }
+            }
+            if all_hex and not array.contains(found, clean) {
+                array.push(found, clean)
+            }
+        }
+    }
+    return found
+}
+
+// ─── Enrichment ─────────────────────────────────────────────────────
+
+export fn enrich_log_entry(entry, threat_feeds) {
+    let enriched = entry
+    let indicators = []
+    let risk_score = 0.0
+
+    let src = entry.get("src_ip", "")
+    let details = entry.get("details", "")
+
+    // Check source IP against threat feeds
+    for feed in threat_feeds {
+        let feed_ips = feed.get("ips", [])
+        if array.contains(feed_ips, src) {
+            risk_score = risk_score + float(feed.get("weight", 5.0))
+            array.push(indicators, "src_ip_in_" + feed.get("name", "feed"))
+        }
+
+        // Check if details mention known bad domains
+        let feed_domains = feed.get("domains", [])
+        for domain in feed_domains {
+            if string.contains(details, domain) {
+                risk_score = risk_score + float(feed.get("weight", 5.0))
+                if not array.contains(indicators, "domain_match_" + domain) {
+                    array.push(indicators, "domain_match_" + domain)
+                }
+            }
+        }
+    }
+
+    enriched["risk_score"] = risk_score
+    enriched["indicators"] = indicators
+    enriched["enriched"] = true
+    return enriched
+}
+
+// ─── Deduplication ──────────────────────────────────────────────────
+
+export fn deduplicate_iocs(iocs) {
+    let seen = {}
+    let unique = []
+    for ioc in iocs {
+        let key = string(ioc.get("type")) + ":" + string(ioc.get("value"))
+        let existing = seen.get(key)
+        if existing == null {
+            seen[key] = ioc
+            array.push(unique, ioc)
+        } else {
+            // Merge: keep higher confidence, increment sightings
+            let merged = existing
+            let new_conf = float(ioc.get("confidence", 0.0))
+            let old_conf = float(existing.get("confidence", 0.0))
+            if new_conf > old_conf {
+                merged["confidence"] = new_conf
+            }
+            merged["sightings"] = int(merged.get("sightings", 1)) + 1
+            merged["last_seen"] = ioc.get("first_seen", merged.get("last_seen"))
+            seen[key] = merged
+            // Update in unique array
+            for i in 0..len(unique) {
+                let u = unique[i]
+                let u_key = string(u.get("type")) + ":" + string(u.get("value"))
+                if u_key == key {
+                    unique[i] = merged
+                    break
+                }
+            }
+        }
+    }
+    return {"unique": unique, "total_input": len(iocs), "duplicates_merged": len(iocs) - len(unique)}
+}
+
+// ─── Correlation ────────────────────────────────────────────────────
+
+export fn correlate_entries(entries, time_window_seconds) {
+    // Group entries by source IP, find bursts within time window
+    let groups = {}
+    for entry in entries {
+        let src = entry.get("src_ip", "unknown")
+        let existing = groups.get(src)
+        if existing == null {
+            groups[src] = [entry]
+        } else {
+            array.push(existing, entry)
+            groups[src] = existing
+        }
+    }
+
+    let correlated = []
+    let keys = dict.keys(groups)
+    for key in keys {
+        let group = groups.get(key)
+        if len(group) >= 3 {
+            // Burst detected: 3+ events from same source
+            array.push(correlated, {
+                "source_ip": key,
+                "event_count": len(group),
+                "actions": array.map_fn(group, fn(e) { return e.get("action", "") }),
+                "is_burst": true
+            })
+        }
+    }
+    return {
+        "groups": len(keys),
+        "bursts": correlated,
+        "burst_count": len(correlated)
+    }
+}

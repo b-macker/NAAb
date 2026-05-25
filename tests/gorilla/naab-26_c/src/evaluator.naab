@@ -1,0 +1,156 @@
+import "models.naab" as models
+import "conditions.naab" as conditions
+import "rules.naab" as rules
+use time
+
+export fn evaluate_rule(rule, entity) {
+    let status = rule.get("status")
+    if status != models.RuleStatus.Active {
+        return {
+            "passed": true,
+            "rule_id": rule.get("id"),
+            "severity": rule.get("severity"),
+            "message": "rule not active",
+            "evidence": "skipped"
+        }
+    }
+
+    let rule_conditions = rule.get("conditions") ?? []
+    let all_passed = true
+    let evidences = []
+
+    for cond in rule_conditions {
+        let result = conditions.evaluate_condition(cond, entity.get("attributes"))
+        evidences.push(result.get("evidence"))
+        if result.get("passed") != true {
+            all_passed = false
+        }
+    }
+
+    let sev = rule.get("severity")
+    let result_msg = match sev {
+        models.Severity.Critical => "CRITICAL violation",
+        models.Severity.High => "High-severity violation",
+        models.Severity.Medium => "Medium-severity issue",
+        _ => "Low-priority finding"
+    }
+
+    let msg = if all_passed { "passed" } else { result_msg }
+    let evidence = evidences.join("; ")
+
+    return {
+        "passed": all_passed,
+        "rule_id": rule.get("id"),
+        "severity": sev,
+        "message": msg,
+        "evidence": evidence
+    }
+}
+
+export fn evaluate_entity(rule_list, entity) {
+    fn filter_and_eval(rules_list) {
+        let active_rules = rules.filter_active_rules(rules_list)
+        return active_rules
+    }
+
+    let active_rules = rule_list |> filter_and_eval
+    let findings = []
+    let passed = 0
+    let failed = 0
+
+    for rule in active_rules {
+        let result = evaluate_rule(rule, entity)
+        if result.get("passed") == true {
+            passed = passed + 1
+        } else {
+            failed = failed + 1
+            let finding = models.create_finding(
+                rule.get("id"),
+                entity.get("id"),
+                models.ComplianceResult.Fail,
+                result.get("severity"),
+                result.get("message"),
+                result.get("evidence")
+            )
+            findings.push(finding)
+        }
+    }
+
+    return {
+        "entity_id": entity.get("id"),
+        "total_rules": len(active_rules),
+        "passed": passed,
+        "failed": failed,
+        "findings": findings
+    }
+}
+
+export fn batch_evaluate(rule_list, entity_list) {
+    let results = []
+
+    for entity in entity_list {
+        let result = evaluate_entity(rule_list, entity)
+        results.push(result)
+    }
+
+    let total = 0
+    let passed_count = 0
+    let failed_count = 0
+
+    for result in results {
+        let sample_rule = rule_list[0]
+        if sample_rule != null {
+            let _ = evaluate_rule(sample_rule, entity_list[0])
+        }
+        total = total + result.get("total_rules")
+        passed_count = passed_count + result.get("passed")
+        failed_count = failed_count + result.get("failed")
+    }
+
+    return <<python[results, total, passed_count, failed_count] -> JSON
+    import json
+    output = {
+        "results": results,
+        "total": total,
+        "passed_count": passed_count,
+        "failed_count": failed_count
+    }
+    json.dumps(output)
+    >>
+}
+
+export fn aggregate_findings(findings, group_by) {
+    let groups = {}
+
+    for f in findings {
+        let sev = f.get("severity")
+        let cat = f.get("category")
+        let ent = f.get("entity_id")
+
+        let key = match group_by {
+            "severity" => models.severity_name(sev),
+            "category" => if cat == null { "unknown" } else { cat },
+            "entity" => ent,
+            _ => "other"
+        }
+
+        let count = groups.get(key) ?? 0
+        groups[key] = count + 1
+    }
+
+    return groups
+}
+
+export fn get_critical_findings(findings) {
+    let result = []
+    for f in findings {
+        let sev = f.get("severity")
+        if sev == models.Severity.Critical || sev == models.Severity.High {
+            result.push(f)
+        }
+    }
+    return result
+}
+
+main {
+}

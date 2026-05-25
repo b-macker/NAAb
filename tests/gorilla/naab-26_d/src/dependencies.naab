@@ -1,0 +1,152 @@
+import "models.naab" as models
+
+export fn build_dependency_graph(rules) {
+    let graph = {}
+
+    for rule in rules {
+        if rule.get("status") == 0 {
+            let rule_id = rule.get("id")
+            let deps = rule.get("dependencies") ?? []
+            graph[rule_id] = deps
+        }
+    }
+
+    return graph
+}
+
+export fn resolve_rule_dependencies(rules) {
+    let graph = build_dependency_graph(rules)
+
+    let result = <<python[graph] -> JSON
+    import json
+    from collections import deque
+
+    in_degree = {n: 0 for n in graph}
+    for node in graph:
+        for dep in graph[node]:
+            if dep in in_degree:
+                in_degree[dep] = in_degree.get(dep, 0) + 1
+
+    queue = deque([n for n, d in in_degree.items() if d == 0])
+    order = []
+    while queue:
+        n = queue.popleft()
+        order.append(n)
+        for node in graph:
+            if n in graph[node]:
+                graph[node].remove(n)
+                in_degree[node] -= 1
+                if in_degree[node] == 0:
+                    queue.append(node)
+
+    cycles = []
+    unresolvable = [n for n in in_degree if n not in order]
+
+    json.dumps({"order": order, "cycles": cycles, "unresolvable": unresolvable})
+    >>
+
+    return result
+}
+
+export fn detect_circular_dependencies(graph) {
+    let state = {"colors": {}, "cycles": [], "affected_rules": []}
+
+    fn dfs(node, st) {
+        if st.get("colors").get(node) == 1 {
+            st["cycles"].push([node])
+            st["affected_rules"].push(node)
+            return st
+        }
+
+        if st.get("colors").get(node) == 2 {
+            return st
+        }
+
+        let colors = st.get("colors")
+        colors[node] = 1
+        st["colors"] = colors
+
+        let deps = graph.get(node) ?? []
+        for dep in deps {
+            st = dfs(dep, st)
+        }
+
+        colors = st.get("colors")
+        colors[node] = 2
+        st["colors"] = colors
+
+        return st
+    }
+
+    for node in graph.keys() {
+        if state.get("colors").get(node) == null {
+            state = dfs(node, state)
+        }
+    }
+
+    let has_cycles = len(state.get("cycles")) > 0
+    return {
+        "has_cycles": has_cycles,
+        "cycles": state.get("cycles"),
+        "affected_rules": state.get("affected_rules")
+    }
+}
+
+export fn traverse_dependency_tree(graph, root_id, visited) {
+    if graph.get(root_id) == null {
+        return []
+    }
+
+    if array.contains(visited, root_id) {
+        return []
+    }
+
+    visited.push(root_id)
+    let result = []
+    let deps = graph.get(root_id) ?? []
+
+    for dep in deps {
+        result.push(dep)
+        let transitive = traverse_dependency_tree(graph, dep, visited)
+        for t in transitive {
+            if !array.contains(result, t) {
+                result.push(t)
+            }
+        }
+    }
+
+    return result
+}
+
+export fn calculate_dependency_depth(graph, rule_id, memo) {
+    if memo.get(rule_id) == -1 {
+        return 0
+    }
+
+    if memo.get(rule_id) != null {
+        return memo.get(rule_id)
+    }
+
+    let deps = graph.get(rule_id) ?? []
+    if len(deps) == 0 {
+        memo[rule_id] = 0
+        return 0
+    }
+
+    memo[rule_id] = -1
+    let max_dep_depth = 0
+
+    for dep in deps {
+        let dep_depth = calculate_dependency_depth(graph, dep, memo)
+        if dep_depth > max_dep_depth {
+            max_dep_depth = dep_depth
+        }
+    }
+
+    let depth = 1 + max_dep_depth
+    memo[rule_id] = depth
+    return depth
+}
+
+main {
+}

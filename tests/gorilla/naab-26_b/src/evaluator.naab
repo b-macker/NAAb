@@ -1,0 +1,158 @@
+use time
+
+import "models.naab" as models
+import "conditions.naab" as conditions
+import "rules.naab" as rules_mod
+
+export fn evaluate_rule(rule, entity) {
+    if rule.status != models.RuleStatus.Active {
+        return {
+            "passed": true,
+            "rule_id": rule.id,
+            "severity": rule.severity,
+            "message": "rule not active",
+            "evidence": "skipped"
+        }
+    }
+
+    let all_passed = true
+    let evidences = []
+
+    for cond in rule.conditions {
+        let result = conditions.evaluate_condition(cond, entity.attributes)
+        evidences.push(result.get("evidence"))
+        if result.get("passed") != true {
+            all_passed = false
+        }
+    }
+
+    let evidence_text = evidences.join(" | ")
+
+    let result_msg = match rule.severity {
+        models.Severity.Critical => "CRITICAL violation",
+        models.Severity.High => "High-severity violation",
+        models.Severity.Medium => "Medium-severity issue",
+        _ => "Low-priority finding"
+    }
+
+    return {
+        "passed": all_passed,
+        "rule_id": rule.id,
+        "severity": rule.severity,
+        "message": result_msg,
+        "evidence": evidence_text
+    }
+}
+
+export fn evaluate_entity(rules, entity) {
+    let active_rules = rules_mod.filter_active_rules(rules)
+    let findings = []
+    let passed = 0
+    let failed = 0
+
+    for rule in active_rules {
+        let result = evaluate_rule(rule, entity)
+        if result.get("passed") == true {
+            passed = passed + 1
+        } else {
+            failed = failed + 1
+            let finding = models.create_finding(
+                rule.id,
+                entity.id,
+                models.ComplianceResult.Fail,
+                rule.severity,
+                result.get("message"),
+                result.get("evidence")
+            )
+            findings.push(finding)
+        }
+    }
+
+    return {
+        "entity_id": entity.id,
+        "total_rules": len(active_rules),
+        "passed": passed,
+        "failed": failed,
+        "findings": findings
+    }
+}
+
+export fn batch_evaluate(rules, entities) {
+    let results = []
+    let total = 0
+    let passed_count = 0
+    let failed_count = 0
+
+    for entity in entities {
+        let entity_passed = 0
+        let entity_failed = 0
+        let entity_findings = []
+
+        for rule in rules {
+            if rule.status == models.RuleStatus.Active {
+                total = total + 1
+                let eval_result = evaluate_rule(rule, entity)
+
+                if eval_result.get("passed") == true {
+                    entity_passed = entity_passed + 1
+                    passed_count = passed_count + 1
+                } else {
+                    entity_failed = entity_failed + 1
+                    failed_count = failed_count + 1
+                }
+            }
+        }
+
+        results.push({
+            "entity_id": entity.id,
+            "total_rules": len(rules),
+            "passed": entity_passed,
+            "failed": entity_failed,
+            "findings": entity_findings
+        })
+    }
+
+    return {
+        "results": results,
+        "total": total,
+        "passed_count": passed_count,
+        "failed_count": failed_count
+    }
+}
+
+export fn aggregate_findings(findings, group_by) {
+    let groups = {}
+
+    for f in findings {
+        let key = if group_by == "severity" {
+            models.severity_name(f.severity)
+        } else if group_by == "category" {
+            "unknown"
+        } else if group_by == "entity" {
+            f.entity_id
+        } else {
+            "other"
+        }
+
+        if groups.get(key) == null {
+            groups[key] = 0
+        }
+        groups[key] = int(groups.get(key)) + 1
+    }
+
+    return groups
+}
+
+export fn get_critical_findings(findings) {
+    let result = []
+    for f in findings {
+        if f.severity == models.Severity.Critical || f.severity == models.Severity.High {
+            result.push(f)
+        }
+    }
+    return result
+}
+
+main {
+    print("evaluator.naab loaded")
+}

@@ -1,0 +1,182 @@
+import "models.naab" as models
+use json
+
+export fn parse_rule_definition(text) {
+    let parsed = try { json.parse(text) } catch (e) { null }
+
+    if parsed == null {
+        return {
+            "rule": null,
+            "valid": false,
+            "errors": ["invalid JSON"]
+        }
+    }
+
+    let errors = []
+
+    if parsed.get("id") == null || parsed.get("id") == "" {
+        errors.push("id is required")
+    }
+
+    if parsed.get("name") == null || parsed.get("name") == "" {
+        errors.push("name is required")
+    }
+
+    if parsed.get("description") == null {
+        errors.push("description is required")
+    }
+
+    if parsed.get("severity") == null {
+        errors.push("severity is required")
+    }
+
+    if parsed.get("category") == null || parsed.get("category") == "" {
+        errors.push("category is required")
+    }
+
+    let raw_conds = parsed.get("conditions")
+    if raw_conds == null {
+        errors.push("conditions is required")
+    }
+
+    if len(errors) > 0 {
+        return {
+            "rule": null,
+            "valid": false,
+            "errors": errors
+        }
+    }
+
+    let conditions = parse_condition_tree(raw_conds)
+    let dependencies = parsed.get("dependencies") ?? []
+    let tags = parsed.get("tags") ?? []
+
+    let rule = models.create_rule(
+        parsed.get("id"),
+        parsed.get("name"),
+        parsed.get("description"),
+        parsed.get("severity"),
+        parsed.get("category"),
+        conditions,
+        dependencies,
+        tags
+    )
+
+    return {
+        "rule": rule,
+        "valid": true,
+        "errors": []
+    }
+}
+
+export fn parse_condition_tree(raw_conditions) {
+    let result = []
+
+    for raw in raw_conditions {
+        let cond = parse_single_condition(raw)
+        result.push(cond)
+    }
+
+    return result
+}
+
+fn parse_single_condition(raw) {
+    let op_str = raw.get("op") ?? ""
+
+    let op = match op_str {
+        "==" => models.ConditionOp.Equals,
+        "!=" => models.ConditionOp.NotEquals,
+        ">" => models.ConditionOp.GreaterThan,
+        "<" => models.ConditionOp.LessThan,
+        ">=" => models.ConditionOp.GreaterOrEqual,
+        "<=" => models.ConditionOp.LessOrEqual,
+        "contains" => models.ConditionOp.Contains,
+        "matches" => models.ConditionOp.Matches,
+        "AND" => models.ConditionOp.And,
+        "OR" => models.ConditionOp.Or,
+        "NOT" => models.ConditionOp.Not,
+        _ => models.ConditionOp.Equals
+    }
+
+    let field = raw.get("field") ?? ""
+    let value = raw.get("value") ?? ""
+    let raw_children = raw.get("children") ?? []
+
+    let children = []
+    for child in raw_children {
+        children.push(parse_single_condition(child))
+    }
+
+    return models.create_condition(op, field, value, children)
+}
+
+export fn filter_rules_by_category(rules, category) {
+    let result = []
+    for rule in rules {
+        if rule.get("category") == category {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn filter_rules_by_severity(rules, min_severity) {
+    let result = []
+    for rule in rules {
+        let sev = rule.get("severity")
+        if sev <= min_severity {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn filter_active_rules(rules) {
+    let result = []
+    for rule in rules {
+        if rule.get("status") == models.RuleStatus.Active {
+            result.push(rule)
+        }
+    }
+    return result
+}
+
+export fn get_rule_by_id(rules, id) {
+    for rule in rules {
+        if rule.get("id") == id {
+            return rule
+        }
+    }
+    return null
+}
+
+export fn update_rule_status(rule, new_status) {
+    let updated = rule
+    updated["status"] = new_status
+    updated["version"] = rule.get("version") + 1
+    return updated
+}
+
+fn deduplicate_tags(combined) {
+    let unique = []
+    for tag in combined {
+        if !array.contains(unique, tag) {
+            unique.push(tag)
+        }
+    }
+    return unique
+}
+
+export fn merge_rule_tags(rule, new_tags) {
+    let existing = rule.get("tags") ?? []
+    let combined = existing + new_tags
+
+    let unique = combined |> deduplicate_tags
+
+    let updated = rule
+    updated["tags"] = unique
+    return updated
+}
+
+main {
+}

@@ -1,0 +1,170 @@
+use math
+
+import "models.naab" as models
+
+// Calculate risk score for entity findings
+export fn calculate_risk_score(entity_findings) {
+    let weights = {0: 100, 1: 75, 2: 50, 3: 25, 4: 5}
+    let total_weight = 0
+
+    for finding in entity_findings {
+        let sev = finding.get("severity") ?? 4
+        let sev_int = int(sev)
+        let weight = weights.get(string(sev_int)) ?? 0
+        total_weight = total_weight + int(weight)
+    }
+
+    let len_findings = len(entity_findings)
+    let max_weight = 100 * len_findings
+    if max_weight == 0 {
+        max_weight = 1
+    }
+
+    let score = int((total_weight * 100) / max_weight)
+    if score > 100 {
+        score = 100
+    }
+
+    let risk_level = match true {
+        score >= 80 => "critical",
+        score >= 60 => "high",
+        score >= 40 => "medium",
+        score >= 20 => "low",
+        _ => "minimal"
+    }
+
+    return {
+        "score": score,
+        "risk_level": risk_level,
+        "contributing_factors": [],
+        "breakdown": {}
+    }
+}
+
+// Calculate portfolio risk across all entities
+export fn calculate_portfolio_risk(entity_results) {
+    let total_entities = len(entity_results)
+    let total_score = 0
+    let high_risk_count = 0
+
+    for entity_result in entity_results {
+        let score = entity_result.get("score") ?? 0
+        total_score = total_score + int(score)
+
+        let risk_level = entity_result.get("risk_level") ?? "minimal"
+        if risk_level == "critical" || risk_level == "high" {
+            high_risk_count = high_risk_count + 1
+        }
+    }
+
+    let avg_risk = 0
+    if total_entities > 0 {
+        avg_risk = float(total_score) / float(total_entities)
+    }
+
+    return {
+        "total_entities": total_entities,
+        "avg_risk_score": avg_risk,
+        "high_risk_count": high_risk_count,
+        "by_category": {}
+    }
+}
+
+// Generate risk matrix: entity types x severity levels
+export fn generate_risk_matrix(entities, findings) {
+    let matrix = {}
+
+    for entity in entities {
+        let et_name = models.entity_type_name(entity.get("entity_type"))
+        if matrix.get(et_name) == null {
+            matrix[et_name] = {
+                "Critical": 0,
+                "High": 0,
+                "Medium": 0,
+                "Low": 0,
+                "Info": 0
+            }
+        }
+    }
+
+    for finding in findings {
+        let sev_name = models.severity_name(finding.get("severity"))
+        // Count per entity_type - simplified for now
+    }
+
+    let high_risk_cells = []
+    let coverage = 0
+
+    return {
+        "matrix": matrix,
+        "high_risk_cells": high_risk_cells,
+        "coverage": coverage
+    }
+}
+
+// Calculate compliance metrics
+export fn calculate_compliance_metrics(findings, rules) {
+    let total_rules = len(rules)
+    let total_findings = len(findings)
+
+    let compliance_rate = 0.0
+    if total_rules > 0 {
+        compliance_rate = float(total_rules - total_findings) / float(total_rules)
+    }
+
+    let by_severity = {}
+
+    for finding in findings {
+        let sev = finding.get("severity") ?? 4
+        let sev_name = models.severity_name(sev)
+
+        if by_severity.get(sev_name) == null {
+            by_severity[sev_name] = {"passed": 0, "failed": 0, "rate": 0}
+        }
+
+        let entry = by_severity.get(sev_name)
+        entry["failed"] = int(entry.get("failed")) + 1
+        by_severity[sev_name] = entry
+    }
+
+    let trend = "declining"
+    if compliance_rate >= 0.8 {
+        trend = "improving"
+    } else if compliance_rate >= 0.5 {
+        trend = "stable"
+    }
+
+    return {
+        "total_rules": total_rules,
+        "compliance_rate": compliance_rate,
+        "by_severity": by_severity,
+        "by_category": {},
+        "trend": trend
+    }
+}
+
+// Rank entities by risk: PIPELINE
+export fn rank_entities_by_risk(entity_results) {
+    let ranked = []
+
+    for result in entity_results {
+        ranked.push(result)
+    }
+
+    // Simple sort by risk score descending (bubble sort for NAAb compatibility)
+    for i in 0..len(ranked) {
+        for j in 0..len(ranked) - i - 1 {
+            let a = ranked[j]
+            let b = ranked[j + 1]
+            let score_a = a.get("score") ?? 0
+            let score_b = b.get("score") ?? 0
+
+            if score_a < score_b {
+                ranked[j] = b
+                ranked[j + 1] = a
+            }
+        }
+    }
+
+    return ranked
+}

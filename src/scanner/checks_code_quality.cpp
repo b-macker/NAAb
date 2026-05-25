@@ -165,6 +165,11 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     // 3. magic_numbers
     if (isEnabled(CAT, "magic_numbers")) {
         std::unordered_set<double> allowed = {0, 1, -1, 2, 10, 100, 1000};
+        auto cfg_allowed = getNumListOption(CAT, "magic_numbers");
+        if (!cfg_allowed.empty()) {
+            allowed.clear();
+            for (double v : cfg_allowed) allowed.insert(v);
+        }
 
         // No lookbehind in ECMAScript — use simpler pattern + manual boundary check
         static const std::regex num_pat(R"((-?\d+\.?\d*))");

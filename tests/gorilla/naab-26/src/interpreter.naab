@@ -1,0 +1,108 @@
+use agent
+use json
+
+import "models.naab" as models
+
+// Check if agent is available
+export fn check_agent_available(config_name) {
+    let check = agent.check(config_name)
+    return {
+        "available": check.get("valid") == true,
+        "reason": check.get("error") ?? "agent ready"
+    }
+}
+
+// Generate interpretation prompt for a rule
+export fn generate_interpretation_prompt(rule, entity) {
+    let lines = []
+    lines.push("Rule: " + rule.get("name"))
+    lines.push("Description: " + rule.get("description"))
+    lines.push("Category: " + rule.get("category"))
+    lines.push("Severity: " + models.severity_name(rule.get("severity")))
+    lines.push("")
+    lines.push("Entity: " + entity.get("name"))
+    lines.push("Type: " + models.entity_type_name(entity.get("entity_type")))
+    lines.push("Attributes: " + string(entity.get("attributes") ?? {}))
+
+    return lines.join("\n")
+}
+
+// Interpret rule using agent: try/catch for failures
+export fn interpret_rule(rule, entity, context) {
+    let check = agent.check("rule_interpreter")
+
+    if check.get("valid") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": "agent not configured",
+            "alternatives": []
+        }
+    }
+
+    try {
+        let handle = agent.create("rule_interpreter")
+        let prompt = generate_interpretation_prompt(rule, entity)
+        let response = agent.send(handle, prompt)
+
+        let content = response.get("content") ?? ""
+
+        return {
+            "interpretation": content,
+            "confidence": 1,
+            "reasoning": "agent analysis",
+            "alternatives": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "alternatives": []
+        }
+    }
+}
+
+// Batch interpret multiple rules for an entity
+export fn batch_interpret(rules, entity) {
+    let results = []
+
+    for rule in rules {
+        let interpretation = interpret_rule(rule, entity, {})
+        results.push(interpretation)
+    }
+
+    return results
+}
+
+// Analyze rule conflicts
+export fn analyze_rule_conflicts(rules) {
+    let conflicts = []
+    let count = 0
+
+    for i in 0..len(rules) {
+        for j in i + 1..len(rules) {
+            let rule_a = rules[i]
+            let rule_b = rules[j]
+
+            let cat_a = rule_a.get("category")
+            let cat_b = rule_b.get("category")
+
+            if cat_a == cat_b {
+                conflicts.push({
+                    "rule_a": rule_a.get("id"),
+                    "rule_b": rule_b.get("id"),
+                    "field": "category",
+                    "reason": "same category"
+                })
+                count = count + 1
+            }
+        }
+    }
+
+    return {
+        "conflicts": conflicts,
+        "count": count,
+        "resolutions": ["Review rule definitions", "Consider consolidating", "Define precedence order"]
+    }
+}

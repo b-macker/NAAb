@@ -1,0 +1,226 @@
+use math
+
+import "models.naab" as models
+
+export fn calculate_risk_score(entity_findings) {
+    let result = <<python[entity_findings] -> JSON
+import json
+
+severity_weights = {
+    0: 100,
+    1: 75,
+    2: 50,
+    3: 25,
+    4: 5
+}
+
+total_score = 0
+count_by_severity = {}
+
+for finding in entity_findings:
+    severity = finding.get("severity", 4)
+    weight = severity_weights.get(severity, 5)
+    total_score += weight
+    count = count_by_severity.get(severity, 0)
+    count_by_severity[severity] = count + 1
+
+normalized_score = min(100, total_score // 10) if total_score > 0 else 0
+
+risk_level = "critical"
+if normalized_score < 80:
+    risk_level = "high"
+if normalized_score < 60:
+    risk_level = "medium"
+if normalized_score < 40:
+    risk_level = "low"
+if normalized_score < 20:
+    risk_level = "minimal"
+
+contributing_factors = []
+for sev, count in count_by_severity.items():
+    contributing_factors.append({
+        "severity": sev,
+        "count": count,
+        "weight": severity_weights.get(sev, 5)
+    })
+
+output = {
+    "score": normalized_score,
+    "risk_level": risk_level,
+    "contributing_factors": contributing_factors,
+    "breakdown": count_by_severity
+}
+print(json.dumps(output))
+>>
+
+    return result
+}
+
+export fn calculate_portfolio_risk(entity_results) {
+    let result = <<python[entity_results] -> JSON
+import json
+
+total_entities = len(entity_results)
+risk_scores = []
+high_risk_count = 0
+by_category = {}
+
+for entity_result in entity_results:
+    score = entity_result.get("score", 0)
+    risk_scores.append(score)
+
+    risk_level = entity_result.get("risk_level", "minimal")
+    if risk_level in ["critical", "high"]:
+        high_risk_count += 1
+
+avg_risk_score = sum(risk_scores) // total_entities if total_entities > 0 else 0
+
+output = {
+    "total_entities": total_entities,
+    "avg_risk_score": avg_risk_score,
+    "high_risk_count": high_risk_count,
+    "by_category": {}
+}
+print(json.dumps(output))
+>>
+
+    return result
+}
+
+export fn generate_risk_matrix(entities, findings) {
+    let matrix = {}
+    let high_risk_cells = []
+
+    for entity in entities {
+        let entity_type = models.entity_type_name(entity.get("entity_type"))
+        if !matrix.has(entity_type) {
+            matrix[entity_type] = {
+                "Critical": 0,
+                "High": 0,
+                "Medium": 0,
+                "Low": 0,
+                "Info": 0
+            }
+        }
+    }
+
+    for finding in findings {
+        let entity_id = finding.get("entity_id")
+        let severity = finding.get("severity")
+        let sev_name = models.severity_name(severity)
+
+        for entity in entities {
+            if entity.get("id") == entity_id {
+                let entity_type = models.entity_type_name(entity.get("entity_type"))
+                let cell = matrix.get(entity_type)
+                if cell != null {
+                    let count = cell.get(sev_name) ?? 0
+                    cell[sev_name] = count + 1
+                    matrix[entity_type] = cell
+
+                    if count + 1 > 2 {
+                        high_risk_cells.push({"entity_type": entity_type, "severity": sev_name})
+                    }
+                }
+            }
+        }
+    }
+
+    let coverage = 0.5
+
+    return {
+        "matrix": matrix,
+        "high_risk_cells": high_risk_cells,
+        "coverage": coverage
+    }
+}
+
+export fn calculate_compliance_metrics(findings, rules) {
+    let result = <<python[findings, rules] -> JSON
+import json
+
+total_rules = len(rules)
+passed = total_rules - len(findings)
+failed = len(findings)
+
+compliance_rate = passed / total_rules if total_rules > 0 else 0.0
+
+by_severity = {
+    "Critical": {"passed": 0, "failed": 0, "rate": 0.0},
+    "High": {"passed": 0, "failed": 0, "rate": 0.0},
+    "Medium": {"passed": 0, "failed": 0, "rate": 0.0},
+    "Low": {"passed": 0, "failed": 0, "rate": 0.0},
+    "Info": {"passed": 0, "failed": 0, "rate": 0.0}
+}
+by_category = {}
+
+for rule in rules:
+    sev = rule.get("severity", 4)
+    sev_name = ["Critical", "High", "Medium", "Low", "Info"][sev]
+    by_severity[sev_name]["passed"] += 1
+
+    cat = rule.get("category", "unknown")
+    if cat not in by_category:
+        by_category[cat] = {"passed": 0, "failed": 0, "rate": 0.0}
+    by_category[cat]["passed"] += 1
+
+for finding in findings:
+    sev = finding.get("severity", 4)
+    sev_name = ["Critical", "High", "Medium", "Low", "Info"][sev]
+    by_severity[sev_name]["failed"] += 1
+    by_severity[sev_name]["passed"] -= 1
+
+    cat = finding.get("category", "unknown")
+    if cat not in by_category:
+        by_category[cat] = {"passed": 0, "failed": 0, "rate": 0.0}
+    by_category[cat]["failed"] += 1
+    by_category[cat]["passed"] -= 1
+
+for key in by_severity:
+    total = by_severity[key]["passed"] + by_severity[key]["failed"]
+    by_severity[key]["rate"] = by_severity[key]["passed"] / total if total > 0 else 0.0
+
+trend = "improving"
+if compliance_rate < 0.5:
+    trend = "declining"
+elif compliance_rate < 0.8:
+    trend = "stable"
+
+output = {
+    "total_rules": total_rules,
+    "compliance_rate": compliance_rate,
+    "by_severity": by_severity,
+    "by_category": by_category,
+    "trend": trend
+}
+print(json.dumps(output))
+>>
+
+    return result
+}
+
+fn sort_by_risk_score(entity_results) {
+    let sorted_results = []
+    for result in entity_results {
+        sorted_results.push(result)
+    }
+
+    for i in 0..len(sorted_results) {
+        for j in i + 1..len(sorted_results) {
+            if sorted_results[j].get("score") > sorted_results[i].get("score") {
+                let temp = sorted_results[i]
+                sorted_results[i] = sorted_results[j]
+                sorted_results[j] = temp
+            }
+        }
+    }
+
+    return sorted_results
+}
+
+export fn rank_entities_by_risk(entity_results) {
+    return entity_results |> sort_by_risk_score
+}
+
+main {
+}

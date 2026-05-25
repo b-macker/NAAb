@@ -1312,6 +1312,7 @@
         "unsafe_args_access":    { "enabled": true, "level": "advisory" },
         "json_double_encode":    { "enabled": true, "level": "soft" },
         "hardcoded_return_value": { "enabled": false, "level": "advisory" },
+        "polyglot_magic_numbers": { "enabled": true, "level": "soft" },
         "dict_key_schema_check": { "enabled": false, "level": "advisory" }
       },
       "cpp": {

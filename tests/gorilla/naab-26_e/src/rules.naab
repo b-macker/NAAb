@@ -1,0 +1,137 @@
+use json
+
+import "models.naab" as models
+
+export fn parse_rule_definition(text) {
+    let parsed = try { json.parse(text) } catch (e) { null }
+
+    if parsed == null {
+        return {rule: null, valid: false, errors: ["invalid JSON"]}
+    }
+
+    let errors = []
+
+    let id = parsed.get("id")
+    if id == null || id == "" {
+        errors.push("id is required")
+    }
+
+    let name = parsed.get("name")
+    if name == null || name == "" {
+        errors.push("name is required")
+    }
+
+    let description = parsed.get("description") ?? ""
+
+    let severity = parsed.get("severity")
+    if severity == null {
+        errors.push("severity is required")
+    }
+
+    let category = parsed.get("category")
+    if category == null {
+        errors.push("category is required")
+    }
+
+    let raw_conditions = parsed.get("conditions") ?? []
+    let conditions = parse_condition_tree(raw_conditions)
+
+    let dependencies = parsed.get("dependencies") ?? []
+    let tags = parsed.get("tags") ?? []
+
+    if len(errors) > 0 {
+        return {rule: null, valid: false, errors: errors}
+    }
+
+    let rule = models.create_rule(id, name, description, severity, category, conditions, dependencies, tags)
+    return {rule: rule, valid: true, errors: []}
+}
+
+export fn parse_condition_tree(raw_conditions) {
+    let result = []
+
+    for raw_cond in raw_conditions {
+        let op_str = raw_cond.get("op")
+        let op = match op_str {
+            "==" => models.ConditionOp.Equals,
+            "!=" => models.ConditionOp.NotEquals,
+            ">" => models.ConditionOp.GreaterThan,
+            "<" => models.ConditionOp.LessThan,
+            ">=" => models.ConditionOp.GreaterOrEqual,
+            "<=" => models.ConditionOp.LessOrEqual,
+            "contains" => models.ConditionOp.Contains,
+            "matches" => models.ConditionOp.Matches,
+            "AND" => models.ConditionOp.And,
+            "OR" => models.ConditionOp.Or,
+            "NOT" => models.ConditionOp.Not,
+            _ => models.ConditionOp.Equals
+        }
+
+        let field = raw_cond.get("field") ?? ""
+        let value = raw_cond.get("value") ?? ""
+        let raw_children = raw_cond.get("children") ?? []
+        let children = parse_condition_tree(raw_children)
+
+        let cond = models.create_condition(op, field, value, children)
+        result.push(cond)
+    }
+
+    return result
+}
+
+export fn filter_rules_by_category(rules, category) {
+    return array.filter(rules, fn(r) { return r.get("category") == category })
+}
+
+export fn filter_rules_by_severity(rules, min_severity) {
+    return array.filter(rules, fn(r) { return r.get("severity") <= min_severity })
+}
+
+export fn filter_active_rules(rules) {
+    return array.filter(rules, fn(r) { return r.get("status") == models.RuleStatus.Active })
+}
+
+export fn get_rule_by_id(rules, id) {
+    for rule in rules {
+        if rule.get("id") == id {
+            return rule
+        }
+    }
+    return null
+}
+
+export fn update_rule_status(rule, new_status) {
+    let updated = rule
+    updated["status"] = new_status
+    updated["version"] = rule.get("version") + 1
+    return updated
+}
+
+fn deduplicate_tags(tags) {
+    let unique = []
+    for tag in tags {
+        let found = false
+        for u in unique {
+            if u == tag {
+                found = true
+            }
+        }
+        if found != true {
+            unique.push(tag)
+        }
+    }
+    return unique
+}
+
+export fn merge_rule_tags(rule, new_tags) {
+    let existing = rule.get("tags") ?? []
+    let all_tags = existing + new_tags
+    let unique = all_tags |> deduplicate_tags
+    let updated = rule
+    updated["tags"] = unique
+    return updated
+}
+
+main {
+    print("rules module loaded")
+}

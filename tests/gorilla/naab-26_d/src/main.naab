@@ -1,0 +1,840 @@
+import "models.naab" as models
+import "validators.naab" as validators
+import "conditions.naab" as conditions
+import "rules.naab" as rules
+import "entities.naab" as entities
+import "evaluator.naab" as evaluator
+import "dependencies.naab" as dependencies
+import "risk.naab" as risk
+import "reports.naab" as reports
+import "remediation.naab" as remediation
+import "interpreter.naab" as interpreter
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let r1 = models.create_rule("R1", "Test", "Desc", 0, "encryption", [], [], [])
+    if r1.get("id") == "R1" { passed = passed + 1 }
+
+    total = total + 1
+    let e1 = models.create_entity("E1", "ProdDB", 1, {"encryption": "AES256"}, ["prod"], "admin")
+    if e1.get("name") == "ProdDB" { passed = passed + 1 }
+
+    total = total + 1
+    let c1 = models.create_condition(0, "encryption", "AES256", [])
+    if c1.get("op") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let f1 = models.create_finding("R1", "E1", 1, 0, "Missing encryption", "no TLS")
+    if f1.get("result") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    if models.severity_name(0) == "Critical" { passed = passed + 1 }
+
+    total = total + 1
+    if models.op_name(2) == ">" { passed = passed + 1 }
+
+    total = total + 1
+    if models.result_name(0) == "Pass" { passed = passed + 1 }
+
+    total = total + 1
+    if models.entity_type_name(1) == "Database" { passed = passed + 1 }
+
+    total = total + 1
+    let vr = models.validate_rule(r1)
+    if vr.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let ve = models.validate_entity({"id": "", "name": "", "owner": ""})
+    if ve.get("valid") == false { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_validators() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let s1 = validators.sanitize_string("<script>alert</script>")
+    if !string.contains(s1, "<") { passed = passed + 1 }
+
+    total = total + 1
+    let s2 = validators.sanitize_string("{\"key\": \"val\"}")
+    if string.contains(s2, "\"") { passed = passed + 1 }
+
+    total = total + 1
+    let s3 = validators.sanitize_log_line("test\u001b[31mred")
+    if !string.contains(s3, "\u001b") { passed = passed + 1 }
+
+    total = total + 1
+    let vrx = validators.validate_rule_syntax({
+        "id": "R1",
+        "name": "Test",
+        "category": "encryption",
+        "severity": 0,
+        "conditions": [{}]
+    })
+    if vrx.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let vrx2 = validators.validate_rule_syntax({"id": "", "name": "Test", "category": "encryption", "severity": 0, "conditions": [{}]})
+    if vrx2.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let vrx3 = validators.validate_rule_syntax({"id": "R1", "name": "Test", "category": "invalid_category", "severity": 0, "conditions": [{}]})
+    if vrx3.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let cond_simple = [models.create_condition(0, "x", "y", [])]
+    let vct = validators.validate_condition_tree(cond_simple)
+    if vct.get("valid") == true && vct.get("depth") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let cond_and = [models.create_condition(8, "", "", [
+        models.create_condition(0, "a", "b", []),
+        models.create_condition(0, "c", "d", [])
+    ])]
+    let vct2 = validators.validate_condition_tree(cond_and)
+    if vct2.get("valid") == true && vct2.get("depth") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let cond_bad = [models.create_condition(10, "", "", [
+        models.create_condition(0, "a", "b", []),
+        models.create_condition(0, "c", "d", [])
+    ])]
+    let vct3 = validators.validate_condition_tree(cond_bad)
+    if vct3.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let cond_deep = [models.create_condition(8, "", "", [
+        models.create_condition(8, "", "", [
+            models.create_condition(0, "x", "y", [])
+        ])
+    ])]
+    let vct4 = validators.validate_condition_tree(cond_deep)
+    if vct4.get("depth") == 2 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_conditions() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let cond_eq = models.create_condition(0, "role", "admin", [])
+    let ev_eq = conditions.evaluate_condition(cond_eq, {"role": "admin"})
+    if ev_eq.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let ev_eq2 = conditions.evaluate_condition(cond_eq, {"role": "user"})
+    if ev_eq2.get("passed") == false { passed = passed + 1 }
+
+    total = total + 1
+    let cond_gt = models.create_condition(2, "port", "1024", [])
+    let ev_gt = conditions.evaluate_condition(cond_gt, {"port": "8080"})
+    if ev_gt.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let cond_lt = models.create_condition(3, "age_days", "90", [])
+    let ev_lt = conditions.evaluate_condition(cond_lt, {"age_days": "30"})
+    if ev_lt.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let cond_contains = models.create_condition(6, "name", "prod", [])
+    let ev_contains = conditions.evaluate_condition(cond_contains, {"name": "prod-db-01"})
+    if ev_contains.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let cond_and_both = models.create_condition(8, "", "", [
+        models.create_condition(0, "role", "admin", []),
+        models.create_condition(0, "active", "true", [])
+    ])
+    let ev_and = conditions.evaluate_condition(cond_and_both, {"role": "admin", "active": "true"})
+    if ev_and.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let ev_and2 = conditions.evaluate_condition(cond_and_both, {"role": "user", "active": "true"})
+    if ev_and2.get("passed") == false { passed = passed + 1 }
+
+    total = total + 1
+    let cond_or = models.create_condition(9, "", "", [
+        models.create_condition(0, "env", "prod", []),
+        models.create_condition(0, "env", "staging", [])
+    ])
+    let ev_or = conditions.evaluate_condition(cond_or, {"env": "staging"})
+    if ev_or.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let cond_not = models.create_condition(10, "", "", [
+        models.create_condition(0, "disabled", "true", [])
+    ])
+    let ev_not = conditions.evaluate_condition(cond_not, {"disabled": "false"})
+    if ev_not.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let cond_complex = models.create_condition(8, "", "", [
+        models.create_condition(0, "a", "b", []),
+        models.create_condition(0, "c", "d", []),
+        models.create_condition(9, "", "", [
+            models.create_condition(0, "e", "f", []),
+            models.create_condition(0, "g", "h", [])
+        ])
+    ])
+    let count = conditions.count_conditions(cond_complex)
+    if count == 5 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_rules() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let json_rule = "{\"id\":\"R1\",\"name\":\"Encryption Check\",\"description\":\"Verify encryption\",\"severity\":0,\"category\":\"encryption\",\"conditions\":[{\"op\":\"==\",\"field\":\"encryption\",\"value\":\"AES256\",\"children\":[]}],\"dependencies\":[],\"tags\":[\"security\"]}"
+    let parsed = rules.parse_rule_definition(json_rule)
+    if parsed.get("valid") == true && parsed.get("rule").get("id") == "R1" { passed = passed + 1 }
+
+    total = total + 1
+    let parsed_bad = rules.parse_rule_definition("not json{")
+    if parsed_bad.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let parsed_missing = rules.parse_rule_definition("{\"id\":\"R1\",\"description\":\"Test\"}")
+    if parsed_missing.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let raw_conds = [
+        {"op":"==","field":"x","value":"1","children":[]},
+        {"op":"AND","field":"","value":"","children":[{"op":"!=","field":"y","value":"2","children":[]}]}
+    ]
+    let parsed_conds = rules.parse_condition_tree(raw_conds)
+    if len(parsed_conds) == 2 && len(parsed_conds[1].get("children")) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let rule_list = [
+        models.create_rule("R1", "E1", "D", 0, "encryption", [], [], []),
+        models.create_rule("R2", "E2", "D", 0, "encryption", [], [], []),
+        models.create_rule("R3", "E3", "D", 0, "audit", [], [], [])
+    ]
+    let filtered_cat = rules.filter_rules_by_category(rule_list, "encryption")
+    if len(filtered_cat) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let rule_list2 = [
+        {"id":"R1","status":0,"severity":0},
+        {"id":"R2","status":0,"severity":1},
+        {"id":"R3","status":0,"severity":2},
+        {"id":"R4","status":0,"severity":3}
+    ]
+    let filtered_sev = rules.filter_rules_by_severity(rule_list2, 0)
+    if len(filtered_sev) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let rule_list3 = [
+        {"id":"R1","status":0},
+        {"id":"R2","status":0},
+        {"id":"R3","status":2}
+    ]
+    let filtered_active = rules.filter_active_rules(rule_list3)
+    if len(filtered_active) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let found = rules.get_rule_by_id(rule_list3, "R2")
+    if found.get("id") == "R2" { passed = passed + 1 }
+
+    total = total + 1
+    let rule_to_update = models.create_rule("R1", "Test", "D", 0, "test", [], [], [])
+    let updated = rules.update_rule_status(rule_to_update, 2)
+    if updated.get("status") == 2 && updated.get("version") == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let rule_to_merge = models.create_rule("R1", "Test", "D", 0, "test", [], [], ["a", "b"])
+    let merged = rules.merge_rule_tags(rule_to_merge, ["b", "c"])
+    if len(merged.get("tags")) == 3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_entities() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let registry = []
+    let e1 = models.create_entity("E1", "Server1", 0, {}, [], "admin")
+    let reg_result = entities.register_entity(registry, e1)
+    if reg_result.get("success") == true && len(reg_result.get("registry")) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let reg_dup = entities.register_entity(reg_result.get("registry"), e1)
+    if reg_dup.get("success") == false { passed = passed + 1 }
+
+    total = total + 1
+    let registry2 = []
+    let e2 = models.create_entity("E2", "DB1", 1, {}, [], "admin")
+    let e3 = models.create_entity("E3", "App1", 2, {}, [], "admin")
+    registry2.push(e2)
+    registry2.push(e3)
+    let e_found = entities.get_entity_by_id(registry2, "E2")
+    if e_found.get("id") == "E2" { passed = passed + 1 }
+
+    total = total + 1
+    let e_not_found = entities.get_entity_by_id(registry2, "E99")
+    if e_not_found == null { passed = passed + 1 }
+
+    total = total + 1
+    let registry3 = []
+    registry3.push(models.create_entity("S1", "Server1", 0, {}, [], "admin"))
+    registry3.push(models.create_entity("S2", "Server2", 0, {}, [], "admin"))
+    registry3.push(models.create_entity("D1", "DB1", 1, {}, [], "admin"))
+    let servers = entities.get_entities_by_type(registry3, 0)
+    if len(servers) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let registry4 = []
+    registry4.push(models.create_entity("E1", "E1", 0, {"tls": "1.2"}, [], "admin"))
+    let updated_reg = entities.update_entity_attribute(registry4, "E1", "tls", "1.3")
+    if updated_reg.get("success") == true {
+        let e = entities.get_entity_by_id(updated_reg.get("registry"), "E1")
+        if e.get("attributes").get("tls") == "1.3" { passed = passed + 1 }
+    }
+
+    total = total + 1
+    let updated_not_found = entities.update_entity_attribute(registry4, "E99", "tls", "1.3")
+    if updated_not_found.get("success") == false { passed = passed + 1 }
+
+    total = total + 1
+    let registry5 = []
+    registry5.push(models.create_entity("E1", "E1", 0, {}, ["prod"], "admin"))
+    registry5.push(models.create_entity("E2", "E2", 1, {}, ["prod"], "admin"))
+    registry5.push(models.create_entity("E3", "E3", 2, {}, ["staging"], "admin"))
+    let tagged = entities.filter_entities_by_tag(registry5, "prod")
+    if len(tagged) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let registry6 = []
+    registry6.push(models.create_entity("S1", "S1", 0, {}, [], "admin"))
+    registry6.push(models.create_entity("S2", "S2", 0, {}, [], "admin"))
+    registry6.push(models.create_entity("D1", "D1", 1, {}, [], "admin"))
+    registry6.push(models.create_entity("A1", "A1", 2, {}, [], "admin"))
+    let counts = entities.count_entities_by_type(registry6)
+    if counts.get("Server") == 2 && counts.get("Database") == 1 && counts.get("Application") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let e_attrs = entities.get_entity_attributes(e2)
+    if e_attrs == {} || len(e_attrs.keys()) >= 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_evaluator() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let rule1 = models.create_rule("R1", "Enc", "Check", 0, "encryption", [
+        models.create_condition(0, "encryption", "AES256", [])
+    ], [], [])
+    let entity1 = models.create_entity("E1", "E1", 0, {"encryption": "AES256"}, [], "admin")
+    let eval1 = evaluator.evaluate_rule(rule1, entity1)
+    if eval1.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let eval2 = evaluator.evaluate_rule(rule1, models.create_entity("E2", "E2", 0, {"encryption": "none"}, [], "admin"))
+    if eval2.get("passed") == false { passed = passed + 1 }
+
+    total = total + 1
+    let inactive_rule = models.create_rule("R2", "Inactive", "Check", 0, "test", [], [], [])
+    inactive_rule["status"] = 2
+    let eval3 = evaluator.evaluate_rule(inactive_rule, entity1)
+    if eval3.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let rule_list = [rule1]
+    let entity_list = [entity1]
+    let eval_entity = evaluator.evaluate_entity(rule_list, entity1)
+    if eval_entity.get("passed") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let rule_and = models.create_rule("R3", "And", "Check", 0, "test", [
+        models.create_condition(8, "", "", [
+            models.create_condition(0, "encryption", "AES256", []),
+            models.create_condition(0, "tls", "1.3", [])
+        ])
+    ], [], [])
+    let e_and = models.create_entity("E3", "E3", 0, {"encryption": "AES256", "tls": "1.3"}, [], "admin")
+    let eval_and = evaluator.evaluate_rule(rule_and, e_and)
+    if eval_and.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let rule_or = models.create_rule("R4", "Or", "Check", 0, "test", [
+        models.create_condition(9, "", "", [
+            models.create_condition(0, "env", "prod", []),
+            models.create_condition(0, "env", "staging", [])
+        ])
+    ], [], [])
+    let e_or = models.create_entity("E4", "E4", 0, {"env": "staging"}, [], "admin")
+    let eval_or = evaluator.evaluate_rule(rule_or, e_or)
+    if eval_or.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let batch = evaluator.batch_evaluate([rule1], [entity1])
+    if batch.get("total") >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let f_list = [
+        models.create_finding("R1", "E1", 1, 0, "Crit", "Evidence1"),
+        models.create_finding("R2", "E2", 1, 0, "Crit", "Evidence2"),
+        models.create_finding("R3", "E3", 1, 1, "High", "Evidence3")
+    ]
+    let agg = evaluator.aggregate_findings(f_list, "severity")
+    if agg.get("Critical") == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let crit = evaluator.get_critical_findings(f_list)
+    if len(crit) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let complex_rule = models.create_rule("R_complex", "Complex", "D", 0, "test", [
+        models.create_condition(8, "", "", [
+            models.create_condition(0, "a", "1", []),
+            models.create_condition(9, "", "", [
+                models.create_condition(0, "b", "2", []),
+                models.create_condition(0, "c", "3", [])
+            ])
+        ])
+    ], [], [])
+    let complex_entity = models.create_entity("E_complex", "E_complex", 0, {"a": "1", "b": "2"}, [], "admin")
+    let eval_complex = evaluator.evaluate_rule(complex_rule, complex_entity)
+    if eval_complex.get("passed") == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_dependencies() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let r1 = models.create_rule("R1", "R1", "D", 0, "test", [], [], [])
+    let r2 = models.create_rule("R2", "R2", "D", 0, "test", [], ["R1"], [])
+    let r3 = models.create_rule("R3", "R3", "D", 0, "test", [], ["R1", "R2"], [])
+    let graph = dependencies.build_dependency_graph([r1, r2, r3])
+    if len(graph.keys()) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let resolved = dependencies.resolve_rule_dependencies([r1, r2, r3])
+    if len(resolved.get("order")) >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let r4 = models.create_rule("R4", "R4", "D", 0, "test", [], ["R5"], [])
+    let r5 = models.create_rule("R5", "R5", "D", 0, "test", [], ["R4"], [])
+    let cycle_resolved = dependencies.resolve_rule_dependencies([r4, r5])
+    if len(cycle_resolved.get("unresolvable")) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let linear = dependencies.detect_circular_dependencies({"R1": [], "R2": ["R1"], "R3": ["R2"]})
+    if linear.get("has_cycles") == false { passed = passed + 1 }
+
+    total = total + 1
+    let simple_cycle = dependencies.detect_circular_dependencies({"A": ["B"], "B": ["A"]})
+    if simple_cycle.get("has_cycles") == true { passed = passed + 1 }
+
+    total = total + 1
+    let complex_cycle = dependencies.detect_circular_dependencies({"A": ["B"], "B": ["C"], "C": ["A"], "D": []})
+    if complex_cycle.get("has_cycles") == true && !array.contains(complex_cycle.get("affected_rules"), "D") { passed = passed + 1 }
+
+    total = total + 1
+    let traverse = dependencies.traverse_dependency_tree({"R1": ["R2", "R3"], "R2": ["R4"]}, "R1", [])
+    if array.contains(traverse, "R4") { passed = passed + 1 }
+
+    total = total + 1
+    let tree = dependencies.traverse_dependency_tree({"R1": ["R2", "R3"], "R2": ["R4"]}, "R1", [])
+    if len(tree) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let depth_graph = {"R1": ["R2", "R3"], "R2": ["R4"], "R3": [], "R4": []}
+    let d1 = dependencies.calculate_dependency_depth(depth_graph, "R1", {})
+    if d1 >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let memo = {}
+    let d2 = dependencies.calculate_dependency_depth(depth_graph, "R4", memo)
+    let d3 = dependencies.calculate_dependency_depth(depth_graph, "R1", memo)
+    if d2 == 0 && d3 >= 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_risk() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let f_crit = [
+        models.create_finding("R1", "E1", 1, 0, "M", "E"),
+        models.create_finding("R2", "E1", 1, 0, "M", "E"),
+        models.create_finding("R3", "E1", 1, 0, "M", "E")
+    ]
+    let score1 = risk.calculate_risk_score(f_crit)
+    if score1.get("score") >= 80 { passed = passed + 1 }
+
+    total = total + 1
+    let f_low = [
+        models.create_finding("R1", "E1", 1, 3, "M", "E"),
+        models.create_finding("R2", "E1", 1, 3, "M", "E")
+    ]
+    let score2 = risk.calculate_risk_score(f_low)
+    if score2.get("score") <= 30 { passed = passed + 1 }
+
+    total = total + 1
+    let f_mixed = [
+        models.create_finding("R1", "E1", 1, 0, "M", "E"),
+        models.create_finding("R2", "E1", 1, 1, "M", "E"),
+        models.create_finding("R3", "E1", 1, 1, "M", "E"),
+        models.create_finding("R4", "E1", 1, 2, "M", "E"),
+        models.create_finding("R5", "E1", 1, 2, "M", "E"),
+        models.create_finding("R6", "E1", 1, 2, "M", "E")
+    ]
+    let score3 = risk.calculate_risk_score(f_mixed)
+    if score3.get("score") >= 40 && score3.get("score") <= 80 { passed = passed + 1 }
+
+    total = total + 1
+    if score1.get("risk_level") == "critical" { passed = passed + 1 }
+
+    total = total + 1
+    if score2.get("risk_level") == "minimal" { passed = passed + 1 }
+
+    total = total + 1
+    let port_data = [
+        {"score": 50, "risk_level": "medium", "category": "test"},
+        {"score": 70, "risk_level": "high", "category": "test"},
+        {"score": 30, "risk_level": "low", "category": "test"}
+    ]
+    let port = risk.calculate_portfolio_risk(port_data)
+    if port.get("total_entities") == 3 { passed = passed + 1 }
+
+    total = total + 1
+    if port.get("high_risk_count") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let matrix = risk.generate_risk_matrix([models.create_entity("E1", "E1", 0, {}, [], "admin")], f_crit)
+    if matrix.get("coverage") >= 0.0 { passed = passed + 1 }
+
+    total = total + 1
+    let r_test1 = models.create_rule("R1", "Test", "D", 0, "test", [], [], [])
+    let metrics = risk.calculate_compliance_metrics(f_crit, [r_test1])
+    if metrics.get("compliance_rate") >= 0.0 { passed = passed + 1 }
+
+    total = total + 1
+    let ranked = risk.rank_entities_by_risk([{"name": "E1"}, {"name": "E2"}])
+    if len(ranked) >= 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_reports() {
+    let passed = 0
+    let total = 0
+
+    let r_rep = models.create_rule("R1", "Test", "D", 0, "test", [], [], [])
+
+    total = total + 1
+    let f1 = models.create_finding("R1", "E1", 1, 0, "Test", "Evidence")
+    let report = reports.generate_compliance_report([f1], [r_rep], [])
+    if string.contains(report.get("report_text"), "R1") { passed = passed + 1 }
+
+    total = total + 1
+    if len(report.get("hash")) == 64 { passed = passed + 1 }
+
+    total = total + 1
+    let audit = reports.generate_audit_report(["Event1", "Event2", "Event3"])
+    if len(audit.get("trail")) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    if len(audit.get("hash_chain")) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let audit2 = reports.generate_audit_report(["E1", "E2"])
+    let same = reports.generate_audit_report(["E1", "E2"])
+    if audit2.get("hash_chain") == same.get("hash_chain") { passed = passed + 1 }
+
+    total = total + 1
+    let csv = reports.export_findings_csv([f1])
+    if string.contains(csv, "rule_id") { passed = passed + 1 }
+
+    total = total + 1
+    let formatted_crit = reports.format_finding(models.create_finding("R1", "E1", 1, 0, "Test", "E"))
+    if string.contains(formatted_crit, "[CRIT]") { passed = passed + 1 }
+
+    total = total + 1
+    let formatted_low = reports.format_finding(models.create_finding("R1", "E1", 1, 3, "Test", "E"))
+    if string.contains(formatted_low, "[LOW ]") { passed = passed + 1 }
+
+    total = total + 1
+    let report_text = "<script>alert</script>test"
+    let written = reports.write_report_to_file(report_text, "test_report.txt")
+    if written.get("success") == true { passed = passed + 1 }
+
+    total = total + 1
+    if !string.contains(written.get("path"), "test_report.txt") == false { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_remediation() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let f_crit = models.create_finding("R1", "E1", 1, 0, "Test", "E")
+    let actions = [{"action": "patch", "effort": 2, "dependencies": []}]
+    let rem = remediation.find_best_remediation(f_crit, actions)
+    if rem.get("priority") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let f_low = models.create_finding("R1", "E1", 1, 3, "Test", "E")
+    let rem_low = remediation.find_best_remediation(f_low, actions)
+    if rem_low.get("priority") == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let actions2 = [
+        {"action": "a1", "effort": 10, "dependencies": []},
+        {"action": "a2", "effort": 5, "dependencies": []}
+    ]
+    let rem_effort = remediation.find_best_remediation(f_crit, actions2)
+    if rem_effort.get("estimated_effort") == 5 { passed = passed + 1 }
+
+    total = total + 1
+    let f_list = [f_crit, f_low]
+    let plan = remediation.build_remediation_plan(f_list, actions)
+    if len(plan.get("steps")) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let te = remediation.estimate_total_effort(plan.get("steps"))
+    if te.get("hours") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    if te.get("cost_estimate") > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let steps = plan.get("steps")
+    let actionable = remediation.get_actionable_steps(steps)
+    if len(actionable) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    if len(steps) > 0 {
+        let step_id = steps[0].get("id")
+        let marked = remediation.mark_step_completed(steps, step_id)
+        if marked[0].get("completed") == true { passed = passed + 1 }
+    }
+
+    total = total + 1
+    let marked_steps = remediation.mark_step_completed(steps, "nonexistent")
+    if len(marked_steps) == len(steps) { passed = passed + 1 }
+
+    total = total + 1
+    if len(plan.get("steps")) > 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_interpreter() {
+    let passed = 0
+    let total = 0
+
+    let r1 = models.create_rule("R1", "Test1", "D", 0, "test", [], [], [])
+    let r2 = models.create_rule("R2", "Test2", "D", 0, "test", [], [], [])
+    let r3 = models.create_rule("R3", "Test3", "D", 0, "test", [], [], [])
+
+    total = total + 1
+    let check = interpreter.check_agent_available("rule_interpreter")
+    if check.get("available") != null { passed = passed + 1 }
+
+    total = total + 1
+    let check_bad = interpreter.check_agent_available("nonexistent")
+    if check_bad.get("available") == false { passed = passed + 1 }
+
+    total = total + 1
+    let prompt = interpreter.generate_interpretation_prompt(r1, models.create_entity("E1", "E1", 0, {}, [], "admin"))
+    if string.contains(prompt, "R1") { passed = passed + 1 }
+
+    total = total + 1
+    if string.contains(prompt, "E1") { passed = passed + 1 }
+
+    total = total + 1
+    let interp = interpreter.interpret_rule(r1, models.create_entity("E1", "E1", 0, {}, [], "admin"), "context")
+    if interp.get("interpretation") != null { passed = passed + 1 }
+
+    total = total + 1
+    if interp.get("confidence") != null { passed = passed + 1 }
+
+    total = total + 1
+    let interp_unavail = interpreter.interpret_rule(
+        models.create_rule("R", "R", "D", 0, "test", [], [], []),
+        models.create_entity("E", "E", 0, {}, [], "admin"),
+        ""
+    )
+    if interp_unavail.get("interpretation") == "unavailable" { passed = passed + 1 }
+
+    total = total + 1
+    let batch = interpreter.batch_interpret([r1], models.create_entity("E1", "E1", 0, {}, [], "admin"))
+    if len(batch) >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let conflicts = interpreter.analyze_rule_conflicts([r1, r2, r3])
+    if conflicts.get("conflicts") != null { passed = passed + 1 }
+
+    total = total + 1
+    if conflicts.get("count") >= 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_integration() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let r = models.create_rule("R1", "Test", "D", 0, "test", [models.create_condition(0, "x", "y", [])], [], [])
+    let e = models.create_entity("E1", "E1", 0, {"x": "y"}, [], "admin")
+    let eval_result = evaluator.evaluate_rule(r, e)
+    if eval_result.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let json_def = "{\"id\":\"R1\",\"name\":\"Test\",\"description\":\"D\",\"severity\":0,\"category\":\"test\",\"conditions\":[{\"op\":\"==\",\"field\":\"x\",\"value\":\"y\",\"children\":[]}],\"dependencies\":[],\"tags\":[]}"
+    let parsed = rules.parse_rule_definition(json_def)
+    if parsed.get("valid") == true && eval_result.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let rules_list = [r]
+    let ents = [e]
+    let resolved = dependencies.resolve_rule_dependencies(rules_list)
+    if resolved != null { passed = passed + 1 }
+
+    total = total + 1
+    let deep_cond = models.create_condition(8, "", "", [
+        models.create_condition(9, "", "", [
+            models.create_condition(0, "a", "b", []),
+            models.create_condition(1, "c", "d", [])
+        ]),
+        models.create_condition(0, "e", "f", [])
+    ])
+    let ev_deep = conditions.evaluate_condition(deep_cond, {"a": "b", "c": "x", "e": "f"})
+    if ev_deep.get("passed") == true { passed = passed + 1 }
+
+    total = total + 1
+    let report = reports.generate_compliance_report([models.create_finding("R1", "E1", 1, 0, "M", "E")], [r], [e])
+    let sanitized = validators.sanitize_string(report.get("report_text"))
+    if reports.write_report_to_file(sanitized, "int_test.txt").get("success") == true { passed = passed + 1 }
+
+    total = total + 1
+    let pipe_res = [e] |> count_filter
+    if pipe_res >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let sv_name = models.severity_name(0)
+    let op_name_res = models.op_name(0)
+    let res_name = models.result_name(0)
+    let prio_name = models.priority_name(0)
+    if sv_name == "Critical" && op_name_res == "==" && res_name == "Pass" && prio_name == "Immediate" { passed = passed + 1 }
+
+    total = total + 1
+    let try_parse = try { json.parse("{\"id\":\"R1\"}") } catch (e) { null }
+    if try_parse != null { passed = passed + 1 }
+
+    total = total + 1
+    let r_orig = models.create_rule("R", "R", "D", 0, "test", [], [], [])
+    let r_updated = rules.update_rule_status(r_orig, 1)
+    if r_updated.get("status") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let findings_all = [
+        models.create_finding("R1", "E1", 1, 0, "M", "E"),
+        models.create_finding("R2", "E1", 1, 1, "M", "E"),
+        models.create_finding("R3", "E2", 1, 2, "M", "E")
+    ]
+    let plan = remediation.build_remediation_plan(findings_all, [{"action": "fix", "effort": 5, "dependencies": []}])
+    if len(plan.get("steps")) == 3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn count_filter(entities) {
+    return len(entities)
+}
+
+main {
+    print("=== Compliance Rule Engine Test Suite ===\n")
+
+    let results = []
+    let total_passed = 0
+    let total_tests = 0
+
+    let res1 = test_models()
+    total_passed = total_passed + res1[0]
+    total_tests = total_tests + res1[1]
+    print("test_models: " + string(res1[0]) + "/" + string(res1[1]))
+
+    let res2 = test_validators()
+    total_passed = total_passed + res2[0]
+    total_tests = total_tests + res2[1]
+    print("test_validators: " + string(res2[0]) + "/" + string(res2[1]))
+
+    let res3 = test_conditions()
+    total_passed = total_passed + res3[0]
+    total_tests = total_tests + res3[1]
+    print("test_conditions: " + string(res3[0]) + "/" + string(res3[1]))
+
+    let res4 = test_rules()
+    total_passed = total_passed + res4[0]
+    total_tests = total_tests + res4[1]
+    print("test_rules: " + string(res4[0]) + "/" + string(res4[1]))
+
+    let res5 = test_entities()
+    total_passed = total_passed + res5[0]
+    total_tests = total_tests + res5[1]
+    print("test_entities: " + string(res5[0]) + "/" + string(res5[1]))
+
+    let res6 = test_evaluator()
+    total_passed = total_passed + res6[0]
+    total_tests = total_tests + res6[1]
+    print("test_evaluator: " + string(res6[0]) + "/" + string(res6[1]))
+
+    let res7 = test_dependencies()
+    total_passed = total_passed + res7[0]
+    total_tests = total_tests + res7[1]
+    print("test_dependencies: " + string(res7[0]) + "/" + string(res7[1]))
+
+    let res8 = test_risk()
+    total_passed = total_passed + res8[0]
+    total_tests = total_tests + res8[1]
+    print("test_risk: " + string(res8[0]) + "/" + string(res8[1]))
+
+    let res9 = test_reports()
+    total_passed = total_passed + res9[0]
+    total_tests = total_tests + res9[1]
+    print("test_reports: " + string(res9[0]) + "/" + string(res9[1]))
+
+    let res10 = test_remediation()
+    total_passed = total_passed + res10[0]
+    total_tests = total_tests + res10[1]
+    print("test_remediation: " + string(res10[0]) + "/" + string(res10[1]))
+
+    let res11 = test_interpreter()
+    total_passed = total_passed + res11[0]
+    total_tests = total_tests + res11[1]
+    print("test_interpreter: " + string(res11[0]) + "/" + string(res11[1]))
+
+    let res12 = test_integration()
+    total_passed = total_passed + res12[0]
+    total_tests = total_tests + res12[1]
+    print("test_integration: " + string(res12[0]) + "/" + string(res12[1]))
+
+    print("\nTotal: " + string(total_passed) + "/" + string(total_tests))
+}

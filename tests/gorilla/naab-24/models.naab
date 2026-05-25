@@ -1,0 +1,192 @@
+use array
+use string
+use time
+use crypto
+
+// ─── Domain Enums ───────────────────────────────────────────────────
+
+export enum Severity { Critical, High, Medium, Low, Info }
+
+export enum ThreatCategory { Malware, Phishing, BruteForce, DataExfil, Recon, InsiderThreat, DDoS, SupplyChain }
+
+export enum IncidentStatus { Open, Investigating, Contained, Remediated, Closed }
+
+export enum IOCType { IPAddress, Domain, FileHash, URL, Email, Registry }
+
+// ─── Factory Functions ──────────────────────────────────────────────
+
+export fn create_ioc(ioc_type, value, source, confidence) {
+    let ts = string(time.now())
+    let hash = crypto.sha256(string(ioc_type) + "|" + value + "|" + ts)
+    let fingerprint = string.substring(hash, 0, 12)
+    return {
+        "id": fingerprint,
+        "type": ioc_type,
+        "value": value,
+        "source": source,
+        "confidence": float(confidence),
+        "first_seen": ts,
+        "last_seen": ts,
+        "sightings": 1
+    }
+}
+
+export fn create_alert(id, title, severity, category, iocs, source_ip) {
+    return {
+        "id": int(id),
+        "title": string(title),
+        "severity": severity,
+        "category": category,
+        "iocs": iocs,
+        "source_ip": string(source_ip),
+        "timestamp": string(time.now()),
+        "acknowledged": false,
+        "score": 0.0
+    }
+}
+
+export fn create_incident(id, title, severity, alerts) {
+    let alert_ids = array.map_fn(alerts, fn(a) { return a.get("id") })
+    return {
+        "id": int(id),
+        "title": string(title),
+        "severity": severity,
+        "status": IncidentStatus.Open,
+        "alerts": alert_ids,
+        "alert_count": len(alerts),
+        "created_at": string(time.now()),
+        "updated_at": string(time.now()),
+        "assignee": null,
+        "playbook": null,
+        "timeline": []
+    }
+}
+
+export fn create_log_entry(timestamp, src_ip, dst_ip, action, details) {
+    return {
+        "timestamp": string(timestamp),
+        "src_ip": string(src_ip),
+        "dst_ip": string(dst_ip),
+        "action": string(action),
+        "details": string(details),
+        "parsed": false
+    }
+}
+
+// ─── Validation ─────────────────────────────────────────────────────
+
+export fn validate_ioc(ioc) {
+    let errors = []
+    let ioc_type = ioc.get("type")
+    let value = ioc.get("value")
+
+    if value == null or string(value).length() == 0 {
+        array.push(errors, "IOC value cannot be empty")
+    }
+
+    if ioc_type == null {
+        array.push(errors, "IOC type is required")
+    }
+
+    let confidence = ioc.get("confidence")
+    if confidence != null {
+        let conf_f = float(confidence)
+        if conf_f < 0.0 or conf_f > 1.0 {
+            array.push(errors, "Confidence must be between 0.0 and 1.0")
+        }
+    }
+
+    // Validate IP format for IP IOCs
+    if ioc_type == IOCType.IPAddress and value != null {
+        let parts = string.split(string(value), ".")
+        if len(parts) != 4 {
+            array.push(errors, "Invalid IPv4 format")
+        } else {
+            for part in parts {
+                try {
+                    let n = int(part)
+                    if n < 0 or n > 255 {
+                        array.push(errors, "IP octet out of range: " + part)
+                    }
+                } catch (e) {
+                    array.push(errors, "Non-numeric IP octet: " + part)
+                }
+            }
+        }
+    }
+
+    // Validate domain format
+    if ioc_type == IOCType.Domain and value != null {
+        if not string.contains(string(value), ".") {
+            array.push(errors, "Domain must contain at least one dot")
+        }
+    }
+
+    return {"valid": len(errors) == 0, "errors": errors}
+}
+
+export fn validate_alert(alert) {
+    let errors = []
+    if alert.get("id") == null or int(alert.get("id")) <= 0 {
+        array.push(errors, "Alert ID must be positive")
+    }
+    if alert.get("title") == null or string(alert.get("title")).length() == 0 {
+        array.push(errors, "Alert title is required")
+    }
+    if alert.get("severity") == null {
+        array.push(errors, "Severity is required")
+    }
+    if alert.get("category") == null {
+        array.push(errors, "Category is required")
+    }
+    return {"valid": len(errors) == 0, "errors": errors}
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────
+
+export fn severity_name(s) {
+    return match s {
+        Severity.Critical => "Critical",
+        Severity.High => "High",
+        Severity.Medium => "Medium",
+        Severity.Low => "Low",
+        Severity.Info => "Info",
+        _ => "Unknown"
+    }
+}
+
+export fn severity_weight(s) {
+    return match s {
+        Severity.Critical => 10.0,
+        Severity.High => 7.5,
+        Severity.Medium => 5.0,
+        Severity.Low => 2.5,
+        Severity.Info => 1.0,
+        _ => 0.0
+    }
+}
+
+export fn category_name(c) {
+    return match c {
+        ThreatCategory.Malware => "Malware",
+        ThreatCategory.Phishing => "Phishing",
+        ThreatCategory.BruteForce => "BruteForce",
+        ThreatCategory.DataExfil => "DataExfil",
+        ThreatCategory.Recon => "Recon",
+        ThreatCategory.InsiderThreat => "InsiderThreat",
+        ThreatCategory.DDoS => "DDoS",
+        ThreatCategory.SupplyChain => "SupplyChain",
+        _ => "Unknown"
+    }
+}
+
+export fn status_label(s) {
+    return match s {
+        IncidentStatus.Open => "OPEN",
+        IncidentStatus.Investigating => "INVESTIGATING",
+        IncidentStatus.Contained => "CONTAINED",
+        IncidentStatus.Remediated => "REMEDIATED",
+        IncidentStatus.Closed => "CLOSED",
+        _ => "UNKNOWN"
+    }
+}

@@ -1,0 +1,160 @@
+use regex
+
+import "models.naab" as models
+
+export fn evaluate_condition(condition, entity_attributes) {
+    return evaluate_condition_impl(condition, entity_attributes, 0)
+}
+
+fn evaluate_condition_impl(condition, entity_attributes, depth) {
+    if depth > 100 {
+        return {"passed": false, "evidence": "max depth exceeded"}
+    }
+
+    let op = condition.get("op")
+
+    if op == models.ConditionOp.Equals || op == models.ConditionOp.NotEquals ||
+       op == models.ConditionOp.GreaterThan || op == models.ConditionOp.LessThan ||
+       op == models.ConditionOp.GreaterOrEqual || op == models.ConditionOp.LessOrEqual ||
+       op == models.ConditionOp.Contains || op == models.ConditionOp.Matches {
+
+        let field = condition.get("field")
+        let expected = condition.get("value")
+        let actual = entity_attributes.get(field)
+
+        if actual == null {
+            return {"passed": false, "evidence": "missing field: " + field}
+        }
+
+        let passed = match op {
+            models.ConditionOp.Equals => string(actual) == string(expected),
+            models.ConditionOp.NotEquals => string(actual) != string(expected),
+            models.ConditionOp.GreaterThan => int(actual) > int(expected),
+            models.ConditionOp.LessThan => int(actual) < int(expected),
+            models.ConditionOp.GreaterOrEqual => int(actual) >= int(expected),
+            models.ConditionOp.LessOrEqual => int(actual) <= int(expected),
+            models.ConditionOp.Contains => string.contains(string(actual), string(expected)),
+            _ => regex.matches(string(actual), string(expected))
+        }
+
+        let evidence = field + " " + models.op_name(op) + " " + string(expected) + " -> " + string(passed)
+        return {"passed": passed, "evidence": evidence}
+    }
+
+    if op == models.ConditionOp.And {
+        let children = condition.get("children") ?? []
+        let all_passed = true
+        let evidences = []
+        for child in children {
+            let result = evaluate_condition_impl(child, entity_attributes, depth + 1)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") != true {
+                all_passed = false
+            }
+        }
+        return {"passed": all_passed, "evidence": evidences.join(" AND ")}
+    }
+
+    if op == models.ConditionOp.Or {
+        let children = condition.get("children") ?? []
+        let any_passed = false
+        let evidences = []
+        for child in children {
+            let result = evaluate_condition_impl(child, entity_attributes, depth + 1)
+            evidences.push(result.get("evidence"))
+            if result.get("passed") == true {
+                any_passed = true
+            }
+        }
+        return {"passed": any_passed, "evidence": evidences.join(" OR ")}
+    }
+
+    if op == models.ConditionOp.Not {
+        let children = condition.get("children") ?? []
+        if len(children) == 0 {
+            return {"passed": false, "evidence": "NOT: no child condition"}
+        }
+        let result = evaluate_condition_impl(children[0], entity_attributes, depth + 1)
+        return {"passed": result.get("passed") != true, "evidence": "NOT(" + result.get("evidence") + ")"}
+    }
+
+    return {"passed": false, "evidence": "unknown operator"}
+}
+
+export fn count_conditions(condition) {
+    return count_conditions_impl(condition, 0)
+}
+
+fn count_conditions_impl(condition, depth) {
+    if depth > 100 {
+        return 0
+    }
+
+    let op = condition.get("op")
+
+    if op <= models.ConditionOp.Matches {
+        return 1
+    }
+
+    let children = condition.get("children") ?? []
+    let count = 1
+    for child in children {
+        count = count + count_conditions_impl(child, depth + 1)
+    }
+    return count
+}
+
+export fn flatten_conditions(condition) {
+    return flatten_conditions_impl(condition, 0)
+}
+
+fn flatten_conditions_impl(condition, depth) {
+    if depth > 100 {
+        return []
+    }
+
+    let op = condition.get("op")
+
+    if op <= models.ConditionOp.Matches {
+        return [condition]
+    }
+
+    let children = condition.get("children") ?? []
+    let result = []
+    for child in children {
+        let flattened = flatten_conditions_impl(child, depth + 1)
+        for item in flattened {
+            result.push(item)
+        }
+    }
+    return result
+}
+
+export fn max_depth(condition) {
+    return max_depth_impl(condition, 0)
+}
+
+fn max_depth_impl(condition, depth) {
+    if depth > 100 {
+        return 0
+    }
+
+    let op = condition.get("op")
+
+    if op <= models.ConditionOp.Matches {
+        return 1
+    }
+
+    let children = condition.get("children") ?? []
+    let max_d = 0
+    for child in children {
+        let d = max_depth_impl(child, depth + 1)
+        if d > max_d {
+            max_d = d
+        }
+    }
+    return 1 + max_d
+}
+
+main {
+}

@@ -102,6 +102,15 @@ let p = new models.Point { x: 1, y: 2 }
 // let p = Point { x: 1, y: 2 }     // Missing `new`
 ```
 
+### Dict Literals
+```naab
+let d = {"name": "Alice", "age": 30}   // Quoted keys (always valid)
+let d = {name: "Alice", age: 30}       // Bare identifier keys (also valid)
+let d = {method: "GET", class: "A"}    // Keywords work as keys too
+```
+Both forms produce identical dicts. Keys are always stored as strings.
+For computed keys, use parenthesized expressions: `let k = "x"; let d = {(k): val}`.
+
 ### Type Casts (builtins)
 - `int(value)` — convert to integer
 - `float(value)` — convert to float
@@ -629,7 +638,7 @@ main {
     For null coalesce, use the `??` operator: `x ?? default_val`
 17. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
 18. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error.
-    Conversely, `new { }` WITHOUT a struct name is also a parse error — plain dicts do NOT use `new`.
+    Plain dicts do NOT use `new`: `{name: "Alice"}` or `{"name": "Alice"}` — both work.
     WRONG: `new { "key": val }`   RIGHT: `{ "key": val }`
     `new` is ONLY for struct instantiation: `new StructName { field: value }`.
 19. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
@@ -869,6 +878,13 @@ main {
     WRONG: `file.write("/tmp/report.txt", content)`
     RIGHT:  `file.write("report.txt", content)`  — writes to current directory
     RIGHT:  `file.write(env.get("TMPDIR") + "/report.txt", content)`
+59. **Integer division truncates.** `int / int` produces `int` in NAAb, NOT float.
+    `12 / 8` evaluates to `1`, not `1.5`. For float division, cast one operand:
+    WRONG: `let days = total_hours / 8`        // 12/8 = 1 (truncated)
+    RIGHT: `let days = float(total_hours) / 8`  // 12.0/8 = 1.5
+    RIGHT: `let days = total_hours / 8.0`       // 12/8.0 = 1.5
+    This is the same as Python 2, C, Java, and Go integer division. If either operand
+    is float, the result is float.
 
 ## Complexity Scoring (for governance)
 
@@ -962,6 +978,17 @@ return int(math.max(0, result))  // Clamp to 0
 When set in a contract, ALL `return_keys` values must be substantive —
 not `""`, `[]`, `{}`, or `null`. Use this for functions where empty values
 indicate a stub implementation rather than a legitimate empty result.
+
+**must_contain:**
+Literal string patterns that must appear in the function body.
+Use for enforcing language construct requirements:
+- `"|>"` — function must use pipeline operator
+- `"match "` — function must use match expression (trailing space avoids matching `regex.matches`)
+- `"try {"` — function must use try/catch
+
+Unlike `must_call` (which matches function calls via `\bname\s*\(`), `must_contain`
+does plain string search. Use `must_call` for function calls, `must_contain` for operators
+and syntax patterns.
 
 ---
 
