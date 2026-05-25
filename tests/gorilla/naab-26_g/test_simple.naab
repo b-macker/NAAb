@@ -1,0 +1,7 @@
+import "src/models.naab" as models
+
+main {
+    print("Starting test...")
+    let rule = models.create_rule("R1", "Test", "Desc", models.Severity.Critical, "cat", [], [], [])
+    print("Rule created: " + rule.get("id"))
+}
