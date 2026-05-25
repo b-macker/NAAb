@@ -4233,7 +4233,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                     // H5 fix: protect static set from concurrent async VM access
                     static std::mutex hints_mutex;
                     static std::unordered_set<std::string> seen_hints;
-                    auto hint_key = key + "→" + suggestion;
+                    auto hint_key = key + "\xe2\x86\x92" + suggestion;
                     bool is_new;
                     {
                         std::lock_guard<std::mutex> lock(hints_mutex);
@@ -4242,6 +4242,24 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
                     if (is_new) {
                         fprintf(stderr, "[hint] dict.get(\"%s\") returned null — did you mean \"%s\"?\n",
                                 key.c_str(), suggestion.c_str());
+                    }
+                } else if (keys.size() <= 8) {
+                    static std::mutex avail_mutex;
+                    static std::unordered_set<std::string> seen_avail;
+                    auto avail_key = key + "\xe2\x86\x92?";
+                    bool is_new;
+                    {
+                        std::lock_guard<std::mutex> lock(avail_mutex);
+                        is_new = seen_avail.insert(avail_key).second;
+                    }
+                    if (is_new) {
+                        std::string avail;
+                        for (size_t j = 0; j < keys.size(); ++j) {
+                            if (j > 0) avail += ", ";
+                            avail += "\"" + keys[j] + "\"";
+                        }
+                        fprintf(stderr, "[hint] dict.get(\"%s\") returned null — available keys: %s\n",
+                                key.c_str(), avail.c_str());
                     }
                 }
             }

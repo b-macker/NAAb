@@ -2889,7 +2889,18 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         if (!check(lexer::TokenType::RBRACE)) {
             do {
                 skipNewlines();
-                auto key = parseExpression();
+                // Bare identifier/keyword followed by ':' → string key
+                // (like JS/Python/Go object literals)
+                // For computed keys, use: {"quoted": v}, {42: v}, {(expr): v}
+                std::unique_ptr<ast::Expr> key;
+                if ((check(lexer::TokenType::IDENTIFIER) || isAllowedNameToken(current().type))
+                    && peek(1).type == lexer::TokenType::COLON) {
+                    auto loc = ast::SourceLocation(current().line, current().column);
+                    key = std::make_unique<ast::LiteralExpr>(ast::LiteralKind::String, current().value, loc);
+                    advance();
+                } else {
+                    key = parseExpression();
+                }
                 if (parser_context_->in_match_arm && !check(lexer::TokenType::COLON)) {
                     throw ParseError(formatError(
                         "Match arms cannot contain blocks — this '{' was parsed as a dict literal.\n\n"

@@ -102,6 +102,15 @@ let p = new models.Point { x: 1, y: 2 }
 // let p = Point { x: 1, y: 2 }     // Missing `new`
 ```
 
+### Dict Literals
+```naab
+let d = {"name": "Alice", "age": 30}   // Quoted keys (always valid)
+let d = {name: "Alice", age: 30}       // Bare identifier keys (also valid)
+let d = {method: "GET", class: "A"}    // Keywords work as keys too
+```
+Both forms produce identical dicts. Keys are always stored as strings.
+For computed keys, use parenthesized expressions: `let k = "x"; let d = {(k): val}`.
+
 ### Type Casts (builtins)
 - `int(value)` — convert to integer
 - `float(value)` — convert to float
@@ -629,7 +638,7 @@ main {
     For null coalesce, use the `??` operator: `x ?? default_val`
 17. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
 18. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error.
-    Conversely, `new { }` WITHOUT a struct name is also a parse error — plain dicts do NOT use `new`.
+    Plain dicts do NOT use `new`: `{name: "Alice"}` or `{"name": "Alice"}` — both work.
     WRONG: `new { "key": val }`   RIGHT: `{ "key": val }`
     `new` is ONLY for struct instantiation: `new StructName { field: value }`.
 19. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
