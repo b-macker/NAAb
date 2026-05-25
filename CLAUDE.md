@@ -17,7 +17,7 @@ Binary lands at `build/naab-lang`.
 ## Test
 
 ```bash
-# Full suite — 391 tests, 0 unexpected
+# Full suite — 391 tests, 1 pre-existing failure (test_bsd_cdd_fixes.sh)
 cd ~/.naab/language && bash run-all-tests.sh
 
 # Security leak check — 112 checks, 0 failures
@@ -44,6 +44,7 @@ src/
 │                   process, debug, bolo, agent
 ├── cli/            main.cpp entry point — CLI flag parsing, subcommands
 ├── scanner/        C++ security scanner (SARIF output)
+├── libnaab-governance/  C API for external agent framework integration (Go, Rust, Java, C# bindings)
 ├── api/            REST API (rest_api.cpp)
 ├── repl/           REPL with readline support
 ├── linter/         Static analysis
@@ -97,6 +98,9 @@ include/naab/       All headers
 - `src/runtime/governance_taint.cpp` — taint tracking (interpreter path)
 - `src/runtime/trust_store.cpp` — Ed25519 trusted key management
 - `src/runtime/crypto_utils.cpp` — Ed25519 sign/verify, SHA-256
+- Behavioral contracts: `must_call` (function must call specified functions — regex `\bname\s*\(` on body text, non-transitive), `must_contain` (function body must match syntax patterns)
+- Anti-gaming: magic number / hardcoded constant detection in polyglot blocks, oversimplification checks, complexity floor
+- Module governance: VM compiler skips function-body governance checks during module loading (`!skip_main_` guard in `compiler.cpp`), matching tree-walker's `module_loading_depth_ == 0` guard
 - Enforcement tiers: HARD (block), SOFT (block + override), ADVISORY (warn)
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
 - Decision rationale: govern.json sections accept optional `rationale` field; engine generates `decision_trace` per check. Both flow into all 5 report formats + audit trail via `CheckResult.rationale` and `CheckResult.decision_trace`
@@ -183,5 +187,7 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 - **No Julia/Zig on Termux** — tests skip gracefully
 - **Polyglot `>>` delimiter** must be at line start (after optional whitespace)
 - **`t_current_decision_trace`** is `static thread_local` in governance_engine.cpp — not a class member in the header
+- **Bare dict keys** — `{name: "val"}` is equivalent to `{"name": "val"}`. Unquoted keys are syntactic sugar.
+- **`??` in match arms** — null coalescing works inside match arm bodies: `"x" => d.get("a") ?? "default"`
 - **Top-level `const`/`let` parse error** — NAAb only allows `use`, `import`, `export`, `struct`, `enum`, `fn`, and `main {}` at file scope. Constants and variables MUST be declared inside `main {}` or a function.
 - **Sandbox fail-closed on `mode: enforce`** — if govern.json has `"mode": "enforce"` but no `security.sandbox_level`, the runtime silently upgrades the sandbox from `unrestricted` → `standard`. This blocks `file.read("/absolute/path")` and other absolute-path operations. Set `"security": { "sandbox_level": "elevated" }` to restore access. The runtime logs `[governance] Sandbox: upgraded unrestricted → standard` to stderr when this happens.
