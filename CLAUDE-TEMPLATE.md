@@ -990,6 +990,16 @@ Unlike `must_call` (which matches function calls via `\bname\s*\(`), `must_conta
 does plain string search. Use `must_call` for function calls, `must_contain` for operators
 and syntax patterns.
 
+**Execution-based contracts (v6):**
+These contracts call your functions post-execution and verify actual outputs.
+
+- `must_produce` — golden tests: `[{"args": [2, 3], "expect": 5}]`. Function must return the expected value for given inputs.
+- `must_derive_from` — `{"rate": ["events"]}`. Return key must be computed from the named parameters (not hardcoded).
+- `must_vary` — `[{"key": "rate", "across": "data"}]`. Return key must change when input varies (catches hardcoded values like `return 0.1`).
+- `must_differentiate` — `[{"a": {"msg": "auth"}, "b": {"msg": "disk"}, "key": "category"}]`. Different inputs must produce different outputs for the specified key.
+- `must_handle_case` — `[{"inputs": [{"msg": "Auth"}, {"msg": "AUTH"}], "expect": "consistent"}]`. Function must handle case variants consistently (catches missing `string.lower()`).
+- `must_satisfy` — `["result.rate >= 0", "result.rate <= 1"]`. Invariant expressions that must hold on the return value. Provide test inputs via `must_satisfy_args`.
+
 ---
 
 ## Code Quality Scanner

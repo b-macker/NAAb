@@ -986,6 +986,58 @@
         "description": "Process an order with input type validation",
         "params": ["order_id:string", "items:array"],
         "return_type": "dict"
+      },
+
+      "_comment_v5": "v5: Static behavioral contracts — patterns that must appear in function body",
+      "normalize_severity": {
+        "description": "Normalize severity string to numeric level",
+        "must_call": ["string.lower"],
+        "must_contain": ["match"]
+      },
+
+      "_comment_v6": "v6: Execution-based contracts — call functions and verify outputs post-execution",
+      "compute_score": {
+        "description": "Golden test: function must return expected output for given inputs",
+        "must_produce": [
+          {"args": ["CRITICAL"], "expect": 0},
+          {"args": ["Error"], "expect": 0},
+          {"args": ["warning"], "expect": 2}
+        ]
+      },
+      "compute_event_frequency": {
+        "description": "Static derivation: return key must be computed from specified parameters",
+        "must_derive_from": {
+          "events_per_minute": ["events"],
+          "peak_rate": ["events", "window_seconds"]
+        }
+      },
+      "compute_alert_statistics": {
+        "description": "Anti-hardcoding: return key must change when input varies",
+        "must_vary": [
+          {"key": "escalation_rate", "across": "alerts"}
+        ]
+      },
+      "classify_event": {
+        "description": "Mutation testing: different inputs must produce different outputs",
+        "must_differentiate": [
+          {"a": {"message": "auth denied"}, "b": {"message": "disk full"}, "key": "category"}
+        ]
+      },
+      "is_security_event": {
+        "description": "Case-sensitivity: function must handle case variants consistently",
+        "must_handle_case": [
+          {"inputs": [{"message": "Auth failed"}, {"message": "AUTH FAILED"}, {"message": "auth failed"}], "expect": "consistent"}
+        ]
+      },
+      "calculate_sla_compliance": {
+        "description": "Invariant checks: expressions that must hold on the return value",
+        "must_satisfy": [
+          "result.compliance_rate >= 0",
+          "result.compliance_rate <= 1"
+        ],
+        "must_satisfy_args": [
+          [{"severity": "high"}, {"severity": "low"}]
+        ]
       }
     }
   },
