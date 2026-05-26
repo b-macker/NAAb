@@ -1335,11 +1335,54 @@ struct FunctionContract {
     std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
     std::vector<std::string> must_call;    // v5: patterns that MUST appear in function body (static analysis)
     std::vector<std::string> must_contain; // v5: literal strings that MUST appear in function body
+
+    // v6: Execution-based contracts (golden tests)
+    struct MustProduceCase {
+        std::vector<std::string> args_json;  // Each arg as JSON string (header-safe, no nlohmann)
+        std::string expect_json;              // Expected result as JSON string
+    };
+    std::vector<MustProduceCase> must_produce;
+
+    // v6: Static derivation check — return key must reference specified parameters
+    struct MustDeriveFromSpec {
+        std::string return_key;              // Key in the return dict
+        std::vector<std::string> params;     // Parameter names it must derive from
+    };
+    std::vector<MustDeriveFromSpec> must_derive_from;
+
+    // v6: Anti-hardcoding — return key must change when input varies
+    struct MustVarySpec {
+        std::string key;                         // Return key to check
+        std::string across;                      // Parameter name to vary
+        std::vector<std::string> fixtures_json;  // Optional: user-provided test inputs as JSON
+    };
+    std::vector<MustVarySpec> must_vary;
+
+    // v6: Mutation testing — function must produce different outputs for different inputs
+    struct MustDifferentiateCase {
+        std::string input_a_json;  // First input as JSON
+        std::string input_b_json;  // Second input as JSON
+        std::string key;           // Return key that must differ
+    };
+    std::vector<MustDifferentiateCase> must_differentiate;
+
+    // v6: Case-sensitivity awareness — function must handle case variants consistently
+    struct MustHandleCaseSpec {
+        std::vector<std::string> inputs_json;  // Case-varied inputs as JSON strings
+        std::string expect;                     // "consistent" or "different"
+    };
+    std::vector<MustHandleCaseSpec> must_handle_case;
+
+    // v6: Invariant checks — expressions that must hold on the function's return value
+    // Format: "result.key op value" (e.g., "result.compliance_rate >= 0")
+    std::vector<std::string> must_satisfy;
+    std::vector<std::string> must_satisfy_args_json;  // Test args for must_satisfy (JSON strings)
 };
 
 struct ContractsConfig {
     EnforcementLevel level = EnforcementLevel::SOFT;
     bool validate_inputs = false;
+    int contract_test_timeout_ms = 5000;  // Timeout per execution contract test case
     std::map<std::string, FunctionContract> functions;
 };
 
@@ -2048,6 +2091,10 @@ public:
         const std::string& func_body,
         int line = 0);
 
+    // --- Execution-Based Contract Tests ---
+    // Runs must_produce golden tests after program execution (post-execution pass)
+    std::string runExecutionContracts();
+
     // --- NAAb Function Body Quality Check ---
     // Scans ALL NAAb function bodies for stubs/oversimplification
     std::string checkNaabFunctionBody(const std::string& function_name,
@@ -2321,6 +2368,22 @@ private:
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint
     std::string last_taint_source_;      // Lineage: which source function produced the taint
+
+    // Execution-based contracts (v6)
+    bool in_contract_test_ = false;  // Re-entrancy guard for execution contracts
+    interpreter::NaabVal jsonStringToNaabVal(const std::string& json_str);
+    interpreter::NaabVal callContractTestFunction(
+        const std::string& func_name, const std::vector<interpreter::NaabVal>& args);
+    std::string checkMustProduce(const std::string& func_name,
+                                  const FunctionContract& contract, int line);
+    std::string checkMustVary(const std::string& func_name,
+                               const FunctionContract& contract, int line);
+    std::string checkMustDifferentiate(const std::string& func_name,
+                                       const FunctionContract& contract, int line);
+    std::string checkMustHandleCase(const std::string& func_name,
+                                     const FunctionContract& contract, int line);
+    std::string checkMustSatisfy(const std::string& func_name,
+                                  const FunctionContract& contract, int line);
 
     // Behavioral Sequence Detection
     BehavioralSequenceDetector sequence_detector_;

@@ -20,6 +20,9 @@
 #include <fmt/core.h>
 
 namespace naab {
+namespace interpreter {
+    extern thread_local Interpreter* g_current_interpreter;  // defined in interpreter.cpp
+}
 namespace governance {
 
 // ============================================================================
@@ -3295,7 +3298,8 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
     if (it == rules_.contracts.functions.end()) return "";
 
     const auto& contract = it->second;
-    if (contract.must_call.empty() && contract.must_contain.empty()) return "";
+    if (contract.must_call.empty() && contract.must_contain.empty()
+        && contract.must_derive_from.empty()) return "";
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
@@ -3350,7 +3354,604 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
         }
     }
 
+    // must_derive_from: check that function body references specified parameters
+    // Strip the function signature — only search inside the body braces.
+    // func_body is the full function text: "fn name(params) { ... }"
+    std::string inner_body;
+    {
+        auto brace_pos = func_body.find('{');
+        if (brace_pos != std::string::npos) {
+            inner_body = func_body.substr(brace_pos + 1);
+            // Remove trailing closing brace
+            auto last_brace = inner_body.rfind('}');
+            if (last_brace != std::string::npos) {
+                inner_body = inner_body.substr(0, last_brace);
+            }
+        } else {
+            inner_body = func_body;
+        }
+    }
+    for (const auto& spec : contract.must_derive_from) {
+        bool param_found = false;
+        for (const auto& param : spec.params) {
+            try {
+                std::regex param_pat("\\b" + param + "\\b");
+                if (std::regex_search(inner_body, param_pat)) {
+                    param_found = true;
+                    break;
+                }
+            } catch (...) {
+                // Invalid regex — fall back to literal search
+                if (inner_body.find(param) != std::string::npos) {
+                    param_found = true;
+                    break;
+                }
+            }
+        }
+        if (!param_found) {
+            std::string params_list;
+            for (size_t pi = 0; pi < spec.params.size(); ++pi) {
+                if (pi > 0) params_list += ", ";
+                params_list += spec.params[pi];
+            }
+            addTrace(fmt::format("function '{}' return key '{}' must derive from [{}] but none referenced",
+                func_name, spec.return_key, params_list));
+            return enforce("contracts." + func_name + ".must_derive_from", level,
+                formatError(level,
+                    fmt::format("Derivation contract: '{}' key '{}' must use parameter '{}'",
+                        func_name, spec.return_key, spec.params[0]),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_derive_from",
+                    fmt::format("Function '{}' return key '{}' must be computed from parameter(s) [{}] "
+                        "but none of those parameters appear in the function body.",
+                        func_name, spec.return_key, params_list),
+                    "fn " + func_name + "(...) { return {\"" + spec.return_key + "\": 0.1} }",
+                    "fn " + func_name + "(" + spec.params[0] + ") { return {\"" + spec.return_key
+                        + "\": compute(" + spec.params[0] + ")} }"));
+        }
+    }
+
     recordPass("contracts." + func_name + ".behavioral", level);
+    return "";
+}
+
+// --- Execution-Based Contract Infrastructure (v6) ---
+
+interpreter::NaabVal GovernanceEngine::jsonStringToNaabVal(const std::string& json_str) {
+    try {
+        auto j = nlohmann::json::parse(json_str);
+        if (j.is_null()) return interpreter::NaabVal::makeNull();
+        if (j.is_boolean()) return interpreter::NaabVal::makeBool(j.get<bool>());
+        if (j.is_number_integer()) return interpreter::NaabVal::makeInt(j.get<int>());
+        if (j.is_number_float()) return interpreter::NaabVal::makeDouble(j.get<double>());
+        if (j.is_string()) return interpreter::NaabVal::makeString(j.get<std::string>());
+        if (j.is_array()) {
+            std::vector<interpreter::NaabVal> items;
+            for (auto& el : j) items.push_back(jsonStringToNaabVal(el.dump()));
+            return interpreter::NaabVal::makeList(std::move(items));
+        }
+        if (j.is_object()) {
+            std::unordered_map<std::string, interpreter::NaabVal> map;
+            for (auto& [k, v] : j.items()) map[k] = jsonStringToNaabVal(v.dump());
+            return interpreter::NaabVal::makeDict(std::move(map));
+        }
+    } catch (...) {}
+    return interpreter::NaabVal::makeNull();
+}
+
+interpreter::NaabVal GovernanceEngine::callContractTestFunction(
+    const std::string& func_name,
+    const std::vector<interpreter::NaabVal>& args) {
+
+    auto* interp = interpreter::g_current_interpreter;
+    if (!interp) {
+        throw std::runtime_error(
+            "Execution-based contracts require an active interpreter");
+    }
+
+    interpreter::NaabVal fn;
+    auto env = interp->getGlobalEnv();
+    // Try bare name first (global functions)
+    if (env->has(func_name)) {
+        fn = env->get(func_name);
+    } else {
+        // Search module dicts: wildcard imports store a dict under the alias,
+        // e.g. env["helper"] = {"normalize_severity": <fn>, ...}
+        for (const auto& [name, val] : env->getValues()) {
+            if (val.isDict()) {
+                const auto& dict = val.asDictConst();
+                auto it = dict.find(func_name);
+                if (it != dict.end() && (it->second.isFunction() || it->second.isVMClosure())) {
+                    fn = it->second;
+                    break;
+                }
+            }
+        }
+        // Also try module-qualified names: "alias.func" defined directly in global env
+        if (fn.isNull()) {
+            std::string suffix = "." + func_name;
+            for (const auto& [name, val] : env->getValues()) {
+                if (name.size() > suffix.size() &&
+                    name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 &&
+                    (val.isFunction() || val.isVMClosure())) {
+                    fn = val;
+                    break;
+                }
+            }
+        }
+        if (fn.isNull()) {
+            throw std::runtime_error(
+                fmt::format("Contract test: function '{}' not found in global scope", func_name));
+        }
+    }
+    if (fn.isNull()) {
+        throw std::runtime_error(
+            fmt::format("Contract test: function '{}' is null", func_name));
+    }
+
+    return interp->callFunction(fn, args);
+}
+
+std::string GovernanceEngine::checkMustProduce(
+    const std::string& func_name,
+    const FunctionContract& contract,
+    int line) {
+
+    clearTrace();
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    for (size_t i = 0; i < contract.must_produce.size(); ++i) {
+        const auto& tc = contract.must_produce[i];
+
+        // Build args from JSON strings
+        std::vector<interpreter::NaabVal> args;
+        for (const auto& arg_json : tc.args_json) {
+            args.push_back(jsonStringToNaabVal(arg_json));
+        }
+
+        // Build display string for error messages
+        std::string args_display = "[";
+        for (size_t a = 0; a < tc.args_json.size(); ++a) {
+            if (a > 0) args_display += ", ";
+            args_display += tc.args_json[a];
+        }
+        args_display += "]";
+
+        // Call function with re-entrancy guard
+        interpreter::NaabVal result;
+        try {
+            in_contract_test_ = true;
+            result = callContractTestFunction(func_name, args);
+            in_contract_test_ = false;
+        } catch (const std::exception& e) {
+            in_contract_test_ = false;
+            addTrace(fmt::format("must_produce test #{}: call threw: {}", i + 1, e.what()));
+            return enforce("contracts." + func_name + ".must_produce", level,
+                formatError(level,
+                    fmt::format("must_produce test #{} for '{}' threw an exception", i + 1, func_name),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_produce",
+                    fmt::format("Function threw: {}", e.what()),
+                    fmt::format("{}({}) => error", func_name, args_display),
+                    fmt::format("{}({}) => {}", func_name, args_display, tc.expect_json)));
+        }
+
+        // Compare result to expected
+        interpreter::NaabVal expected = jsonStringToNaabVal(tc.expect_json);
+        std::string result_str = result.isNull() ? "null" : result.toString();
+        std::string expect_str = expected.isNull() ? "null" : expected.toString();
+
+        if (result_str != expect_str) {
+            addTrace(fmt::format("must_produce test #{}: args={}, expected={}, got={}",
+                i + 1, args_display, expect_str, result_str));
+            return enforce("contracts." + func_name + ".must_produce", level,
+                formatError(level,
+                    fmt::format("must_produce: '{}' returned wrong value", func_name),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_produce",
+                    fmt::format("Input: {}\n  Expected: {}\n  Got: {}",
+                        args_display, expect_str, result_str),
+                    fmt::format("{}({}) => {}", func_name, args_display, result_str),
+                    fmt::format("{}({}) => {}", func_name, args_display, expect_str)));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".must_produce", level);
+    return "";
+}
+
+std::string GovernanceEngine::checkMustVary(
+    const std::string& func_name,
+    const FunctionContract& contract,
+    int line) {
+
+    clearTrace();
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    for (size_t i = 0; i < contract.must_vary.size(); ++i) {
+        const auto& spec = contract.must_vary[i];
+
+        // Build two distinct input sets
+        std::vector<interpreter::NaabVal> args_a, args_b;
+        if (spec.fixtures_json.size() >= 2) {
+            // User provided fixtures — use first two
+            args_a.push_back(jsonStringToNaabVal(spec.fixtures_json[0]));
+            args_b.push_back(jsonStringToNaabVal(spec.fixtures_json[1]));
+        } else {
+            // Generate synthetic inputs: empty list vs populated list
+            args_a.push_back(interpreter::NaabVal::makeList({}));
+            std::vector<interpreter::NaabVal> items;
+            std::unordered_map<std::string, interpreter::NaabVal> d1, d2, d3;
+            d1["severity"] = interpreter::NaabVal::makeInt(0);
+            d2["severity"] = interpreter::NaabVal::makeInt(5);
+            d3["severity"] = interpreter::NaabVal::makeInt(10);
+            items.push_back(interpreter::NaabVal::makeDict(std::move(d1)));
+            items.push_back(interpreter::NaabVal::makeDict(std::move(d2)));
+            items.push_back(interpreter::NaabVal::makeDict(std::move(d3)));
+            args_b.push_back(interpreter::NaabVal::makeList(std::move(items)));
+        }
+
+        // Call function with both inputs
+        interpreter::NaabVal result_a, result_b;
+        try {
+            in_contract_test_ = true;
+            result_a = callContractTestFunction(func_name, args_a);
+            result_b = callContractTestFunction(func_name, args_b);
+            in_contract_test_ = false;
+        } catch (const std::exception& e) {
+            in_contract_test_ = false;
+            addTrace(fmt::format("must_vary test #{}: call threw: {}", i + 1, e.what()));
+            return enforce("contracts." + func_name + ".must_vary", level,
+                formatError(level,
+                    fmt::format("must_vary test #{} for '{}' threw an exception", i + 1, func_name),
+                    "", "contracts.must_vary",
+                    fmt::format("Function threw: {}", e.what()), "", ""));
+        }
+
+        // Extract the specified key from both results
+        std::string val_a, val_b;
+        if (result_a.isDict()) {
+            auto& dict = result_a.asDict();
+            auto it = dict.find(spec.key);
+            val_a = (it != dict.end()) ? it->second.toString() : "<missing>";
+        } else {
+            val_a = result_a.toString();
+        }
+        if (result_b.isDict()) {
+            auto& dict = result_b.asDict();
+            auto it = dict.find(spec.key);
+            val_b = (it != dict.end()) ? it->second.toString() : "<missing>";
+        } else {
+            val_b = result_b.toString();
+        }
+
+        if (val_a == val_b) {
+            addTrace(fmt::format("must_vary: '{}' key '{}' returned '{}' for both inputs — hardcoded",
+                func_name, spec.key, val_a));
+            return enforce("contracts." + func_name + ".must_vary", level,
+                formatError(level,
+                    fmt::format("must_vary: '{}' key '{}' is hardcoded", func_name, spec.key),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_vary",
+                    fmt::format("Key '{}' returned the same value '{}' for two different '{}' inputs.\n"
+                        "  The value appears to be hardcoded rather than computed from the input.",
+                        spec.key, val_a, spec.across),
+                    fmt::format("{}(...) => {{\"{}\": {}}} (always)", func_name, spec.key, val_a),
+                    fmt::format("{}(...) => {{\"{}\": <computed from {}>}}", func_name, spec.key, spec.across)));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".must_vary", level);
+    return "";
+}
+
+std::string GovernanceEngine::checkMustDifferentiate(
+    const std::string& func_name,
+    const FunctionContract& contract,
+    int line) {
+
+    clearTrace();
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    for (size_t i = 0; i < contract.must_differentiate.size(); ++i) {
+        const auto& dc = contract.must_differentiate[i];
+
+        // Build args from the two inputs
+        std::vector<interpreter::NaabVal> args_a = {jsonStringToNaabVal(dc.input_a_json)};
+        std::vector<interpreter::NaabVal> args_b = {jsonStringToNaabVal(dc.input_b_json)};
+
+        // Call function with both inputs
+        interpreter::NaabVal result_a, result_b;
+        try {
+            in_contract_test_ = true;
+            result_a = callContractTestFunction(func_name, args_a);
+            result_b = callContractTestFunction(func_name, args_b);
+            in_contract_test_ = false;
+        } catch (const std::exception& e) {
+            in_contract_test_ = false;
+            addTrace(fmt::format("must_differentiate test #{}: call threw: {}", i + 1, e.what()));
+            return enforce("contracts." + func_name + ".must_differentiate", level,
+                formatError(level,
+                    fmt::format("must_differentiate test #{} for '{}' threw an exception", i + 1, func_name),
+                    "", "contracts.must_differentiate",
+                    fmt::format("Function threw: {}", e.what()), "", ""));
+        }
+
+        // Extract the specified key from both results
+        std::string val_a, val_b;
+        if (result_a.isDict()) {
+            auto& dict = result_a.asDict();
+            auto it = dict.find(dc.key);
+            val_a = (it != dict.end()) ? it->second.toString() : "<missing>";
+        } else {
+            val_a = result_a.toString();
+        }
+        if (result_b.isDict()) {
+            auto& dict = result_b.asDict();
+            auto it = dict.find(dc.key);
+            val_b = (it != dict.end()) ? it->second.toString() : "<missing>";
+        } else {
+            val_b = result_b.toString();
+        }
+
+        if (val_a == val_b) {
+            addTrace(fmt::format("must_differentiate: '{}' key '{}' returned '{}' for both inputs",
+                func_name, dc.key, val_a));
+            return enforce("contracts." + func_name + ".must_differentiate", level,
+                formatError(level,
+                    fmt::format("must_differentiate: '{}' does not distinguish inputs on key '{}'",
+                        func_name, dc.key),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_differentiate",
+                    fmt::format("Input A: {}\n  Input B: {}\n  Both returned '{}' = '{}'\n"
+                        "  The function must produce different '{}' values for these distinct inputs.",
+                        dc.input_a_json, dc.input_b_json, dc.key, val_a, dc.key),
+                    fmt::format("{}(A) => {{\"{}\": \"{}\"}}, {}(B) => {{\"{}\": \"{}\"}}",
+                        func_name, dc.key, val_a, func_name, dc.key, val_a),
+                    fmt::format("{}(A) => {{\"{}\": \"<class_a>\"}}, {}(B) => {{\"{}\": \"<class_b>\"}}",
+                        func_name, dc.key, func_name, dc.key)));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".must_differentiate", level);
+    return "";
+}
+
+std::string GovernanceEngine::checkMustHandleCase(
+    const std::string& func_name,
+    const FunctionContract& contract,
+    int line) {
+
+    clearTrace();
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    for (size_t i = 0; i < contract.must_handle_case.size(); ++i) {
+        const auto& spec = contract.must_handle_case[i];
+        if (spec.inputs_json.size() < 2) continue;
+
+        // Call function with each case-varied input, collect results
+        std::vector<std::string> results;
+        try {
+            in_contract_test_ = true;
+            for (const auto& inp_json : spec.inputs_json) {
+                std::vector<interpreter::NaabVal> args = {jsonStringToNaabVal(inp_json)};
+                auto result = callContractTestFunction(func_name, args);
+                results.push_back(result.isNull() ? "null" : result.toString());
+            }
+            in_contract_test_ = false;
+        } catch (const std::exception& e) {
+            in_contract_test_ = false;
+            addTrace(fmt::format("must_handle_case test #{}: call threw: {}", i + 1, e.what()));
+            return enforce("contracts." + func_name + ".must_handle_case", level,
+                formatError(level,
+                    fmt::format("must_handle_case test #{} for '{}' threw an exception", i + 1, func_name),
+                    "", "contracts.must_handle_case",
+                    fmt::format("Function threw: {}", e.what()), "", ""));
+        }
+
+        // Check all results are the same (consistent) or different
+        bool all_same = true;
+        for (size_t r = 1; r < results.size(); ++r) {
+            if (results[r] != results[0]) { all_same = false; break; }
+        }
+
+        if (spec.expect == "consistent" && !all_same) {
+            // Build input display
+            std::string inputs_display;
+            for (size_t j = 0; j < spec.inputs_json.size(); ++j) {
+                if (j > 0) inputs_display += ", ";
+                inputs_display += spec.inputs_json[j] + " => " + results[j];
+            }
+            addTrace(fmt::format("must_handle_case: '{}' returned inconsistent results for case variants",
+                func_name));
+            return enforce("contracts." + func_name + ".must_handle_case", level,
+                formatError(level,
+                    fmt::format("must_handle_case: '{}' is case-sensitive (expected consistent)", func_name),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_handle_case",
+                    fmt::format("Case-varied inputs produced different results:\n  {}",
+                        inputs_display),
+                    fmt::format("{}({}) => {}", func_name, spec.inputs_json[0], results[0]),
+                    fmt::format("{}(any_case) => {} (consistent)", func_name, results[0])));
+        } else if (spec.expect == "different" && all_same) {
+            addTrace(fmt::format("must_handle_case: '{}' returned same result '{}' for all case variants",
+                func_name, results[0]));
+            return enforce("contracts." + func_name + ".must_handle_case", level,
+                formatError(level,
+                    fmt::format("must_handle_case: '{}' ignores case (expected different)", func_name),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_handle_case",
+                    fmt::format("All case-varied inputs returned the same result: '{}'", results[0]),
+                    fmt::format("{}(any_case) => {}", func_name, results[0]),
+                    fmt::format("{}(upper) => A, {}(lower) => B", func_name, func_name)));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".must_handle_case", level);
+    return "";
+}
+
+std::string GovernanceEngine::checkMustSatisfy(
+    const std::string& func_name,
+    const FunctionContract& contract,
+    int line) {
+
+    clearTrace();
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    // must_satisfy needs test inputs. Priority: must_satisfy_args > must_produce args > no args.
+    std::vector<interpreter::NaabVal> test_args;
+    if (!contract.must_satisfy_args_json.empty()) {
+        for (const auto& arg_json : contract.must_satisfy_args_json) {
+            test_args.push_back(jsonStringToNaabVal(arg_json));
+        }
+    } else if (!contract.must_produce.empty() && !contract.must_produce[0].args_json.empty()) {
+        for (const auto& arg_json : contract.must_produce[0].args_json) {
+            test_args.push_back(jsonStringToNaabVal(arg_json));
+        }
+    }
+
+    // Call function to get a result to check invariants against
+    interpreter::NaabVal result;
+    try {
+        in_contract_test_ = true;
+        result = callContractTestFunction(func_name, test_args);
+        in_contract_test_ = false;
+    } catch (const std::exception& e) {
+        in_contract_test_ = false;
+        addTrace(fmt::format("must_satisfy: call to '{}' threw: {}", func_name, e.what()));
+        return enforce("contracts." + func_name + ".must_satisfy", level,
+            formatError(level,
+                fmt::format("must_satisfy: '{}' threw an exception", func_name),
+                "", "contracts.must_satisfy",
+                fmt::format("Function threw: {}", e.what()), "", ""));
+    }
+
+    // Evaluate each invariant expression: "result.key op value"
+    // Regex: result\.(\w+(?:\.\w+)*)\s*(>=|<=|>|<|==|!=)\s*(.+)
+    std::regex expr_pat(R"(result\.(\w+(?:\.\w+)*)\s*(>=|<=|>|<|==|!=)\s*(.+))");
+
+    for (const auto& expr : contract.must_satisfy) {
+        std::smatch m;
+        if (!std::regex_match(expr, m, expr_pat)) {
+            addTrace(fmt::format("must_satisfy: unparseable expression: '{}'", expr));
+            continue;  // Skip unparseable expressions
+        }
+
+        std::string key_path = m[1].str();
+        std::string op = m[2].str();
+        std::string rhs_str = m[3].str();
+        // Trim rhs
+        while (!rhs_str.empty() && (rhs_str.back() == ' ' || rhs_str.back() == '\t'))
+            rhs_str.pop_back();
+
+        // Extract value at key_path from result
+        double lhs_val = 0.0;
+        bool found = false;
+        if (result.isDict()) {
+            auto& dict = result.asDict();
+            // Support single-level key for now (e.g., "compliance_rate")
+            auto it = dict.find(key_path);
+            if (it != dict.end()) {
+                found = true;
+                if (it->second.isInt()) lhs_val = static_cast<double>(it->second.asInt());
+                else if (it->second.isDouble()) lhs_val = it->second.asDouble();
+                else {
+                    addTrace(fmt::format("must_satisfy: result.{} is not numeric ('{}')",
+                        key_path, it->second.toString()));
+                    return enforce("contracts." + func_name + ".must_satisfy", level,
+                        formatError(level,
+                            fmt::format("must_satisfy: result.{} is not numeric", key_path),
+                            line > 0 ? fmt::format("line {}", line) : "",
+                            "contracts.must_satisfy",
+                            fmt::format("Expression '{}': result.{} = '{}' (not a number)",
+                                expr, key_path, it->second.toString()),
+                            "", ""));
+                }
+            }
+        }
+        if (!found) {
+            addTrace(fmt::format("must_satisfy: result.{} not found in return value", key_path));
+            return enforce("contracts." + func_name + ".must_satisfy", level,
+                formatError(level,
+                    fmt::format("must_satisfy: result.{} not found", key_path),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_satisfy",
+                    fmt::format("Expression '{}': key '{}' not found in return dict",
+                        expr, key_path),
+                    fmt::format("{}(...) => {}", func_name, result.toString()),
+                    fmt::format("{}(...) => {{\"{}\":  <value>}}", func_name, key_path)));
+        }
+
+        // Parse rhs as double
+        double rhs_val = 0.0;
+        try { rhs_val = std::stod(rhs_str); }
+        catch (...) {
+            addTrace(fmt::format("must_satisfy: cannot parse RHS '{}' as number", rhs_str));
+            continue;
+        }
+
+        // Evaluate comparison
+        bool satisfied = false;
+        if (op == ">=") satisfied = lhs_val >= rhs_val;
+        else if (op == "<=") satisfied = lhs_val <= rhs_val;
+        else if (op == ">") satisfied = lhs_val > rhs_val;
+        else if (op == "<") satisfied = lhs_val < rhs_val;
+        else if (op == "==") satisfied = lhs_val == rhs_val;
+        else if (op == "!=") satisfied = lhs_val != rhs_val;
+
+        if (!satisfied) {
+            addTrace(fmt::format("must_satisfy: '{}' FAILED — result.{} = {}, expected {} {}",
+                expr, key_path, lhs_val, op, rhs_val));
+            return enforce("contracts." + func_name + ".must_satisfy", level,
+                formatError(level,
+                    fmt::format("must_satisfy: invariant '{}' violated", expr),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.must_satisfy",
+                    fmt::format("result.{} = {}, but expected {} {}",
+                        key_path, lhs_val, op, rhs_val),
+                    fmt::format("{}(...) => {{\"{}\": {}}}", func_name, key_path, lhs_val),
+                    fmt::format("{}(...) => {{\"{}\": <val where val {} {}>}}",
+                        func_name, key_path, op, rhs_val)));
+        }
+    }
+
+    recordPass("contracts." + func_name + ".must_satisfy", level);
+    return "";
+}
+
+std::string GovernanceEngine::runExecutionContracts() {
+    if (!isActive()) return "";
+    if (in_contract_test_) return "";  // Re-entrancy guard
+
+    for (const auto& [func_name, contract] : rules_.contracts.functions) {
+        if (!contract.must_produce.empty()) {
+            std::string err = checkMustProduce(func_name, contract, 0);
+            if (!err.empty()) return err;
+        }
+        if (!contract.must_vary.empty()) {
+            std::string err = checkMustVary(func_name, contract, 0);
+            if (!err.empty()) return err;
+        }
+        if (!contract.must_differentiate.empty()) {
+            std::string err = checkMustDifferentiate(func_name, contract, 0);
+            if (!err.empty()) return err;
+        }
+        if (!contract.must_handle_case.empty()) {
+            std::string err = checkMustHandleCase(func_name, contract, 0);
+            if (!err.empty()) return err;
+        }
+        if (!contract.must_satisfy.empty()) {
+            std::string err = checkMustSatisfy(func_name, contract, 0);
+            if (!err.empty()) return err;
+        }
+    }
+
     return "";
 }
 

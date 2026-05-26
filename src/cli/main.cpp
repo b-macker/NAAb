@@ -2101,6 +2101,11 @@ int main(int argc, char** argv) {
                     vm_governance.runPostExecutionAudit();
                 }
 
+                // Pass 3: Execution-based contract tests (must_produce, etc.)
+                // VM path: only run static contracts (must_derive_from).
+                // Execution-based contracts (must_produce) require tree-walker;
+                // VM support planned for Phase 2 (setVM() API).
+
                 // Print governance dashboard summary
                 if (governance_dashboard && vm_governance.isActive()) {
                     vm_governance.printDashboard();
@@ -2247,6 +2252,20 @@ int main(int argc, char** argv) {
                 {
                     auto* gov = interpreter.getGovernance();
                     if (gov && gov->isActive()) gov->runPostExecutionAudit();
+                }
+
+                // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->isActive() && !no_governance) {
+                        std::string contract_err = gov->runExecutionContracts();
+                        if (!contract_err.empty()) {
+                            fprintf(stderr, "Error: %s\n", contract_err.c_str());
+                            gov->writeReports();
+                            fflush(stdout); fflush(stderr);
+                            _exit(3);
+                        }
+                    }
                 }
 
                 // Print governance dashboard summary
