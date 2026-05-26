@@ -21,6 +21,7 @@
 #include <mutex>
 #include <atomic>
 #include <set>
+#include <functional>
 
 #include "naab/project_context.h"
 #include "naab/naab_val.h"
@@ -28,7 +29,6 @@
 
 namespace naab {
 namespace ast { class Program; }  // Forward declaration for drift detection
-namespace vm { class VM; }        // Forward declaration for execution contracts
 namespace governance {
 
 // ============================================================================
@@ -1925,8 +1925,14 @@ public:
     const std::string& getAgentId() const { return agent_id_; }
     void applyAgentRole();
 
-    // --- VM integration for execution contracts ---
-    void setVM(vm::VM* vm) { vm_ = vm; }
+    // --- VM integration for execution contracts (type-erased to avoid VM link dependency) ---
+    using ContractCallFn = std::function<interpreter::NaabVal(interpreter::NaabVal, const std::vector<interpreter::NaabVal>&)>;
+    using ContractGlobalsFn = std::function<const std::unordered_map<std::string, interpreter::NaabVal>&()>;
+    void setVMCallbacks(ContractCallFn call_fn, ContractGlobalsFn globals_fn) {
+        vm_call_fn_ = std::move(call_fn);
+        vm_globals_fn_ = std::move(globals_fn);
+    }
+    void clearVMCallbacks() { vm_call_fn_ = nullptr; vm_globals_fn_ = nullptr; }
 
     // --- Path access control ---
     std::string checkPathAccess(const std::string& filepath, const std::string& mode);
@@ -2375,7 +2381,8 @@ private:
 
     // Execution-based contracts (v6)
     bool in_contract_test_ = false;  // Re-entrancy guard for execution contracts
-    vm::VM* vm_ = nullptr;          // VM engine for execution-based contracts
+    ContractCallFn vm_call_fn_;        // VM function caller (type-erased)
+    ContractGlobalsFn vm_globals_fn_;  // VM globals accessor (type-erased)
     interpreter::NaabVal jsonStringToNaabVal(const std::string& json_str);
     interpreter::NaabVal callContractTestFunction(
         const std::string& func_name, const std::vector<interpreter::NaabVal>& args);

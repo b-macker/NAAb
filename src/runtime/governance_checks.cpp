@@ -4,7 +4,6 @@
 #include "naab/governance.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
-#include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
@@ -3444,9 +3443,9 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
     const std::string& func_name,
     const std::vector<interpreter::NaabVal>& args) {
 
-    // --- VM path ---
-    if (vm_) {
-        const auto& globals = vm_->getGlobals();
+    // --- VM path (via type-erased callbacks to avoid link dependency) ---
+    if (vm_call_fn_ && vm_globals_fn_) {
+        const auto& globals = vm_globals_fn_();
         interpreter::NaabVal fn;
 
         // Phase 1: bare name lookup
@@ -3483,7 +3482,7 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
             throw std::runtime_error(
                 fmt::format("Contract test: function '{}' not found in global scope", func_name));
         }
-        return vm_->callNaabFunction(fn, args);
+        return vm_call_fn_(fn, args);
     }
 
     // --- Tree-walker path ---

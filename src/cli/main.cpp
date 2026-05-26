@@ -2103,9 +2103,16 @@ int main(int argc, char** argv) {
 
                 // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
                 if (vm_governance.isActive() && !no_governance) {
-                    vm_governance.setVM(&bytecode_vm);
+                    vm_governance.setVMCallbacks(
+                        [&bytecode_vm](auto fn, const auto& args) {
+                            return bytecode_vm.callNaabFunction(fn, args);
+                        },
+                        [&bytecode_vm]() -> const auto& {
+                            return bytecode_vm.getGlobals();
+                        }
+                    );
                     std::string contract_err = vm_governance.runExecutionContracts();
-                    vm_governance.setVM(nullptr);  // Clear to avoid dangling pointer
+                    vm_governance.clearVMCallbacks();
                     if (!contract_err.empty()) {
                         fprintf(stderr, "Error: %s\n", contract_err.c_str());
                         vm_governance.writeReports();
