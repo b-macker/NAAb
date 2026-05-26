@@ -1004,9 +1004,9 @@ void Compiler::visit(ast::FunctionDecl& node) {
     int line = node.getLocation().line;
 
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
-    // Skip during module loading to avoid checking imported functions — matches tree-walker
-    // behavior (interpreter.cpp uses module_loading_depth_ == 0 guard).
-    if (governance_ && governance_->isActive() && !skip_main_ && line > 0 && !source_file_.empty()) {
+    // Full checks skip during module loading (expensive regex/heuristic overhead).
+    // Behavioral contracts (must_call, must_contain) always run — they are user-defined.
+    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
         std::ifstream src_file(source_file_);
         if (src_file.is_open()) {
             std::vector<std::string> src_lines;
@@ -1035,10 +1035,20 @@ void Compiler::visit(ast::FunctionDecl& node) {
                     }
                     if (found_start && brace_depth <= 0) break;
                 }
-                std::string err = governance_->checkNaabFunctionBody(
-                    node.getName(), body_text, line, source_file_);
-                if (!err.empty()) {
-                    throw std::runtime_error(err);
+                if (!skip_main_) {
+                    // Main file: full governance checks (includes behavioral contracts)
+                    std::string err = governance_->checkNaabFunctionBody(
+                        node.getName(), body_text, line, source_file_);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
+                } else {
+                    // Module loading: only behavioral contracts (must_call, must_contain)
+                    std::string err = governance_->checkFunctionBehavioralContract(
+                        node.getName(), body_text, line);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
                 }
                 // Intent validation handled by preflight gate in main.cpp
             }
@@ -1117,8 +1127,9 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
     int line = decl->getLocation().line;
 
     // Governance: function body quality checks (oversimplification, complexity floor, etc.)
-    // Skip during module loading — matches tree-walker behavior.
-    if (governance_ && governance_->isActive() && !skip_main_ && line > 0 && !source_file_.empty()) {
+    // Full checks skip during module loading (expensive regex/heuristic overhead).
+    // Behavioral contracts (must_call, must_contain) always run — they are user-defined.
+    if (governance_ && governance_->isActive() && line > 0 && !source_file_.empty()) {
         std::ifstream src_file(source_file_);
         if (src_file.is_open()) {
             std::vector<std::string> lines;
@@ -1146,10 +1157,20 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                     }
                     if (found_start && brace_depth <= 0) break;
                 }
-                std::string err = governance_->checkNaabFunctionBody(
-                    decl->getName(), body_text, line, source_file_);
-                if (!err.empty()) {
-                    throw std::runtime_error(err);
+                if (!skip_main_) {
+                    // Main file: full governance checks (includes behavioral contracts)
+                    std::string err = governance_->checkNaabFunctionBody(
+                        decl->getName(), body_text, line, source_file_);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
+                } else {
+                    // Module loading: only behavioral contracts (must_call, must_contain)
+                    std::string err = governance_->checkFunctionBehavioralContract(
+                        decl->getName(), body_text, line);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
                 }
                 // Intent validation handled by preflight gate in main.cpp
             }

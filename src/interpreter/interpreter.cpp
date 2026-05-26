@@ -1021,8 +1021,9 @@ void Interpreter::visit(ast::Program& node) {
 
 void Interpreter::visit(ast::FunctionDecl& node) {
     // EVA-8: GOV-6 extended — scan ALL function bodies (not just exported)
-    // Skip during module loading to avoid expensive regex compilation overhead
-    if (governance_ && module_loading_depth_ == 0) {
+    // Full checks skip during module loading (expensive regex/heuristic overhead).
+    // Behavioral contracts (must_call, must_contain) always run — they are user-defined.
+    if (governance_) {
         auto loc = node.getLocation();
         if (loc.line > 0 && !current_file_.empty()) {
             std::ifstream src_file(current_file_);
@@ -1046,16 +1047,26 @@ void Interpreter::visit(ast::FunctionDecl& node) {
                         }
                         if (found_start && brace_depth <= 0) break;
                     }
-                    std::string err = governance_->checkNaabFunctionBody(
-                        node.getName(), body_text, loc.line, current_file_);
-                    if (!err.empty()) {
-                        throw std::runtime_error(err);
-                    }
-                    // Intent validation
-                    err = governance_->checkIntentValidation(
-                        node.getName(), node.getIntent(), body_text, loc.line);
-                    if (!err.empty()) {
-                        throw std::runtime_error(err);
+                    if (module_loading_depth_ == 0) {
+                        // Main file: full governance checks (includes behavioral contracts)
+                        std::string err = governance_->checkNaabFunctionBody(
+                            node.getName(), body_text, loc.line, current_file_);
+                        if (!err.empty()) {
+                            throw std::runtime_error(err);
+                        }
+                        // Intent validation
+                        err = governance_->checkIntentValidation(
+                            node.getName(), node.getIntent(), body_text, loc.line);
+                        if (!err.empty()) {
+                            throw std::runtime_error(err);
+                        }
+                    } else {
+                        // Module loading: only behavioral contracts (must_call, must_contain)
+                        std::string err = governance_->checkFunctionBehavioralContract(
+                            node.getName(), body_text, loc.line);
+                        if (!err.empty()) {
+                            throw std::runtime_error(err);
+                        }
                     }
                 }
             }

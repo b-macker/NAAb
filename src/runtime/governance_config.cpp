@@ -1695,6 +1695,77 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("must_contain") && fn_obj["must_contain"].is_array()) {
                     for (auto& mc : fn_obj["must_contain"]) fc.must_contain.push_back(mc.get<std::string>());
                 }
+                // v6: must_produce — golden tests (array of {args: [...], expect: value})
+                if (fn_obj.contains("must_produce") && fn_obj["must_produce"].is_array()) {
+                    for (auto& tc : fn_obj["must_produce"]) {
+                        if (!tc.is_object()) continue;
+                        FunctionContract::MustProduceCase mpc;
+                        if (tc.contains("args") && tc["args"].is_array()) {
+                            for (auto& a : tc["args"]) mpc.args_json.push_back(a.dump());
+                        }
+                        if (tc.contains("expect")) mpc.expect_json = tc["expect"].dump();
+                        fc.must_produce.push_back(std::move(mpc));
+                    }
+                }
+                // v6: must_derive_from — static derivation check ({return_key: [param1, ...]})
+                if (fn_obj.contains("must_derive_from") && fn_obj["must_derive_from"].is_object()) {
+                    for (auto& [rk, params] : fn_obj["must_derive_from"].items()) {
+                        FunctionContract::MustDeriveFromSpec spec;
+                        spec.return_key = rk;
+                        if (params.is_array()) {
+                            for (auto& p : params) spec.params.push_back(p.get<std::string>());
+                        }
+                        fc.must_derive_from.push_back(std::move(spec));
+                    }
+                }
+                // v6: must_vary — anti-hardcoding (array of {key, across, fixtures?})
+                if (fn_obj.contains("must_vary") && fn_obj["must_vary"].is_array()) {
+                    for (auto& mv : fn_obj["must_vary"]) {
+                        if (!mv.is_object()) continue;
+                        FunctionContract::MustVarySpec spec;
+                        if (mv.contains("key")) spec.key = mv["key"].get<std::string>();
+                        if (mv.contains("across")) spec.across = mv["across"].get<std::string>();
+                        if (mv.contains("fixtures") && mv["fixtures"].is_array()) {
+                            for (auto& f : mv["fixtures"]) spec.fixtures_json.push_back(f.dump());
+                        }
+                        fc.must_vary.push_back(std::move(spec));
+                    }
+                }
+                // v6: must_differentiate — mutation testing (array of {a, b, key})
+                if (fn_obj.contains("must_differentiate") && fn_obj["must_differentiate"].is_array()) {
+                    for (auto& md : fn_obj["must_differentiate"]) {
+                        if (!md.is_object()) continue;
+                        FunctionContract::MustDifferentiateCase dc;
+                        if (md.contains("a")) dc.input_a_json = md["a"].dump();
+                        if (md.contains("b")) dc.input_b_json = md["b"].dump();
+                        if (md.contains("key")) dc.key = md["key"].get<std::string>();
+                        fc.must_differentiate.push_back(std::move(dc));
+                    }
+                }
+                // v6: must_handle_case — case-sensitivity awareness (array of {inputs: [...], expect: str})
+                if (fn_obj.contains("must_handle_case") && fn_obj["must_handle_case"].is_array()) {
+                    for (auto& mh : fn_obj["must_handle_case"]) {
+                        if (!mh.is_object()) continue;
+                        FunctionContract::MustHandleCaseSpec spec;
+                        if (mh.contains("inputs") && mh["inputs"].is_array()) {
+                            for (auto& inp : mh["inputs"]) spec.inputs_json.push_back(inp.dump());
+                        }
+                        if (mh.contains("expect")) spec.expect = mh["expect"].get<std::string>();
+                        fc.must_handle_case.push_back(std::move(spec));
+                    }
+                }
+                // v6: must_satisfy — invariant expressions (array of strings)
+                if (fn_obj.contains("must_satisfy") && fn_obj["must_satisfy"].is_array()) {
+                    for (auto& expr : fn_obj["must_satisfy"]) {
+                        if (expr.is_string()) fc.must_satisfy.push_back(expr.get<std::string>());
+                    }
+                }
+                // v6: must_satisfy_args — test inputs for must_satisfy (array of JSON values)
+                if (fn_obj.contains("must_satisfy_args") && fn_obj["must_satisfy_args"].is_array()) {
+                    for (auto& a : fn_obj["must_satisfy_args"]) {
+                        fc.must_satisfy_args_json.push_back(a.dump());
+                    }
+                }
                 parseRationale(fn_obj, fc.rationale);
                 rules_.contracts.functions[fn_name] = std::move(fc);
             }

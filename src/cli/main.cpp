@@ -2101,6 +2101,26 @@ int main(int argc, char** argv) {
                     vm_governance.runPostExecutionAudit();
                 }
 
+                // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
+                if (vm_governance.isActive() && !no_governance) {
+                    vm_governance.setVMCallbacks(
+                        [&bytecode_vm](auto fn, const auto& args) {
+                            return bytecode_vm.callNaabFunction(fn, args);
+                        },
+                        [&bytecode_vm]() -> const auto& {
+                            return bytecode_vm.getGlobals();
+                        }
+                    );
+                    std::string contract_err = vm_governance.runExecutionContracts();
+                    vm_governance.clearVMCallbacks();
+                    if (!contract_err.empty()) {
+                        fprintf(stderr, "Error: %s\n", contract_err.c_str());
+                        vm_governance.writeReports();
+                        fflush(stdout); fflush(stderr);
+                        _exit(3);
+                    }
+                }
+
                 // Print governance dashboard summary
                 if (governance_dashboard && vm_governance.isActive()) {
                     vm_governance.printDashboard();
@@ -2247,6 +2267,20 @@ int main(int argc, char** argv) {
                 {
                     auto* gov = interpreter.getGovernance();
                     if (gov && gov->isActive()) gov->runPostExecutionAudit();
+                }
+
+                // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov && gov->isActive() && !no_governance) {
+                        std::string contract_err = gov->runExecutionContracts();
+                        if (!contract_err.empty()) {
+                            fprintf(stderr, "Error: %s\n", contract_err.c_str());
+                            gov->writeReports();
+                            fflush(stdout); fflush(stderr);
+                            _exit(3);
+                        }
+                    }
                 }
 
                 // Print governance dashboard summary
