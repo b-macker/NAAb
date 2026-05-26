@@ -228,6 +228,9 @@ sum(d * multiplier for d in data)
   The last expression's value is automatically captured.
   WRONG: `return json.dumps(data)`
   RIGHT: `json.dumps(data)`
+  **Dict/list as last expression:** If returning a dict `{...}` or list `[...]`,
+  wrap in `json.dumps()`: `json.dumps({"key": val})`. Without this, Python's `repr()`
+  uses single quotes which NAAb cannot parse as JSON.
 - **JavaScript**: Uses embedded QuickJS (NOT Node.js). Last expression is the return value.
   Use `const`/`let`, NOT `var`. Multi-line JS is wrapped in an IIFE for return capture.
   **Keep JS blocks simple**: declare variables, compute, then put the result expression last.

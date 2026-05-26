@@ -3848,10 +3848,20 @@ std::string GovernanceEngine::checkMustSatisfy(
         ? contract.level : rules_.contracts.level;
 
     // must_satisfy needs test inputs. Priority: must_satisfy_args > must_produce args > no args.
+    // must_satisfy_args entries are {"args": [...]} objects — unwrap the args array.
     std::vector<interpreter::NaabVal> test_args;
     if (!contract.must_satisfy_args_json.empty()) {
-        for (const auto& arg_json : contract.must_satisfy_args_json) {
-            test_args.push_back(jsonStringToNaabVal(arg_json));
+        // Use first test case. Each entry is JSON: {"args": [arg1, arg2, ...]}
+        auto test_case = nlohmann::json::parse(contract.must_satisfy_args_json[0]);
+        if (test_case.contains("args") && test_case["args"].is_array()) {
+            for (auto& arg : test_case["args"]) {
+                test_args.push_back(jsonStringToNaabVal(arg.dump()));
+            }
+        } else {
+            // Fallback: treat each must_satisfy_args entry as a direct arg value
+            for (const auto& arg_json : contract.must_satisfy_args_json) {
+                test_args.push_back(jsonStringToNaabVal(arg_json));
+            }
         }
     } else if (!contract.must_produce.empty() && !contract.must_produce[0].args_json.empty()) {
         for (const auto& arg_json : contract.must_produce[0].args_json) {
