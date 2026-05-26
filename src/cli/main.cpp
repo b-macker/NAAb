@@ -2101,10 +2101,18 @@ int main(int argc, char** argv) {
                     vm_governance.runPostExecutionAudit();
                 }
 
-                // Pass 3: Execution-based contract tests (must_produce, etc.)
-                // VM path: only run static contracts (must_derive_from).
-                // Execution-based contracts (must_produce) require tree-walker;
-                // VM support planned for Phase 2 (setVM() API).
+                // Pass 3: Execution-based contract tests (must_produce, must_vary, etc.)
+                if (vm_governance.isActive() && !no_governance) {
+                    vm_governance.setVM(&bytecode_vm);
+                    std::string contract_err = vm_governance.runExecutionContracts();
+                    vm_governance.setVM(nullptr);  // Clear to avoid dangling pointer
+                    if (!contract_err.empty()) {
+                        fprintf(stderr, "Error: %s\n", contract_err.c_str());
+                        vm_governance.writeReports();
+                        fflush(stdout); fflush(stderr);
+                        _exit(3);
+                    }
+                }
 
                 // Print governance dashboard summary
                 if (governance_dashboard && vm_governance.isActive()) {

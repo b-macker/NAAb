@@ -347,6 +347,13 @@ public:
     void setGCThreshold(size_t t) { gc_threshold_ = t; }  // V-RT-008
     size_t getAllocationCount() const { return allocation_count_; }
 
+    // Access globals for governance contract function lookup
+    const std::unordered_map<std::string, interpreter::NaabVal>& getGlobals() const { return globals_; }
+
+    // Call a NAAb function from C++ (used by stdlib callbacks and governance contracts)
+    interpreter::NaabVal callNaabFunction(interpreter::NaabVal fn,
+                                          const std::vector<interpreter::NaabVal>& args);
+
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
 
@@ -487,9 +494,7 @@ private:
     interpreter::NaabVal callBuiltinFunction(const std::string& name, int argc,
                                              interpreter::NaabVal* args);
 
-    // Call a NAAb function from C++ (for stdlib callbacks like array.map_fn)
-    interpreter::NaabVal callNaabFunction(interpreter::NaabVal fn,
-                                          const std::vector<interpreter::NaabVal>& args);
+    // callNaabFunction moved to public section
 
     // Upvalue management
     std::shared_ptr<ObjUpvalue> captureUpvalue(interpreter::NaabVal* local);

@@ -4,6 +4,7 @@
 #include "naab/governance.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
+#include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
@@ -3443,10 +3444,53 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
     const std::string& func_name,
     const std::vector<interpreter::NaabVal>& args) {
 
+    // --- VM path ---
+    if (vm_) {
+        const auto& globals = vm_->getGlobals();
+        interpreter::NaabVal fn;
+
+        // Phase 1: bare name lookup
+        auto it = globals.find(func_name);
+        if (it != globals.end()) {
+            fn = it->second;
+        }
+        // Phase 2: search module dicts
+        if (fn.isNull()) {
+            for (const auto& [name, val] : globals) {
+                if (val.isDict()) {
+                    const auto& dict = val.asDictConst();
+                    auto dit = dict.find(func_name);
+                    if (dit != dict.end() && (dit->second.isFunction() || dit->second.isVMClosure())) {
+                        fn = dit->second;
+                        break;
+                    }
+                }
+            }
+        }
+        // Phase 3: dotted name lookup
+        if (fn.isNull()) {
+            std::string suffix = "." + func_name;
+            for (const auto& [name, val] : globals) {
+                if (name.size() > suffix.size() &&
+                    name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0 &&
+                    (val.isFunction() || val.isVMClosure())) {
+                    fn = val;
+                    break;
+                }
+            }
+        }
+        if (fn.isNull()) {
+            throw std::runtime_error(
+                fmt::format("Contract test: function '{}' not found in global scope", func_name));
+        }
+        return vm_->callNaabFunction(fn, args);
+    }
+
+    // --- Tree-walker path ---
     auto* interp = interpreter::g_current_interpreter;
     if (!interp) {
         throw std::runtime_error(
-            "Execution-based contracts require an active interpreter");
+            "Execution-based contracts require an active execution engine");
     }
 
     interpreter::NaabVal fn;

@@ -28,6 +28,7 @@
 
 namespace naab {
 namespace ast { class Program; }  // Forward declaration for drift detection
+namespace vm { class VM; }        // Forward declaration for execution contracts
 namespace governance {
 
 // ============================================================================
@@ -1924,6 +1925,9 @@ public:
     const std::string& getAgentId() const { return agent_id_; }
     void applyAgentRole();
 
+    // --- VM integration for execution contracts ---
+    void setVM(vm::VM* vm) { vm_ = vm; }
+
     // --- Path access control ---
     std::string checkPathAccess(const std::string& filepath, const std::string& mode);
 
@@ -2371,6 +2375,7 @@ private:
 
     // Execution-based contracts (v6)
     bool in_contract_test_ = false;  // Re-entrancy guard for execution contracts
+    vm::VM* vm_ = nullptr;          // VM engine for execution-based contracts
     interpreter::NaabVal jsonStringToNaabVal(const std::string& json_str);
     interpreter::NaabVal callContractTestFunction(
         const std::string& func_name, const std::vector<interpreter::NaabVal>& args);
