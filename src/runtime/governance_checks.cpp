@@ -4,6 +4,7 @@
 #include "naab/governance.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
+#include "naab/vm.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
@@ -3482,7 +3483,16 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
             throw std::runtime_error(
                 fmt::format("Contract test: function '{}' not found in global scope", func_name));
         }
-        return vm_call_fn_(fn, args);
+        // Pad args to match function arity (contracts may supply fewer args
+        // than the function requires — e.g., must_vary supplies 1 arg for a 2-param fn)
+        auto padded_args = args;
+        if (fn.isVMClosure()) {
+            int arity = fn.asVMClosureConst()->function->arity;
+            while (static_cast<int>(padded_args.size()) < arity) {
+                padded_args.push_back(interpreter::NaabVal());  // null
+            }
+        }
+        return vm_call_fn_(fn, padded_args);
     }
 
     // --- Tree-walker path ---
@@ -3532,7 +3542,21 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
             fmt::format("Contract test: function '{}' is null", func_name));
     }
 
-    return interp->callFunction(fn, args);
+    // Pad args to match function arity (same as VM path above)
+    auto padded_args = args;
+    if (fn.isFunction()) {
+        size_t arity = fn.asFunctionConst()->params.size();
+        while (padded_args.size() < arity) {
+            padded_args.push_back(interpreter::NaabVal());  // null
+        }
+    } else if (fn.isVMClosure()) {
+        int arity = fn.asVMClosureConst()->function->arity;
+        while (static_cast<int>(padded_args.size()) < arity) {
+            padded_args.push_back(interpreter::NaabVal());  // null
+        }
+    }
+
+    return interp->callFunction(fn, padded_args);
 }
 
 std::string GovernanceEngine::checkMustProduce(
@@ -3624,12 +3648,29 @@ std::string GovernanceEngine::checkMustVary(
             args_b.push_back(jsonStringToNaabVal(spec.fixtures_json[1]));
         } else {
             // Generate synthetic inputs: empty list vs populated list
+            // Include common domain fields so functions that access .get("state"),
+            // .get("source"), etc. don't crash on missing keys
             args_a.push_back(interpreter::NaabVal::makeList({}));
             std::vector<interpreter::NaabVal> items;
             std::unordered_map<std::string, interpreter::NaabVal> d1, d2, d3;
             d1["severity"] = interpreter::NaabVal::makeInt(0);
+            d1["state"] = interpreter::NaabVal::makeInt(0);
+            d1["id"] = interpreter::NaabVal::makeString("synth-1");
+            d1["source"] = interpreter::NaabVal::makeString("synthetic");
+            d1["message"] = interpreter::NaabVal::makeString("test event 1");
+            d1["timestamp"] = interpreter::NaabVal::makeInt(1000000);
             d2["severity"] = interpreter::NaabVal::makeInt(5);
+            d2["state"] = interpreter::NaabVal::makeInt(2);
+            d2["id"] = interpreter::NaabVal::makeString("synth-2");
+            d2["source"] = interpreter::NaabVal::makeString("synthetic");
+            d2["message"] = interpreter::NaabVal::makeString("test event 2");
+            d2["timestamp"] = interpreter::NaabVal::makeInt(1000060);
             d3["severity"] = interpreter::NaabVal::makeInt(10);
+            d3["state"] = interpreter::NaabVal::makeInt(4);
+            d3["id"] = interpreter::NaabVal::makeString("synth-3");
+            d3["source"] = interpreter::NaabVal::makeString("synthetic");
+            d3["message"] = interpreter::NaabVal::makeString("test event 3");
+            d3["timestamp"] = interpreter::NaabVal::makeInt(1000120);
             items.push_back(interpreter::NaabVal::makeDict(std::move(d1)));
             items.push_back(interpreter::NaabVal::makeDict(std::move(d2)));
             items.push_back(interpreter::NaabVal::makeDict(std::move(d3)));
