@@ -1,6 +1,4 @@
 {
-  "_comment_section_header": "=== HEADER — Version, mode, and environment configuration ===",
-
   "version": "5.0",
   "mode": "enforce",
   "description": "NAAb Governance v5.0 — Complete Template (all sections, all options)",
@@ -9,27 +7,8 @@
 
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
-  "_comment_rationale": "Any section can include an optional 'rationale' field explaining WHY that rule or tier was chosen. Rationale text appears in governance reports and the audit trail.",
 
   "extends": "./base-govern.json",
-
-  "_comment_environments": "Environment Selector — use --env <name> to apply overrides. Values override top-level settings.",
-  "environments": {
-    "production": {
-      "mode": "enforce",
-      "quality_gate.enabled": "true"
-    },
-    "development": {
-      "mode": "audit",
-      "quality_gate.enabled": "false"
-    },
-    "ci": {
-      "mode": "enforce",
-      "output.file_output.report_sarif": "governance.sarif"
-    }
-  },
-
-  "_comment_section_languages": "=== LANGUAGE CONFIG — Allowed languages, polyglot settings, and optimization ===",
 
   "languages": {
     "allowed": ["python", "javascript", "shell", "go", "nim", "ruby", "php"],
@@ -130,6 +109,889 @@
         "max_lines": 300,
         "banned_namespaces": ["System.Diagnostics.Process"]
       }
+    }
+  },
+
+  "_comment_rationale": "Any section can include an optional 'rationale' field explaining WHY that rule or tier was chosen. Rationale text appears in governance reports and the audit trail.",
+
+  "_comment_capabilities_sandbox": "capabilities also control runtime sandbox: shell.enabled=false removes SYS_EXEC, network.enabled=false removes NET_CONNECT, filesystem.mode=none removes FS_READ+FS_WRITE",
+
+  "capabilities": {
+    "network": {
+      "enabled": true,
+      "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
+      "http_allowed": true,
+      "https_only": false,
+      "allowed_hosts": [],
+      "blocked_hosts": ["169.254.169.254", "metadata.google.internal"],
+      "allowed_ports": [],
+      "max_request_size": 0,
+      "max_response_size": 0,
+      "allow_websockets": true,
+      "allow_raw_sockets": false
+    },
+    "filesystem": {
+      "mode": "write",
+      "allowed_paths": [],
+      "blocked_paths": ["/etc/shadow", "/etc/passwd"],
+      "allowed_extensions": [],
+      "blocked_extensions": [".exe", ".dll", ".so"],
+      "max_file_size": 0,
+      "max_files": 0,
+      "allow_symlinks": true,
+      "allow_hidden_files": true,
+      "allow_absolute_paths": true
+    },
+    "shell": {
+      "enabled": true,
+      "rationale": "CWE-78 — shell access allowed but sudo/su/suid blocked to prevent privilege escalation",
+      "allowed_commands": [],
+      "blocked_commands": ["sudo", "su", "chmod +s"],
+      "allow_pipes": true,
+      "allow_redirects": true,
+      "allow_backgrounding": false,
+      "max_execution_time": 0
+    },
+    "env_vars": {
+      "read": true,
+      "write": false,
+      "allowed_read": [],
+      "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"],
+      "allowed_write": [],
+      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
+    },
+    "process": {
+      "spawn": true,
+      "signals": false,
+      "max_processes": 5,
+      "allow_daemon": false
+    },
+    "time": {
+      "allow_sleep": true,
+      "max_sleep_seconds": 10,
+      "allow_timers": true
+    },
+    "memory": {
+      "max_allocation_mb": 512,
+      "allow_mmap": false,
+      "allow_shared_memory": false
+    }
+  },
+
+  "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
+  "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
+  "taint_tracking": {
+    "enabled": false,
+    "level": "soft",
+    "lineage": false,
+    "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "go_exec", "javascript_exec", "nim_exec", "file.write", "file.append", "http.", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_"],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
+    }
+  },
+
+  "limits": {
+    "timeout": {
+      "global": 60,
+      "per_block": 30,
+      "total_polyglot": 120
+    },
+    "memory": {
+      "per_block_mb": 256,
+      "total_mb": 1024
+    },
+    "execution": {
+      "call_depth": 100,
+      "loop_iterations": 1000000,
+      "polyglot_blocks": 50,
+      "parallel_blocks": 4,
+      "total_executions": 200
+    },
+    "data": {
+      "array_size": 100000,
+      "dict_size": 50000,
+      "string_length": 1000000,
+      "nesting_depth": 20,
+      "output_size": 1000000,
+      "input_size": 1000000
+    },
+    "code": {
+      "max_lines_per_block": 500,
+      "max_total_polyglot_lines": 5000,
+      "max_functions": 100,
+      "max_variables": 500,
+      "max_nesting_depth": 10
+    },
+    "rate": {
+      "max_polyglot_per_second": 10,
+      "max_stdlib_calls_per_second": 100,
+      "max_file_ops_per_second": 20,
+      "cooldown_on_limit_ms": 100
+    }
+  },
+
+  "requirements": {
+    "main_block": {
+      "enabled": true,
+      "level": "soft",
+      "message": "Programs should have a main block"
+    },
+    "error_handling": {
+      "enabled": false,
+      "level": "advisory",
+      "require_try_catch": true,
+      "require_catch_body": true
+    },
+    "strict_types": {
+      "enabled": false,
+      "level": "advisory",
+      "message": "Use explicit type annotations"
+    },
+    "no_global_state": {
+      "enabled": false,
+      "level": "advisory",
+      "allow_global_constants": true,
+      "allow_global_functions": true,
+      "block_global_variables": true
+    },
+    "naming_conventions": {
+      "enabled": false,
+      "level": "advisory",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE",
+      "check_naab_code": true,
+      "check_polyglot_code": false
+    },
+    "documentation": {
+      "enabled": false,
+      "level": "advisory",
+      "require_file_comment": false,
+      "require_function_comment": false,
+      "require_main_comment": false
+    },
+    "version_pinning": {
+      "enabled": false,
+      "level": "advisory",
+      "message": "Pin language versions in govern.json"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": {
+      "enabled": true,
+      "level": "hard",
+      "allowlist": [],
+      "blocklist_extra": [],
+      "check_chained_calls": false,
+      "check_string_formatting": false
+    },
+    "shell_injection": {
+      "enabled": true,
+      "level": "hard",
+      "patterns": [],
+      "allowlist": [],
+      "check_variable_expansion": false,
+      "require_quoting": false
+    },
+    "privilege_escalation": {
+      "enabled": true,
+      "level": "hard",
+      "block_sudo": true,
+      "block_su": true,
+      "block_chmod_suid": true,
+      "block_setuid": true,
+      "block_capability_changes": true
+    },
+    "imports": {
+      "enabled": true,
+      "level": "soft",
+      "mode": "blocklist",
+      "blocked": {
+        "python": ["subprocess", "ctypes", "pickle", "os.system"],
+        "javascript": ["child_process", "fs", "net", "cluster"],
+        "ruby": ["open3", "pty"]
+      },
+      "allowed": {}
+    },
+    "data_exfiltration": {
+      "enabled": false,
+      "level": "hard",
+      "block_base64_encode_secrets": true,
+      "block_hex_encode_secrets": true,
+      "block_url_encode_secrets": true,
+      "max_encoded_output_length": 0
+    },
+    "resource_abuse": {
+      "enabled": true,
+      "level": "hard",
+      "block_fork_bomb": true,
+      "block_infinite_loops": false,
+      "infinite_loops_level": "advisory",
+      "block_recursive_file_ops": true,
+      "block_disk_filling": true,
+      "max_temp_files": 100,
+      "max_temp_file_size": 10485760
+    },
+    "information_disclosure": {
+      "enabled": false,
+      "level": "soft",
+      "block_env_dump": true,
+      "block_process_listing": true,
+      "block_system_info_leak": true,
+      "block_directory_listing": false,
+      "directory_listing_level": "advisory",
+      "block_error_stack_traces": false
+    },
+    "code_injection": {
+      "enabled": true,
+      "level": "hard",
+      "block_dynamic_code_gen": true,
+      "block_template_injection": true,
+      "block_sql_injection_patterns": true,
+      "block_xpath_injection": true,
+      "block_ldap_injection": true,
+      "block_command_injection": true
+    },
+    "crypto": {
+      "enabled": false,
+      "level": "advisory",
+      "block_weak_hashing": true,
+      "weak_hashes": ["md5", "sha1"],
+      "block_weak_encryption": true,
+      "weak_ciphers": ["des", "rc4", "3des"],
+      "block_hardcoded_keys": true,
+      "block_hardcoded_ivs": true,
+      "require_secure_random": false,
+      "secure_random_level": "advisory"
+    },
+    "polyglot_output": {
+      "format": "any",
+      "max_size": 0,
+      "require_structured": false,
+      "validate_json": false
+    }
+  },
+
+  "code_quality": {
+    "no_secrets": {
+      "enabled": true,
+      "level": "hard",
+      "rationale": "OWASP A07:2021 — hardcoded secrets are a critical risk. Hard block prevents any secret from reaching production.",
+      "entropy_check": {
+        "enabled": true,
+        "threshold": 4.5,
+        "min_length": 20,
+        "max_length": 500,
+        "check_base64": true,
+        "check_hex": true,
+        "check_url_encoded": true,
+        "ignore_comments": false,
+        "ignore_urls": true
+      },
+      "suspicious_variable_names": {
+        "enabled": true,
+        "names": ["password", "secret", "api_key", "token", "private_key"]
+      },
+      "allowlist": ["example.com", "localhost", "127.0.0.1"],
+      "custom_patterns": []
+    },
+    "no_placeholders": {
+      "enabled": true,
+      "level": "soft",
+      "rationale": "Production code must not contain TODO/FIXME markers — soft block allows override during development",
+      "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"],
+      "custom_markers": [],
+      "ignore_in_comments_only": false,
+      "case_sensitive": false,
+      "max_violations_before_block": 0
+    },
+    "no_hardcoded_results": {
+      "enabled": true,
+      "level": "advisory",
+      "check_return_true_false": true,
+      "check_return_none_null": true,
+      "check_return_empty_collections": true,
+      "check_dict_success_fields": true,
+      "check_dict_status_fields": true,
+      "check_perfect_scores": true,
+      "check_zero_counts": true,
+      "check_round_numbers": true
+    },
+    "no_pii": {
+      "enabled": true,
+      "level": "advisory",
+      "detect_ssn": true,
+      "detect_credit_card": true,
+      "detect_email": true,
+      "detect_phone": true,
+      "detect_ip_address": false,
+      "detect_drivers_license": false,
+      "detect_passport": false,
+      "detect_iban": false,
+      "detect_medical_record": false,
+      "custom_pii_patterns": [],
+      "allowlist_patterns": [],
+      "mask_in_errors": true
+    },
+    "no_temporary_code": {
+      "enabled": true,
+      "level": "soft",
+      "patterns": [],
+      "custom_patterns": [],
+      "case_sensitive": false
+    },
+    "no_simulation_markers": {
+      "enabled": true,
+      "level": "hard",
+      "patterns": [],
+      "custom_patterns": [],
+      "case_sensitive": false
+    },
+    "no_mock_data": {
+      "enabled": true,
+      "level": "advisory",
+      "variable_prefixes": ["mock_", "fake_", "dummy_", "test_"],
+      "function_prefixes": ["mock_", "fake_", "stub_"],
+      "literal_patterns": [],
+      "custom_prefixes": [],
+      "custom_patterns": [],
+      "ignore_in_test_context": true
+    },
+    "no_apologetic_language": {
+      "enabled": false,
+      "level": "advisory",
+      "categories": {},
+      "custom_patterns": [],
+      "scan_comments_only": true,
+      "scan_strings": false
+    },
+    "no_dead_code": {
+      "enabled": true,
+      "level": "advisory",
+      "detect_unreachable_after_return": true,
+      "detect_always_true_conditions": true,
+      "detect_always_false_conditions": true,
+      "detect_empty_except_blocks": true,
+      "detect_unused_variables": false,
+      "detect_commented_out_code": true
+    },
+    "no_debug_artifacts": {
+      "enabled": true,
+      "level": "soft",
+      "patterns": [],
+      "custom_patterns": [],
+      "allowlist": [],
+      "check_polyglot_only": true,
+      "check_naab_code": false
+    },
+    "no_unsafe_deserialization": {
+      "enabled": true,
+      "level": "hard"
+    },
+    "no_sql_injection": {
+      "enabled": true,
+      "level": "hard",
+      "allowlist": []
+    },
+    "no_path_traversal": {
+      "enabled": true,
+      "level": "hard"
+    },
+    "no_hardcoded_urls": {
+      "enabled": false,
+      "level": "advisory",
+      "allowlist": ["https://example.com", "http://localhost"],
+      "check_internal_urls": false
+    },
+    "no_hardcoded_ips": {
+      "enabled": false,
+      "level": "advisory",
+      "allowlist": ["127.0.0.1", "0.0.0.0", "::1"]
+    },
+    "max_complexity": {
+      "enabled": false,
+      "level": "advisory",
+      "max_lines_per_block": 100,
+      "max_nesting_depth": 5,
+      "max_parameters": 6,
+      "max_local_variables": 15,
+      "max_cyclomatic_complexity": 10,
+      "max_cognitive_complexity": 15
+    },
+    "complexity_floor": {
+      "level": "soft",
+      "min_score": 10,
+      "check_polyglot": false,
+      "check_naab": true,
+      "skip_if_has_polyglot_block": true,
+      "rules": [
+        {
+          "names": ["test_"],
+          "min_score": 3,
+          "require_branching_or_loops": false,
+          "message": "Test functions have lower complexity requirements"
+        },
+        {
+          "names": ["analyze", "compute", "calculate", "process", "transform",
+                    "evaluate", "optimize", "classify", "detect", "predict"],
+          "min_score": 25,
+          "require_branching_or_loops": true,
+          "message": "Functions named analyze/compute/process must contain non-trivial logic"
+        },
+        {
+          "names": ["sort", "search", "filter", "merge", "parse",
+                    "serialize", "encode", "decode", "compress", "encrypt"],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["get", "set", "is_", "has_", "to_", "from_", "format", "wrap",
+                    "apply_", "move_", "check_", "destroy_", "find_", "render_",
+                    "load_", "spawn_", "format_", "make_"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    },
+    "encoding": {
+      "enabled": true,
+      "level": "advisory",
+      "require_utf8": true,
+      "block_null_bytes": true,
+      "block_control_characters": true,
+      "block_bom": false,
+      "block_unicode_bidi": true,
+      "block_homoglyph_attacks": true
+    },
+    "no_oversimplification": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_bodies": true,
+      "check_trivial_returns": true,
+      "check_identity_functions": true,
+      "check_not_implemented": true,
+      "check_comment_only_bodies": true,
+      "check_fabricated_results": true,
+      "min_function_lines": 2
+    },
+    "no_incomplete_logic": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_catch": true,
+      "check_swallowed_exceptions": true,
+      "check_generic_errors": true,
+      "check_vague_error_messages": true,
+      "check_single_iteration_loops": true,
+      "check_bare_raise": true,
+      "check_always_true_false": true,
+      "check_missing_validation": true
+    },
+    "no_hallucinated_apis": {
+      "enabled": true,
+      "level": "soft",
+      "check_cross_language": true,
+      "check_made_up_functions": true,
+      "check_wrong_syntax": true,
+      "case_sensitive": true
+    },
+    "duplicate_calls": {
+      "enabled": true,
+      "threshold": 3,
+      "max_entries": 5
+    },
+    "polyglot_try_catch": {
+      "enabled": true,
+      "max_entries": 3
+    },
+    "drift_detection": {
+      "enabled": false,
+      "level": "hard",
+      "baseline_path": ".naab/drift-baseline.json",
+      "max_function_loss": 0.5,
+      "max_loc_loss": 0.6,
+      "max_export_loss": 0.0,
+      "max_struct_loss": 0.5,
+      "auto_save": false,
+      "check_signatures": true,
+      "max_param_loss": 0.5,
+      "check_imports": true,
+      "max_import_loss": 0.5,
+      "check_complexity": true,
+      "max_complexity_loss": 0.6,
+      "check_comment_ratio": true,
+      "max_comment_ratio": 0.5,
+      "check_hollow_exports": true,
+      "check_polyglot": true,
+      "max_polyglot_loss": 0.5,
+      "check_struct_fields": true,
+      "max_field_loss": 0.5,
+      "check_test_functions": true,
+      "max_test_loss": 0.0,
+      "check_function_names": true,
+      "max_function_name_loss": 0.5,
+      "require_baseline": false,
+      "check_body_hash": true,
+      "check_param_utilization": true,
+      "min_param_utilization": 0.5
+    }
+  },
+
+  "_comment_integrity": "Ed25519 signing of govern.json and drift baselines. Run naab-lang --keygen to generate keys. Set NAAB_SIGNING_KEY env var to sign. blocked_flags prevents LLMs from using dangerous CLI flags.",
+  "integrity": {
+    "blocked_flags": ["--drift-baseline-save", "--governance-override"]
+  },
+
+  "_comment_trust": "Authority Decay: signature staleness and key lifecycle. max_signature_age_days=0 disables staleness check. check_key_expiry/check_revocation skip expired/revoked keys at load time.",
+  "trust": {
+    "max_signature_age_days": 90,
+    "require_fresh_signature": false,
+    "stale_signature_level": "advisory",
+    "check_key_expiry": true,
+    "check_revocation": true
+  },
+
+  "_comment_prerequisites": "Environment Attestation: verify prerequisites before execution. Types: python_version, package (pip:pkg or npm:pkg), tool, env_var, command. Set enabled:true to activate.",
+  "prerequisites": {
+    "enabled": false,
+    "checks": [
+      { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory" },
+      { "type": "tool", "name": "jq", "required": "exists", "level": "advisory" },
+      { "type": "env_var", "name": "DATABASE_URL", "required": "exists", "level": "soft" }
+    ]
+  },
+
+  "_comment_contradiction_detection": "Contradiction Detection: static analysis of govern.json for conflicting rules. Cheap in-memory check, always useful. Patterns: CONTRA-001 through CONTRA-009.",
+  "contradiction_detection": {
+    "enabled": true,
+    "max_level": "advisory"
+  },
+
+  "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
+  "contracts": {
+    "level": "soft",
+    "validate_inputs": true,
+    "functions": {
+      "compute_area": {
+        "description": "Returns area as a positive float",
+        "params": ["width:float", "height:float"],
+        "return_type": "float",
+        "return_min": 0
+      },
+      "classify_text": {
+        "description": "Returns text category",
+        "params": ["text:string"],
+        "return_type": "string",
+        "return_one_of": ["positive", "negative", "neutral"]
+      },
+      "count_words": {
+        "params": ["text:string"],
+        "return_type": "int",
+        "return_min": 0
+      },
+      "fetch_users": {
+        "return_type": "array",
+        "return_non_empty": true
+      },
+      "parse_config": {
+        "params": ["path:string"],
+        "return_type": "dict",
+        "return_keys": ["host", "port", "database"]
+      },
+      "process_order": {
+        "description": "Process an order with input type validation",
+        "params": ["order_id:string", "items:array"],
+        "return_type": "dict"
+      },
+
+      "_comment_v5": "v5: Static behavioral contracts — patterns that must appear in function body",
+      "normalize_severity": {
+        "description": "Normalize severity string to numeric level",
+        "must_call": ["string.lower"],
+        "must_contain": ["match"]
+      },
+
+      "_comment_v6": "v6: Execution-based contracts — call functions and verify outputs post-execution",
+      "compute_score": {
+        "description": "Golden test: function must return expected output for given inputs",
+        "must_produce": [
+          {"args": ["CRITICAL"], "expect": 0},
+          {"args": ["Error"], "expect": 0},
+          {"args": ["warning"], "expect": 2}
+        ]
+      },
+      "compute_event_frequency": {
+        "description": "Static derivation: return key must be computed from specified parameters",
+        "must_derive_from": {
+          "events_per_minute": ["events"],
+          "peak_rate": ["events", "window_seconds"]
+        }
+      },
+      "compute_alert_statistics": {
+        "description": "Anti-hardcoding: return key must change when input varies",
+        "must_vary": [
+          {"key": "escalation_rate", "across": "alerts"}
+        ]
+      },
+      "classify_event": {
+        "description": "Mutation testing: different inputs must produce different outputs",
+        "must_differentiate": [
+          {"a": {"message": "auth denied"}, "b": {"message": "disk full"}, "key": "category"}
+        ]
+      },
+      "is_security_event": {
+        "description": "Case-sensitivity: function must handle case variants consistently",
+        "must_handle_case": [
+          {"inputs": [{"message": "Auth failed"}, {"message": "AUTH FAILED"}, {"message": "auth failed"}], "expect": "consistent"}
+        ]
+      },
+      "calculate_sla_compliance": {
+        "description": "Invariant checks: expressions that must hold on the return value",
+        "must_satisfy": [
+          "result.compliance_rate >= 0",
+          "result.compliance_rate <= 1"
+        ],
+        "must_satisfy_args": [
+          [{"severity": "high"}, {"severity": "low"}]
+        ]
+      }
+    }
+  },
+
+  "_comment_baselines": "Output baselines — record and compare polyglot outputs over time",
+  "baselines": {
+    "enabled": false,
+    "level": "advisory",
+    "path": ".naab/baselines.json",
+    "tolerance": 1e-6,
+    "auto_record": false,
+    "hash_keys": true
+  },
+
+  "custom_rules": [
+    {
+      "id": "CUSTOM-001",
+      "name": "no_eval_python",
+      "description": "Prevent eval() in Python blocks",
+      "pattern": "\\beval\\s*\\(",
+      "languages": ["python"],
+      "level": "hard",
+      "message": "eval() is forbidden — use ast.literal_eval() or json.loads()",
+      "help": "eval() executes arbitrary code and is a security risk",
+      "good_example": "import json; data = json.loads(input_str)",
+      "bad_example": "data = eval(input_str)",
+      "tags": ["security", "injection"],
+      "enabled": true,
+      "case_sensitive": false,
+      "multiline": false
+    },
+    {
+      "id": "CUSTOM-002",
+      "name": "no_debug_prints",
+      "description": "No debug print statements in production code",
+      "pattern": "print\\(.*[Dd]ebug",
+      "languages": [],
+      "level": "advisory",
+      "message": "Debug print statements should be removed before production",
+      "tags": ["cleanup"],
+      "enabled": true
+    }
+  ],
+
+  "scopes": [
+    {
+      "glob": "tests/**",
+      "overrides": {
+        "code_quality.no_placeholders": "false",
+        "code_quality.no_mock_data": "false",
+        "code_quality.no_oversimplification.level": "advisory"
+      }
+    },
+    {
+      "glob": "examples/**",
+      "overrides": {
+        "code_quality.no_hardcoded_results": "false",
+        "requirements.documentation.enabled": "true"
+      }
+    }
+  ],
+
+  "output": {
+    "summary": {
+      "enabled": true,
+      "format": "detailed",
+      "show_passing": true,
+      "show_skipped": false,
+      "group_by": "category",
+      "sort_by": "severity"
+    },
+    "errors": {
+      "verbose": true,
+      "show_line_preview": true,
+      "show_code_context": 3,
+      "show_help": true,
+      "show_examples": true,
+      "show_rule_path": true,
+      "show_fix_suggestions": true,
+      "max_errors_per_rule": 5,
+      "max_total_errors": 50,
+      "truncate_long_lines": 120
+    },
+    "formatting": {
+      "color": true,
+      "unicode_symbols": true,
+      "width": 80,
+      "indent": 2
+    },
+    "file_output": {
+      "report_json": "",
+      "report_sarif": "",
+      "report_junit": "",
+      "report_csv": "",
+      "report_html": ""
+    },
+    "max_advisories": 15,
+    "advisory_summary": true,
+    "voice": "",
+    "voice_cache": false
+  },
+
+  "audit": {
+    "level": "basic",
+    "output_file": ".governance-audit.jsonl",
+    "tamper_evidence": {
+      "enabled": false,
+      "algorithm": "sha256",
+      "chain_genesis": "NAAB-GOVERNANCE-GENESIS",
+      "hmac_key": "",
+      "hmac_key_env": "NAAB_AUDIT_HMAC_KEY"
+    },
+    "log_events": {
+      "checks_passed": true,
+      "checks_failed": true,
+      "checks_warned": true,
+      "overrides": true,
+      "config_loaded": true,
+      "execution_start": true,
+      "execution_end": true,
+      "polyglot_executed": true,
+      "polyglot_timing": true,
+      "taint_decisions": true,
+      "contract_checks": true
+    },
+    "retention": {
+      "max_file_size_mb": 100,
+      "rotate_at_mb": 50,
+      "keep_rotated": 5
+    },
+    "provenance": {
+      "enabled": false,
+      "record_proof_objects": false,
+      "record_attestations": false,
+      "record_decisions": false,
+      "sign_records": false,
+      "signing_key": ""
+    }
+  },
+
+  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking",
+  "telemetry": {
+    "enabled": false,
+    "output_file": "telemetry.jsonl"
+  },
+
+  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
+  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
+  "agents": {
+    "researcher": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 4096,
+      "system_prompt": "You are a research assistant.",
+      "max_turns": 20,
+      "max_total_tokens": 50000,
+      "temperature": 1.0,
+      "tools": ["search", "read_file"],
+      "allowed_languages": ["python"],
+      "allowed_paths": ["./src", "./data"],
+      "blocked_paths": ["./secrets", "./.env"],
+      "shell_allowed": false
+    },
+    "coder": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GEMINI_API_KEY",
+      "max_tokens": 8192,
+      "system_prompt": "You are a coding assistant.",
+      "max_turns": 50,
+      "max_total_tokens": 200000,
+      "allowed_languages": ["python", "shell"],
+      "allowed_paths": ["./src", "./tests"],
+      "shell_allowed": true
+    }
+  },
+  "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
+
+  "meta": {
+    "schema_validation": {
+      "warn_unknown_keys": true,
+      "suggest_corrections": true,
+      "strict_types": true
+    },
+    "config_immutability": {
+      "hash": "",
+      "verify_on_load": false,
+      "block_on_mismatch": false
+    },
+    "inheritance": {
+      "max_depth": 5,
+      "merge_strategy": "child_wins",
+      "merge_arrays": "replace",
+      "allow_circular": false
+    },
+    "feature_flags": {
+      "experimental_checks": false,
+      "legacy_compatibility": true,
+      "verbose_parsing": false
+    },
+    "environment": {
+      "allow_env_var_substitution": false,
+      "env_prefix": "NAAB_GOV_",
+      "allow_cli_override": true
+    }
+  },
+
+  "hooks": {
+    "on_violation": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "on_override": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "on_complete": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "pre_check": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "post_check": {
+      "command": "",
+      "args": [],
+      "timeout": 5
     }
   },
 
@@ -363,844 +1225,6 @@
     }
   },
 
-  "_comment_section_capabilities": "=== CAPABILITIES & SANDBOX — Runtime permissions, resource limits, and security posture ===",
-  "_comment_capabilities_sandbox": "capabilities also control runtime sandbox: shell.enabled=false removes SYS_EXEC, network.enabled=false removes NET_CONNECT, filesystem.mode=none removes FS_READ+FS_WRITE",
-
-  "capabilities": {
-    "network": {
-      "enabled": true,
-      "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
-      "_comment_http_allowed": "Not enforced. Use capabilities.network.enabled to control HTTP access.",
-      "http_allowed": true,
-      "https_only": false,
-      "allowed_hosts": [],
-      "blocked_hosts": ["169.254.169.254", "metadata.google.internal"],
-      "allowed_ports": [],
-      "_comment_max_request_size": "Not enforced.",
-      "max_request_size": 0,
-      "_comment_max_response_size": "Not configurable. Response capped at 25 MB (hardcoded, V-DOS-010).",
-      "max_response_size": 0,
-      "allow_websockets": true,
-      "allow_raw_sockets": false
-    },
-    "filesystem": {
-      "mode": "write",
-      "allowed_paths": [],
-      "blocked_paths": ["/etc/shadow", "/etc/passwd"],
-      "allowed_extensions": [],
-      "blocked_extensions": [".exe", ".dll", ".so"],
-      "max_file_size": 0,
-      "max_files": 0,
-      "allow_symlinks": true,
-      "allow_hidden_files": true,
-      "allow_absolute_paths": true
-    },
-    "shell": {
-      "enabled": true,
-      "rationale": "CWE-78 — shell access allowed but sudo/su/suid blocked to prevent privilege escalation",
-      "allowed_commands": [],
-      "blocked_commands": ["sudo", "su", "chmod +s"],
-      "allow_pipes": true,
-      "allow_redirects": true,
-      "_comment_allow_backgrounding": "Not enforced.",
-      "allow_backgrounding": false,
-      "max_execution_time": 0
-    },
-    "env_vars": {
-      "read": true,
-      "write": false,
-      "allowed_read": [],
-      "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"],
-      "_comment_allowed_write": "Not enforced. Write control is boolean only (env_vars.write). Internal vars (PATH, HOME, LD_PRELOAD) always blocked.",
-      "allowed_write": [],
-      "_comment_blocked_write": "Not enforced. Write control is boolean only (env_vars.write). Internal vars always blocked.",
-      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
-    },
-    "process": {
-      "_comment_process": "Not enforced. Process execution controlled by shell.enabled and sandbox_level.",
-      "spawn": true,
-      "signals": false,
-      "max_processes": 5,
-      "allow_daemon": false
-    },
-    "time": {
-      "_comment_time": "Not enforced. Use limits.timeout.global for execution timeout.",
-      "allow_sleep": true,
-      "max_sleep_seconds": 10,
-      "allow_timers": true
-    },
-    "memory": {
-      "_comment_memory": "Not enforced. Use limits.memory.total_mb and sandbox_level.",
-      "max_allocation_mb": 512,
-      "allow_mmap": false,
-      "allow_shared_memory": false
-    }
-  },
-
-  "limits": {
-    "timeout": {
-      "global": 60,
-      "per_block": 30,
-      "total_polyglot": 120
-    },
-    "memory": {
-      "per_block_mb": 256,
-      "total_mb": 1024
-    },
-    "execution": {
-      "call_depth": 100,
-      "loop_iterations": 1000000,
-      "polyglot_blocks": 50,
-      "parallel_blocks": 4,
-      "total_executions": 200
-    },
-    "data": {
-      "array_size": 100000,
-      "dict_size": 50000,
-      "string_length": 1000000,
-      "nesting_depth": 20,
-      "output_size": 1000000,
-      "input_size": 1000000
-    },
-    "code": {
-      "max_lines_per_block": 500,
-      "max_total_polyglot_lines": 5000,
-      "max_functions": 100,
-      "max_variables": 500,
-      "max_nesting_depth": 10
-    },
-    "rate": {
-      "max_polyglot_per_second": 10,
-      "max_stdlib_calls_per_second": 100,
-      "max_file_ops_per_second": 20,
-      "cooldown_on_limit_ms": 100
-    }
-  },
-
-  "_comment_security": "Security posture. CLI flags (--sandbox-level, --allow-network, --strict-types) override when present.",
-  "security": {
-    "sandbox_level": "unrestricted",
-    "allow_network": false,
-    "strict_types": false
-  },
-
-  "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
-  "runtime": {
-    "timeout": 30,
-    "memory_limit": 0,
-    "gc_threshold": 5000,
-    "gc_stats": false
-  },
-
-  "_comment_section_restrictions": "=== RESTRICTIONS & TAINT — Security restrictions and data flow tracking ===",
-
-  "restrictions": {
-    "dangerous_calls": {
-      "enabled": true,
-      "level": "hard",
-      "allowlist": [],
-      "blocklist_extra": [],
-      "check_chained_calls": false,
-      "check_string_formatting": false
-    },
-    "shell_injection": {
-      "enabled": true,
-      "level": "hard",
-      "patterns": [],
-      "allowlist": [],
-      "check_variable_expansion": false,
-      "require_quoting": false
-    },
-    "privilege_escalation": {
-      "enabled": true,
-      "level": "hard",
-      "block_sudo": true,
-      "block_su": true,
-      "block_chmod_suid": true,
-      "block_setuid": true,
-      "block_capability_changes": true
-    },
-    "imports": {
-      "enabled": true,
-      "level": "soft",
-      "mode": "blocklist",
-      "blocked": {
-        "python": ["subprocess", "ctypes", "pickle", "os.system"],
-        "javascript": ["child_process", "fs", "net", "cluster"],
-        "ruby": ["open3", "pty"]
-      },
-      "allowed": {}
-    },
-    "data_exfiltration": {
-      "enabled": false,
-      "level": "hard",
-      "block_base64_encode_secrets": true,
-      "block_hex_encode_secrets": true,
-      "block_url_encode_secrets": true,
-      "max_encoded_output_length": 0
-    },
-    "resource_abuse": {
-      "enabled": true,
-      "level": "hard",
-      "block_fork_bomb": true,
-      "block_infinite_loops": false,
-      "infinite_loops_level": "advisory",
-      "block_recursive_file_ops": true,
-      "block_disk_filling": true,
-      "max_temp_files": 100,
-      "max_temp_file_size": 10485760
-    },
-    "information_disclosure": {
-      "enabled": false,
-      "level": "soft",
-      "block_env_dump": true,
-      "block_process_listing": true,
-      "block_system_info_leak": true,
-      "block_directory_listing": false,
-      "directory_listing_level": "advisory",
-      "block_error_stack_traces": false
-    },
-    "code_injection": {
-      "enabled": true,
-      "level": "hard",
-      "block_dynamic_code_gen": true,
-      "block_template_injection": true,
-      "block_sql_injection_patterns": true,
-      "block_xpath_injection": true,
-      "block_ldap_injection": true,
-      "block_command_injection": true
-    },
-    "crypto": {
-      "enabled": false,
-      "level": "advisory",
-      "block_weak_hashing": true,
-      "weak_hashes": ["md5", "sha1"],
-      "block_weak_encryption": true,
-      "weak_ciphers": ["des", "rc4", "3des"],
-      "block_hardcoded_keys": true,
-      "block_hardcoded_ivs": true,
-      "require_secure_random": false,
-      "secure_random_level": "advisory"
-    },
-    "polyglot_output": {
-      "format": "any",
-      "max_size": 0,
-      "require_structured": false,
-      "validate_json": false
-    },
-    "vcs_secret_extraction": {
-      "_comment_vcs": "Block extraction of secrets from .git history",
-      "enabled": true,
-      "level": "hard"
-    }
-  },
-
-  "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
-  "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
-  "taint_tracking": {
-    "enabled": false,
-    "level": "soft",
-    "lineage": false,
-    "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
-    "sinks": ["shell_exec", "python_exec", "go_exec", "javascript_exec", "nim_exec", "file.write", "file.append", "http.", "env.set_var"],
-    "sanitizers": ["validate_", "sanitize_", "escape_"],
-    "propagation": {
-      "string_concat": true,
-      "string_interpolation": true,
-      "function_returns": true,
-      "for_loop_iterators": true,
-      "dict_array_access": true
-    }
-  },
-
-  "_comment_section_code_quality": "=== CODE QUALITY — Static checks, complexity, drift detection, and contracts ===",
-
-  "code_quality": {
-    "no_secrets": {
-      "enabled": true,
-      "level": "hard",
-      "rationale": "OWASP A07:2021 — hardcoded secrets are a critical risk. Hard block prevents any secret from reaching production.",
-      "entropy_check": {
-        "enabled": true,
-        "threshold": 4.5,
-        "min_length": 20,
-        "max_length": 500,
-        "check_base64": true,
-        "check_hex": true,
-        "check_url_encoded": true,
-        "ignore_comments": false,
-        "ignore_urls": true
-      },
-      "suspicious_variable_names": {
-        "enabled": true,
-        "names": ["password", "secret", "api_key", "token", "private_key"]
-      },
-      "allowlist": ["example.com", "localhost", "127.0.0.1"],
-      "custom_patterns": []
-    },
-    "no_placeholders": {
-      "enabled": true,
-      "level": "soft",
-      "rationale": "Production code must not contain TODO/FIXME markers — soft block allows override during development",
-      "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"],
-      "custom_markers": [],
-      "ignore_in_comments_only": false,
-      "case_sensitive": false,
-      "max_violations_before_block": 0
-    },
-    "no_hardcoded_results": {
-      "enabled": true,
-      "level": "advisory",
-      "check_return_true_false": true,
-      "check_return_none_null": true,
-      "check_return_empty_collections": true,
-      "check_dict_success_fields": true,
-      "check_dict_status_fields": true,
-      "check_perfect_scores": true,
-      "check_zero_counts": true,
-      "check_round_numbers": true
-    },
-    "no_pii": {
-      "enabled": true,
-      "level": "advisory",
-      "detect_ssn": true,
-      "detect_credit_card": true,
-      "detect_email": true,
-      "detect_phone": true,
-      "detect_ip_address": false,
-      "detect_drivers_license": false,
-      "detect_passport": false,
-      "detect_iban": false,
-      "detect_medical_record": false,
-      "custom_pii_patterns": [],
-      "allowlist_patterns": [],
-      "mask_in_errors": true
-    },
-    "no_temporary_code": {
-      "enabled": true,
-      "level": "soft",
-      "patterns": [],
-      "custom_patterns": [],
-      "case_sensitive": false
-    },
-    "no_simulation_markers": {
-      "enabled": true,
-      "level": "hard",
-      "patterns": [],
-      "custom_patterns": [],
-      "case_sensitive": false
-    },
-    "no_mock_data": {
-      "enabled": true,
-      "level": "advisory",
-      "variable_prefixes": ["mock_", "fake_", "dummy_", "test_"],
-      "function_prefixes": ["mock_", "fake_", "stub_"],
-      "literal_patterns": [],
-      "custom_prefixes": [],
-      "custom_patterns": [],
-      "ignore_in_test_context": true
-    },
-    "no_apologetic_language": {
-      "enabled": false,
-      "level": "advisory",
-      "categories": {},
-      "custom_patterns": [],
-      "scan_comments_only": true,
-      "scan_strings": false
-    },
-    "no_dead_code": {
-      "enabled": true,
-      "level": "advisory",
-      "detect_unreachable_after_return": true,
-      "detect_always_true_conditions": true,
-      "detect_always_false_conditions": true,
-      "detect_empty_except_blocks": true,
-      "detect_unused_variables": false,
-      "detect_commented_out_code": true
-    },
-    "no_debug_artifacts": {
-      "enabled": true,
-      "level": "soft",
-      "patterns": [],
-      "custom_patterns": [],
-      "allowlist": [],
-      "check_polyglot_only": true,
-      "check_naab_code": false
-    },
-    "no_unsafe_deserialization": {
-      "enabled": true,
-      "level": "hard"
-    },
-    "no_sql_injection": {
-      "enabled": true,
-      "level": "hard",
-      "allowlist": []
-    },
-    "no_path_traversal": {
-      "enabled": true,
-      "level": "hard"
-    },
-    "no_hardcoded_urls": {
-      "enabled": false,
-      "level": "advisory",
-      "allowlist": ["https://example.com", "http://localhost"],
-      "check_internal_urls": false
-    },
-    "no_hardcoded_ips": {
-      "enabled": false,
-      "level": "advisory",
-      "allowlist": ["127.0.0.1", "0.0.0.0", "::1"]
-    },
-    "max_complexity": {
-      "enabled": false,
-      "level": "advisory",
-      "max_lines_per_block": 100,
-      "max_nesting_depth": 5,
-      "max_parameters": 6,
-      "max_local_variables": 15,
-      "max_cyclomatic_complexity": 10,
-      "max_cognitive_complexity": 15
-    },
-    "complexity_floor": {
-      "level": "soft",
-      "min_score": 10,
-      "check_polyglot": false,
-      "check_naab": true,
-      "skip_if_has_polyglot_block": true,
-      "rules": [
-        {
-          "names": ["test_"],
-          "min_score": 3,
-          "require_branching_or_loops": false,
-          "message": "Test functions have lower complexity requirements"
-        },
-        {
-          "names": ["analyze", "compute", "calculate", "process", "transform",
-                    "evaluate", "optimize", "classify", "detect", "predict"],
-          "min_score": 25,
-          "require_branching_or_loops": true,
-          "message": "Functions named analyze/compute/process must contain non-trivial logic"
-        },
-        {
-          "names": ["sort", "search", "filter", "merge", "parse",
-                    "serialize", "encode", "decode", "compress", "encrypt"],
-          "min_score": 20,
-          "require_branching_or_loops": true
-        },
-        {
-          "names": ["get", "set", "is_", "has_", "to_", "from_", "format", "wrap",
-                    "apply_", "move_", "check_", "destroy_", "find_", "render_",
-                    "load_", "spawn_", "format_", "make_"],
-          "min_score": 3,
-          "require_branching_or_loops": false
-        }
-      ]
-    },
-    "encoding": {
-      "enabled": true,
-      "level": "advisory",
-      "require_utf8": true,
-      "block_null_bytes": true,
-      "block_control_characters": true,
-      "block_bom": false,
-      "block_unicode_bidi": true,
-      "block_homoglyph_attacks": true
-    },
-    "no_oversimplification": {
-      "enabled": true,
-      "level": "hard",
-      "check_empty_bodies": true,
-      "check_trivial_returns": true,
-      "check_identity_functions": true,
-      "check_not_implemented": true,
-      "check_comment_only_bodies": true,
-      "check_fabricated_results": true,
-      "min_function_lines": 2
-    },
-    "no_incomplete_logic": {
-      "enabled": true,
-      "level": "hard",
-      "check_empty_catch": true,
-      "check_swallowed_exceptions": true,
-      "check_generic_errors": true,
-      "check_vague_error_messages": true,
-      "check_single_iteration_loops": true,
-      "check_bare_raise": true,
-      "check_always_true_false": true,
-      "check_missing_validation": true,
-      "custom_patterns": [
-        "\"[A-Za-z]\\w*\\s+(?:performed|completed|done)\\s+(?:for|on|with)\\s+(?:phase|type|category|step|stage):\\s*\"\\s*\\+\\s*\\w+",
-        "\\bconfidence\\s*=\\s*0\\.[3-5](?:[^\\d.]|$)"
-      ],
-      "suppressions": []
-    },
-    "no_hallucinated_apis": {
-      "enabled": true,
-      "level": "soft",
-      "check_cross_language": true,
-      "check_made_up_functions": true,
-      "check_wrong_syntax": true,
-      "case_sensitive": true
-    },
-    "duplicate_calls": {
-      "enabled": true,
-      "threshold": 3,
-      "max_entries": 5
-    },
-    "polyglot_try_catch": {
-      "enabled": true,
-      "max_entries": 3
-    },
-    "semantic_checks": {
-      "_comment_semantic": "Static semantic analysis checks",
-      "enabled": false,
-      "level": "advisory",
-      "check_imports": true,
-      "check_api_signatures": true,
-      "check_shell_syntax": true,
-      "check_dangerous_eval": true
-    },
-    "drift_detection": {
-      "enabled": false,
-      "level": "hard",
-      "baseline_path": ".naab/drift-baseline.json",
-      "max_function_loss": 0.5,
-      "max_loc_loss": 0.6,
-      "max_export_loss": 0.0,
-      "max_struct_loss": 0.5,
-      "max_function_gain": 0.5,
-      "auto_save": false,
-      "check_signatures": true,
-      "max_param_loss": 0.5,
-      "check_imports": true,
-      "max_import_loss": 0.5,
-      "check_complexity": true,
-      "max_complexity_loss": 0.6,
-      "min_complexity_baseline": 10,
-      "check_comment_ratio": true,
-      "max_comment_ratio": 0.5,
-      "max_comment_only_ratio": 0.7,
-      "check_hollow_exports": true,
-      "min_hollow_export_complexity": 5,
-      "check_polyglot": true,
-      "max_polyglot_loss": 0.5,
-      "check_struct_fields": true,
-      "max_field_loss": 0.5,
-      "check_test_functions": true,
-      "max_test_loss": 0.0,
-      "check_function_names": true,
-      "max_function_name_loss": 0.5,
-      "require_baseline": false,
-      "check_body_hash": true,
-      "check_param_utilization": true,
-      "min_param_utilization": 0.5,
-      "_comment_gates_13_18": "Anti-evasion gates — detect config tampering, relocation, and injection",
-      "check_config_presence": false,
-      "check_script_location": false,
-      "check_signature_presence": false,
-      "check_polyglot_content": false,
-      "max_polyglot_shrink": 0.5,
-      "check_new_functions": false
-    }
-  },
-
-  "requirements": {
-    "main_block": {
-      "enabled": true,
-      "level": "soft",
-      "message": "Programs should have a main block"
-    },
-    "error_handling": {
-      "enabled": false,
-      "level": "advisory",
-      "require_try_catch": true,
-      "require_catch_body": true
-    },
-    "strict_types": {
-      "enabled": false,
-      "level": "advisory",
-      "message": "Use explicit type annotations"
-    },
-    "no_global_state": {
-      "enabled": false,
-      "level": "advisory",
-      "allow_global_constants": true,
-      "allow_global_functions": true,
-      "block_global_variables": true
-    },
-    "naming_conventions": {
-      "enabled": false,
-      "level": "advisory",
-      "variables": "snake_case",
-      "functions": "snake_case",
-      "constants": "UPPER_SNAKE_CASE",
-      "check_naab_code": true,
-      "check_polyglot_code": false
-    },
-    "documentation": {
-      "enabled": false,
-      "level": "advisory",
-      "require_file_comment": false,
-      "require_function_comment": false,
-      "require_main_comment": false
-    },
-    "version_pinning": {
-      "enabled": false,
-      "level": "advisory",
-      "message": "Pin language versions in govern.json"
-    }
-  },
-
-  "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
-  "contracts": {
-    "level": "soft",
-    "validate_inputs": true,
-    "functions": {
-      "compute_area": {
-        "description": "Returns area as a positive float",
-        "params": ["width:float", "height:float"],
-        "return_type": "float",
-        "return_min": 0
-      },
-      "classify_text": {
-        "description": "Returns text category",
-        "params": ["text:string"],
-        "return_type": "string",
-        "return_one_of": ["positive", "negative", "neutral"]
-      },
-      "count_words": {
-        "params": ["text:string"],
-        "return_type": "int",
-        "return_min": 0
-      },
-      "fetch_users": {
-        "return_type": "array",
-        "return_non_empty": true
-      },
-      "parse_config": {
-        "params": ["path:string"],
-        "return_type": "dict",
-        "return_keys": ["host", "port", "database"]
-      },
-      "process_order": {
-        "description": "Process an order with input type validation",
-        "params": ["order_id:string", "items:array"],
-        "return_type": "dict"
-      },
-
-      "_comment_v5": "v5: Static behavioral contracts — patterns that must appear in function body",
-      "normalize_severity": {
-        "description": "Normalize severity string to numeric level",
-        "must_call": ["string.lower"],
-        "must_contain": ["match"]
-      },
-
-      "_comment_v6": "v6: Execution-based contracts — call functions and verify outputs post-execution",
-      "compute_score": {
-        "description": "Golden test: function must return expected output for given inputs",
-        "must_produce": [
-          {"args": ["CRITICAL"], "expect": 0},
-          {"args": ["Error"], "expect": 0},
-          {"args": ["warning"], "expect": 2}
-        ]
-      },
-      "compute_event_frequency": {
-        "description": "Static derivation: return key must be computed from specified parameters",
-        "must_derive_from": {
-          "events_per_minute": ["events"],
-          "peak_rate": ["events", "window_seconds"]
-        }
-      },
-      "compute_alert_statistics": {
-        "description": "Anti-hardcoding: return key must change when input varies",
-        "must_vary": [
-          {"key": "escalation_rate", "across": "alerts"}
-        ]
-      },
-      "classify_event": {
-        "description": "Mutation testing: different inputs must produce different outputs",
-        "must_differentiate": [
-          {"a": {"message": "auth denied"}, "b": {"message": "disk full"}, "key": "category"}
-        ]
-      },
-      "is_security_event": {
-        "description": "Case-sensitivity: function must handle case variants consistently",
-        "must_handle_case": [
-          {"inputs": [{"message": "Auth failed"}, {"message": "AUTH FAILED"}, {"message": "auth failed"}], "expect": "consistent"}
-        ]
-      },
-      "calculate_sla_compliance": {
-        "description": "Invariant checks: expressions that must hold on the return value",
-        "must_satisfy": [
-          "result.compliance_rate >= 0",
-          "result.compliance_rate <= 1"
-        ],
-        "must_satisfy_args": [
-          [{"severity": "high"}, {"severity": "low"}]
-        ]
-      }
-    }
-  },
-
-  "_comment_section_enforcement": "=== GOVERNANCE ENFORCEMENT — Scoring, quality gates, behavioral detection, and drift monitoring ===",
-
-  "_comment_scoring": "Cumulative Risk Scoring — advisory findings accumulate weighted scores. Cross red_threshold = block (exit 2). Deterministic, no LLM.",
-  "scoring": {
-    "enabled": false,
-    "rationale": "Cumulative risk scoring — advisory findings accumulate weighted scores. Yellow/red thresholds tuned to block when 3+ medium or 1 critical finding present.",
-    "default_weight": 3,
-    "rule_weights": {
-      "code_quality.no_hardcoded_results": 1,
-      "code_quality.no_dead_code": 2,
-      "code_quality.encoding": 8
-    },
-    "green_threshold": 0,
-    "yellow_threshold": 10,
-    "red_threshold": 25
-  },
-
-  "_comment_scorers": "Named Scorer Configurations — define named scoring profiles referenced by agent_review.scorer. Falls back to global scoring config if named scorer not found.",
-  "scorers": {
-    "security": {
-      "enabled": true,
-      "default_weight": 3,
-      "rule_weights": {},
-      "green_threshold": 0,
-      "yellow_threshold": 20,
-      "red_threshold": 40,
-      "threshold_mode": "cumulative"
-    }
-  },
-
-  "_comment_quality_gate": "Quality Gate — aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",
-  "quality_gate": {
-    "enabled": false,
-    "conditions": [
-      { "metric": "hard_violations", "operator": ">", "threshold": 0 },
-      { "metric": "soft_violations", "operator": ">", "threshold": 5 },
-      { "metric": "advisory_violations", "operator": ">", "threshold": 20 },
-      { "metric": "security_findings", "operator": ">", "threshold": 0 },
-      { "metric": "total_violations", "operator": ">", "threshold": 10 }
-    ]
-  },
-
-  "_comment_behavioral_sequences": "Behavioral Sequence Detection — detects dangerous ordered chains of runtime actions. Individual actions are benign; the SEQUENCE is the threat. FSM-based pattern matching over a ring buffer of runtime events.",
-  "behavioral_sequences": {
-    "enabled": false,
-    "rationale": "Detect multi-step attack patterns like data exfiltration (read->encode->send) or credential harvesting.",
-    "window_size": 200,
-    "patterns": [
-      {
-        "name": "data_exfiltration",
-        "sequence": ["env.get|file.read", "encode|base64|compress", "http.post|agent.send"],
-        "max_gap": 10,
-        "decay_seconds": 300,
-        "decay_turns": 20,
-        "level": "hard",
-        "rationale": "Reading sensitive data, encoding it, then sending it out matches exfiltration."
-      },
-      {
-        "name": "credential_harvest",
-        "sequence": ["env.get:*KEY*|env.get:*SECRET*|env.get:*TOKEN*", "file.write|http.post"],
-        "max_gap": 5,
-        "level": "hard",
-        "rationale": "Reading credential env vars then writing/sending them is credential theft."
-      },
-      {
-        "name": "reconnaissance_escalation",
-        "sequence": ["file.read:/etc/*|file.read:/proc/*", "process.exec|shell_exec"],
-        "max_gap": 15,
-        "level": "soft",
-        "rationale": "Reading system files then executing commands suggests privilege escalation."
-      }
-    ]
-  },
-
-  "_comment_context_drift": "Context Drift Detection — monitors agent coherence across multi-turn conversations. Detects circular actions, repeated failures, and loss of focus.",
-  "context_drift": {
-    "enabled": false,
-    "rationale": "Detect when an LLM agent loses context and starts looping or contradicting itself.",
-    "level": "advisory",
-    "coherence_threshold": 0.5,
-    "max_contradictions": 5,
-    "check_interval_turns": 3,
-    "fingerprint_window": 20,
-    "signals": {
-      "repeated_failures": true,
-      "circular_actions": true,
-      "scope_creep": true
-    },
-    "weights": {
-      "circular": 0.1,
-      "scope_creep": 0.15,
-      "contradiction": 0.2,
-      "repeated_failure": 0.05
-    }
-  },
-
-  "_comment_section_agents": "=== AGENTS & AI REVIEW — LLM agent definitions, review pipeline, and dispatch ===",
-
-  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
-  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
-  "agents": {
-    "researcher": {
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-20250514",
-      "max_tokens": 4096,
-      "system_prompt": "You are a research assistant.",
-      "max_turns": 20,
-      "max_total_tokens": 50000,
-      "temperature": 1.0,
-      "tools": ["search", "read_file"],
-      "allowed_languages": ["python"],
-      "allowed_paths": ["./src", "./data"],
-      "blocked_paths": ["./secrets", "./.env"],
-      "shell_allowed": false
-    },
-    "coder": {
-      "provider": "gemini",
-      "model": "gemma-3-4b-it",
-      "api_key_env": "GEMINI_API_KEY",
-      "max_tokens": 8192,
-      "system_prompt": "You are a coding assistant.",
-      "max_turns": 50,
-      "max_total_tokens": 200000,
-      "allowed_languages": ["python", "shell"],
-      "allowed_paths": ["./src", "./tests"],
-      "shell_allowed": true
-    }
-  },
-  "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
-
-  "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
-  "agent_review": {
-    "enabled": false,
-    "detection": ["redteam", "testing"],
-    "validation": "analyst",
-    "voice": "voice",
-    "scorer": "security",
-    "enforcement": {
-      "green": "advisory",
-      "yellow": "soft",
-      "red": "hard"
-    },
-    "cache": true,
-    "dispatch_mode": "sequential",
-    "max_parallel": 0,
-    "fail_strategy": "fail_fast",
-    "hints": false,
-    "fail_policy": "open"
-  },
-
-  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size and concurrency limits for I/O-bound LLM API calls.",
-  "agent_dispatch": {
-    "max_concurrent": 6,
-    "pool_size": 6,
-    "pool_queue_max": 50
-  },
-
-  "_comment_section_scanner": "=== SCANNER — Code quality scanner and project context awareness ===",
-
   "_comment_scanner": "Code Quality Scanner — auto-runs on every execution when this section exists",
   "scanner": {
     "version": "1.0",
@@ -1424,18 +1448,56 @@
     "max_file_size_kb": 100
   },
 
-  "_comment_section_integrity": "=== INTEGRITY & SIGNING — Ed25519 signing, approval tokens, and baseline regression ===",
-
-  "_comment_integrity": "Ed25519 signing of govern.json and drift baselines. Run naab-lang --keygen to generate keys. Set NAAB_SIGNING_KEY env var to sign. blocked_flags prevents LLMs from using dangerous CLI flags.",
-  "integrity": {
-    "blocked_flags": ["--drift-baseline-save", "--governance-override"]
+  "_comment_quality_gate": "Quality Gate — aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",
+  "quality_gate": {
+    "enabled": false,
+    "conditions": [
+      { "metric": "hard_violations", "operator": ">", "threshold": 0 },
+      { "metric": "soft_violations", "operator": ">", "threshold": 5 },
+      { "metric": "advisory_violations", "operator": ">", "threshold": 20 },
+      { "metric": "security_findings", "operator": ">", "threshold": 0 },
+      { "metric": "total_violations", "operator": ">", "threshold": 10 }
+    ]
   },
 
-  "_comment_approval": "Approval tokens for APPROVAL_REQUIRED enforcement tier. Requires Ed25519 signed tokens.",
-  "approval": {
-    "store_path": ".naab/approvals.json",
-    "approver_keys": [],
-    "default_expiry_hours": 24
+  "_comment_scoring": "Cumulative Risk Scoring — advisory findings accumulate weighted scores. Cross red_threshold = block (exit 2). Deterministic, no LLM.",
+  "scoring": {
+    "enabled": false,
+    "rationale": "Cumulative risk scoring — advisory findings accumulate weighted scores. Yellow/red thresholds tuned to block when 3+ medium or 1 critical finding present.",
+    "default_weight": 3,
+    "rule_weights": {
+      "code_quality.no_hardcoded_results": 1,
+      "code_quality.no_dead_code": 2,
+      "code_quality.encoding": 8
+    },
+    "green_threshold": 0,
+    "yellow_threshold": 10,
+    "red_threshold": 25
+  },
+
+  "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
+  "agent_review": {
+    "enabled": false,
+    "detection": ["redteam", "testing"],
+    "validation": "analyst",
+    "voice": "voice",
+    "scorer": "security",
+    "enforcement": {
+      "green": "advisory",
+      "yellow": "soft",
+      "red": "hard"
+    },
+    "cache": true,
+    "dispatch_mode": "sequential",
+    "max_parallel": 0,
+    "fail_strategy": "fail_fast"
+  },
+
+  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size and concurrency limits for I/O-bound LLM API calls.",
+  "agent_dispatch": {
+    "max_concurrent": 6,
+    "pool_size": 6,
+    "pool_queue_max": 50
   },
 
   "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",
@@ -1446,151 +1508,21 @@
     "level": "soft"
   },
 
-  "_comment_section_custom_rules": "=== CUSTOM RULES & SCOPES — User-defined regex rules and path-based overrides ===",
-
-  "custom_rules": [
-    {
-      "id": "CUSTOM-001",
-      "name": "no_eval_python",
-      "description": "Prevent eval() in Python blocks",
-      "pattern": "\\beval\\s*\\(",
-      "languages": ["python"],
-      "level": "hard",
-      "message": "eval() is forbidden — use ast.literal_eval() or json.loads()",
-      "help": "eval() executes arbitrary code and is a security risk",
-      "good_example": "import json; data = json.loads(input_str)",
-      "bad_example": "data = eval(input_str)",
-      "tags": ["security", "injection"],
-      "enabled": true,
-      "case_sensitive": false,
-      "multiline": false
+  "_comment_environments": "Environment Selector — use --env <name> to apply overrides. Values override top-level settings.",
+  "environments": {
+    "production": {
+      "mode": "enforce",
+      "quality_gate.enabled": "true"
     },
-    {
-      "id": "CUSTOM-002",
-      "name": "no_debug_prints",
-      "description": "No debug print statements in production code",
-      "pattern": "print\\(.*[Dd]ebug",
-      "languages": [],
-      "level": "advisory",
-      "message": "Debug print statements should be removed before production",
-      "tags": ["cleanup"],
-      "enabled": true
-    }
-  ],
-
-  "scopes": [
-    {
-      "glob": "tests/**",
-      "overrides": {
-        "code_quality.no_placeholders": "false",
-        "code_quality.no_mock_data": "false",
-        "code_quality.no_oversimplification.level": "advisory"
-      }
+    "development": {
+      "mode": "audit",
+      "quality_gate.enabled": "false"
     },
-    {
-      "glob": "examples/**",
-      "overrides": {
-        "code_quality.no_hardcoded_results": "false",
-        "requirements.documentation.enabled": "true"
-      }
-    }
-  ],
-
-  "_comment_section_output": "=== OUTPUT & REPORTING — Report formats, audit trail, and telemetry ===",
-
-  "output": {
-    "summary": {
-      "enabled": true,
-      "format": "detailed",
-      "show_passing": true,
-      "_comment_show_skipped": "Not enforced. Use show_passing instead.",
-      "show_skipped": false,
-      "group_by": "category",
-      "sort_by": "severity"
-    },
-    "errors": {
-      "verbose": true,
-      "_comment_show_line_preview": "Not read from output.errors. Use scanner.output.show_line_preview for scanner reports.",
-      "show_line_preview": true,
-      "show_code_context": 3,
-      "show_help": true,
-      "show_examples": true,
-      "_comment_show_rule_path": "Not enforced.",
-      "show_rule_path": true,
-      "_comment_show_fix_suggestions": "Not read from output.errors. Use scanner.output.show_fix_suggestion for scanner reports.",
-      "show_fix_suggestions": true,
-      "max_errors_per_rule": 5,
-      "max_total_errors": 50,
-      "_comment_truncate_long_lines": "Not enforced.",
-      "truncate_long_lines": 120
-    },
-    "formatting": {
-      "color": true,
-      "unicode_symbols": true,
-      "width": 80,
-      "_comment_indent": "Not enforced. Use output.formatting.width instead.",
-      "indent": 2
-    },
-    "file_output": {
-      "report_json": "",
-      "report_sarif": "",
-      "report_junit": "",
-      "_comment_report_csv": "Not implemented. Use report_json, report_sarif, or report_junit.",
-      "report_csv": "",
-      "_comment_report_html": "Not implemented. Use report_json, report_sarif, or report_junit.",
-      "report_html": ""
-    },
-    "max_advisories": 15,
-    "advisory_summary": true,
-    "voice": "",
-    "voice_cache": false
-  },
-
-  "audit": {
-    "level": "basic",
-    "output_file": ".governance-audit.jsonl",
-    "tamper_evidence": {
-      "enabled": false,
-      "algorithm": "sha256",
-      "chain_genesis": "NAAB-GOVERNANCE-GENESIS",
-      "hmac_key": "",
-      "hmac_key_env": "NAAB_AUDIT_HMAC_KEY"
-    },
-    "log_events": {
-      "checks_passed": true,
-      "checks_failed": true,
-      "checks_warned": true,
-      "overrides": true,
-      "config_loaded": true,
-      "execution_start": true,
-      "execution_end": true,
-      "polyglot_executed": true,
-      "polyglot_timing": true,
-      "taint_decisions": true,
-      "contract_checks": true
-    },
-    "retention": {
-      "max_file_size_mb": 100,
-      "rotate_at_mb": 50,
-      "keep_rotated": 5
-    },
-    "provenance": {
-      "enabled": false,
-      "record_proof_objects": false,
-      "record_attestations": false,
-      "record_decisions": false,
-      "sign_records": false,
-      "signing_key": ""
+    "ci": {
+      "mode": "enforce",
+      "output.file_output.report_sarif": "governance.sarif"
     }
   },
-
-  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking",
-  "telemetry": {
-    "enabled": false,
-    "output_file": "telemetry.jsonl"
-  },
-
-  "_comment_section_runtime_behavior": "=== RUNTIME BEHAVIOR — Governance flags, hooks, metadata, API, version pinning, and baselines ===",
 
   "_comment_governance": "Governance behavior — replaces CLI flags like --governance-verbose, --governance-dashboard, etc. CLI flags override when present.",
   "governance": {
@@ -1617,61 +1549,26 @@
     "require_override_reason": false
   },
 
-  "hooks": {
-    "on_violation": {
-      "command": "",
-      "args": [],
-      "timeout": 5
-    },
-    "on_override": {
-      "command": "",
-      "args": [],
-      "timeout": 5
-    },
-    "on_complete": {
-      "command": "",
-      "args": [],
-      "timeout": 5
-    },
-    "pre_check": {
-      "command": "",
-      "args": [],
-      "timeout": 5
-    },
-    "post_check": {
-      "command": "",
-      "args": [],
-      "timeout": 5
-    }
+  "_comment_approval": "Approval tokens for APPROVAL_REQUIRED enforcement tier. Requires Ed25519 signed tokens.",
+  "approval": {
+    "store_path": ".naab/approvals.json",
+    "approver_keys": [],
+    "default_expiry_hours": 24
   },
 
-  "meta": {
-    "schema_validation": {
-      "warn_unknown_keys": true,
-      "suggest_corrections": true,
-      "strict_types": true
-    },
-    "config_immutability": {
-      "hash": "",
-      "verify_on_load": false,
-      "block_on_mismatch": false
-    },
-    "inheritance": {
-      "max_depth": 5,
-      "merge_strategy": "child_wins",
-      "merge_arrays": "replace",
-      "allow_circular": false
-    },
-    "feature_flags": {
-      "experimental_checks": false,
-      "legacy_compatibility": true,
-      "verbose_parsing": false
-    },
-    "environment": {
-      "allow_env_var_substitution": false,
-      "env_prefix": "NAAB_GOV_",
-      "allow_cli_override": true
-    }
+  "_comment_runtime": "Runtime limits — apply to all execution paths (VM and tree-walker). CLI flags (--timeout, --memory-limit, --gc-threshold, --gc-stats) override when present.",
+  "runtime": {
+    "timeout": 30,
+    "memory_limit": 0,
+    "gc_threshold": 5000,
+    "gc_stats": false
+  },
+
+  "_comment_security": "Security posture. CLI flags (--sandbox-level, --allow-network, --strict-types) override when present.",
+  "security": {
+    "sandbox_level": "unrestricted",
+    "allow_network": false,
+    "strict_types": false
   },
 
   "_comment_api": "REST API server settings (naab-lang api). CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
@@ -1687,16 +1584,6 @@
     { "language": "python", "required": "3.10", "level": "advisory" },
     { "language": "javascript", "required": "18", "level": "advisory" }
   ],
-
-  "_comment_baselines": "Output baselines — record and compare polyglot outputs over time",
-  "baselines": {
-    "enabled": false,
-    "level": "advisory",
-    "path": ".naab/baselines.json",
-    "tolerance": 1e-6,
-    "auto_record": false,
-    "hash_keys": true
-  },
 
   "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }
