@@ -336,7 +336,7 @@
         </p>
         <a href="#builder" class="btn btn-primary">Start Building</a>
         <div class="install-cmd">
-            <em>$</em> echo '{"version":"3.0","mode":"enforce"}' > govern.json
+            <em>$</em> echo '{"version":"5.0","mode":"enforce"}' > govern.json
         </div>
     </div>
 </section>
@@ -344,9 +344,9 @@
 <!-- ─── Stats Bar ─── -->
 <div class="container" style="padding-bottom: 60px;">
     <div class="stats-bar">
-        <div class="stat reveal"><div class="num">50+</div><div class="label">Governance Checks</div></div>
+        <div class="stat reveal"><div class="num">139</div><div class="label">Scanner Checks</div></div>
         <div class="stat reveal reveal-delay-1"><div class="num">3-tier</div><div class="label">Enforcement</div></div>
-        <div class="stat reveal reveal-delay-2"><div class="num">13</div><div class="label">Config Sections</div></div>
+        <div class="stat reveal reveal-delay-2"><div class="num">40+</div><div class="label">Config Sections</div></div>
         <div class="stat reveal"><div class="num">12</div><div class="label">Languages Governed</div></div>
     </div>
 </div>
@@ -422,7 +422,7 @@ mv govern-template.json govern.json
                         <div class="form-row">
                             <div class="form-group" style="flex:1">
                                 <label>Version</label>
-                                <input type="text" id="cfg-version" value="3.0" oninput="updateJSON()">
+                                <input type="text" id="cfg-version" value="5.0" oninput="updateJSON()">
                             </div>
                             <div class="form-group" style="flex:1">
                                 <label>Mode</label>
@@ -909,7 +909,7 @@ mv govern-template.json govern.json
                         </div>
                     </div>
                     <pre id="json-output">{
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce"
 }</pre>
                 </div>
@@ -982,7 +982,7 @@ mv govern-template.json govern.json
                 <h4>Personal Project</h4>
                 <div class="desc">Just basic safety. Let everything run, block dangerous calls.</div>
 <pre>{
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "languages": { "allowed": ["python", "javascript", "shell"] },
   "restrictions": {
@@ -994,7 +994,7 @@ mv govern-template.json govern.json
                 <h4>Open Source Library</h4>
                 <div class="desc">Quality checks, no secrets, audit trail for contributors.</div>
 <pre>{
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "languages": { "allowed": ["python", "javascript", "go"] },
   "code_quality": {
@@ -1009,7 +1009,7 @@ mv govern-template.json govern.json
                 <h4>Enterprise / Team</h4>
                 <div class="desc">Full restrictions, custom rules, SARIF output for CI pipeline.</div>
 <pre>{
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "languages": {
     "allowed": ["python", "javascript"],
@@ -1035,7 +1035,7 @@ mv govern-template.json govern.json
                 <h4>AI Code Review Pipeline</h4>
                 <div class="desc">Anti-hallucination. Catches stubs, fake APIs, simulation markers.</div>
 <pre>{
-  "version": "3.0",
+  "version": "5.0",
   "mode": "enforce",
   "code_quality": {
     "no_hallucinated_apis": { "level": "soft",
