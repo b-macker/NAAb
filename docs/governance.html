@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NAAb Governance Builder &mdash; Configure govern.json</title>
-    <meta name="description" content="Interactive govern.json builder for NAAb's AI governance engine. Configure 50+ checks, per-language rules, and 3-tier enforcement.">
+    <meta name="description" content="Interactive govern.json builder for NAAb's AI governance engine. Configure 139 checks, per-language rules, and 3-tier enforcement.">
     <meta name="keywords" content="NAAb governance, govern.json, AI code quality, LLM governance, polyglot governance">
     <meta name="author" content="Brandon Mackert">
     <link rel="canonical" href="https://b-macker.github.io/NAAb/governance.html">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <meta property="og:title" content="NAAb Governance Builder — Configure govern.json">
-    <meta property="og:description" content="Interactive govern.json builder for NAAb's AI governance engine. Configure 50+ checks, agent roles, telemetry, and 3-tier enforcement.">
+    <meta property="og:description" content="Interactive govern.json builder for NAAb's AI governance engine. Configure 139 checks, agent roles, telemetry, and 3-tier enforcement.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://b-macker.github.io/NAAb/governance.html">
     <meta property="og:image" content="https://b-macker.github.io/NAAb/og-image.svg">
     <meta property="og:site_name" content="NAAb">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="NAAb Governance Builder — Configure govern.json">
-    <meta name="twitter:description" content="Interactive govern.json builder for NAAb's AI governance engine. 50+ checks, agent roles, telemetry.">
+    <meta name="twitter:description" content="Interactive govern.json builder for NAAb's AI governance engine. 139 checks, agent roles, telemetry.">
     <meta name="twitter:image" content="https://b-macker.github.io/NAAb/og-image.svg">
     <style>
         :root {
@@ -331,7 +331,7 @@
         <div class="badge">Interactive Builder</div>
         <h1><span class="gradient">Build your govern.json</span></h1>
         <p class="subtitle">
-            Configure 50+ governance checks, per-language rules, and 3-tier enforcement.
+            Configure 139 governance checks, per-language rules, and 3-tier enforcement.
             Toggle options below &mdash; only non-default values are included.
         </p>
         <a href="#builder" class="btn btn-primary">Start Building</a>
@@ -362,7 +362,7 @@
         <div class="example-grid">
             <div class="ex-card reveal" style="text-align:center;">
                 <h4>govern.json</h4>
-                <div class="desc">Complete governance template with all 50+ checks, per-language rules, and 3-tier enforcement. Customize to your project needs.</div>
+                <div class="desc">Complete governance template with all 139 checks, per-language rules, and 3-tier enforcement. Customize to your project needs.</div>
                 <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
                     <a href="govern-template.json" download="govern.json" class="btn btn-primary" style="padding:10px 24px;font-size:0.9rem;">Download Template</a>
                     <a href="#builder" class="btn btn-secondary" style="padding:10px 24px;font-size:0.9rem;">Use Builder</a>
@@ -370,7 +370,7 @@
             </div>
             <div class="ex-card reveal reveal-delay-1" style="text-align:center;">
                 <h4>CLAUDE.md Template</h4>
-                <div class="desc">Universal NAAb language reference for LLMs. Syntax rules, stdlib API, polyglot patterns, and 27 known gotchas. Download and rename to CLAUDE.md in your project.</div>
+                <div class="desc">Universal NAAb language reference for LLMs. Syntax rules, stdlib API, polyglot patterns, and 60 known gotchas. Download and rename to CLAUDE.md in your project.</div>
                 <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
                     <a href="CLAUDE-TEMPLATE.md" download="CLAUDE.md" class="btn btn-primary" style="padding:10px 24px;font-size:0.9rem;">Download CLAUDE.md</a>
                     <a href="https://github.com/b-macker/NAAb/blob/master/CLAUDE-TEMPLATE.md" class="btn btn-secondary" style="padding:10px 24px;font-size:0.9rem;">View on GitHub</a>
@@ -598,7 +598,7 @@ mv govern-template.json govern.json
                 <!-- F: Code Quality -->
                 <div class="accordion" data-section="code_quality">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
-                        <h3>Code Quality <span class="count">21 checks: secrets, PII, complexity floor...</span></h3>
+                        <h3>Code Quality <span class="count">24 checks: secrets, PII, complexity floor, drift detection...</span></h3>
                         <span class="arrow">&#9654;</span>
                     </div>
                     <div class="accordion-body" id="quality-body"></div>
@@ -1285,9 +1285,19 @@ mv govern-template.json govern.json
             <tr><th>Command</th><th>Description</th></tr>
             <tr><td><code>naab file.naab</code></td><td>Run with auto-discovered govern.json (walks up directories)</td></tr>
             <tr><td><code>--governance-override</code></td><td>Bypass <code>soft</code> enforcement blocks (hard blocks still enforced)</td></tr>
-            <tr><td><code>--governance-report</code></td><td>Generate execution report</td></tr>
+            <tr><td><code>--governance-dashboard</code></td><td>Print governance summary to stderr (checks passed/warned/blocked)</td></tr>
+            <tr><td><code>--governance-report</code></td><td>Generate detailed execution report</td></tr>
             <tr><td><code>--governance-sarif</code></td><td>Output SARIF format report (for CI integration)</td></tr>
             <tr><td><code>--governance-junit</code></td><td>Output JUnit XML report</td></tr>
+            <tr><td><code>--env &lt;name&gt;</code></td><td>Select governance environment (production, development, ci)</td></tr>
+            <tr><td><code>--agent-id &lt;name&gt;</code></td><td>Enable per-agent governance role enforcement</td></tr>
+            <tr><td><code>--keygen &lt;path&gt;</code></td><td>Generate Ed25519 signing keypair</td></tr>
+            <tr><td><code>--sign-governance</code></td><td>Sign govern.json with Ed25519 key</td></tr>
+            <tr><td><code>--trust-key &lt;path&gt;</code></td><td>Install a public key to the trust store</td></tr>
+            <tr><td><code>--list-keys</code></td><td>List trusted key fingerprints</td></tr>
+            <tr><td><code>--scan &lt;path&gt;</code></td><td>Run scanner standalone (139 checks, auto-detect language)</td></tr>
+            <tr><td><code>--timeout &lt;N&gt;</code></td><td>Execution timeout in seconds</td></tr>
+            <tr><td><code>--tree-walk</code></td><td>Use tree-walker interpreter instead of VM</td></tr>
         </table>
     </div>
 </section>
@@ -1416,6 +1426,8 @@ const RESTRICTIONS = [
     {id:'resource_abuse',name:'Resource Abuse',def_level:'hard',desc:'Block fork bombs, disk filling, recursive file ops'},
     {id:'information_disclosure',name:'Information Disclosure',def_level:'soft',desc:'Block env dumps, process listings',def_off:true},
     {id:'crypto',name:'Weak Crypto',def_level:'advisory',desc:'Block md5, sha1, des, rc4, hardcoded keys',def_off:true},
+    {id:'imports',name:'Import Restrictions',def_level:'soft',desc:'Control import allowlists/blocklists per language',def_off:true},
+    {id:'polyglot_output',name:'Polyglot Output',def_level:'advisory',desc:'Validate polyglot block output format and size',def_off:true},
 ];
 
 // =====================================================
@@ -1443,6 +1455,9 @@ const QUALITY_CHECKS = [
     {id:'no_hallucinated_apis',name:'No Hallucinated APIs',def_level:'soft',desc:'Detect cross-language API confusion, made-up functions'},
     {id:'no_apologetic_language',name:'No Apologetic Language',def_level:'advisory',desc:'Detect sorry/apology comments',def_off:true},
     {id:'complexity_floor',name:'Complexity Floor',def_level:'soft',desc:'Minimum structural complexity for functions. Short functions (below min_lines_for_check) are skipped.',def_off:true},
+    {id:'duplicate_calls',name:'Duplicate Calls',def_level:'advisory',desc:'Detect repeated identical function calls that should be cached',def_off:true},
+    {id:'polyglot_try_catch',name:'Polyglot Try/Catch',def_level:'advisory',desc:'Require try/catch around polyglot blocks',def_off:true},
+    {id:'drift_detection',name:'Drift Detection',def_level:'advisory',desc:'Detect structural drift from baselines (function count, complexity, polyglot ratio)',def_off:true},
 ];
 
 // =====================================================
