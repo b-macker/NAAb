@@ -405,13 +405,18 @@ year, month, day, hour, minute, second, weekday
 parse, stringify
 
 ### regex
-search (partial match, returns match or null), matches (full string match, true/false),
-find (returns matched string), find_all (all matches as array),
+search (partial match, returns **true/false** — NOT the matched text),
+matches (full string match, true/false),
+find (returns matched **string** or null — use this when you need the match text),
+find_all (all matches as array),
 replace, replace_first, split, groups, escape, is_valid
 find_groups — returns **2D array**: `[[full_match, group1, group2, ...], ...]`
   Each inner array is one match. First capture group: `result[0][1]` (NOT `result[1]`).
   No match: returns `[]`. Guard with: `if len(groups) > 0 { ... }`
 **GOTCHA**: `regex.match()` and `regex.test()` do NOT exist — use `regex.search()` or `regex.matches()`
+**GOTCHA**: `regex.search()` returns **bool**, NOT the matched string. To get the matched
+  text, use `regex.find()`. Common mistake: `let match = regex.search(text, pat); string.lower(match)`
+  — this crashes because `match` is `true`, not a string. Use `regex.find()` instead.
 
 ### env
 get, get_args, set_var (NOT set — the function is set_var), list
@@ -502,8 +507,8 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
 - `array.concat(a, b)` — use `a + b`
 - `array.flat()` — not available, manually iterate
-- `string.match()` — use `regex.search()` or `regex.matches()` with `use regex`
-- `regex.match()` — use `regex.search()` (partial match, returns match or null)
+- `string.match()` — use `regex.find()` (returns matched string or null) or `regex.search()` (returns bool) with `use regex`
+- `regex.match()` — use `regex.search()` (returns bool) or `regex.find()` (returns matched string)
 - `regex.test()` — use `regex.matches()` (full string match, returns bool)
 - `time.format()` — use `time.format_timestamp()` (the function name is `format_timestamp`, NOT `format`)
 - `env.set()` — use `env.set_var(name, value)` (the function name is `set_var`, NOT `set`)
@@ -662,9 +667,10 @@ main {
     `_ => throw "invalid value"` in a match arm is valid.
     Throw expressions diverge (never return), so the type system treats them as compatible
     with any branch type.
-24. `string.match()` does NOT exist — use `regex.search(text, pattern)` for partial match,
-    `regex.matches(text, pattern)` for full match, `regex.find_all(text, pattern)` for all matches.
-    Requires `use regex`.
+24. `string.match()` does NOT exist — use `regex.find(text, pattern)` to get the matched string
+    (returns string or null), `regex.search(text, pattern)` to check if a match exists (returns
+    **bool**, NOT the matched text), `regex.matches(text, pattern)` for full string match (bool),
+    `regex.find_all(text, pattern)` for all matches (array). Requires `use regex`.
 25. `-> JSON` behaves differently per language:
     **Python**: bare expressions (e.g. `json.dumps(data)`) as the last line are auto-wrapped
     in `print()`. Both `json.dumps(data)` and `print(json.dumps(data))` work.
@@ -888,6 +894,14 @@ main {
     RIGHT: `let days = total_hours / 8.0`       // 12/8.0 = 1.5
     This is the same as Python 2, C, Java, and Go integer division. If either operand
     is float, the result is float.
+60. **`regex.search()` returns bool, NOT the matched string.** This is the #1 regex mistake.
+    `regex.search(text, pattern)` returns `true`/`false`. To get the actual matched text,
+    use `regex.find(text, pattern)` which returns the matched string or `null`.
+    WRONG: `let match = regex.search(text, "\\d+"); int(match)` — `match` is `true`, not digits
+    WRONG: `let sev = regex.search(text, "ERROR|WARN"); string.lower(sev)` — crashes: "Expected string value"
+    RIGHT: `let match = regex.find(text, "\\d+"); if match != null { int(match) }`
+    RIGHT: `let sev = regex.find(text, "ERROR|WARN"); if sev != null { string.lower(sev) }`
+    Use `regex.search()` only for boolean checks: `if regex.search(text, pattern) { ... }`
 
 ## Complexity Scoring (for governance)
 

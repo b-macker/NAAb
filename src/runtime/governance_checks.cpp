@@ -3489,7 +3489,7 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
         if (fn.isVMClosure()) {
             int arity = fn.asVMClosureConst()->function->arity;
             while (static_cast<int>(padded_args.size()) < arity) {
-                padded_args.push_back(interpreter::NaabVal());  // null
+                padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
             }
         }
         return vm_call_fn_(fn, padded_args);
@@ -3547,12 +3547,12 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
     if (fn.isFunction()) {
         size_t arity = fn.asFunctionConst()->params.size();
         while (padded_args.size() < arity) {
-            padded_args.push_back(interpreter::NaabVal());  // null
+            padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
         }
     } else if (fn.isVMClosure()) {
         int arity = fn.asVMClosureConst()->function->arity;
         while (static_cast<int>(padded_args.size()) < arity) {
-            padded_args.push_back(interpreter::NaabVal());  // null
+            padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
         }
     }
 
@@ -3660,13 +3660,13 @@ std::string GovernanceEngine::checkMustVary(
             d1["message"] = interpreter::NaabVal::makeString("test event 1");
             d1["timestamp"] = interpreter::NaabVal::makeInt(1000000);
             d2["severity"] = interpreter::NaabVal::makeInt(5);
-            d2["state"] = interpreter::NaabVal::makeInt(2);
+            d2["state"] = interpreter::NaabVal::makeInt(1);  // Firing — triggers state==1 checks
             d2["id"] = interpreter::NaabVal::makeString("synth-2");
             d2["source"] = interpreter::NaabVal::makeString("synthetic");
             d2["message"] = interpreter::NaabVal::makeString("test event 2");
             d2["timestamp"] = interpreter::NaabVal::makeInt(1000060);
             d3["severity"] = interpreter::NaabVal::makeInt(10);
-            d3["state"] = interpreter::NaabVal::makeInt(4);
+            d3["state"] = interpreter::NaabVal::makeInt(2);  // Acknowledged — triggers state>=2 checks
             d3["id"] = interpreter::NaabVal::makeString("synth-3");
             d3["source"] = interpreter::NaabVal::makeString("synthetic");
             d3["message"] = interpreter::NaabVal::makeString("test event 3");
