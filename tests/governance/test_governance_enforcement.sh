@@ -32,6 +32,10 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); }
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gov_enforce_XXXXXX")
 trap "rm -rf $WORK_DIR" EXIT
 
+# Override HOME so the trust store at $HOME/.naab/trusted-keys is empty.
+# Without this, Ed25519 signing blocks unsigned temp governance files.
+export HOME="$WORK_DIR"
+
 echo "=== test_governance_enforcement.sh ==="
 
 # ---------------------------------------------------------------------------
