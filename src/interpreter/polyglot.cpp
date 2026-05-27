@@ -484,12 +484,23 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                         ? lines[expr_start].substr(0, sstart) : "";
                     std::string strimmed = (sstart != std::string::npos)
                         ? lines[expr_start].substr(sstart) : lines[expr_start];
-                    lines[expr_start] = leading + "print(" + strimmed;
-                    lines[i] = lines[i] + ")";
+                    bool is_structured = (!strimmed.empty() && (strimmed[0] == '{' || strimmed[0] == '['));
+                    if (is_structured) {
+                        lines[expr_start] = leading + "print(__import__('json').dumps(" + strimmed;
+                        lines[i] = lines[i] + "))";
+                    } else {
+                        lines[expr_start] = leading + "print(" + strimmed;
+                        lines[i] = lines[i] + ")";
+                    }
                 } else {
                     // Single-line bare expression — wrap in print()
                     std::string leading = lines[i].substr(0, start);
-                    lines[i] = leading + "print(" + trimmed + ")";
+                    bool is_structured = (!trimmed.empty() && (trimmed[0] == '{' || trimmed[0] == '['));
+                    if (is_structured) {
+                        lines[i] = leading + "print(__import__('json').dumps(" + trimmed + "))";
+                    } else {
+                        lines[i] = leading + "print(" + trimmed + ")";
+                    }
                 }
                 break;
             }

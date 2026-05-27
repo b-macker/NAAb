@@ -2874,12 +2874,23 @@ interpreter::NaabVal VM::run() {
                                     ? fc_lines[expr_start].substr(0, sstart) : "";
                                 std::string strimmed = (sstart != std::string::npos)
                                     ? fc_lines[expr_start].substr(sstart) : fc_lines[expr_start];
-                                fc_lines[expr_start] = leading + "print(" + strimmed;
-                                fc_lines[li] = fc_lines[li] + ")";
+                                bool is_structured = (!strimmed.empty() && (strimmed[0] == '{' || strimmed[0] == '['));
+                                if (is_structured) {
+                                    fc_lines[expr_start] = leading + "print(__import__('json').dumps(" + strimmed;
+                                    fc_lines[li] = fc_lines[li] + "))";
+                                } else {
+                                    fc_lines[expr_start] = leading + "print(" + strimmed;
+                                    fc_lines[li] = fc_lines[li] + ")";
+                                }
                             }
                         } else {
                             std::string leading = fc_lines[li].substr(0, start);
-                            fc_lines[li] = leading + "print(" + trimmed + ")";
+                            bool is_structured = (!trimmed.empty() && (trimmed[0] == '{' || trimmed[0] == '['));
+                            if (is_structured) {
+                                fc_lines[li] = leading + "print(__import__('json').dumps(" + trimmed + "))";
+                            } else {
+                                fc_lines[li] = leading + "print(" + trimmed + ")";
+                            }
                         }
                         break;
                     }
