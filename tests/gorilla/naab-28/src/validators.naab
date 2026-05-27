@@ -1,0 +1,89 @@
+use regex
+use validate
+use string
+import "models.naab" as models
+
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+    let s = string.trim(input)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+    let ansi_pattern = "\x1b\\[[0-9;]*m"
+    let found = regex.find(line, ansi_pattern)
+    let cleaned = line
+    if found != null {
+        cleaned = regex.replace(line, ansi_pattern, "")
+    }
+    return sanitize_string(cleaned)
+}
+
+export fn validate_event_schema(event_dict) {
+    let errors = []
+    let required_keys = ["id", "timestamp", "source", "severity", "message"]
+
+    for key in required_keys {
+        let val = event_dict.get(key)
+        if val == null {
+            errors.push("missing required field: " + key)
+        } else if key == "id" && val == "" {
+            errors.push("field 'id' must not be empty")
+        } else if key == "source" && val == "" {
+            errors.push("field 'source' must not be empty")
+        } else if key == "message" && val == "" {
+            errors.push("field 'message' must not be empty")
+        }
+    }
+
+    let sev = event_dict.get("severity")
+    if sev != null {
+        if sev < 0 || sev > 5 {
+            errors.push("severity must be between 0 and 5")
+        }
+    }
+
+    let ts = event_dict.get("timestamp")
+    if ts != null {
+        if ts < 0 {
+            errors.push("timestamp must be non-negative")
+        }
+    }
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_email_address(email) {
+    if email == null {
+        return false
+    }
+    if email == "" {
+        return false
+    }
+    return validate.email(email)
+}
+
+export fn validate_timestamp(ts) {
+    if ts == null {
+        return false
+    }
+    let numeric_val = try { int(ts) } catch (e) { -1 }
+    if numeric_val < 0 {
+        return false
+    }
+    return true
+}
+
+main {
+    print("module loaded")
+}

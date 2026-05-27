@@ -82,47 +82,17 @@ interpreter::NaabVal PersistentShellExecutor::parseOutput(
         clean_stdout.pop_back();
     }
 
-    // For successful cases (exit_code == 0, no stderr): return typed value
+    // For successful cases (exit_code == 0, no stderr): return stdout as string
+    // Shell output is always a string. Users can explicitly convert with int(), float(), etc.
+    // Do NOT perform implicit type coercion — it leads to subtle bugs when numeric output
+    // is unexpectedly converted to int/float (e.g., date +%Y → 2026 as int, then string.trim() fails)
     if (exit_code == 0 && stderr_text.empty()) {
         // Empty result -> null
         if (clean_stdout.empty()) {
             return interpreter::NaabVal::makeNull();
         }
 
-        // Null representations
-        if (clean_stdout == "null" || clean_stdout == "NULL" || clean_stdout == "None" ||
-            clean_stdout == "nil" || clean_stdout == "Nil" || clean_stdout == "<nil>" ||
-            clean_stdout == "nothing" || clean_stdout == "undefined" || clean_stdout == "()") {
-            return interpreter::NaabVal::makeNull();
-        }
-
-        // Boolean representations
-        if (clean_stdout == "true" || clean_stdout == "True" || clean_stdout == "TRUE") {
-            return interpreter::NaabVal::makeBool(true);
-        }
-        if (clean_stdout == "false" || clean_stdout == "False" || clean_stdout == "FALSE") {
-            return interpreter::NaabVal::makeBool(false);
-        }
-
-        // Try to parse as integer
-        try {
-            size_t p;
-            int int_val = std::stoi(clean_stdout, &p);
-            if (p == clean_stdout.length()) {
-                return interpreter::NaabVal::makeInt(int_val);
-            }
-        } catch (...) {}
-
-        // Try to parse as float
-        try {
-            size_t p;
-            double d = std::stod(clean_stdout, &p);
-            if (p == clean_stdout.length()) {
-                return interpreter::NaabVal::makeDouble(d);
-            }
-        } catch (...) {}
-
-        // Return as string
+        // Return as string (always)
         return interpreter::NaabVal::makeString(clean_stdout);
     }
 

@@ -1,0 +1,37 @@
+// Test: VM error messages include file/line context
+// Bug #343: caught errors lacked file/line info
+
+main {
+    let pass = true
+
+    // Test 1: caught error should include file/line context
+    try {
+        let x = int("not_a_number")
+    } catch (e) {
+        let msg = e.get("message", "")
+        // Error message should contain a source location like [file:line]
+        if string.contains(msg, "test_vm_error_context.naab") {
+            print("PASS: caught error includes filename")
+        } else {
+            print("FAIL: caught error missing filename: " + msg)
+            pass = false
+        }
+    }
+
+    // Test 2: caught error from nested function call
+    try {
+        let s = string.trim(123)
+    } catch (e) {
+        let msg = e.get("message", "")
+        if string.contains(msg, "test_vm_error_context.naab") {
+            print("PASS: nested caught error includes filename")
+        } else {
+            print("FAIL: nested caught error missing filename: " + msg)
+            pass = false
+        }
+    }
+
+    if pass {
+        print("PASS: VM error context test")
+    }
+}

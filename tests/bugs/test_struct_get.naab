@@ -1,0 +1,70 @@
+// Test: struct .get() method works in both VM and tree-walker
+// Bug #341: tree-walker didn't support .get() on struct instances
+
+struct Point {
+    x: int
+    y: int
+}
+
+main {
+    let p = Point { x: 10, y: 20 }
+    let pass = true
+
+    // .get() with existing field
+    let x_val = p.get("x")
+    if x_val != 10 {
+        print("FAIL: get existing field, got " + string(x_val))
+        pass = false
+    }
+
+    // .get() with default for missing field
+    let z_val = p.get("z", 99)
+    if z_val != 99 {
+        print("FAIL: get missing field with default, got " + string(z_val))
+        pass = false
+    }
+
+    // .get() with missing field, no default → null
+    let missing = p.get("z")
+    if missing != null {
+        print("FAIL: get missing field should be null")
+        pass = false
+    }
+
+    // .has()
+    if p.has("x") != true {
+        print("FAIL: has existing field")
+        pass = false
+    }
+    if p.has("z") != false {
+        print("FAIL: has missing field")
+        pass = false
+    }
+
+    // .keys() — at least 2 fields (VM may add internal fields)
+    let k = p.keys()
+    if array.length(k) < 2 {
+        print("FAIL: keys length too small, got " + string(array.length(k)))
+        pass = false
+    }
+
+    // .size() — at least 2 fields
+    if p.size() < 2 {
+        print("FAIL: size too small, got " + string(p.size()))
+        pass = false
+    }
+
+    // Direct field access still works
+    if p.x != 10 {
+        print("FAIL: direct field access x")
+        pass = false
+    }
+    if p.y != 20 {
+        print("FAIL: direct field access y")
+        pass = false
+    }
+
+    if pass {
+        print("PASS: struct .get() methods work")
+    }
+}

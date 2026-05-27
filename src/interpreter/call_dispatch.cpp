@@ -562,6 +562,49 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
             }
 
+            // Built-in STRUCT methods (mirror VM behavior where structs are dict-like)
+            if (obj_val.isStructVal()) {
+                auto& sv = obj_val.asStruct();
+                if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
+                    method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
+                    method_name == "getList") {
+                    if (args.empty()) throw std::runtime_error("struct." + method_name + "() requires at least 1 argument (field name)");
+                    auto key = args[0].toString();
+                    auto fit = sv->definition->field_index.find(key);
+                    if (fit != sv->definition->field_index.end()) {
+                        result_ = sv->field_values[fit->second];
+                    } else if (args.size() >= 2) {
+                        result_ = args[1];
+                    } else {
+                        result_ = NaabVal::makeNull();
+                    }
+                    return;
+                }
+                if (method_name == "has" || method_name == "has_key" || method_name == "contains" || method_name == "containsKey") {
+                    if (args.empty()) throw std::runtime_error("struct.has() requires 1 argument (field name)");
+                    result_ = NaabVal::makeBool(
+                        sv->definition->field_index.find(args[0].toString()) != sv->definition->field_index.end());
+                    return;
+                }
+                if (method_name == "keys") {
+                    std::vector<NaabVal> keys;
+                    for (const auto& f : sv->definition->fields) {
+                        keys.push_back(NaabVal::makeString(f.name));
+                    }
+                    result_ = NaabVal::makeList(std::move(keys));
+                    return;
+                }
+                if (method_name == "values") {
+                    std::vector<NaabVal> vals(sv->field_values.begin(), sv->field_values.end());
+                    result_ = NaabVal::makeList(std::move(vals));
+                    return;
+                }
+                if (method_name == "size" || method_name == "length") {
+                    result_ = NaabVal::makeInt(static_cast<int>(sv->field_values.size()));
+                    return;
+                }
+            }
+
             // Built-in DICT methods
             if (obj_val.isDict()) {
                 auto& dict = obj_val.asDict();

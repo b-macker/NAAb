@@ -3297,6 +3297,21 @@ interpreter::NaabVal VM::run() {
         }
       } catch (const std::runtime_error& e) {
         // Route C++ exceptions (from stdlib, polyglot, etc.) through exception handlers
+        // Build stack trace so caught errors include file/line context
+        std::string trace;
+        for (int i = frame_count_ - 1; i >= 0; i--) {
+            CallFrame* f = &frames_[i];
+            CompiledFunction* fn = f->function;
+            int offset = static_cast<int>(f->ip - fn->chunk.code.data()) - 1;
+            int line = fn->chunk.getLine(offset);
+            trace += "\n  at ";
+            if (fn->name.empty()) {
+                trace += "<script>";
+            } else {
+                trace += fn->name + "()";
+            }
+            trace += " [" + fn->source_file + ":" + std::to_string(line) + "]";
+        }
         if (!exception_handlers_.empty()) {
             ExceptionHandler handler = exception_handlers_.back();
             exception_handlers_.pop_back();
@@ -3310,7 +3325,7 @@ interpreter::NaabVal VM::run() {
             frame->ip = handler.catch_ip;
             // Push error as dict with "message" key (matching tree-walker)
             std::unordered_map<std::string, interpreter::NaabVal> err;
-            err["message"] = interpreter::NaabVal::makeString(e.what());
+            err["message"] = interpreter::NaabVal::makeString(std::string(e.what()) + trace);
             push(interpreter::NaabVal::makeDict(std::move(err)));
         } else {
             throw;  // Re-throw if no handler
@@ -4676,28 +4691,28 @@ void VM::runtimeError(const char* format, ...) {
     va_end(args);
     msg.resize(needed);
 
-    // If there's an exception handler, route through it instead of crashing
-    if (!exception_handlers_.empty()) {
-        // Use longjmp-like approach: throw a special exception that run() catches
-        throw VMException(msg);
-    }
-
-    // No handlers — add stack trace and throw C++ exception
+    // Build stack trace (always — both caught and uncaught errors need context)
+    std::string trace;
     for (int i = frame_count_ - 1; i >= 0; i--) {
         CallFrame* f = &frames_[i];
         CompiledFunction* fn = f->function;
         int offset = static_cast<int>(f->ip - fn->chunk.code.data()) - 1;
         int line = fn->chunk.getLine(offset);
-        msg += "\n  at ";
+        trace += "\n  at ";
         if (fn->name.empty()) {
-            msg += "<script>";
+            trace += "<script>";
         } else {
-            msg += fn->name + "()";
+            trace += fn->name + "()";
         }
-        msg += " [" + fn->source_file + ":" + std::to_string(line) + "]";
+        trace += " [" + fn->source_file + ":" + std::to_string(line) + "]";
     }
 
-    throw std::runtime_error(msg);
+    // If there's an exception handler, route through it (with context)
+    if (!exception_handlers_.empty()) {
+        throw VMException(msg + trace);
+    }
+
+    throw std::runtime_error(msg + trace);
 }
 
 std::vector<std::string> VM::getStackTrace() const {

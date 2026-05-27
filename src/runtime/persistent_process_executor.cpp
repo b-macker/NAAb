@@ -375,7 +375,13 @@ std::string PersistentProcessExecutor::getLanguage() const {
     return language_id_;
 }
 
-// Default output parsing — same logic as GenericSubprocessExecutor/ShellExecutor
+// Default output parsing — polyglot output is always returned as a string.
+// Do NOT perform implicit type coercion (bool/int/float) — it leads to subtle bugs
+// when numeric output is unexpectedly converted (e.g., year "2026" → int, then
+// string.trim() fails with "Expected string value"). Users can explicitly convert
+// with int(), float(), bool() if needed.
+// NOTE: PersistentShellExecutor also overrides parseOutput() with the same no-coercion
+// policy. Keep both implementations consistent.
 interpreter::NaabVal PersistentProcessExecutor::parseOutput(
     const std::string& stdout_text, const std::string& /* stderr_text */,
     int /* implicit_exit_code */) const {
@@ -392,35 +398,7 @@ interpreter::NaabVal PersistentProcessExecutor::parseOutput(
         return interpreter::NaabVal::makeNull();
     }
 
-    // Null representations
-    if (result == "null" || result == "NULL" || result == "None" ||
-        result == "nil" || result == "Nil" || result == "<nil>" ||
-        result == "nothing" || result == "undefined" || result == "()") {
-        return interpreter::NaabVal::makeNull();
-    }
-
-    // Boolean representations
-    if (result == "true" || result == "True" || result == "TRUE") {
-        return interpreter::NaabVal::makeBool(true);
-    }
-    if (result == "false" || result == "False" || result == "FALSE") {
-        return interpreter::NaabVal::makeBool(false);
-    }
-
-    // Try to parse as number (double first for large numbers)
-    try {
-        size_t pos;
-        double d = std::stod(result, &pos);
-        if (pos == result.size()) {
-            // Check if it's actually an integer that fits in int range
-            if (d == static_cast<int>(d) && d >= INT_MIN && d <= INT_MAX) {
-                return interpreter::NaabVal::makeInt(static_cast<int>(d));
-            }
-            return interpreter::NaabVal::makeDouble(d);
-        }
-    } catch (...) {}
-
-    // Return as string
+    // Return as string (always)
     return interpreter::NaabVal::makeString(result);
 }
 

@@ -248,48 +248,17 @@ naab::interpreter::NaabVal ShellExecutor::executeWithReturn(
     trim_trailing_newline(stdout_output);
     trim_trailing_newline(stderr_output);
 
-    // For simple successful cases (exit_code == 0 and no stderr), return just stdout
-    // This makes shell execution more intuitive for common cases
+    // For simple successful cases (exit_code == 0 and no stderr), return stdout as string
+    // Shell output is always a string. Users can explicitly convert with int(), float(), etc.
+    // Do NOT perform implicit type coercion — it leads to subtle bugs when numeric output
+    // is unexpectedly converted to int/float (e.g., date +%Y → 2026 as int, then string.trim() fails)
     if (exit_code == 0 && stderr_output.empty()) {
         // Empty result → null
         if (stdout_output.empty()) {
             return interpreter::NaabVal::makeNull();
         }
 
-        // Null representations
-        if (stdout_output == "null" || stdout_output == "NULL" || stdout_output == "None" ||
-            stdout_output == "nil" || stdout_output == "Nil" || stdout_output == "<nil>" ||
-            stdout_output == "nothing" || stdout_output == "undefined" || stdout_output == "()") {
-            return interpreter::NaabVal::makeNull();
-        }
-
-        // Boolean representations
-        if (stdout_output == "true" || stdout_output == "True" || stdout_output == "TRUE") {
-            return interpreter::NaabVal::makeBool(true);
-        }
-        if (stdout_output == "false" || stdout_output == "False" || stdout_output == "FALSE") {
-            return interpreter::NaabVal::makeBool(false);
-        }
-
-        // Try to parse as integer
-        try {
-            size_t pos;
-            int int_val = std::stoi(stdout_output, &pos);
-            if (pos == stdout_output.length()) {
-                return interpreter::NaabVal::makeInt(int_val);
-            }
-        } catch (...) {}
-
-        // Try to parse as float
-        try {
-            size_t pos;
-            double d = std::stod(stdout_output, &pos);
-            if (pos == stdout_output.length()) {
-                return interpreter::NaabVal::makeDouble(d);
-            }
-        } catch (...) {}
-
-        // Return stdout as string
+        // Return stdout as string (always)
         return interpreter::NaabVal::makeString(stdout_output);
     }
 

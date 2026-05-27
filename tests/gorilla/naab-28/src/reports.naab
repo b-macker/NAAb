@@ -1,0 +1,133 @@
+use string
+use json
+import "models.naab" as models
+import "metrics.naab" as metrics
+import "classifier.naab" as classifier
+import "exporter.naab" as exporter
+
+export fn generate_incident_report(incident_dict, events) {
+    let title = incident_dict.get("title") ?? "Untitled Incident"
+    let status = incident_dict.get("status") ?? 0
+    let severity = incident_dict.get("severity") ?? 4
+    let priority = incident_dict.get("priority") ?? 4
+    let created = incident_dict.get("created_at") ?? 0
+    let tags = incident_dict.get("tags") ?? []
+
+    let lines = []
+    lines.push("=== INCIDENT REPORT ===")
+    lines.push("Title: " + title)
+    lines.push("Status: " + models.status_label(status))
+    lines.push("Severity: " + models.severity_label(severity))
+    lines.push("Priority: " + models.priority_label(priority))
+    lines.push("Created: " + string(created))
+    lines.push("")
+    lines.push("--- Associated Events (" + string(len(events)) + ") ---")
+
+    for evt in events {
+        lines.push("  " + exporter.format_event_text(evt))
+    }
+
+    if len(events) > 0 {
+        lines.push("")
+        lines.push("--- Event Classification ---")
+        let batch_result = classifier.classify_batch(events)
+        let cat_counts = batch_result.get("category_counts") ?? {}
+        for cat_key in cat_counts {
+            let count = cat_counts.get(cat_key) ?? 0
+            let cat_num = try { int(cat_key) } catch (e) { -1 }
+            let cat_label = models.event_type_label(cat_num)
+            lines.push("  " + cat_label + ": " + string(count))
+        }
+    }
+
+    if len(tags) > 0 {
+        lines.push("")
+        lines.push("Tags: " + string(tags))
+    }
+
+    let output = ""
+    for i in 0..len(lines) {
+        if i > 0 {
+            output = output + "\n"
+        }
+        output = output + lines[i]
+    }
+    return output
+}
+
+export fn generate_health_report(events, alerts, incidents) {
+    let sev_dist = metrics.compute_severity_distribution(events)
+    let alert_stats = metrics.compute_alert_statistics(alerts, incidents)
+    let freq = metrics.compute_event_frequency(events)
+    let threat = classifier.get_threat_level(events)
+
+    let lines = []
+    lines.push("=== SYSTEM HEALTH REPORT ===")
+    lines.push("")
+
+    lines.push("-- Event Overview --")
+    lines.push("Total events: " + string(sev_dist.get("total") ?? 0))
+    lines.push("Dominant severity: " + models.severity_label(sev_dist.get("dominant_severity") ?? 4))
+    lines.push("Events/minute: " + string(freq.get("events_per_minute") ?? 0))
+    lines.push("Peak rate: " + string(freq.get("peak_rate") ?? 0))
+    lines.push("")
+
+    lines.push("-- Alert Overview --")
+    lines.push("Total alerts: " + string(alert_stats.get("total_alerts") ?? 0))
+    lines.push("Escalation rate: " + string(alert_stats.get("escalation_rate") ?? 0))
+    lines.push("Acknowledged: " + string(alert_stats.get("acknowledged") ?? 0))
+    lines.push("Resolved: " + string(alert_stats.get("resolved") ?? 0))
+    lines.push("")
+
+    lines.push("-- Threat Assessment --")
+    lines.push("Current threat level: " + threat)
+    lines.push("Active incidents: " + string(len(incidents)))
+
+    let output = ""
+    for i in 0..len(lines) {
+        if i > 0 {
+            output = output + "\n"
+        }
+        output = output + lines[i]
+    }
+    return output
+}
+
+export fn generate_severity_report(events) {
+    let dist = metrics.compute_severity_distribution(events)
+    let total = dist.get("total") ?? 0
+    let distribution = dist.get("distribution") ?? {}
+
+    let lines = []
+    lines.push("=== SEVERITY REPORT ===")
+    lines.push("Total events: " + string(total))
+    lines.push("")
+
+    let sev_names = ["Critical", "High", "Medium", "Low", "Info", "Debug"]
+    for i in 0..len(sev_names) {
+        let key = string(i)
+        let count = distribution.get(key) ?? 0
+        let pct = if total > 0 {
+            float(count) * 100.0 / float(total)
+        } else { 0.0 }
+        let bar_len = int(pct / 5.0)
+        let bar = ""
+        for j in 0..bar_len {
+            bar = bar + "#"
+        }
+        lines.push(sev_names[i] + ": " + string(count) + " (" + string(int(pct)) + "%) " + bar)
+    }
+
+    let output = ""
+    for i in 0..len(lines) {
+        if i > 0 {
+            output = output + "\n"
+        }
+        output = output + lines[i]
+    }
+    return output
+}
+
+main {
+    print("module loaded")
+}

@@ -902,33 +902,6 @@ main {
     RIGHT: `let match = regex.find(text, "\\d+"); if match != null { int(match) }`
     RIGHT: `let sev = regex.find(text, "ERROR|WARN"); if sev != null { string.lower(sev) }`
     Use `regex.search()` only for boolean checks: `if regex.search(text, pattern) { ... }`
-61. **Struct field access: use `.field` not `.get()` for portable code.**
-    Structs support both `.field` (dot notation) and `.get("field")` (dict-like) in the VM engine,
-    but the tree-walker (`--tree-walk`) only supports `.field`. For code that works in both engines,
-    always use dot notation for struct fields.
-    WRONG (tree-walker fails with "Field 'get' not found in struct"):
-      `let p = new Point { x: 5, y: 10 }`
-      `let val = p.x`  // Direct field access
-    Both `.field` and `.get("field")` work in both engines. Structs also support
-    `.has("field")`, `.keys()`, `.values()`, and `.size()`.
-    NOTE: `.field` is preferred for known fields. Use `.get("field", default)` when
-    you need a default value for optional/missing fields.
-62. **Stdout-based polyglot output is always a string.** All polyglot executors that capture
-    stdout return a string (or null if empty), never int/float/bool. This applies to:
-    shell, Go, Rust, Nim, Julia, Zig, and C#.
-    (Python and JavaScript use native type extraction via CPython/QuickJS APIs, so they
-    return native types correctly.)
-    To convert numeric output, explicitly cast:
-    WRONG (crashes: "Expected string value" when trim() receives a number):
-      `let year = <<shell date +%Y >>`
-      `string.trim(year)`  // If year were auto-converted to int, this fails
-    RIGHT (always works):
-      `let year = <<shell date +%Y >>`
-      `let year_str = string.trim(year)`  // Always a string
-      `let year_int = int(year_str)`      // Explicit conversion if needed
-    This prevents subtle bugs where numeric-looking output like "2026" is auto-converted
-    to int in one context but expected as a string in another.
-    Empty output returns null, not empty string: `""` would return `null`.
 
 ## Complexity Scoring (for governance)
 
@@ -1085,17 +1058,8 @@ naab --scan app.py python             # Scan single file
 
 ### Enforcement Levels
 - **hard** — Critical issues (security, dead code). Severity: critical
-  - Error message: `[HARD-BLOCK]` — execution is blocked, no override available
-  - Example: `Governance error: Language "python" is not allowed [HARD-MANDATORY]`
-  - Cannot be overridden — fix the violation or update govern.json (requires re-signing)
 - **soft** — Important quality issues. Severity: high/medium
-  - Error message: `[SOFT-MANDATORY]` — execution is blocked, but can be overridden
-  - Example: `Behavioral contract: 'func_name' must call 'len' [SOFT-MANDATORY]`
-  - Can be overridden with `--governance-override` flag (use only in development)
 - **advisory** — Suggestions for improvement. Severity: low
-  - Message: `[advisory]` — warnings only, does not block execution
-  - Example: `redundancy.unused_imports — Module 'X' imported but never used`
-  - Safe to ignore, but indicates code quality issue
 
 ### Configuration (govern.json)
 ```json

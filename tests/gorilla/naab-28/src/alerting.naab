@@ -1,0 +1,149 @@
+use string
+use uuid
+use time
+import "models.naab" as models
+
+export fn evaluate_alert_rule(rule, event_dict) {
+    if rule.get("enabled") == false {
+        return {"triggered": false, "reason": "rule disabled"}
+    }
+    let field = rule.get("condition_field") ?? "severity"
+    let threshold = rule.get("threshold_value") ?? 0
+    let direction = rule.get("direction") ?? 0
+    let value = event_dict.get(field) ?? null
+
+    if value == null {
+        return {"triggered": false, "reason": "field not found: " + field}
+    }
+
+    let numeric_val = try { int(value) } catch (e) { null }
+    if numeric_val == null {
+        return {"triggered": false, "reason": "non-numeric field value"}
+    }
+
+    let triggered = false
+    let reason = ""
+
+    if direction == models.ThresholdDirection.Above {
+        triggered = numeric_val > threshold
+        reason = field + "=" + string(numeric_val) + " > " + string(threshold)
+    } else if direction == models.ThresholdDirection.Below {
+        triggered = numeric_val < threshold
+        reason = field + "=" + string(numeric_val) + " < " + string(threshold)
+    } else if direction == models.ThresholdDirection.Equal {
+        triggered = numeric_val == threshold
+        reason = field + "=" + string(numeric_val) + " == " + string(threshold)
+    } else {
+        triggered = false
+        reason = "unsupported direction"
+    }
+
+    return {"triggered": triggered, "reason": reason}
+}
+
+export fn process_event_against_rules(event_dict, rules) {
+    let alerts = []
+    for rule in rules {
+        let result = evaluate_alert_rule(rule, event_dict)
+        if result.get("triggered") == true {
+            let alert = models.create_alert(
+                uuid.v4(),
+                rule.get("id") ?? "unknown",
+                rule.get("severity") ?? 4,
+                result.get("reason") ?? "triggered",
+                [event_dict.get("id") ?? ""]
+            )
+            alerts.push(alert)
+        }
+    }
+    return alerts
+}
+
+export fn check_cooldown(rule, last_fired_at, current_time) {
+    let cooldown = rule.get("cooldown_seconds") ?? 0
+    if cooldown <= 0 {
+        return true
+    }
+    let elapsed = current_time - last_fired_at
+    return elapsed >= cooldown
+}
+
+export fn acknowledge_alert(alert_dict, acknowledger) {
+    let updated = {}
+    let keys_list = ["id", "rule_id", "severity", "message",
+                     "triggered_at", "event_ids"]
+    for k in keys_list {
+        let v = alert_dict.get(k)
+        if v != null {
+            updated[k] = v
+            updated = updated
+        }
+    }
+    updated["acknowledged_at"] = int(time.now())
+    updated["state"] = models.AlertState.Acknowledged
+    updated["acknowledged_by"] = acknowledger
+    updated = updated
+    return updated
+}
+
+export fn suppress_alert(alert_dict, reason) {
+    let updated = {}
+    let keys_list = ["id", "rule_id", "severity", "message",
+                     "triggered_at", "acknowledged_at", "event_ids"]
+    for k in keys_list {
+        let v = alert_dict.get(k)
+        if v != null {
+            updated[k] = v
+            updated = updated
+        }
+    }
+    updated["state"] = models.AlertState.Suppressed
+    updated["suppression_reason"] = reason
+    updated = updated
+    return updated
+}
+
+export fn resolve_alert(alert_dict, resolution) {
+    let updated = {}
+    let keys_list = ["id", "rule_id", "severity", "message",
+                     "triggered_at", "acknowledged_at", "event_ids"]
+    for k in keys_list {
+        let v = alert_dict.get(k)
+        if v != null {
+            updated[k] = v
+            updated = updated
+        }
+    }
+    updated["state"] = models.AlertState.Resolved
+    updated["resolved_at"] = int(time.now())
+    updated["resolution"] = resolution
+    updated = updated
+    return updated
+}
+
+export fn escalate_alerts(alerts, severity_threshold) {
+    let escalated = []
+    let skipped = 0
+    for alert in alerts {
+        let sev = if type(alert) == "dict" {
+            alert.get("severity") ?? 5
+        } else { 5 }
+        let state = if type(alert) == "dict" {
+            alert.get("state") ?? 0
+        } else { 0 }
+        if sev <= severity_threshold && state != models.AlertState.Resolved && state != models.AlertState.Suppressed {
+            escalated.push(alert)
+        } else {
+            skipped = skipped + 1
+        }
+    }
+    return {
+        "escalated": escalated,
+        "escalated_count": len(escalated),
+        "skipped_count": skipped
+    }
+}
+
+main {
+    print("module loaded")
+}

@@ -303,34 +303,7 @@ interpreter::NaabVal ZigExecutor::executeWithReturn(
             return interpreter::NaabVal::makeNull();
         }
 
-        // Null representations
-        if (result == "null" || result == "NULL" || result == "None" ||
-            result == "nil" || result == "Nil" || result == "<nil>" ||
-            result == "nothing" || result == "undefined" || result == "()") {
-            return interpreter::NaabVal::makeNull();
-        }
-
-        // Boolean representations
-        if (result == "true" || result == "True" || result == "TRUE") {
-            return interpreter::NaabVal::makeBool(true);
-        }
-        if (result == "false" || result == "False" || result == "FALSE") {
-            return interpreter::NaabVal::makeBool(false);
-        }
-
-        // Try to parse as number
-        try {
-            size_t pos;
-            int i = std::stoi(result, &pos);
-            if (pos == result.size()) return interpreter::NaabVal::makeInt(i);
-        } catch (...) {}
-
-        try {
-            size_t pos;
-            double d = std::stod(result, &pos);
-            if (pos == result.size()) return interpreter::NaabVal::makeDouble(d);
-        } catch (...) {}
-
+        // Polyglot output is always a string — no implicit type coercion
         return interpreter::NaabVal::makeString(result);
 
     } catch (const std::exception& e) {

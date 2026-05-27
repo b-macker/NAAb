@@ -1,0 +1,225 @@
+use math
+use string
+import "models.naab" as models
+
+export fn compute_severity_distribution(events) {
+    let dist = {
+        "0": 0, "1": 0, "2": 0,
+        "3": 0, "4": 0, "5": 0
+    }
+    let total = 0
+
+    for evt in events {
+        let sev = if type(evt) == "dict" {
+            evt.get("severity") ?? 4
+        } else { 4 }
+        let key = string(sev)
+        let prev = dist.get(key) ?? 0
+        dist[key] = prev + 1
+        dist = dist
+        total = total + 1
+    }
+
+    let dominant = 4
+    let max_count = 0
+    for sev_key in dist {
+        let count = dist.get(sev_key) ?? 0
+        if count > max_count {
+            max_count = count
+            dominant = try { int(sev_key) } catch (e) { 4 }
+        }
+    }
+
+    return {
+        "distribution": dist,
+        "total": total,
+        "dominant_severity": dominant
+    }
+}
+
+export fn compute_alert_statistics(alerts, incidents) {
+    let safe_alerts = if alerts == null { [] } else { alerts }
+    let safe_incidents = if incidents == null { [] } else { incidents }
+
+    let total_alerts = len(safe_alerts)
+    let escalated = 0
+    let acknowledged = 0
+    let resolved = 0
+    let suppressed = 0
+
+    for alert in safe_alerts {
+        let state = if type(alert) == "dict" {
+            alert.get("state") ?? 0
+        } else { 0 }
+        if state == models.AlertState.Acknowledged {
+            acknowledged = acknowledged + 1
+        } else if state == models.AlertState.Resolved {
+            resolved = resolved + 1
+        } else if state == models.AlertState.Suppressed {
+            suppressed = suppressed + 1
+        }
+        let sev = if type(alert) == "dict" {
+            alert.get("severity") ?? 5
+        } else { 5 }
+        if sev <= 1 {
+            escalated = escalated + 1
+        }
+    }
+
+    let incident_count = len(safe_incidents)
+    for inc in safe_incidents {
+        let inc_sev = if type(inc) == "dict" {
+            inc.get("severity") ?? 5
+        } else { 5 }
+        if inc_sev <= 1 {
+            escalated = escalated + 1
+        }
+    }
+
+    let escalation_rate = if total_alerts + incident_count > 0 {
+        float(escalated) / float(total_alerts + incident_count)
+    } else { 0.0 }
+
+    return {
+        "total_alerts": total_alerts,
+        "escalation_rate": escalation_rate,
+        "acknowledged": acknowledged,
+        "resolved": resolved,
+        "suppressed": suppressed,
+        "incident_count": incident_count
+    }
+}
+
+export fn compute_event_frequency(events) {
+    let count = len(events)
+    if count == 0 {
+        return {
+            "events_per_minute": 0.0,
+            "peak_rate": 0.0,
+            "total_events": 0,
+            "duration_seconds": 0
+        }
+    }
+
+    let min_ts = -1
+    let max_ts = -1
+    for evt in events {
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+        if min_ts < 0 || ts < min_ts {
+            min_ts = ts
+        }
+        if max_ts < 0 || ts > max_ts {
+            max_ts = ts
+        }
+    }
+
+    let duration = max_ts - min_ts
+    let events_per_minute = if duration > 0 {
+        float(count) / (float(duration) / 60.0)
+    } else {
+        float(count)
+    }
+
+    let bucket_size = 60
+    let buckets = {}
+    for evt in events {
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+        let bucket_key = string(int(float(ts - min_ts) / float(bucket_size)))
+        let prev = buckets.get(bucket_key) ?? 0
+        buckets[bucket_key] = prev + 1
+        buckets = buckets
+    }
+
+    let peak_rate = 0.0
+    for bk in buckets {
+        let bcount = buckets.get(bk) ?? 0
+        if float(bcount) > peak_rate {
+            peak_rate = float(bcount)
+        }
+    }
+
+    return {
+        "events_per_minute": events_per_minute,
+        "peak_rate": peak_rate,
+        "total_events": count,
+        "duration_seconds": duration
+    }
+}
+
+export fn compute_mttr(incidents) {
+    let resolved_count = 0
+    let total_resolution_time = 0
+    for inc in incidents {
+        let status = if type(inc) == "dict" {
+            inc.get("status") ?? 0
+        } else { 0 }
+        if status == models.IncidentStatus.Closed || status == models.IncidentStatus.Mitigated {
+            let created = if type(inc) == "dict" {
+                inc.get("created_at") ?? 0
+            } else { 0 }
+            let resolved = if type(inc) == "dict" {
+                inc.get("resolved_at") ?? 0
+            } else { 0 }
+            if resolved > created {
+                total_resolution_time = total_resolution_time + (resolved - created)
+                resolved_count = resolved_count + 1
+            }
+        }
+    }
+    if resolved_count == 0 {
+        return 0.0
+    }
+    return float(total_resolution_time) / float(resolved_count)
+}
+
+export fn compute_severity_trend(events, window_seconds) {
+    if len(events) == 0 {
+        return []
+    }
+    let min_ts = -1
+    let max_ts = -1
+    for evt in events {
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+        if min_ts < 0 || ts < min_ts { min_ts = ts }
+        if max_ts < 0 || ts > max_ts { max_ts = ts }
+    }
+
+    let trend = []
+    let window_start = min_ts
+    while window_start <= max_ts {
+        let window_end = window_start + window_seconds
+        let sev_sum = 0
+        let count = 0
+        for evt in events {
+            let ts = if type(evt) == "dict" {
+                evt.get("timestamp") ?? 0
+            } else { 0 }
+            if ts >= window_start && ts < window_end {
+                let sev = if type(evt) == "dict" {
+                    evt.get("severity") ?? 4
+                } else { 4 }
+                sev_sum = sev_sum + sev
+                count = count + 1
+            }
+        }
+        let avg = if count > 0 { float(sev_sum) / float(count) } else { 0.0 }
+        trend.push({
+            "window_start": window_start,
+            "window_end": window_end,
+            "count": count,
+            "avg_severity": avg
+        })
+        window_start = window_start + window_seconds
+    }
+    return trend
+}
+
+main {
+    print("module loaded")
+}
