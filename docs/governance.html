@@ -896,6 +896,330 @@ mv govern-template.json govern.json
                     </div>
                 </div>
 
+                <!-- Taint Tracking -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Taint Tracking <span class="count">sources, sinks, sanitizers, propagation</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-row">
+                            <div class="form-group"><label><input type="checkbox" id="taint-enabled" onchange="updateJSON()"> Enable taint tracking</label></div>
+                            <div class="form-group">
+                                <label>Level</label>
+                                <select id="taint-level" onchange="updateJSON()">
+                                    <option value="hard">hard</option>
+                                    <option value="soft" selected>soft</option>
+                                    <option value="advisory">advisory</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group"><label>Sources (comma-separated)</label><input type="text" id="taint-sources" placeholder="polyglot_output, file.read, io.read_line, env.get" oninput="updateJSON()"></div>
+                        <div class="form-group"><label>Sinks (comma-separated)</label><input type="text" id="taint-sinks" placeholder="file.write, file.append" oninput="updateJSON()"></div>
+                        <div class="form-group"><label>Sanitizers (comma-separated)</label><input type="text" id="taint-sanitizers" placeholder="sanitize_string, validate_input, int, float, string" oninput="updateJSON()"></div>
+                        <div class="form-group"><label><input type="checkbox" id="taint-lineage" onchange="updateJSON()"> Enable lineage tracking</label></div>
+                    </div>
+                </div>
+
+                <!-- Scanner -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Scanner <span class="count">139 checks across 6 categories + 6 language modules</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Scanner Mode</label>
+                                <select id="scanner-mode" onchange="updateJSON()">
+                                    <option value="">disabled</option>
+                                    <option value="enforce">enforce</option>
+                                    <option value="audit">audit</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label><input type="checkbox" id="scanner-scan-src" checked onchange="updateJSON()"> Scan source directory</label></div>
+                        </div>
+                        <div class="form-group"><label>Scan paths (comma-separated)</label><input type="text" id="scanner-paths" placeholder="src/" oninput="updateJSON()"></div>
+                        <div class="form-row">
+                            <div class="form-group"><label><input type="checkbox" id="scanner-save-sarif" onchange="updateJSON()"> Save SARIF output</label></div>
+                            <div class="form-group"><label><input type="checkbox" id="scanner-save-json" onchange="updateJSON()"> Save JSON report</label></div>
+                        </div>
+                        <p style="color:var(--text-dim);font-size:0.85rem;margin-top:8px;">Individual check overrides (empty_catch, god_functions, etc.) can be configured directly in the JSON output.</p>
+                    </div>
+                </div>
+
+                <!-- Scoring -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Scoring <span class="count">cumulative risk scoring with thresholds</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="scoring-enabled" onchange="updateJSON()"> Enable cumulative risk scoring</label></div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Default weight</label><input type="number" id="scoring-default-weight" value="1" min="0" step="0.1" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>Yellow threshold</label><input type="number" id="scoring-yellow" value="15" min="0" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>Red threshold (block)</label><input type="number" id="scoring-red" value="30" min="0" oninput="updateJSON()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality Gate -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Quality Gate <span class="count">pass/fail conditions for CI</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="qgate-enabled" onchange="updateJSON()"> Enable quality gate</label></div>
+                        <div class="form-group"><label>Conditions (one per line: key operator value)</label><textarea id="qgate-conditions" rows="3" placeholder="hard_violations == 0&#10;soft_violations <= 5&#10;cumulative_risk_score < 30" oninput="updateJSON()"></textarea></div>
+                    </div>
+                </div>
+
+                <!-- Security -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Security <span class="count">sandbox level, network, strict types</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Sandbox Level</label>
+                                <select id="sec-sandbox" onchange="updateJSON()">
+                                    <option value="">default</option>
+                                    <option value="unrestricted">unrestricted</option>
+                                    <option value="standard">standard</option>
+                                    <option value="elevated">elevated</option>
+                                    <option value="maximum">maximum</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group"><label><input type="checkbox" id="sec-strict-types" onchange="updateJSON()"> Strict types</label></div>
+                    </div>
+                </div>
+
+                <!-- Trust -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Trust <span class="count">Ed25519 signature verification</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="trust-fresh-sig" onchange="updateJSON()"> Require fresh signature</label></div>
+                        <div class="form-group"><label><input type="checkbox" id="trust-key-expiry" onchange="updateJSON()"> Check key expiry</label></div>
+                        <div class="form-group"><label><input type="checkbox" id="trust-revocation" onchange="updateJSON()"> Check key revocation</label></div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Max signature age (days)</label><input type="number" id="trust-max-age" value="365" min="1" oninput="updateJSON()"></div>
+                            <div class="form-group">
+                                <label>Stale signature level</label>
+                                <select id="trust-stale-level" onchange="updateJSON()">
+                                    <option value="advisory" selected>advisory</option>
+                                    <option value="soft">soft</option>
+                                    <option value="hard">hard</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environments -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Environments <span class="count">per-environment overrides (--env flag)</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label>Production mode</label>
+                            <select id="env-prod-mode" onchange="updateJSON()">
+                                <option value="">inherit</option>
+                                <option value="enforce">enforce</option>
+                                <option value="audit">audit</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Development mode</label>
+                            <select id="env-dev-mode" onchange="updateJSON()">
+                                <option value="">inherit</option>
+                                <option value="enforce">enforce</option>
+                                <option value="audit">audit</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label>CI mode</label>
+                            <select id="env-ci-mode" onchange="updateJSON()">
+                                <option value="">inherit</option>
+                                <option value="enforce">enforce</option>
+                                <option value="audit">audit</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Review -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Agent Review <span class="count">dispatch mode, parallelism, fail strategy</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="areview-enabled" onchange="updateJSON()"> Enable agent review</label></div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Dispatch mode</label>
+                                <select id="areview-dispatch" onchange="updateJSON()">
+                                    <option value="sequential" selected>sequential</option>
+                                    <option value="parallel">parallel</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>Max parallel</label><input type="number" id="areview-max-parallel" value="4" min="0" oninput="updateJSON()"></div>
+                            <div class="form-group">
+                                <label>Fail strategy</label>
+                                <select id="areview-fail" onchange="updateJSON()">
+                                    <option value="fail_fast" selected>fail_fast</option>
+                                    <option value="continue">continue</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Dispatch -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Agent Dispatch <span class="count">thread pool for parallel agent calls</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-row">
+                            <div class="form-group"><label>Max concurrent</label><input type="number" id="adispatch-max" value="6" min="1" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>Pool size</label><input type="number" id="adispatch-pool" value="6" min="1" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>Queue max</label><input type="number" id="adispatch-queue" value="50" min="1" oninput="updateJSON()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Requirements -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Requirements <span class="count">main block, error handling, naming</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="req-main-block" checked onchange="updateJSON()"> Require main block</label></div>
+                        <div class="form-group"><label><input type="checkbox" id="req-error-handling" onchange="updateJSON()"> Require error handling</label></div>
+                        <div class="form-group"><label><input type="checkbox" id="req-strict-types" onchange="updateJSON()"> Require strict types</label></div>
+                        <div class="form-group"><label><input type="checkbox" id="req-no-global-state" onchange="updateJSON()"> No global state</label></div>
+                    </div>
+                </div>
+
+                <!-- Integrity -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Integrity <span class="count">blocked flags, body hash</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label>Blocked flags (comma-separated)</label><input type="text" id="integrity-blocked" placeholder="--no-governance, --governance-override" oninput="updateJSON()"></div>
+                    </div>
+                </div>
+
+                <!-- Runtime -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Runtime <span class="count">timeout, memory, GC</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-row">
+                            <div class="form-group"><label>Timeout (seconds)</label><input type="number" id="rt-timeout" value="60" min="1" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>Memory limit (MB)</label><input type="number" id="rt-memory" value="512" min="32" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>GC threshold</label><input type="number" id="rt-gc" value="10000" min="100" oninput="updateJSON()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Governance Baseline -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Governance Baseline <span class="count">regression tracking</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="gbaseline-enabled" onchange="updateJSON()"> Enable governance baseline</label></div>
+                        <div class="form-group"><label>Path</label><input type="text" id="gbaseline-path" value=".naab/governance-baseline.json" oninput="updateJSON()"></div>
+                        <div class="form-group"><label><input type="checkbox" id="gbaseline-fail-regress" onchange="updateJSON()"> Fail on regression</label></div>
+                        <div class="form-group">
+                            <label>Level</label>
+                            <select id="gbaseline-level" onchange="updateJSON()">
+                                <option value="advisory" selected>advisory</option>
+                                <option value="soft">soft</option>
+                                <option value="hard">hard</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Approval -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Approval <span class="count">override approval workflow</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label>Store path</label><input type="text" id="approval-store" value=".naab/approvals.json" oninput="updateJSON()"></div>
+                        <div class="form-group"><label>Approver keys (comma-separated fingerprints)</label><input type="text" id="approval-keys" placeholder="" oninput="updateJSON()"></div>
+                        <div class="form-group"><label>Default expiry (hours)</label><input type="number" id="approval-expiry" value="24" min="1" oninput="updateJSON()"></div>
+                    </div>
+                </div>
+
+                <!-- Runtime Versions -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Runtime Versions <span class="count">language version pinning</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-row">
+                            <div class="form-group"><label>Python required version</label><input type="text" id="rtver-python" placeholder="3.10" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>JavaScript required version</label><input type="text" id="rtver-js" placeholder="18" oninput="updateJSON()"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Go required version</label><input type="text" id="rtver-go" placeholder="1.21" oninput="updateJSON()"></div>
+                            <div class="form-group"><label>Rust required version</label><input type="text" id="rtver-rust" placeholder="1.70" oninput="updateJSON()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contradiction Detection -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Contradiction Detection <span class="count">detect conflicting rules</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="contradict-enabled" onchange="updateJSON()"> Enable contradiction detection</label></div>
+                        <div class="form-group">
+                            <label>Max level</label>
+                            <select id="contradict-level" onchange="updateJSON()">
+                                <option value="advisory" selected>advisory</option>
+                                <option value="soft">soft</option>
+                                <option value="hard">hard</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prerequisites -->
+                <div class="accordion">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Prerequisites <span class="count">pre-execution checks</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group"><label><input type="checkbox" id="prereq-enabled" onchange="updateJSON()"> Enable prerequisites</label></div>
+                        <div class="form-group"><label>Checks (one per line: name = command)</label><textarea id="prereq-checks" rows="3" placeholder="python_version = python3 --version&#10;node_version = node --version" oninput="updateJSON()"></textarea></div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Preview -->
@@ -1672,6 +1996,201 @@ function updateJSON() {
     if (hp) hooks.pre_check = {command: hp};
     if (hpo) hooks.post_check = {command: hpo};
     if (Object.keys(hooks).length) cfg.hooks = hooks;
+
+    // Taint Tracking
+    if (document.getElementById('taint-enabled')?.checked) {
+        const taint = {enabled: true, level: document.getElementById('taint-level').value};
+        const sources = document.getElementById('taint-sources').value.trim();
+        const sinks = document.getElementById('taint-sinks').value.trim();
+        const sanitizers = document.getElementById('taint-sanitizers').value.trim();
+        if (sources) taint.sources = sources.split(',').map(s=>s.trim()).filter(Boolean);
+        if (sinks) taint.sinks = sinks.split(',').map(s=>s.trim()).filter(Boolean);
+        if (sanitizers) taint.sanitizers = sanitizers.split(',').map(s=>s.trim()).filter(Boolean);
+        if (document.getElementById('taint-lineage').checked) taint.lineage = {enabled: true};
+        cfg.taint_tracking = taint;
+    }
+
+    // Scanner
+    const scannerMode = document.getElementById('scanner-mode').value;
+    if (scannerMode) {
+        const scanner = {version: '1.0', mode: scannerMode};
+        const scanPaths = document.getElementById('scanner-paths').value.trim();
+        if (scanPaths) scanner.scan = scanPaths.split(',').map(s=>s.trim()).filter(Boolean);
+        const scanOutput = {};
+        if (document.getElementById('scanner-save-sarif').checked) scanOutput.save_sarif = true;
+        if (document.getElementById('scanner-save-json').checked) scanOutput.save_json = true;
+        if (Object.keys(scanOutput).length) scanner.output = scanOutput;
+        cfg.scanner = scanner;
+    }
+
+    // Scoring
+    if (document.getElementById('scoring-enabled')?.checked) {
+        const scoring = {enabled: true};
+        const dw = parseFloat(document.getElementById('scoring-default-weight').value);
+        const yt = parseInt(document.getElementById('scoring-yellow').value);
+        const rt = parseInt(document.getElementById('scoring-red').value);
+        if (dw !== 1) scoring.default_weight = dw;
+        if (yt !== 15) scoring.yellow_threshold = yt; else scoring.yellow_threshold = 15;
+        if (rt !== 30) scoring.red_threshold = rt; else scoring.red_threshold = 30;
+        cfg.scoring = scoring;
+    }
+
+    // Quality Gate
+    if (document.getElementById('qgate-enabled')?.checked) {
+        const qg = {enabled: true};
+        const condText = document.getElementById('qgate-conditions').value.trim();
+        if (condText) qg.conditions = condText.split('\n').map(s=>s.trim()).filter(Boolean);
+        cfg.quality_gate = qg;
+    }
+
+    // Security
+    const sandbox = document.getElementById('sec-sandbox').value;
+    const strictTypes = document.getElementById('sec-strict-types').checked;
+    if (sandbox || strictTypes) {
+        const sec = {};
+        if (sandbox) sec.sandbox_level = sandbox;
+        if (strictTypes) sec.strict_types = true;
+        cfg.security = sec;
+    }
+
+    // Trust
+    const trustFresh = document.getElementById('trust-fresh-sig').checked;
+    const trustExpiry = document.getElementById('trust-key-expiry').checked;
+    const trustRevoke = document.getElementById('trust-revocation').checked;
+    const trustMaxAge = parseInt(document.getElementById('trust-max-age').value) || 365;
+    const trustStale = document.getElementById('trust-stale-level').value;
+    if (trustFresh || trustExpiry || trustRevoke || trustMaxAge !== 365 || trustStale !== 'advisory') {
+        const trust = {};
+        if (trustFresh) trust.require_fresh_signature = true;
+        if (trustExpiry) trust.check_key_expiry = true;
+        if (trustRevoke) trust.check_revocation = true;
+        if (trustMaxAge !== 365) trust.max_signature_age_days = trustMaxAge;
+        if (trustStale !== 'advisory') trust.stale_signature_level = trustStale;
+        cfg.trust = trust;
+    }
+
+    // Environments
+    const envs = {};
+    const envProd = document.getElementById('env-prod-mode').value;
+    const envDev = document.getElementById('env-dev-mode').value;
+    const envCI = document.getElementById('env-ci-mode').value;
+    if (envProd) envs.production = {mode: envProd};
+    if (envDev) envs.development = {mode: envDev};
+    if (envCI) envs.ci = {mode: envCI};
+    if (Object.keys(envs).length) cfg.environments = envs;
+
+    // Agent Review
+    if (document.getElementById('areview-enabled')?.checked) {
+        const ar = {enabled: true};
+        const dispatch = document.getElementById('areview-dispatch').value;
+        if (dispatch !== 'sequential') ar.dispatch_mode = dispatch;
+        const maxP = parseInt(document.getElementById('areview-max-parallel').value) || 4;
+        if (maxP !== 4) ar.max_parallel = maxP;
+        const failS = document.getElementById('areview-fail').value;
+        if (failS !== 'fail_fast') ar.fail_strategy = failS;
+        cfg.agent_review = ar;
+    }
+
+    // Agent Dispatch
+    const adMax = parseInt(document.getElementById('adispatch-max').value) || 6;
+    const adPool = parseInt(document.getElementById('adispatch-pool').value) || 6;
+    const adQueue = parseInt(document.getElementById('adispatch-queue').value) || 50;
+    if (adMax !== 6 || adPool !== 6 || adQueue !== 50) {
+        cfg.agent_dispatch = {};
+        if (adMax !== 6) cfg.agent_dispatch.max_concurrent = adMax;
+        if (adPool !== 6) cfg.agent_dispatch.pool_size = adPool;
+        if (adQueue !== 50) cfg.agent_dispatch.pool_queue_max = adQueue;
+    }
+
+    // Requirements
+    const reqMain = document.getElementById('req-main-block').checked;
+    const reqErr = document.getElementById('req-error-handling').checked;
+    const reqStrict = document.getElementById('req-strict-types').checked;
+    const reqNoGlobal = document.getElementById('req-no-global-state').checked;
+    if (!reqMain || reqErr || reqStrict || reqNoGlobal) {
+        const req = {};
+        req.main_block = reqMain;
+        if (reqErr) req.error_handling = true;
+        if (reqStrict) req.strict_types = true;
+        if (reqNoGlobal) req.no_global_state = true;
+        cfg.requirements = req;
+    }
+
+    // Integrity
+    const blockedFlags = document.getElementById('integrity-blocked').value.trim();
+    if (blockedFlags) {
+        cfg.integrity = {blocked_flags: blockedFlags.split(',').map(s=>s.trim()).filter(Boolean)};
+    }
+
+    // Runtime
+    const rtTimeout = parseInt(document.getElementById('rt-timeout').value) || 60;
+    const rtMem = parseInt(document.getElementById('rt-memory').value) || 512;
+    const rtGC = parseInt(document.getElementById('rt-gc').value) || 10000;
+    if (rtTimeout !== 60 || rtMem !== 512 || rtGC !== 10000) {
+        const rt = {};
+        if (rtTimeout !== 60) rt.timeout = rtTimeout;
+        if (rtMem !== 512) rt.memory_limit = rtMem;
+        if (rtGC !== 10000) rt.gc_threshold = rtGC;
+        cfg.runtime = rt;
+    }
+
+    // Governance Baseline
+    if (document.getElementById('gbaseline-enabled')?.checked) {
+        const gb = {enabled: true};
+        const gbPath = document.getElementById('gbaseline-path').value;
+        if (gbPath && gbPath !== '.naab/governance-baseline.json') gb.path = gbPath;
+        if (document.getElementById('gbaseline-fail-regress').checked) gb.fail_on_regression = true;
+        const gbLevel = document.getElementById('gbaseline-level').value;
+        if (gbLevel !== 'advisory') gb.level = gbLevel;
+        cfg.governance_baseline = gb;
+    }
+
+    // Approval
+    const approvalStore = document.getElementById('approval-store').value.trim();
+    const approvalKeys = document.getElementById('approval-keys').value.trim();
+    const approvalExpiry = parseInt(document.getElementById('approval-expiry').value) || 24;
+    if (approvalKeys || approvalExpiry !== 24) {
+        const appr = {};
+        if (approvalStore && approvalStore !== '.naab/approvals.json') appr.store_path = approvalStore;
+        if (approvalKeys) appr.approver_keys = approvalKeys.split(',').map(s=>s.trim()).filter(Boolean);
+        if (approvalExpiry !== 24) appr.default_expiry_hours = approvalExpiry;
+        cfg.approval = appr;
+    }
+
+    // Runtime Versions
+    const rtVers = [];
+    const pyVer = document.getElementById('rtver-python').value.trim();
+    const jsVer = document.getElementById('rtver-js').value.trim();
+    const goVer = document.getElementById('rtver-go').value.trim();
+    const rustVer = document.getElementById('rtver-rust').value.trim();
+    if (pyVer) rtVers.push({language: 'python', required: pyVer, level: 'advisory'});
+    if (jsVer) rtVers.push({language: 'javascript', required: jsVer, level: 'advisory'});
+    if (goVer) rtVers.push({language: 'go', required: goVer, level: 'advisory'});
+    if (rustVer) rtVers.push({language: 'rust', required: rustVer, level: 'advisory'});
+    if (rtVers.length) cfg.runtime_versions = rtVers;
+
+    // Contradiction Detection
+    if (document.getElementById('contradict-enabled')?.checked) {
+        const cd = {enabled: true};
+        const cdLevel = document.getElementById('contradict-level').value;
+        if (cdLevel !== 'advisory') cd.max_level = cdLevel;
+        cfg.contradiction_detection = cd;
+    }
+
+    // Prerequisites
+    if (document.getElementById('prereq-enabled')?.checked) {
+        const pq = {enabled: true};
+        const checksText = document.getElementById('prereq-checks').value.trim();
+        if (checksText) {
+            const checks = {};
+            checksText.split('\n').forEach(line => {
+                const parts = line.split('=');
+                if (parts.length >= 2) checks[parts[0].trim()] = parts.slice(1).join('=').trim();
+            });
+            if (Object.keys(checks).length) pq.checks = checks;
+        }
+        cfg.prerequisites = pq;
+    }
 
     // Render with diff highlighting
     const el = document.getElementById('json-output');
