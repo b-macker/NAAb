@@ -1,0 +1,193 @@
+use string
+use math
+import "models.naab" as models
+
+export fn correlate_by_source(events) {
+    let source_groups = {}
+    for evt in events {
+        let src = if type(evt) == "dict" {
+            evt.get("source") ?? "unknown"
+        } else { "unknown" }
+        let group = source_groups.get(src) ?? []
+        group.push(evt)
+        source_groups[src] = group
+        source_groups = source_groups
+    }
+    return source_groups
+}
+
+export fn correlate_by_time_window(events, window_seconds) {
+    if len(events) == 0 {
+        return []
+    }
+    let windows = []
+    let current_window = []
+    let window_start = -1
+
+    for evt in events {
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+
+        if window_start < 0 {
+            window_start = ts
+            current_window.push(evt)
+        } else if ts - window_start <= window_seconds {
+            current_window.push(evt)
+        } else {
+            windows.push({
+                "start": window_start,
+                "end": window_start + window_seconds,
+                "events": current_window,
+                "count": len(current_window)
+            })
+            current_window = [evt]
+            window_start = ts
+        }
+    }
+
+    if len(current_window) > 0 {
+        windows.push({
+            "start": window_start,
+            "end": window_start + window_seconds,
+            "events": current_window,
+            "count": len(current_window)
+        })
+    }
+
+    return windows
+}
+
+export fn find_event_chains(events, max_gap_seconds) {
+    let chains = []
+    let current_chain = []
+    let last_ts = -1
+
+    for evt in events {
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+
+        if last_ts < 0 {
+            current_chain.push(evt)
+            last_ts = ts
+        } else if ts - last_ts <= max_gap_seconds {
+            current_chain.push(evt)
+            last_ts = ts
+        } else {
+            if len(current_chain) >= 2 {
+                chains.push({
+                    "events": current_chain,
+                    "length": len(current_chain),
+                    "duration": last_ts - (if type(current_chain[0]) == "dict" {
+                        current_chain[0].get("timestamp") ?? 0
+                    } else { 0 })
+                })
+            }
+            current_chain = [evt]
+            last_ts = ts
+        }
+    }
+
+    if len(current_chain) >= 2 {
+        let first_ts = if type(current_chain[0]) == "dict" {
+            current_chain[0].get("timestamp") ?? 0
+        } else { 0 }
+        chains.push({
+            "events": current_chain,
+            "length": len(current_chain),
+            "duration": last_ts - first_ts
+        })
+    }
+
+    return chains
+}
+
+export fn detect_burst(events, threshold_per_minute) {
+    if len(events) == 0 {
+        return {"detected": false, "peak_rate": 0.0, "burst_windows": []}
+    }
+
+    let burst_windows = []
+    let window_size = 60
+    let max_rate = 0.0
+
+    let sorted_events = events
+    let i = 0
+    while i < len(sorted_events) {
+        let base_ts = if type(sorted_events[i]) == "dict" {
+            sorted_events[i].get("timestamp") ?? 0
+        } else { 0 }
+
+        let count = 0
+        let j = i
+        while j < len(sorted_events) {
+            let check_ts = if type(sorted_events[j]) == "dict" {
+                sorted_events[j].get("timestamp") ?? 0
+            } else { 0 }
+            if check_ts - base_ts <= window_size {
+                count = count + 1
+                j = j + 1
+            } else {
+                j = len(sorted_events)
+            }
+        }
+
+        let rate = float(count)
+        if rate > max_rate {
+            max_rate = rate
+        }
+        if rate >= float(threshold_per_minute) {
+            burst_windows.push({
+                "start": base_ts,
+                "end": base_ts + window_size,
+                "count": count,
+                "rate": rate
+            })
+        }
+        i = i + 1
+    }
+
+    return {
+        "detected": len(burst_windows) > 0,
+        "peak_rate": max_rate,
+        "burst_windows": burst_windows
+    }
+}
+
+export fn compute_correlation_score(event_a, event_b) {
+    let score = 0.0
+    let src_a = if type(event_a) == "dict" { event_a.get("source") ?? "" } else { "" }
+    let src_b = if type(event_b) == "dict" { event_b.get("source") ?? "" } else { "" }
+    if src_a == src_b && src_a != "" {
+        score = score + 0.3
+    }
+    let sev_a = if type(event_a) == "dict" { event_a.get("severity") ?? 4 } else { 4 }
+    let sev_b = if type(event_b) == "dict" { event_b.get("severity") ?? 4 } else { 4 }
+    let sev_diff = math.abs(sev_a - sev_b)
+    if sev_diff == 0 {
+        score = score + 0.2
+    } else if sev_diff == 1 {
+        score = score + 0.1
+    }
+    let ts_a = if type(event_a) == "dict" { event_a.get("timestamp") ?? 0 } else { 0 }
+    let ts_b = if type(event_b) == "dict" { event_b.get("timestamp") ?? 0 } else { 0 }
+    let time_diff = math.abs(ts_a - ts_b)
+    if time_diff <= 5 {
+        score = score + 0.3
+    } else if time_diff <= 30 {
+        score = score + 0.15
+    } else if time_diff <= 60 {
+        score = score + 0.05
+    }
+    let cat_a = if type(event_a) == "dict" { event_a.get("category") ?? -1 } else { -1 }
+    let cat_b = if type(event_b) == "dict" { event_b.get("category") ?? -1 } else { -1 }
+    if cat_a == cat_b && cat_a >= 0 {
+        score = score + 0.2
+    }
+    return math.min(score, 1.0)
+}
+
+main {
+    print("module loaded")
+}

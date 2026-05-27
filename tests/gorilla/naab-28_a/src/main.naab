@@ -1,0 +1,768 @@
+use json
+use string
+use uuid
+use time
+import "models.naab" as models
+import "validators.naab" as validators
+import "parser.naab" as parser
+import "classifier.naab" as classifier
+import "correlator.naab" as correlator
+import "alerting.naab" as alerting
+import "metrics.naab" as metrics
+import "timeline.naab" as timeline
+import "storage.naab" as storage
+import "exporter.naab" as exporter
+import "reports.naab" as reports
+import "analyzer.naab" as analyzer
+
+fn make_test_events() {
+    let events = []
+    let base_ts = 1700000000
+
+    events.push({
+        "id": "evt-001", "timestamp": base_ts, "source": "auth-service",
+        "severity": 0, "message": "Auth failure: brute force detected from 10.0.0.5",
+        "category": 0, "subcategory": "authentication", "tags": ["security", "auth"],
+        "metadata": {"ip": "10.0.0.5"}
+    })
+    events.push({
+        "id": "evt-002", "timestamp": base_ts + 5, "source": "auth-service",
+        "severity": 1, "message": "Multiple login failures for user admin",
+        "category": 0, "subcategory": "login", "tags": ["security"],
+        "metadata": {"user": "admin"}
+    })
+    events.push({
+        "id": "evt-003", "timestamp": base_ts + 30, "source": "disk-monitor",
+        "severity": 1, "message": "Disk full on /dev/sda1 — partition at 98%",
+        "category": 1, "subcategory": "storage", "tags": ["infrastructure", "disk"],
+        "metadata": {"partition": "/dev/sda1", "usage_pct": 98}
+    })
+    events.push({
+        "id": "evt-004", "timestamp": base_ts + 60, "source": "app-server",
+        "severity": 2, "message": "Request timeout after 30s on /api/users endpoint",
+        "category": 4, "subcategory": "latency", "tags": ["performance"],
+        "metadata": {"endpoint": "/api/users", "timeout_ms": 30000}
+    })
+    events.push({
+        "id": "evt-005", "timestamp": base_ts + 90, "source": "db-primary",
+        "severity": 0, "message": "Deadlock detected in transaction 48271 — replication lag 45s",
+        "category": 5, "subcategory": "deadlock", "tags": ["database"],
+        "metadata": {"transaction_id": 48271, "replication_lag": 45}
+    })
+    events.push({
+        "id": "evt-006", "timestamp": base_ts + 120, "source": "network-gw",
+        "severity": 3, "message": "Packet loss 2% on interface eth0",
+        "category": 3, "subcategory": "packet_loss", "tags": ["network"],
+        "metadata": {"interface": "eth0", "loss_pct": 2}
+    })
+    events.push({
+        "id": "evt-007", "timestamp": base_ts + 150, "source": "auth-service",
+        "severity": 4, "message": "User login successful for user bob",
+        "category": 2, "subcategory": "login", "tags": ["info"],
+        "metadata": {"user": "bob"}
+    })
+    events.push({
+        "id": "evt-008", "timestamp": base_ts + 180, "source": "app-server",
+        "severity": 5, "message": "GC pause 12ms in heap compaction",
+        "category": 4, "subcategory": "gc", "tags": ["performance", "debug"],
+        "metadata": {"gc_type": "compaction", "pause_ms": 12}
+    })
+    events.push({
+        "id": "evt-009", "timestamp": base_ts + 200, "source": "firewall",
+        "severity": 0, "message": "Intrusion attempt blocked from 192.168.1.100 — exploit payload detected",
+        "category": 0, "subcategory": "intrusion", "tags": ["security", "firewall"],
+        "metadata": {"src_ip": "192.168.1.100"}
+    })
+    events.push({
+        "id": "evt-010", "timestamp": base_ts + 250, "source": "db-primary",
+        "severity": 2, "message": "Slow query detected: SELECT * FROM orders WHERE status='pending' took 8.5s",
+        "category": 5, "subcategory": "slow_query", "tags": ["database", "performance"],
+        "metadata": {"query_time_ms": 8500}
+    })
+
+    return events
+}
+
+fn test_create_event() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let evt = models.create_event("test-1", 1700000000, "test-src", 0, "test message", 0, "sub", ["tag1"], {"k": "v"})
+    let required_keys = ["id", "timestamp", "source", "severity", "message", "category"]
+    let all_present = true
+    for k in required_keys {
+        if evt.get(k) == null {
+            if k != "severity" || evt.get(k) != 0 {
+                all_present = false
+            }
+        }
+    }
+    if all_present { passed = passed + 1 }
+
+    total = total + 1
+    if evt.get("id") == "test-1" && evt.get("source") == "test-src" {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if evt.get("severity") == 0 && evt.get("category") == 0 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_normalize_severity() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if parser.normalize_severity("CRITICAL") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    if parser.normalize_severity("WARNING") == 3 { passed = passed + 1 }
+
+    total = total + 1
+    if parser.normalize_severity("INFO") == 4 { passed = passed + 1 }
+
+    total = total + 1
+    if parser.normalize_severity("ERROR") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    if parser.normalize_severity("DEBUG") == 5 { passed = passed + 1 }
+
+    total = total + 1
+    if parser.normalize_severity(null) == 4 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_classify_event() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let auth_result = classifier.classify_event({"message": "auth failure", "category": 0})
+    let disk_result = classifier.classify_event({"message": "disk full", "category": 2})
+    if auth_result.get("category") != disk_result.get("category") {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let keys_ok = auth_result.get("category") != null && auth_result.get("confidence") != null && auth_result.get("tags") != null
+    if keys_ok { passed = passed + 1 }
+
+    total = total + 1
+    let sec_result = classifier.classify_event({"message": "intrusion exploit malware breach", "category": -1})
+    if sec_result.get("confidence") > 0.7 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_result = classifier.classify_event({"message": "", "category": -1})
+    if empty_result.get("confidence") <= 0.5 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_is_security_event() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let r1 = classifier.is_security_event({"message": "Auth failure"})
+    let r2 = classifier.is_security_event({"message": "AUTH FAILURE"})
+    if r1 == r2 { passed = passed + 1 }
+
+    total = total + 1
+    if classifier.is_security_event({"message": "brute force login attempt"}) == true {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if classifier.is_security_event({"message": "user logged in successfully"}) == false {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if classifier.is_security_event({"message": "exploit detected in payload"}) == true {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_compute_severity_distribution() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+    let result = metrics.compute_severity_distribution(events)
+
+    total = total + 1
+    let has_keys = result.get("distribution") != null && result.get("total") != null && result.get("dominant_severity") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("total") == 10 { passed = passed + 1 }
+
+    total = total + 1
+    let dist = result.get("distribution") ?? {}
+    let crit_count = dist.get("0") ?? 0
+    if crit_count == 3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_compute_alert_statistics() {
+    let passed = 0
+    let total = 0
+
+    let alerts_a = [
+        {"severity": 0, "state": 0},
+        {"severity": 1, "state": 2},
+        {"severity": 3, "state": 4}
+    ]
+    let incidents_a = [{"severity": 0}]
+    let result_a = metrics.compute_alert_statistics(alerts_a, incidents_a)
+
+    total = total + 1
+    let has_keys = result_a.get("total_alerts") != null && result_a.get("escalation_rate") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    if result_a.get("total_alerts") == 3 { passed = passed + 1 }
+
+    let alerts_b = [
+        {"severity": 4, "state": 0},
+        {"severity": 4, "state": 0}
+    ]
+    let result_b = metrics.compute_alert_statistics(alerts_b, [])
+
+    total = total + 1
+    if result_a.get("escalation_rate") != result_b.get("escalation_rate") {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_compute_event_frequency() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+    let result = metrics.compute_event_frequency(events)
+
+    total = total + 1
+    let has_keys = result.get("events_per_minute") != null && result.get("peak_rate") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("events_per_minute") > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_result = metrics.compute_event_frequency([])
+    if empty_result.get("events_per_minute") == 0.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_parse_log_entry() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let json_input = json.stringify({"id": "j1", "source": "test", "severity": "warning", "message": "test warn msg", "timestamp": 1700000000})
+    let result = parser.parse_log_entry(json_input)
+    let has_keys = result.get("event") != null && result.get("valid") != null && result.get("errors") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let null_result = parser.parse_log_entry(null)
+    if null_result.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let empty_result = parser.parse_log_entry("")
+    if empty_result.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let syslog_result = parser.parse_log_entry("Jan  5 14:23:01 webserver nginx: connection timeout from 10.0.0.1")
+    if syslog_result.get("valid") == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_generate_timeline() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+    let result = timeline.generate_timeline(events)
+
+    total = total + 1
+    let has_keys = result.get("entries") != null && result.get("duration_seconds") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    let entries = result.get("entries") ?? []
+    if len(entries) == len(events) { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("duration_seconds") > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_result = timeline.generate_timeline([])
+    if empty_result.get("duration_seconds") == 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_store_event() {
+    let passed = 0
+    let total = 0
+
+    let store_obj = storage.create_store()
+    let evt = {"id": "s1", "timestamp": 1700000000, "source": "test", "severity": 1, "message": "store test"}
+    let result = storage.store_event(store_obj, evt)
+
+    total = total + 1
+    let has_keys = result.get("store") != null && result.get("success") != null && result.get("event_id") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("success") == true { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("event_id") == "s1" { passed = passed + 1 }
+
+    total = total + 1
+    let new_store = result.get("store")
+    let retrieved = storage.retrieve_event(new_store, "s1")
+    if retrieved.get("found") == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_sanitize_string() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let result = validators.sanitize_string("<script>alert('xss')</script>")
+    if string.contains(result, "<") == false && string.contains(result, ">") == false {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if validators.sanitize_string(null) == "" { passed = passed + 1 }
+
+    total = total + 1
+    let clean = validators.sanitize_string("  hello world  ")
+    if clean == "hello world" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_validate_event_schema() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let valid_evt = {"id": "v1", "timestamp": 1700000000, "source": "test", "severity": 2, "message": "ok"}
+    let result = validators.validate_event_schema(valid_evt)
+    let has_keys = result.get("valid") != null && result.get("errors") != null
+    if has_keys { passed = passed + 1 }
+
+    total = total + 1
+    if result.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let invalid_evt = {"id": "", "timestamp": -1}
+    let inv_result = validators.validate_event_schema(invalid_evt)
+    if inv_result.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    if len(inv_result.get("errors") ?? []) > 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_correlator() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+
+    total = total + 1
+    let by_source = correlator.correlate_by_source(events)
+    let auth_events = by_source.get("auth-service") ?? []
+    if len(auth_events) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let windows = correlator.correlate_by_time_window(events, 60)
+    if len(windows) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let chains = correlator.find_event_chains(events, 60)
+    if len(chains) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let burst = correlator.detect_burst(events, 5)
+    if burst.get("peak_rate") != null { passed = passed + 1 }
+
+    total = total + 1
+    let score = correlator.compute_correlation_score(events[0], events[1])
+    if score > 0.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_alerting() {
+    let passed = 0
+    let total = 0
+
+    let rule = {
+        "id": "rule-1", "name": "Critical severity", "condition_field": "severity",
+        "threshold_value": 1, "direction": 1, "severity": 0,
+        "cooldown_seconds": 60, "notification_targets": [], "enabled": true
+    }
+
+    total = total + 1
+    let eval_result = alerting.evaluate_alert_rule(rule, {"severity": 0})
+    if eval_result.get("triggered") == true { passed = passed + 1 }
+
+    total = total + 1
+    let eval_no = alerting.evaluate_alert_rule(rule, {"severity": 3})
+    if eval_no.get("triggered") == false { passed = passed + 1 }
+
+    total = total + 1
+    let disabled_rule = {"id": "r2", "enabled": false}
+    let disabled_result = alerting.evaluate_alert_rule(disabled_rule, {"severity": 0})
+    if disabled_result.get("triggered") == false { passed = passed + 1 }
+
+    total = total + 1
+    let events = make_test_events()
+    let alerts = alerting.process_event_against_rules(events[0], [rule])
+    if len(alerts) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let cooldown_ok = alerting.check_cooldown(rule, 1700000000, 1700000100)
+    if cooldown_ok == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_exporter() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+
+    total = total + 1
+    let text = exporter.format_event_text(events[0])
+    if string.contains(text, "auth-service") { passed = passed + 1 }
+
+    total = total + 1
+    let csv_line = exporter.format_event_csv(events[0])
+    if string.contains(csv_line, "evt-001") { passed = passed + 1 }
+
+    total = total + 1
+    let csv_full = exporter.export_csv(events)
+    if string.contains(csv_full, "id,timestamp") { passed = passed + 1 }
+
+    total = total + 1
+    let json_out = exporter.format_events_json(events)
+    if string.contains(json_out, "evt-001") { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_reports() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+    let alerts = [
+        {"severity": 0, "state": 0, "rule_id": "r1", "message": "test alert"},
+        {"severity": 1, "state": 2, "rule_id": "r2", "message": "ack alert"}
+    ]
+    let incidents = [
+        {"title": "Security incident", "status": 0, "severity": 0, "priority": 0, "created_at": 1700000000, "tags": ["critical"]}
+    ]
+
+    total = total + 1
+    let health_report = reports.generate_health_report(events, alerts, incidents)
+    if string.contains(health_report, "SYSTEM HEALTH REPORT") { passed = passed + 1 }
+
+    total = total + 1
+    let sev_report = reports.generate_severity_report(events)
+    if string.contains(sev_report, "SEVERITY REPORT") { passed = passed + 1 }
+
+    total = total + 1
+    let inc_report = reports.generate_incident_report(incidents[0], events)
+    if string.contains(inc_report, "INCIDENT REPORT") { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_analyzer() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+
+    total = total + 1
+    let analysis = analyzer.analyze_event_stream(events)
+    if analysis.get("total") == 10 { passed = passed + 1 }
+
+    total = total + 1
+    if analysis.get("threat_level") != "none" { passed = passed + 1 }
+
+    total = total + 1
+    let source_health = analyzer.analyze_source_health(events)
+    let auth_health = source_health.get("auth-service")
+    if auth_health != null { passed = passed + 1 }
+
+    total = total + 1
+    let alerts = [{"severity": 0, "state": 0}]
+    let incidents = [{"status": 0, "severity": 0}]
+    let risk = analyzer.compute_risk_score(events, alerts, incidents)
+    if risk > 0.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_storage_advanced() {
+    let passed = 0
+    let total = 0
+
+    let store_obj = storage.create_store()
+    let events = make_test_events()
+
+    for evt in events {
+        let result = storage.store_event(store_obj, evt)
+        store_obj = result.get("store")
+    }
+
+    total = total + 1
+    let stats = storage.store_stats(store_obj)
+    if stats.get("total_events") == 10 { passed = passed + 1 }
+
+    total = total + 1
+    let auth_events = storage.query_by_source(store_obj, "auth-service")
+    if len(auth_events) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let crit_events = storage.query_by_severity(store_obj, 0)
+    if len(crit_events) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let purge_result = storage.purge_by_severity(store_obj, 2)
+    if purge_result.get("removed_count") > 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_polyglot_python() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+
+    total = total + 1
+    let sev_counts = <<python[events]
+import json
+counts = {}
+for e in events:
+    s = str(e.get("severity", 4))
+    counts[s] = counts.get(s, 0) + 1
+json.dumps(counts)
+>>
+    let parsed = json.parse(sev_counts)
+    if parsed.get("0") == "3" || parsed.get("0") == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let sorted_ids = <<python[events]
+import json
+sorted_evts = sorted(events, key=lambda e: e.get("timestamp", 0))
+ids = [e.get("id", "") for e in sorted_evts]
+json.dumps(ids)
+>>
+    let id_list = json.parse(sorted_ids)
+    if id_list[0] == "evt-001" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_polyglot_javascript() {
+    let passed = 0
+    let total = 0
+
+    let events = make_test_events()
+
+    total = total + 1
+    let unique_sources = <<javascript[events]
+const sources = {};
+for (let i = 0; i < events.length; i++) {
+    const src = events[i].source || "unknown";
+    sources[src] = (sources[src] || 0) + 1;
+}
+const result = JSON.stringify(sources);
+result
+>>
+    let src_counts = json.parse(unique_sources)
+    if src_counts.get("auth-service") == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let max_sev = <<javascript[events]
+let maxSev = 999;
+for (let i = 0; i < events.length; i++) {
+    const s = events[i].severity;
+    if (s < maxSev) maxSev = s;
+}
+const res = String(maxSev);
+res
+>>
+    if max_sev == "0" || int(max_sev) == 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_polyglot_shell() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let date_output = <<shell
+date +%Y
+>>
+    if string.contains(string.trim(date_output), "202") { passed = passed + 1 }
+
+    total = total + 1
+    let echo_output = <<shell
+echo "naab-28-test"
+>>
+    if string.trim(echo_output) == "naab-28-test" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+
+main {
+    print("=== NAAb-28 Event Processing Platform Tests ===")
+    print("")
+
+    let grand_passed = 0
+    let grand_total = 0
+
+    let r1 = test_create_event()
+    print("test_create_event: " + string(r1[0]) + "/" + string(r1[1]))
+    grand_passed = grand_passed + r1[0]
+    grand_total = grand_total + r1[1]
+
+    let r2 = test_normalize_severity()
+    print("test_normalize_severity: " + string(r2[0]) + "/" + string(r2[1]))
+    grand_passed = grand_passed + r2[0]
+    grand_total = grand_total + r2[1]
+
+    let r3 = test_classify_event()
+    print("test_classify_event: " + string(r3[0]) + "/" + string(r3[1]))
+    grand_passed = grand_passed + r3[0]
+    grand_total = grand_total + r3[1]
+
+    let r4 = test_is_security_event()
+    print("test_is_security_event: " + string(r4[0]) + "/" + string(r4[1]))
+    grand_passed = grand_passed + r4[0]
+    grand_total = grand_total + r4[1]
+
+    let r5 = test_compute_severity_distribution()
+    print("test_compute_severity_distribution: " + string(r5[0]) + "/" + string(r5[1]))
+    grand_passed = grand_passed + r5[0]
+    grand_total = grand_total + r5[1]
+
+    let r6 = test_compute_alert_statistics()
+    print("test_compute_alert_statistics: " + string(r6[0]) + "/" + string(r6[1]))
+    grand_passed = grand_passed + r6[0]
+    grand_total = grand_total + r6[1]
+
+    let r7 = test_compute_event_frequency()
+    print("test_compute_event_frequency: " + string(r7[0]) + "/" + string(r7[1]))
+    grand_passed = grand_passed + r7[0]
+    grand_total = grand_total + r7[1]
+
+    let r8 = test_parse_log_entry()
+    print("test_parse_log_entry: " + string(r8[0]) + "/" + string(r8[1]))
+    grand_passed = grand_passed + r8[0]
+    grand_total = grand_total + r8[1]
+
+    let r9 = test_generate_timeline()
+    print("test_generate_timeline: " + string(r9[0]) + "/" + string(r9[1]))
+    grand_passed = grand_passed + r9[0]
+    grand_total = grand_total + r9[1]
+
+    let r10 = test_store_event()
+    print("test_store_event: " + string(r10[0]) + "/" + string(r10[1]))
+    grand_passed = grand_passed + r10[0]
+    grand_total = grand_total + r10[1]
+
+    let r11 = test_sanitize_string()
+    print("test_sanitize_string: " + string(r11[0]) + "/" + string(r11[1]))
+    grand_passed = grand_passed + r11[0]
+    grand_total = grand_total + r11[1]
+
+    let r12 = test_validate_event_schema()
+    print("test_validate_event_schema: " + string(r12[0]) + "/" + string(r12[1]))
+    grand_passed = grand_passed + r12[0]
+    grand_total = grand_total + r12[1]
+
+    let r13 = test_correlator()
+    print("test_correlator: " + string(r13[0]) + "/" + string(r13[1]))
+    grand_passed = grand_passed + r13[0]
+    grand_total = grand_total + r13[1]
+
+    let r14 = test_alerting()
+    print("test_alerting: " + string(r14[0]) + "/" + string(r14[1]))
+    grand_passed = grand_passed + r14[0]
+    grand_total = grand_total + r14[1]
+
+    let r15 = test_exporter()
+    print("test_exporter: " + string(r15[0]) + "/" + string(r15[1]))
+    grand_passed = grand_passed + r15[0]
+    grand_total = grand_total + r15[1]
+
+    let r16 = test_reports()
+    print("test_reports: " + string(r16[0]) + "/" + string(r16[1]))
+    grand_passed = grand_passed + r16[0]
+    grand_total = grand_total + r16[1]
+
+    let r17 = test_analyzer()
+    print("test_analyzer: " + string(r17[0]) + "/" + string(r17[1]))
+    grand_passed = grand_passed + r17[0]
+    grand_total = grand_total + r17[1]
+
+    let r18 = test_storage_advanced()
+    print("test_storage_advanced: " + string(r18[0]) + "/" + string(r18[1]))
+    grand_passed = grand_passed + r18[0]
+    grand_total = grand_total + r18[1]
+
+    let r19 = test_polyglot_python()
+    print("test_polyglot_python: " + string(r19[0]) + "/" + string(r19[1]))
+    grand_passed = grand_passed + r19[0]
+    grand_total = grand_total + r19[1]
+
+    let r20 = test_polyglot_javascript()
+    print("test_polyglot_javascript: " + string(r20[0]) + "/" + string(r20[1]))
+    grand_passed = grand_passed + r20[0]
+    grand_total = grand_total + r20[1]
+
+    let r21 = test_polyglot_shell()
+    print("test_polyglot_shell: " + string(r21[0]) + "/" + string(r21[1]))
+    grand_passed = grand_passed + r21[0]
+    grand_total = grand_total + r21[1]
+
+    print("")
+    print("=== GRAND TOTAL: " + string(grand_passed) + "/" + string(grand_total) + " ===")
+}

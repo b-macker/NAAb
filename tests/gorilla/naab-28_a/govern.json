@@ -1,0 +1,162 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-28_a retest — Phase 9: full lockdown (all features enabled)",
+
+  "languages": {
+    "allowed": ["python", "javascript", "shell"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_write" },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "dd", "kill"]
+    }
+  },
+
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "soft",
+    "lineage": false,
+    "sources": ["polyglot_output", "file.read", "env.get"],
+    "sinks": ["file.write", "file.append"],
+    "sanitizers": ["validate_", "sanitize_"],
+    "propagation": {
+      "string_concat": true,
+      "function_returns": true,
+      "dict_array_access": true
+    }
+  },
+
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 10,
+    "red_threshold": 15,
+    "default_weight": 2,
+    "rule_weights": {
+      "redundancy.unused_imports": 0.5,
+      "code_quality.god_functions": 2,
+      "security.hardcoded_credentials": 5,
+      "security.shell_injection": 5,
+      "lang_naab.hardcoded_return_value": 3
+    }
+  },
+
+  "limits": {
+    "timeout": { "global": 30, "per_block": 15, "total_polyglot": 60 },
+    "execution": { "loop_iterations": 10000, "call_depth": 50, "polyglot_blocks": 10 }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "shell_injection": { "level": "hard" },
+    "privilege_escalation": { "level": "hard" },
+    "code_injection": { "level": "hard" },
+    "resource_exhaustion": { "level": "hard" },
+    "type_confusion": { "level": "hard" },
+    "prototype_pollution": { "level": "hard" },
+    "information_disclosure": { "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" },
+    "no_hardcoded_results": { "level": "hard" },
+    "no_simulation_markers": { "level": "hard" },
+    "no_debug_artifacts": { "level": "hard" },
+    "no_oversimplification": { "level": "hard" },
+    "no_incomplete_logic": { "level": "hard" },
+    "complexity_floor": {
+      "level": "advisory",
+      "min_score": 5,
+      "min_lines_for_check": 8,
+      "check_naab": true,
+      "check_polyglot": true
+    }
+  },
+
+  "contracts": {
+    "level": "soft",
+    "functions": {
+      "classify_event": {
+        "arity": {"min": 1, "max": 1},
+        "return_type": "dict",
+        "return_keys": ["category", "confidence", "tags"],
+        "must_contain": ["count_keyword_hits"],
+        "must_differentiate": [
+          { "a": {"message": "auth failure", "category": 0}, "b": {"message": "disk full", "category": 2}, "key": "category" }
+        ]
+      },
+      "is_security_event": {
+        "arity": {"min": 1, "max": 1},
+        "return_type": "bool",
+        "must_contain": ["security_keywords"],
+        "must_handle_case": [
+          { "inputs": [{"message": "Auth failure"}, {"message": "AUTH FAILURE"}], "expect": "consistent" }
+        ]
+      },
+      "compute_severity_distribution": {
+        "arity": {"min": 1, "max": 1},
+        "return_type": "dict",
+        "return_keys": ["distribution", "total", "dominant_severity"],
+        "must_contain": ["for", "dominant"]
+      },
+      "create_event": {
+        "return_keys": ["id", "timestamp", "source", "severity", "message", "category"]
+      },
+      "normalize_severity": {
+        "must_produce": [
+          { "args": ["CRITICAL"], "expect": 0 },
+          { "args": ["WARNING"], "expect": 3 },
+          { "args": ["INFO"], "expect": 4 }
+        ]
+      },
+      "compute_alert_statistics": {
+        "return_keys": ["total_alerts", "escalation_rate"],
+        "must_vary": [
+          { "key": "escalation_rate", "across": "data" }
+        ]
+      },
+      "compute_event_frequency": {
+        "return_keys": ["events_per_minute", "peak_rate"],
+        "must_derive_from": { "events_per_minute": ["events"] }
+      },
+      "parse_log_entry": {
+        "return_keys": ["event", "valid", "errors"]
+      },
+      "generate_timeline": {
+        "return_keys": ["entries", "duration_seconds"]
+      },
+      "store_event": {
+        "return_keys": ["store", "success", "event_id"]
+      },
+      "sanitize_string": {},
+      "validate_event_schema": {
+        "return_keys": ["valid", "errors"]
+      }
+    }
+  },
+
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "code_quality": {
+      "empty_catch": { "enabled": true, "level": "hard" },
+      "god_functions": { "enabled": true, "level": "advisory", "max_lines": 80 },
+      "deep_nesting": { "enabled": true, "level": "advisory", "max_depth": 4 }
+    },
+    "security": {
+      "hardcoded_credentials": { "enabled": true, "level": "hard" }
+    }
+  },
+
+  "output": {
+    "summary": { "format": "detailed", "show_passing": true }
+  }
+}

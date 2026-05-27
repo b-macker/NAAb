@@ -1,0 +1,198 @@
+use string
+use math
+import "models.naab" as models
+import "classifier.naab" as classifier
+import "correlator.naab" as correlator
+import "metrics.naab" as metrics
+
+export fn analyze_event_stream(events) {
+    let total = len(events)
+    if total == 0 {
+        return {
+            "total": 0,
+            "classifications": [],
+            "correlations": {},
+            "frequency": {"events_per_minute": 0.0, "peak_rate": 0.0},
+            "threat_level": "none",
+            "anomalies": []
+        }
+    }
+
+    let batch = classifier.classify_batch(events)
+    let by_source = correlator.correlate_by_source(events)
+    let freq = metrics.compute_event_frequency(events)
+    let threat = classifier.get_threat_level(events)
+
+    let anomalies = detect_anomalies(events)
+
+    return {
+        "total": total,
+        "classifications": batch.get("classifications") ?? [],
+        "correlations": by_source,
+        "frequency": freq,
+        "threat_level": threat,
+        "anomalies": anomalies
+    }
+}
+
+fn detect_anomalies(events) {
+    let anomalies = []
+    if len(events) < 2 {
+        return anomalies
+    }
+
+    let sev_sum = 0
+    let sev_count = 0
+    for evt in events {
+        let sev = if type(evt) == "dict" {
+            evt.get("severity") ?? 4
+        } else { 4 }
+        sev_sum = sev_sum + sev
+        sev_count = sev_count + 1
+    }
+    let avg_sev = float(sev_sum) / float(sev_count)
+
+    let variance_sum = 0.0
+    for evt in events {
+        let sev = if type(evt) == "dict" {
+            evt.get("severity") ?? 4
+        } else { 4 }
+        let diff = float(sev) - avg_sev
+        variance_sum = variance_sum + (diff * diff)
+    }
+    let std_dev = math.sqrt(variance_sum / float(sev_count))
+
+    for i in 0..len(events) {
+        let evt = events[i]
+        let sev = if type(evt) == "dict" {
+            evt.get("severity") ?? 4
+        } else { 4 }
+        let z_score = if std_dev > 0.0 {
+            (float(sev) - avg_sev) / std_dev
+        } else { 0.0 }
+        if math.abs(z_score) > 2.0 {
+            anomalies.push({
+                "index": i,
+                "event_id": if type(evt) == "dict" { evt.get("id") ?? "" } else { "" },
+                "z_score": z_score,
+                "severity": sev,
+                "type": "severity_outlier"
+            })
+        }
+    }
+
+    let prev_ts = -1
+    for i in 0..len(events) {
+        let evt = events[i]
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+        if prev_ts >= 0 {
+            let gap = ts - prev_ts
+            if gap > 300 {
+                anomalies.push({
+                    "index": i,
+                    "event_id": if type(evt) == "dict" { evt.get("id") ?? "" } else { "" },
+                    "gap_seconds": gap,
+                    "type": "time_gap"
+                })
+            }
+        }
+        prev_ts = ts
+    }
+
+    return anomalies
+}
+
+export fn analyze_source_health(events) {
+    let by_source = correlator.correlate_by_source(events)
+    let source_health = {}
+
+    for src in by_source {
+        let src_events = by_source.get(src) ?? []
+        let total = len(src_events)
+        let critical_count = 0
+        let high_count = 0
+        let error_count = 0
+
+        for evt in src_events {
+            let sev = if type(evt) == "dict" {
+                evt.get("severity") ?? 4
+            } else { 4 }
+            if sev == 0 { critical_count = critical_count + 1 }
+            if sev == 1 { high_count = high_count + 1 }
+            if sev <= 1 { error_count = error_count + 1 }
+        }
+
+        let error_ratio = if total > 0 {
+            float(error_count) / float(total)
+        } else { 0.0 }
+
+        let health = if error_ratio > 0.5 { "critical" } else {
+            if error_ratio > 0.25 { "degraded" } else {
+                if error_ratio > 0.1 { "warning" } else { "healthy" }
+            }
+        }
+
+        source_health[src] = {
+            "total_events": total,
+            "critical": critical_count,
+            "high": high_count,
+            "error_ratio": error_ratio,
+            "health": health
+        }
+        source_health = source_health
+    }
+
+    return source_health
+}
+
+export fn compute_risk_score(events, alerts, incidents) {
+    let base_score = 0.0
+    let event_weight = 0.3
+    let alert_weight = 0.4
+    let incident_weight = 0.3
+
+    let sev_dist = metrics.compute_severity_distribution(events)
+    let distribution = sev_dist.get("distribution") ?? {}
+    let total_events = sev_dist.get("total") ?? 0
+
+    if total_events > 0 {
+        let crit = float(distribution.get("0") ?? 0) * 10.0
+        let high = float(distribution.get("1") ?? 0) * 7.0
+        let med = float(distribution.get("2") ?? 0) * 4.0
+        let low = float(distribution.get("3") ?? 0) * 1.0
+        let raw_event_score = (crit + high + med + low) / float(total_events)
+        base_score = base_score + (raw_event_score * event_weight)
+    }
+
+    let total_alerts = len(alerts)
+    if total_alerts > 0 {
+        let high_alerts = 0
+        for alert in alerts {
+            let sev = if type(alert) == "dict" {
+                alert.get("severity") ?? 5
+            } else { 5 }
+            if sev <= 1 { high_alerts = high_alerts + 1 }
+        }
+        let alert_ratio = float(high_alerts) / float(total_alerts)
+        base_score = base_score + (alert_ratio * 10.0 * alert_weight)
+    }
+
+    let open_incidents = 0
+    for inc in incidents {
+        let status = if type(inc) == "dict" {
+            inc.get("status") ?? 0
+        } else { 0 }
+        if status != models.IncidentStatus.Closed && status != models.IncidentStatus.Mitigated {
+            open_incidents = open_incidents + 1
+        }
+    }
+    base_score = base_score + (float(open_incidents) * 2.0 * incident_weight)
+
+    return math.min(base_score, 10.0)
+}
+
+main {
+    print("module loaded")
+}

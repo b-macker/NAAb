@@ -1,0 +1,144 @@
+use json
+use string
+import "models.naab" as models
+
+export fn format_event_text(event_dict) {
+    let id_val = if type(event_dict) == "dict" {
+        event_dict.get("id") ?? "?"
+    } else { "?" }
+    let ts = if type(event_dict) == "dict" {
+        event_dict.get("timestamp") ?? 0
+    } else { 0 }
+    let src = if type(event_dict) == "dict" {
+        event_dict.get("source") ?? "unknown"
+    } else { "unknown" }
+    let sev = if type(event_dict) == "dict" {
+        event_dict.get("severity") ?? 4
+    } else { 4 }
+    let msg = if type(event_dict) == "dict" {
+        event_dict.get("message") ?? ""
+    } else { "" }
+
+    let sev_label = models.severity_label(sev)
+    return "[" + string(ts) + "] [" + sev_label + "] " + src + ": " + msg
+}
+
+export fn format_event_csv(event_dict) {
+    let id_val = if type(event_dict) == "dict" {
+        event_dict.get("id") ?? ""
+    } else { "" }
+    let ts = if type(event_dict) == "dict" {
+        string(event_dict.get("timestamp") ?? 0)
+    } else { "0" }
+    let src = if type(event_dict) == "dict" {
+        event_dict.get("source") ?? ""
+    } else { "" }
+    let sev = if type(event_dict) == "dict" {
+        string(event_dict.get("severity") ?? 4)
+    } else { "4" }
+    let msg = if type(event_dict) == "dict" {
+        event_dict.get("message") ?? ""
+    } else { "" }
+    let clean_msg = string.replace(msg, ",", ";")
+    return id_val + "," + ts + "," + src + "," + sev + "," + clean_msg
+}
+
+export fn format_events_json(events) {
+    let items = []
+    for evt in events {
+        if type(evt) == "dict" {
+            let item = {
+                "id": evt.get("id") ?? "",
+                "timestamp": evt.get("timestamp") ?? 0,
+                "source": evt.get("source") ?? "",
+                "severity": evt.get("severity") ?? 4,
+                "message": evt.get("message") ?? "",
+                "category": evt.get("category") ?? 2
+            }
+            items.push(item)
+        }
+    }
+    return json.stringify(items)
+}
+
+export fn export_csv(events) {
+    let lines = ["id,timestamp,source,severity,message"]
+    for evt in events {
+        lines.push(format_event_csv(evt))
+    }
+    let output = ""
+    for i in 0..len(lines) {
+        if i > 0 {
+            output = output + "\n"
+        }
+        output = output + lines[i]
+    }
+    return output
+}
+
+export fn export_summary_text(stats) {
+    let lines = []
+    lines.push("=== Event Processing Summary ===")
+    let total = stats.get("total_events") ?? stats.get("total") ?? 0
+    lines.push("Total events: " + string(total))
+
+    let dist = stats.get("distribution")
+    if dist != null {
+        lines.push("Severity distribution:")
+        for sev_key in dist {
+            let count = dist.get(sev_key) ?? 0
+            if count > 0 {
+                let label = match sev_key {
+                    "0" => "  Critical",
+                    "1" => "  High",
+                    "2" => "  Medium",
+                    "3" => "  Low",
+                    "4" => "  Info",
+                    "5" => "  Debug",
+                    _ => "  Unknown"
+                }
+                lines.push(label + ": " + string(count))
+            }
+        }
+    }
+
+    let dominant = stats.get("dominant_severity")
+    if dominant != null {
+        lines.push("Dominant severity: " + models.severity_label(dominant))
+    }
+
+    let output = ""
+    for i in 0..len(lines) {
+        if i > 0 {
+            output = output + "\n"
+        }
+        output = output + lines[i]
+    }
+    return output
+}
+
+export fn format_alert_text(alert_dict) {
+    let id_val = if type(alert_dict) == "dict" {
+        alert_dict.get("id") ?? "?"
+    } else { "?" }
+    let rule_id = if type(alert_dict) == "dict" {
+        alert_dict.get("rule_id") ?? "?"
+    } else { "?" }
+    let sev = if type(alert_dict) == "dict" {
+        alert_dict.get("severity") ?? 4
+    } else { 4 }
+    let msg = if type(alert_dict) == "dict" {
+        alert_dict.get("message") ?? ""
+    } else { "" }
+    let state = if type(alert_dict) == "dict" {
+        alert_dict.get("state") ?? 0
+    } else { 0 }
+
+    let state_label = models.alert_state_label(state)
+    let sev_label = models.severity_label(sev)
+    return "ALERT [" + sev_label + "] [" + state_label + "] " + msg + " (rule: " + rule_id + ")"
+}
+
+main {
+    print("module loaded")
+}

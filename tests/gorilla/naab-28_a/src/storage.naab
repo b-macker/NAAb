@@ -1,0 +1,149 @@
+use string
+use uuid
+
+export fn create_store() {
+    return {
+        "events": {},
+        "index_by_source": {},
+        "index_by_severity": {},
+        "count": 0
+    }
+}
+
+export fn store_event(store, event_dict) {
+    let evt_id = if type(event_dict) == "dict" {
+        event_dict.get("id") ?? uuid.v4()
+    } else { uuid.v4() }
+
+    let events = store.get("events") ?? {}
+    events[evt_id] = event_dict
+    events = events
+    store["events"] = events
+
+    let source = if type(event_dict) == "dict" {
+        event_dict.get("source") ?? "unknown"
+    } else { "unknown" }
+    let by_source = store.get("index_by_source") ?? {}
+    let src_list = by_source.get(source) ?? []
+    src_list.push(evt_id)
+    by_source[source] = src_list
+    by_source = by_source
+    store["index_by_source"] = by_source
+
+    let severity = if type(event_dict) == "dict" {
+        event_dict.get("severity") ?? 4
+    } else { 4 }
+    let sev_key = string(severity)
+    let by_sev = store.get("index_by_severity") ?? {}
+    let sev_list = by_sev.get(sev_key) ?? []
+    sev_list.push(evt_id)
+    by_sev[sev_key] = sev_list
+    by_sev = by_sev
+    store["index_by_severity"] = by_sev
+
+    let count = store.get("count") ?? 0
+    store["count"] = count + 1
+    store = store
+
+    return {
+        "store": store,
+        "success": true,
+        "event_id": evt_id
+    }
+}
+
+export fn retrieve_event(store, event_id) {
+    let events = store.get("events") ?? {}
+    let evt = events.get(event_id)
+    if evt == null {
+        return {"found": false, "event": null}
+    }
+    return {"found": true, "event": evt}
+}
+
+export fn query_by_source(store, source) {
+    let by_source = store.get("index_by_source") ?? {}
+    let ids = by_source.get(source) ?? []
+    let events = store.get("events") ?? {}
+    let results = []
+    for eid in ids {
+        let evt = events.get(eid)
+        if evt != null {
+            results.push(evt)
+        }
+    }
+    return results
+}
+
+export fn query_by_severity(store, severity) {
+    let sev_key = string(severity)
+    let by_sev = store.get("index_by_severity") ?? {}
+    let ids = by_sev.get(sev_key) ?? []
+    let events = store.get("events") ?? {}
+    let results = []
+    for eid in ids {
+        let evt = events.get(eid)
+        if evt != null {
+            results.push(evt)
+        }
+    }
+    return results
+}
+
+export fn store_stats(store) {
+    let events = store.get("events") ?? {}
+    let by_source = store.get("index_by_source") ?? {}
+    let by_sev = store.get("index_by_severity") ?? {}
+    let source_counts = {}
+    for src in by_source {
+        let ids = by_source.get(src) ?? []
+        source_counts[src] = len(ids)
+        source_counts = source_counts
+    }
+    let severity_counts = {}
+    for sk in by_sev {
+        let ids = by_sev.get(sk) ?? []
+        severity_counts[sk] = len(ids)
+        severity_counts = severity_counts
+    }
+    return {
+        "total_events": store.get("count") ?? 0,
+        "unique_sources": len(source_counts),
+        "source_counts": source_counts,
+        "severity_counts": severity_counts
+    }
+}
+
+export fn purge_by_severity(store, min_severity) {
+    let events = store.get("events") ?? {}
+    let kept = {}
+    let removed = 0
+    for eid in events {
+        let evt = events.get(eid)
+        let sev = if type(evt) == "dict" {
+            evt.get("severity") ?? 4
+        } else { 4 }
+        if sev <= min_severity {
+            kept[eid] = evt
+            kept = kept
+        } else {
+            removed = removed + 1
+        }
+    }
+
+    let new_store = create_store()
+    for eid in kept {
+        let result = store_event(new_store, kept.get(eid))
+        new_store = result.get("store")
+    }
+
+    return {
+        "store": new_store,
+        "removed_count": removed,
+        "remaining_count": new_store.get("count") ?? 0
+    }
+}
+
+main {
+    print("module loaded")
+}

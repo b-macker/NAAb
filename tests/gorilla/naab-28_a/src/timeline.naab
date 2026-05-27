@@ -1,0 +1,153 @@
+use string
+use math
+import "models.naab" as models
+
+export fn generate_timeline(events) {
+    if len(events) == 0 {
+        return {
+            "entries": [],
+            "duration_seconds": 0
+        }
+    }
+
+    let entries = []
+    let min_ts = -1
+    let max_ts = -1
+
+    for evt in events {
+        let ts = if type(evt) == "dict" {
+            evt.get("timestamp") ?? 0
+        } else { 0 }
+        let evt_id = if type(evt) == "dict" {
+            evt.get("id") ?? ""
+        } else { "" }
+        let msg = if type(evt) == "dict" {
+            evt.get("message") ?? ""
+        } else { "" }
+        let sev = if type(evt) == "dict" {
+            evt.get("severity") ?? 4
+        } else { 4 }
+        let src = if type(evt) == "dict" {
+            evt.get("source") ?? "unknown"
+        } else { "unknown" }
+
+        let sev_label = match sev {
+            0 => "CRITICAL",
+            1 => "HIGH",
+            2 => "MEDIUM",
+            3 => "LOW",
+            4 => "INFO",
+            5 => "DEBUG",
+            _ => "UNKNOWN"
+        }
+        let desc = "[" + sev_label + "] " + msg
+
+        entries.push(models.create_timeline_entry(ts, evt_id, desc, sev, src))
+
+        if min_ts < 0 || ts < min_ts { min_ts = ts }
+        if max_ts < 0 || ts > max_ts { max_ts = ts }
+    }
+
+    let duration = if min_ts >= 0 && max_ts >= 0 {
+        max_ts - min_ts
+    } else { 0 }
+
+    return {
+        "entries": entries,
+        "duration_seconds": duration
+    }
+}
+
+export fn merge_timelines(timeline_a, timeline_b) {
+    let entries_a = timeline_a.get("entries") ?? []
+    let entries_b = timeline_b.get("entries") ?? []
+    let all_entries = entries_a + entries_b
+
+    let min_ts = -1
+    let max_ts = -1
+    for entry in all_entries {
+        let ts = if type(entry) == "dict" {
+            entry.get("timestamp") ?? 0
+        } else { 0 }
+        if min_ts < 0 || ts < min_ts { min_ts = ts }
+        if max_ts < 0 || ts > max_ts { max_ts = ts }
+    }
+
+    let duration = if min_ts >= 0 && max_ts >= 0 {
+        max_ts - min_ts
+    } else { 0 }
+
+    return {
+        "entries": all_entries,
+        "duration_seconds": duration,
+        "merged_count": len(all_entries)
+    }
+}
+
+export fn filter_timeline_by_severity(timeline, max_severity) {
+    let entries = timeline.get("entries") ?? []
+    let filtered = []
+    for entry in entries {
+        let sev = if type(entry) == "dict" {
+            entry.get("severity") ?? 5
+        } else { 5 }
+        if sev <= max_severity {
+            filtered.push(entry)
+        }
+    }
+
+    let min_ts = -1
+    let max_ts = -1
+    for entry in filtered {
+        let ts = if type(entry) == "dict" {
+            entry.get("timestamp") ?? 0
+        } else { 0 }
+        if min_ts < 0 || ts < min_ts { min_ts = ts }
+        if max_ts < 0 || ts > max_ts { max_ts = ts }
+    }
+
+    let duration = if min_ts >= 0 && max_ts >= 0 {
+        max_ts - min_ts
+    } else { 0 }
+
+    return {
+        "entries": filtered,
+        "duration_seconds": duration
+    }
+}
+
+export fn summarize_timeline(timeline) {
+    let entries = timeline.get("entries") ?? []
+    let total = len(entries)
+    let by_source = {}
+    let by_severity = {}
+
+    for entry in entries {
+        let src = if type(entry) == "dict" {
+            entry.get("source") ?? "unknown"
+        } else { "unknown" }
+        let sev = if type(entry) == "dict" {
+            entry.get("severity") ?? 4
+        } else { 4 }
+
+        let src_count = by_source.get(src) ?? 0
+        by_source[src] = src_count + 1
+        by_source = by_source
+
+        let sev_key = string(sev)
+        let sev_count = by_severity.get(sev_key) ?? 0
+        by_severity[sev_key] = sev_count + 1
+        by_severity = by_severity
+    }
+
+    return {
+        "total_entries": total,
+        "by_source": by_source,
+        "by_severity": by_severity,
+        "duration_seconds": timeline.get("duration_seconds") ?? 0
+    }
+}
+
+main {
+    print("module loaded")
+}

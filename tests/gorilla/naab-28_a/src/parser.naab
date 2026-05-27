@@ -1,0 +1,262 @@
+use regex
+use json
+use time
+use uuid
+use string
+import "models.naab" as models
+
+export fn normalize_severity(text) {
+    if text == null {
+        return models.EventSeverity.Info
+    }
+    let lower = string.lower(text)
+    return match lower {
+        "critical" => models.EventSeverity.Critical,
+        "error" => models.EventSeverity.High,
+        "major" => models.EventSeverity.High,
+        "minor" => models.EventSeverity.Medium,
+        "warn" => models.EventSeverity.Low,
+        "warning" => models.EventSeverity.Low,
+        "info" => models.EventSeverity.Info,
+        "debug" => models.EventSeverity.Debug,
+        _ => models.EventSeverity.Info
+    }
+}
+
+export fn extract_timestamp(text) {
+    if text == null {
+        return null
+    }
+    let iso_pattern = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}"
+    let iso_match = regex.find(text, iso_pattern)
+    if iso_match != null {
+        let parsed_ts = try { time.parse_datetime(iso_match) } catch (e) { null }
+        if parsed_ts != null {
+            return int(parsed_ts)
+        }
+        return int(time.now())
+    }
+
+    let unix_pattern = "\\b(1[0-9]{9})\\b"
+    let unix_match = regex.find(text, unix_pattern)
+    if unix_match != null {
+        let ts_val = try { int(unix_match) } catch (e) { null }
+        if ts_val != null {
+            return ts_val
+        }
+    }
+
+    return null
+}
+
+export fn extract_source(text) {
+    if text == null {
+        return "unknown"
+    }
+
+    let source_pattern = "\\[(\\w+)\\]"
+    let groups_result = regex.find_groups(text, source_pattern)
+    if groups_result != null && len(groups_result) > 0 {
+        let first_match = groups_result[0]
+        if len(first_match) > 1 {
+            return first_match[1]
+        }
+    }
+
+    let service_pattern = "(\\w+):"
+    let svc_groups = regex.find_groups(text, service_pattern)
+    if svc_groups != null && len(svc_groups) > 0 {
+        let svc_match = svc_groups[0]
+        if len(svc_match) > 1 {
+            let candidate = svc_match[1]
+            let ts_check = regex.find(candidate, "^\\d{4}$")
+            if ts_check == null {
+                return candidate
+            }
+        }
+    }
+
+    let parts = string.split(text, " ")
+    if len(parts) >= 3 {
+        return parts[2]
+    }
+
+    return "unknown"
+}
+
+export fn parse_log_entry(text) {
+    if text == null {
+        return {
+            "event": null,
+            "valid": false,
+            "errors": ["null input"]
+        }
+    }
+
+    let trimmed = string.trim(text)
+    if trimmed == "" {
+        return {
+            "event": null,
+            "valid": false,
+            "errors": ["empty input"]
+        }
+    }
+
+    let parsed_event = null
+    let parse_errors = []
+
+    let json_obj = try { json.parse(trimmed) } catch (e) { null }
+
+    if json_obj != null {
+        let evt_id = json_obj.get("id") ?? uuid.v4()
+        let evt_ts = json_obj.get("timestamp") ?? int(time.now())
+        let evt_source = json_obj.get("source") ?? "json"
+        let raw_sev = json_obj.get("severity") ?? json_obj.get("level") ?? "info"
+        let evt_severity = if type(raw_sev) == "int" { raw_sev } else { normalize_severity(string(raw_sev)) }
+        let evt_message = json_obj.get("message") ?? json_obj.get("msg") ?? ""
+        let evt_category = json_obj.get("category") ?? models.EventCategory.Application
+        let evt_subcategory = json_obj.get("subcategory") ?? ""
+        let evt_tags = json_obj.get("tags") ?? []
+        let evt_metadata = json_obj.get("metadata") ?? {}
+
+        if evt_message == "" {
+            parse_errors.push("missing message field in JSON")
+        }
+
+        if type(evt_ts) == "string" {
+            let extracted_ts = extract_timestamp(string(evt_ts))
+            evt_ts = if extracted_ts != null { extracted_ts } else { int(time.now()) }
+        }
+
+        parsed_event = models.create_event(
+            string(evt_id),
+            int(evt_ts),
+            string(evt_source),
+            evt_severity,
+            string(evt_message),
+            evt_category,
+            string(evt_subcategory),
+            evt_tags,
+            evt_metadata
+        )
+    }
+
+    if parsed_event == null && len(parse_errors) == 0 {
+        let syslog_pattern = "(\\w{3}\\s+\\d+\\s+\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)\\s+(\\S+?):\\s+(.+)"
+        let syslog_groups = regex.find_groups(trimmed, syslog_pattern)
+
+        if syslog_groups != null && len(syslog_groups) > 0 {
+            let sg = syslog_groups[0]
+            if len(sg) >= 5 {
+                let syslog_ts = int(time.now())
+                let syslog_host = sg[2]
+                let syslog_service = sg[3]
+                let syslog_msg = sg[4]
+
+                let detected_sev = models.EventSeverity.Info
+                let msg_lower = string.lower(syslog_msg)
+                if string.contains(msg_lower, "error") || string.contains(msg_lower, "fail") {
+                    detected_sev = models.EventSeverity.High
+                } else if string.contains(msg_lower, "warn") {
+                    detected_sev = models.EventSeverity.Low
+                } else if string.contains(msg_lower, "crit") {
+                    detected_sev = models.EventSeverity.Critical
+                }
+
+                parsed_event = models.create_event(
+                    uuid.v4(),
+                    syslog_ts,
+                    syslog_service,
+                    detected_sev,
+                    syslog_msg,
+                    models.EventCategory.Infrastructure,
+                    "syslog",
+                    [syslog_host, syslog_service],
+                    {"raw_format": "syslog", "host": syslog_host}
+                )
+            }
+        }
+    }
+
+    if parsed_event == null && len(parse_errors) == 0 {
+        let structured_pattern = "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\s+\\[(\\w+)\\]\\s+(\\w+):\\s+(.+)"
+        let struct_groups = regex.find_groups(trimmed, structured_pattern)
+
+        if struct_groups != null && len(struct_groups) > 0 {
+            let stg = struct_groups[0]
+            if len(stg) >= 5 {
+                let log_ts = extract_timestamp(stg[1])
+                let log_level = stg[2]
+                let log_source = stg[3]
+                let log_msg = stg[4]
+
+                parsed_event = models.create_event(
+                    uuid.v4(),
+                    if log_ts != null { log_ts } else { int(time.now()) },
+                    log_source,
+                    normalize_severity(log_level),
+                    log_msg,
+                    models.EventCategory.Application,
+                    "structured_log",
+                    [log_source],
+                    {"raw_format": "structured", "level": log_level}
+                )
+            }
+        }
+    }
+
+    if parsed_event == null && len(parse_errors) == 0 {
+        parsed_event = models.create_event(
+            uuid.v4(),
+            int(time.now()),
+            extract_source(trimmed),
+            models.EventSeverity.Info,
+            trimmed,
+            models.EventCategory.Application,
+            "raw",
+            [],
+            {"raw_format": "unstructured"}
+        )
+    }
+
+    return {
+        "event": parsed_event,
+        "valid": parsed_event != null,
+        "errors": parse_errors
+    }
+}
+
+export fn parse_batch(lines) {
+    let events = []
+    let errors = []
+    let success_count = 0
+    let fail_count = 0
+
+    for line in lines {
+        let result = parse_log_entry(line)
+        let evt = result.get("event")
+        let is_valid = result.get("valid")
+        let errs = result.get("errors")
+
+        if is_valid == true && evt != null {
+            events.push(evt)
+            success_count = success_count + 1
+        } else {
+            fail_count = fail_count + 1
+            for err in errs {
+                errors.push(err)
+            }
+        }
+    }
+
+    return {
+        "events": events,
+        "errors": errors,
+        "success_count": success_count,
+        "fail_count": fail_count
+    }
+}
+
+main {
+    print("module loaded")
+}
