@@ -616,6 +616,7 @@ private:
     // Phase 3.1: Module system (ES6-style imports)
     std::unique_ptr<modules::ModuleResolver> module_resolver_;
     std::unordered_map<std::string, std::shared_ptr<Environment>> loaded_modules_;  // Module path -> exports
+    std::unordered_set<std::string> modules_executing_;  // naab-29 D-03: Cycle detection for circular imports
     std::unordered_map<std::string, NaabVal> module_exports_;  // Exported symbols from current module
     std::unordered_set<std::string> loaded_plugin_files_;  // Governance plugin files already loaded
 

@@ -1,0 +1,11 @@
+// E-02: Dangerous Python call — os.system()
+// Expected: exit 3 — governance blocks dangerous function calls
+
+main {
+    let result = <<python
+import os
+os.system("ls")
+"done"
+>>
+    print(result)
+}

@@ -1,0 +1,8 @@
+// D-02: Module main block skipped on import
+// Expected: exit 0 — violating code in imported module's main{} is never executed
+import "dep_helper_dangerous_main.naab" as dangerous
+
+main {
+    let val = dangerous.safe_function(42)
+    print("result: " + string(val))
+}

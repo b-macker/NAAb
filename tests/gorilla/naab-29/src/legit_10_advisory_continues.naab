@@ -1,0 +1,12 @@
+// L-10: ADVISORY contract violation → execution continues
+// Expected: exit 0 — advisory violations warn but don't block
+// Contract (advisory): compute_result must return dict with {value, status}
+
+export fn compute_result(x) {
+    return x * 2
+}
+
+main {
+    let result = compute_result(21)
+    print("result: " + string(result))
+}

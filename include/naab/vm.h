@@ -396,6 +396,8 @@ private:
 
     // Module cache
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_cache_;
+    // naab-29 D-03: Circular import detection — shared between parent/child VMs
+    std::shared_ptr<std::unordered_set<std::string>> modules_executing_ = std::make_shared<std::unordered_set<std::string>>();
     // Keep compiled functions alive so VMClosure pointers remain valid after module compilation
     std::vector<std::unique_ptr<CompiledFunction>> owned_functions_;
     int module_loading_depth_ = 0;

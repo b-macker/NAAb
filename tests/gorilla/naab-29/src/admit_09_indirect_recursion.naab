@@ -1,0 +1,22 @@
+// A-09: Indirect recursion exceeding call depth (A→B→C→A)
+// Expected: exit 3 or 1 — governance detects mutual recursion depth
+
+fn func_a(n) {
+    if n <= 0 { return 0 }
+    return func_b(n - 1)
+}
+
+fn func_b(n) {
+    if n <= 0 { return 0 }
+    return func_c(n - 1)
+}
+
+fn func_c(n) {
+    if n <= 0 { return 0 }
+    return func_a(n - 1)
+}
+
+main {
+    let result = func_a(200)
+    print("result: " + string(result))
+}

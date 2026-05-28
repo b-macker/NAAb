@@ -1,0 +1,12 @@
+// R-06: Taint through for-loop iterator
+// Expected: exit 3 — iterating tainted array taints loop variable
+use env
+use file
+
+main {
+    let tainted_val = env.get("PATH")
+    let items = [tainted_val, "clean"]
+    for item in items {
+        file.write("output.txt", item)
+    }
+}

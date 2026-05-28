@@ -1,0 +1,9 @@
+// E-07: Shell hardening — IFS manipulation + path injection
+// Expected: exit 3 — governance blocks dangerous shell patterns
+
+main {
+    let result = <<shell
+IFS='/' ; set -- $(cat /etc/passwd) ; echo "$1"
+>>
+    print(result)
+}

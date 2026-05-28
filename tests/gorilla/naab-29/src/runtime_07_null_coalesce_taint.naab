@@ -1,0 +1,10 @@
+// R-07: Null coalesce preserves taint
+// Expected: exit 3 — tainted ?? "fallback" is still tainted (tainted is non-null)
+use env
+use file
+
+main {
+    let tainted = env.get("HOME")
+    let result = tainted ?? "fallback"
+    file.write("output.txt", result)
+}

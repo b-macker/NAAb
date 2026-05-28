@@ -1,0 +1,13 @@
+// R-10: Match expression propagates taint
+// Expected: exit 3 — match arm returning tainted value produces tainted result
+use env
+use file
+
+main {
+    let key = "home"
+    let result = match key {
+        "home" => env.get("HOME"),
+        _ => "unknown"
+    }
+    file.write("output.txt", result)
+}

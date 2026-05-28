@@ -254,15 +254,19 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Languages
     if (j.contains("languages")) {
         auto& lang = j["languages"];
-        if (lang.contains("allowed")) {
+        if (lang.contains("allowed") && lang["allowed"].is_array()) {
             for (auto& l : lang["allowed"]) {
-                rules_.allowed_languages.insert(l.get<std::string>());
+                if (l.is_string()) rules_.allowed_languages.insert(l.get<std::string>());
             }
         }
-        if (lang.contains("blocked")) {
+        if (lang.contains("blocked") && lang["blocked"].is_array()) {
             for (auto& l : lang["blocked"]) {
-                rules_.blocked_languages.insert(l.get<std::string>());
+                if (l.is_string()) rules_.blocked_languages.insert(l.get<std::string>());
             }
+        }
+        // naab-29 EO-08: Resolve contradictory config — blocked takes precedence
+        for (const auto& blocked : rules_.blocked_languages) {
+            rules_.allowed_languages.erase(blocked);
         }
     }
 
@@ -1695,6 +1699,18 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("must_contain") && fn_obj["must_contain"].is_array()) {
                     for (auto& mc : fn_obj["must_contain"]) fc.must_contain.push_back(mc.get<std::string>());
                 }
+                // naab-29 L-08: arity constraints — supports both flat and nested format
+                if (fn_obj.contains("min_arity") && fn_obj["min_arity"].is_number_integer()) {
+                    fc.min_arity = fn_obj["min_arity"].get<int>();
+                }
+                if (fn_obj.contains("max_arity") && fn_obj["max_arity"].is_number_integer()) {
+                    fc.max_arity = fn_obj["max_arity"].get<int>();
+                }
+                if (fn_obj.contains("arity") && fn_obj["arity"].is_object()) {
+                    auto& ar = fn_obj["arity"];
+                    if (ar.contains("min") && ar["min"].is_number_integer()) fc.min_arity = ar["min"].get<int>();
+                    if (ar.contains("max") && ar["max"].is_number_integer()) fc.max_arity = ar["max"].get<int>();
+                }
                 // v6: must_produce — golden tests (array of {args: [...], expect: value})
                 if (fn_obj.contains("must_produce") && fn_obj["must_produce"].is_array()) {
                     for (auto& tc : fn_obj["must_produce"]) {
@@ -2644,22 +2660,41 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         return true;
     } catch (const nlohmann::json::parse_error& e) {
-        throw std::runtime_error(fmt::format(
+        // naab-29 A-03: Return false instead of throwing — matches loadFromString behavior
+        last_error_ = fmt::format(
             "Governance config error: Failed to parse {}\n\n"
             "  JSON error: {}\n\n"
             "  Help:\n"
             "  - Check for missing commas, brackets, or quotes\n"
             "  - Validate your JSON at jsonlint.com\n",
-            path, e.what()));
+            path, e.what());
+        fmt::print(stderr, "[governance] {}\n", last_error_);
+        return false;
     } catch (const nlohmann::json::type_error& e) {
-        throw std::runtime_error(fmt::format(
+        last_error_ = fmt::format(
             "Governance config error: Invalid value type in {}\n\n"
             "  JSON error: {}\n\n"
             "  Help:\n"
             "  - Check that boolean fields are true/false (not strings)\n"
             "  - Check that arrays are [...] not single values\n"
             "  - Check that numbers are not quoted\n",
-            path, e.what()));
+            path, e.what());
+        fmt::print(stderr, "[governance] {}\n", last_error_);
+        return false;
+    } catch (const nlohmann::json::exception& e) {
+        last_error_ = fmt::format(
+            "Governance config error: Invalid config in {}\n\n"
+            "  JSON error: {}\n",
+            path, e.what());
+        fmt::print(stderr, "[governance] {}\n", last_error_);
+        return false;
+    } catch (const std::exception& e) {
+        last_error_ = fmt::format(
+            "Governance config error: Failed to load {}\n\n"
+            "  Error: {}\n",
+            path, e.what());
+        fmt::print(stderr, "[governance] {}\n", last_error_);
+        return false;
     }
 }
 

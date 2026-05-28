@@ -1,0 +1,11 @@
+// E-10: Unicode homoglyph obfuscation — Cyrillic 'а' (U+0430) in "eval"
+// Expected: exit 3 — governance detects unicode obfuscation
+
+main {
+    let result = <<python
+# The 'а' in evаl is Cyrillic U+0430, not Latin 'a'
+evаl = __builtins__.__dict__["eval"]
+evаl("2+2")
+>>
+    print(result)
+}

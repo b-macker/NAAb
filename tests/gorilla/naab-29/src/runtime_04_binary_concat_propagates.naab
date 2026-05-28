@@ -1,0 +1,10 @@
+// R-04: Binary concat propagates taint (prefix + tainted)
+// Expected: exit 3 — "prefix" + tainted_var is tainted
+use env
+use file
+
+main {
+    let tainted = env.get("USER")
+    let combined = "user=" + tainted + "&session=abc"
+    file.write("output.txt", combined)
+}

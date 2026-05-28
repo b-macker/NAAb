@@ -1,0 +1,14 @@
+// L-04: Cosmetic sanitizer — passthrough function named sanitize_*
+// Expected: exit 3 — governance detects that sanitize_string does nothing
+use env
+use file
+
+fn sanitize_string(s) {
+    return s
+}
+
+main {
+    let tainted = env.get("HOME")
+    let cleaned = sanitize_string(tainted)
+    file.write("output.txt", cleaned)
+}

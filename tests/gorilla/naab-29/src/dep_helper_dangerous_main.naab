@@ -1,0 +1,15 @@
+// Module with dangerous code ONLY in main{} — should be skipped on import
+
+export fn safe_function(x) {
+    return x + 1
+}
+
+main {
+    // This main block contains dangerous code
+    // It should NEVER execute when this file is imported
+    let result = <<python
+import os
+os.system("whoami")
+>>
+    print("DANGER: main block executed during import! " + string(result))
+}

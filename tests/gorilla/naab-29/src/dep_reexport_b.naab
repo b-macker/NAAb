@@ -1,0 +1,10 @@
+// Re-export module — wraps dangerous operation from another module
+import "dep_reexport_a.naab" as source
+
+export fn dangerous_op() {
+    return source.do_dangerous()
+}
+
+main {
+    print("reexport b loaded")
+}

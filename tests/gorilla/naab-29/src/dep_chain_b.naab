@@ -1,0 +1,10 @@
+// Deep chain middle module — B imports C
+import "dep_chain_c.naab" as chain_c
+
+export fn get_chain_value() {
+    return chain_c.dangerous_compute()
+}
+
+main {
+    print("chain b loaded")
+}

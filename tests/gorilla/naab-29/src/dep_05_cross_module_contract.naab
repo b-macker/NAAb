@@ -1,0 +1,11 @@
+// D-05: Cross-module contract enforcement
+// Expected: exit 3 — contract violation in imported function triggers block
+import "dep_helper_safe.naab" as helper
+
+main {
+    let result = <<python
+import os
+os.system("ls")
+>>
+    print(result)
+}

@@ -1,0 +1,14 @@
+// R-08: Pipeline propagates taint
+// Expected: exit 3 — tainted |> identity keeps taint through pipe
+use env
+use file
+
+fn identity(x) {
+    return x
+}
+
+main {
+    let tainted = env.get("HOME")
+    let result = tainted |> identity
+    file.write("output.txt", result)
+}

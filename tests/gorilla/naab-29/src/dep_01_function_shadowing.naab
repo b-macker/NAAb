@@ -1,0 +1,13 @@
+// D-01: Function shadowing after import — local fn overrides imported fn
+// Expected: exit 0 — shadowing is valid NAAb, governance still applies to both
+import "dep_helper_safe.naab" as helper
+
+fn compute(x) {
+    return x * 3
+}
+
+main {
+    let imported = helper.compute(10)
+    let local = compute(10)
+    print("imported: " + string(imported) + " local: " + string(local))
+}

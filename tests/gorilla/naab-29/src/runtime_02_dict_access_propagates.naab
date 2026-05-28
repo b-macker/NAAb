@@ -1,0 +1,11 @@
+// R-02: Dict access propagates taint
+// Expected: exit 3 — tainted value stored in dict and accessed via key stays tainted
+use env
+use file
+
+main {
+    let tainted = env.get("HOME")
+    let d = {"key": tainted}
+    let v = d.get("key")
+    file.write("output.txt", v)
+}

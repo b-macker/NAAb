@@ -3293,18 +3293,50 @@ std::string GovernanceEngine::checkComplexityFloor(
 std::string GovernanceEngine::checkFunctionBehavioralContract(
     const std::string& func_name,
     const std::string& func_body,
-    int line) {
+    int line,
+    int param_count) {
 
     auto it = rules_.contracts.functions.find(func_name);
     if (it == rules_.contracts.functions.end()) return "";
 
     const auto& contract = it->second;
-    if (contract.must_call.empty() && contract.must_contain.empty()
-        && contract.must_derive_from.empty()) return "";
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
         ? contract.level : rules_.contracts.level;
+
+    // naab-29 L-08: Arity check
+    if (param_count >= 0) {
+        if (contract.min_arity >= 0 && param_count < contract.min_arity) {
+            addTrace(fmt::format("function '{}' has {} params, min required: {}",
+                func_name, param_count, contract.min_arity));
+            return enforce("contracts." + func_name + ".arity", level,
+                formatError(level,
+                    fmt::format("Function '{}' has {} parameter(s), minimum required: {}",
+                        func_name, param_count, contract.min_arity),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.min_arity",
+                    "Function does not meet minimum arity requirement",
+                    fmt::format("fn {}(...) // {} params", func_name, param_count),
+                    fmt::format("fn {}(...) // at least {} params", func_name, contract.min_arity)));
+        }
+        if (contract.max_arity >= 0 && param_count > contract.max_arity) {
+            addTrace(fmt::format("function '{}' has {} params, max allowed: {}",
+                func_name, param_count, contract.max_arity));
+            return enforce("contracts." + func_name + ".arity", level,
+                formatError(level,
+                    fmt::format("Function '{}' has {} parameter(s), maximum allowed: {}",
+                        func_name, param_count, contract.max_arity),
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "contracts.max_arity",
+                    "Function exceeds maximum arity requirement",
+                    fmt::format("fn {}(...) // {} params", func_name, param_count),
+                    fmt::format("fn {}(...) // at most {} params", func_name, contract.max_arity)));
+        }
+    }
+
+    if (contract.must_call.empty() && contract.must_contain.empty()
+        && contract.must_derive_from.empty()) return "";
 
     for (const auto& required : contract.must_call) {
         // Check if the required pattern appears in the function body.
@@ -3604,12 +3636,22 @@ std::string GovernanceEngine::checkMustProduce(
                     fmt::format("{}({}) => {}", func_name, args_display, tc.expect_json)));
         }
 
-        // Compare result to expected
+        // Compare result to expected — naab-29 L-07: type-strict comparison
         interpreter::NaabVal expected = jsonStringToNaabVal(tc.expect_json);
+
+        // Check type match first: "0" (string) != 0 (int)
+        bool type_mismatch = false;
+        if (result.isString() != expected.isString() ||
+            result.isInt() != expected.isInt() ||
+            result.isBool() != expected.isBool() ||
+            result.isDouble() != expected.isDouble()) {
+            type_mismatch = true;
+        }
+
         std::string result_str = result.isNull() ? "null" : result.toString();
         std::string expect_str = expected.isNull() ? "null" : expected.toString();
 
-        if (result_str != expect_str) {
+        if (type_mismatch || result_str != expect_str) {
             addTrace(fmt::format("must_produce test #{}: args={}, expected={}, got={}",
                 i + 1, args_display, expect_str, result_str));
             return enforce("contracts." + func_name + ".must_produce", level,
@@ -4055,7 +4097,8 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     const std::string& function_name,
     const std::string& source_code,
     int line,
-    const std::string& source_file) {
+    const std::string& source_file,
+    int param_count) {
 
     setCheckContext(source_file, line);
 
@@ -4118,8 +4161,8 @@ std::string GovernanceEngine::checkNaabFunctionBody(
         }
     }
 
-    // Behavioral contract check (must_call)
-    err = checkFunctionBehavioralContract(function_name, source_code, line);
+    // Behavioral contract check (must_call, arity)
+    err = checkFunctionBehavioralContract(function_name, source_code, line, param_count);
     if (!err.empty()) return err;
 
     // FIX-DX-6: Detect duplicate function calls — deferred to grouped output
@@ -5131,7 +5174,7 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
     if (cfg.block_command_injection) {
         if (language == "python") {
             pats.push_back("os\\.system\\s*\\(");
-            pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call).*shell\\s*=\\s*True");
+            pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call)\\s*\\(");
             pats.push_back("ctypes\\.(?:CDLL|cdll)\\s*\\(");
         } else if (language == "go" || language == "golang") {
             pats.push_back("exec\\.Command\\s*\\(");
@@ -5155,7 +5198,7 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
         } else {
             // Fallback for unknown languages
             pats.push_back("os\\.system\\s*\\(");
-            pats.push_back("subprocess\\.call.*shell\\s*=\\s*True");
+            pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call)\\s*\\(");
         }
     }
     std::string found = searchPatterns(code, pats);
@@ -5958,6 +6001,21 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (lang == "shell") {
         err = checkShellAllowed();
         if (!err.empty()) return err;
+
+        // naab-29 C-05: Enforce blocked_commands against shell code
+        for (const auto& blocked : rules_.capabilities.shell.blocked_commands) {
+            if (stripped.find(blocked) != std::string::npos) {
+                err = enforce("capabilities.shell.blocked_commands", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        fmt::format("Blocked shell command detected: '{}'", blocked),
+                        "",
+                        "capabilities.shell.blocked_commands",
+                        "This command is prohibited by governance policy",
+                        fmt::format("<<shell\n{}\n>>", blocked),
+                        "Use NAAb stdlib alternatives instead"));
+                if (!err.empty()) return err;
+            }
+        }
     }
 
     // Code quality checks — secrets/PII use RAW code (secrets CAN be in strings)

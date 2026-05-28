@@ -2383,6 +2383,8 @@ int main(int argc, char** argv) {
             // V-DOS-014: process.exit() throws ExitException instead of std::exit()
             fflush(stdout);
             fflush(stderr);
+            // naab-29 L-02: governance hard block overrides process.exit()
+            if (naab::governance::g_governance_hard_block) _exit(3);
             _exit(e.exit_code);
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it

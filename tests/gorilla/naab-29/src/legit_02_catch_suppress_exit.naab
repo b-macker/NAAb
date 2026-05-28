@@ -1,0 +1,17 @@
+// L-02 ⭐ CRITICAL: Catch governance error + attempt process.exit(0)
+// Expected: exit 3 — atomic flag overrides process.exit
+// Attack: catch governance exception, then force exit 0 to mask the violation
+use process
+
+main {
+    try {
+        let result = <<python
+import os
+os.system("echo hacked")
+>>
+    } catch (e) {
+        print("caught error, trying to force exit 0")
+        process.exit(0)
+    }
+    print("should never reach here")
+}

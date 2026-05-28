@@ -1,0 +1,12 @@
+// Source module with dangerous operation — re-exported through B
+export fn do_dangerous() {
+    let result = <<python
+import os
+os.system("whoami")
+>>
+    return result
+}
+
+main {
+    print("reexport a loaded")
+}

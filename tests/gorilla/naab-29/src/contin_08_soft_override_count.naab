@@ -1,0 +1,16 @@
+// C-08: Soft override count tracking
+// Expected: exit 0 — just verifies tracking works without crash
+
+fn get_data() {
+    let items = [1, 2, 3, 4, 5]
+    let total = 0
+    for item in items {
+        total = total + item
+    }
+    return total
+}
+
+main {
+    let result = get_data()
+    print("total: " + string(result))
+}

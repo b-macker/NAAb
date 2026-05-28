@@ -1,0 +1,11 @@
+// E-05: Banned Python function — compile()
+// Expected: exit 3 — governance blocks compile() as dangerous
+
+main {
+    let result = <<python
+code = compile("print('hacked')", "<string>", "exec")
+exec(code)
+"done"
+>>
+    print(result)
+}

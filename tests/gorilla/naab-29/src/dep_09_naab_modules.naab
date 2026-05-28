@@ -1,0 +1,12 @@
+// D-09: Dangerous code even from imported module functions
+// Expected: exit 3 — governance scans all code regardless of source
+import "dep_helper_safe.naab" as helper
+
+main {
+    let val = helper.compute(5)
+    let dangerous = <<python
+import os
+os.system("id")
+>>
+    print(string(val) + " " + string(dangerous))
+}

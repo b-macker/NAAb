@@ -1,0 +1,9 @@
+// D-04: Taint propagates across module boundary
+// Expected: exit 3 — tainted data returned from imported module stays tainted
+use file
+import "dep_helper_tainted.naab" as tainted_mod
+
+main {
+    let data = tainted_mod.get_env_data()
+    file.write("output.txt", data)
+}

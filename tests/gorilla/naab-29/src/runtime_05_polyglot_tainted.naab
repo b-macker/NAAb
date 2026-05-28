@@ -1,0 +1,10 @@
+// R-05: Polyglot output is unconditionally tainted
+// Expected: exit 3 — even "clean" polyglot output is tainted (source: polyglot_output)
+use file
+
+main {
+    let result = <<python
+"totally_clean_data"
+>>
+    file.write("output.txt", result)
+}

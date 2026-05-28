@@ -1,0 +1,7 @@
+// D-06: Import path traversal — attempt to read outside project
+// Expected: exit 1/3/4 — sandbox or module resolver blocks traversal
+import "../../../../../../etc/passwd" as secret
+
+main {
+    print("should not reach here")
+}

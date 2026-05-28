@@ -1,0 +1,43 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-29 Phase 4: Poison config — contradictory settings, invalid types",
+
+  "languages": {
+    "allowed": ["python", "javascript", "shell"],
+    "blocked": ["python"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": "yes_please" },
+    "filesystem": { "mode": "read_write" },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": 42
+    }
+  },
+
+  "security": {
+    "sandbox_level": "maximum_overdrive"
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "level": "ultra_hard" },
+    "shell_injection": { "level": 99 },
+    "nonexistent_restriction": { "level": "hard" }
+  },
+
+  "scoring": {
+    "enabled": "maybe",
+    "red_threshold": -5
+  },
+
+  "limits": {
+    "timeout": { "global": -1 },
+    "execution": { "loop_iterations": 0, "call_depth": -10 }
+  },
+
+  "output": {
+    "summary": { "format": "detailed" }
+  }
+}

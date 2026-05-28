@@ -1,0 +1,70 @@
+// C-03: Scoring does NOT false-positive on clean code
+// Expected: exit 0 — clean functions produce no advisory findings to score
+// Original design assumed clean code would score, but scoring only counts actual violations
+
+fn func_a() {
+    let x = 1
+    return x
+}
+
+fn func_b() {
+    let x = 2
+    return x
+}
+
+fn func_c() {
+    let x = 3
+    return x
+}
+
+fn func_d() {
+    let x = 4
+    return x
+}
+
+fn func_e() {
+    let x = 5
+    return x
+}
+
+fn func_f() {
+    let x = 6
+    return x
+}
+
+fn func_g() {
+    let x = 7
+    return x
+}
+
+fn func_h() {
+    let x = 8
+    return x
+}
+
+fn func_i() {
+    let x = 9
+    return x
+}
+
+fn func_j() {
+    let x = 10
+    return x
+}
+
+fn func_k() {
+    let x = 11
+    return x
+}
+
+fn func_l() {
+    let x = 12
+    return x
+}
+
+main {
+    print(string(func_a()) + string(func_b()) + string(func_c()))
+    print(string(func_d()) + string(func_e()) + string(func_f()))
+    print(string(func_g()) + string(func_h()) + string(func_i()))
+    print(string(func_j()) + string(func_k()) + string(func_l()))
+}

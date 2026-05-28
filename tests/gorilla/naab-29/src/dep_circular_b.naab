@@ -1,0 +1,10 @@
+// Circular import helper — imports dep_03 back (creates cycle)
+import "dep_03_circular_import.naab" as circular_a
+
+export fn get_value() {
+    return 42
+}
+
+main {
+    print("circular b loaded")
+}

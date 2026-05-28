@@ -1,0 +1,17 @@
+// L-05: must_call contract with extra whitespace in function call
+// Expected: exit 0 — regex \bname\s*\( handles extra space before paren
+// Contract: process_data must_call helper_fn
+
+fn helper_fn(x) {
+    return x * 2
+}
+
+export fn process_data(input) {
+    let result = helper_fn  (input)
+    return result
+}
+
+main {
+    let val = process_data(21)
+    print("result: " + string(val))
+}

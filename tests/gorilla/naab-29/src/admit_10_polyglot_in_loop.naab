@@ -1,0 +1,13 @@
+// A-10: Polyglot blocks inside loop — count accumulates past limit
+// Expected: exit 3 or 1 — governance tracks polyglot block count across iterations
+
+main {
+    let total = 0
+    for i in 0..15 {
+        let r = <<python
+42
+>>
+        total = total + int(r)
+    }
+    print("total: " + string(total))
+}

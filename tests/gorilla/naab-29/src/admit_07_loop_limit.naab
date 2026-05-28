@@ -1,0 +1,10 @@
+// A-07: Exceed loop iteration limit (20K when limit=10K)
+// Expected: exit 3 or 1 — governance blocks excessive iteration
+
+main {
+    let sum = 0
+    for i in 0..20000 {
+        sum = sum + 1
+    }
+    print("sum: " + string(sum))
+}

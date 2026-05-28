@@ -1,0 +1,15 @@
+// L-07: must_produce type mismatch — return "0" (string) when expect 0 (int)
+// Expected: exit 3 — toString comparison should catch type mismatch
+// Contract: normalize_value must_produce [{args: ["CRITICAL"], expect: 0}]
+
+export fn normalize_value(level) {
+    if level == "CRITICAL" {
+        return "0"
+    }
+    return "4"
+}
+
+main {
+    let result = normalize_value("CRITICAL")
+    print("result: " + string(result))
+}
