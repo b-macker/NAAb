@@ -17,16 +17,16 @@ Binary lands at `build/naab-lang`.
 ## Test
 
 ```bash
-# Full suite — 391 tests, 1 pre-existing failure (test_bsd_cdd_fixes.sh)
+# Full suite — 393 tests, 1 pre-existing failure (test_bsd_cdd_fixes.sh)
 cd ~/.naab/language && bash run-all-tests.sh
 
-# Security leak check — 112 checks, 0 failures
+# Security leak check — 120 checks, 0 failures
 bash tests/security/test_error_msg_leaks.sh
 ```
 
 Test categories in `tests/`: governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, polyglot, formatter, lsp, platform, chaos, robustness.
 
-Expected breakdown: ~332 pass, ~48 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
+Expected breakdown: ~336 pass, ~45 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 
@@ -98,10 +98,10 @@ include/naab/       All headers
 - `src/runtime/governance_taint.cpp` — taint tracking (interpreter path)
 - `src/runtime/trust_store.cpp` — Ed25519 trusted key management
 - `src/runtime/crypto_utils.cpp` — Ed25519 sign/verify, SHA-256
-- Behavioral contracts: `must_call` (function must call specified functions — regex `\bname\s*\(` on body text, non-transitive), `must_contain` (function body must match syntax patterns)
+- Behavioral contracts: `must_call` (function must call specified functions — regex `\bname\s*\(` on body text, non-transitive), `must_contain` (function body must match syntax patterns), `must_produce` (golden tests with type-strict comparison — string "0" does not match int 0), `min_arity`/`max_arity` (parameter count enforcement)
 - Anti-gaming: magic number / hardcoded constant detection in polyglot blocks, oversimplification checks, complexity floor
 - Module governance: VM compiler skips function-body governance checks during module loading (`!skip_main_` guard in `compiler.cpp`), matching tree-walker's `module_loading_depth_ == 0` guard
-- Enforcement tiers: HARD (block), SOFT (block + override), ADVISORY (warn)
+- Enforcement tiers: HARD (block, exit 3), SOFT (block unless `--governance-override`, exit 3 without override), ADVISORY (warn, continue)
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
 - Decision rationale: govern.json sections accept optional `rationale` field; engine generates `decision_trace` per check. Both flow into all 5 report formats + audit trail via `CheckResult.rationale` and `CheckResult.decision_trace`
 - Decision trace storage: `t_current_decision_trace` is `static thread_local` in `governance_engine.cpp` (NOT a class member) — thread-safe for concurrent polyglot/agent threads

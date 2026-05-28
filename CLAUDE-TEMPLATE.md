@@ -459,7 +459,9 @@ email, url, ip, ipv6, int_range, not_empty, length, matches, is_int, is_float, i
 run, exit, kill, getpid
 - `process.run("command")` — execute shell command, returns {stdout, stderr, exit_code}
 - `process.exit(code)` — exit with code (**requires `use process`**; BLOCKED when
-  `capabilities.shell.enabled: false` in govern.json — use `return` to exit main instead)
+  `capabilities.shell.enabled: false` in govern.json — use `return` to exit main instead).
+  NOTE: if a governance hard block was triggered during execution, `process.exit(0)` is
+  overridden to exit 3 — governance violations cannot be masked by forcing exit 0.
 - `process.getpid()` — current process ID
 
 ### path
@@ -902,17 +904,11 @@ main {
     RIGHT: `let match = regex.find(text, "\\d+"); if match != null { int(match) }`
     RIGHT: `let sev = regex.find(text, "ERROR|WARN"); if sev != null { string.lower(sev) }`
     Use `regex.search()` only for boolean checks: `if regex.search(text, pattern) { ... }`
-61. **Struct field access: use `.field` not `.get()` for portable code.**
-    Structs support both `.field` (dot notation) and `.get("field")` (dict-like) in the VM engine,
-    but the tree-walker (`--tree-walk`) only supports `.field`. For code that works in both engines,
-    always use dot notation for struct fields.
-    WRONG (tree-walker fails with "Field 'get' not found in struct"):
-      `let p = new Point { x: 5, y: 10 }`
-      `let val = p.x`  // Direct field access
-    Both `.field` and `.get("field")` work in both engines. Structs also support
-    `.has("field")`, `.keys()`, `.values()`, and `.size()`.
-    NOTE: `.field` is preferred for known fields. Use `.get("field", default)` when
-    you need a default value for optional/missing fields.
+61. **Struct field access: both `.field` and `.get()` work in both engines.**
+    Structs support `.field` (dot notation), `.get("field")`, `.get("field", default)`,
+    `.has("field")`, `.keys()`, `.values()`, and `.size()` in both the VM and tree-walker.
+    `.field` is preferred for known fields. Use `.get("field", default)` when you need
+    a default value for optional/missing fields.
 62. **Stdout-based polyglot output is always a string.** All polyglot executors that capture
     stdout return a string (or null if empty), never int/float/bool. This applies to:
     shell, Go, Rust, Nim, Julia, Zig, and C#.
@@ -1068,7 +1064,7 @@ naab --scan src/ auto                 # Scan directory, auto-detect languages
 naab --scan app.py python             # Scan single file
 ```
 
-### Check Categories (127 checks total)
+### Check Categories (130 checks total)
 | Category | Checks | Key Rules |
 |----------|--------|-----------|
 | redundancy | 16 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code, missing_imports |

@@ -67,8 +67,10 @@ naab --sign-governance        # signs with NAAB_SIGNING_KEY
 naab --list-keys              # verify fingerprint matches
 ```
 
-If the trust store was emptied entirely, the runtime will now BLOCK with
-"no trusted keys are installed" — this is intentional fail-closed behavior.
+If the trust store is emptied entirely (no `.pub` files in `~/.naab/trusted-keys/`),
+the runtime falls back to unsigned mode (backward compatibility) — governance loads
+normally but signatures are not verified. This only blocks when trusted keys exist
+but the `.sig` file is missing or invalid.
 
 ### Why Signing Matters
 
