@@ -1038,14 +1038,16 @@ void Compiler::visit(ast::FunctionDecl& node) {
                 if (!skip_main_) {
                     // Main file: full governance checks (includes behavioral contracts)
                     std::string err = governance_->checkNaabFunctionBody(
-                        node.getName(), body_text, line, source_file_);
+                        node.getName(), body_text, line, source_file_,
+                        static_cast<int>(node.getParams().size()));
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
                 } else {
                     // Module loading: only behavioral contracts (must_call, must_contain)
                     std::string err = governance_->checkFunctionBehavioralContract(
-                        node.getName(), body_text, line);
+                        node.getName(), body_text, line,
+                        static_cast<int>(node.getParams().size()));
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
@@ -1160,14 +1162,16 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                 if (!skip_main_) {
                     // Main file: full governance checks (includes behavioral contracts)
                     std::string err = governance_->checkNaabFunctionBody(
-                        decl->getName(), body_text, line, source_file_);
+                        decl->getName(), body_text, line, source_file_,
+                        static_cast<int>(decl->getParams().size()));
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
                 } else {
                     // Module loading: only behavioral contracts (must_call, must_contain)
                     std::string err = governance_->checkFunctionBehavioralContract(
-                        decl->getName(), body_text, line);
+                        decl->getName(), body_text, line,
+                        static_cast<int>(decl->getParams().size()));
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }

@@ -1,0 +1,51 @@
+// A-06: Exceed polyglot block limit (15 blocks when limit=10)
+// Expected: exit 3 or 1 — governance blocks excessive polyglot usage
+
+main {
+    let r1 = <<python
+1
+>>
+    let r2 = <<python
+2
+>>
+    let r3 = <<python
+3
+>>
+    let r4 = <<python
+4
+>>
+    let r5 = <<python
+5
+>>
+    let r6 = <<python
+6
+>>
+    let r7 = <<python
+7
+>>
+    let r8 = <<python
+8
+>>
+    let r9 = <<python
+9
+>>
+    let r10 = <<python
+10
+>>
+    let r11 = <<python
+11
+>>
+    let r12 = <<python
+12
+>>
+    let r13 = <<python
+13
+>>
+    let r14 = <<python
+14
+>>
+    let r15 = <<python
+15
+>>
+    print("executed " + string(r15) + " blocks")
+}

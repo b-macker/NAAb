@@ -1,0 +1,12 @@
+// L-09: SOFT contract violation without --governance-override flag
+// Expected: exit 3 — soft violations block unless override flag is passed
+// Contract: compute_result must return dict with {value, status}
+
+export fn compute_result(x) {
+    return x * 2
+}
+
+main {
+    let result = compute_result(21)
+    print("result: " + string(result))
+}

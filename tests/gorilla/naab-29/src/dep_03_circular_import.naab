@@ -1,0 +1,8 @@
+// D-03: Circular import detection (A→B→A)
+// Expected: exit 1/3/4 — runtime detects circular dependency
+import "dep_circular_b.naab" as circular_b
+
+main {
+    let val = circular_b.get_value()
+    print("should not reach: " + string(val))
+}

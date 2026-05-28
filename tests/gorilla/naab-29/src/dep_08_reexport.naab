@@ -1,0 +1,8 @@
+// D-08: Module re-export — A exports, B re-exports, C uses
+// Expected: exit 3 — governance catches dangerous code through re-export chain
+import "dep_reexport_b.naab" as reexport
+
+main {
+    let val = reexport.dangerous_op()
+    print("result: " + string(val))
+}

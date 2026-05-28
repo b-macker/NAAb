@@ -1,0 +1,102 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-29 Phase 1: Maximum enforcement — all restrictions HARD",
+
+  "languages": {
+    "allowed": ["python", "javascript", "shell"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_write", "allow_symlinks": false },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "dd", "kill", "mkfifo"]
+    }
+  },
+
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "lineage": false,
+    "sources": ["polyglot_output", "file.read", "env.get"],
+    "sinks": ["file.write", "file.append"],
+    "sanitizers": ["validate_", "sanitize_"],
+    "propagation": {
+      "string_concat": true,
+      "function_returns": true,
+      "dict_array_access": true
+    }
+  },
+
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 10,
+    "red_threshold": 20,
+    "default_weight": 2,
+    "rule_weights": {
+      "redundancy.unused_imports": 0.5,
+      "code_quality.god_functions": 2,
+      "security.hardcoded_credentials": 5,
+      "security.shell_injection": 5
+    }
+  },
+
+  "limits": {
+    "timeout": { "global": 30, "per_block": 15, "total_polyglot": 60 },
+    "execution": { "loop_iterations": 10000, "call_depth": 50, "polyglot_blocks": 10 }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "shell_injection": { "level": "hard" },
+    "privilege_escalation": { "level": "hard" },
+    "code_injection": { "level": "hard" },
+    "resource_exhaustion": { "level": "hard" },
+    "type_confusion": { "level": "hard" },
+    "prototype_pollution": { "level": "hard" },
+    "information_disclosure": { "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" },
+    "no_hardcoded_results": { "level": "hard" },
+    "no_simulation_markers": { "level": "hard" },
+    "no_debug_artifacts": { "level": "hard" },
+    "no_oversimplification": { "level": "hard" },
+    "no_incomplete_logic": { "level": "hard" }
+  },
+
+  "contracts": {
+    "level": "hard",
+    "functions": {}
+  },
+
+  "trust": {
+    "require_signature": true,
+    "max_signature_age_days": 1
+  },
+
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "code_quality": {
+      "empty_catch": { "enabled": true, "level": "hard" },
+      "god_functions": { "enabled": true, "level": "advisory", "max_lines": 80 },
+      "deep_nesting": { "enabled": true, "level": "advisory", "max_depth": 4 }
+    },
+    "security": {
+      "hardcoded_credentials": { "enabled": true, "level": "hard" }
+    }
+  },
+
+  "output": {
+    "summary": { "format": "detailed", "show_passing": true }
+  }
+}

@@ -1,0 +1,21 @@
+// C-07: Advisory deduplication — same advisory should appear once
+// Expected: exit 0 — advisories don't cause blocking, just warnings
+
+fn small_func_a() {
+    return 1
+}
+
+fn small_func_b() {
+    return 2
+}
+
+fn small_func_c() {
+    return 3
+}
+
+main {
+    let a = small_func_a()
+    let b = small_func_b()
+    let c = small_func_c()
+    print(string(a + b + c))
+}

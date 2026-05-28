@@ -1,0 +1,11 @@
+// E-01: Attempt to use blocked language (Rust not in allowed list)
+// Expected: exit 3 — governance blocks execution of non-allowed language
+
+main {
+    let result = <<rust
+fn main() {
+    println!("bypassed!");
+}
+>>
+    print(result)
+}

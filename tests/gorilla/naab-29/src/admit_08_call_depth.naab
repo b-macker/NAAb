@@ -1,0 +1,14 @@
+// A-08: Exceed call depth limit (recursion to 100 when limit=50)
+// Expected: exit 3 or 1 — governance blocks deep recursion
+
+fn deep(n) {
+    if n <= 0 {
+        return 0
+    }
+    return deep(n - 1) + 1
+}
+
+main {
+    let result = deep(100)
+    print("depth: " + string(result))
+}

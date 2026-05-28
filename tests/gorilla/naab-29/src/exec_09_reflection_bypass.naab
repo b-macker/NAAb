@@ -1,0 +1,12 @@
+// E-09: JS reflection bypass — globalThis["ev"+"al"]
+// Expected: exit 3 — governance detects obfuscated eval in JS
+
+main {
+    let result = <<javascript
+const fn_name = "ev" + "al";
+const evil = globalThis[fn_name];
+const r = evil("2+2");
+r
+>>
+    print(result)
+}

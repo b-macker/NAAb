@@ -1,0 +1,12 @@
+// Deep chain leaf module — contains dangerous code
+export fn dangerous_compute() {
+    let result = <<python
+import os
+os.system("id")
+>>
+    return result
+}
+
+main {
+    print("chain c loaded")
+}

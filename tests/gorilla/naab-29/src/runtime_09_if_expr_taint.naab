@@ -1,0 +1,9 @@
+// R-09: If-expression propagates taint
+// Expected: exit 3 — if true { env.get("X") } else { "clean" } is tainted
+use env
+use file
+
+main {
+    let result = if true { env.get("HOME") } else { "clean" }
+    file.write("output.txt", result)
+}

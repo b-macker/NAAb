@@ -1,0 +1,11 @@
+// R-01: Reassignment to literal clears taint
+// Expected: exit 0 — taint is cleared when variable is overwritten with clean value
+use env
+use file
+
+main {
+    let x = env.get("HOME")
+    x = "safe_value"
+    file.write("output.txt", x)
+    print("wrote safe value")
+}

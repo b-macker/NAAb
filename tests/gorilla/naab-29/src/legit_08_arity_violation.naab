@@ -1,0 +1,12 @@
+// L-08: Arity contract violation — 2-param fn with max=1 contract
+// Expected: exit 3 — function has more params than contract allows
+// Contract: single_arg_fn arity {min: 1, max: 1}
+
+export fn single_arg_fn(a, b) {
+    return a + b
+}
+
+main {
+    let result = single_arg_fn(1, 2)
+    print("result: " + string(result))
+}

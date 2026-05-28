@@ -1,0 +1,21 @@
+// C-01: Hard block flag persists across function boundaries
+// Expected: exit 3 — g_governance_hard_block is atomic and survives function returns
+// Attack: trigger hard block in a function, then try to continue in main
+
+fn trigger_violation() {
+    let result = <<python
+import os
+os.system("ls")
+>>
+    return result
+}
+
+fn innocent_work() {
+    return 42
+}
+
+main {
+    let x = trigger_violation()
+    let y = innocent_work()
+    print("should not reach: " + string(y))
+}

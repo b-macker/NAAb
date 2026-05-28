@@ -942,6 +942,8 @@ std::string GovernanceEngine::enforce(
                 fprintf(stderr, "[governance] OVERRIDE %s\n", rule_name.c_str());
                 return "";  // Don't block
             }
+            // naab-29 L-09: SOFT without override is a governance block (exit 3)
+            g_governance_hard_block = true;
             return violation_message;
 
         case EnforcementLevel::ADVISORY: {

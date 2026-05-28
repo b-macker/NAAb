@@ -1050,7 +1050,8 @@ void Interpreter::visit(ast::FunctionDecl& node) {
                     if (module_loading_depth_ == 0) {
                         // Main file: full governance checks (includes behavioral contracts)
                         std::string err = governance_->checkNaabFunctionBody(
-                            node.getName(), body_text, loc.line, current_file_);
+                            node.getName(), body_text, loc.line, current_file_,
+                            static_cast<int>(node.getParams().size()));
                         if (!err.empty()) {
                             throw std::runtime_error(err);
                         }
@@ -1063,7 +1064,8 @@ void Interpreter::visit(ast::FunctionDecl& node) {
                     } else {
                         // Module loading: only behavioral contracts (must_call, must_contain)
                         std::string err = governance_->checkFunctionBehavioralContract(
-                            node.getName(), body_text, loc.line);
+                            node.getName(), body_text, loc.line,
+                            static_cast<int>(node.getParams().size()));
                         if (!err.empty()) {
                             throw std::runtime_error(err);
                         }
@@ -2604,6 +2606,7 @@ void Interpreter::visit(ast::TryStmt& node) {
         // BUG-1: Restore on happy path too
         restore_catch_taint();
         current_env_ = prev_env;
+
     } catch (const std::exception& std_error) {
         // Convert std::exception to NaabError and execute catch block
         // This handles polyglot exceptions (Python, JavaScript, etc.)

@@ -545,6 +545,20 @@ void Interpreter::visit(ast::ImportStmt& node) {
         throw std::runtime_error(error_msg);
     }
 
+    // naab-29 D-10: Symlink escape protection — check BEFORE canonicalization
+    if (governance_ && governance_->isActive() &&
+        !governance_->getRules().capabilities.filesystem.allow_symlinks) {
+        std::error_code ec;
+        if (std::filesystem::is_symlink(*resolved_path, ec)) {
+            auto target = std::filesystem::read_symlink(*resolved_path, ec);
+            throw std::runtime_error(
+                fmt::format("Import error: symlink imports are blocked by governance policy\n\n"
+                            "  Path: {}\n"
+                            "  Target: {}\n",
+                            resolved_path->string(), target.string()));
+        }
+    }
+
     std::string canonical_path = modules::ModuleResolver::canonicalizePath(*resolved_path);
 
     LOG_DEBUG("[INFO] Importing module: {} ({})\n", node.getModulePath(), canonical_path);
@@ -748,6 +762,17 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
 
     LOG_DEBUG("[INFO] Loading module from: {}\n", module_path);
 
+    // naab-29 D-03: Circular import detection — check before loading
+    if (modules_executing_.count(module_path)) {
+        throw std::runtime_error(
+            fmt::format("Import error: circular import detected\n\n"
+                        "  Module: {}\n"
+                        "  is already being loaded.\n\n"
+                        "  Help:\n"
+                        "  - Break the cycle by extracting shared code into a third module\n",
+                        module_path));
+    }
+
     // Load module using ModuleResolver
     auto module = module_resolver_->loadModule(std::filesystem::path(module_path));
 
@@ -777,6 +802,9 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
     current_env_ = module_env;
     module_exports_.clear();
 
+    // naab-29 D-03: Mark module as executing for cycle detection
+    modules_executing_.insert(module_path);
+
     try {
         // Execute module AST (skip main blocks during import)
         ++module_loading_depth_;
@@ -790,12 +818,14 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
 
         // Cache the module environment
         loaded_modules_[module_path] = module_env;
+        modules_executing_.erase(module_path);  // naab-29 D-03: Done executing
 
         LOG_DEBUG("[SUCCESS] Module loaded successfully: {}\n", module_path);
         LOG_DEBUG("          Exported {} symbols\n", module_exports_.size());
 
     } catch (const std::exception& e) {
         --module_loading_depth_;
+        modules_executing_.erase(module_path);  // naab-29 D-03: Cleanup on error
         // Issue #3: Pop file context on error
         popFileContext();
 

@@ -1,0 +1,11 @@
+// Module that returns tainted data
+use env
+
+export fn get_env_data() {
+    let val = env.get("HOME")
+    return val
+}
+
+main {
+    print("module loaded")
+}

@@ -1,0 +1,72 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-29 Phase 3: Tightened config — shell disabled, read-only fs, lower thresholds",
+
+  "languages": {
+    "allowed": ["python", "javascript"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_only" },
+    "shell": {
+      "enabled": false
+    }
+  },
+
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "lineage": false,
+    "sources": ["polyglot_output", "file.read", "env.get"],
+    "sinks": ["file.write", "file.append"],
+    "sanitizers": ["validate_", "sanitize_"],
+    "propagation": {
+      "string_concat": true,
+      "function_returns": true,
+      "dict_array_access": true
+    }
+  },
+
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 3,
+    "red_threshold": 5,
+    "default_weight": 2
+  },
+
+  "limits": {
+    "timeout": { "global": 15, "per_block": 5, "total_polyglot": 30 },
+    "execution": { "loop_iterations": 5000, "call_depth": 25, "polyglot_blocks": 5 }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "shell_injection": { "level": "hard" },
+    "privilege_escalation": { "level": "hard" },
+    "code_injection": { "level": "hard" },
+    "resource_exhaustion": { "level": "hard" },
+    "type_confusion": { "level": "hard" },
+    "prototype_pollution": { "level": "hard" },
+    "information_disclosure": { "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" },
+    "no_hardcoded_results": { "level": "hard" }
+  },
+
+  "contracts": {
+    "level": "hard"
+  },
+
+  "output": {
+    "summary": { "format": "detailed", "show_passing": true }
+  }
+}

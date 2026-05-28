@@ -3108,6 +3108,19 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Module not found: %s", module_path.c_str());
                 }
 
+                // naab-29 D-10: Symlink escape protection — check BEFORE canonicalization
+                if (governance_ && governance_->isActive() &&
+                    !governance_->getRules().capabilities.filesystem.allow_symlinks) {
+                    std::error_code ec;
+                    if (std::filesystem::is_symlink(*resolved, ec)) {
+                        auto target = std::filesystem::read_symlink(*resolved, ec);
+                        runtimeError("Import error: symlink imports are blocked by governance policy\n\n"
+                                     "  Path: %s\n"
+                                     "  Target: %s\n",
+                                     resolved->c_str(), target.string().c_str());
+                    }
+                }
+
                 std::string canonical = modules::ModuleResolver::canonicalizePath(*resolved);
 
                 // Check cache with canonical path
@@ -3794,9 +3807,21 @@ VM::importModule(const std::string& module_path) {
         return cache_it->second;
     }
 
+    // naab-29 D-03: Circular import detection
+    if (modules_executing_->count(module_path)) {
+        runtimeError("Import error: circular import detected\n\n"
+                     "  Module: %s\n"
+                     "  is already being loaded.\n\n"
+                     "  Help:\n"
+                     "  - Break the cycle by extracting shared code into a third module\n",
+                     module_path.c_str());
+    }
+    modules_executing_->insert(module_path);
+
     // Load the module file via ModuleResolver
     auto module = module_resolver_->loadModule(std::filesystem::path(module_path));
     if (!module || !module->ast) {
+        modules_executing_->erase(module_path);
         runtimeError("Failed to load module: %s", module_path.c_str());
     }
 
@@ -3819,8 +3844,13 @@ VM::importModule(const std::string& module_path) {
 
     // Share the module cache so sub-imports can find already-loaded modules
     module_vm.module_cache_ = module_cache_;
+    // naab-29 D-03: Share executing set for cycle detection
+    module_vm.modules_executing_ = modules_executing_;
 
     module_vm.execute(module_fn);
+
+    // naab-29 D-03: Done executing this module
+    modules_executing_->erase(module_path);
 
     // Take ownership of compiled functions so VMClosure pointers remain valid
     auto compiled_fns = module_compiler.takeCompiledFunctions();

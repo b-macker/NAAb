@@ -1,0 +1,62 @@
+{
+  "version": "5.0",
+  "mode": "audit",
+  "description": "NAAb-29 Phase 2: Relaxed config — used ONLY to test ratchet rejection",
+
+  "languages": {
+    "allowed": ["python", "javascript", "shell", "go", "rust", "nim"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "read_write" },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": []
+    }
+  },
+
+  "security": {
+    "sandbox_level": "unrestricted"
+  },
+
+  "taint_tracking": {
+    "enabled": false
+  },
+
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 50,
+    "red_threshold": 100,
+    "default_weight": 1
+  },
+
+  "limits": {
+    "timeout": { "global": 120, "per_block": 60, "total_polyglot": 300 },
+    "execution": { "loop_iterations": 100000, "call_depth": 200, "polyglot_blocks": 50 }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "level": "advisory" },
+    "shell_injection": { "level": "advisory" },
+    "privilege_escalation": { "level": "advisory" },
+    "code_injection": { "level": "advisory" },
+    "resource_exhaustion": { "level": "advisory" },
+    "type_confusion": { "level": "advisory" },
+    "prototype_pollution": { "level": "advisory" },
+    "information_disclosure": { "level": "advisory" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "level": "advisory" },
+    "no_placeholders": { "level": "advisory" }
+  },
+
+  "contracts": {
+    "level": "advisory"
+  },
+
+  "output": {
+    "summary": { "format": "brief" }
+  }
+}

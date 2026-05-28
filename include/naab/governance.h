@@ -1336,6 +1336,8 @@ struct FunctionContract {
     std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
     std::vector<std::string> must_call;    // v5: patterns that MUST appear in function body (static analysis)
     std::vector<std::string> must_contain; // v5: literal strings that MUST appear in function body
+    int min_arity = -1;  // naab-29 L-08: minimum parameter count (-1 = not specified)
+    int max_arity = -1;  // naab-29 L-08: maximum parameter count (-1 = not specified)
 
     // v6: Execution-based contracts (golden tests)
     struct MustProduceCase {
@@ -2099,7 +2101,8 @@ public:
     std::string checkFunctionBehavioralContract(
         const std::string& func_name,
         const std::string& func_body,
-        int line = 0);
+        int line = 0,
+        int param_count = -1);
 
     // --- Execution-Based Contract Tests ---
     // Runs must_produce golden tests after program execution (post-execution pass)
@@ -2110,7 +2113,8 @@ public:
     std::string checkNaabFunctionBody(const std::string& function_name,
                                        const std::string& source_code,
                                        int line = 0,
-                                       const std::string& source_file = "");
+                                       const std::string& source_file = "",
+                                       int param_count = -1);
 
     // --- Polyglot Optimization Checks ---
     std::string checkPolyglotOptimization(const std::string& language,

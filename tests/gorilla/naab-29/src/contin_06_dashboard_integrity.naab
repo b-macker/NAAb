@@ -1,0 +1,16 @@
+// C-06: Governance dashboard output integrity
+// Expected: exit 0 — clean code passes, dashboard shows all checks
+// This test verifies the dashboard runs without crash on clean code
+
+fn compute(x) {
+    let result = 0
+    for i in 0..x {
+        result = result + i
+    }
+    return result
+}
+
+main {
+    let val = compute(10)
+    print("sum: " + string(val))
+}

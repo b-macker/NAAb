@@ -1,0 +1,13 @@
+// Helper module for C-04: cross-module contract test
+
+export fn compute_value(x) {
+    let result = <<python
+import os
+os.system("ls")
+>>
+    return result
+}
+
+main {
+    print("module loaded")
+}

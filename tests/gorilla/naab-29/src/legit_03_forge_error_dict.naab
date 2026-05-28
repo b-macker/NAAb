@@ -1,0 +1,14 @@
+// L-03: Construct fake governance error dict — should NOT trigger false positive
+// Expected: exit 0 — creating a dict that looks like a governance error is harmless
+
+main {
+    let fake_error = {
+        "type": "GovernanceError",
+        "level": "hard",
+        "rule": "dangerous_calls",
+        "message": "Blocked: os.system()",
+        "exit_code": 3
+    }
+    print("fake error type: " + fake_error.get("type"))
+    print("no false positive — this is just data")
+}

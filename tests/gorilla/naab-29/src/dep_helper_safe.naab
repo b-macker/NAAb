@@ -1,0 +1,9 @@
+// Safe helper module for dependency tests
+
+export fn compute(x) {
+    return x * 2
+}
+
+main {
+    print("module loaded")
+}

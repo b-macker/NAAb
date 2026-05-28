@@ -1,0 +1,8 @@
+// D-07: Deep import chain (A→B→C) — governance applies at all levels
+// Expected: exit 3 — dangerous code in deepest module is still caught
+import "dep_chain_b.naab" as chain_b
+
+main {
+    let val = chain_b.get_chain_value()
+    print("result: " + string(val))
+}

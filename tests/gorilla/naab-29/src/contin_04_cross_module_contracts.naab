@@ -1,0 +1,8 @@
+// C-04: Contracts enforced on imported module functions
+// Expected: exit 3 — contract violation in imported function still triggers block
+import "contin_helper_module.naab" as helper
+
+main {
+    let result = helper.compute_value(42)
+    print("result: " + string(result))
+}

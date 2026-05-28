@@ -1,0 +1,7 @@
+// D-10: Symlink escape attempt — import a symlink pointing outside project
+// Expected: exit 1/3/4 — module resolver or sandbox blocks symlink escape
+import "escape_link.naab" as escaped
+
+main {
+    print("should not reach here")
+}

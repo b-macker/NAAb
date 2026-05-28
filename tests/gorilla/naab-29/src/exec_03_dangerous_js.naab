@@ -1,0 +1,10 @@
+// E-03: Dangerous JavaScript call — eval()
+// Expected: exit 3 — governance blocks eval usage
+
+main {
+    let result = <<javascript
+const x = eval("1+1");
+x
+>>
+    print(result)
+}

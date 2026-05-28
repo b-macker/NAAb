@@ -1,0 +1,14 @@
+// C-02: Taint persists across function call boundaries
+// Expected: exit 3 — tainted data returned from function stays tainted
+use env
+use file
+
+fn get_sensitive() {
+    let val = env.get("HOME")
+    return val
+}
+
+main {
+    let data = get_sensitive()
+    file.write("output.txt", data)
+}

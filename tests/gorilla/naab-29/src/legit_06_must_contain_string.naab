@@ -1,0 +1,21 @@
+// L-06: must_contain "for" — does "before" match as false positive?
+// Expected: exit 0 or 3 — documents substring matching behavior
+// Contract: process_items must_contain "for"
+// The word "before" contains substring "for" — testing if this is a false positive
+
+export fn process_items(items) {
+    let before = len(items)
+    let result = []
+    let idx = 0
+    while idx < before {
+        result.push(items[idx])
+        idx = idx + 1
+    }
+    return result
+}
+
+main {
+    let data = [1, 2, 3]
+    let processed = process_items(data)
+    print("count: " + string(len(processed)))
+}
