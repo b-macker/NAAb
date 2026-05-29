@@ -5140,9 +5140,28 @@ std::string GovernanceEngine::checkShellInjection(const std::string& code, int l
     if (!cfg.enabled) return "";
     clearTrace();
     static const std::vector<std::string> default_patterns = {
-        "curl.*\\|\\s*sh", "wget.*\\|\\s*bash", "eval\\s+\\$",
-        "\\$\\(curl", "\\$\\(wget", "bash\\s+-c.*\\$",
-        "chmod\\s+777", "chmod\\s+\\+x.*\\$",
+        // Original: pipe-to-shell and chmod
+        "curl.*\\|\\s*(?:sh|bash)", "wget.*\\|\\s*(?:sh|bash)",
+        "eval\\s+\\$", "\\$\\(curl", "\\$\\(wget",
+        "bash\\s+-c.*\\$", "chmod\\s+777", "chmod\\s+\\+x.*\\$",
+        // Reverse shells
+        "bash\\s+-i\\s+>&\\s*/dev/tcp/",
+        "nc\\s+.*-e\\s+/bin/(?:sh|bash)",
+        "ncat\\s+.*-e\\s+/bin/(?:sh|bash)",
+        // Encoded command execution
+        "base64\\s+-d\\s*\\|\\s*(?:sh|bash)",
+        "python[23]?\\s+-c.*exec\\s*\\(",
+        // Scheduled persistence
+        "crontab\\s+-[erl]",
+        "\\bat\\s+\\d{1,2}:\\d{2}",
+        // Environment manipulation
+        "export\\s+PATH\\s*=",
+        "LD_PRELOAD\\s*=",
+        "LD_LIBRARY_PATH\\s*=",
+        // File descriptor tricks
+        "exec\\s+\\d+<>/dev/tcp/",
+        // Pipe to interpreter
+        "\\|\\s*python[23]?\\s",
     };
     auto& pats = cfg.patterns.empty() ? default_patterns : cfg.patterns;
     std::string found = searchPatterns(code, pats);
@@ -5244,18 +5263,66 @@ std::string GovernanceEngine::checkDataExfiltration(const std::string& code, int
     auto& cfg = rules_.restrictions.data_exfiltration;
     if (!cfg.enabled) return "";
     clearTrace();
+
+    // If user provided custom patterns, use those exclusively
+    if (!cfg.patterns.empty()) {
+        std::string found = searchPatterns(code, cfg.patterns);
+        if (!found.empty()) {
+            return enforce("restrictions.data_exfiltration", cfg.level,
+                formatError(cfg.level, "Data exfiltration pattern detected",
+                    line > 0 ? fmt::format("line {}", line) : "", "restrictions.data_exfiltration",
+                    "Data exfiltration detected — secrets or data are being prepared for external transmission.\n"
+                    "Process data locally; do not encode, transmit, or stage secrets for export.",
+                    "requests.post(url, data=secret)",
+                    "// Use secrets in-place, don't send them externally\nheaders = {\"Authorization\": env.get(\"API_KEY\")}"));
+        }
+        recordPass("restrictions.data_exfiltration", cfg.level);
+        return "";
+    }
+
+    // Default patterns — built from enabled categories
     std::vector<std::string> pats;
-    if (cfg.block_base64_encode_secrets) pats.push_back("base64\\.(?:b64encode|encode).*(?:password|secret|key|token)");
-    if (cfg.block_hex_encode_secrets) pats.push_back("\\.hex\\(\\).*(?:password|secret|key|token)");
+
+    // Encoding-based exfil (original 2 patterns, relaxed keyword requirement)
+    if (cfg.block_base64_encode_secrets) {
+        pats.push_back("base64\\.(?:b64encode|encodebytes|b64decode)\\s*\\(");
+        pats.push_back("base64\\.(?:b64encode|encode).*(?:password|secret|key|token)");
+    }
+    if (cfg.block_hex_encode_secrets) {
+        pats.push_back("binascii\\.(?:hexlify|unhexlify)\\s*\\(");
+        pats.push_back("\\.hex\\(\\).*(?:password|secret|key|token)");
+    }
+    if (cfg.block_encoding_chains) {
+        pats.push_back("codecs\\.(?:encode|decode)\\s*\\(");
+        pats.push_back("\\.encode\\(.*\\)\\.decode\\(");
+    }
+
+    // Network exfiltration
+    if (cfg.block_network_exfil) {
+        pats.push_back("requests\\.(?:post|put|patch)\\s*\\(");
+        pats.push_back("urllib\\.request\\.(?:urlopen|Request)\\s*\\(");
+        pats.push_back("http\\.client\\.HTTP(?:S)?Connection\\s*\\(");
+        pats.push_back("fetch\\s*\\(");
+        pats.push_back("axios\\.(?:post|put|patch)\\s*\\(");
+        pats.push_back("new\\s+XMLHttpRequest");
+        pats.push_back("httpx\\.(?:post|put|patch|AsyncClient)\\s*\\(");
+    }
+
+    // Raw socket exfiltration
+    if (cfg.block_socket_exfil) {
+        pats.push_back("socket\\.(?:connect|create_connection)\\s*\\(");
+        pats.push_back("socket\\.socket\\s*\\(");
+    }
+
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
         return enforce("restrictions.data_exfiltration", cfg.level,
-            formatError(cfg.level, "Potential data exfiltration pattern detected",
+            formatError(cfg.level, "Data exfiltration pattern detected",
                 line > 0 ? fmt::format("line {}", line) : "", "restrictions.data_exfiltration",
-                "Encoding secrets for transmission is blocked.\n"
-                "Secrets should never leave the runtime — use them in-place, don't encode for export.",
-                "encoded = base64.b64encode(api_key.encode())",
-                "// Use the secret directly, don't encode it for export\nheaders = {\"Authorization\": env.get(\"API_KEY\")}"));
+                "Data exfiltration detected — secrets or data are being prepared for external transmission.\n"
+                "Process data locally; do not encode, transmit, or stage secrets for export.",
+                "requests.post(url, data=secret)",
+                "// Use secrets in-place, don't send them externally\nheaders = {\"Authorization\": env.get(\"API_KEY\")}"));
     }
     recordPass("restrictions.data_exfiltration", cfg.level);
     return "";
@@ -5509,7 +5576,7 @@ std::string GovernanceEngine::checkObfuscationSignals(
             "ctypes\\.(?:CDLL|cdll)", "setattr\\s*\\(",
             "__mro__", "__dict__\\s*\\["
         });
-    } else if (language == "javascript") {
+    } else if (language == "javascript" || language == "js") {
         has_sink = has_signal(stripped_code, {
             "\\beval\\s*\\(", "\\bFunction\\s*\\(",
             "setTimeout\\s*\\(", "setInterval\\s*\\(",
@@ -5523,8 +5590,93 @@ std::string GovernanceEngine::checkObfuscationSignals(
             "Reflect\\.", "Proxy\\s*\\(", "constructor\\s*\\["
         });
         has_indirect = false;  // JS has 3 signal groups
+    } else if (language == "ruby") {
+        has_sink = has_signal(stripped_code, {
+            "\\beval\\s*\\(", "\\bsend\\s*\\(", "\\binstance_eval\\b",
+            "\\bclass_eval\\b", "\\bbinding\\.eval\\b"
+        });
+        has_encoding = has_signal(raw_code, {
+            "Base64\\.decode64", "\\bpack\\s*\\(", "\\bunpack\\s*\\("
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "\\bmethod_missing\\b", "\\bdefine_method\\b",
+            "\\bconst_get\\s*\\(", "\\bObject\\.send\\s*\\("
+        });
+        has_indirect = has_signal(stripped_code, {
+            "\\bsystem\\s*\\(", "\\bexec\\s*\\(", "\\b`.*`"
+        });
+    } else if (language == "php") {
+        has_sink = has_signal(stripped_code, {
+            "\\beval\\s*\\(", "\\bassert\\s*\\(",
+            "\\bcreate_function\\s*\\(", "\\bpreg_replace\\s*\\(.*/e"
+        });
+        has_encoding = has_signal(raw_code, {
+            "\\bbase64_decode\\s*\\(", "\\bhex2bin\\s*\\(",
+            "\\bgzinflate\\s*\\(", "\\bstr_rot13\\s*\\("
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "\\bcall_user_func\\s*\\(", "\\$\\$",
+            "\\bcall_user_func_array\\s*\\("
+        });
+        has_indirect = has_signal(stripped_code, {
+            "\\bReflectionFunction\\b", "\\bReflectionMethod\\b"
+        });
+    } else if (language == "shell" || language == "sh" || language == "bash") {
+        has_sink = has_signal(stripped_code, {
+            "\\beval\\s", "\\bexec\\s", "\\bsource\\s",
+            "\\$\\(.*\\$\\("  // nested command substitution
+        });
+        has_encoding = has_signal(raw_code, {
+            "\\\\x[0-9a-fA-F]{2}", "\\$'\\\\",
+            "xxd\\s+-r", "base64\\s+-d"
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "\\$\\{!",  // variable indirection
+            "printf\\s+.*\\\\x"
+        });
+        has_indirect = false;
+    } else if (language == "go" || language == "golang") {
+        has_sink = has_signal(stripped_code, {
+            "reflect\\.Value.*\\.Call\\s*\\(", "plugin\\.Open\\s*\\(",
+            "exec\\.Command\\s*\\("
+        });
+        has_encoding = has_signal(raw_code, {
+            "encoding/hex", "encoding/base64"
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "reflect\\.(?:ValueOf|TypeOf)\\s*\\(",
+            "unsafe\\.Pointer\\s*\\(",
+            "//go:linkname"
+        });
+        has_indirect = false;
+    } else if (language == "csharp" || language == "cs") {
+        has_sink = has_signal(stripped_code, {
+            "Assembly\\.Load(?:From)?\\s*\\(",
+            "Activator\\.CreateInstance\\s*\\(",
+            "DynamicInvoke\\s*\\("
+        });
+        has_encoding = has_signal(raw_code, {
+            "Convert\\.FromBase64String",
+            "Encoding\\.(?:UTF8|ASCII)\\.GetString"
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "Type\\.GetType\\s*\\(", "MethodInfo\\.Invoke\\s*\\(",
+            "Marshal\\.(?:Copy|PtrToStructure)\\s*\\("
+        });
+        has_indirect = false;
+    } else if (language == "rust") {
+        has_sink = has_signal(stripped_code, {
+            "std::process::Command", "\\bunsafe\\s*\\{"
+        });
+        has_encoding = has_signal(raw_code, {
+            "base64::decode", "hex::decode"
+        });
+        has_dynamic = has_signal(stripped_code, {
+            "\\btransmute\\s*[:<(]", "\\bas\\s+\\*(?:const|mut)\\b"
+        });
+        has_indirect = false;
     } else {
-        // Other languages: skip co-occurrence (covered by DANGEROUS_PATTERNS_DB)
+        // Unknown languages: skip co-occurrence
         recordPass("restrictions.obfuscation", cfg.level);
         return "";
     }

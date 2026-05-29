@@ -786,6 +786,9 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     }
     // Taint tracking
     if (rule_name.rfind("taint", 0) == 0) return rules_.taint_tracking.rationale;
+    // Context drift
+    if (rule_name == "context_drift.coherence_loss") return rules_.context_drift.rationale;
+    if (rule_name == "context_drift.reality_checkpoint") return rules_.context_drift.reality_checkpoint.rationale;
     // Scoring
     if (rule_name.rfind("scoring", 0) == 0) return rules_.scoring.rationale;
     // Contracts — look up per-function rationale
@@ -2339,6 +2342,12 @@ void GovernanceEngine::printDashboard() const {
         if (state) {
             fprintf(stderr, "CDD:        coherence=%.2f (%zu turns analyzed)\n",
                     state->coherence_score, drift_analyzer_.totalTurnsAnalyzed());
+            if (rules_.context_drift.reality_checkpoint.enabled &&
+                state->last_pressure_score > 0.0) {
+                fprintf(stderr, "Checkpoint: pressure=%.2f (%d consecutive)\n",
+                        state->last_pressure_score,
+                        state->consecutive_high_pressure_turns);
+            }
         } else {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
@@ -5223,6 +5232,106 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     std::vector<RuntimeEvent> turn_events = sequence_detector_.getEventsForTurn(turn);
 
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
+
+    // --- Reality Checkpoint: composite pressure detection ---
+    const auto& rccfg = rules_.context_drift.reality_checkpoint;
+    if (!drifted && rccfg.enabled) {
+        auto state = drift_analyzer_.getDriftState(handle_id);
+        if (state) {
+            // Factor 1: Coherence proximity (how close to threshold)
+            double coherence_prox = 0.0;
+            if (rules_.context_drift.coherence_threshold > 0.0) {
+                coherence_prox = std::max(0.0, std::min(1.0,
+                    1.0 - (state->coherence_score / rules_.context_drift.coherence_threshold)));
+            }
+
+            // Factor 2: Risk score proximity (snapshot under results_mutex_)
+            double risk_prox = 0.0;
+            if (rules_.scoring.enabled && rules_.scoring.yellow_threshold > 0) {
+                int score_snapshot;
+                {
+                    std::lock_guard<std::mutex> lock(results_mutex_);
+                    score_snapshot = cumulative_score_;
+                }
+                risk_prox = std::max(0.0, std::min(1.0,
+                    static_cast<double>(score_snapshot) / rules_.scoring.yellow_threshold));
+            }
+
+            // Factor 3: Signal density (how many CDD signals fired this turn)
+            double signal_dens = std::max(0.0, std::min(1.0,
+                state->signals_fired_this_turn / 4.0));
+
+            // Factor 4: Conversation depth
+            double depth = std::max(0.0, std::min(1.0,
+                static_cast<double>(turn) / rccfg.expected_conversation_depth));
+
+            // Factor 5: BSD partial progress
+            double bsd_progress = sequence_detector_.getMaxPartialProgress();
+
+            // Weighted composite
+            double composite =
+                rccfg.weights.coherence_proximity * coherence_prox +
+                rccfg.weights.risk_score_proximity * risk_prox +
+                rccfg.weights.signal_density * signal_dens +
+                rccfg.weights.conversation_depth * depth +
+                rccfg.weights.bsd_partial_progress * bsd_progress;
+
+            // Track sustained pressure
+            int consecutive = state->consecutive_high_pressure_turns;
+            int last_cp_turn = state->last_checkpoint_turn;
+
+            if (composite >= rccfg.pressure_threshold) {
+                consecutive++;
+            } else {
+                consecutive = std::max(0, consecutive - 1);  // decay, not instant reset
+            }
+
+            // Check trigger condition: sustained + cooldown
+            if (consecutive >= rccfg.sustained_turns_required &&
+                (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
+
+                // Reset and persist state
+                drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn);
+
+                clearTrace();
+                addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
+                    composite, rccfg.pressure_threshold));
+                addTrace(fmt::format("  coherence_proximity={:.2f} risk_proximity={:.2f} "
+                    "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f}",
+                    coherence_prox, risk_prox, signal_dens, depth, bsd_progress));
+                addTrace(fmt::format("  sustained {} turns", consecutive));
+
+                // Build pressure breakdown for error message
+                std::string breakdown;
+                if (coherence_prox > 0.3)
+                    breakdown += "  - Coherence trending toward threshold\n";
+                if (risk_prox > 0.3)
+                    breakdown += "  - Risk score approaching yellow zone\n";
+                if (signal_dens > 0.3)
+                    breakdown += "  - Multiple drift signals active simultaneously\n";
+                if (depth > 0.3)
+                    breakdown += fmt::format("  - Conversation at {:.0f}% of expected depth\n",
+                        depth * 100);
+                if (bsd_progress > 0.3)
+                    breakdown += "  - Behavioral sequence pattern partially matched\n";
+
+                return enforce("context_drift.reality_checkpoint", rccfg.level,
+                    formatError(rccfg.level,
+                        fmt::format("Reality checkpoint — sustained operational pressure\n\n"
+                            "  Pressure score: {:.2f} (sustained {} turns)\n{}",
+                            composite, consecutive, breakdown),
+                        "", "context_drift.reality_checkpoint",
+                        "No single governance signal has crossed its threshold, but aggregate\n"
+                        "operational pressure indicates the agent may be losing alignment with\n"
+                        "the task. Consider reviewing recent actions and providing direction.",
+                        "", ""));
+            } else {
+                // Update pressure tracking without firing
+                drift_analyzer_.updateCheckpointState(handle_id, composite, consecutive, -1);
+            }
+        }
+    }
+
     if (!drifted) return "";
 
     auto state = drift_analyzer_.getDriftState(handle_id);
@@ -5249,6 +5358,18 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             "The agent appears to be looping or losing context.\n"
             "Consider resetting the conversation or providing clearer instructions.",
             "", ""));
+}
+
+GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
+    int handle_id, int turn) const {
+    CheckpointData data;
+    if (!rules_.context_drift.reality_checkpoint.enabled) return data;
+    auto state = drift_analyzer_.getDriftState(handle_id);
+    if (!state) return data;
+    data.pressure = state->last_pressure_score;
+    data.sustained_turns = state->consecutive_high_pressure_turns;
+    data.fired = (state->last_checkpoint_turn == turn);
+    return data;
 }
 
 std::string GovernanceEngine::checkPreExecution(

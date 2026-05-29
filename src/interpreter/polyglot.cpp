@@ -163,6 +163,14 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
         if (!count_err.empty()) throw std::runtime_error(count_err);
 
+        // Rate limiting for polyglot execution
+        if (!governance_->checkPolyglotRate()) {
+            throw std::runtime_error(
+                "Governance: polyglot execution rate limit exceeded.\n\n"
+                "  Too many polyglot blocks executed per second.\n"
+                "  Reduce execution frequency or increase limits.rate.max_polyglot_per_second in govern.json.\n");
+        }
+
         // FIX-DX-2 + FIX-D: Taint tracking for ALL language bindings
         checkPolyglotBoundVarTaint(language, bound_vars, node.getLocation().line);
 

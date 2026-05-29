@@ -9,6 +9,7 @@
 #include "naab/python_c_executor.h"
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
+#include "naab/subprocess_helpers.h"  // V-SC-006-ext: env scrub policy
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -134,8 +135,69 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         "_naab_sys.stdout = _naab_stdout\n"
     );
 
+    // V-SC-006-ext: Scrub env vars from embedded Python's os.environ
+    // Always scrub NAAb internal secrets; additionally apply policy-based scrubbing
+    bool env_scrub_applied = true;
+    {
+        const auto& policy = runtime::getEnvScrubPolicy();
+        std::ostringstream scrub_code;
+        scrub_code << "import os as _naab_os\n"
+                   << "_naab_saved_env = {}\n"
+                   // Always scrub NAAb internal secrets
+                   << "for _k in ['NAAB_GOVERN_KEY','NAAB_LOCK_KEY','NAAB_SIGNING_KEY']:\n"
+                   << "    if _k in _naab_os.environ:\n"
+                   << "        _naab_saved_env[_k] = _naab_os.environ.pop(_k)\n";
+
+        if (policy.active) {
+            if (policy.mode == runtime::EnvScrubMode::ALLOWLIST) {
+                // Allowlist: remove everything except allowed + essential vars
+                scrub_code << "_naab_allowed = set([";
+                for (const char* v : {"PATH", "HOME", "LANG", "TERM", "TMPDIR",
+                        "TMP", "TEMP", "USER", "LOGNAME", "SHELL", "LC_ALL",
+                        "LC_CTYPE", "XDG_RUNTIME_DIR", "ANDROID_ROOT",
+                        "ANDROID_DATA", "PREFIX", "LD_LIBRARY_PATH"}) {
+                    scrub_code << "'" << v << "',";
+                }
+                for (const auto& v : policy.allowed_vars) {
+                    scrub_code << "'" << v << "',";
+                }
+                scrub_code << "])\n"
+                           << "for _k in list(_naab_os.environ.keys()):\n"
+                           << "    if _k not in _naab_allowed:\n"
+                           << "        _naab_saved_env[_k] = _naab_os.environ.pop(_k)\n"
+                           << "del _naab_allowed\n";
+            } else {
+                // Blocklist: remove specific vars and prefixes
+                scrub_code << "_naab_blocked = set([";
+                for (const auto& v : policy.blocked_vars) {
+                    scrub_code << "'" << v << "',";
+                }
+                scrub_code << "])\n"
+                           << "_naab_prefixes = [";
+                for (const auto& p : policy.blocked_prefixes) {
+                    scrub_code << "'" << p << "',";
+                }
+                scrub_code << "]\n"
+                           << "for _k in list(_naab_os.environ.keys()):\n"
+                           << "    if _k in _naab_blocked or any(_k.startswith(_p) for _p in _naab_prefixes):\n"
+                           << "        _naab_saved_env[_k] = _naab_os.environ.pop(_k)\n"
+                           << "del _naab_blocked, _naab_prefixes\n";
+            }
+        }
+        scrub_code << "del _naab_os\n";
+        PyRun_SimpleString(scrub_code.str().c_str());
+    }
+
     // Helper lambda: restore stdout and get captured output
-    auto captureAndRestoreStdout = [&globals]() -> std::string {
+    auto captureAndRestoreStdout = [&globals, env_scrub_applied]() -> std::string {
+        // V-SC-006-ext: Restore scrubbed env vars
+        if (env_scrub_applied) {
+            PyRun_SimpleString(
+                "import os as _naab_os\n"
+                "_naab_os.environ.update(_naab_saved_env)\n"
+                "del _naab_saved_env, _naab_os\n"
+            );
+        }
         PyRun_SimpleString("_naab_sys.stdout = _naab_old_stdout");
         std::string captured;
         PyObject* captured_obj = PyRun_String("_naab_stdout.getvalue()", Py_eval_input, globals, globals);

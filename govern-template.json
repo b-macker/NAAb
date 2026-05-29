@@ -1475,6 +1475,61 @@
     "red_threshold": 25
   },
 
+  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging) activate when no user patterns are defined.",
+  "behavioral_sequences": {
+    "enabled": false,
+    "rationale": "Detect multi-step attack patterns that span individual governance checks.",
+    "window_size": 100,
+    "patterns": [
+      {
+        "name": "credential_harvesting",
+        "sequence": ["ENV_READ:*KEY*|*SECRET*|*TOKEN*", "NET_CONNECT"],
+        "max_gap": 5,
+        "level": "soft",
+        "rationale": "Reading credential env vars then exfiltrating over network."
+      }
+    ]
+  },
+
+  "_comment_context_drift": "Context Drift Detection (CDD) — monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems, fires when aggregate pressure is sustained without any single signal crossing its own threshold.",
+  "context_drift": {
+    "enabled": false,
+    "rationale": "Detect when agents lose alignment with their task through behavioral drift.",
+    "level": "advisory",
+    "coherence_threshold": 0.5,
+    "max_contradictions": 5,
+    "check_interval_turns": 3,
+    "fingerprint_window": 10,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true
+    },
+    "weights": {
+      "circular": 0.15,
+      "scope_creep": 0.10,
+      "contradiction": 0.20,
+      "repeated_failure": 0.10
+    },
+    "reality_checkpoint": {
+      "enabled": false,
+      "rationale": "Detect sustained multi-signal pressure before any single signal crosses threshold. Composite score from coherence proximity, cumulative risk, signal density, conversation depth, and BSD partial progress.",
+      "level": "soft",
+      "pressure_threshold": 0.7,
+      "sustained_turns_required": 3,
+      "min_turns_between_checkpoints": 5,
+      "expected_conversation_depth": 20,
+      "weights": {
+        "coherence_proximity": 0.35,
+        "risk_score_proximity": 0.20,
+        "signal_density": 0.25,
+        "conversation_depth": 0.10,
+        "bsd_partial_progress": 0.10
+      }
+    }
+  },
+
   "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
   "agent_review": {
     "enabled": false,

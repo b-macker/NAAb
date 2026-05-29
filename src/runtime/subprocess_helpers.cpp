@@ -40,6 +40,58 @@
 namespace naab {
 namespace runtime {
 
+// --- Environment Scrubbing Policy (V-SC-006-ext) ---
+static thread_local EnvScrubPolicy t_env_scrub_policy;
+
+void setEnvScrubPolicy(const EnvScrubPolicy& policy) {
+    t_env_scrub_policy = policy;
+}
+
+const EnvScrubPolicy& getEnvScrubPolicy() {
+    return t_env_scrub_policy;
+}
+
+// Check if an env var key should be scrubbed based on the active policy.
+// Always scrubs NAAb internals. When policy is active, applies additional filtering.
+static bool shouldScrubEnvVar(const std::string& key) {
+    // Always scrub NAAb-internal secrets
+    static const std::unordered_set<std::string> NAAB_SECRETS = {
+        "NAAB_GOVERN_KEY", "NAAB_LOCK_KEY", "NAAB_SIGNING_KEY"
+    };
+    if (NAAB_SECRETS.count(key)) return true;
+
+    const auto& policy = t_env_scrub_policy;
+    if (!policy.active) return false;
+
+    if (policy.mode == EnvScrubMode::ALLOWLIST) {
+        // In allowlist mode, scrub everything NOT in the allowed list
+        // Always allow essential system vars
+        static const std::unordered_set<std::string> ESSENTIAL = {
+            "PATH", "HOME", "LANG", "TERM", "TMPDIR", "TMP", "TEMP",
+            "USER", "LOGNAME", "SHELL", "LC_ALL", "LC_CTYPE",
+            "XDG_RUNTIME_DIR", "ANDROID_ROOT", "ANDROID_DATA",
+            "PREFIX", "LD_LIBRARY_PATH"
+        };
+        if (ESSENTIAL.count(key)) return false;
+        for (const auto& allowed : policy.allowed_vars) {
+            if (key == allowed) return false;
+        }
+        return true;  // Not in allowlist → scrub
+    }
+
+    // BLOCKLIST mode: scrub if key matches any blocked var or prefix
+    for (const auto& blocked : policy.blocked_vars) {
+        if (key == blocked) return true;
+    }
+    for (const auto& prefix : policy.blocked_prefixes) {
+        if (key.size() >= prefix.size() &&
+            key.compare(0, prefix.size(), prefix) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Helper to read entire file contents into a string
 static std::string readFileContents(const std::string& path) {
     std::ifstream ifs(path);
@@ -223,8 +275,8 @@ int execute_subprocess_with_pipes(
                 size_t eq = entry.find('=');
                 if (eq != std::string::npos) {
                     std::string key = entry.substr(0, eq);
-                    // Scrub NAAb internal secrets from child environment
-                    if (key == "NAAB_GOVERN_KEY" || key == "NAAB_LOCK_KEY" || key == "NAAB_SIGNING_KEY") continue;
+                    // V-SC-006-ext: Scrub based on active env scrub policy
+                    if (shouldScrubEnvVar(key)) continue;
                     // Skip keys that custom env overrides
                     if (env && !env->empty() && env->count(key) > 0) continue;
                     for (char c : entry) env_block.push_back(c);
@@ -420,33 +472,35 @@ int execute_subprocess_with_pipes(
     }
     argv.push_back(nullptr);
 
-    // Build envp array if custom environment provided
+    // Build envp array — always filter when env scrub policy is active (V-SC-006-ext)
     std::vector<std::string> env_strings;
     std::vector<const char*> envp;
-    bool use_custom_env = false;
-    if (env && !env->empty()) {
-        use_custom_env = true;
-        // Inherit current environment, scrubbing NAAb-internal secrets
-        static const std::unordered_set<std::string> SCRUB_VARS = {
-            "NAAB_GOVERN_KEY", "NAAB_LOCK_KEY", "NAAB_SIGNING_KEY"
-        };
+    bool use_custom_env = (env && !env->empty()) || t_env_scrub_policy.active;
+    {
+        // Inherit current environment, filtering per active scrub policy
         for (char** e = environ; *e != nullptr; ++e) {
             std::string_view entry(*e);
             auto eq = entry.find('=');
             if (eq != std::string_view::npos) {
                 std::string key(entry.substr(0, eq));
-                if (SCRUB_VARS.count(key)) continue;
+                if (shouldScrubEnvVar(key)) continue;
+                // Skip keys that custom env overrides
+                if (env && !env->empty() && env->count(key) > 0) continue;
             }
             env_strings.push_back(*e);
         }
         // Add/override with custom vars
-        for (const auto& pair : *env) {
-            env_strings.push_back(pair.first + "=" + pair.second);
+        if (env && !env->empty()) {
+            for (const auto& pair : *env) {
+                env_strings.push_back(pair.first + "=" + pair.second);
+            }
         }
-        for (const auto& s : env_strings) {
-            envp.push_back(s.c_str());
+        if (use_custom_env) {
+            for (const auto& s : env_strings) {
+                envp.push_back(s.c_str());
+            }
+            envp.push_back(nullptr);
         }
-        envp.push_back(nullptr);
     }
 
     // Fork and exec (avoids shell interpretation — no command injection possible)
@@ -467,6 +521,20 @@ int execute_subprocess_with_pipes(
         unsetenv("NAAB_GOVERN_KEY");
         unsetenv("NAAB_LOCK_KEY");
         unsetenv("NAAB_SIGNING_KEY");
+        // V-SC-006-ext: When env scrub policy is active but we fall through
+        // to execvp (no custom envp), unset blocked vars in child process
+        if (t_env_scrub_policy.active && !use_custom_env) {
+            for (char** e = environ; *e != nullptr; ++e) {
+                std::string_view entry(*e);
+                auto eq = entry.find('=');
+                if (eq != std::string_view::npos) {
+                    std::string key(entry.substr(0, eq));
+                    if (shouldScrubEnvVar(key)) {
+                        unsetenv(key.c_str());
+                    }
+                }
+            }
+        }
 
         // Child process: redirect stdout/stderr to temp files
         FILE* out = fopen(stdout_tmp.c_str(), "w");

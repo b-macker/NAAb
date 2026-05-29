@@ -1736,10 +1736,12 @@ interpreter::NaabVal VM::run() {
 
                         // Governance: check if this is a taint sink (e.g., env.set_var)
                         // If any argument is tainted, temporarily mark it and call checkTaintedSink
+                        bool any_arg_tainted_vm = false;
                         if (governance_ && governance_->isActive()) {
                             for (int ai = 0; ai < static_cast<int>(argc); ai++) {
                                 ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
                                 if (taint_stack_[arg_offset]) {
+                                    any_arg_tainted_vm = true;
                                     std::string arg_label = "argument " + std::to_string(ai) + " of '" + full_method_name + "()'";
                                     governance_->markTainted(arg_label);
                                     int gov_line = CURRENT_CHUNK().getLine(
@@ -1817,6 +1819,13 @@ interpreter::NaabVal VM::run() {
                             } else if (governance_->lastReturnWasTainted()) {
                                 peekTaint(0) = true;
                                 governance_->setLastReturnTainted(false);
+                            } else if (any_arg_tainted_vm) {
+                                // Taint propagation: if any input argument was tainted,
+                                // the return value inherits taint. Closes the gap where
+                                // array.map_fn/filter_fn/reduce_fn could launder tainted data.
+                                peekTaint(0) = true;
+                                governance_->setLastReturnTainted(true,
+                                    full_method_name + ":input_propagated");
                             }
                             // Behavioral sequence event emission
                             if (governance_->getRules().behavioral_sequences.enabled) {
@@ -2684,6 +2693,13 @@ interpreter::NaabVal VM::run() {
                     if (!err.empty()) runtimeError("%s", err.c_str());
                     std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
                     if (!count_err.empty()) runtimeError("%s", count_err.c_str());
+
+                    // Rate limiting for polyglot execution
+                    if (!governance_->checkPolyglotRate()) {
+                        runtimeError("Governance: polyglot execution rate limit exceeded.\n\n"
+                            "  Too many polyglot blocks executed per second.\n"
+                            "  Reduce execution frequency or increase limits.rate.max_polyglot_per_second in govern.json.\n");
+                    }
 
                     // Taint sink check: block tainted variables from reaching polyglot blocks
                     // Use shadow taint stack data (bound_taints) for locals, AND governance taint set for globals
@@ -4428,6 +4444,21 @@ interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::
     if (!stdlib_) {
         runtimeError("Stdlib not available");
     }
+
+    // Rate limiting for stdlib calls
+    if (governance_ && governance_->isActive()) {
+        if (!governance_->checkStdlibRate()) {
+            runtimeError("Governance: stdlib call rate limit exceeded.\n\n"
+                "  Too many stdlib function calls per second.\n"
+                "  Reduce call frequency or increase limits.rate.max_stdlib_calls_per_second in govern.json.\n");
+        }
+        if (module == "file" && !governance_->checkFileOpsRate()) {
+            runtimeError("Governance: file operation rate limit exceeded.\n\n"
+                "  Too many file operations per second.\n"
+                "  Reduce file I/O frequency or increase limits.rate.max_file_ops_per_second in govern.json.\n");
+        }
+    }
+
     // Convert args to vector for stdlib call
     std::vector<interpreter::NaabVal> arg_vec(args, args + argc);
     auto mod = stdlib_->getModule(module);

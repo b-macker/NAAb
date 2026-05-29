@@ -453,6 +453,9 @@ elif echo "$OUTPUT" | grep -qi "context drift\|coherence"; then
 elif echo "$OUTPUT" | grep -qi "429\|RESOURCE_EXHAUSTED\|rate"; then
     echo "  NOTE: API rate limited — cannot validate CDD"
     pass "T8: CDD hard enforcement (skipped — rate limited)"
+elif echo "$OUTPUT" | grep -qi "400\|INVALID_ARGUMENT\|401\|UNAUTHENTICATED\|403\|PERMISSION_DENIED\|API key"; then
+    echo "  NOTE: API key invalid/expired — cannot validate CDD"
+    pass "T8: CDD hard enforcement (skipped — API key error)"
 else
     fail "T8: CDD hard enforcement did not fire (rc=$RC)"
     echo "    Output: $(echo "$OUTPUT" | head -8)"

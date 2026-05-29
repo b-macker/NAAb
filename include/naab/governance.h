@@ -174,6 +174,14 @@ struct EnvVarsCapability {
     std::vector<std::string> blocked_read;
     std::vector<std::string> allowed_write;
     std::vector<std::string> blocked_write;
+    // V-SC-006-ext: Polyglot subprocess environment scrubbing.
+    // Controls which parent env vars are inherited by polyglot subprocesses.
+    // "blocklist" (default): scrub NAAb secrets + blocked_subprocess_prefixes
+    // "allowlist": only pass essential system vars + allowed_subprocess_vars
+    std::string subprocess_scrub_mode;  // "blocklist" or "allowlist"
+    std::vector<std::string> blocked_subprocess_prefixes;  // e.g., "AWS_", "OPENAI_"
+    std::vector<std::string> blocked_subprocess_vars;  // exact var names
+    std::vector<std::string> allowed_subprocess_vars;  // allowlist mode: explicitly allowed
 };
 
 struct ProcessCapability {
@@ -361,7 +369,11 @@ struct DataExfiltrationRestriction {
     bool block_base64_encode_secrets = true;
     bool block_hex_encode_secrets = true;
     bool block_url_encode_secrets = true;
+    bool block_network_exfil = true;
+    bool block_socket_exfil = true;
+    bool block_encoding_chains = true;
     int max_encoded_output_length = 0;
+    std::vector<std::string> patterns;  // user override — replaces defaults if non-empty
 };
 
 struct ResourceAbuseRestriction {
@@ -1228,6 +1240,7 @@ struct ContextDriftConfig {
         bool repeated_failures = true;
         bool circular_actions = true;
         bool scope_creep = true;
+        bool intent_contradictions = true;
     } signals;
     struct Weights {
         double circular = 0.1;
@@ -1235,6 +1248,24 @@ struct ContextDriftConfig {
         double contradiction = 0.2;
         double repeated_failure = 0.05;
     } weights;
+
+    // Reality Checkpoint: composite operational pressure detection
+    struct RealityCheckpoint {
+        bool enabled = false;
+        std::string rationale;
+        EnforcementLevel level = EnforcementLevel::SOFT;
+        double pressure_threshold = 0.7;
+        int sustained_turns_required = 3;
+        int min_turns_between_checkpoints = 5;
+        int expected_conversation_depth = 20;
+        struct PressureWeights {
+            double coherence_proximity = 0.35;
+            double risk_score_proximity = 0.20;
+            double signal_density = 0.25;
+            double conversation_depth = 0.10;
+            double bsd_partial_progress = 0.10;
+        } weights;
+    } reality_checkpoint;
 };
 
 // Named scorer configs — loaded from "scorers" section of govern.json
@@ -2275,6 +2306,14 @@ public:
                                    int line = 0);
     std::string checkContextDrift(int handle_id, int turn,
                                   const std::string& error = "");
+
+    // Reality checkpoint: get pressure data for response dict
+    struct CheckpointData {
+        bool fired = false;         // true if checkpoint fired this turn (ADVISORY)
+        double pressure = 0.0;
+        int sustained_turns = 0;
+    };
+    CheckpointData getCheckpointData(int handle_id, int turn) const;
 
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);
