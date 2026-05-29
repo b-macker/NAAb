@@ -1248,6 +1248,24 @@ struct ContextDriftConfig {
         double contradiction = 0.2;
         double repeated_failure = 0.05;
     } weights;
+
+    // Reality Checkpoint: composite operational pressure detection
+    struct RealityCheckpoint {
+        bool enabled = false;
+        std::string rationale;
+        EnforcementLevel level = EnforcementLevel::SOFT;
+        double pressure_threshold = 0.7;
+        int sustained_turns_required = 3;
+        int min_turns_between_checkpoints = 5;
+        int expected_conversation_depth = 20;
+        struct PressureWeights {
+            double coherence_proximity = 0.35;
+            double risk_score_proximity = 0.20;
+            double signal_density = 0.25;
+            double conversation_depth = 0.10;
+            double bsd_partial_progress = 0.10;
+        } weights;
+    } reality_checkpoint;
 };
 
 // Named scorer configs — loaded from "scorers" section of govern.json
@@ -2288,6 +2306,14 @@ public:
                                    int line = 0);
     std::string checkContextDrift(int handle_id, int turn,
                                   const std::string& error = "");
+
+    // Reality checkpoint: get pressure data for response dict
+    struct CheckpointData {
+        bool fired = false;         // true if checkpoint fired this turn (ADVISORY)
+        double pressure = 0.0;
+        int sustained_turns = 0;
+    };
+    CheckpointData getCheckpointData(int handle_id, int turn) const;
 
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);

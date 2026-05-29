@@ -2186,6 +2186,28 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("contradiction")) cfg.weights.contradiction = w["contradiction"].get<double>();
             if (w.contains("repeated_failure")) cfg.weights.repeated_failure = w["repeated_failure"].get<double>();
         }
+        if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
+            auto& rc = cd["reality_checkpoint"];
+            auto& rccfg = cfg.reality_checkpoint;
+            if (rc.contains("enabled")) rccfg.enabled = rc["enabled"].get<bool>();
+            if (rc.contains("level")) {
+                auto [en, lv] = parseEnforcementLevel(rc["level"]);
+                rccfg.level = lv;
+            }
+            if (rc.contains("pressure_threshold")) rccfg.pressure_threshold = rc["pressure_threshold"].get<double>();
+            if (rc.contains("sustained_turns_required")) rccfg.sustained_turns_required = rc["sustained_turns_required"].get<int>();
+            if (rc.contains("min_turns_between_checkpoints")) rccfg.min_turns_between_checkpoints = rc["min_turns_between_checkpoints"].get<int>();
+            if (rc.contains("expected_conversation_depth")) rccfg.expected_conversation_depth = rc["expected_conversation_depth"].get<int>();
+            parseRationale(rc, rccfg.rationale);
+            if (rc.contains("weights") && rc["weights"].is_object()) {
+                auto& rw = rc["weights"];
+                if (rw.contains("coherence_proximity")) rccfg.weights.coherence_proximity = rw["coherence_proximity"].get<double>();
+                if (rw.contains("risk_score_proximity")) rccfg.weights.risk_score_proximity = rw["risk_score_proximity"].get<double>();
+                if (rw.contains("signal_density")) rccfg.weights.signal_density = rw["signal_density"].get<double>();
+                if (rw.contains("conversation_depth")) rccfg.weights.conversation_depth = rw["conversation_depth"].get<double>();
+                if (rw.contains("bsd_partial_progress")) rccfg.weights.bsd_partial_progress = rw["bsd_partial_progress"].get<double>();
+            }
+        }
     }
 
     // --- Governance Baseline (Feature 4) ---

@@ -485,6 +485,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     usage_val["output_tokens"] = NaabVal::makeInt(resp_output_tokens);
     result["usage"] = NaabVal::makeDict(std::move(usage_val));
 
+    // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY
+    if (gov_engine && gov_engine->isActive()) {
+        auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
+        if (cp.fired) {
+            std::unordered_map<std::string, NaabVal> cp_dict;
+            cp_dict["pressure"] = NaabVal::makeDouble(cp.pressure);
+            cp_dict["sustained_turns"] = NaabVal::makeInt(cp.sustained_turns);
+            cp_dict["recommendation"] = NaabVal::makeString(
+                "Multiple governance signals trending toward thresholds. "
+                "Review agent direction.");
+            result["reality_checkpoint"] = NaabVal::makeDict(std::move(cp_dict));
+
+            gov_notices.push_back(fmt::format(
+                "Reality Checkpoint: pressure {:.2f} sustained {} turns",
+                cp.pressure, cp.sustained_turns));
+        }
+    }
+
     // Attach governance reload notices (Governance Under Survivability)
     if (!gov_notices.empty()) {
         std::vector<NaabVal> notice_vals;

@@ -378,6 +378,24 @@ size_t BehavioralSequenceDetector::totalPatternsMatched() const {
     return match_count_;
 }
 
+double BehavioralSequenceDetector::getMaxPartialProgress() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!config_ || !config_->enabled) return 0.0;
+    const auto& patterns = getActivePatterns();
+    if (patterns.empty()) return 0.0;
+
+    double max_progress = 0.0;
+    for (const auto& pattern : patterns) {
+        if (pattern.steps.empty()) continue;
+        auto it = pattern_states_.find(pattern.name);
+        if (it == pattern_states_.end()) continue;
+        double progress = static_cast<double>(it->second.current_step) /
+                          static_cast<double>(pattern.steps.size());
+        if (progress > max_progress) max_progress = progress;
+    }
+    return max_progress;
+}
+
 // ============================================================================
 // ContextDriftAnalyzer
 // ============================================================================
@@ -401,6 +419,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     auto& state = drift_states_[handle_id];
     state.handle_id = handle_id;
+    state.signals_fired_this_turn = 0;
 
     // Only check every N turns
     if (turn_number - state.last_checked_turn < config_->check_interval_turns) {
@@ -419,6 +438,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     if (config_->signals.circular_actions && isCircular(state, fp)) {
         state.circular_action_count++;
         state.coherence_score -= config_->weights.circular;
+        state.signals_fired_this_turn++;
     }
 
     // Signal 2: Repeated failures (same error string seen multiple times)
@@ -432,6 +452,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         if (same_count >= 3) {
             state.repeated_failures++;
             state.coherence_score -= config_->weights.repeated_failure;
+            state.signals_fired_this_turn++;
         }
     }
 
@@ -468,6 +489,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         if (state.turn_fingerprints.size() >= 3 && new_types >= 2) {
             state.scope_creep_count++;
             state.coherence_score -= config_->weights.scope_creep;
+            state.signals_fired_this_turn++;
         }
 
         for (const auto& t : turn_types) {
@@ -521,6 +543,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             if (state.prev_turn_blocked_caps.count(cap)) {
                 state.contradictions++;
                 state.coherence_score -= config_->weights.contradiction;
+                state.signals_fired_this_turn++;
                 break;  // one contradiction per turn is enough
             }
         }
@@ -602,6 +625,17 @@ void ContextDriftAnalyzer::reset() {
 size_t ContextDriftAnalyzer::totalTurnsAnalyzed() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return turns_analyzed_;
+}
+
+void ContextDriftAnalyzer::updateCheckpointState(int handle_id, double pressure,
+                                                   int consecutive, int checkpoint_turn) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    state.last_pressure_score = pressure;
+    state.consecutive_high_pressure_turns = consecutive;
+    if (checkpoint_turn >= 0) {
+        state.last_checkpoint_turn = checkpoint_turn;
+    }
 }
 
 } // namespace governance

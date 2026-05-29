@@ -77,6 +77,12 @@ struct DriftState {
     int last_checked_turn = 0;
     std::unordered_set<std::string> seen_event_types;  // historical unique type abbreviations
     std::unordered_set<std::string> prev_turn_blocked_caps;  // capabilities blocked in previous turn
+
+    // Reality checkpoint state
+    double last_pressure_score = 0.0;
+    int consecutive_high_pressure_turns = 0;
+    int last_checkpoint_turn = -100;   // init negative for no initial cooldown
+    int signals_fired_this_turn = 0;
 };
 
 // --- Event Ring Buffer + Sequence Pattern Matcher ---
@@ -105,6 +111,9 @@ public:
     // Telemetry: total events processed and patterns matched
     size_t totalEventsProcessed() const;
     size_t totalPatternsMatched() const;
+
+    // Max partial progress across all active patterns (0.0–1.0)
+    double getMaxPartialProgress() const;
 
 private:
     const BehavioralSequenceConfig* config_ = nullptr;
@@ -145,6 +154,9 @@ public:
 
     // Telemetry: total turns analyzed
     size_t totalTurnsAnalyzed() const;
+
+    // Update checkpoint state fields on DriftState (thread-safe)
+    void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn);
 
     void reset();
 
