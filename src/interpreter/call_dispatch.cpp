@@ -1364,6 +1364,22 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     // Governance: Check capability restrictions on stdlib calls
                     if (governance_ && governance_->isActive()) {
+                        // Rate limiting for stdlib calls
+                        if (!governance_->checkStdlibRate()) {
+                            throw std::runtime_error(
+                                "Governance: stdlib call rate limit exceeded.\n\n"
+                                "  Too many stdlib function calls per second.\n"
+                                "  Reduce call frequency or increase limits.rate.max_stdlib_calls_per_second in govern.json.\n");
+                        }
+
+                        // File ops rate limiting
+                        if (module_alias == "file" && !governance_->checkFileOpsRate()) {
+                            throw std::runtime_error(
+                                "Governance: file operation rate limit exceeded.\n\n"
+                                "  Too many file operations per second.\n"
+                                "  Reduce file I/O frequency or increase limits.rate.max_file_ops_per_second in govern.json.\n");
+                        }
+
                         // Network check for http module
                         if (module_alias == "http") {
                             std::string err = governance_->checkNetworkAllowed();
@@ -1468,6 +1484,18 @@ void Interpreter::visit(ast::CallExpr& node) {
                             governance_->setLastReturnTainted(true, full_call);
                         } else if (governance_->isSanitizer(full_call)) {
                             governance_->setLastReturnTainted(false);
+                        } else {
+                            // Taint propagation: if any input argument is tainted,
+                            // the return value inherits taint. This closes the gap
+                            // where array.map_fn/filter_fn/reduce_fn could launder
+                            // tainted data through functional transforms.
+                            for (size_t ai = 0; ai < node.getArgs().size(); ++ai) {
+                                if (checkRhsTainted(node.getArgs()[ai].get())) {
+                                    governance_->setLastReturnTainted(true,
+                                        full_call + ":input_propagated");
+                                    break;
+                                }
+                            }
                         }
                     }
                     LOG_TRACE("[SUCCESS] Stdlib function returned\n");

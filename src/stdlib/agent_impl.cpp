@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include <mutex>
 #include <future>
+#include <regex>
 
 namespace naab {
 namespace stdlib {
@@ -43,8 +44,6 @@ struct AgentTracker {
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
-static std::unordered_set<std::string> s_agents_with_restrictions;
-static bool s_restrictions_warned = false;
 
 // ============================================================================
 // Helper: Find agent config by name
@@ -342,19 +341,92 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // ── Gap 3: Advisory for per-agent path/shell restrictions (single summary) ──
-    if (gov_engine && gov_engine->isActive()) {
-        bool has_restrictions = config->shell_allowed_set ||
-                                !config->allowed_paths.empty() ||
-                                !config->blocked_paths.empty();
-        if (has_restrictions) {
-            std::lock_guard<std::mutex> lock(s_agent_mutex);
-            bool is_new = s_agents_with_restrictions.insert(config_name).second;
-            if (is_new && !s_restrictions_warned) {
-                s_restrictions_warned = true;
-                fprintf(stderr,
-                    "[governance] Advisory: agent(s) have path/shell restrictions "
-                    "configured — enforcement pending tool execution support\n");
+    // ── Gap 3: Per-agent path/shell restriction enforcement ──
+    if (gov_engine && gov_engine->isActive() && !content.empty()) {
+        // Shell restriction: if shell is explicitly blocked for this agent,
+        // scan response for shell/bash/terminal command patterns
+        if (config->shell_allowed_set && !config->shell_allowed) {
+            // Detect code blocks with shell commands
+            static const std::vector<std::string> shell_patterns = {
+                "```(?:bash|sh|shell|zsh|terminal)",
+                "\\$\\s+(?:sudo|rm|chmod|curl|wget|apt|pip|npm|cd|ls|mkdir|cat|echo)",
+                "(?:^|\\n)\\s*(?:sudo|rm\\s|chmod\\s|chown\\s|kill\\s|pkill\\s)",
+            };
+            for (const auto& pat : shell_patterns) {
+                try {
+                    std::regex re(pat, std::regex::ECMAScript | std::regex::icase);
+                    if (std::regex_search(content, re)) {
+                        throw std::runtime_error(fmt::format(
+                            "Agent error: Response from '{}' contains shell commands\n\n"
+                            "  Help:\n"
+                            "  - Shell execution is blocked for this agent role\n"
+                            "  - Configure capabilities.shell.enabled or agent shell_allowed in govern.json\n",
+                            config_name));
+                    }
+                } catch (const std::regex_error&) {}
+            }
+        }
+
+        // Blocked paths: scan response for references to blocked path patterns
+        if (!config->blocked_paths.empty()) {
+            for (const auto& blocked : config->blocked_paths) {
+                // Simple substring/glob match on response content
+                if (blocked.find('*') != std::string::npos) {
+                    // Glob pattern — convert to regex
+                    std::string re_str;
+                    for (char c : blocked) {
+                        if (c == '*') re_str += ".*";
+                        else if (c == '?') re_str += ".";
+                        else if (c == '.' || c == '/' || c == '\\') re_str += std::string("\\") + c;
+                        else re_str += c;
+                    }
+                    try {
+                        std::regex re(re_str, std::regex::ECMAScript);
+                        if (std::regex_search(content, re)) {
+                            throw std::runtime_error(fmt::format(
+                                "Agent error: Response from '{}' references a blocked path\n\n"
+                                "  Help:\n"
+                                "  - The agent's response references a path matching blocked pattern '{}'\n"
+                                "  - Configure agent blocked_paths in govern.json\n",
+                                config_name, blocked));
+                        }
+                    } catch (const std::regex_error&) {}
+                } else {
+                    // Exact substring match
+                    if (content.find(blocked) != std::string::npos) {
+                        throw std::runtime_error(fmt::format(
+                            "Agent error: Response from '{}' references a blocked path\n\n"
+                            "  Help:\n"
+                            "  - The agent's response references blocked path '{}'\n"
+                            "  - Configure agent blocked_paths in govern.json\n",
+                            config_name, blocked));
+                    }
+                }
+            }
+        }
+
+        // Allowed paths: if allowlist is set, any path-like reference not matching
+        // an allowed pattern triggers a violation
+        if (!config->allowed_paths.empty()) {
+            // Extract path-like strings from response (starts with / or ./)
+            static const std::regex path_re("(?:^|\\s|[\"'`])(/[a-zA-Z0-9_./-]+|\\./[a-zA-Z0-9_./-]+)",
+                                            std::regex::ECMAScript);
+            std::sregex_iterator it(content.begin(), content.end(), path_re);
+            std::sregex_iterator end;
+            for (; it != end; ++it) {
+                std::string path = (*it)[1].str();
+                bool allowed = false;
+                for (const auto& ap : config->allowed_paths) {
+                    if (path.find(ap) == 0) { allowed = true; break; }
+                }
+                if (!allowed) {
+                    throw std::runtime_error(fmt::format(
+                        "Agent error: Response from '{}' references path '{}' not in allowed list\n\n"
+                        "  Help:\n"
+                        "  - Only paths matching allowed_paths are permitted for this agent\n"
+                        "  - Configure agent allowed_paths in govern.json\n",
+                        config_name, path));
+                }
             }
         }
     }

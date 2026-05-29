@@ -76,6 +76,7 @@ struct DriftState {
     std::deque<std::string> recent_errors;      // last N error messages
     int last_checked_turn = 0;
     std::unordered_set<std::string> seen_event_types;  // historical unique type abbreviations
+    std::unordered_set<std::string> prev_turn_blocked_caps;  // capabilities blocked in previous turn
 };
 
 // --- Event Ring Buffer + Sequence Pattern Matcher ---
@@ -111,7 +112,10 @@ private:
     size_t sequence_counter_ = 0;
     size_t match_count_ = 0;
     std::unordered_map<std::string, PatternMatchState> pattern_states_;
+    std::vector<SequencePattern> default_patterns_;  // built-in patterns when user provides none
 
+    const std::vector<SequencePattern>& getActivePatterns() const;
+    void buildDefaultPatterns();
     bool matchesStep(const RuntimeEvent& event, const SequenceStep& step) const;
     bool globMatch(const std::string& text, const std::string& pattern) const;
     std::string eventTypeToString(RuntimeEventType type) const;

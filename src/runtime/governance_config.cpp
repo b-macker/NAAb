@@ -9,6 +9,7 @@
 #include "naab/analyzer/syntactic_analyzer.h"
 #include "naab/safe_regex.h"
 #include "naab/sandbox.h"
+#include "naab/subprocess_helpers.h"  // V-SC-006-ext: env scrub policy
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -605,6 +606,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& v : ev["allowed_read"]) ec.allowed_read.push_back(v.get<std::string>());
             if (ev.contains("blocked_read"))
                 for (auto& v : ev["blocked_read"]) ec.blocked_read.push_back(v.get<std::string>());
+            // V-SC-006-ext: Polyglot subprocess environment scrubbing
+            if (ev.contains("subprocess_scrub_mode"))
+                ec.subprocess_scrub_mode = ev["subprocess_scrub_mode"].get<std::string>();
+            if (ev.contains("blocked_subprocess_prefixes"))
+                for (auto& v : ev["blocked_subprocess_prefixes"]) ec.blocked_subprocess_prefixes.push_back(v.get<std::string>());
+            if (ev.contains("blocked_subprocess_vars"))
+                for (auto& v : ev["blocked_subprocess_vars"]) ec.blocked_subprocess_vars.push_back(v.get<std::string>());
+            if (ev.contains("allowed_subprocess_vars"))
+                for (auto& v : ev["allowed_subprocess_vars"]) ec.allowed_subprocess_vars.push_back(v.get<std::string>());
             parseRationale(ev, ec.rationale);
         }
         if (cap.contains("process") && cap["process"].is_object()) {
@@ -786,6 +796,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (de.contains("level")) { auto [en, lv] = parseEnforcementLevel(de["level"]); rules_.restrictions.data_exfiltration.level = lv; }
             if (de.contains("block_base64_encode_secrets")) rules_.restrictions.data_exfiltration.block_base64_encode_secrets = de["block_base64_encode_secrets"].get<bool>();
             if (de.contains("block_hex_encode_secrets")) rules_.restrictions.data_exfiltration.block_hex_encode_secrets = de["block_hex_encode_secrets"].get<bool>();
+            if (de.contains("block_network_exfil")) rules_.restrictions.data_exfiltration.block_network_exfil = de["block_network_exfil"].get<bool>();
+            if (de.contains("block_socket_exfil")) rules_.restrictions.data_exfiltration.block_socket_exfil = de["block_socket_exfil"].get<bool>();
+            if (de.contains("block_encoding_chains")) rules_.restrictions.data_exfiltration.block_encoding_chains = de["block_encoding_chains"].get<bool>();
+            if (de.contains("patterns") && de["patterns"].is_array()) {
+                for (const auto& p : de["patterns"]) {
+                    if (p.is_string()) rules_.restrictions.data_exfiltration.patterns.push_back(p.get<std::string>());
+                }
+            }
             parseRationale(de, rules_.restrictions.data_exfiltration.rationale);
         }
         if (res.contains("resource_abuse") && res["resource_abuse"].is_object()) {
@@ -2159,6 +2177,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("repeated_failures")) cfg.signals.repeated_failures = sig["repeated_failures"].get<bool>();
             if (sig.contains("circular_actions")) cfg.signals.circular_actions = sig["circular_actions"].get<bool>();
             if (sig.contains("scope_creep")) cfg.signals.scope_creep = sig["scope_creep"].get<bool>();
+            if (sig.contains("intent_contradictions")) cfg.signals.intent_contradictions = sig["intent_contradictions"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
             auto& w = cd["weights"];
@@ -2608,6 +2627,27 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
 
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels();
+
+        // V-SC-006-ext: Apply subprocess env scrub policy from capabilities.env_vars
+        {
+            const auto& ev = rules_.capabilities.env_vars;
+            runtime::EnvScrubPolicy policy;
+            if (!ev.subprocess_scrub_mode.empty() ||
+                !ev.blocked_subprocess_prefixes.empty() ||
+                !ev.blocked_subprocess_vars.empty() ||
+                !ev.allowed_subprocess_vars.empty()) {
+                policy.active = true;
+                if (ev.subprocess_scrub_mode == "allowlist") {
+                    policy.mode = runtime::EnvScrubMode::ALLOWLIST;
+                    policy.allowed_vars = ev.allowed_subprocess_vars;
+                } else {
+                    policy.mode = runtime::EnvScrubMode::BLOCKLIST;
+                    policy.blocked_vars = ev.blocked_subprocess_vars;
+                    policy.blocked_prefixes = ev.blocked_subprocess_prefixes;
+                }
+                runtime::setEnvScrubPolicy(policy);
+            }
+        }
 
         // Configure behavioral sequence + context drift detectors
         if (rules_.behavioral_sequences.enabled) {

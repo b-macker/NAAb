@@ -16,6 +16,86 @@ void BehavioralSequenceDetector::configure(const BehavioralSequenceConfig& confi
     event_buffer_.clear();
     sequence_counter_ = 0;
     pattern_states_.clear();
+    // Build default patterns if user provides none
+    if (config.patterns.empty()) {
+        buildDefaultPatterns();
+    }
+}
+
+void BehavioralSequenceDetector::buildDefaultPatterns() {
+    default_patterns_.clear();
+
+    // Helper to create a step matching event types with optional detail globs
+    auto makeStep = [](std::vector<std::string> types, std::vector<std::string> globs = {}) {
+        SequenceStep step;
+        step.match_any = std::move(types);
+        step.detail_globs = std::move(globs);
+        return step;
+    };
+
+    // 1. Credential harvesting: ENV_READ(secret/key/token) → NET_CONNECT
+    {
+        SequencePattern p;
+        p.name = "credential_harvesting";
+        p.steps.push_back(makeStep({"ENV_READ"}, {"*secret*|*key*|*token*|*password*|*KEY*|*SECRET*|*TOKEN*"}));
+        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.max_gap = 5;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 2. Sandbox probe-and-escape: FILE_READ(system file) → SHELL_EXEC
+    {
+        SequencePattern p;
+        p.name = "sandbox_probe_escape";
+        p.steps.push_back(makeStep({"FILE_READ"}, {"*/etc/passwd*|*/proc/*|*/etc/shadow*"}));
+        p.steps.push_back(makeStep({"SHELL_EXEC", "PROCESS_EXEC"}));
+        p.max_gap = 10;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 3. Config tampering: FILE_READ(govern.json) → FILE_WRITE(govern.json)
+    {
+        SequencePattern p;
+        p.name = "config_tampering";
+        p.steps.push_back(makeStep({"FILE_READ"}, {"*govern.json*"}));
+        p.steps.push_back(makeStep({"FILE_WRITE"}, {"*govern.json*"}));
+        p.max_gap = 5;
+        p.level = EnforcementLevel::HARD;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 4. Progressive escalation: 3 governance blocks then shell exec
+    {
+        SequencePattern p;
+        p.name = "progressive_escalation";
+        p.steps.push_back(makeStep({"CHECK_FAILED"}));
+        p.steps.push_back(makeStep({"CHECK_FAILED"}));
+        p.steps.push_back(makeStep({"CHECK_FAILED"}));
+        p.steps.push_back(makeStep({"SHELL_EXEC", "PROCESS_EXEC"}));
+        p.max_gap = 15;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 5. Data staging: multiple FILE_READs → FILE_WRITE(/tmp) → NET_CONNECT
+    {
+        SequencePattern p;
+        p.name = "data_staging";
+        p.steps.push_back(makeStep({"FILE_READ"}));
+        p.steps.push_back(makeStep({"FILE_READ"}));
+        p.steps.push_back(makeStep({"FILE_WRITE"}, {"*/tmp/*|*/temp/*"}));
+        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.max_gap = 20;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+}
+
+const std::vector<SequencePattern>& BehavioralSequenceDetector::getActivePatterns() const {
+    if (config_ && !config_->patterns.empty()) return config_->patterns;
+    return default_patterns_;
 }
 
 bool BehavioralSequenceDetector::isEnabled() const {
@@ -24,7 +104,9 @@ bool BehavioralSequenceDetector::isEnabled() const {
 
 SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& event) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!config_ || !config_->enabled || config_->patterns.empty()) return {};
+    if (!config_ || !config_->enabled) return {};
+    const auto& patterns = getActivePatterns();
+    if (patterns.empty()) return {};
 
     // Assign sequence ID and add to buffer
     RuntimeEvent ev = event;
@@ -39,7 +121,7 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
     }
 
     // Check each pattern's FSM
-    for (const auto& pattern : config_->patterns) {
+    for (const auto& pattern : patterns) {
         auto& state = pattern_states_[pattern.name];
 
         // Check decay: reset if too old
@@ -227,9 +309,11 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
 
 SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& event) const {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!config_ || !config_->enabled || config_->patterns.empty()) return {};
+    if (!config_ || !config_->enabled) return {};
+    const auto& patterns = getActivePatterns();
+    if (patterns.empty()) return {};
 
-    for (const auto& pattern : config_->patterns) {
+    for (const auto& pattern : patterns) {
         auto it = pattern_states_.find(pattern.name);
         if (it == pattern_states_.end()) continue;
         const auto& state = it->second;
@@ -389,6 +473,60 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         for (const auto& t : turn_types) {
             state.seen_event_types.insert(t);
         }
+    }
+
+    // Signal 4: Intent contradictions (denied capability → alternative path)
+    if (config_->signals.intent_contradictions && !turn_events.empty()) {
+        // Map event types to capability categories
+        auto capCategory = [](RuntimeEventType t) -> std::string {
+            switch (t) {
+                case RuntimeEventType::FILE_READ:
+                case RuntimeEventType::FILE_WRITE:   return "filesystem";
+                case RuntimeEventType::NET_CONNECT:  return "network";
+                case RuntimeEventType::SHELL_EXEC:
+                case RuntimeEventType::PROCESS_EXEC: return "execution";
+                case RuntimeEventType::ENV_READ:
+                case RuntimeEventType::ENV_WRITE:    return "environment";
+                case RuntimeEventType::ENCODE:
+                case RuntimeEventType::DECODE:       return "encoding";
+                default: return "";
+            }
+        };
+
+        // Collect blocked capabilities from this turn's CHECK_FAILED events
+        std::unordered_set<std::string> this_turn_blocked;
+        // Collect attempted capabilities from this turn's non-failure events
+        std::unordered_set<std::string> this_turn_attempted;
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::CHECK_FAILED) {
+                // Extract capability category from the detail string
+                // Detail typically contains the check name (e.g., "filesystem", "network")
+                std::string det = ev.detail;
+                if (det.find("file") != std::string::npos || det.find("File") != std::string::npos ||
+                    det.find("path") != std::string::npos) this_turn_blocked.insert("filesystem");
+                if (det.find("network") != std::string::npos || det.find("Network") != std::string::npos ||
+                    det.find("http") != std::string::npos) this_turn_blocked.insert("network");
+                if (det.find("shell") != std::string::npos || det.find("Shell") != std::string::npos ||
+                    det.find("exec") != std::string::npos) this_turn_blocked.insert("execution");
+                if (det.find("env") != std::string::npos || det.find("Env") != std::string::npos)
+                    this_turn_blocked.insert("environment");
+            } else {
+                std::string cap = capCategory(ev.type);
+                if (!cap.empty()) this_turn_attempted.insert(cap);
+            }
+        }
+
+        // Check if this turn attempts capabilities that were blocked in the previous turn
+        for (const auto& cap : this_turn_attempted) {
+            if (state.prev_turn_blocked_caps.count(cap)) {
+                state.contradictions++;
+                state.coherence_score -= config_->weights.contradiction;
+                break;  // one contradiction per turn is enough
+            }
+        }
+
+        // Update previous turn blocked capabilities for next check
+        state.prev_turn_blocked_caps = this_turn_blocked;
     }
 
     // Clamp coherence score to [0.0, 1.0]

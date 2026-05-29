@@ -174,6 +174,14 @@ struct EnvVarsCapability {
     std::vector<std::string> blocked_read;
     std::vector<std::string> allowed_write;
     std::vector<std::string> blocked_write;
+    // V-SC-006-ext: Polyglot subprocess environment scrubbing.
+    // Controls which parent env vars are inherited by polyglot subprocesses.
+    // "blocklist" (default): scrub NAAb secrets + blocked_subprocess_prefixes
+    // "allowlist": only pass essential system vars + allowed_subprocess_vars
+    std::string subprocess_scrub_mode;  // "blocklist" or "allowlist"
+    std::vector<std::string> blocked_subprocess_prefixes;  // e.g., "AWS_", "OPENAI_"
+    std::vector<std::string> blocked_subprocess_vars;  // exact var names
+    std::vector<std::string> allowed_subprocess_vars;  // allowlist mode: explicitly allowed
 };
 
 struct ProcessCapability {
@@ -361,7 +369,11 @@ struct DataExfiltrationRestriction {
     bool block_base64_encode_secrets = true;
     bool block_hex_encode_secrets = true;
     bool block_url_encode_secrets = true;
+    bool block_network_exfil = true;
+    bool block_socket_exfil = true;
+    bool block_encoding_chains = true;
     int max_encoded_output_length = 0;
+    std::vector<std::string> patterns;  // user override — replaces defaults if non-empty
 };
 
 struct ResourceAbuseRestriction {
@@ -1228,6 +1240,7 @@ struct ContextDriftConfig {
         bool repeated_failures = true;
         bool circular_actions = true;
         bool scope_creep = true;
+        bool intent_contradictions = true;
     } signals;
     struct Weights {
         double circular = 0.1;
