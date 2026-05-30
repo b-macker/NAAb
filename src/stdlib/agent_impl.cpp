@@ -522,6 +522,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Build response dict
     std::unordered_map<std::string, NaabVal> result;
+    result["success"] = NaabVal::makeBool(true);
     result["content"] = NaabVal::makeString(content);
     result["role"] = NaabVal::makeString("assistant");
     result["stop_reason"] = NaabVal::makeString(stop_reason);
