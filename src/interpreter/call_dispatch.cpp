@@ -3249,7 +3249,11 @@ void Interpreter::visit(ast::MemberExpr& node) {
             oss << "    ✓ Right: array." << member_name << "_fn(my_array, fn)\n";
         } else if (member_name == "sort") {
             oss << "    ✗ Wrong: my_array.sort()\n";
-            oss << "    ✓ Right: array.sort(my_array)\n";
+            oss << "    ✓ Right: array.sort(my_array)     // mutates in place\n";
+            oss << "    ✓ Right: array.sorted(my_array)   // returns new sorted array\n";
+        } else if (member_name == "sorted") {
+            oss << "    ✗ Wrong: my_array.sorted()\n";
+            oss << "    ✓ Right: array.sorted(my_array)   // returns new sorted array\n";
         } else if (member_name == "reverse") {
             oss << "    ✗ Wrong: my_array.reverse()\n";
             oss << "    ✓ Right: array.reverse(my_array)\n";

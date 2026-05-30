@@ -4203,6 +4203,39 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             }
             return obj;
         }
+        if (method == "sorted") {
+            // Non-mutating sort — copy array, sort copy, return copy
+            std::vector<interpreter::NaabVal> arr(list.begin(), list.end());
+            if (argc >= 1 && args[0].isVMClosure()) {
+                auto comp_fn = args[0];
+                std::exception_ptr sort_ex;
+                std::sort(arr.begin(), arr.end(), [this, &comp_fn, &sort_ex](const interpreter::NaabVal& a, const interpreter::NaabVal& b) -> bool {
+                    if (sort_ex) return false;
+                    try {
+                        auto res = callNaabFunction(comp_fn, {a, b});
+                        if (res.isInt()) return res.asInt() < 0;
+                        if (res.isDouble()) return res.asDouble() < 0;
+                        return false;
+                    } catch (...) {
+                        sort_ex = std::current_exception();
+                        return false;
+                    }
+                });
+                if (sort_ex) std::rethrow_exception(sort_ex);
+            } else {
+                std::sort(arr.begin(), arr.end(), [](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                    bool a_num = a.isInt() || a.isDouble();
+                    bool b_num = b.isInt() || b.isDouble();
+                    if (a_num && b_num) {
+                        double av = a.isInt() ? static_cast<double>(a.asInt()) : a.asDouble();
+                        double bv = b.isInt() ? static_cast<double>(b.asInt()) : b.asDouble();
+                        return av < bv;
+                    }
+                    return a.toString() < b.toString();
+                });
+            }
+            return interpreter::NaabVal::makeList(std::move(arr));
+        }
         if (method == "slice") {
             if (argc < 1) runtimeError("slice() requires at least 1 argument");
             int len = static_cast<int>(list.size());
@@ -4664,7 +4697,7 @@ std::string VM::getVariableHelper(const std::string& name) const {
                "    let k = my_dict." + name + "()\n";
     }
     if (name == "push" || name == "pop" || name == "shift" || name == "unshift" ||
-        name == "sort" || name == "reverse" || name == "contains" || name == "find") {
+        name == "sort" || name == "sorted" || name == "reverse" || name == "contains" || name == "find") {
         return "\n  '" + name + "' is not a global function. Use dot-notation:\n"
                "    my_array." + name + "(...)\n";
     }
@@ -4685,10 +4718,9 @@ std::string VM::getVariableHelper(const std::string& name) const {
         return "\n  NAAb uses the string() cast builtin:\n"
                "    let s = string(42)   // \"42\"\n";
     }
-    if (name == "sorted" || name == "reversed") {
-        std::string fn = (name == "sorted") ? "sort" : "reverse";
-        return "\n  '" + name + "' is not a builtin. Arrays have mutable methods:\n"
-               "    my_array." + fn + "()   // mutates in place\n";
+    if (name == "reversed") {
+        return "\n  'reversed' is not a builtin. Arrays have a mutable method:\n"
+               "    my_array.reverse()   // mutates in place\n";
     }
     if (name == "enumerate" || name == "zip") {
         return "\n  NAAb does not have '" + name + "'. Use index-based loops:\n"

@@ -297,6 +297,52 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     std::string content = agent_resp.content;
+
+    // Strip markdown code fences from LLM responses.
+    // LLMs frequently wrap JSON/code in ```json ... ``` or ``` ... ```
+    // which breaks json.parse() downstream. Strip them transparently.
+    if (!content.empty()) {
+        // Find leading fence: ``` optionally followed by a language tag
+        auto fence_start = content.find("```");
+        if (fence_start != std::string::npos) {
+            // Check if there's a closing fence
+            auto fence_end = content.rfind("```");
+            if (fence_end != std::string::npos && fence_end > fence_start + 3) {
+                // Skip past the opening fence line (```json\n or ```\n)
+                auto line_end = content.find('\n', fence_start);
+                if (line_end != std::string::npos && line_end < fence_end) {
+                    // Only strip if fence is near the start (allow leading whitespace/newlines)
+                    bool only_whitespace_before = true;
+                    for (size_t ci = 0; ci < fence_start; ++ci) {
+                        if (content[ci] != ' ' && content[ci] != '\t' &&
+                            content[ci] != '\n' && content[ci] != '\r') {
+                            only_whitespace_before = false;
+                            break;
+                        }
+                    }
+                    // Only strip if fence is near the end too
+                    bool only_whitespace_after = true;
+                    for (size_t ci = fence_end + 3; ci < content.size(); ++ci) {
+                        if (content[ci] != ' ' && content[ci] != '\t' &&
+                            content[ci] != '\n' && content[ci] != '\r') {
+                            only_whitespace_after = false;
+                            break;
+                        }
+                    }
+                    if (only_whitespace_before && only_whitespace_after) {
+                        // Extract content between opening fence line and closing fence
+                        content = content.substr(line_end + 1, fence_end - line_end - 1);
+                        // Trim trailing whitespace/newlines
+                        while (!content.empty() && (content.back() == '\n' ||
+                               content.back() == '\r' || content.back() == ' ')) {
+                            content.pop_back();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     std::string stop_reason = agent_resp.stop_reason;
     int resp_input_tokens = agent_resp.input_tokens;
     int resp_output_tokens = agent_resp.output_tokens;
