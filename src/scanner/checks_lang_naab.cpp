@@ -433,6 +433,25 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
             std::string s = nb_trim(lines[i]);
             if (!std::regex_search(s, return_dict_pat)) continue;
 
+            // Find enclosing function name — walk backward to fn declaration
+            std::string func_name;
+            static const std::regex fn_name_pat(R"((?:fn|function|def|func)\s+(\w+))");
+            for (int k = static_cast<int>(i); k >= 0; --k) {
+                std::smatch fnm;
+                std::string ln = lines[k];
+                if (std::regex_search(ln, fnm, fn_name_pat)) {
+                    func_name = fnm[1].str();
+                    break;
+                }
+            }
+
+            // Skip functions that exist to return defaults/constants/fallbacks
+            if (func_name.find("default") != std::string::npos ||
+                func_name.find("fallback") != std::string::npos ||
+                func_name.find("initial") != std::string::npos ||
+                func_name.find("template") != std::string::npos ||
+                func_name.find("empty") != std::string::npos) continue;
+
             // Collect the full return statement (may span multiple lines)
             std::string return_block = s;
             int brace_depth = 0;

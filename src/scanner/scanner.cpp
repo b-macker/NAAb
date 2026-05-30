@@ -54,7 +54,15 @@ std::vector<std::string> ScannerEngine::stripPolyglotBlocks(
         if (!in_poly && stripped.find("<<") != std::string::npos &&
             std::regex_search(stripped, poly_open)) {
             in_poly = true;
-            result[i] = "";
+            // Preserve variable binding list for assigned_never_read check
+            // <<python[var1, var2, var3] → keep "var1, var2, var3" so refs are visible
+            static const std::regex binding_pat(R"(<<\w+\[([^\]]+)\])");
+            std::smatch bm;
+            if (std::regex_search(stripped, bm, binding_pat)) {
+                result[i] = bm[1].str();
+            } else {
+                result[i] = "";
+            }
         } else if (in_poly && std::regex_match(trimmed, poly_close)) {
             in_poly = false;
             result[i] = "";

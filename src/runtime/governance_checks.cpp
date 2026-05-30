@@ -829,6 +829,21 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
             std::smatch match;
             if (std::regex_search(code, match, re)) {
                 std::string found = match[0].str();
+
+                // Skip all-same-digit sequences (not real credit cards)
+                // e.g., "0000000000000000" used as hash placeholders
+                if (desc == "Credit Card") {
+                    std::string digits_only;
+                    for (char c : found) { if (std::isdigit(c)) digits_only += c; }
+                    if (!digits_only.empty()) {
+                        bool all_same = true;
+                        for (size_t k = 1; k < digits_only.size(); ++k) {
+                            if (digits_only[k] != digits_only[0]) { all_same = false; break; }
+                        }
+                        if (all_same) continue;
+                    }
+                }
+
                 // Check allowlist
                 bool allowed = false;
                 for (const auto& a : cfg.allowlist_patterns) {
@@ -5351,13 +5366,21 @@ std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int li
 }
 
 // --- Security: Info Disclosure ---
-std::string GovernanceEngine::checkInfoDisclosure(const std::string& /*language*/,
+std::string GovernanceEngine::checkInfoDisclosure(const std::string& language,
                                                    const std::string& code, int line) {
     auto& cfg = rules_.restrictions.information_disclosure;
     if (!cfg.enabled) return "";
     clearTrace();
     std::vector<std::string> pats;
-    if (cfg.block_env_dump) { pats.push_back("os\\.environ(?!\\[)"); pats.push_back("process\\.env(?!\\.)"); pats.push_back("\\benv\\b(?!\\.)"); }
+    if (cfg.block_env_dump) {
+        pats.push_back("os\\.environ(?!\\[)");
+        pats.push_back("process\\.env(?!\\.)");
+        // Only add bare "env" pattern for languages where it means "dump env"
+        // Skip for NAAb where "env" is a safe stdlib module (env.get_args, env.get)
+        if (language != "naab") {
+            pats.push_back("\\benv\\b(?!\\.)");
+        }
+    }
     if (cfg.block_process_listing) { pats.push_back("ps\\s+aux"); pats.push_back("ps\\s+-ef"); }
     if (cfg.block_system_info_leak) { pats.push_back("uname\\s+-a"); pats.push_back("cat\\s+/etc/passwd"); }
     std::string found = searchPatterns(code, pats);
@@ -5490,6 +5513,12 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
     int signal_count = (has_vcs ? 1 : 0) + (has_history ? 1 : 0) +
                        (has_search ? 1 : 0) + (has_secret ? 1 : 0);
 
+    // VCS invocation is a prerequisite — without it, other signals are just normal code
+    if (!has_vcs) {
+        recordPass("restrictions.vcs_secret_extraction", cfg.level);
+        return "";
+    }
+
     if (signal_count >= 4) {
         // Full co-occurrence: all 4 signals present
         return enforce("restrictions.vcs_secret_extraction", cfg.level,
@@ -5503,13 +5532,11 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
                 "If you need credentials, use environment variables or a secrets manager.",
                 "git log -p | grep -i 'password\\|secret\\|key'",
                 "let api_key = env.get(\"API_KEY\")  // use env vars for secrets"));
-    } else if (signal_count == 3) {
-        // Partial co-occurrence: 3/4 signals — advisory regardless of config level
+    } else if (signal_count == 3 && has_secret) {
+        // 3/4 with VCS + secrets = advisory (likely targeted extraction)
         std::string missing;
-        if (!has_vcs) missing = "vcs-invocation";
-        else if (!has_history) missing = "history-traversal";
-        else if (!has_search) missing = "content-extraction";
-        else missing = "secret-targets";
+        if (!has_history) missing = "history-traversal";
+        else missing = "content-extraction";
         return enforce("restrictions.vcs_secret_extraction", EnforcementLevel::ADVISORY,
             formatError(EnforcementLevel::ADVISORY,
                 fmt::format("Possible VCS secret extraction: 3/4 co-occurrence signals "
