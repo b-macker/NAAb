@@ -1,4 +1,4 @@
-// NAAb Scanner — Code Quality Checks (15 checks)
+// NAAb Scanner — Code Quality Checks (18 checks)
 // Port from naab-q/src/checks/code_quality.naab
 
 #include "naab/scanner.h"
@@ -702,6 +702,38 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
         }
     }
 
+    // 16. null_coalesce_non_nullable — flag ?? where LHS can never be null
+    if (isEnabled(CAT, "null_coalesce_non_nullable")) {
+        // Pattern: comparison_op + simple_value + ?? (comparison result is bool, never null)
+        // Uses [\w.]+ for RHS to avoid matching parens (which indicate the ?? is inside a subexpr)
+        static const std::regex cmp_then_nc(
+            R"((?:>=|<=|!=|==|>(?!>)|<(?!<))\s*[\w.]+\s*\?\?)");
+        // Pattern: true ?? or false ??
+        static const std::regex bool_then_nc(R"(\b(?:true|false)\s*\?\?)");
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = cq_trim(lines[i]);
+            if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
+            if (s.find("??") == std::string::npos) continue;
+
+            bool flagged = false;
+            std::string reason;
+            if (std::regex_search(s, cmp_then_nc)) {
+                flagged = true;
+                reason = "Comparison returns bool, never null";
+            } else if (std::regex_search(s, bool_then_nc)) {
+                flagged = true;
+                reason = "Boolean literal is never null";
+            }
+
+            if (flagged) {
+                addIssue(issues, filepath, i + 1, "null_coalesce_non_nullable", CAT,
+                         "Null coalesce '??' on expression that can never be null — " + reason,
+                         s, "Use ?? only with nullable expressions (dict.get, function calls that may return null)");
+            }
+        }
+    }
+
     // 15. recursive_no_base_case
     if (isEnabled(CAT, "recursive_no_base_case")) {
         static const std::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
@@ -752,6 +784,168 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                     }
                 }
             }
+        }
+    }
+
+    // 17. assigned_never_read — variable assigned via let but never referenced
+    if (isEnabled(CAT, "assigned_never_read")) {
+        static const std::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const std::regex let_pat(R"(^\s*let\s+(\w+)\s*=\s*(.*))");
+        static const std::regex for_pat(R"(^\s*for\s+(\w+)\s+in\b)");
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::smatch fm;
+            if (!std::regex_search(lines[i], fm, func_pat)) continue;
+            int base_ind = static_cast<int>(fm[1].length());
+            size_t func_end = findFuncEnd(lines, i, base_ind, language);
+
+            // Collect let declarations within this function
+            struct VarDecl {
+                std::string name;
+                std::string rhs;
+                size_t line;
+            };
+            std::vector<VarDecl> decls;
+
+            // Also collect loop variable names to exclude
+            std::unordered_set<std::string> loop_vars;
+
+            for (size_t j = i + 1; j < func_end; ++j) {
+                std::string s = cq_trim(lines[j]);
+                if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
+
+                std::smatch lm;
+                if (std::regex_search(lines[j], lm, let_pat)) {
+                    decls.push_back({lm[1].str(), lm[2].str(), j});
+                }
+                std::smatch fvm;
+                if (std::regex_search(lines[j], fvm, for_pat)) {
+                    loop_vars.insert(fvm[1].str());
+                }
+            }
+
+            // For each declaration, check if the variable is referenced after its declaration
+            for (auto& d : decls) {
+                if (loop_vars.count(d.name)) continue;
+                // Skip common patterns: _ prefix (intentionally unused)
+                if (!d.name.empty() && d.name[0] == '_') continue;
+
+                bool read = false;
+                std::regex var_ref("\\b" + d.name + "\\b");
+                for (size_t j = d.line + 1; j < func_end; ++j) {
+                    std::string s = cq_trim(lines[j]);
+                    if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
+
+                    // Skip lines that are just re-declaring the same variable
+                    std::smatch rm;
+                    if (std::regex_search(lines[j], rm, let_pat) && rm[1].str() == d.name) continue;
+
+                    if (std::regex_search(s, var_ref)) {
+                        read = true;
+                        break;
+                    }
+                }
+
+                if (!read) {
+                    std::string msg = fmt::format("Variable '{}' is assigned but never read", d.name);
+                    std::string fix = "Remove the unused variable or use the result";
+
+                    // Special hint for array.sort()
+                    if (d.rhs.find("sort(") != std::string::npos ||
+                        d.rhs.find("sort (") != std::string::npos) {
+                        fix = "array.sort() mutates in place — the result variable is redundant, or use array.sorted() for a non-mutating copy";
+                    }
+
+                    addIssue(issues, filepath, d.line + 1, "assigned_never_read", CAT,
+                             msg, cq_trim(lines[d.line]), fix, "advisory");
+                }
+            }
+
+            // Skip to end of this function to avoid re-scanning nested content
+            i = func_end > 0 ? func_end - 1 : i;
+        }
+    }
+
+    // 18. hash_sanitize_mismatch — crypto hash and sanitize on same variable
+    if (isEnabled(CAT, "hash_sanitize_mismatch")) {
+        static const std::regex func_pat(R"(^(\s*)(?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
+        static const std::regex hash_call_pat(R"(\bcrypto\.(?:sha256|sha512|md5|sha1|hash)\s*\(\s*(\w+)\s*\))");
+        static const std::regex let_assign(R"(^\s*let\s+(\w+)\s*=\s*(.*))");
+        // Match sanitize/validate calls with optional module prefix (e.g., val.sanitize_string)
+        static const std::regex sanitize_call(R"(\b(?:\w+\.)?(?:sanitize|validate)_\w+\s*\(\s*(\w+))");
+        static const std::regex word_pat(R"(\b([a-zA-Z_]\w*)\b)");
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::smatch fm;
+            if (!std::regex_search(lines[i], fm, func_pat)) continue;
+            int base_ind = static_cast<int>(fm[1].length());
+            std::string fname = fm[2].str();
+            size_t func_end = findFuncEnd(lines, i, base_ind, language);
+
+            // Step 1: Find crypto.sha256(X) calls and trace what variables flow into X
+            std::unordered_set<std::string> hash_input_vars;
+            std::unordered_map<std::string, std::string> let_rhs;  // var -> rhs text
+            size_t hash_line = 0;
+
+            for (size_t j = i + 1; j < func_end; ++j) {
+                std::string s = cq_trim(lines[j]);
+                if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
+
+                // Collect let assignments for one-level tracing
+                std::smatch lm;
+                if (std::regex_search(lines[j], lm, let_assign)) {
+                    let_rhs[lm[1].str()] = lm[2].str();
+                }
+
+                // Find crypto.sha256(var)
+                std::smatch hm;
+                if (std::regex_search(lines[j], hm, hash_call_pat)) {
+                    std::string hash_arg = hm[1].str();
+                    hash_line = j;
+                    hash_input_vars.insert(hash_arg);
+                    // Trace one level: if hash_arg was assigned via let, extract vars from its RHS
+                    auto rit = let_rhs.find(hash_arg);
+                    if (rit != let_rhs.end()) {
+                        std::string rhs_copy = rit->second;
+                        std::smatch wm;
+                        while (std::regex_search(rhs_copy, wm, word_pat)) {
+                            std::string w = wm[1].str();
+                            // Skip keywords and common builtins
+                            if (w != "string" && w != "let" && w != "const" && w != "int" && w != "float") {
+                                hash_input_vars.insert(w);
+                            }
+                            rhs_copy = wm.suffix().str();
+                        }
+                    }
+                }
+            }
+
+            if (hash_input_vars.empty()) {
+                i = func_end > 0 ? func_end - 1 : i;
+                continue;
+            }
+
+            // Step 2: Find sanitize_*(var) calls and check overlap with hash inputs
+            for (size_t j = i + 1; j < func_end; ++j) {
+                std::string s = cq_trim(lines[j]);
+                if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
+
+                std::smatch sm;
+                std::string line_copy = lines[j];
+                while (std::regex_search(line_copy, sm, sanitize_call)) {
+                    std::string sanitized_var = sm[1].str();
+                    if (hash_input_vars.count(sanitized_var)) {
+                        addIssue(issues, filepath, hash_line + 1, "hash_sanitize_mismatch", CAT,
+                                 fmt::format("Variable '{}' is both hashed and sanitized in '{}' — hash was computed on raw data but sanitized data will differ", sanitized_var, fname),
+                                 cq_trim(lines[hash_line]),
+                                 "Hash the sanitized value: hash(sanitize(x)), or store raw data alongside its hash");
+                        goto next_func;
+                    }
+                    line_copy = sm.suffix().str();
+                }
+            }
+            next_func:
+            i = func_end > 0 ? func_end - 1 : i;
         }
     }
 }

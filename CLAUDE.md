@@ -43,7 +43,7 @@ src/
 │                   dict, path, env, time, regex, crypto, http, log, uuid, validate,
 │                   process, debug, bolo, agent
 ├── cli/            main.cpp entry point — CLI flag parsing, subcommands
-├── scanner/        C++ security scanner (SARIF output)
+├── scanner/        C++ security scanner (SARIF output, 18 code quality checks)
 ├── libnaab-governance/  C API for external agent framework integration (Go, Rust, Java, C# bindings)
 ├── api/            REST API (rest_api.cpp)
 ├── repl/           REPL with readline support
@@ -113,6 +113,24 @@ include/naab/       All headers
 - `src/runtime/language_registry.cpp` — executor registration
 - `<<python ... >>` syntax — `>>` must be at line start to close block
 - Executor base: `executeWithReturn()`/`callFunction()` use NaabVal
+
+### Stdlib Notable
+- `array.sort()` mutates in place, `array.sorted()` returns a new sorted array (non-mutating)
+- Both support optional comparator: `arr.sorted(fn(a, b) { return a - b })`
+- `sorted()` is registered in `hasFunction()` but NOT in `isMutatingFunction()`
+- VM has inline dot-notation for `sorted` in `callBuiltinMethod()`; tree-walker uses module path `array.sorted(arr)`
+- Agent `agent.send()` auto-strips markdown code fences (` ```json ... ``` `) from LLM responses before returning content
+
+### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
+- Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)
+- Check 16: `null_coalesce_non_nullable` — flags `??` on comparisons/bool literals that can never be null
+- Check 17: `assigned_never_read` — detects `let`-assigned variables never referenced after declaration, with special `sort()` mutation hint
+- Check 18: `hash_sanitize_mismatch` — one-level data flow tracing: finds `crypto.sha256(X)`, traces X back through `let` assignments, checks if any component variable is also passed to `sanitize_*()`/`validate_*()`
+- Pattern: guard on `isEnabled(CAT, "check_name")`, use `findFuncEnd()` for function scope, `addIssue()` to report
+
+### Telemetry
+- `GovernanceEngine::writeTelemetry()` in `governance_reports.cpp` writes JSONL events
+- Each event includes `run_id` (timestamp-pid, generated once in `loadFromFile()`) for separating runs in shared output files
 
 ## Conventions
 
@@ -191,3 +209,5 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 - **`??` in match arms** — null coalescing works inside match arm bodies: `"x" => d.get("a") ?? "default"`
 - **Top-level `const`/`let` parse error** — NAAb only allows `use`, `import`, `export`, `struct`, `enum`, `fn`, and `main {}` at file scope. Constants and variables MUST be declared inside `main {}` or a function.
 - **Sandbox fail-closed on `mode: enforce`** — if govern.json has `"mode": "enforce"` but no `security.sandbox_level`, the runtime silently upgrades the sandbox from `unrestricted` → `standard`. This blocks `file.read("/absolute/path")` and other absolute-path operations. Set `"security": { "sandbox_level": "elevated" }` to restore access. The runtime logs `[governance] Sandbox: upgraded unrestricted → standard` to stderr when this happens.
+- **`array.sort()` mutates, `array.sorted()` does not** — `sort()` is in `isMutatingFunction()`, `sorted()` is not. Both live in `array_impl.cpp` and VM's `callBuiltinMethod()`.
+- **Agent responses auto-strip markdown fences** — `agent.send()` strips ` ```json ... ``` ` wrapping when the entire response is a single fenced block. Only strips when fence is at start/end (with optional whitespace). Does not strip partial fences or multiple fence blocks.

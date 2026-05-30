@@ -349,7 +349,7 @@ String concatenation with tainted data re-taints the result.
 
 ### array (dot-notation works: arr.push(4))
 push, pop, shift, unshift, length, contains, find, first, last,
-join, reverse, sort, slice_arr, map, filter, reduce, map_fn, filter_fn, reduce_fn
+join, reverse, sort, sorted, slice_arr, map, filter, reduce, map_fn, filter_fn, reduce_fn
 
 Both dot-notation aliases and module syntax work:
 ```naab
@@ -537,7 +537,7 @@ will flag unused imports as violations. Common over-imports to avoid:
 
 | Module | Common functions | Notes |
 |--------|-----------------|-------|
-| array | push, pop, length, map, filter, reduce, sort, contains | Dot-notation works: `arr.push(x)` |
+| array | push, pop, length, map, filter, reduce, sort, sorted, contains | Dot-notation works: `arr.push(x)` |
 | string | upper, lower, trim, split, replace, contains, length | Dot-notation works: `s.upper()` |
 | math | abs, floor, ceil, round, min, max, pow, sqrt, random | `math.PI`, `math.E` |
 | json | parse, stringify | |
@@ -925,6 +925,14 @@ main {
     This prevents subtle bugs where numeric-looking output like "2026" is auto-converted
     to int in one context but expected as a string in another.
     Empty output returns null, not empty string: `""` would return `null`.
+63. **`array.sort()` mutates in place, `array.sorted()` returns a new array.**
+    `sort()` modifies the original array and returns it. `sorted()` copies the array,
+    sorts the copy, and returns it — the original is untouched.
+    WRONG (original mutated unexpectedly):
+      `let s = arr.sort()`  // arr is NOW sorted too — s and arr are the same
+    RIGHT (original preserved):
+      `let s = arr.sorted()`  // arr unchanged, s is a new sorted array
+    Both accept an optional comparator: `arr.sorted(fn(a, b) { return a - b })`
 
 ## Complexity Scoring (for governance)
 
@@ -1044,7 +1052,7 @@ These contracts call your functions post-execution and verify actual outputs.
 
 ## Code Quality Scanner
 
-NAAb has a built-in code quality scanner (`naab --scan`) that checks 139 patterns
+NAAb has a built-in code quality scanner (`naab --scan`) that checks 142 patterns
 across 6 categories and 6 language-specific modules.
 
 ### Auto-Run (Runtime)
@@ -1064,11 +1072,11 @@ naab --scan src/ auto                 # Scan directory, auto-detect languages
 naab --scan app.py python             # Scan single file
 ```
 
-### Check Categories (130 checks total)
+### Check Categories (133 checks total)
 | Category | Checks | Key Rules |
 |----------|--------|-----------|
 | redundancy | 16 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code, missing_imports |
-| code_quality | 15 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting |
+| code_quality | 18 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, null_coalesce_non_nullable, assigned_never_read, hash_sanitize_mismatch |
 | complexity | 8 | cyclomatic_complexity, cognitive_complexity, file_length |
 | style | 10 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
 | security | 10 | hardcoded_credentials, sql_string_concat, shell_injection, path_traversal |

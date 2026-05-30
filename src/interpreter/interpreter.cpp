@@ -398,7 +398,7 @@ NaabVal Environment::get(const std::string& name) {
         error_msg += "\n\n  '" + name + "' is not a global function. Use dot-notation on a dict:\n"
                      "    let k = my_dict." + name + "()\n";
     } else if (name == "push" || name == "pop" || name == "shift" || name == "unshift" ||
-               name == "sort" || name == "reverse" || name == "contains" || name == "find") {
+               name == "sort" || name == "sorted" || name == "reverse" || name == "contains" || name == "find") {
         error_msg += "\n\n  '" + name + "' is not a global function. Use dot-notation:\n"
                      "    my_array." + name + "(...)\n";
     } else if (name == "upper" || name == "lower" || name == "trim" || name == "split" ||
@@ -415,10 +415,9 @@ NaabVal Environment::get(const std::string& name) {
     } else if (name == "toString" || name == "str") {
         error_msg += "\n\n  NAAb uses the string() cast builtin:\n"
                      "    let s = string(42)   // \"42\"\n";
-    } else if (name == "sorted" || name == "reversed") {
-        std::string fn = (name == "sorted") ? "sort" : "reverse";
-        error_msg += "\n\n  '" + name + "' is not a builtin. Arrays have mutable methods:\n"
-                     "    my_array." + fn + "()   // mutates in place\n";
+    } else if (name == "reversed") {
+        error_msg += "\n\n  'reversed' is not a builtin. Arrays have a mutable method:\n"
+                     "    my_array.reverse()   // mutates in place\n";
     } else if (name == "enumerate" || name == "zip") {
         error_msg += "\n\n  NAAb does not have '" + name + "'. Use index-based loops:\n"
                      "    for i in 0..len(arr) {\n"

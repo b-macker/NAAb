@@ -34,7 +34,7 @@ bool ArrayModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "length", "push", "pop", "shift", "unshift", "first", "last",
         "map_fn", "filter_fn", "reduce_fn", "find", "index_of", "slice_arr", "slice",
-        "reverse", "sort", "contains", "join"
+        "reverse", "sort", "sorted", "contains", "join"
     };
     return functions.count(name) > 0;
 }
@@ -465,6 +465,49 @@ interpreter::NaabVal ArrayModule::call(
         return args[0];
     }
 
+    // Function 10b: sorted (non-mutating sort — returns a new sorted array)
+    if (function_name == "sorted") {
+        if (args.size() < 1 || args.size() > 2) {
+            throw std::runtime_error(
+                "array.sorted() takes 1 or 2 arguments (array, comparator?)\n\n"
+                "  Example:\n"
+                "    let s = arr.sorted()                           // default sort\n"
+                "    let s = arr.sorted(fn(a, b) { return a - b })  // custom comparator\n"
+            );
+        }
+        // Copy the array
+        auto arr = getArray(args[0]);
+
+        if (args.size() == 2 && evaluator_) {
+            auto comp_fn = args[1];
+            bool sort_error = false;
+            std::sort(arr.begin(), arr.end(),
+                [this, &comp_fn, &sort_error](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                    if (sort_error) return false;
+                    try {
+                        auto res = evaluator_(comp_fn, {a, b});
+                        if (res.isInt()) return res.asInt() < 0;
+                        if (res.isDouble()) return res.asDouble() < 0;
+                        sort_error = true;
+                        return false;
+                    } catch (...) {
+                        sort_error = true;
+                        return false;
+                    }
+                });
+            if (sort_error) {
+                throw std::runtime_error(
+                    "array.sorted() comparator must return a number (negative, zero, or positive)");
+            }
+        } else {
+            std::sort(arr.begin(), arr.end(),
+                [](const auto& a, const auto& b) {
+                    return compareValues(a, b) < 0;
+                });
+        }
+        return makeArray(arr);
+    }
+
     // Function 11: contains
     if (function_name == "contains") {
         if (args.size() != 2) {
@@ -592,7 +635,7 @@ interpreter::NaabVal ArrayModule::call(
     static const std::vector<std::string> FUNCTIONS = {
         "length", "push", "pop", "shift", "unshift", "first", "last",
         "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr", "slice",
-        "reverse", "sort", "contains", "join"
+        "reverse", "sort", "sorted", "contains", "join"
     };
 
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);

@@ -677,6 +677,7 @@ void GovernanceEngine::writeTelemetry() const {
 
     for (const auto& r : check_results_) {
         nlohmann::json ev;
+        ev["run_id"] = run_id_;
         ev["agent_id"] = agent_id_;
         ev["event_type"] = r.passed ? "GovernanceCheck" : "RuleViolation";
         ev["rule_name"] = r.rule_name;

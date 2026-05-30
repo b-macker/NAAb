@@ -21,6 +21,7 @@
 #include <set>
 #ifndef _WIN32
 #  include <sys/file.h>
+#  include <unistd.h>  // getpid() for telemetry run_id
 #endif
 #include <fmt/core.h>
 
@@ -2636,6 +2637,14 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         loadFromJson(j, rules_);
         loaded_path_ = path;
         active_ = (rules_.mode != GovernanceMode::OFF);
+
+        // Generate unique run_id for telemetry run separation
+        if (run_id_.empty()) {
+            auto now = std::chrono::system_clock::now();
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()).count();
+            run_id_ = fmt::format("{}-{}", ms, ::getpid());
+        }
 
         // Store mtime for mid-run reload detection (truncate to seconds for portability)
         try {
