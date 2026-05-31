@@ -507,6 +507,15 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["behavioral_sequences"] = bs;
     }
 
+    // ── approval ──────────────────────────────────────────────────
+    {
+        json ap;
+        ap["store_path"] = ".naab/approvals.json";
+        ap["approver_keys"] = json::array();
+        ap["default_expiry_hours"] = 24;
+        root["approval"] = ap;
+    }
+
     // ── limits ─────────────────────────────────────────────────────
     {
         int global_timeout = (is_script || is_test) ? 120 : 60;
@@ -1113,7 +1122,20 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"enabled", paranoid},
             {"record_proof_objects", paranoid},
             {"record_attestations", paranoid},
-            {"record_decisions", paranoid}
+            {"record_decisions", paranoid},
+            {"sign_records", paranoid},
+            {"signing_key_env", "NAAB_SIGNING_KEY"}
+        };
+    }
+
+    // ── telemetry ──────────────────────────────────────────────────
+    {
+        root["telemetry"]["enabled"] = strict_plus;
+        root["telemetry"]["output_file"] = "telemetry.jsonl";
+        root["telemetry"]["tamper_evidence"] = {
+            {"enabled", paranoid},
+            {"algorithm", "sha256"},
+            {"chain_genesis", "NAAB-TELEMETRY-GENESIS"}
         };
     }
 

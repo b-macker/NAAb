@@ -67,6 +67,7 @@
 #include "naab/debugger.h"   // For VM debugger integration
 #include "naab/platform.h"
 #include <fmt/core.h>
+#include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -612,6 +613,139 @@ int main(int argc, char** argv) {
                 return 1;
             }
             fprintf(stderr, "Key revoked: %s (reason: %s)\n", fp.c_str(), reason.c_str());
+            return 0;
+        } else if (arg == "--approve" && command_arg_index + 1 < argc) {
+            // Generate a signed approval token for a governance rule
+            std::string rule_name = argv[++command_arg_index];
+            std::string reason = "manual approval";
+            int expiry_hours = 24;
+            // Parse optional --reason and --expiry
+            for (int j = command_arg_index + 1; j < argc; ++j) {
+                std::string jarg = argv[j];
+                if (jarg == "--reason" && j + 1 < argc) {
+                    reason = argv[++j]; command_arg_index = j;
+                } else if (jarg == "--expiry" && j + 1 < argc) {
+                    expiry_hours = std::stoi(argv[++j]); command_arg_index = j;
+                }
+            }
+            // Load signing key
+            const char* key_env = std::getenv("NAAB_SIGNING_KEY");
+            if (!key_env) {
+                fprintf(stderr, "Error: NAAB_SIGNING_KEY not set\n"
+                    "  Set it to your Ed25519 private key path:\n"
+                    "  export NAAB_SIGNING_KEY=~/.naab/keys/signing.pem\n");
+                return 1;
+            }
+            std::ifstream kf(key_env);
+            if (!kf.is_open()) {
+                fprintf(stderr, "Error: Cannot read signing key: %s\n", key_env);
+                return 1;
+            }
+            std::string pem((std::istreambuf_iterator<char>(kf)),
+                             std::istreambuf_iterator<char>());
+            kf.close();
+            // Compute fields
+            std::string approver_id = naab::security::CryptoUtils::ed25519Fingerprint(pem);
+            int64_t expiry = static_cast<int64_t>(time(nullptr)) +
+                static_cast<int64_t>(expiry_hours) * 3600;
+            // Canonical encoding — must match hasValidApproval() format exactly
+            auto lpEncode = [](const std::string& s) -> std::string {
+                return std::to_string(s.size()) + ":" + s;
+            };
+            std::string canonical = lpEncode(rule_name) + lpEncode(approver_id)
+                + lpEncode(reason) + std::to_string(expiry);
+            std::string signature = naab::security::CryptoUtils::ed25519Sign(canonical, pem);
+            // Build token
+            nlohmann::json token;
+            token["approver_id"] = approver_id;
+            token["reason"] = reason;
+            token["expiry_timestamp"] = expiry;
+            token["signature"] = signature;
+            // Read or create approvals store
+            std::string store_path = ".naab/approvals.json";
+            nlohmann::json store = nlohmann::json::object();
+            {
+                std::ifstream sf(store_path);
+                if (sf.is_open()) {
+                    try { sf >> store; } catch (...) {}
+                }
+            }
+            store[rule_name] = token;
+            // Ensure .naab directory exists and write securely
+            std::filesystem::create_directories(".naab");
+            naab::security::writeFileSecure(store_path, store.dump(2), 0600);
+            fprintf(stderr, "Approval granted:\n"
+                "  Rule:     %s\n"
+                "  Approver: %s\n"
+                "  Reason:   %s\n"
+                "  Expires:  %d hours\n",
+                rule_name.c_str(), approver_id.c_str(),
+                reason.c_str(), expiry_hours);
+            return 0;
+        } else if (arg == "--list-approvals") {
+            // List current approval tokens
+            std::string store_path = ".naab/approvals.json";
+            std::ifstream sf(store_path);
+            if (!sf.is_open()) {
+                fprintf(stderr, "No approvals found (%s does not exist).\n",
+                    store_path.c_str());
+                return 0;
+            }
+            nlohmann::json store;
+            try { sf >> store; } catch (...) {
+                fprintf(stderr, "Error: Invalid approvals file: %s\n",
+                    store_path.c_str());
+                return 1;
+            }
+            sf.close();
+            if (store.empty()) {
+                fprintf(stderr, "No approvals stored.\n");
+                return 0;
+            }
+            int64_t now = static_cast<int64_t>(time(nullptr));
+            fprintf(stdout, "Approval tokens in %s:\n", store_path.c_str());
+            for (auto& [rule, tok] : store.items()) {
+                int64_t exp = tok.value("expiry_timestamp", int64_t(0));
+                bool expired = (exp > 0 && now > exp);
+                fprintf(stdout, "  %s %s\n"
+                    "    approver: %s\n"
+                    "    reason:   %s\n",
+                    expired ? "[EXPIRED]" : "[VALID]  ", rule.c_str(),
+                    tok.value("approver_id", std::string("unknown")).c_str(),
+                    tok.value("reason", std::string("")).c_str());
+                if (exp > 0) {
+                    char buf[64];
+                    time_t t = static_cast<time_t>(exp);
+                    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S UTC", gmtime(&t));
+                    fprintf(stdout, "    expires:  %s%s\n", buf,
+                        expired ? " (EXPIRED)" : "");
+                } else {
+                    fprintf(stdout, "    expires:  never\n");
+                }
+            }
+            return 0;
+        } else if (arg == "--revoke-approval" && command_arg_index + 1 < argc) {
+            // Remove an approval token
+            std::string rule_name = argv[++command_arg_index];
+            std::string store_path = ".naab/approvals.json";
+            std::ifstream sf(store_path);
+            if (!sf.is_open()) {
+                fprintf(stderr, "No approvals file found: %s\n", store_path.c_str());
+                return 1;
+            }
+            nlohmann::json store;
+            try { sf >> store; } catch (...) {
+                fprintf(stderr, "Error: Invalid approvals file\n");
+                return 1;
+            }
+            sf.close();
+            if (!store.contains(rule_name)) {
+                fprintf(stderr, "No approval for rule: %s\n", rule_name.c_str());
+                return 1;
+            }
+            store.erase(rule_name);
+            naab::security::writeFileSecure(store_path, store.dump(2), 0600);
+            fprintf(stderr, "Approval revoked: %s\n", rule_name.c_str());
             return 0;
         } else if (arg == "--attest") {
             // Environment Attestation: verify prerequisites from govern.json

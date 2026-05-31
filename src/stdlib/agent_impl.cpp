@@ -615,6 +615,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         result["json_valid"] = NaabVal::makeBool(json_valid_result);
     }
 
+    // Emit signed execution attestation if provenance is enabled
+    if (gov_engine && gov_engine->isActive()) {
+        auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
+        gov_engine->emitAttestation("send", config_name, current_turn, cp.pressure);
+    }
+
     return NaabVal::makeDict(std::move(result));
 }
 

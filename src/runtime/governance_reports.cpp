@@ -131,12 +131,45 @@ void GovernanceEngine::logContractCheck(const std::string& func_name,
 }
 
 std::string GovernanceEngine::computeAuditHash(const std::string& data) const {
+    return computeHash(data, rules_.audit.tamper_evidence);
+}
+
+std::string GovernanceEngine::computeHash(const std::string& data,
+    const TamperEvidenceConfig& te) const {
     // HMAC-SHA256 when key configured; plain SHA-256 fallback (both cryptographic)
-    if (!rules_.audit.tamper_evidence.hmac_key.empty()) {
-        return security::CryptoUtils::hmacSha256(data,
-            rules_.audit.tamper_evidence.hmac_key);
+    if (!te.hmac_key.empty()) {
+        return security::CryptoUtils::hmacSha256(data, te.hmac_key);
     }
     return security::CryptoUtils::sha256(data);
+}
+
+void GovernanceEngine::emitAttestation(const std::string& action_type,
+    const std::string& agent_config, int turn, double pressure) {
+    if (!rules_.audit.provenance.enabled ||
+        !rules_.audit.provenance.record_attestations) return;
+
+    nlohmann::json att;
+    att["action"] = action_type;
+    att["agent_config"] = agent_config;
+    att["turn"] = turn;
+    att["pressure"] = pressure;
+    att["run_id"] = run_id_;
+
+    // Sign the attestation if signing is enabled and key is available
+    if (rules_.audit.provenance.sign_records &&
+        !rules_.audit.provenance.signing_key.empty()) {
+        try {
+            std::ifstream kf(rules_.audit.provenance.signing_key);
+            if (kf.is_open()) {
+                std::string pem((std::istreambuf_iterator<char>(kf)),
+                                 std::istreambuf_iterator<char>());
+                att["signature"] = security::CryptoUtils::ed25519Sign(att.dump(), pem);
+                att["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(pem);
+            }
+        } catch (...) {}
+    }
+
+    logAuditEvent("execution_attestation", "agent." + action_type, att.dump(), "", 0);
 }
 
 // --- Hooks ---
@@ -699,6 +732,16 @@ void GovernanceEngine::writeTelemetry() const {
             ev["owasp"] = nlohmann::json::array();
             for (const auto& o : r.owasp_ids) ev["owasp"].push_back(o);
         }
+        // Tamper-evident hash chain for telemetry entries
+        if (rules_.telemetry_output.tamper_evidence.enabled) {
+            ev["prev_hash"] = last_telemetry_hash_.empty()
+                ? rules_.telemetry_output.tamper_evidence.chain_genesis
+                : last_telemetry_hash_;
+            last_telemetry_hash_ = computeHash(ev.dump(),
+                rules_.telemetry_output.tamper_evidence);
+            ev["hash"] = last_telemetry_hash_;
+        }
+
         std::string line = ev.dump() + "\n";
         fwrite(line.c_str(), 1, line.size(), fp.get());
     }

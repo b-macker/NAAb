@@ -1026,6 +1026,7 @@ struct ProvenanceConfig {
     bool record_decisions = false;
     bool sign_records = false;
     std::string signing_key;
+    std::string signing_key_env;  // env var for signing key path (preferred)
 };
 
 struct AuditConfig {
@@ -1576,6 +1577,7 @@ struct TaintTrackingConfig {
 struct TelemetryOutputConfig {
     bool enabled = false;
     std::string output_file;  // JSONL path, append mode
+    TamperEvidenceConfig tamper_evidence;  // hash chain for telemetry entries
 };
 
 // ============================================================================
@@ -2316,6 +2318,10 @@ public:
     };
     CheckpointData getCheckpointData(int handle_id, int turn) const;
 
+    // Execution attestation: signed proof that governance checks passed for an action
+    void emitAttestation(const std::string& action_type,
+        const std::string& agent_config, int turn, double pressure);
+
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);
 
@@ -2515,6 +2521,7 @@ private:
 
     // Audit trail
     std::string last_audit_hash_;
+    mutable std::string last_telemetry_hash_;
     mutable std::mutex audit_mutex_;
 
     // Calibration data (loaded from calibration.json)
@@ -2596,6 +2603,7 @@ private:
 
     // --- Audit helpers ---
     std::string computeAuditHash(const std::string& data) const;
+    std::string computeHash(const std::string& data, const TamperEvidenceConfig& te) const;
 };
 
 } // namespace governance

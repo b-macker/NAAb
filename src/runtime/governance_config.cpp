@@ -1404,6 +1404,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (le.contains("taint_decisions")) rules_.audit.log_events.taint_decisions = le["taint_decisions"].get<bool>();
             if (le.contains("contract_checks")) rules_.audit.log_events.contract_checks = le["contract_checks"].get<bool>();
         }
+        if (aud.contains("provenance") && aud["provenance"].is_object()) {
+            auto& prov = aud["provenance"];
+            if (prov.contains("enabled")) rules_.audit.provenance.enabled = prov["enabled"].get<bool>();
+            if (prov.contains("record_proof_objects")) rules_.audit.provenance.record_proof_objects = prov["record_proof_objects"].get<bool>();
+            if (prov.contains("record_attestations")) rules_.audit.provenance.record_attestations = prov["record_attestations"].get<bool>();
+            if (prov.contains("record_decisions")) rules_.audit.provenance.record_decisions = prov["record_decisions"].get<bool>();
+            if (prov.contains("sign_records")) rules_.audit.provenance.sign_records = prov["sign_records"].get<bool>();
+            if (prov.contains("signing_key")) rules_.audit.provenance.signing_key = prov["signing_key"].get<std::string>();
+            if (prov.contains("signing_key_env")) {
+                std::string env_name = prov["signing_key_env"].get<std::string>();
+                const char* env_val = std::getenv(env_name.c_str());
+                if (env_val) rules_.audit.provenance.signing_key = env_val;
+            }
+        }
     }
 
     // V3 Meta
@@ -1931,6 +1945,18 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& tel = j["telemetry"];
         if (tel.contains("enabled")) rules_.telemetry_output.enabled = tel["enabled"].get<bool>();
         if (tel.contains("output_file")) rules_.telemetry_output.output_file = tel["output_file"].get<std::string>();
+        if (tel.contains("tamper_evidence") && tel["tamper_evidence"].is_object()) {
+            auto& te = tel["tamper_evidence"];
+            if (te.contains("enabled")) rules_.telemetry_output.tamper_evidence.enabled = te["enabled"].get<bool>();
+            if (te.contains("algorithm")) rules_.telemetry_output.tamper_evidence.algorithm = te["algorithm"].get<std::string>();
+            if (te.contains("chain_genesis")) rules_.telemetry_output.tamper_evidence.chain_genesis = te["chain_genesis"].get<std::string>();
+            if (te.contains("hmac_key")) rules_.telemetry_output.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
+            if (te.contains("hmac_key_env")) {
+                std::string env_name = te["hmac_key_env"].get<std::string>();
+                const char* env_val = std::getenv(env_name.c_str());
+                if (env_val) rules_.telemetry_output.tamper_evidence.hmac_key = env_val;
+            }
+        }
     }
 
     // --- Agents (unified config: permissions + LLM) ---
