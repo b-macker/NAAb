@@ -312,6 +312,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  - Remove or mask PII before sending to external LLM APIs\n",
                 config_name));
         }
+        // Check for information disclosure in outbound prompt
+        std::string info_err = gov_engine->checkInfoDisclosure("naab", message, 0);
+        if (!info_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Prompt for '{}' contains information disclosure patterns\n\n"
+                "  Help:\n"
+                "  - The outbound message was blocked because it contains patterns\n"
+                "    matching environment dumps, process listings, or system info\n"
+                "  - Remove sensitive system information before sending to external LLM APIs\n",
+                config_name));
+        }
     }
 
     // Call provider via shared layer
@@ -501,6 +512,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // response_format: check JSON validity BEFORE CDD so parse failures feed coherence
+    bool json_valid_result = true;
+    std::string json_error_signal;
+    if (config && config->response_format == "json" && !content.empty()) {
+        try {
+            (void)nlohmann::json::parse(content);
+        } catch (...) {
+            json_valid_result = false;
+            json_error_signal = "response_format:json parse failed";
+            fmt::print(stderr,
+                "[hint] agent '{}' has response_format: \"json\" but response is not valid JSON\n",
+                config_name);
+        }
+    }
+
     // Update handle: append messages, update counters
     // Add user message to history
     std::unordered_map<std::string, NaabVal> user_msg_val;
@@ -533,10 +559,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(resp_output_tokens) + ")", "", 0);
-        // Context drift check
+        // Context drift check — include json parse failures as coherence signals
+        std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
         std::string drift_err = gov_engine->checkContextDrift(
-            handle_id, current_turn,
-            agent_resp.success ? "" : agent_resp.error);
+            handle_id, current_turn, cdd_error);
         if (!drift_err.empty()) {
             // Hard/soft enforcement: abort the agent call immediately
             // (advisory returns "" from enforce(), so only real blocks reach here)
@@ -584,17 +610,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         result["governance_notices"] = NaabVal::makeList(std::move(notice_vals));
     }
 
-    // response_format validation: warn if agent config expects JSON but response isn't
+    // response_format: use pre-CDD json_valid_result (checked before CDD for coherence signal)
     if (config && config->response_format == "json" && !content.empty()) {
-        try {
-            (void)nlohmann::json::parse(content);
-            result["json_valid"] = NaabVal::makeBool(true);
-        } catch (...) {
-            result["json_valid"] = NaabVal::makeBool(false);
-            fmt::print(stderr,
-                "[hint] agent '{}' has response_format: \"json\" but response is not valid JSON\n",
-                config_name);
-        }
+        result["json_valid"] = NaabVal::makeBool(json_valid_result);
     }
 
     return NaabVal::makeDict(std::move(result));

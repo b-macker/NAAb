@@ -1,4 +1,4 @@
-// NAAb Scanner — NAAb Language Checks (10 checks)
+// NAAb Scanner — NAAb Language Checks (16 checks)
 // Port from naab-q/src/checks/lang_naab.naab
 
 #include "naab/scanner.h"
@@ -6,6 +6,7 @@
 #include <regex>
 #include <algorithm>
 #include <fstream>
+#include <unordered_set>
 #include <fmt/core.h>
 #include <nlohmann/json.hpp>
 
@@ -489,6 +490,7 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
     }
 
     // 14. polyglot_magic_numbers — detect magic numbers inside polyglot blocks
+    // (renumbered: was 14, still 14 — new agent checks are 15-16)
     if (isEnabled(CAT, "polyglot_magic_numbers")) {
         std::unordered_set<double> allowed = {0, 1, -1, 2, 10, 100, 1000};
         auto cfg_allowed = getNumListOption("code_quality", "magic_numbers");
@@ -549,6 +551,87 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                         break;
                     }
                 } catch (...) {}
+            }
+        }
+    }
+
+    // 15. agent_unchecked_send — agent.send() result not checked for success or try/catch
+    if (isEnabled(CAT, "agent_unchecked_send")) {
+        static const std::regex send_pat(R"(=\s*agent\.send\s*\()");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = nb_trim(lines[i]);
+            if (!std::regex_search(s, send_pat)) continue;
+
+            // Check if inside try block (scan backwards for unmatched try {)
+            bool in_try = false;
+            int brace_depth = 0;
+            for (int k = static_cast<int>(i); k >= 0; --k) {
+                std::string ln = nb_trim(lines[k]);
+                for (auto it = ln.rbegin(); it != ln.rend(); ++it) {
+                    if (*it == '}') brace_depth++;
+                    else if (*it == '{') brace_depth--;
+                }
+                if (brace_depth < 0 && ln.find("try") != std::string::npos) {
+                    in_try = true;
+                    break;
+                }
+            }
+            if (in_try) continue;
+
+            // Check next 3 lines for .get("success") or .success check
+            bool has_check = false;
+            for (size_t j = i; j < std::min(i + 4, lines.size()); ++j) {
+                std::string check_ln = nb_trim(lines[j]);
+                if (check_ln.find(".get(\"success\")") != std::string::npos ||
+                    check_ln.find(".success") != std::string::npos ||
+                    check_ln.find("catch") != std::string::npos) {
+                    has_check = true;
+                    break;
+                }
+            }
+            if (!has_check) {
+                addIssue(issues, filepath, static_cast<int>(i + 1),
+                         "agent_unchecked_send", CAT,
+                         "agent.send() result not checked for success or wrapped in try/catch",
+                         s, "Wrap in try/catch or check result.get(\"success\")",
+                         "advisory");
+            }
+        }
+    }
+
+    // 16. agent_prompt_from_file — file.read() data sent to agent.send() without sanitization
+    if (isEnabled(CAT, "agent_prompt_from_file")) {
+        static const std::regex file_read_pat(R"(let\s+(\w+)\s*=\s*file\.read\s*\()");
+        static const std::regex agent_send_pat(R"(agent\.send\s*\(\s*\w+\s*,\s*(\w+))");
+        static const std::regex sanitize_pat(R"(sanitize_|validate_)");
+        std::unordered_set<std::string> file_read_vars;
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = nb_trim(lines[i]);
+            std::smatch m;
+            if (std::regex_search(s, m, file_read_pat)) {
+                file_read_vars.insert(m[1].str());
+            }
+            if (std::regex_search(s, m, agent_send_pat)) {
+                std::string prompt_var = m[1].str();
+                if (file_read_vars.count(prompt_var)) {
+                    // Check if sanitized between file.read and agent.send
+                    bool sanitized = false;
+                    for (size_t k = 0; k < i; ++k) {
+                        std::string ln = nb_trim(lines[k]);
+                        if (ln.find(prompt_var) != std::string::npos &&
+                            std::regex_search(ln, sanitize_pat)) {
+                            sanitized = true;
+                            break;
+                        }
+                    }
+                    if (!sanitized) {
+                        addIssue(issues, filepath, static_cast<int>(i + 1),
+                                 "agent_prompt_from_file", CAT,
+                                 "file.read() data sent to agent.send() without sanitization",
+                                 s, "Sanitize file data before sending to external LLM API",
+                                 "advisory");
+                    }
+                }
             }
         }
     }

@@ -177,6 +177,7 @@ GovernanceInitConfig naab::cli::runInteractiveSetup(bool is_tty) {
         if (source_choice >= 2) {
             config.taint_sinks.push_back("file.write");
             config.taint_sinks.push_back("file.append");
+            config.taint_sinks.push_back("agent.send");
         }
         if (source_choice >= 3) {
             config.taint_sinks.push_back("http.");
@@ -272,6 +273,7 @@ GovernanceInitConfig naab::cli::presetToConfig(const std::string& preset,
         }
         config.taint_sinks.push_back("file.write");
         config.taint_sinks.push_back("file.append");
+        config.taint_sinks.push_back("agent.send");
     }
 
     return config;
@@ -477,7 +479,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         tt["sources"] = config.taint_enabled ?
             json(config.taint_sources) : json::array({"env.get", "io.read_line", "file.read", "polyglot_output", "agent.send", "agent.run"});
         tt["sinks"] = config.taint_enabled ?
-            json(config.taint_sinks) : json::array({"shell_exec", "python_exec", "file.write"});
+            json(config.taint_sinks) : json::array({"shell_exec", "python_exec", "file.write", "agent.send"});
         tt["sanitizers"] = json::array({"validate_", "sanitize_", "escape_"});
         tt["propagation"] = {
             {"string_concat", true},
@@ -487,6 +489,22 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"dict_array_access", true}
         };
         root["taint_tracking"] = tt;
+    }
+
+    // ── behavioral_sequences ──────────────────────────────────────
+    {
+        json bs;
+        bs["enabled"] = config.taint_enabled; // enable BSD when taint is on
+        bs["window_size"] = 100;
+        bs["rationale"] = "Detect multi-step suspicious patterns across runtime events";
+        json patterns;
+        patterns["agent_output_to_file"] = {
+            {"sequence", json::array({"AGENT_RESPONSE", "FILE_WRITE"})},
+            {"level", "advisory"},
+            {"rationale", "LLM output written directly to file — verify content was reviewed"}
+        };
+        bs["patterns"] = patterns;
+        root["behavioral_sequences"] = bs;
     }
 
     // ── limits ─────────────────────────────────────────────────────
