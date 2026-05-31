@@ -290,6 +290,30 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // ── Prompt-side governance: scan outbound message before API call ──
+    if (gov_engine && gov_engine->isActive() && !message.empty()) {
+        std::string secret_err = gov_engine->checkSecrets(message, 0);
+        if (!secret_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Prompt for '{}' contains a potential secret\n\n"
+                "  Help:\n"
+                "  - The outbound message was blocked because it contains a pattern\n"
+                "    matching a known secret format (API key, token, etc.)\n"
+                "  - Sanitize sensitive data before sending to external LLM APIs\n",
+                config_name));
+        }
+        std::string pii_err = gov_engine->checkPii(message, 0);
+        if (!pii_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Prompt for '{}' contains potential PII\n\n"
+                "  Help:\n"
+                "  - The outbound message was blocked because it contains a pattern\n"
+                "    matching personally identifiable information\n"
+                "  - Remove or mask PII before sending to external LLM APIs\n",
+                config_name));
+        }
+    }
+
     // Call provider via shared layer
     auto agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
     if (!agent_resp.success) {
@@ -997,14 +1021,54 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
         std::vector<NaabVal> send_args = {handles[i], NaabVal::makeString(current_message)};
         last_response = agentSend(send_args);
 
-        // Extract content for next stage
+        // Extract content for next stage, prepend governance metadata
         if (i < handles.size() - 1) {
             bool got_content = false;
             if (last_response.isDict()) {
-                auto it = last_response.asDict().find("content");
-                if (it != last_response.asDict().end() && it->second.isString()) {
-                    current_message = it->second.asString();
-                    got_content = !current_message.empty();
+                auto& resp_dict = last_response.asDict();
+                auto it = resp_dict.find("content");
+                if (it != resp_dict.end() && it->second.isString()) {
+                    std::string content = it->second.asString();
+                    got_content = !content.empty();
+
+                    if (got_content) {
+                        // Build metadata header from previous stage
+                        std::string meta = "[Pipeline Stage " + std::to_string(i) + " Output]\n";
+
+                        // Token usage
+                        auto usage_it = resp_dict.find("usage");
+                        if (usage_it != resp_dict.end() && usage_it->second.isDict()) {
+                            auto& u = usage_it->second.asDict();
+                            auto out_it = u.find("output_tokens");
+                            if (out_it != u.end()) {
+                                meta += "Tokens: " + std::to_string(out_it->second.asInt()) + "\n";
+                            }
+                        }
+
+                        // Reality checkpoint pressure
+                        auto cp_it = resp_dict.find("reality_checkpoint");
+                        if (cp_it != resp_dict.end() && cp_it->second.isDict()) {
+                            auto& cp = cp_it->second.asDict();
+                            auto p_it = cp.find("pressure");
+                            if (p_it != cp.end()) {
+                                meta += "Governance pressure: " +
+                                    std::to_string(p_it->second.asDouble()) + "\n";
+                            }
+                        }
+
+                        // Governance notices
+                        auto gn_it = resp_dict.find("governance_notices");
+                        if (gn_it != resp_dict.end() && gn_it->second.isList()) {
+                            auto& notices = gn_it->second.asList();
+                            if (!notices.empty()) {
+                                meta += "Notices: " + std::to_string(notices.size()) +
+                                    " governance signals\n";
+                            }
+                        }
+
+                        meta += "\n[Content]\n";
+                        current_message = meta + content;
+                    }
                 }
             }
             if (!got_content) {

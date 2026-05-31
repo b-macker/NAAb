@@ -142,10 +142,10 @@ GovernanceInitConfig naab::cli::runInteractiveSetup(bool is_tty) {
                 config.taint_sources = {"env.get"};
                 break;
             case 2:
-                config.taint_sources = {"env.get", "file.read", "io.read_line"};
+                config.taint_sources = {"env.get", "file.read", "io.read_line", "agent.send", "agent.run"};
                 break;
             case 3:
-                config.taint_sources = {"env.get", "file.read", "io.read_line", "polyglot_output", "http.response"};
+                config.taint_sources = {"env.get", "file.read", "io.read_line", "polyglot_output", "http.response", "agent.send", "agent.run"};
                 break;
             case 4: {
                 fmt::print("   Enter sources (comma-separated): ");
@@ -262,7 +262,7 @@ GovernanceInitConfig naab::cli::presetToConfig(const std::string& preset,
 
     config.taint_enabled = taint_flag;
     if (taint_flag) {
-        config.taint_sources = {"env.get", "file.read", "io.read_line"};
+        config.taint_sources = {"env.get", "file.read", "io.read_line", "agent.send", "agent.run"};
         config.taint_sinks = {"shell_exec"};
         for (const auto& lang : config.languages) {
             if (lang == "python") config.taint_sinks.push_back("python_exec");
@@ -475,7 +475,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         tt["level"] = config.taint_enabled ?
             fixedLevel(s, "advisory", "soft", "hard", "hard") : "soft";
         tt["sources"] = config.taint_enabled ?
-            json(config.taint_sources) : json::array({"env.get", "io.read_line", "file.read", "polyglot_output"});
+            json(config.taint_sources) : json::array({"env.get", "io.read_line", "file.read", "polyglot_output", "agent.send", "agent.run"});
         tt["sinks"] = config.taint_enabled ?
             json(config.taint_sinks) : json::array({"shell_exec", "python_exec", "file.write"});
         tt["sanitizers"] = json::array({"validate_", "sanitize_", "escape_"});
