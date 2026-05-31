@@ -560,6 +560,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         result["governance_notices"] = NaabVal::makeList(std::move(notice_vals));
     }
 
+    // response_format validation: warn if agent config expects JSON but response isn't
+    if (config && config->response_format == "json" && !content.empty()) {
+        try {
+            (void)nlohmann::json::parse(content);
+            result["json_valid"] = NaabVal::makeBool(true);
+        } catch (...) {
+            result["json_valid"] = NaabVal::makeBool(false);
+            fmt::print(stderr,
+                "[hint] agent '{}' has response_format: \"json\" but response is not valid JSON\n",
+                config_name);
+        }
+    }
+
     return NaabVal::makeDict(std::move(result));
 }
 

@@ -2000,6 +2000,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.stream = cfg_json["stream"].get<bool>();
                 if (cfg_json.contains("timeout"))
                     agent.timeout_seconds = cfg_json["timeout"].get<int>();
+                if (cfg_json.contains("response_format"))
+                    agent.response_format = cfg_json["response_format"].get<std::string>();
             }
 
             rules_.agents.push_back(agent);

@@ -1609,6 +1609,7 @@ struct AgentConfig {
     std::string stop_reason_action = "end";
     bool stream = false;
     int timeout_seconds = 30;  // F11: per-call LLM API timeout
+    std::string response_format;  // "json" = validate + warn on non-JSON responses
 };
 
 // ============================================================================
