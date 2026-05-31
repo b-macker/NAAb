@@ -2160,6 +2160,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     sp.level = EnforcementLevel::SOFT;
                 }
                 if (pat.contains("rationale")) sp.rationale = pat["rationale"].get<std::string>();
+                if (pat.contains("cross_agent")) sp.cross_agent = pat["cross_agent"].get<bool>();
                 if (pat.contains("sequence") && pat["sequence"].is_array()) {
                     for (auto& step_str : pat["sequence"]) {
                         SequenceStep step;
@@ -2235,8 +2236,23 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (rw.contains("signal_density")) rccfg.weights.signal_density = rw["signal_density"].get<double>();
                 if (rw.contains("conversation_depth")) rccfg.weights.conversation_depth = rw["conversation_depth"].get<double>();
                 if (rw.contains("bsd_partial_progress")) rccfg.weights.bsd_partial_progress = rw["bsd_partial_progress"].get<double>();
+                if (rw.contains("pipeline_inherited")) rccfg.weights.pipeline_inherited = rw["pipeline_inherited"].get<double>();
             }
         }
+    }
+
+    // --- Exposure Tracking ---
+    if (j.contains("exposure_tracking") && j["exposure_tracking"].is_object()) {
+        auto& et = j["exposure_tracking"];
+        auto& cfg = rules_.exposure_tracking;
+        if (et.contains("enabled")) cfg.enabled = et["enabled"].get<bool>();
+        if (et.contains("max_autonomous_actions")) cfg.max_autonomous_actions = et["max_autonomous_actions"].get<int>();
+        if (et.contains("max_unique_agents")) cfg.max_unique_agents = et["max_unique_agents"].get<int>();
+        if (et.contains("level")) {
+            auto [en, lv] = parseEnforcementLevel(et["level"]);
+            cfg.level = lv;
+        }
+        parseRationale(et, cfg.rationale);
     }
 
     // --- Governance Baseline (Feature 4) ---

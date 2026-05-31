@@ -282,7 +282,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Behavioral sequence: emit agent.send event and block if it completes a hard pattern
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
-        gov_engine->setAgentTurn(handle_id, current_turn);
+        gov_engine->setAgentContext(handle_id, current_turn, config_name);
         std::string bsd_block = gov_engine->emitEvent(governance::RuntimeEventType::AGENT_SEND,
             "agent.send('" + config_name + "')", "", 0);
         if (!bsd_block.empty()) {
@@ -619,6 +619,18 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     if (gov_engine && gov_engine->isActive()) {
         auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
         gov_engine->emitAttestation("send", config_name, current_turn, cp.pressure);
+
+        // Track aggregate autonomous exposure
+        std::string exposure_block = gov_engine->recordAutonomousAction(config_name);
+        if (!exposure_block.empty()) {
+            throw std::runtime_error(exposure_block);
+        }
+    }
+
+    // Mark agent response as tainted (LLM output is untrusted external data)
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().taint_tracking.enabled) {
+        gov_engine->setLastReturnTainted(true, "agent.send");
     }
 
     return NaabVal::makeDict(std::move(result));
@@ -646,6 +658,12 @@ static NaabVal agentRun(std::vector<NaabVal>& args) {
 
     std::vector<NaabVal> send_args = {handle, args[1]};
     NaabVal response = agentSend(send_args);
+
+    // Mark agent response as tainted (LLM output is untrusted external data)
+    if (auto* ge = governance::GovernanceEngine::getCurrent();
+        ge && ge->isActive() && ge->getRules().taint_tracking.enabled) {
+        ge->setLastReturnTainted(true, "agent.run");
+    }
 
     return response.asDict()["content"];
 }
@@ -948,6 +966,12 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
         idx = batch_end;
     }
 
+    // Mark agent batch response as tainted (LLM output is untrusted external data)
+    if (auto* ge = governance::GovernanceEngine::getCurrent();
+        ge && ge->isActive() && ge->getRules().taint_tracking.enabled) {
+        ge->setLastReturnTainted(true, "agent.batch");
+    }
+
     return NaabVal::makeList(std::move(results));
 }
 
@@ -1070,13 +1094,27 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                         }
 
                         // Reality checkpoint pressure
+                        double stage_pressure = 0.0;
                         auto cp_it = resp_dict.find("reality_checkpoint");
                         if (cp_it != resp_dict.end() && cp_it->second.isDict()) {
                             auto& cp = cp_it->second.asDict();
                             auto p_it = cp.find("pressure");
                             if (p_it != cp.end()) {
+                                stage_pressure = p_it->second.asDouble();
                                 meta += "Governance pressure: " +
-                                    std::to_string(p_it->second.asDouble()) + "\n";
+                                    std::to_string(stage_pressure) + "\n";
+                            }
+                        }
+
+                        // Inherit pressure to next pipeline stage's CDD
+                        if (stage_pressure > 0.0) {
+                            auto* ge = governance::GovernanceEngine::getCurrent();
+                            if (ge && ge->isActive() && handles[i + 1].isDict()) {
+                                auto& next_dict = handles[i + 1].asDict();
+                                auto hid_it = next_dict.find("handle_id");
+                                if (hid_it != next_dict.end()) {
+                                    ge->setInheritedPressure(hid_it->second.asInt(), stage_pressure);
+                                }
                             }
                         }
 
@@ -1101,6 +1139,12 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                     "cannot chain to next stage.\n", i));
             }
         }
+    }
+
+    // Mark pipeline response as tainted (LLM output is untrusted external data)
+    if (auto* ge = governance::GovernanceEngine::getCurrent();
+        ge && ge->isActive() && ge->getRules().taint_tracking.enabled) {
+        ge->setLastReturnTainted(true, "agent.pipeline");
     }
 
     return last_response;

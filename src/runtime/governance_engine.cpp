@@ -789,6 +789,8 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     // Context drift
     if (rule_name == "context_drift.coherence_loss") return rules_.context_drift.rationale;
     if (rule_name == "context_drift.reality_checkpoint") return rules_.context_drift.reality_checkpoint.rationale;
+    // Exposure tracking
+    if (rule_name == "exposure_tracking") return rules_.exposure_tracking.rationale;
     // Scoring
     if (rule_name.rfind("scoring", 0) == 0) return rules_.scoring.rationale;
     // Contracts — look up per-function rationale
@@ -2351,6 +2353,19 @@ void GovernanceEngine::printDashboard() const {
         } else {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
+        }
+    }
+    // Exposure tracking summary
+    {
+        int actions = autonomous_actions_.load(std::memory_order_relaxed);
+        if (actions > 0) {
+            size_t unique;
+            {
+                std::lock_guard<std::mutex> lock(exposure_mutex_);
+                unique = unique_agents_.size();
+            }
+            fprintf(stderr, "Exposure:   %d autonomous actions, %zu unique agents\n",
+                    actions, unique);
         }
     }
     if (rules_.taint_tracking.enabled && rules_.taint_tracking.lineage) {
@@ -5188,6 +5203,11 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.file = file;
     ev.line = line;
     ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
+    ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(agent_config_mutex_);
+        ev.agent_config = current_agent_config_;
+    }
     ev.timestamp = std::chrono::steady_clock::now();
 
     auto match = sequence_detector_.recordEvent(ev);
@@ -5200,6 +5220,76 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
 void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
     current_agent_handle_.store(handle_id, std::memory_order_relaxed);
     current_agent_turn_.store(turn, std::memory_order_relaxed);
+}
+
+void GovernanceEngine::setAgentContext(int handle_id, int turn,
+                                       const std::string& config_name) {
+    current_agent_handle_.store(handle_id, std::memory_order_relaxed);
+    current_agent_turn_.store(turn, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(agent_config_mutex_);
+        current_agent_config_ = config_name;
+    }
+}
+
+void GovernanceEngine::setInheritedPressure(int handle_id, double pressure) {
+    drift_analyzer_.setInheritedPressure(handle_id, pressure);
+}
+
+std::string GovernanceEngine::recordAutonomousAction(const std::string& agent_config) {
+    int count = autonomous_actions_.fetch_add(1, std::memory_order_relaxed) + 1;
+    {
+        std::lock_guard<std::mutex> lock(exposure_mutex_);
+        unique_agents_.insert(agent_config);
+    }
+
+    const auto& cfg = rules_.exposure_tracking;
+    if (!cfg.enabled) return "";
+
+    // Check action count threshold
+    if (cfg.max_autonomous_actions > 0 && count == cfg.max_autonomous_actions) {
+        clearTrace();
+        addTrace(fmt::format("exposure_tracking: {} autonomous actions reached (threshold={})",
+            count, cfg.max_autonomous_actions));
+        return enforce("exposure_tracking", cfg.level,
+            formatError(cfg.level,
+                fmt::format("Exposure threshold — {} autonomous agent actions executed\n\n"
+                    "  Limit: {}\n  Agents: {}\n",
+                    count, cfg.max_autonomous_actions, agent_config),
+                "", "exposure_tracking",
+                lookupRationale("exposure_tracking"), "", ""));
+    }
+
+    // Check unique agent threshold
+    size_t unique;
+    {
+        std::lock_guard<std::mutex> lock(exposure_mutex_);
+        unique = unique_agents_.size();
+    }
+    if (cfg.max_unique_agents > 0 &&
+        static_cast<int>(unique) == cfg.max_unique_agents + 1) {
+        clearTrace();
+        addTrace(fmt::format("exposure_tracking: {} unique agents (threshold={})",
+            unique, cfg.max_unique_agents));
+        return enforce("exposure_tracking", cfg.level,
+            formatError(cfg.level,
+                fmt::format("Exposure threshold — {} unique agent configurations used\n\n"
+                    "  Limit: {}\n  Latest: {}\n",
+                    unique, cfg.max_unique_agents, agent_config),
+                "", "exposure_tracking",
+                lookupRationale("exposure_tracking"), "", ""));
+    }
+
+    return "";
+}
+
+int GovernanceEngine::getAutonomousActionCount() const {
+    return autonomous_actions_.load(std::memory_order_relaxed);
+}
+
+size_t GovernanceEngine::getUniqueAgentCount() const {
+    std::lock_guard<std::mutex> lock(exposure_mutex_);
+    return unique_agents_.size();
 }
 
 std::string GovernanceEngine::checkBehavioralSequence(const SequenceMatchResult& match) {
@@ -5268,13 +5358,17 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             // Factor 5: BSD partial progress
             double bsd_progress = sequence_detector_.getMaxPartialProgress();
 
+            // Factor 6: Inherited pipeline pressure (from prior stage)
+            double inherited = state->inherited_pressure;
+
             // Weighted composite
             double composite =
                 rccfg.weights.coherence_proximity * coherence_prox +
                 rccfg.weights.risk_score_proximity * risk_prox +
                 rccfg.weights.signal_density * signal_dens +
                 rccfg.weights.conversation_depth * depth +
-                rccfg.weights.bsd_partial_progress * bsd_progress;
+                rccfg.weights.bsd_partial_progress * bsd_progress +
+                rccfg.weights.pipeline_inherited * inherited;
 
             // Track sustained pressure
             int consecutive = state->consecutive_high_pressure_turns;
@@ -5297,8 +5391,8 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
                     composite, rccfg.pressure_threshold));
                 addTrace(fmt::format("  coherence_proximity={:.2f} risk_proximity={:.2f} "
-                    "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f}",
-                    coherence_prox, risk_prox, signal_dens, depth, bsd_progress));
+                    "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f} inherited={:.2f}",
+                    coherence_prox, risk_prox, signal_dens, depth, bsd_progress, inherited));
                 addTrace(fmt::format("  sustained {} turns", consecutive));
 
                 // Build pressure breakdown for error message
@@ -5314,6 +5408,8 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                         depth * 100);
                 if (bsd_progress > 0.3)
                     breakdown += "  - Behavioral sequence pattern partially matched\n";
+                if (inherited > 0.3)
+                    breakdown += fmt::format("  - Inherited pressure from prior pipeline stage ({:.2f})\n", inherited);
 
                 return enforce("context_drift.reality_checkpoint", rccfg.level,
                     formatError(rccfg.level,
@@ -5383,6 +5479,11 @@ std::string GovernanceEngine::checkPreExecution(
     ev.file = file;
     ev.line = line;
     ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
+    ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(agent_config_mutex_);
+        ev.agent_config = current_agent_config_;
+    }
     ev.timestamp = std::chrono::steady_clock::now();
 
     auto match = sequence_detector_.wouldMatch(ev);

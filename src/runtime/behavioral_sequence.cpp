@@ -2,6 +2,7 @@
 #include "naab/behavioral_sequence.h"
 #include <algorithm>
 #include <sstream>
+#include <unordered_set>
 
 namespace naab {
 namespace governance {
@@ -158,6 +159,18 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
 
                 // Pattern complete?
                 if (state.current_step >= pattern.steps.size()) {
+                    // Cross-agent check: reject if all events came from same agent
+                    if (pattern.cross_agent) {
+                        std::unordered_set<std::string> agents;
+                        for (const auto& me : state.matched_events) {
+                            if (!me.agent_config.empty()) agents.insert(me.agent_config);
+                        }
+                        if (agents.size() < 2) {
+                            state.current_step = 0;
+                            state.matched_events.clear();
+                            continue;
+                        }
+                    }
                     SequenceMatchResult result;
                     result.pattern_name = pattern.name;
                     result.pattern = &pattern;
@@ -180,6 +193,18 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
                 state.current_step = 1;
 
                 if (state.current_step >= pattern.steps.size()) {
+                    // Cross-agent check: reject if all events came from same agent
+                    if (pattern.cross_agent) {
+                        std::unordered_set<std::string> agents;
+                        for (const auto& me : state.matched_events) {
+                            if (!me.agent_config.empty()) agents.insert(me.agent_config);
+                        }
+                        if (agents.size() < 2) {
+                            state.current_step = 0;
+                            state.matched_events.clear();
+                            continue;
+                        }
+                    }
                     SequenceMatchResult result;
                     result.pattern_name = pattern.name;
                     result.pattern = &pattern;
@@ -339,6 +364,15 @@ SequenceMatchResult BehavioralSequenceDetector::wouldMatch(const RuntimeEvent& e
 
         // Does this event match the final step?
         if (matchesStep(event, pattern.steps[state.current_step])) {
+            // Cross-agent check: reject if all events (including candidate) from same agent
+            if (pattern.cross_agent) {
+                std::unordered_set<std::string> agents;
+                for (const auto& me : state.matched_events) {
+                    if (!me.agent_config.empty()) agents.insert(me.agent_config);
+                }
+                if (!event.agent_config.empty()) agents.insert(event.agent_config);
+                if (agents.size() < 2) continue;
+            }
             SequenceMatchResult result;
             result.pattern_name = pattern.name;
             result.pattern = &pattern;
@@ -636,6 +670,11 @@ void ContextDriftAnalyzer::updateCheckpointState(int handle_id, double pressure,
     if (checkpoint_turn >= 0) {
         state.last_checkpoint_turn = checkpoint_turn;
     }
+}
+
+void ContextDriftAnalyzer::setInheritedPressure(int handle_id, double pressure) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    drift_states_[handle_id].inherited_pressure = std::max(0.0, std::min(1.0, pressure));
 }
 
 } // namespace governance

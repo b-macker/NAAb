@@ -503,8 +503,25 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
             {"level", "advisory"},
             {"rationale", "LLM output written directly to file — verify content was reviewed"}
         };
+        patterns["cross_agent_data_relay"] = {
+            {"sequence", json::array({"AGENT_RESPONSE", "FILE_WRITE"})},
+            {"cross_agent", true},
+            {"level", "advisory"},
+            {"rationale", "Data relay across agents — verify output was validated between stages"}
+        };
         bs["patterns"] = patterns;
         root["behavioral_sequences"] = bs;
+    }
+
+    // ── exposure_tracking ──────────────────────────────────────────
+    {
+        json et;
+        et["enabled"] = false;
+        et["max_autonomous_actions"] = 0;
+        et["max_unique_agents"] = 0;
+        et["level"] = "advisory";
+        et["rationale"] = "Track aggregate autonomous agent action volume";
+        root["exposure_tracking"] = et;
     }
 
     // ── approval ──────────────────────────────────────────────────

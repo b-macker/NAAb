@@ -44,6 +44,8 @@ struct RuntimeEvent {
     std::string file;           // source file where event occurred
     int line = 0;               // source line
     int turn = 0;               // agent turn (0 if not in agent context)
+    int agent_handle = 0;       // agent handle ID (0 if not in agent context)
+    std::string agent_config;   // agent config name ("risk_assessor", etc.)
     size_t sequence_id = 0;     // global monotonic counter
     std::chrono::steady_clock::time_point timestamp;
 };
@@ -77,6 +79,9 @@ struct DriftState {
     int last_checked_turn = 0;
     std::unordered_set<std::string> seen_event_types;  // historical unique type abbreviations
     std::unordered_set<std::string> prev_turn_blocked_caps;  // capabilities blocked in previous turn
+
+    // Pipeline pressure inheritance
+    double inherited_pressure = 0.0;  // pressure inherited from prior pipeline stage
 
     // Reality checkpoint state
     double last_pressure_score = 0.0;
@@ -157,6 +162,9 @@ public:
 
     // Update checkpoint state fields on DriftState (thread-safe)
     void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn);
+
+    // Set inherited pressure from prior pipeline stage (thread-safe)
+    void setInheritedPressure(int handle_id, double pressure);
 
     void reset();
 

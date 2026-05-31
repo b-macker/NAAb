@@ -1220,6 +1220,7 @@ struct SequencePattern {
     int decay_turns = 20;                 // events older than N turns don't count
     EnforcementLevel level = EnforcementLevel::SOFT;
     std::string rationale;
+    bool cross_agent = false;             // if true, pattern only matches when events span 2+ agents
 };
 
 struct BehavioralSequenceConfig {
@@ -1265,8 +1266,18 @@ struct ContextDriftConfig {
             double signal_density = 0.25;
             double conversation_depth = 0.10;
             double bsd_partial_progress = 0.10;
+            double pipeline_inherited = 0.0;  // weight for inherited pressure (0 when not in pipeline)
         } weights;
     } reality_checkpoint;
+};
+
+// Exposure Tracking: aggregate autonomous action volume across all agents
+struct ExposureTrackingConfig {
+    bool enabled = false;
+    std::string rationale;
+    int max_autonomous_actions = 0;     // 0 = unlimited; advisory when exceeded
+    int max_unique_agents = 0;          // 0 = unlimited
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
 };
 
 // Named scorer configs — loaded from "scorers" section of govern.json
@@ -1643,6 +1654,7 @@ struct GovernanceRules {
     TaintTrackingConfig taint_tracking;
     BehavioralSequenceConfig behavioral_sequences;
     ContextDriftConfig context_drift;
+    ExposureTrackingConfig exposure_tracking;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
     ApprovalConfig approval;
@@ -2302,6 +2314,11 @@ public:
     std::string emitEvent(RuntimeEventType type, const std::string& detail,
                           const std::string& file = "", int line = 0);
     void setAgentTurn(int handle_id, int turn);
+    void setAgentContext(int handle_id, int turn, const std::string& config_name);
+    void setInheritedPressure(int handle_id, double pressure);
+    std::string recordAutonomousAction(const std::string& agent_config);
+    int getAutonomousActionCount() const;
+    size_t getUniqueAgentCount() const;
     std::string checkBehavioralSequence(const governance::SequenceMatchResult& match);
     std::string checkPreExecution(governance::RuntimeEventType type,
                                    const std::string& detail,
@@ -2453,7 +2470,14 @@ private:
     ContextDriftAnalyzer drift_analyzer_;
     std::atomic<int> current_agent_turn_{0};
     std::atomic<int> current_agent_handle_{0};
+    std::string current_agent_config_;         // agent config name for BSD identity
+    mutable std::mutex agent_config_mutex_;     // guards current_agent_config_
     std::atomic<bool> bsd_enabled_{false};
+
+    // Exposure tracking: aggregate autonomous action counters
+    std::atomic<int> autonomous_actions_{0};
+    std::unordered_set<std::string> unique_agents_;
+    mutable std::mutex exposure_mutex_;         // guards unique_agents_
     std::atomic<bool> cdd_enabled_{false};
 
     // Governance plugins
