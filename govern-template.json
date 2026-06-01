@@ -120,6 +120,7 @@
     "network": {
       "enabled": true,
       "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
+      "_comment_reserved_network": "http_allowed, max_request_size, max_response_size are RESERVED — not yet enforced. Use allowed_hosts/blocked_hosts for access control.",
       "http_allowed": true,
       "https_only": false,
       "allowed_hosts": [],
@@ -135,6 +136,7 @@
       "allowed_paths": [],
       "blocked_paths": ["/etc/shadow", "/etc/passwd"],
       "allowed_extensions": [],
+      "_comment_blocked_extensions": "RESERVED: blocked_extensions is not yet enforced. Use blocked_paths for path-based blocking.",
       "blocked_extensions": [".exe", ".dll", ".so"],
       "max_file_size": 0,
       "max_files": 0,
@@ -149,6 +151,7 @@
       "blocked_commands": ["sudo", "su", "chmod +s"],
       "allow_pipes": true,
       "allow_redirects": true,
+      "_comment_allow_backgrounding": "RESERVED: allow_backgrounding is not yet enforced.",
       "allow_backgrounding": false,
       "max_execution_time": 0
     },
@@ -160,17 +163,20 @@
       "allowed_write": [],
       "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
     },
+    "_comment_process": "RESERVED: process sub-keys are parsed for rationale only. Actual process control uses limits.execution and security.sandbox_level.",
     "process": {
       "spawn": true,
       "signals": false,
       "max_processes": 5,
       "allow_daemon": false
     },
+    "_comment_time": "RESERVED: time sub-keys are not yet enforced. Sleep limits use limits.timeout.per_block instead.",
     "time": {
       "allow_sleep": true,
       "max_sleep_seconds": 10,
       "allow_timers": true
     },
+    "_comment_memory": "RESERVED: memory sub-keys are not yet enforced. Memory limits use limits.memory.per_block_mb and limits.memory.total_mb instead.",
     "memory": {
       "max_allocation_mb": 512,
       "allow_mmap": false,
@@ -893,6 +899,7 @@
   ],
 
   "output": {
+    "_comment_summary_reserved": "show_skipped and sort_by are RESERVED — not yet enforced.",
     "summary": {
       "enabled": true,
       "format": "detailed",
@@ -901,6 +908,7 @@
       "group_by": "category",
       "sort_by": "severity"
     },
+    "_comment_errors_reserved": "show_line_preview, show_rule_path, show_fix_suggestions, truncate_long_lines are RESERVED — not yet enforced.",
     "errors": {
       "verbose": true,
       "show_line_preview": true,
@@ -913,12 +921,14 @@
       "max_total_errors": 50,
       "truncate_long_lines": 120
     },
+    "_comment_formatting_reserved": "indent is RESERVED — not yet enforced. color, unicode_symbols, width are active.",
     "formatting": {
       "color": true,
       "unicode_symbols": true,
       "width": 80,
       "indent": 2
     },
+    "_comment_file_output_reserved": "report_csv and report_html are RESERVED — not yet implemented. Use report_json, report_sarif, or report_junit.",
     "file_output": {
       "report_json": "",
       "report_sarif": "",
