@@ -519,6 +519,7 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         et["enabled"] = false;
         et["max_autonomous_actions"] = 0;
         et["max_unique_agents"] = 0;
+        et["coherence_floor"] = 0.0;
         et["level"] = "advisory";
         et["rationale"] = "Track aggregate autonomous agent action volume";
         root["exposure_tracking"] = et;

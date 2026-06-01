@@ -1243,12 +1243,14 @@ struct ContextDriftConfig {
         bool circular_actions = true;
         bool scope_creep = true;
         bool intent_contradictions = true;
+        bool vocabulary_contraction = true;
     } signals;
     struct Weights {
         double circular = 0.1;
         double scope_creep = 0.15;
         double contradiction = 0.2;
         double repeated_failure = 0.05;
+        double vocabulary_contraction = 0.15;
     } weights;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -1277,6 +1279,7 @@ struct ExposureTrackingConfig {
     std::string rationale;
     int max_autonomous_actions = 0;     // 0 = unlimited; advisory when exceeded
     int max_unique_agents = 0;          // 0 = unlimited
+    double coherence_floor = 0.0;       // 0.0 = disabled; deny admission below this coherence
     EnforcementLevel level = EnforcementLevel::ADVISORY;
 };
 

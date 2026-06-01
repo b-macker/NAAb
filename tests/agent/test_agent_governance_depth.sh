@@ -251,6 +251,107 @@ fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 echo ""
+echo "=== Grounding Admissibility ==="
+# ══════════════════════════════════════════════════════════════════════════════
+
+# T26: ExposureTrackingConfig has coherence_floor field
+if grep -q 'double coherence_floor' "$HDR_GOV"; then
+    pass "T26: ExposureTrackingConfig has coherence_floor field"
+else
+    fail "T26: ExposureTrackingConfig missing coherence_floor"
+fi
+
+# T27: checkAdmission checks coherence_floor (grounding test)
+if grep -q 'coherence_floor' "$SRC_ENGINE"; then
+    pass "T27: checkAdmission checks coherence_floor"
+else
+    fail "T27: checkAdmission missing coherence_floor grounding check"
+fi
+
+# T28: checkAdmission reads coherence_score from DriftState (not just exposure counts)
+if grep -A20 'coherence_floor' "$SRC_ENGINE" | grep -q 'coherence_score'; then
+    pass "T28: checkAdmission reads coherence_score from DriftState"
+else
+    fail "T28: checkAdmission not reading coherence_score"
+fi
+
+# T29: governance_config.cpp parses coherence_floor
+if grep -q 'coherence_floor' "$SRC_CONFIG"; then
+    pass "T29: governance_config.cpp parses coherence_floor"
+else
+    fail "T29: governance_config.cpp missing coherence_floor parsing"
+fi
+
+# T30: governance_init.cpp has coherence_floor in template
+if grep -q 'coherence_floor' "$SRC_INIT"; then
+    pass "T30: governance_init.cpp has coherence_floor in template"
+else
+    fail "T30: governance_init.cpp missing coherence_floor in template"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Vocabulary Contraction (Narrowing Paths) ==="
+# ══════════════════════════════════════════════════════════════════════════════
+
+# T31: ContextDriftConfig::Signals has vocabulary_contraction
+if grep -q 'bool vocabulary_contraction' "$HDR_GOV"; then
+    pass "T31: CDD signals has vocabulary_contraction"
+else
+    fail "T31: CDD signals missing vocabulary_contraction"
+fi
+
+# T32: ContextDriftConfig::Weights has vocabulary_contraction
+if grep -q 'double vocabulary_contraction' "$HDR_GOV"; then
+    pass "T32: CDD weights has vocabulary_contraction"
+else
+    fail "T32: CDD weights missing vocabulary_contraction"
+fi
+
+# T33: DriftState has per_turn_types for sliding window
+if grep -q 'per_turn_types' "$HDR_BSD"; then
+    pass "T33: DriftState has per_turn_types sliding window"
+else
+    fail "T33: DriftState missing per_turn_types"
+fi
+
+# T34: DriftState has vocabulary_contraction_count
+if grep -q 'vocabulary_contraction_count' "$HDR_BSD"; then
+    pass "T34: DriftState has vocabulary_contraction_count"
+else
+    fail "T34: DriftState missing vocabulary_contraction_count"
+fi
+
+# T35: behavioral_sequence.cpp implements vocabulary contraction detection
+if grep -q 'vocabulary_contraction' "$SRC_BSD"; then
+    pass "T35: behavioral_sequence.cpp implements vocabulary contraction"
+else
+    fail "T35: behavioral_sequence.cpp missing vocabulary contraction"
+fi
+
+# T36: behavioral_sequence.cpp compares early vs recent vocabulary
+if grep -q 'early_vocab' "$SRC_BSD" && grep -q 'recent_vocab' "$SRC_BSD"; then
+    pass "T36: vocabulary contraction compares early vs recent windows"
+else
+    fail "T36: vocabulary contraction missing early/recent comparison"
+fi
+
+# T37: governance_config.cpp parses vocabulary_contraction signal and weight
+if grep -q 'vocabulary_contraction' "$SRC_CONFIG"; then
+    pass "T37: governance_config.cpp parses vocabulary_contraction"
+else
+    fail "T37: governance_config.cpp missing vocabulary_contraction parsing"
+fi
+
+# T38: governance_engine.cpp surfaces vocabulary_contraction in CDD report
+if grep -q 'vocabulary_contraction' "$SRC_ENGINE"; then
+    pass "T38: governance_engine.cpp surfaces vocabulary_contraction in report"
+else
+    fail "T38: governance_engine.cpp missing vocabulary_contraction in report"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+echo ""
 echo "=== Results ==="
 echo "PASS: $PASS  FAIL: $FAIL"
 if [[ $FAIL -gt 0 ]]; then

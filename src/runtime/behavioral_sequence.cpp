@@ -490,9 +490,9 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
-    // Signal 3: Scope creep (new event types appearing that weren't seen before)
-    if (config_->signals.scope_creep && !turn_events.empty()) {
-        std::unordered_set<std::string> turn_types;
+    // Compute per-turn action types (shared by signals 3 and 5)
+    std::unordered_set<std::string> turn_types;
+    if (!turn_events.empty()) {
         for (const auto& ev : turn_events) {
             std::string part;
             switch (ev.type) {
@@ -511,7 +511,10 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             }
             turn_types.insert(part);
         }
+    }
 
+    // Signal 3: Scope creep (new event types appearing that weren't seen before)
+    if (config_->signals.scope_creep && !turn_types.empty()) {
         int new_types = 0;
         for (const auto& t : turn_types) {
             if (state.seen_event_types.find(t) == state.seen_event_types.end()) {
@@ -528,6 +531,42 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
         for (const auto& t : turn_types) {
             state.seen_event_types.insert(t);
+        }
+    }
+
+    // Signal 5: Vocabulary contraction (action diversity shrinking over time)
+    // Detects "narrowing paths that still appear formally open"
+    if (config_->signals.vocabulary_contraction && !turn_types.empty()) {
+        state.per_turn_types.push_back(turn_types);
+        if (static_cast<int>(state.per_turn_types.size()) > config_->fingerprint_window) {
+            state.per_turn_types.pop_front();
+        }
+
+        // Need enough history to compare early vs recent
+        int window = static_cast<int>(state.per_turn_types.size());
+        if (window >= 6) {
+            int half = window / 2;
+            // Compute unique types in first half (early frame)
+            std::unordered_set<std::string> early_vocab;
+            for (size_t i = 0; i < static_cast<size_t>(half); i++) {
+                for (const auto& t : state.per_turn_types[i]) {
+                    early_vocab.insert(t);
+                }
+            }
+            // Compute unique types in second half (recent)
+            std::unordered_set<std::string> recent_vocab;
+            for (size_t i = static_cast<size_t>(half); i < static_cast<size_t>(window); i++) {
+                for (const auto& t : state.per_turn_types[i]) {
+                    recent_vocab.insert(t);
+                }
+            }
+            // Contraction: recent vocabulary is strictly smaller than early
+            // AND early had at least 3 distinct types (avoids false positives on simple agents)
+            if (early_vocab.size() >= 3 && recent_vocab.size() < early_vocab.size() - 1) {
+                state.vocabulary_contraction_count++;
+                state.coherence_score -= config_->weights.vocabulary_contraction;
+                state.signals_fired_this_turn++;
+            }
         }
     }
 

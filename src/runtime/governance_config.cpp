@@ -2208,6 +2208,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("circular_actions")) cfg.signals.circular_actions = sig["circular_actions"].get<bool>();
             if (sig.contains("scope_creep")) cfg.signals.scope_creep = sig["scope_creep"].get<bool>();
             if (sig.contains("intent_contradictions")) cfg.signals.intent_contradictions = sig["intent_contradictions"].get<bool>();
+            if (sig.contains("vocabulary_contraction")) cfg.signals.vocabulary_contraction = sig["vocabulary_contraction"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
             auto& w = cd["weights"];
@@ -2215,6 +2216,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("scope_creep")) cfg.weights.scope_creep = w["scope_creep"].get<double>();
             if (w.contains("contradiction")) cfg.weights.contradiction = w["contradiction"].get<double>();
             if (w.contains("repeated_failure")) cfg.weights.repeated_failure = w["repeated_failure"].get<double>();
+            if (w.contains("vocabulary_contraction")) cfg.weights.vocabulary_contraction = w["vocabulary_contraction"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -2248,6 +2250,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (et.contains("enabled")) cfg.enabled = et["enabled"].get<bool>();
         if (et.contains("max_autonomous_actions")) cfg.max_autonomous_actions = et["max_autonomous_actions"].get<int>();
         if (et.contains("max_unique_agents")) cfg.max_unique_agents = et["max_unique_agents"].get<int>();
+        if (et.contains("coherence_floor")) cfg.coherence_floor = et["coherence_floor"].get<double>();
         if (et.contains("level")) {
             auto [en, lv] = parseEnforcementLevel(et["level"]);
             cfg.level = lv;

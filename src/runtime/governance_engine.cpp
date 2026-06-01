@@ -5256,6 +5256,27 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
                 lookupRationale("exposure_tracking"), "", ""));
     }
 
+    // Grounding check: deny if agent's coherence has decayed past floor
+    if (cfg.coherence_floor > 0.0) {
+        int handle_id = current_agent_handle_.load(std::memory_order_relaxed);
+        auto state = drift_analyzer_.getDriftState(handle_id);
+        if (state && state->coherence_score < cfg.coherence_floor) {
+            clearTrace();
+            addTrace(fmt::format("admission_denied: coherence {:.2f} below floor {:.2f} for agent '{}'",
+                state->coherence_score, cfg.coherence_floor, agent_config));
+            return enforce("exposure_tracking", cfg.level,
+                formatError(cfg.level,
+                    fmt::format("Admission denied — agent grounding has degraded\n\n"
+                        "  Coherence: {:.2f}\n  Floor: {:.2f}\n  Agent: {}\n\n"
+                        "  The agent's reference coupling has weakened past the admissible\n"
+                        "  threshold. Further autonomous actions are blocked until coherence\n"
+                        "  is restored (e.g., by providing clearer direction).\n",
+                        state->coherence_score, cfg.coherence_floor, agent_config),
+                    "", "exposure_tracking",
+                    lookupRationale("exposure_tracking"), "", ""));
+        }
+    }
+
     // Project: would this agent push unique count over threshold?
     if (cfg.max_unique_agents > 0) {
         std::lock_guard<std::mutex> lock(exposure_mutex_);
@@ -5446,14 +5467,16 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
         addTrace(fmt::format("  repeated_failures: {}", state->repeated_failures));
     if (state->scope_creep_count > 0)
         addTrace(fmt::format("  scope_creep: {}", state->scope_creep_count));
+    if (state->vocabulary_contraction_count > 0)
+        addTrace(fmt::format("  vocabulary_contraction: {}", state->vocabulary_contraction_count));
 
     return enforce("context_drift.coherence_loss", rules_.context_drift.level,
         formatError(rules_.context_drift.level,
             fmt::format("Agent context drift detected: coherence score {:.2f} "
-                "below threshold {:.2f} (circular={}, failures={}, scope_creep={})",
+                "below threshold {:.2f} (circular={}, failures={}, scope_creep={}, vocab_contraction={})",
                 state->coherence_score, rules_.context_drift.coherence_threshold,
                 state->circular_action_count, state->repeated_failures,
-                state->scope_creep_count),
+                state->scope_creep_count, state->vocabulary_contraction_count),
             "", "context_drift.coherence_loss",
             "The agent appears to be looping or losing context.\n"
             "Consider resetting the conversation or providing clearer instructions.",

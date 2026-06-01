@@ -78,6 +78,8 @@ struct DriftState {
     std::deque<std::string> recent_errors;      // last N error messages
     int last_checked_turn = 0;
     std::unordered_set<std::string> seen_event_types;  // historical unique type abbreviations
+    std::deque<std::unordered_set<std::string>> per_turn_types;  // action types per turn (sliding window)
+    int vocabulary_contraction_count = 0;  // narrowing action diversity
     std::unordered_set<std::string> prev_turn_blocked_caps;  // capabilities blocked in previous turn
 
     // Pipeline pressure inheritance
