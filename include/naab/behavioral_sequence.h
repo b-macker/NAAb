@@ -80,10 +80,28 @@ struct DriftState {
     std::unordered_set<std::string> seen_event_types;  // historical unique type abbreviations
     std::deque<std::unordered_set<std::string>> per_turn_types;  // action types per turn (sliding window)
     int vocabulary_contraction_count = 0;  // narrowing action diversity
+    double initial_entropy = -1.0;        // F2: baseline Shannon entropy for contraction detection
     std::unordered_set<std::string> prev_turn_blocked_caps;  // capabilities blocked in previous turn
+
+    // Coherence dynamics (velocity/acceleration)
+    std::deque<double> coherence_history;      // recent coherence values for derivative computation
+    double coherence_velocity = 0.0;           // d(coherence)/d(turn)
+    double coherence_acceleration = 0.0;       // d²(coherence)/d(turn)²
+
+    // Rate normalization
+    int turns_analyzed = 0;
 
     // Pipeline pressure inheritance
     double inherited_pressure = 0.0;  // pressure inherited from prior pipeline stage
+    int pipeline_depth = 0;           // F3: current nesting depth in pipeline chain
+
+    // F9/F18: Capability tracking (granted vs exercised)
+    std::unordered_set<std::string> granted_capabilities;   // capabilities granted to this agent
+    std::unordered_set<std::string> exercised_capabilities; // capabilities actually used
+    int first_event_turn = -1;                              // turn of first event
+
+    // F19: Semantic stability (keyword overlap between consecutive responses)
+    std::unordered_set<std::string> prev_response_keywords;
 
     // Reality checkpoint state
     double last_pressure_score = 0.0;
@@ -167,6 +185,9 @@ public:
 
     // Set inherited pressure from prior pipeline stage (thread-safe)
     void setInheritedPressure(int handle_id, double pressure);
+
+    // F15: Recover coherence (e.g., at pipeline stage transitions)
+    void resetCoherence(int handle_id, double amount);
 
     void reset();
 

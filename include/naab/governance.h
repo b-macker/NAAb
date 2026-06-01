@@ -1238,12 +1238,18 @@ struct ContextDriftConfig {
     int max_contradictions = 5;
     int check_interval_turns = 3;
     int fingerprint_window = 20;
+    bool rate_normalized = false;  // F5: scale penalties by rate (count/turns) instead of flat weight
+    double coherence_recovery_amount = 0.2;  // F15: recovery when recoverCoherence() is called
+    double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
     struct Signals {
         bool repeated_failures = true;
         bool circular_actions = true;
         bool scope_creep = true;
         bool intent_contradictions = true;
         bool vocabulary_contraction = true;
+        bool coherence_velocity = true;       // F1: fire when coherence decaying rapidly
+        bool capability_underutilization = false; // F9: fire on sudden late capability use
+        bool semantic_stability = false;       // F19: fire on content topic shift (expensive)
     } signals;
     struct Weights {
         double circular = 0.1;
@@ -1251,6 +1257,9 @@ struct ContextDriftConfig {
         double contradiction = 0.2;
         double repeated_failure = 0.05;
         double vocabulary_contraction = 0.15;
+        double coherence_velocity = 0.12;     // F1: penalty for rapid coherence decay
+        double capability_underutilization = 0.1; // F9
+        double semantic_stability = 0.1;       // F19
     } weights;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -1269,6 +1278,7 @@ struct ContextDriftConfig {
             double conversation_depth = 0.10;
             double bsd_partial_progress = 0.10;
             double pipeline_inherited = 0.0;  // weight for inherited pressure (0 when not in pipeline)
+            double coherence_acceleration = 0.0;  // F1: weight for coherence acceleration (opt-in, Factor 7)
         } weights;
     } reality_checkpoint;
 };
@@ -1280,7 +1290,48 @@ struct ExposureTrackingConfig {
     int max_autonomous_actions = 0;     // 0 = unlimited; advisory when exceeded
     int max_unique_agents = 0;          // 0 = unlimited
     double coherence_floor = 0.0;       // 0.0 = disabled; deny admission below this coherence
+    int max_pipeline_depth = 0;          // F3: 0 = unlimited; deny admission when exceeded
+    int checkpoint_cooldown_turns = 0;   // F12: mandatory pause turns after reality checkpoint fires
+    double min_capability_utilization = 0.0;  // F18: 0.0 = disabled; min |exercised|/|granted|
+    int utilization_check_after_turns = 10;   // F18: begin checking after N turns
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+};
+
+// F10: Temporal Coupling Detection — suspicious inter-agent timing correlation
+struct TemporalCouplingConfig {
+    bool enabled = false;
+    std::string rationale;
+    double max_correlation = 0.85;  // flag if pairwise correlation exceeds this
+    int min_events = 10;           // minimum events before computing correlation
+};
+
+// F6: Graduated Circuit Breakers — system-wide governance levels
+enum class GovernanceLevel { NORMAL = 0, ELEVATED = 1, HIGH = 2, CRITICAL = 3 };
+
+struct CircuitBreakerConfig {
+    bool enabled = false;
+    std::string rationale;
+    double elevated_threshold = 0.4;   // composite pressure threshold for ELEVATED
+    double high_threshold = 0.6;       // for HIGH
+    double critical_threshold = 0.8;   // for CRITICAL
+    int elevated_sustained = 2;        // sustained turns for ELEVATED
+    int high_sustained = 3;            // for HIGH
+    int critical_sustained = 4;        // for CRITICAL
+};
+
+// F4: Governance Health — verify governance instrumentation is operational
+struct GovernanceHealthConfig {
+    bool enabled = false;
+    std::string rationale;
+    int check_after_turns = 10;           // begin checking after N agent turns
+    double governance_entropy_warning = 0.5;  // F16: low entropy in check results = suspicious
+};
+
+// F7: Pipeline Separation of Duties — no adjacent pipeline stages may share the same agent config
+struct PipelineSeparationConfig {
+    bool enabled = false;
+    std::string rationale;
+    EnforcementLevel level = EnforcementLevel::SOFT;
 };
 
 // Named scorer configs — loaded from "scorers" section of govern.json
@@ -1582,6 +1633,8 @@ struct TaintTrackingConfig {
     std::vector<std::string> sources;      // e.g., "env.get", "io.read_line", "file.read", "polyglot_output"
     std::vector<std::string> sinks;        // e.g., "shell_exec", "file.write", "file.append"
     std::vector<std::string> sanitizers;   // e.g., "validate_", "sanitize_", "escape_", "int(", "float("
+    bool gate_cross_block = false;         // F14: enforce cross-block taint (not just advisory)
+    EnforcementLevel cross_block_level = EnforcementLevel::SOFT;  // F14: enforcement level for cross-block
 };
 
 // ============================================================================
@@ -1626,6 +1679,7 @@ struct AgentConfig {
     bool stream = false;
     int timeout_seconds = 30;  // F11: per-call LLM API timeout
     std::string response_format;  // "json" = validate + warn on non-JSON responses
+    int risk_budget = 0;          // F8: finite risk budget (0 = unlimited), consumed by governance events
 };
 
 // ============================================================================
@@ -1658,6 +1712,10 @@ struct GovernanceRules {
     BehavioralSequenceConfig behavioral_sequences;
     ContextDriftConfig context_drift;
     ExposureTrackingConfig exposure_tracking;
+    PipelineSeparationConfig pipeline_separation;
+    GovernanceHealthConfig governance_health;
+    CircuitBreakerConfig circuit_breaker;
+    TemporalCouplingConfig temporal_coupling;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
     ApprovalConfig approval;
@@ -2319,6 +2377,15 @@ public:
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
     void setInheritedPressure(int handle_id, double pressure);
+    void recoverCoherence(int handle_id);  // F15: coherence recovery at pipeline transitions
+    void setPipelineDepth(int handle_id, int depth);  // F3: set pipeline nesting depth
+    int consumeRiskBudget(const std::string& config, int cost);   // F8: consume budget, return remaining
+    int getRemainingBudget(const std::string& config) const;      // F8: query remaining budget
+    std::string checkGovernanceHealth(int turn);    // F4: verify governance instrumentation
+    double computeGovernanceEntropy() const;        // F16: entropy of governance check results
+    GovernanceLevel getGovernanceLevel() const;     // F6: current system-wide governance level
+    int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
+    std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
     std::string recordAutonomousAction(const std::string& agent_config);
     int getAutonomousActionCount() const;
@@ -2483,6 +2550,21 @@ private:
     std::unordered_set<std::string> unique_agents_;
     mutable std::mutex exposure_mutex_;         // guards unique_agents_
     std::atomic<bool> cdd_enabled_{false};
+
+    // F8: Per-agent risk budget
+    std::unordered_map<std::string, int> agent_risk_consumed_;
+    mutable std::mutex risk_budget_mutex_;
+
+    // F17: Decision trace coherence
+    std::unordered_map<std::string, std::deque<std::string>> agent_decision_traces_;
+    mutable std::mutex trace_history_mutex_;
+
+    // F10: Temporal coupling — per-agent event turn tracking
+    std::unordered_map<std::string, std::vector<int>> agent_event_turns_;
+    mutable std::mutex temporal_mutex_;
+
+    // F6: System-wide governance level
+    std::atomic<int> governance_level_{0};  // GovernanceLevel::NORMAL
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json

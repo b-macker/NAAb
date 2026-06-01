@@ -520,9 +520,53 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         et["max_autonomous_actions"] = 0;
         et["max_unique_agents"] = 0;
         et["coherence_floor"] = 0.0;
+        et["max_pipeline_depth"] = 0;
         et["level"] = "advisory";
         et["rationale"] = "Track aggregate autonomous agent action volume";
         root["exposure_tracking"] = et;
+    }
+
+    // ── temporal_coupling (F10) ───────────────────────────────────
+    {
+        json tc;
+        tc["enabled"] = false;
+        tc["max_correlation"] = 0.85;
+        tc["min_events"] = 10;
+        tc["rationale"] = "Detect suspicious inter-agent timing correlation";
+        root["temporal_coupling"] = tc;
+    }
+
+    // ── circuit_breaker (F6) ──────────────────────────────────────
+    {
+        json cb;
+        cb["enabled"] = false;
+        cb["elevated_threshold"] = 0.4;
+        cb["high_threshold"] = 0.6;
+        cb["critical_threshold"] = 0.8;
+        cb["elevated_sustained"] = 2;
+        cb["high_sustained"] = 3;
+        cb["critical_sustained"] = 4;
+        cb["rationale"] = "System-wide graduated response to sustained pressure";
+        root["circuit_breaker"] = cb;
+    }
+
+    // ── governance_health (F4) ────────────────────────────────────
+    {
+        json gh;
+        gh["enabled"] = false;
+        gh["check_after_turns"] = 10;
+        gh["governance_entropy_warning"] = 0.5;
+        gh["rationale"] = "Verify governance instrumentation is operational";
+        root["governance_health"] = gh;
+    }
+
+    // ── pipeline_separation (F7) ──────────────────────────────────
+    {
+        json ps;
+        ps["enabled"] = false;
+        ps["level"] = "soft";
+        ps["rationale"] = "Enforce distinct agent configs for adjacent pipeline stages";
+        root["pipeline_separation"] = ps;
     }
 
     // ── approval ──────────────────────────────────────────────────

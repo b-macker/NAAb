@@ -1873,6 +1873,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
         }
         parseRationale(tt, rules_.taint_tracking.rationale);
+        if (tt.contains("gate_cross_block")) rules_.taint_tracking.gate_cross_block = tt["gate_cross_block"].get<bool>();
+        if (tt.contains("cross_block_level")) {
+            auto [en, lv] = parseEnforcementLevel(tt["cross_block_level"]);
+            rules_.taint_tracking.cross_block_level = lv;
+        }
     }
 
     // --- Approval config (APPROVAL_REQUIRED tier) ---
@@ -2028,6 +2033,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.timeout_seconds = cfg_json["timeout"].get<int>();
                 if (cfg_json.contains("response_format"))
                     agent.response_format = cfg_json["response_format"].get<std::string>();
+                if (cfg_json.contains("risk_budget"))
+                    agent.risk_budget = cfg_json["risk_budget"].get<int>();
             }
 
             rules_.agents.push_back(agent);
@@ -2201,6 +2208,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("max_contradictions")) cfg.max_contradictions = cd["max_contradictions"].get<int>();
         if (cd.contains("check_interval_turns")) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
         if (cd.contains("fingerprint_window")) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
+        if (cd.contains("rate_normalized")) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
+        if (cd.contains("coherence_recovery_amount")) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
+        if (cd.contains("coherence_natural_healing")) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
             auto& sig = cd["signals"];
@@ -2209,6 +2219,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("scope_creep")) cfg.signals.scope_creep = sig["scope_creep"].get<bool>();
             if (sig.contains("intent_contradictions")) cfg.signals.intent_contradictions = sig["intent_contradictions"].get<bool>();
             if (sig.contains("vocabulary_contraction")) cfg.signals.vocabulary_contraction = sig["vocabulary_contraction"].get<bool>();
+            if (sig.contains("coherence_velocity")) cfg.signals.coherence_velocity = sig["coherence_velocity"].get<bool>();
+            if (sig.contains("capability_underutilization")) cfg.signals.capability_underutilization = sig["capability_underutilization"].get<bool>();
+            if (sig.contains("semantic_stability")) cfg.signals.semantic_stability = sig["semantic_stability"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
             auto& w = cd["weights"];
@@ -2217,6 +2230,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("contradiction")) cfg.weights.contradiction = w["contradiction"].get<double>();
             if (w.contains("repeated_failure")) cfg.weights.repeated_failure = w["repeated_failure"].get<double>();
             if (w.contains("vocabulary_contraction")) cfg.weights.vocabulary_contraction = w["vocabulary_contraction"].get<double>();
+            if (w.contains("coherence_velocity")) cfg.weights.coherence_velocity = w["coherence_velocity"].get<double>();
+            if (w.contains("capability_underutilization")) cfg.weights.capability_underutilization = w["capability_underutilization"].get<double>();
+            if (w.contains("semantic_stability")) cfg.weights.semantic_stability = w["semantic_stability"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -2239,6 +2255,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (rw.contains("conversation_depth")) rccfg.weights.conversation_depth = rw["conversation_depth"].get<double>();
                 if (rw.contains("bsd_partial_progress")) rccfg.weights.bsd_partial_progress = rw["bsd_partial_progress"].get<double>();
                 if (rw.contains("pipeline_inherited")) rccfg.weights.pipeline_inherited = rw["pipeline_inherited"].get<double>();
+                if (rw.contains("coherence_acceleration")) rccfg.weights.coherence_acceleration = rw["coherence_acceleration"].get<double>();
             }
         }
     }
@@ -2251,11 +2268,61 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (et.contains("max_autonomous_actions")) cfg.max_autonomous_actions = et["max_autonomous_actions"].get<int>();
         if (et.contains("max_unique_agents")) cfg.max_unique_agents = et["max_unique_agents"].get<int>();
         if (et.contains("coherence_floor")) cfg.coherence_floor = et["coherence_floor"].get<double>();
+        if (et.contains("max_pipeline_depth")) cfg.max_pipeline_depth = et["max_pipeline_depth"].get<int>();
+        if (et.contains("checkpoint_cooldown_turns")) cfg.checkpoint_cooldown_turns = et["checkpoint_cooldown_turns"].get<int>();
+        if (et.contains("min_capability_utilization")) cfg.min_capability_utilization = et["min_capability_utilization"].get<double>();
+        if (et.contains("utilization_check_after_turns")) cfg.utilization_check_after_turns = et["utilization_check_after_turns"].get<int>();
         if (et.contains("level")) {
             auto [en, lv] = parseEnforcementLevel(et["level"]);
             cfg.level = lv;
         }
         parseRationale(et, cfg.rationale);
+    }
+
+    // --- Temporal Coupling (F10) ---
+    if (j.contains("temporal_coupling") && j["temporal_coupling"].is_object()) {
+        auto& tc = j["temporal_coupling"];
+        auto& cfg = rules_.temporal_coupling;
+        if (tc.contains("enabled")) cfg.enabled = tc["enabled"].get<bool>();
+        if (tc.contains("max_correlation")) cfg.max_correlation = tc["max_correlation"].get<double>();
+        if (tc.contains("min_events")) cfg.min_events = tc["min_events"].get<int>();
+        parseRationale(tc, cfg.rationale);
+    }
+
+    // --- Circuit Breaker (F6) ---
+    if (j.contains("circuit_breaker") && j["circuit_breaker"].is_object()) {
+        auto& cbj = j["circuit_breaker"];
+        auto& cfg = rules_.circuit_breaker;
+        if (cbj.contains("enabled")) cfg.enabled = cbj["enabled"].get<bool>();
+        if (cbj.contains("elevated_threshold")) cfg.elevated_threshold = cbj["elevated_threshold"].get<double>();
+        if (cbj.contains("high_threshold")) cfg.high_threshold = cbj["high_threshold"].get<double>();
+        if (cbj.contains("critical_threshold")) cfg.critical_threshold = cbj["critical_threshold"].get<double>();
+        if (cbj.contains("elevated_sustained")) cfg.elevated_sustained = cbj["elevated_sustained"].get<int>();
+        if (cbj.contains("high_sustained")) cfg.high_sustained = cbj["high_sustained"].get<int>();
+        if (cbj.contains("critical_sustained")) cfg.critical_sustained = cbj["critical_sustained"].get<int>();
+        parseRationale(cbj, cfg.rationale);
+    }
+
+    // --- Governance Health (F4) ---
+    if (j.contains("governance_health") && j["governance_health"].is_object()) {
+        auto& gh = j["governance_health"];
+        auto& cfg = rules_.governance_health;
+        if (gh.contains("enabled")) cfg.enabled = gh["enabled"].get<bool>();
+        if (gh.contains("check_after_turns")) cfg.check_after_turns = gh["check_after_turns"].get<int>();
+        if (gh.contains("governance_entropy_warning")) cfg.governance_entropy_warning = gh["governance_entropy_warning"].get<double>();
+        parseRationale(gh, cfg.rationale);
+    }
+
+    // --- Pipeline Separation (F7) ---
+    if (j.contains("pipeline_separation") && j["pipeline_separation"].is_object()) {
+        auto& ps = j["pipeline_separation"];
+        auto& cfg = rules_.pipeline_separation;
+        if (ps.contains("enabled")) cfg.enabled = ps["enabled"].get<bool>();
+        if (ps.contains("level")) {
+            auto [en, lv] = parseEnforcementLevel(ps["level"]);
+            cfg.level = lv;
+        }
+        parseRationale(ps, cfg.rationale);
     }
 
     // --- Governance Baseline (Feature 4) ---

@@ -445,6 +445,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 try {
                     std::regex re(pat, std::regex::ECMAScript | std::regex::icase);
                     if (std::regex_search(content, re)) {
+                        gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
+                            "agent_restriction:shell_blocked(" + config_name + ")", "", 0);
                         throw std::runtime_error(fmt::format(
                             "Agent error: Response from '{}' contains shell commands\n\n"
                             "  Help:\n"
@@ -472,6 +474,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     try {
                         std::regex re(re_str, std::regex::ECMAScript);
                         if (std::regex_search(content, re)) {
+                            gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
+                                "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
                             throw std::runtime_error(fmt::format(
                                 "Agent error: Response from '{}' references a blocked path\n\n"
                                 "  Help:\n"
@@ -483,6 +487,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 } else {
                     // Exact substring match
                     if (content.find(blocked) != std::string::npos) {
+                        gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
+                            "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
                         throw std::runtime_error(fmt::format(
                             "Agent error: Response from '{}' references a blocked path\n\n"
                             "  Help:\n"
@@ -509,6 +515,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     if (path.find(ap) == 0) { allowed = true; break; }
                 }
                 if (!allowed) {
+                    gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
+                        "agent_restriction:path_not_allowed(" + config_name + ":" + path + ")", "", 0);
                     throw std::runtime_error(fmt::format(
                         "Agent error: Response from '{}' references path '{}' not in allowed list\n\n"
                         "  Help:\n"
@@ -1069,6 +1077,48 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
         validateHandle(handles[i]);
     }
 
+    // F3: Track pipeline depth with thread_local counter + RAII guard
+    static thread_local int t_pipeline_depth = 0;
+    t_pipeline_depth++;
+    struct DepthGuard { ~DepthGuard() { t_pipeline_depth--; } } depth_guard;
+
+    // Set pipeline_depth on governance engine (thread_local, read by checkAdmission)
+    {
+        auto* ge = governance::GovernanceEngine::getCurrent();
+        if (ge && ge->isActive()) {
+            ge->setPipelineDepth(0, t_pipeline_depth);
+
+            // F7: Pipeline separation of duties — no adjacent stages may share config
+            const auto& sep = ge->getRules().pipeline_separation;
+            if (sep.enabled && handles.size() >= 2) {
+                for (size_t i = 1; i < handles.size(); i++) {
+                    if (handles[i-1].isDict() && handles[i].isDict()) {
+                        auto& prev = handles[i-1].asDict();
+                        auto& curr = handles[i].asDict();
+                        auto pc = prev.find("config_name");
+                        auto cc = curr.find("config_name");
+                        if (pc != prev.end() && cc != curr.end() &&
+                            pc->second.isString() && cc->second.isString() &&
+                            pc->second.asString() == cc->second.asString()) {
+                            std::string msg = fmt::format(
+                                "Pipeline separation violation — adjacent stages {} and {} "
+                                "share agent config '{}'\n\n"
+                                "  Pipeline stages should use distinct agent configurations\n"
+                                "  to ensure separation of duties.\n",
+                                i-1, i, pc->second.asString());
+                            if (sep.level == governance::EnforcementLevel::HARD ||
+                                sep.level == governance::EnforcementLevel::SOFT) {
+                                throw std::runtime_error(msg);
+                            } else {
+                                fprintf(stderr, "[governance] ADVISORY: %s\n", msg.c_str());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Chain: send to each agent sequentially, pass output as input to next
     std::string current_message = args[1].asString();
     NaabVal last_response = NaabVal::makeNull();
@@ -1122,6 +1172,19 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                                 auto hid_it = next_dict.find("handle_id");
                                 if (hid_it != next_dict.end()) {
                                     ge->setInheritedPressure(hid_it->second.asInt(), stage_pressure);
+                                }
+                            }
+                        }
+
+                        // F15: Recover coherence at pipeline stage transitions
+                        // New agent = fresh direction; partial recovery prevents floor-grinding
+                        {
+                            auto* ge = governance::GovernanceEngine::getCurrent();
+                            if (ge && ge->isActive() && handles[i + 1].isDict()) {
+                                auto& next_dict = handles[i + 1].asDict();
+                                auto hid_it = next_dict.find("handle_id");
+                                if (hid_it != next_dict.end()) {
+                                    ge->recoverCoherence(hid_it->second.asInt());
                                 }
                             }
                         }

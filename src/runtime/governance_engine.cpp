@@ -25,6 +25,7 @@
 #include <chrono>
 #include <ctime>
 #include <algorithm>
+#include <cmath>
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -2342,8 +2343,9 @@ void GovernanceEngine::printDashboard() const {
         auto handle = current_agent_handle_.load(std::memory_order_relaxed);
         auto state = drift_analyzer_.getDriftState(handle);
         if (state) {
-            fprintf(stderr, "CDD:        coherence=%.2f (%zu turns analyzed)\n",
-                    state->coherence_score, drift_analyzer_.totalTurnsAnalyzed());
+            fprintf(stderr, "CDD:        coherence=%.2f vel=%.3f accel=%.3f (%zu turns analyzed)\n",
+                    state->coherence_score, state->coherence_velocity,
+                    state->coherence_acceleration, drift_analyzer_.totalTurnsAnalyzed());
             if (rules_.context_drift.reality_checkpoint.enabled &&
                 state->last_pressure_score > 0.0) {
                 fprintf(stderr, "Checkpoint: pressure=%.2f (%d consecutive)\n",
@@ -2366,6 +2368,17 @@ void GovernanceEngine::printDashboard() const {
             }
             fprintf(stderr, "Exposure:   %d autonomous actions, %zu unique agents\n",
                     actions, unique);
+            // F8: Show risk budget status per agent
+            {
+                std::lock_guard<std::mutex> lock(risk_budget_mutex_);
+                for (const auto& [name, consumed] : agent_risk_consumed_) {
+                    int remaining = getRemainingBudget(name);
+                    if (remaining >= 0) {
+                        fprintf(stderr, "Budget:     %s: %d remaining (consumed %d)\n",
+                                name.c_str(), remaining, consumed);
+                    }
+                }
+            }
         }
     }
     if (rules_.taint_tracking.enabled && rules_.taint_tracking.lineage) {
@@ -4982,9 +4995,19 @@ void GovernanceEngine::auditCrossBlockFlows() {
     }
 
     if (unsanitized > 0) {
-        check_results_.push_back({"pass2.cross_block_taint", EnforcementLevel::ADVISORY,
+        // F14: gate_cross_block enables enforcement beyond advisory
+        EnforcementLevel cbLevel = EnforcementLevel::ADVISORY;
+        if (rules_.taint_tracking.gate_cross_block) {
+            cbLevel = rules_.taint_tracking.cross_block_level;
+        }
+        check_results_.push_back({"pass2.cross_block_taint", cbLevel,
             false, std::to_string(unsanitized) + " cross-block data flow(s) without sanitization",
             "pass2_cross_block", "medium", 0, "", {}, {}});
+
+        if (cbLevel != EnforcementLevel::ADVISORY) {
+            enforce("pass2.cross_block_taint", cbLevel,
+                fmt::format("{} unsanitized cross-block data flow(s) detected", unsanitized));
+        }
     }
 }
 
@@ -5236,9 +5259,60 @@ void GovernanceEngine::setInheritedPressure(int handle_id, double pressure) {
     drift_analyzer_.setInheritedPressure(handle_id, pressure);
 }
 
+void GovernanceEngine::recoverCoherence(int handle_id) {
+    drift_analyzer_.resetCoherence(handle_id,
+        rules_.context_drift.coherence_recovery_amount);
+}
+
+static thread_local int t_pipeline_depth = 0;
+
+void GovernanceEngine::setPipelineDepth(int /*handle_id*/, int depth) {
+    t_pipeline_depth = depth;
+}
+
+int GovernanceEngine::consumeRiskBudget(const std::string& config, int cost) {
+    // Find agent config to check if budget is configured
+    const AgentConfig* ac = nullptr;
+    for (const auto& a : rules_.agents) {
+        if (a.name == config) { ac = &a; break; }
+    }
+    if (!ac || ac->risk_budget <= 0) return -1;  // -1 = unlimited
+
+    std::lock_guard<std::mutex> lock(risk_budget_mutex_);
+    agent_risk_consumed_[config] += cost;
+    return ac->risk_budget - agent_risk_consumed_[config];
+}
+
+int GovernanceEngine::getRemainingBudget(const std::string& config) const {
+    const AgentConfig* ac = nullptr;
+    for (const auto& a : rules_.agents) {
+        if (a.name == config) { ac = &a; break; }
+    }
+    if (!ac || ac->risk_budget <= 0) return -1;  // unlimited
+
+    std::lock_guard<std::mutex> lock(risk_budget_mutex_);
+    auto it = agent_risk_consumed_.find(config);
+    int consumed = (it != agent_risk_consumed_.end()) ? it->second : 0;
+    return ac->risk_budget - consumed;
+}
+
 std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
     const auto& cfg = rules_.exposure_tracking;
     if (!cfg.enabled) return "";
+
+    // F6: CRITICAL governance level = deny all admission
+    if (rules_.circuit_breaker.enabled &&
+        governance_level_.load(std::memory_order_relaxed) >= static_cast<int>(GovernanceLevel::CRITICAL)) {
+        clearTrace();
+        addTrace("admission_denied: governance level CRITICAL — all agent actions suspended");
+        return enforce("exposure_tracking", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                fmt::format("Admission denied — governance level CRITICAL\n\n"
+                    "  Agent: {}\n  All autonomous actions suspended until pressure subsides.\n",
+                    agent_config),
+                "", "exposure_tracking",
+                lookupRationale("exposure_tracking"), "", ""));
+    }
 
     // Project: would the NEXT action exceed thresholds?
     int projected_count = autonomous_actions_.load(std::memory_order_relaxed) + 1;
@@ -5277,6 +5351,20 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
         }
     }
 
+    // F3: Pipeline depth check
+    if (cfg.max_pipeline_depth > 0 && t_pipeline_depth > cfg.max_pipeline_depth) {
+        clearTrace();
+        addTrace(fmt::format("admission_denied: pipeline depth {} exceeds limit {} for agent '{}'",
+            t_pipeline_depth, cfg.max_pipeline_depth, agent_config));
+        return enforce("exposure_tracking", cfg.level,
+            formatError(cfg.level,
+                fmt::format("Admission denied — pipeline nesting too deep\n\n"
+                    "  Depth: {}\n  Limit: {}\n  Agent: {}\n",
+                    t_pipeline_depth, cfg.max_pipeline_depth, agent_config),
+                "", "exposure_tracking",
+                lookupRationale("exposure_tracking"), "", ""));
+    }
+
     // Project: would this agent push unique count over threshold?
     if (cfg.max_unique_agents > 0) {
         std::lock_guard<std::mutex> lock(exposure_mutex_);
@@ -5295,7 +5383,206 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
         }
     }
 
+    // F12: Checkpoint cooldown — mandatory pause after reality checkpoint
+    if (cfg.checkpoint_cooldown_turns > 0) {
+        int handle_id = current_agent_handle_.load(std::memory_order_relaxed);
+        auto state = drift_analyzer_.getDriftState(handle_id);
+        if (state && state->last_checkpoint_turn >= 0) {
+            int current_turn = state->last_checked_turn;
+            int since = current_turn - state->last_checkpoint_turn;
+            if (since >= 0 && since < cfg.checkpoint_cooldown_turns) {
+                clearTrace();
+                addTrace(fmt::format("admission_denied: checkpoint cooldown ({} of {} turns remaining)",
+                    cfg.checkpoint_cooldown_turns - since, cfg.checkpoint_cooldown_turns));
+                return enforce("exposure_tracking", cfg.level,
+                    formatError(cfg.level,
+                        fmt::format("Admission denied — checkpoint cooldown active\n\n"
+                            "  Turns since checkpoint: {}\n  Cooldown: {}\n  Agent: {}\n",
+                            since, cfg.checkpoint_cooldown_turns, agent_config),
+                        "", "exposure_tracking",
+                        lookupRationale("exposure_tracking"), "", ""));
+            }
+        }
+    }
+
+    // F8: Risk budget check
+    {
+        int remaining = getRemainingBudget(agent_config);
+        if (remaining == 0) {  // exactly 0 means budget existed and is exhausted
+            clearTrace();
+            addTrace(fmt::format("admission_denied: agent '{}' risk budget exhausted", agent_config));
+            return enforce("exposure_tracking", cfg.level,
+                formatError(cfg.level,
+                    fmt::format("Admission denied — agent risk budget exhausted\n\n"
+                        "  Agent: {}\n  Remaining budget: 0\n",
+                        agent_config),
+                    "", "exposure_tracking",
+                    lookupRationale("exposure_tracking"), "", ""));
+        }
+    }
+
     return "";
+}
+
+std::string GovernanceEngine::checkGovernanceHealth(int turn) {
+    const auto& cfg = rules_.governance_health;
+    if (!cfg.enabled || turn < cfg.check_after_turns) return "";
+
+    std::string warnings;
+
+    // Check 1: BSD received 0 events after N turns → instrumentation failure
+    size_t bsd_events = sequence_detector_.totalEventsProcessed();
+    if (bsd_events == 0) {
+        warnings += fmt::format("WARNING: BSD received 0 events after {} turns "
+            "(instrumentation may be disconnected)\n", turn);
+    }
+
+    // Check 2: CDD analyzed 0 turns after N turns → instrumentation failure
+    size_t cdd_turns = drift_analyzer_.totalTurnsAnalyzed();
+    if (cdd_turns == 0 && cdd_enabled_.load(std::memory_order_relaxed)) {
+        warnings += fmt::format("WARNING: CDD analyzed 0 turns after {} agent turns "
+            "(context drift analysis may be disconnected)\n", turn);
+    }
+
+    // Check 3: Perfect coherence (1.0) after 10+ turns → suspicious
+    int handle_id = current_agent_handle_.load(std::memory_order_relaxed);
+    auto state = drift_analyzer_.getDriftState(handle_id);
+    if (state && turn >= 10 && state->coherence_score >= 1.0) {
+        warnings += fmt::format("WARNING: Perfect coherence (1.0) after {} turns "
+            "(possible detection bypass)\n", turn);
+    }
+
+    // F16: Check governance entropy
+    double entropy = computeGovernanceEntropy();
+    if (entropy >= 0.0 && entropy < cfg.governance_entropy_warning) {
+        warnings += fmt::format("WARNING: Governance entropy {:.2f} bits (below {:.2f} threshold) "
+            "— suspiciously uniform check results\n", entropy, cfg.governance_entropy_warning);
+    }
+
+    return warnings;
+}
+
+int GovernanceEngine::checkDecisionTraceCoherence(const std::string& agent_config) {
+    std::lock_guard<std::mutex> lock(trace_history_mutex_);
+    auto& traces = agent_decision_traces_[agent_config];
+
+    // Append current decision trace (from thread-local)
+    std::string current;
+    for (const auto& step : t_current_decision_trace) {
+        if (!current.empty()) current += "; ";
+        current += step;
+    }
+    if (!current.empty()) {
+        traces.push_back(current);
+        if (traces.size() > 20) traces.pop_front();
+    }
+
+    // Look for contradictions: "admitted" followed by very different coherence
+    // within 3 traces (simplified heuristic)
+    int contradictions = 0;
+    for (size_t i = 1; i < traces.size(); i++) {
+        bool prev_admitted = traces[i-1].find("admission_denied") == std::string::npos;
+        bool curr_denied = traces[i].find("admission_denied") != std::string::npos;
+        if (prev_admitted && curr_denied) {
+            // Check if coherence values are wildly different
+            contradictions++;
+        }
+    }
+    return contradictions;
+}
+
+std::string GovernanceEngine::checkTemporalCoupling() {
+    const auto& cfg = rules_.temporal_coupling;
+    if (!cfg.enabled) return "";
+
+    std::lock_guard<std::mutex> lock(temporal_mutex_);
+
+    // Record current event turn for current agent
+    {
+        std::lock_guard<std::mutex> alock(agent_config_mutex_);
+        if (!current_agent_config_.empty()) {
+            int turn = current_agent_turn_.load(std::memory_order_relaxed);
+            auto& turns = agent_event_turns_[current_agent_config_];
+            turns.push_back(turn);
+            if (turns.size() > 100) turns.erase(turns.begin());
+        }
+    }
+
+    // Need at least 2 agents with min_events each to compute coupling
+    if (agent_event_turns_.size() < 2) return "";
+
+    // Compute pairwise lag correlation (simplified: check if agent B consistently follows A)
+    std::string warnings;
+    std::vector<std::string> agents;
+    for (const auto& [name, turns] : agent_event_turns_) {
+        if (static_cast<int>(turns.size()) >= cfg.min_events) agents.push_back(name);
+    }
+
+    for (size_t i = 0; i < agents.size(); i++) {
+        for (size_t j = i + 1; j < agents.size(); j++) {
+            const auto& a_turns = agent_event_turns_[agents[i]];
+            const auto& b_turns = agent_event_turns_[agents[j]];
+
+            // Simple lag-1 correlation: count how many of B's events follow A's within 1-2 turns
+            int correlated = 0;
+            int total = std::min(a_turns.size(), b_turns.size());
+            if (total < cfg.min_events) continue;
+
+            for (size_t bi = 0; bi < b_turns.size(); bi++) {
+                for (size_t ai = 0; ai < a_turns.size(); ai++) {
+                    int lag = b_turns[bi] - a_turns[ai];
+                    if (lag >= 1 && lag <= 2) { correlated++; break; }
+                }
+            }
+
+            double correlation = static_cast<double>(correlated) / total;
+            if (correlation > cfg.max_correlation) {
+                warnings += fmt::format("Temporal coupling: agents '{}' and '{}' correlated "
+                    "(r={:.2f}, threshold={:.2f})\n", agents[i], agents[j],
+                    correlation, cfg.max_correlation);
+            }
+        }
+    }
+
+    return warnings;
+}
+
+GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
+    return static_cast<GovernanceLevel>(governance_level_.load(std::memory_order_relaxed));
+}
+
+double GovernanceEngine::computeGovernanceEntropy() const {
+    // Analyze recent check results stored in telemetry
+    // Simplified: count pass vs block outcomes from recent governance state
+    int pass_count = 0;
+    int block_count = 0;
+    int advisory_count = 0;
+
+    // Use BSD + CDD state as proxy for check result distribution
+    size_t bsd_matches = sequence_detector_.totalPatternsMatched();
+    size_t bsd_events = sequence_detector_.totalEventsProcessed();
+    size_t cdd_turns = drift_analyzer_.totalTurnsAnalyzed();
+
+    if (bsd_events + cdd_turns == 0) return -1.0;  // not enough data
+
+    pass_count = static_cast<int>(bsd_events - bsd_matches + cdd_turns);
+    block_count = static_cast<int>(bsd_matches);
+    advisory_count = autonomous_actions_.load(std::memory_order_relaxed);
+
+    int total = pass_count + block_count + advisory_count;
+    if (total == 0) return -1.0;
+
+    double entropy = 0.0;
+    auto add_term = [&](int count) {
+        if (count > 0) {
+            double p = static_cast<double>(count) / total;
+            entropy -= p * std::log2(p);
+        }
+    };
+    add_term(pass_count);
+    add_term(block_count);
+    add_term(advisory_count);
+    return entropy;
 }
 
 std::string GovernanceEngine::recordAutonomousAction(const std::string& agent_config) {
@@ -5327,6 +5614,12 @@ std::string GovernanceEngine::checkBehavioralSequence(const SequenceMatchResult&
             i + 1, static_cast<int>(match.matched_events[i].type),
             match.matched_events[i].detail,
             match.matched_events[i].file, match.matched_events[i].line));
+    }
+
+    // F8: Consume risk budget on full BSD match (cost 3)
+    {
+        std::lock_guard<std::mutex> lock(agent_config_mutex_);
+        if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 3);
     }
 
     return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
@@ -5386,6 +5679,10 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             // Factor 6: Inherited pipeline pressure (from prior stage)
             double inherited = state->inherited_pressure;
 
+            // Factor 7: Coherence acceleration (opt-in, captures accelerating decay)
+            double accel_factor = std::max(0.0, std::min(1.0,
+                std::abs(state->coherence_acceleration) * 5.0));
+
             // Weighted composite
             double composite =
                 rccfg.weights.coherence_proximity * coherence_prox +
@@ -5393,7 +5690,8 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 rccfg.weights.signal_density * signal_dens +
                 rccfg.weights.conversation_depth * depth +
                 rccfg.weights.bsd_partial_progress * bsd_progress +
-                rccfg.weights.pipeline_inherited * inherited;
+                rccfg.weights.pipeline_inherited * inherited +
+                rccfg.weights.coherence_acceleration * accel_factor;
 
             // Track sustained pressure
             int consecutive = state->consecutive_high_pressure_turns;
@@ -5450,6 +5748,16 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 // Update pressure tracking without firing
                 drift_analyzer_.updateCheckpointState(handle_id, composite, consecutive, -1);
             }
+
+            // F6: Update system-wide governance level from sustained pressure
+            const auto& cb = rules_.circuit_breaker;
+            if (cb.enabled) {
+                int level = 0;
+                if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) level = 3;
+                else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) level = 2;
+                else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) level = 1;
+                governance_level_.store(level, std::memory_order_relaxed);
+            }
         }
     }
 
@@ -5459,8 +5767,9 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     if (!state) return "";
 
     clearTrace();
-    addTrace(fmt::format("context_drift: coherence={:.2f} (threshold={:.2f})",
-        state->coherence_score, rules_.context_drift.coherence_threshold));
+    addTrace(fmt::format("context_drift: coherence={:.2f} vel={:.3f} accel={:.3f} (threshold={:.2f})",
+        state->coherence_score, state->coherence_velocity, state->coherence_acceleration,
+        rules_.context_drift.coherence_threshold));
     if (state->circular_action_count > 0)
         addTrace(fmt::format("  circular_actions: {}", state->circular_action_count));
     if (state->repeated_failures > 0)
@@ -5469,6 +5778,12 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
         addTrace(fmt::format("  scope_creep: {}", state->scope_creep_count));
     if (state->vocabulary_contraction_count > 0)
         addTrace(fmt::format("  vocabulary_contraction: {}", state->vocabulary_contraction_count));
+
+    // F8: Consume risk budget on CDD signal fire (cost 2)
+    {
+        std::lock_guard<std::mutex> lock(agent_config_mutex_);
+        if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 2);
+    }
 
     return enforce("context_drift.coherence_loss", rules_.context_drift.level,
         formatError(rules_.context_drift.level,

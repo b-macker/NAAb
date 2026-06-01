@@ -1,6 +1,7 @@
 #include "naab/governance.h"
 #include "naab/behavioral_sequence.h"
 #include <algorithm>
+#include <cmath>
 #include <sstream>
 #include <unordered_set>
 
@@ -90,6 +91,30 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         p.steps.push_back(makeStep({"NET_CONNECT"}));
         p.max_gap = 20;
         p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 6. Taint bypass via agent: repeated taint violations then agent send (data laundering)
+    {
+        SequencePattern p;
+        p.name = "taint_bypass_via_agent";
+        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
+        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
+        p.steps.push_back(makeStep({"AGENT_SEND"}));
+        p.max_gap = 10;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 7. Repeated taint violations: sustained taint hygiene failure
+    {
+        SequencePattern p;
+        p.name = "repeated_taint_violations";
+        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
+        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
+        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
+        p.max_gap = 15;
+        p.level = EnforcementLevel::ADVISORY;
         default_patterns_.push_back(std::move(p));
     }
 }
@@ -454,6 +479,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     auto& state = drift_states_[handle_id];
     state.handle_id = handle_id;
     state.signals_fired_this_turn = 0;
+    state.turns_analyzed++;
 
     // Only check every N turns
     if (turn_number - state.last_checked_turn < config_->check_interval_turns) {
@@ -468,10 +494,21 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.turn_fingerprints.pop_front();
     }
 
+    // Rate normalization helper: when enabled, scales penalty by event rate
+    // (count / turns_analyzed) instead of flat weight. Makes early turns more
+    // tolerant and sustained bad behavior more penalizing.
+    auto penalty = [&](double weight, int count) -> double {
+        if (config_->rate_normalized && state.turns_analyzed > 1) {
+            double rate = static_cast<double>(count) / state.turns_analyzed;
+            return rate * weight;
+        }
+        return weight;
+    };
+
     // Signal 1: Circular actions (same fingerprint repeats)
     if (config_->signals.circular_actions && isCircular(state, fp)) {
         state.circular_action_count++;
-        state.coherence_score -= config_->weights.circular;
+        state.coherence_score -= penalty(config_->weights.circular, state.circular_action_count);
         state.signals_fired_this_turn++;
     }
 
@@ -485,7 +522,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
         if (same_count >= 3) {
             state.repeated_failures++;
-            state.coherence_score -= config_->weights.repeated_failure;
+            state.coherence_score -= penalty(config_->weights.repeated_failure, state.repeated_failures);
             state.signals_fired_this_turn++;
         }
     }
@@ -525,7 +562,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         // Only fire after enough history and multiple new types at once
         if (state.turn_fingerprints.size() >= 3 && new_types >= 2) {
             state.scope_creep_count++;
-            state.coherence_score -= config_->weights.scope_creep;
+            state.coherence_score -= penalty(config_->weights.scope_creep, state.scope_creep_count);
             state.signals_fired_this_turn++;
         }
 
@@ -546,25 +583,43 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         int window = static_cast<int>(state.per_turn_types.size());
         if (window >= 6) {
             int half = window / 2;
-            // Compute unique types in first half (early frame)
-            std::unordered_set<std::string> early_vocab;
-            for (size_t i = 0; i < static_cast<size_t>(half); i++) {
-                for (const auto& t : state.per_turn_types[i]) {
-                    early_vocab.insert(t);
+
+            // Compute Shannon entropy of action type distribution in a window half
+            // H = -Σ p(type) * log2(p(type))
+            auto computeEntropy = [](const std::deque<std::unordered_set<std::string>>& turns,
+                                     size_t from, size_t to) -> double {
+                std::unordered_map<std::string, int> freq;
+                int total = 0;
+                for (size_t i = from; i < to; i++) {
+                    for (const auto& t : turns[i]) {
+                        freq[t]++;
+                        total++;
+                    }
                 }
-            }
-            // Compute unique types in second half (recent)
-            std::unordered_set<std::string> recent_vocab;
-            for (size_t i = static_cast<size_t>(half); i < static_cast<size_t>(window); i++) {
-                for (const auto& t : state.per_turn_types[i]) {
-                    recent_vocab.insert(t);
+                if (total == 0) return 0.0;
+                double entropy = 0.0;
+                for (const auto& [type, count] : freq) {
+                    double p = static_cast<double>(count) / total;
+                    if (p > 0.0) entropy -= p * std::log2(p);
                 }
+                return entropy;
+            };
+
+            double early_entropy = computeEntropy(state.per_turn_types,
+                0, static_cast<size_t>(half));
+            double recent_entropy = computeEntropy(state.per_turn_types,
+                static_cast<size_t>(half), static_cast<size_t>(window));
+
+            // Track initial entropy for baseline comparison
+            if (state.initial_entropy < 0.0 && early_entropy > 0.0) {
+                state.initial_entropy = early_entropy;
             }
-            // Contraction: recent vocabulary is strictly smaller than early
-            // AND early had at least 3 distinct types (avoids false positives on simple agents)
-            if (early_vocab.size() >= 3 && recent_vocab.size() < early_vocab.size() - 1) {
+
+            // Contraction: recent entropy dropped by 40%+ from initial baseline
+            // Also fires on cardinality drop as fallback (early had 3+ types, recent lost 2+)
+            if (state.initial_entropy > 0.5 && recent_entropy < state.initial_entropy * 0.6) {
                 state.vocabulary_contraction_count++;
-                state.coherence_score -= config_->weights.vocabulary_contraction;
+                state.coherence_score -= penalty(config_->weights.vocabulary_contraction, state.vocabulary_contraction_count);
                 state.signals_fired_this_turn++;
             }
         }
@@ -615,7 +670,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         for (const auto& cap : this_turn_attempted) {
             if (state.prev_turn_blocked_caps.count(cap)) {
                 state.contradictions++;
-                state.coherence_score -= config_->weights.contradiction;
+                state.coherence_score -= penalty(config_->weights.contradiction, state.contradictions);
                 state.signals_fired_this_turn++;
                 break;  // one contradiction per turn is enough
             }
@@ -625,8 +680,62 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.prev_turn_blocked_caps = this_turn_blocked;
     }
 
+    // Signal 6: Coherence velocity (rapid decay detection)
+    // Fires when coherence is dropping faster than -0.15 per turn
+    if (config_->signals.coherence_velocity && state.coherence_history.size() >= 2) {
+        size_t n = state.coherence_history.size();
+        double prev_velocity = state.coherence_velocity;
+        state.coherence_velocity = state.coherence_score - state.coherence_history[n - 1];
+        state.coherence_acceleration = state.coherence_velocity - prev_velocity;
+
+        if (state.coherence_velocity < -0.15) {
+            state.coherence_score -= penalty(config_->weights.coherence_velocity, 1);
+            state.signals_fired_this_turn++;
+        }
+    }
+
+    // Signal 7: Capability underutilization (F9)
+    // Map events to capabilities and track exercised set
+    if (config_->signals.capability_underutilization) {
+        if (state.first_event_turn < 0) state.first_event_turn = turn_number;
+
+        for (const auto& ev : turn_events) {
+            std::string cap;
+            switch (ev.type) {
+                case RuntimeEventType::FILE_READ:
+                case RuntimeEventType::FILE_WRITE: cap = "filesystem"; break;
+                case RuntimeEventType::NET_CONNECT: cap = "network"; break;
+                case RuntimeEventType::SHELL_EXEC:
+                case RuntimeEventType::PROCESS_EXEC: cap = "execution"; break;
+                case RuntimeEventType::ENV_READ:
+                case RuntimeEventType::ENV_WRITE: cap = "environment"; break;
+                default: break;
+            }
+            if (!cap.empty()) {
+                bool was_new = state.exercised_capabilities.insert(cap).second;
+                // Late first use (10+ turns after start) of a granted capability = suspicious
+                if (was_new && state.granted_capabilities.count(cap) &&
+                    turn_number - state.first_event_turn >= 10) {
+                    state.coherence_score -= penalty(config_->weights.capability_underutilization, 1);
+                    state.signals_fired_this_turn++;
+                }
+            }
+        }
+    }
+
+    // F15: Natural healing — when no signals fired this turn, slowly recover
+    if (state.signals_fired_this_turn == 0 && config_->coherence_natural_healing > 0.0) {
+        state.coherence_score += config_->coherence_natural_healing;
+    }
+
     // Clamp coherence score to [0.0, 1.0]
     state.coherence_score = std::max(0.0, std::min(1.0, state.coherence_score));
+
+    // Track coherence history for velocity/acceleration computation
+    state.coherence_history.push_back(state.coherence_score);
+    if (state.coherence_history.size() > 10) {
+        state.coherence_history.pop_front();
+    }
 
     return state.coherence_score < config_->coherence_threshold;
 }
@@ -714,6 +823,14 @@ void ContextDriftAnalyzer::updateCheckpointState(int handle_id, double pressure,
 void ContextDriftAnalyzer::setInheritedPressure(int handle_id, double pressure) {
     std::lock_guard<std::mutex> lock(mutex_);
     drift_states_[handle_id].inherited_pressure = std::max(0.0, std::min(1.0, pressure));
+}
+
+void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    if (it != drift_states_.end()) {
+        it->second.coherence_score = std::min(1.0, it->second.coherence_score + amount);
+    }
 }
 
 } // namespace governance
