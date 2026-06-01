@@ -5236,50 +5236,54 @@ void GovernanceEngine::setInheritedPressure(int handle_id, double pressure) {
     drift_analyzer_.setInheritedPressure(handle_id, pressure);
 }
 
+std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
+    const auto& cfg = rules_.exposure_tracking;
+    if (!cfg.enabled) return "";
+
+    // Project: would the NEXT action exceed thresholds?
+    int projected_count = autonomous_actions_.load(std::memory_order_relaxed) + 1;
+
+    if (cfg.max_autonomous_actions > 0 && projected_count > cfg.max_autonomous_actions) {
+        clearTrace();
+        addTrace(fmt::format("admission_denied: projected {} autonomous actions exceeds limit {}",
+            projected_count, cfg.max_autonomous_actions));
+        return enforce("exposure_tracking", cfg.level,
+            formatError(cfg.level,
+                fmt::format("Admission denied — action would exceed autonomous action limit\n\n"
+                    "  Projected: {}\n  Limit: {}\n  Agent: {}\n",
+                    projected_count, cfg.max_autonomous_actions, agent_config),
+                "", "exposure_tracking",
+                lookupRationale("exposure_tracking"), "", ""));
+    }
+
+    // Project: would this agent push unique count over threshold?
+    if (cfg.max_unique_agents > 0) {
+        std::lock_guard<std::mutex> lock(exposure_mutex_);
+        bool is_new = unique_agents_.find(agent_config) == unique_agents_.end();
+        if (is_new && static_cast<int>(unique_agents_.size()) + 1 > cfg.max_unique_agents) {
+            clearTrace();
+            addTrace(fmt::format("admission_denied: agent '{}' would exceed unique agent limit {}",
+                agent_config, cfg.max_unique_agents));
+            return enforce("exposure_tracking", cfg.level,
+                formatError(cfg.level,
+                    fmt::format("Admission denied — new agent would exceed unique agent limit\n\n"
+                        "  Projected: {}\n  Limit: {}\n  Agent: {}\n",
+                        unique_agents_.size() + 1, cfg.max_unique_agents, agent_config),
+                    "", "exposure_tracking",
+                    lookupRationale("exposure_tracking"), "", ""));
+        }
+    }
+
+    return "";
+}
+
 std::string GovernanceEngine::recordAutonomousAction(const std::string& agent_config) {
-    int count = autonomous_actions_.fetch_add(1, std::memory_order_relaxed) + 1;
+    // Increment counters (admission check already enforced thresholds pre-call)
+    autonomous_actions_.fetch_add(1, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> lock(exposure_mutex_);
         unique_agents_.insert(agent_config);
     }
-
-    const auto& cfg = rules_.exposure_tracking;
-    if (!cfg.enabled) return "";
-
-    // Check action count threshold
-    if (cfg.max_autonomous_actions > 0 && count == cfg.max_autonomous_actions) {
-        clearTrace();
-        addTrace(fmt::format("exposure_tracking: {} autonomous actions reached (threshold={})",
-            count, cfg.max_autonomous_actions));
-        return enforce("exposure_tracking", cfg.level,
-            formatError(cfg.level,
-                fmt::format("Exposure threshold — {} autonomous agent actions executed\n\n"
-                    "  Limit: {}\n  Agents: {}\n",
-                    count, cfg.max_autonomous_actions, agent_config),
-                "", "exposure_tracking",
-                lookupRationale("exposure_tracking"), "", ""));
-    }
-
-    // Check unique agent threshold
-    size_t unique;
-    {
-        std::lock_guard<std::mutex> lock(exposure_mutex_);
-        unique = unique_agents_.size();
-    }
-    if (cfg.max_unique_agents > 0 &&
-        static_cast<int>(unique) == cfg.max_unique_agents + 1) {
-        clearTrace();
-        addTrace(fmt::format("exposure_tracking: {} unique agents (threshold={})",
-            unique, cfg.max_unique_agents));
-        return enforce("exposure_tracking", cfg.level,
-            formatError(cfg.level,
-                fmt::format("Exposure threshold — {} unique agent configurations used\n\n"
-                    "  Limit: {}\n  Latest: {}\n",
-                    unique, cfg.max_unique_agents, agent_config),
-                "", "exposure_tracking",
-                lookupRationale("exposure_tracking"), "", ""));
-    }
-
     return "";
 }
 

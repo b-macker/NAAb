@@ -325,6 +325,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Pre-call admission: project whether this action would exceed exposure thresholds
+    if (gov_engine && gov_engine->isActive()) {
+        std::string admission = gov_engine->checkAdmission(config_name);
+        if (!admission.empty()) {
+            throw std::runtime_error(admission);
+        }
+    }
+
     // Call provider via shared layer
     auto agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
     if (!agent_resp.success) {

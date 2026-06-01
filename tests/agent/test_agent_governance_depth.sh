@@ -221,6 +221,34 @@ else
     fail "T22: governance_init.cpp missing exposure_tracking template"
 fi
 
+# T23: checkAdmission exists (pre-call prevention, not post-call intervention)
+if grep -q 'checkAdmission' "$SRC_ENGINE"; then
+    pass "T23: checkAdmission exists in governance_engine.cpp"
+else
+    fail "T23: checkAdmission missing from governance_engine.cpp"
+fi
+
+# T24: agent_impl.cpp calls checkAdmission BEFORE the API call
+if grep -q 'checkAdmission' "$SRC_AGENT"; then
+    # Verify it appears before callAgentMultiTurn
+    ADMISSION_LINE=$(grep -n 'checkAdmission' "$SRC_AGENT" | head -1 | cut -d: -f1)
+    API_CALL_LINE=$(grep -n 'callAgentMultiTurn' "$SRC_AGENT" | head -1 | cut -d: -f1)
+    if [[ "$ADMISSION_LINE" -lt "$API_CALL_LINE" ]]; then
+        pass "T24: checkAdmission is PRE-CALL (line $ADMISSION_LINE < $API_CALL_LINE)"
+    else
+        fail "T24: checkAdmission is POST-CALL (should be before API call)"
+    fi
+else
+    fail "T24: agent_impl.cpp missing checkAdmission call"
+fi
+
+# T25: checkAdmission uses projection (count+1), not mutation
+if grep -A5 'checkAdmission' "$SRC_ENGINE" | grep -q 'projected_count\|+ 1'; then
+    pass "T25: checkAdmission uses projection (no state mutation)"
+else
+    fail "T25: checkAdmission missing projection logic"
+fi
+
 # ══════════════════════════════════════════════════════════════════════════════
 echo ""
 echo "=== Results ==="

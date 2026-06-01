@@ -2316,6 +2316,7 @@ public:
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
     void setInheritedPressure(int handle_id, double pressure);
+    std::string checkAdmission(const std::string& agent_config);
     std::string recordAutonomousAction(const std::string& agent_config);
     int getAutonomousActionCount() const;
     size_t getUniqueAgentCount() const;
