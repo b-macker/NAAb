@@ -6359,7 +6359,9 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "trust", "prerequisites", "contradiction_detection",
         "exposure_tracking", "drift_detection",
         "circuit_breaker", "governance_health",
-        "pipeline_separation", "temporal_coupling"
+        "pipeline_separation", "temporal_coupling",
+        "subprocess_scrub_mode", "allowed_subprocess_vars",
+        "blocked_subprocess_vars", "blocked_subprocess_prefixes"
     };
 
     try {

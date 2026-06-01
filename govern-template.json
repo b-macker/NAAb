@@ -178,6 +178,12 @@
     }
   },
 
+  "_comment_subprocess_env": "Subprocess Environment Scrubbing (V-SC-006-ext) — control which env vars are inherited by polyglot subprocess execution. allowlist mode: only listed vars passed. blocklist mode: all vars passed except blocked ones.",
+  "subprocess_scrub_mode": "blocklist",
+  "allowed_subprocess_vars": [],
+  "blocked_subprocess_vars": [],
+  "blocked_subprocess_prefixes": ["AWS_", "GITHUB_", "NAAB_SIGNING"],
+
   "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
   "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
   "taint_tracking": {
@@ -328,7 +334,18 @@
       "block_base64_encode_secrets": true,
       "block_hex_encode_secrets": true,
       "block_url_encode_secrets": true,
+      "block_encoding_chains": true,
+      "block_network_exfil": true,
+      "block_socket_exfil": true,
       "max_encoded_output_length": 0
+    },
+    "vcs_secret_extraction": {
+      "enabled": false,
+      "level": "hard"
+    },
+    "obfuscation": {
+      "enabled": false,
+      "level": "hard"
     },
     "resource_abuse": {
       "enabled": true,
@@ -562,6 +579,13 @@
         }
       ]
     },
+    "intent_validation": {
+      "enabled": false,
+      "level": "soft",
+      "min_overlap": 0.3
+    },
+    "project_intent": "",
+    "function_intents": {},
     "encoding": {
       "enabled": true,
       "level": "advisory",
@@ -641,7 +665,23 @@
       "require_baseline": false,
       "check_body_hash": true,
       "check_param_utilization": true,
-      "min_param_utilization": 0.5
+      "min_param_utilization": 0.5,
+      "check_new_functions": false,
+      "max_function_gain": 0,
+      "check_polyglot_content": false,
+      "max_polyglot_shrink": 0.5,
+      "check_script_location": false,
+      "check_signature_presence": false,
+      "check_config_presence": false,
+      "max_comment_only_ratio": 0.8,
+      "min_complexity_baseline": 0,
+      "min_hollow_export_complexity": 3,
+      "min_lines_for_check": 3,
+      "semantic_checks": {
+        "check_api_signatures": false,
+        "check_dangerous_eval": false,
+        "check_shell_syntax": false
+      }
     }
   },
 
@@ -762,6 +802,34 @@
         "must_satisfy_args": [
           [{"severity": "high"}, {"severity": "low"}]
         ]
+      },
+
+      "_comment_v7": "v7: Arity and return value constraints",
+      "validate_input": {
+        "description": "Arity enforcement: min/max parameter count",
+        "min_arity": 1,
+        "max_arity": 3,
+        "return_type": "bool"
+      },
+      "fetch_data": {
+        "description": "Extended return constraints",
+        "return_type": "dict",
+        "return_keys": ["data", "status"],
+        "return_not_null": true,
+        "return_keys_non_null": true,
+        "return_keys_non_empty": true
+      },
+      "format_output": {
+        "description": "Length and pattern constraints on return value",
+        "return_type": "string",
+        "return_length_min": 1,
+        "return_length_max": 1000,
+        "return_matches": "^[A-Z].*\\.$"
+      },
+      "compute_bounded": {
+        "description": "Range constraint on numeric return",
+        "return_type": "float",
+        "return_range": [0.0, 100.0]
       }
     }
   },
@@ -919,8 +987,10 @@
       "max_turns": 20,
       "max_total_tokens": 50000,
       "temperature": 1.0,
+      "response_format": "json",
       "tools": ["search", "read_file"],
       "allowed_languages": ["python"],
+      "blocked_languages": [],
       "allowed_paths": ["./src", "./data"],
       "blocked_paths": ["./secrets", "./.env"],
       "shell_allowed": false,
@@ -1479,11 +1549,33 @@
     "red_threshold": 25
   },
 
+  "_comment_scorers": "Named Scorers — reusable scoring configurations for governance.scorer() introspection. Each scorer defines weights and thresholds for programmatic evaluation.",
+  "scorers": {
+    "security_review": {
+      "name": "security_review",
+      "description": "Security review scorer for governance introspection",
+      "weights": {
+        "vulnerability_count": 0.3,
+        "cvss_severity": 0.4,
+        "exploit_availability": 0.2,
+        "patch_availability": 0.1
+      },
+      "thresholds": {
+        "pass": 0.7,
+        "warn": 0.5
+      }
+    }
+  },
+
+  "_comment_governance_plugins": "Governance Plugins — custom NAAb-based governance checks loaded at runtime. Each plugin specifies a .naab file containing check functions.",
+  "governance_plugins": [],
+
   "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging) activate when no user patterns are defined.",
   "behavioral_sequences": {
     "enabled": false,
     "rationale": "Detect multi-step attack patterns that span individual governance checks.",
     "window_size": 100,
+    "cross_agent": false,
     "patterns": [
       {
         "name": "credential_harvesting",
