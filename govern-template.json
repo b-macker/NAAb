@@ -193,7 +193,9 @@
       "function_returns": true,
       "for_loop_iterators": true,
       "dict_array_access": true
-    }
+    },
+    "gate_cross_block": false,
+    "cross_block_level": "soft"
   },
 
   "limits": {
@@ -921,7 +923,8 @@
       "allowed_languages": ["python"],
       "allowed_paths": ["./src", "./data"],
       "blocked_paths": ["./secrets", "./.env"],
-      "shell_allowed": false
+      "shell_allowed": false,
+      "risk_budget": 0
     },
     "coder": {
       "provider": "gemini",
@@ -933,7 +936,8 @@
       "max_total_tokens": 200000,
       "allowed_languages": ["python", "shell"],
       "allowed_paths": ["./src", "./tests"],
-      "shell_allowed": true
+      "shell_allowed": true,
+      "risk_budget": 0
     }
   },
   "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
@@ -1500,17 +1504,27 @@
     "max_contradictions": 5,
     "check_interval_turns": 3,
     "fingerprint_window": 10,
+    "rate_normalized": false,
+    "coherence_recovery_amount": 0.2,
+    "coherence_natural_healing": 0.0,
     "signals": {
       "circular_actions": true,
       "repeated_failures": true,
       "scope_creep": true,
-      "intent_contradictions": true
+      "intent_contradictions": true,
+      "coherence_velocity": true,
+      "vocabulary_contraction": true,
+      "capability_underutilization": false,
+      "semantic_stability": false
     },
     "weights": {
       "circular": 0.15,
       "scope_creep": 0.10,
       "contradiction": 0.20,
-      "repeated_failure": 0.10
+      "repeated_failure": 0.10,
+      "vocabulary_contraction": 0.10,
+      "capability_underutilization": 0.10,
+      "semantic_stability": 0.10
     },
     "reality_checkpoint": {
       "enabled": false,
@@ -1525,7 +1539,9 @@
         "risk_score_proximity": 0.20,
         "signal_density": 0.25,
         "conversation_depth": 0.10,
-        "bsd_partial_progress": 0.10
+        "bsd_partial_progress": 0.10,
+        "pipeline_inherited": 0.0,
+        "coherence_acceleration": 0.0
       }
     }
   },
@@ -1639,6 +1655,55 @@
     { "language": "python", "required": "3.10", "level": "advisory" },
     { "language": "javascript", "required": "18", "level": "advisory" }
   ],
+
+  "_comment_exposure_tracking": "Exposure Tracking — aggregate autonomous agent action volume monitoring. max_pipeline_depth limits nested agent.pipeline() depth (0 = unlimited). checkpoint_cooldown_turns enforces mandatory pause after reality checkpoint fires (trading halt analog). min_capability_utilization requires minimum ratio of exercised/granted capabilities after utilization_check_after_turns turns.",
+  "exposure_tracking": {
+    "enabled": false,
+    "max_autonomous_actions": 50,
+    "max_unique_agents": 10,
+    "coherence_floor": 0.3,
+    "level": "advisory",
+    "max_pipeline_depth": 0,
+    "checkpoint_cooldown_turns": 0,
+    "min_capability_utilization": 0.0,
+    "utilization_check_after_turns": 10
+  },
+
+  "_comment_circuit_breaker": "Graduated Circuit Breakers — system-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained composite pressure. NYSE circuit breaker analog. ELEVATED: CDD check_interval → 1. HIGH: all ADVISORY escalate to SOFT. CRITICAL: admission denied for all agents.",
+  "circuit_breaker": {
+    "enabled": false,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "critical_coherence": 0.2,
+    "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
+  },
+
+  "_comment_governance_health": "Governance Health Monitoring — verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Nuclear safety system exercising analog.",
+  "governance_health": {
+    "enabled": false,
+    "check_after_turns": 10,
+    "governance_entropy_warning": 0.5,
+    "rationale": "Verify governance instrumentation is operational"
+  },
+
+  "_comment_pipeline_separation": "Pipeline Separation of Duties — adjacent pipeline stages must use different agent configs. SOX separation of duties analog.",
+  "pipeline_separation": {
+    "enabled": false,
+    "level": "soft",
+    "rationale": "Adjacent pipeline stages must use different agent configs"
+  },
+
+  "_comment_temporal_coupling": "Temporal Coupling Detection — pairwise lag correlation between agent event streams. Flags when two agents show suspiciously correlated timing patterns. Front-running detection analog (financial regulation).",
+  "temporal_coupling": {
+    "enabled": false,
+    "max_correlation": 0.85,
+    "min_events": 10,
+    "rationale": "Detect suspicious inter-agent timing correlation"
+  },
 
   "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }

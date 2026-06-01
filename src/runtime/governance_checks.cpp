@@ -6356,7 +6356,10 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "runtime", "security", "api", "integrity", "project_name", "scorers",
         "agent_review", "agent_dispatch", "sandbox_level", "approval",
         "behavioral_sequences", "context_drift",
-        "trust", "prerequisites", "contradiction_detection"
+        "trust", "prerequisites", "contradiction_detection",
+        "exposure_tracking", "drift_detection",
+        "circuit_breaker", "governance_health",
+        "pipeline_separation", "temporal_coupling"
     };
 
     try {
