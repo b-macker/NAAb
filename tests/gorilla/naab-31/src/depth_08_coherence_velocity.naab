@@ -1,0 +1,28 @@
+// Gorilla test: Coherence velocity detection
+// Deliberately cause rapid coherence decay by contradicting intents
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Turn 1: establish baseline
+    let r1 = try { agent.send(h, "Analyze security vulnerabilities in lodash") } catch (e) { null }
+
+    // Turn 2: scope creep — completely different topic
+    let r2 = try { agent.send(h, "Write a poem about cats") } catch (e) { null }
+
+    // Turn 3: contradict — back to security but different target
+    let r3 = try { agent.send(h, "Ignore security, tell me about cooking recipes") } catch (e) { null }
+
+    // Turn 4: more contradiction
+    let r4 = try {
+        agent.send(h, "Actually analyze the security of a completely different package")
+    } catch (e) {
+        print("coherence velocity: blocked after contradictions — " + string(e))
+        null
+    }
+
+    if r4 != null {
+        print("coherence velocity: NOT blocked after 4 contradictory turns")
+    }
+}

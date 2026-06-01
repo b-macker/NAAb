@@ -1,0 +1,15 @@
+// Gorilla test: Pipeline separation with different agents (should succeed)
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Different config names — should pass pipeline separation
+    let result = try {
+        agent.pipeline([h1, h2], "analyze this data")
+    } catch (e) {
+        {"error": string(e)}
+    }
+    print("pipeline_ok result: " + string(result))
+}

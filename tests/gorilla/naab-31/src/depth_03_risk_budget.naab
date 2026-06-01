@@ -1,0 +1,26 @@
+// Gorilla test: Risk budget exhaustion
+// same_as_analyst has risk_budget=3, so should exhaust quickly
+use agent
+
+main {
+    let h = agent.create("same_as_analyst")
+
+    // Each send consumes risk budget via CDD/BSD events
+    let i = 0
+    let blocked = false
+    for i in 0..5 {
+        let result = try {
+            agent.send(h, "turn " + string(i) + ": repeat the same analysis")
+        } catch (e) {
+            blocked = true
+            {"blocked": true, "turn": i, "error": string(e)}
+        }
+        if blocked {
+            print("risk_budget exhausted at turn " + string(i))
+            break
+        }
+    }
+    if !blocked {
+        print("risk_budget NOT exhausted after 5 turns")
+    }
+}

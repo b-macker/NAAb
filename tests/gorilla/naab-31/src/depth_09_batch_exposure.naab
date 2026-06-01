@@ -1,0 +1,23 @@
+// Gorilla test: Batch operations count toward exposure tracking
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Each batch slot is an autonomous action — 2 per batch call
+    // max_autonomous_actions=10, so 5 batch calls = 10 actions
+    let blocked = false
+    for i in 0..6 {
+        let result = try {
+            agent.batch([h1, h2], ["batch " + string(i) + " a", "batch " + string(i) + " b"])
+        } catch (e) {
+            blocked = true
+            print("batch exposure blocked at batch " + string(i) + ": " + string(e))
+            break
+        }
+    }
+    if !blocked {
+        print("batch exposure: NOT blocked after 6 batches (12 actions)")
+    }
+}

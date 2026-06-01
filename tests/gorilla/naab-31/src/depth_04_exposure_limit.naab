@@ -1,0 +1,28 @@
+// Gorilla test: Exposure tracking — max_autonomous_actions=10
+// Attempts to exceed the action limit
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let blocked = false
+    let block_turn = -1
+
+    for i in 0..12 {
+        let result = try {
+            agent.send(h, "action " + string(i))
+        } catch (e) {
+            blocked = true
+            block_turn = i
+            null
+        }
+        if blocked {
+            break
+        }
+    }
+
+    if blocked {
+        print("exposure blocked at action " + string(block_turn))
+    } else {
+        print("exposure NOT blocked after 12 actions")
+    }
+}

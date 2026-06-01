@@ -1,0 +1,17 @@
+// Gorilla test: Pipeline separation of duties
+// Attempts to run agent.pipeline() with same config in adjacent stages
+// Expected: HARD block (pipeline_separation.level = hard)
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("analyst")
+
+    // Same config name in adjacent pipeline stages — should be blocked
+    let result = try {
+        agent.pipeline([h1, h2], "analyze this data")
+    } catch (e) {
+        {"error": e}
+    }
+    print("pipeline_separation result: " + string(result))
+}

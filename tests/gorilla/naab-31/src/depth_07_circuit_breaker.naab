@@ -1,0 +1,22 @@
+// Gorilla test: Circuit breaker escalation
+// With tight thresholds (elevated=0.3, high=0.5, critical=0.7)
+// and aggressive CDD weights, repeated bad behavior should escalate
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Rapid-fire identical requests to build CDD pressure
+    // (circular_actions signal fires on repeated identical patterns)
+    let last_result = ""
+    for i in 0..8 {
+        let result = try {
+            agent.send(h, "repeat exactly: hello world")
+        } catch (e) {
+            last_result = "BLOCKED at turn " + string(i) + ": " + string(e)
+            break
+        }
+        last_result = "turn " + string(i) + " ok"
+    }
+    print("circuit breaker: " + last_result)
+}

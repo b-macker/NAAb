@@ -1,0 +1,33 @@
+// Gorilla test: Cross-block taint gate enforcement
+// gate_cross_block=true, cross_block_level=soft
+// Tainted polyglot output should be blocked at file.write sink
+
+main {
+    let tainted = <<python
+"sensitive_data_from_python"
+>>
+    // Attempt direct write of tainted data — should trigger taint gate
+    let blocked = false
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31_taint_gate.txt", tainted)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31_taint_gate.txt")
+        print("taint gate: NOT blocked (write succeeded)")
+    } catch (e) {
+        blocked = true
+        print("taint gate: BLOCKED — " + string(e))
+    }
+
+    // Now try with sanitizer — should succeed
+    fn sanitize_output(s) {
+        if s == null { return "" }
+        return string(s)
+    }
+    let clean = sanitize_output(tainted)
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31_taint_clean.txt", clean)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31_taint_clean.txt")
+        print("sanitized write: succeeded")
+    } catch (e) {
+        print("sanitized write: failed — " + string(e))
+    }
+}

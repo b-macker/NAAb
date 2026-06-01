@@ -1,0 +1,20 @@
+// Gorilla test: Fan-out counts toward unique agents and actions
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+    let h3 = agent.create("same_as_analyst")
+
+    // Fan-out sends same message to all — 3 actions at once
+    let result = try {
+        agent.fan_out([h1, h2, h3], "analyze this dependency")
+    } catch (e) {
+        print("fan_out error: " + string(e))
+        null
+    }
+
+    if result != null {
+        print("fan_out completed: " + string(len(result)) + " responses")
+    }
+}
