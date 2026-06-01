@@ -1,0 +1,20 @@
+// Edge test: Coherence recovery at pipeline stage transitions
+// Pipeline with 2 stages — coherence should partially recover between stages
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // First degrade coherence by doing contradictory sends
+    let r1 = try { agent.send(h1, "Analyze security vulnerabilities") } catch (e) { null }
+    let r2 = try { agent.send(h1, "Write haiku about cats") } catch (e) { null }
+
+    // Now pipeline — stage transition should trigger coherence recovery
+    let pipeline_result = try { agent.pipeline([h1, h2], "Review the security analysis") } catch (e) { null }
+    if pipeline_result != null {
+        print("recovery_pipeline: pipeline completed with recovery")
+    } else {
+        print("recovery_pipeline: pipeline blocked")
+    }
+}

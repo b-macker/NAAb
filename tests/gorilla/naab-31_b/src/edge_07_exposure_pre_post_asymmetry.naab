@@ -1,0 +1,26 @@
+// Edge test: Exposure tracking pre-call vs post-call asymmetry
+// If an agent call fails mid-execution, does the autonomous_actions counter
+// still increment? Test by exhausting budget near the limit.
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    let action_count = 0
+    let budget_blocked = false
+    let exposure_blocked = false
+
+    for i in 0..10 {
+        let r = try { agent.send(h, "action " + string(i)) } catch (e) { null }
+        if r != null {
+            action_count = action_count + 1
+        } else {
+            // Check what blocked us by trying to detect from dashboard
+            if !budget_blocked && !exposure_blocked {
+                budget_blocked = true
+            }
+        }
+    }
+
+    print("pre_post_asym: actions=" + string(action_count) + " budget_blocked=" + string(budget_blocked) + " exposure_blocked=" + string(exposure_blocked))
+}

@@ -1,0 +1,141 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "sandbox_level": "elevated",
+    "languages": {
+        "allowed": ["python", "javascript", "shell"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "write" },
+        "shell": { "enabled": true },
+        "env_vars": { "read": true, "write": false }
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "soft",
+        "lineage": true,
+        "sources": ["polyglot_output", "file.read", "env.get"],
+        "sinks": ["file.write"],
+        "sanitizers": ["sanitize_", "validate_"],
+        "gate_cross_block": true,
+        "cross_block_level": "soft"
+    },
+    "behavioral_sequences": {
+        "enabled": true,
+        "window_size": 10
+    },
+    "context_drift": {
+        "enabled": true,
+        "level": "soft",
+        "coherence_threshold": 0.6,
+        "check_interval_turns": 1,
+        "fingerprint_window": 5,
+        "rate_normalized": true,
+        "coherence_recovery_amount": 0.1,
+        "coherence_natural_healing": 0.0,
+        "signals": {
+            "circular_actions": true,
+            "repeated_failures": true,
+            "scope_creep": true,
+            "intent_contradictions": true,
+            "coherence_velocity": true,
+            "vocabulary_contraction": true
+        },
+        "weights": {
+            "circular": 0.20,
+            "scope_creep": 0.15,
+            "contradiction": 0.25,
+            "repeated_failure": 0.15,
+            "vocabulary_contraction": 0.15
+        },
+        "reality_checkpoint": {
+            "enabled": true,
+            "level": "soft",
+            "pressure_threshold": 0.5,
+            "sustained_turns_required": 2,
+            "min_turns_between_checkpoints": 2,
+            "expected_conversation_depth": 5,
+            "weights": {
+                "coherence_proximity": 0.30,
+                "risk_score_proximity": 0.20,
+                "signal_density": 0.25,
+                "conversation_depth": 0.10,
+                "bsd_partial_progress": 0.05,
+                "pipeline_inherited": 0.05,
+                "coherence_acceleration": 0.05
+            }
+        }
+    },
+    "exposure_tracking": {
+        "enabled": true,
+        "max_autonomous_actions": 10,
+        "max_unique_agents": 3,
+        "coherence_floor": 0.4,
+        "level": "soft",
+        "max_pipeline_depth": 2,
+        "checkpoint_cooldown_turns": 1
+    },
+    "circuit_breaker": {
+        "enabled": true,
+        "elevated_threshold": 0.3,
+        "high_threshold": 0.5,
+        "critical_threshold": 0.7,
+        "elevated_sustained": 1,
+        "high_sustained": 2,
+        "critical_sustained": 2,
+        "critical_coherence": 0.25
+    },
+    "governance_health": {
+        "enabled": true,
+        "check_after_turns": 3,
+        "governance_entropy_warning": 0.3
+    },
+    "pipeline_separation": {
+        "enabled": true,
+        "level": "hard"
+    },
+    "agents": {
+        "analyst": {
+            "provider": "gemini",
+            "model": "gemma-3-4b-it",
+            "api_key_env": "GK5",
+            "max_tokens": 256,
+            "max_turns": 5,
+            "max_total_tokens": 1024,
+            "system_prompt": "You are a test analyst. Be concise.",
+            "risk_budget": 5
+        },
+        "reviewer": {
+            "provider": "gemini",
+            "model": "gemma-3-4b-it",
+            "api_key_env": "GK5",
+            "max_tokens": 256,
+            "max_turns": 5,
+            "max_total_tokens": 1024,
+            "system_prompt": "You are a test reviewer. Be concise.",
+            "risk_budget": 5
+        },
+        "same_as_analyst": {
+            "provider": "gemini",
+            "model": "gemma-3-4b-it",
+            "api_key_env": "GK5",
+            "max_tokens": 256,
+            "max_turns": 3,
+            "max_total_tokens": 512,
+            "system_prompt": "You are a test analyst duplicate.",
+            "risk_budget": 3
+        }
+    },
+    "telemetry": {
+        "enabled": true,
+        "output_file": "telemetry.jsonl"
+    },
+    "scoring": {
+        "enabled": true,
+        "default_weight": 5,
+        "yellow_threshold": 10,
+        "red_threshold": 30
+    }
+}

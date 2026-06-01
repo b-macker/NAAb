@@ -1,0 +1,26 @@
+// Edge test: Rapid agent creation/send churn
+// Create max_unique_agents (3) then try more — verify exposure tracking
+// Also tests risk budget under rapid sequential sends
+use agent
+
+main {
+    // Create 3 agents (at limit)
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+    let h3 = agent.create("same_as_analyst")
+
+    // Rapid sends to all 3
+    let blocked_count = 0
+    for i in 0..3 {
+        let r1 = try { agent.send(h1, "rapid " + string(i)) } catch (e) { null }
+        if r1 == null { blocked_count = blocked_count + 1 }
+
+        let r2 = try { agent.send(h2, "rapid " + string(i)) } catch (e) { null }
+        if r2 == null { blocked_count = blocked_count + 1 }
+
+        let r3 = try { agent.send(h3, "rapid " + string(i)) } catch (e) { null }
+        if r3 == null { blocked_count = blocked_count + 1 }
+    }
+
+    print("rapid_churn: blocked=" + string(blocked_count) + " of 9 sends")
+}

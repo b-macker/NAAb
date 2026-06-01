@@ -1,0 +1,15 @@
+// Edge test: Pipeline separation with same-config agents
+// Both handles use "analyst" config — should be blocked by pipeline_separation
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("analyst")
+
+    let result = try { agent.pipeline([h1, h2], "Self-reviewing pipeline") } catch (e) { null }
+    if result != null {
+        print("separation_same: NOT blocked (same-config pipeline succeeded)")
+    } else {
+        print("separation_same: blocked (same-config pipeline rejected)")
+    }
+}

@@ -1,0 +1,31 @@
+// Edge test: Deep polyglot taint chain (Python→JavaScript→Shell)
+// Each block's output taints the next — verify taint propagation depth
+use agent
+
+main {
+    // Stage 1: Python generates tainted data
+    let stage1 = <<python
+import os
+os.environ.get("HOME", "/unknown")
+>>
+
+    // Stage 2: JavaScript processes it
+    let stage2 = <<javascript[stage1]
+const upper = stage1.toUpperCase();
+upper
+>>
+
+    // Stage 3: Shell processes further
+    let stage3 = <<shell[stage2]
+echo "${stage2}_processed"
+>>
+
+    // Attempt to write deeply-chained tainted data
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31b_deep_chain.txt", stage3)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31b_deep_chain.txt")
+        print("deep_chain: NOT blocked (3-stage taint write succeeded)")
+    } catch (e) {
+        print("deep_chain: blocked — " + string(e))
+    }
+}

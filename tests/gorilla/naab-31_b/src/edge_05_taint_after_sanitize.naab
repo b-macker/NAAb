@@ -1,0 +1,37 @@
+// Edge test: Taint state after sanitization
+// Verify that sanitized values can pass through sinks
+// and that re-tainting after sanitization is tracked
+use agent
+
+main {
+    // Get tainted value
+    let tainted = env.get("HOME")
+
+    // Sanitize it
+    fn sanitize_path(s) {
+        if s == null { return "" }
+        return string(s)
+    }
+    let clean = sanitize_path(tainted)
+
+    // Write sanitized value — should succeed
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31b_sanitized.txt", clean)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31b_sanitized.txt")
+        print("taint_sanitize: clean write succeeded")
+    } catch (e) {
+        print("taint_sanitize: clean write blocked — " + string(e))
+    }
+
+    // Re-taint by reading env again
+    let retainted = env.get("USER")
+
+    // Write re-tainted — should be blocked again
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31b_retainted.txt", retainted)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31b_retainted.txt")
+        print("taint_sanitize: retainted write NOT blocked")
+    } catch (e) {
+        print("taint_sanitize: retainted write blocked — " + string(e))
+    }
+}

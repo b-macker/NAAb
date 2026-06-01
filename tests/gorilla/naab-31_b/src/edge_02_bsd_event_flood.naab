@@ -1,0 +1,25 @@
+// Edge test: BSD ring buffer overflow via event flood
+// Generate more taint events than window_size (50) to test FIFO eviction
+// Verify: BSD doesn't crash, pattern detection still works within window
+use agent
+
+main {
+    // Generate many taint events by reading env vars in a loop
+    for i in 0..60 {
+        let val = env.get("HOME")
+        try {
+            file.write("/data/data/com.termux/files/usr/tmp/naab31b_flood_" + string(i) + ".txt", val)
+        } catch (e) {
+            // Expected: taint blocks should fire
+        }
+    }
+
+    // Cleanup any that slipped through
+    for i in 0..60 {
+        try {
+            file.delete("/data/data/com.termux/files/usr/tmp/naab31b_flood_" + string(i) + ".txt")
+        } catch (e) { }
+    }
+
+    print("bsd_flood: completed 60 taint events without crash")
+}

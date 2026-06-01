@@ -1,0 +1,20 @@
+// Edge test: Dashboard output consistency
+// Run a mix of taint + agent operations and verify dashboard shows
+// non-zero BSD, CDD, Exposure, and Lineage metrics
+use agent
+
+main {
+    // Taint
+    let t = env.get("HOME")
+    try { file.write("/data/data/com.termux/files/usr/tmp/naab31b_dash.txt", t) } catch (e) { }
+
+    // Agent
+    let h = agent.create("analyst")
+    let r = try { agent.send(h, "analyze security") } catch (e) { null }
+    let r2 = try { agent.send(h, "continue analysis") } catch (e) { null }
+
+    // Cleanup
+    try { file.delete("/data/data/com.termux/files/usr/tmp/naab31b_dash.txt") } catch (e) { }
+
+    print("dashboard_test: completed")
+}

@@ -1,0 +1,25 @@
+// Edge test: Circuit breaker escalation under sustained pressure
+// Rapidly alternate contradictory topics to push composite pressure
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let blocked_at = -1
+
+    for i in 0..6 {
+        let topic = "security analysis of authentication module"
+        if i % 2 == 1 {
+            topic = "write me a recipe for chocolate cake"
+        }
+        let r = try { agent.send(h, topic) } catch (e) { null }
+        if r == null && blocked_at == -1 {
+            blocked_at = i
+        }
+    }
+
+    if blocked_at >= 0 {
+        print("circuit_breaker: blocked at turn " + string(blocked_at))
+    } else {
+        print("circuit_breaker: completed all 6 turns")
+    }
+}

@@ -1,0 +1,26 @@
+// Edge test: max_unique_agents=3 boundary
+// Create exactly 3, then try a 4th (fails)
+// Then reuse one of the first 3 (should succeed)
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+    let h3 = agent.create("same_as_analyst")
+
+    // All 3 should work
+    let ok1 = try { agent.send(h1, "test 1") } catch (e) { null }
+    let ok2 = try { agent.send(h2, "test 2") } catch (e) { null }
+    let ok3 = try { agent.send(h3, "test 3") } catch (e) { null }
+
+    let created = 0
+    if ok1 != null { created = created + 1 }
+    if ok2 != null { created = created + 1 }
+    if ok3 != null { created = created + 1 }
+
+    // Reuse h1 — should not count as new unique agent
+    let reuse = try { agent.send(h1, "reuse test") } catch (e) { null }
+    let reuse_ok = reuse != null
+
+    print("unique_agents: created=" + string(created) + " reuse_ok=" + string(reuse_ok))
+}

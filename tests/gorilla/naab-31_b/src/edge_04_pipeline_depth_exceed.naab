@@ -1,0 +1,26 @@
+// Edge test: Pipeline depth exceeding max_pipeline_depth=2
+// Tries a 3-stage pipeline (analyst→reviewer→same_as_analyst)
+// Should be blocked by depth check
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+    let h3 = agent.create("same_as_analyst")
+
+    // 3-stage pipeline exceeds max_pipeline_depth=2
+    let result = try { agent.pipeline([h1, h2, h3], "Three stage analysis") } catch (e) { null }
+    if result != null {
+        print("depth_exceed: NOT blocked (3-stage pipeline succeeded)")
+    } else {
+        print("depth_exceed: blocked (3-stage pipeline rejected)")
+    }
+
+    // 2-stage pipeline should still work
+    let ok = try { agent.pipeline([h1, h2], "Two stage analysis") } catch (e) { null }
+    if ok != null {
+        print("depth_exceed: 2-stage succeeded as expected")
+    } else {
+        print("depth_exceed: 2-stage also blocked")
+    }
+}

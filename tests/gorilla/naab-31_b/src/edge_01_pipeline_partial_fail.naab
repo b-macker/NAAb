@@ -1,0 +1,27 @@
+// Edge test: Pipeline partial failure state consistency
+// Pipeline of 2 stages — verify governance state after pipeline
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Warm up analyst so it has consumed some risk budget
+    let r0 = try { agent.send(h1, "warm up") } catch (e) { null }
+
+    // Pipeline: analyst → reviewer
+    let result = try { agent.pipeline([h1, h2], "Analyze then review this code") } catch (e) { null }
+    if result != null {
+        print("pipeline_partial: completed normally")
+    } else {
+        print("pipeline_partial: caught pipeline error")
+    }
+
+    // Try sending to analyst again — should still work if budget remains
+    let post = try { agent.send(h1, "post-pipeline check") } catch (e) { null }
+    if post != null {
+        print("pipeline_partial: analyst still usable post-pipeline")
+    } else {
+        print("pipeline_partial: analyst blocked post-pipeline")
+    }
+}

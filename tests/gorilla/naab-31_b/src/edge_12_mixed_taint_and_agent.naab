@@ -1,0 +1,30 @@
+// Edge test: Interleaved taint events + agent calls
+// BSD should record both taint and agent events in the same ring buffer
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let completed = 0
+
+    for i in 0..4 {
+        // Generate taint
+        let t = env.get("HOME")
+        try { file.write("/data/data/com.termux/files/usr/tmp/naab31b_interleave_" + string(i) + ".txt", t) } catch (e) { }
+
+        // Agent call
+        let r = try { agent.send(h, "Step " + string(i) + ": analyze interleaved risk") } catch (e) { null }
+        if r != null {
+            completed = completed + 1
+        } else {
+            print("mixed_interleave: agent blocked at step " + string(i))
+            break
+        }
+    }
+
+    // Cleanup
+    for i in 0..4 {
+        try { file.delete("/data/data/com.termux/files/usr/tmp/naab31b_interleave_" + string(i) + ".txt") } catch (e) { }
+    }
+
+    print("mixed_interleave: completed " + string(completed) + " steps")
+}

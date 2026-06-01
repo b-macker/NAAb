@@ -1,0 +1,21 @@
+// Edge test: Governance health check with minimal activity
+// Run 4+ agent turns (exceeding check_after_turns=3)
+// but with very repetitive on-topic content
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let completed = 0
+
+    for i in 0..5 {
+        let r = try { agent.send(h, "Analyze dependency risk for module " + string(i)) } catch (e) { null }
+        if r != null {
+            completed = completed + 1
+        } else {
+            print("health_zero: blocked at turn " + string(i))
+            break
+        }
+    }
+
+    print("health_zero: completed " + string(completed) + " turns")
+}

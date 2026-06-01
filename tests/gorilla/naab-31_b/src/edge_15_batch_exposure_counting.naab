@@ -1,0 +1,26 @@
+// Edge test: Batch call exposure counting
+// agent.batch() with 2 handles — each should count independently
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Batch send
+    let results = try { agent.batch([[h1, "Batch task A"], [h2, "Batch task B"]]) } catch (e) { null }
+    if results != null {
+        print("batch_exposure: batch completed")
+    } else {
+        print("batch_exposure: batch blocked")
+    }
+
+    // Follow up with individual sends to test remaining exposure
+    let r1 = try { agent.send(h1, "post-batch 1") } catch (e) { null }
+    let r2 = try { agent.send(h2, "post-batch 2") } catch (e) { null }
+
+    let post = 0
+    if r1 != null { post = post + 1 }
+    if r2 != null { post = post + 1 }
+
+    print("batch_exposure: post_batch_ok=" + string(post))
+}

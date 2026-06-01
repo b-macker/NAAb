@@ -1,0 +1,22 @@
+// Edge test: Risk budget boundary — budget=3 with exact 3-turn exhaust
+// Verify: some turns succeed, then budget exhausts
+use agent
+
+main {
+    let h = agent.create("same_as_analyst")
+    let succeeded = 0
+    let blocked_at = -1
+
+    for i in 0..6 {
+        let r = try { agent.send(h, "budget turn " + string(i)) } catch (e) { null }
+        if r != null {
+            succeeded = succeeded + 1
+        } else {
+            if blocked_at == -1 {
+                blocked_at = i
+            }
+        }
+    }
+
+    print("budget_zero: succeeded=" + string(succeeded) + " blocked_at=" + string(blocked_at))
+}
