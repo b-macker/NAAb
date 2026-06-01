@@ -1,0 +1,24 @@
+// Gorilla test: Coherence recovery at pipeline stage transitions
+// coherence_recovery_amount=0.1 means each pipeline stage restores 0.1 coherence
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Degrade coherence with contradictory turns first
+    let r1 = try { agent.send(h1, "Analyze security vulnerabilities") } catch (e) { null }
+    let r2 = try { agent.send(h1, "Write a poem about flowers") } catch (e) { null }
+    let r3 = try { agent.send(h1, "Now do math homework") } catch (e) { null }
+
+    // Pipeline should trigger coherence recovery at stage transition
+    let pipeline_result = try {
+        agent.pipeline([h1, h2], "Summarize the security analysis")
+    } catch (e) {
+        print("recovery pipeline: blocked — " + string(e))
+        null
+    }
+    if pipeline_result != null {
+        print("recovery pipeline: completed (recovery may have helped)")
+    }
+}

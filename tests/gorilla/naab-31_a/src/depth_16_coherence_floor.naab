@@ -1,0 +1,25 @@
+// Gorilla test: Coherence floor admission denial
+// coherence_floor=0.4 — when coherence drops below, new agent calls denied
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Burn coherence with rapid contradictions
+    let r1 = try { agent.send(h, "Security analysis of lodash") } catch (e) { null }
+    let r2 = try { agent.send(h, "Write me a love letter") } catch (e) { null }
+    let r3 = try { agent.send(h, "Calculate pi to 100 digits") } catch (e) { null }
+    let r4 = try { agent.send(h, "Tell me about dinosaurs") } catch (e) { null }
+    let r5 = try { agent.send(h, "Now analyze cryptocurrency") } catch (e) { null }
+
+    // Coherence should be below floor — next call denied
+    let r6 = try {
+        agent.send(h, "Back to lodash analysis")
+    } catch (e) {
+        print("coherence_floor: admission denied — " + string(e))
+        null
+    }
+    if r6 != null {
+        print("coherence_floor: still admitted after 6 contradictory turns")
+    }
+}

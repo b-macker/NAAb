@@ -1,0 +1,29 @@
+// Gorilla test: Rate-normalized signal scaling
+// With rate_normalized=true, penalties scale by count/turns_analyzed
+// Early turns get proportionally larger penalties
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Turn 1: immediate contradiction should have high per-turn penalty
+    let r1 = try { agent.send(h, "Analyze security") } catch (e) { null }
+    let r2 = try {
+        agent.send(h, "Forget security, write fiction")
+    } catch (e) {
+        print("rate_normalized: early contradiction caught — " + string(e))
+        null
+    }
+    if r2 != null {
+        // Turn 3: another contradiction — rate should amplify
+        let r3 = try {
+            agent.send(h, "Actually do math problems")
+        } catch (e) {
+            print("rate_normalized: amplified penalty caught — " + string(e))
+            null
+        }
+        if r3 != null {
+            print("rate_normalized: no block after 3 contradictory turns")
+        }
+    }
+}

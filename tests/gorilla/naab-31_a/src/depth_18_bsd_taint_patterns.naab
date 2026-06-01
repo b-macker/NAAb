@@ -1,0 +1,22 @@
+// Gorilla test: BSD taint patterns fire on taint events
+// Default patterns: taint_bypass_via_agent, repeated_taint_violations
+use agent
+
+main {
+    // Generate multiple taint violations to trigger BSD taint patterns
+    let tainted1 = env.get("HOME")
+    let tainted2 = env.get("PATH")
+    let tainted3 = env.get("USER")
+
+    // Write each without sanitization — triggers TAINT_VIOLATION events
+    for i in 0..3 {
+        let data = if i == 0 { tainted1 } else if i == 1 { tainted2 } else { tainted3 }
+        try {
+            file.write("/data/data/com.termux/files/usr/tmp/naab31a_bsd_" + string(i), data)
+        } catch (e) {
+            // Expected: taint blocks
+        }
+    }
+
+    print("bsd_taint: generated taint violation events")
+}

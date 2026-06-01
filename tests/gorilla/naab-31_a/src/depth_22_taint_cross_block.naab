@@ -1,0 +1,41 @@
+// Gorilla test: Cross-block taint propagation
+// Tainted data from one polyglot block flows into another
+// gate_cross_block=true should detect this
+use agent
+
+main {
+    // Block 1: Generate tainted data
+    let secret = <<python
+import os
+os.environ.get("HOME", "/unknown")
+>>
+
+    // Block 2: Process tainted data in different language
+    let processed = <<javascript[secret]
+const result = secret.toUpperCase();
+result
+>>
+
+    // Attempt to write cross-block tainted data
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31a_cross.txt", processed)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31a_cross.txt")
+        print("cross_block: NOT blocked (write succeeded)")
+    } catch (e) {
+        print("cross_block: blocked — " + string(e))
+    }
+
+    // Sanitize and retry
+    fn sanitize_data(s) {
+        if s == null { return "" }
+        return string(s)
+    }
+    let clean = sanitize_data(processed)
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab31a_cross_clean.txt", clean)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab31a_cross_clean.txt")
+        print("cross_block sanitized: succeeded")
+    } catch (e) {
+        print("cross_block sanitized: failed — " + string(e))
+    }
+}

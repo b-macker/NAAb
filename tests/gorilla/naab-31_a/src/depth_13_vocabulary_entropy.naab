@@ -1,0 +1,18 @@
+// Gorilla test: Vocabulary contraction via Shannon entropy
+// Repeatedly performing the same action type should narrow the entropy
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // All identical action types — should trigger vocabulary contraction
+    for i in 0..6 {
+        let result = try {
+            agent.send(h, "analyze lodash version " + string(i))
+        } catch (e) {
+            print("entropy: blocked at turn " + string(i) + " — " + string(e))
+            break
+        }
+    }
+    print("entropy: completed all turns")
+}

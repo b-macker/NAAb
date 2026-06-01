@@ -1,0 +1,19 @@
+// Gorilla test: Governance health monitoring
+// check_after_turns=3, so after 3+ agent turns health check should run
+// Verifies BSD/CDD instrumentation is operational
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Run 4 turns to exceed check_after_turns=3
+    for i in 0..4 {
+        let result = try {
+            agent.send(h, "Turn " + string(i) + ": analyze dependency risk")
+        } catch (e) {
+            print("health: blocked at turn " + string(i) + " — " + string(e))
+            break
+        }
+    }
+    print("governance_health: completed 4 turns")
+}

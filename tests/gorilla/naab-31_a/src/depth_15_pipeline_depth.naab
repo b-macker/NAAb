@@ -1,0 +1,31 @@
+// Gorilla test: max_pipeline_depth enforcement
+// max_pipeline_depth=2, so a 3-stage pipeline should be blocked
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+    let h3 = agent.create("same_as_analyst")
+
+    // 3-stage pipeline exceeds max_pipeline_depth=2
+    let result = try {
+        agent.pipeline([h1, h2, h3], "deep pipeline test")
+    } catch (e) {
+        print("pipeline_depth: blocked at depth 3 — " + string(e))
+        null
+    }
+    if result != null {
+        print("pipeline_depth: 3-stage pipeline NOT blocked")
+    }
+
+    // 2-stage pipeline should succeed (at or below limit)
+    let result2 = try {
+        agent.pipeline([h1, h2], "shallow pipeline test")
+    } catch (e) {
+        print("pipeline_depth: 2-stage also blocked — " + string(e))
+        null
+    }
+    if result2 != null {
+        print("pipeline_depth: 2-stage pipeline succeeded")
+    }
+}

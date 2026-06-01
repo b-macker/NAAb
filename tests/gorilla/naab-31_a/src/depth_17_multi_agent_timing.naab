@@ -1,0 +1,16 @@
+// Gorilla test: Temporal coupling detection
+// Two agents called in lock-step should trigger correlation detection
+// temporal_coupling.max_correlation=0.8, min_events=3
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Lock-step: call both agents in alternating pattern
+    for i in 0..4 {
+        let r1 = try { agent.send(h1, "analyst turn " + string(i)) } catch (e) { null }
+        let r2 = try { agent.send(h2, "reviewer turn " + string(i)) } catch (e) { null }
+    }
+    print("temporal coupling: completed 4 lock-step rounds")
+}

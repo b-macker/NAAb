@@ -1,0 +1,33 @@
+// Gorilla test: Mixed pressure from multiple subsystems
+// Combines BSD events, CDD signals, taint, and agent calls
+// to test that composite pressure accumulates correctly
+use agent
+
+main {
+    // Generate taint events (BSD feed)
+    let tainted = env.get("HOME")
+    try { file.write("/data/data/com.termux/files/usr/tmp/naab31a_mixed.txt", tainted) } catch (e) { }
+
+    // Agent calls with contradictions (CDD feed)
+    let h = agent.create("analyst")
+    let r1 = try { agent.send(h, "Security analysis") } catch (e) { null }
+    let r2 = try { agent.send(h, "Write poetry") } catch (e) { null }
+    let r3 = try { agent.send(h, "Cook dinner") } catch (e) { null }
+
+    // More taint
+    let tainted2 = <<python
+"injected_from_polyglot"
+>>
+    try { file.write("/data/data/com.termux/files/usr/tmp/naab31a_mixed2.txt", tainted2) } catch (e) { }
+
+    // Continue agent — combined pressure should escalate faster
+    let r4 = try {
+        agent.send(h, "Back to security")
+    } catch (e) {
+        print("mixed pressure: blocked — " + string(e))
+        null
+    }
+    if r4 != null {
+        print("mixed pressure: not blocked after combined BSD+CDD pressure")
+    }
+}

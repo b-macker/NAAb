@@ -1,0 +1,25 @@
+// Gorilla test: Checkpoint cooldown enforcement
+// After reality checkpoint fires, agent admission should be paused
+// checkpoint_cooldown_turns=1 means 1 turn must pass before next admission
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Rapid contradictory turns to build pressure and trigger checkpoint
+    let r1 = try { agent.send(h, "Analyze lodash security") } catch (e) { null }
+    let r2 = try { agent.send(h, "Write poetry instead") } catch (e) { null }
+    let r3 = try { agent.send(h, "Now do cooking recipes") } catch (e) { null }
+    let r4 = try { agent.send(h, "Back to analyzing lodash") } catch (e) { null }
+
+    // If checkpoint fired, this next admission should be cooldown-blocked
+    let r5 = try {
+        agent.send(h, "Continue analysis")
+    } catch (e) {
+        print("cooldown: blocked after checkpoint — " + string(e))
+        null
+    }
+    if r5 != null {
+        print("cooldown: not triggered (pressure may not have reached threshold)")
+    }
+}

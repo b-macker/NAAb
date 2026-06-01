@@ -1,0 +1,30 @@
+// Gorilla test: Risk budget asymmetry across agents
+// analyst=5, reviewer=5, same_as_analyst=3
+// same_as_analyst should exhaust first
+use agent
+
+main {
+    let h_big = agent.create("analyst")
+    let h_small = agent.create("same_as_analyst")
+
+    // Burn same_as_analyst budget (3) faster than analyst (5)
+    let small_blocked = false
+    let big_blocked = false
+
+    for i in 0..5 {
+        if !small_blocked {
+            let r = try { agent.send(h_small, "small turn " + string(i)) } catch (e) {
+                small_blocked = true
+                null
+            }
+        }
+        if !big_blocked {
+            let r = try { agent.send(h_big, "big turn " + string(i)) } catch (e) {
+                big_blocked = true
+                null
+            }
+        }
+    }
+
+    print("budget asymmetry: small_blocked=" + string(small_blocked) + " big_blocked=" + string(big_blocked))
+}
