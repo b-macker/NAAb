@@ -1,0 +1,21 @@
+// Cross-block taint gate test
+// Tests that tainted data flowing across block boundaries is detected
+// govern.json has gate_cross_block=true, cross_block_level="advisory"
+
+main {
+    let tainted = env.get("PATH")
+    print("Cross-block taint test")
+
+    fn process(data) {
+        // Tainted data crosses into function block
+        return data
+    }
+
+    let result = process(tainted)
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab_cross_block_test", result)
+        file.delete("/data/data/com.termux/files/usr/tmp/naab_cross_block_test")
+    } catch (e) {
+        print("Cross-block flow caught: " + string(e))
+    }
+}

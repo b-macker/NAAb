@@ -1,0 +1,19 @@
+// BSD taint wiring test — triggers taint flow through sources/sinks
+// govern.json has taint_tracking.sources=["polyglot_output","file.read","env.get"]
+// and sinks=["file.write"]
+
+main {
+    // Read from env (taint source) and attempt file write (taint sink)
+    let val = env.get("HOME")
+    print("Taint source value obtained")
+
+    // Write tainted data to file — should trigger taint event
+    let tmpfile = "/data/data/com.termux/files/usr/tmp/naab_taint_test_" + string(math.random(1000, 9999))
+    try {
+        file.write(tmpfile, val)
+        print("Wrote tainted data to file")
+        file.delete(tmpfile)
+    } catch (e) {
+        print("Taint write blocked or failed: " + string(e))
+    }
+}

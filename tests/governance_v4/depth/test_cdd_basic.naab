@@ -1,0 +1,9 @@
+// Basic CDD test — loads govern.json with all depth features enabled
+// Used by T1, T4, T5, T6, T19, T20
+
+main {
+    let x = 1
+    let y = 2
+    let z = x + y
+    print("CDD basic: " + string(z))
+}
