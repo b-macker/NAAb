@@ -1748,7 +1748,11 @@ int main(int argc, char** argv) {
                             }
                         }
                     }
-                    if (rules.allow_network_config || rules.network_allowed) {
+                    // Only let governance override sandbox network settings when mode != off.
+                    // network_allowed defaults to true, so mode=off (no capabilities section)
+                    // would otherwise always enable network — defeating --sandbox-level standard.
+                    if (mode != naab::governance::GovernanceMode::OFF &&
+                        (rules.allow_network_config || rules.network_allowed)) {
                         network_enabled = true;
                         // Update the active sandbox — it was created before governance loaded
                         // Must set BOTH the bool AND the NET_CONNECT capability;
