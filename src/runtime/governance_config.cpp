@@ -2033,8 +2033,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.timeout_seconds = cfg_json["timeout"].get<int>();
                 if (cfg_json.contains("response_format"))
                     agent.response_format = cfg_json["response_format"].get<std::string>();
-                if (cfg_json.contains("risk_budget"))
+                if (cfg_json.contains("risk_budget")) {
                     agent.risk_budget = cfg_json["risk_budget"].get<int>();
+                    if (agent.risk_budget < 0) agent.risk_budget = 0;
+                }
             }
 
             rules_.agents.push_back(agent);
@@ -2204,7 +2206,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto [en, lv] = parseEnforcementLevel(cd["level"]);
             cfg.level = lv;
         }
-        if (cd.contains("coherence_threshold")) cfg.coherence_threshold = cd["coherence_threshold"].get<double>();
+        if (cd.contains("coherence_threshold")) {
+            cfg.coherence_threshold = cd["coherence_threshold"].get<double>();
+            cfg.coherence_threshold = std::max(0.0, std::min(1.0, cfg.coherence_threshold));
+        }
         if (cd.contains("max_contradictions")) cfg.max_contradictions = cd["max_contradictions"].get<int>();
         if (cd.contains("check_interval_turns")) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
         if (cd.contains("fingerprint_window")) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
@@ -2265,11 +2270,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& et = j["exposure_tracking"];
         auto& cfg = rules_.exposure_tracking;
         if (et.contains("enabled")) cfg.enabled = et["enabled"].get<bool>();
-        if (et.contains("max_autonomous_actions")) cfg.max_autonomous_actions = et["max_autonomous_actions"].get<int>();
+        if (et.contains("max_autonomous_actions")) {
+            cfg.max_autonomous_actions = et["max_autonomous_actions"].get<int>();
+            if (cfg.max_autonomous_actions < 0) cfg.max_autonomous_actions = 0;
+        }
         if (et.contains("max_unique_agents")) cfg.max_unique_agents = et["max_unique_agents"].get<int>();
         if (et.contains("coherence_floor")) cfg.coherence_floor = et["coherence_floor"].get<double>();
-        if (et.contains("max_pipeline_depth")) cfg.max_pipeline_depth = et["max_pipeline_depth"].get<int>();
-        if (et.contains("checkpoint_cooldown_turns")) cfg.checkpoint_cooldown_turns = et["checkpoint_cooldown_turns"].get<int>();
+        if (et.contains("max_pipeline_depth")) {
+            cfg.max_pipeline_depth = et["max_pipeline_depth"].get<int>();
+            if (cfg.max_pipeline_depth < 0) cfg.max_pipeline_depth = 0;
+        }
+        if (et.contains("checkpoint_cooldown_turns")) {
+            cfg.checkpoint_cooldown_turns = et["checkpoint_cooldown_turns"].get<int>();
+            if (cfg.checkpoint_cooldown_turns < 0) cfg.checkpoint_cooldown_turns = 0;
+        }
         if (et.contains("min_capability_utilization")) cfg.min_capability_utilization = et["min_capability_utilization"].get<double>();
         if (et.contains("utilization_check_after_turns")) cfg.utilization_check_after_turns = et["utilization_check_after_turns"].get<int>();
         if (et.contains("level")) {

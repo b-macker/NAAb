@@ -144,6 +144,7 @@ SequenceMatchResult BehavioralSequenceDetector::recordEvent(const RuntimeEvent& 
     event_buffer_.push_back(ev);
     while (event_buffer_.size() > config_->window_size) {
         event_buffer_.pop_front();
+        evicted_event_count_++;
     }
 
     // Check each pattern's FSM
@@ -430,6 +431,11 @@ void BehavioralSequenceDetector::reset() {
 size_t BehavioralSequenceDetector::totalEventsProcessed() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return sequence_counter_;
+}
+
+size_t BehavioralSequenceDetector::totalEventsEvicted() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return evicted_event_count_;
 }
 
 size_t BehavioralSequenceDetector::totalPatternsMatched() const {
@@ -830,6 +836,11 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
     auto it = drift_states_.find(handle_id);
     if (it != drift_states_.end()) {
         it->second.coherence_score = std::min(1.0, it->second.coherence_score + amount);
+        // Clear history and derivatives to prevent false velocity/acceleration signals
+        it->second.coherence_history.clear();
+        it->second.coherence_history.push_back(it->second.coherence_score);
+        it->second.coherence_velocity = 0.0;
+        it->second.coherence_acceleration = 0.0;
     }
 }
 

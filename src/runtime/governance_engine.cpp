@@ -2335,9 +2335,16 @@ void GovernanceEngine::printDashboard() const {
                 check_results_.size(), rules_.telemetry_output.output_file.c_str());
     // BSD/CDD feature summary
     if (bsd_enabled_.load(std::memory_order_relaxed)) {
-        fprintf(stderr, "BSD:        %zu events, %zu patterns matched\n",
-                sequence_detector_.totalEventsProcessed(),
-                sequence_detector_.totalPatternsMatched());
+        size_t evicted = sequence_detector_.totalEventsEvicted();
+        if (evicted > 0) {
+            fprintf(stderr, "BSD:        %zu events (%zu evicted), %zu patterns matched\n",
+                    sequence_detector_.totalEventsProcessed(), evicted,
+                    sequence_detector_.totalPatternsMatched());
+        } else {
+            fprintf(stderr, "BSD:        %zu events, %zu patterns matched\n",
+                    sequence_detector_.totalEventsProcessed(),
+                    sequence_detector_.totalPatternsMatched());
+        }
     }
     if (cdd_enabled_.load(std::memory_order_relaxed)) {
         auto handle = current_agent_handle_.load(std::memory_order_relaxed);
@@ -5264,6 +5271,7 @@ void GovernanceEngine::recoverCoherence(int handle_id) {
         rules_.context_drift.coherence_recovery_amount);
 }
 
+// Read-only copy of pipeline depth, synced from agent_impl.cpp via setPipelineDepth().
 static thread_local int t_pipeline_depth = 0;
 
 void GovernanceEngine::setPipelineDepth(int /*handle_id*/, int depth) {
@@ -5616,10 +5624,11 @@ std::string GovernanceEngine::checkBehavioralSequence(const SequenceMatchResult&
             match.matched_events[i].file, match.matched_events[i].line));
     }
 
-    // F8: Consume risk budget on full BSD match (cost 3)
+    // F8: Consume risk budget on full BSD match (cost 1)
+    // Reduced from 3 to prevent instant budget exhaust when BSD+CDD fire on same turn
     {
         std::lock_guard<std::mutex> lock(agent_config_mutex_);
-        if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 3);
+        if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 1);
     }
 
     return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
@@ -5779,10 +5788,11 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     if (state->vocabulary_contraction_count > 0)
         addTrace(fmt::format("  vocabulary_contraction: {}", state->vocabulary_contraction_count));
 
-    // F8: Consume risk budget on CDD signal fire (cost 2)
+    // F8: Consume risk budget on CDD signal fire (cost 1)
+    // Reduced from 2 to prevent instant budget exhaust when BSD+CDD fire on same turn
     {
         std::lock_guard<std::mutex> lock(agent_config_mutex_);
-        if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 2);
+        if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 1);
     }
 
     return enforce("context_drift.coherence_loss", rules_.context_drift.level,

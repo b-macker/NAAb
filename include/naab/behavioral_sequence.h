@@ -133,8 +133,9 @@ public:
     // Check if enabled
     bool isEnabled() const;
 
-    // Telemetry: total events processed and patterns matched
+    // Telemetry: total events processed, evicted, and patterns matched
     size_t totalEventsProcessed() const;
+    size_t totalEventsEvicted() const;
     size_t totalPatternsMatched() const;
 
     // Max partial progress across all active patterns (0.0–1.0)
@@ -144,6 +145,7 @@ private:
     const BehavioralSequenceConfig* config_ = nullptr;
     std::deque<RuntimeEvent> event_buffer_;
     size_t sequence_counter_ = 0;
+    size_t evicted_event_count_ = 0;
     size_t match_count_ = 0;
     std::unordered_map<std::string, PatternMatchState> pattern_states_;
     std::vector<SequencePattern> default_patterns_;  // built-in patterns when user provides none

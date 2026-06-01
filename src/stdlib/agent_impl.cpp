@@ -334,8 +334,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // Call provider via shared layer
-    auto agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
+    runtime::AgentResponse agent_resp;
+    try {
+        agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
+    } catch (...) {
+        // Record failed turn with CDD so repeated failures trigger drift signals
+        if (gov_engine && gov_engine->isActive() &&
+            gov_engine->getRules().context_drift.enabled) {
+            gov_engine->checkContextDrift(handle_id, current_turn, "api_call_failed");
+        }
+        throw;
+    }
     if (!agent_resp.success) {
+        // Record API error as CDD signal before throwing
+        if (gov_engine && gov_engine->isActive() &&
+            gov_engine->getRules().context_drift.enabled) {
+            gov_engine->checkContextDrift(handle_id, current_turn, agent_resp.error);
+        }
         throw std::runtime_error(agent_resp.error);
     }
 
@@ -1078,6 +1093,8 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
     }
 
     // F3: Track pipeline depth with thread_local counter + RAII guard
+    // Authoritative pipeline depth counter. Synced to governance engine via
+    // setPipelineDepth() below. RAII DepthGuard ensures consistency.
     static thread_local int t_pipeline_depth = 0;
     t_pipeline_depth++;
     struct DepthGuard { ~DepthGuard() { t_pipeline_depth--; } } depth_guard;
@@ -1125,7 +1142,20 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
 
     for (size_t i = 0; i < handles.size(); i++) {
         std::vector<NaabVal> send_args = {handles[i], NaabVal::makeString(current_message)};
-        last_response = agentSend(send_args);
+        try {
+            last_response = agentSend(send_args);
+        } catch (...) {
+            // Recover coherence for the failed stage to prevent floor-grinding
+            auto* ge = governance::GovernanceEngine::getCurrent();
+            if (ge && ge->isActive() && handles[i].isDict()) {
+                auto& d = handles[i].asDict();
+                auto hid = d.find("handle_id");
+                if (hid != d.end()) {
+                    ge->recoverCoherence(hid->second.asInt());
+                }
+            }
+            throw;
+        }
 
         // Extract content for next stage, prepend governance metadata
         if (i < handles.size() - 1) {
