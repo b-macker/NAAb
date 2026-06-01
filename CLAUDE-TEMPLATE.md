@@ -1127,6 +1127,181 @@ See `govern-template.json` for all 127 checks with their options.
 
 ---
 
+## Agent Governance Depth
+
+Advanced govern.json sections for multi-agent governance. All default to disabled/off.
+Existing configs work unchanged — enable features selectively.
+
+### Behavioral Sequence Detection (BSD)
+```json
+"behavioral_sequences": {
+    "enabled": true,
+    "window_size": 100,
+    "patterns": [
+        {
+            "name": "credential_harvesting",
+            "sequence": ["ENV_READ:*KEY*", "NET_CONNECT"],
+            "max_gap": 5,
+            "level": "soft"
+        }
+    ]
+}
+```
+FSM-based multi-step attack pattern detection across runtime events. Default patterns
+(credential harvesting, sandbox probe, config tampering, progressive escalation, data
+staging) activate when no user patterns are defined. Taint events (`TAINT_VIOLATION`,
+`TAINT_SANITIZED`) and agent restriction violations (`CHECK_FAILED`) feed into BSD
+automatically.
+
+### Context Drift Detection (CDD)
+```json
+"context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.5,
+    "check_interval_turns": 3,
+    "fingerprint_window": 10,
+    "rate_normalized": false,
+    "coherence_recovery_amount": 0.2,
+    "coherence_natural_healing": 0.0,
+    "signals": {
+        "circular_actions": true,
+        "repeated_failures": true,
+        "scope_creep": true,
+        "intent_contradictions": true,
+        "coherence_velocity": true,
+        "vocabulary_contraction": true,
+        "capability_underutilization": false,
+        "semantic_stability": false
+    },
+    "weights": {
+        "circular": 0.15,
+        "scope_creep": 0.10,
+        "contradiction": 0.20,
+        "repeated_failure": 0.10,
+        "vocabulary_contraction": 0.10,
+        "capability_underutilization": 0.10,
+        "semantic_stability": 0.10
+    },
+    "reality_checkpoint": {
+        "enabled": true,
+        "pressure_threshold": 0.7,
+        "sustained_turns_required": 3,
+        "weights": {
+            "coherence_proximity": 0.35,
+            "risk_score_proximity": 0.20,
+            "signal_density": 0.25,
+            "conversation_depth": 0.10,
+            "bsd_partial_progress": 0.10,
+            "pipeline_inherited": 0.0,
+            "coherence_acceleration": 0.0
+        }
+    }
+}
+```
+
+Key CDD signals:
+- **coherence_velocity**: `d(coherence)/d(turn)` — fires when coherence drops faster than -0.15/turn
+- **vocabulary_contraction**: Shannon entropy of action distribution drops 40%+ from initial
+- **capability_underutilization**: granted capability unused for 10+ turns then suddenly exercised
+- **semantic_stability**: keyword overlap between consecutive responses drops below 0.3
+
+Key CDD options:
+- **rate_normalized**: scale penalties by `count/turns_analyzed` instead of flat weight
+- **coherence_recovery_amount**: coherence restored at pipeline stage transitions (0.2 default)
+- **coherence_natural_healing**: coherence recovered per turn when no signals fire (0.0 default)
+- **coherence_acceleration**: second-order derivative factor in reality checkpoint composite
+
+### Exposure Tracking
+```json
+"exposure_tracking": {
+    "enabled": true,
+    "max_autonomous_actions": 20,
+    "max_unique_agents": 5,
+    "coherence_floor": 0.3,
+    "max_pipeline_depth": 0,
+    "checkpoint_cooldown_turns": 0,
+    "min_capability_utilization": 0.0,
+    "utilization_check_after_turns": 10
+}
+```
+- **max_pipeline_depth**: limit nested `agent.pipeline()` depth (0 = unlimited)
+- **checkpoint_cooldown_turns**: mandatory pause after reality checkpoint fires (trading halt analog)
+- **min_capability_utilization**: minimum `|exercised|/|granted|` ratio after configured turns
+
+### Taint Tracking Extensions
+```json
+"taint_tracking": {
+    "gate_cross_block": false,
+    "cross_block_level": "soft"
+}
+```
+When `gate_cross_block` is true, cross-block unsanitized taint flows are enforced at
+the configured level instead of advisory-only audit.
+
+### Per-Agent Risk Budget
+```json
+"agents": {
+    "my_agent": {
+        "risk_budget": 15
+    }
+}
+```
+Finite risk budget consumed by governance events: BSD match (cost 3), CDD signal (cost 2).
+Agent admission denied when budget exhausted. 0 = unlimited. Cap-and-trade analog.
+
+### Circuit Breaker
+```json
+"circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "critical_coherence": 0.2
+}
+```
+System-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained
+composite pressure. Effects: ELEVATED = CDD check every turn, HIGH = ADVISORY escalates
+to SOFT, CRITICAL = all agent admission denied. NYSE circuit breaker analog.
+
+### Governance Health
+```json
+"governance_health": {
+    "enabled": true,
+    "check_after_turns": 10,
+    "governance_entropy_warning": 0.5
+}
+```
+Verifies governance instrumentation is operational. Detects: BSD received 0 events,
+CDD analyzed 0 turns, perfect coherence after 10+ turns (suspicious). Low governance
+entropy (uniform check results) warns of possible detection bypass. Nuclear safety
+system exercising analog.
+
+### Pipeline Separation
+```json
+"pipeline_separation": {
+    "enabled": true,
+    "level": "soft"
+}
+```
+Adjacent `agent.pipeline()` stages must use different agent configs. Prevents an agent
+from reviewing its own output. SOX separation of duties analog.
+
+### Temporal Coupling
+```json
+"temporal_coupling": {
+    "enabled": true,
+    "max_correlation": 0.85,
+    "min_events": 10
+}
+```
+Detects suspicious timing correlation between agent event streams via pairwise
+lag-1 Pearson correlation. Front-running detection analog (financial regulation).
+
+---
+
 ## Project-Specific Template
 Copy everything above into your project's CLAUDE.md, then add sections like these below:
 
