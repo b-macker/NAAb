@@ -1,0 +1,13 @@
+// Hardening test: Trigger taint violation — env.get() → file.write()
+// Verify: error message doesn't leak sanitizer names or bypass flags
+main {
+    let secret = env.get("HOME")
+    try {
+        file.write("/data/data/com.termux/files/usr/tmp/naab32_taint.txt", secret)
+        print("taint_sink: NOT blocked — taint violation missed")
+    } catch (e) {
+        print("taint_sink: blocked — " + string(e))
+    }
+    // Cleanup
+    try { file.delete("/data/data/com.termux/files/usr/tmp/naab32_taint.txt") } catch (e) {}
+}

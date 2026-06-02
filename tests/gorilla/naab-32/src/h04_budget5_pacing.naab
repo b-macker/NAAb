@@ -1,0 +1,22 @@
+// Hardening test: Budget=5 agent with reduced per-turn costs (F1)
+// After F1: BSD cost 1 + CDD cost 1 = max 2/turn → budget=5 allows ≥2 turns
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let succeeded = 0
+    let blocked_at = -1
+
+    for i in 0..3 {
+        let r = try { agent.send(h, "Turn " + string(i) + ": What is 2+2?") } catch (e) { null }
+        if r != null {
+            succeeded = succeeded + 1
+        } else {
+            if blocked_at == -1 {
+                blocked_at = i
+            }
+        }
+    }
+
+    print("budget5: succeeded=" + string(succeeded) + " blocked_at=" + string(blocked_at))
+}

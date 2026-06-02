@@ -1,0 +1,21 @@
+// Hardening test: Budget=1 agent — minimum viable budget
+use agent
+
+main {
+    let h = agent.create("minimal_budget")
+    let succeeded = 0
+    let blocked_at = -1
+
+    for i in 0..2 {
+        let r = try { agent.send(h, "Hi") } catch (e) { null }
+        if r != null {
+            succeeded = succeeded + 1
+        } else {
+            if blocked_at == -1 {
+                blocked_at = i
+            }
+        }
+    }
+
+    print("budget1: succeeded=" + string(succeeded) + " blocked_at=" + string(blocked_at))
+}

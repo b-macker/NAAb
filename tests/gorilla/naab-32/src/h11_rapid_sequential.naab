@@ -1,0 +1,16 @@
+// Hardening test: Rapid sequential sends — per-turn cost cap validation
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let ok_count = 0
+
+    for i in 0..3 {
+        let ok = try { agent.send(h, "Rapid turn " + string(i)) } catch (e) { null }
+        if ok != null {
+            ok_count = ok_count + 1
+        }
+    }
+
+    print("rapid_seq: ok_count=" + string(ok_count))
+}

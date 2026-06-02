@@ -1,0 +1,18 @@
+// Hardening test: Coherence recovery after contradictory sends (F7)
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Contradictory sends to degrade coherence
+    let r1 = try { agent.send(h, "Analyze security vulnerabilities") } catch (e) { null }
+    let r2 = try { agent.send(h, "Write a haiku about butterflies") } catch (e) { null }
+
+    // Post-recovery send
+    let post = try { agent.send(h, "Final security check") } catch (e) { null }
+    if post != null {
+        print("coherence_recovery: post-recovery send succeeded")
+    } else {
+        print("coherence_recovery: post-recovery send blocked")
+    }
+}

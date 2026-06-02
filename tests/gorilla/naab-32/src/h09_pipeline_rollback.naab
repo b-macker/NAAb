@@ -1,0 +1,21 @@
+// Hardening test: Pipeline rollback — coherence recovery on failure (F2)
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Pipeline: analyst → reviewer
+    let pipeline_ok = try { agent.pipeline([h1, h2], "Analyze then review") } catch (e) { null }
+    if pipeline_ok != null {
+        print("pipeline_rollback: pipeline completed")
+    } else {
+        print("pipeline_rollback: pipeline caught error")
+    }
+
+    // Post-pipeline usability
+    let post1 = try { agent.send(h1, "Post-pipeline check") } catch (e) { null }
+    let analyst_ok = "false"
+    if post1 != null { analyst_ok = "true" }
+    print("pipeline_rollback: post_analyst=" + analyst_ok)
+}

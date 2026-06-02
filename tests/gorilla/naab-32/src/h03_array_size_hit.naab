@@ -1,0 +1,9 @@
+// Hardening test: Trigger array size limit (50) to capture error message
+// Verify: error message says "split" or "chunks", not "adjust govern.json"
+main {
+    let big = []
+    for i in 0..80 {
+        big = array.push(big, i)
+    }
+    print("array_size: len=" + string(array.length(big)))
+}

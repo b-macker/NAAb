@@ -1,0 +1,19 @@
+// Hardening test: Multiple agents with different budgets — tracked separately
+use agent
+
+main {
+    let h_analyst = agent.create("analyst")
+    let h_tight = agent.create("tight_budget")
+    let analyst_ok = 0
+    let tight_ok = 0
+
+    for i in 0..2 {
+        let r1 = try { agent.send(h_analyst, "Analyst turn " + string(i)) } catch (e) { null }
+        if r1 != null { analyst_ok = analyst_ok + 1 }
+
+        let r2 = try { agent.send(h_tight, "Tight turn " + string(i)) } catch (e) { null }
+        if r2 != null { tight_ok = tight_ok + 1 }
+    }
+
+    print("multi_budget: analyst=" + string(analyst_ok) + " tight=" + string(tight_ok))
+}

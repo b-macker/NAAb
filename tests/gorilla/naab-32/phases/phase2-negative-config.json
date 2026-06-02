@@ -1,0 +1,68 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "sandbox_level": "elevated",
+    "languages": {
+        "allowed": ["python", "javascript", "shell"]
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "write" },
+        "shell": { "enabled": true }
+    },
+    "limits": {
+        "timeout": { "global": -100, "per_block": -50 },
+        "execution": {
+            "call_depth": -10,
+            "loop_iterations": -500,
+            "polyglot_blocks": -5,
+            "total_executions": -99
+        },
+        "data": {
+            "array_size": -100,
+            "dict_size": -50,
+            "string_length": -1000,
+            "nesting_depth": -8,
+            "output_size": -4096
+        }
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "soft",
+        "sources": ["env.get"],
+        "sinks": ["file.write"]
+    },
+    "behavioral_sequences": {
+        "enabled": true,
+        "window_size": 20
+    },
+    "context_drift": {
+        "enabled": true,
+        "level": "soft",
+        "coherence_threshold": -0.5
+    },
+    "exposure_tracking": {
+        "enabled": true,
+        "max_autonomous_actions": -10,
+        "max_pipeline_depth": -3,
+        "checkpoint_cooldown_turns": -2
+    },
+    "agents": {
+        "neg_agent": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK5",
+            "max_tokens": 128,
+            "max_turns": 3,
+            "max_total_tokens": 512,
+            "system_prompt": "Test agent.",
+            "risk_budget": -5
+        }
+    },
+    "scoring": {
+        "enabled": true,
+        "default_weight": 5,
+        "yellow_threshold": 10,
+        "red_threshold": 30
+    }
+}

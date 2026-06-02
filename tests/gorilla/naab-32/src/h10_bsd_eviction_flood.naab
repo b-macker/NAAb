@@ -1,0 +1,21 @@
+// Hardening test: BSD eviction counter visibility (F4)
+// Generate 60+ taint events to exceed window_size=50, trigger FIFO eviction
+main {
+    for i in 0..65 {
+        let val = env.get("HOME")
+        try {
+            file.write("/data/data/com.termux/files/usr/tmp/naab32_flood_" + string(i) + ".txt", val)
+        } catch (e) {
+            // Expected: taint blocks
+        }
+    }
+
+    // Cleanup
+    for i in 0..65 {
+        try {
+            file.delete("/data/data/com.termux/files/usr/tmp/naab32_flood_" + string(i) + ".txt")
+        } catch (e) {}
+    }
+
+    print("bsd_eviction: completed 65 events")
+}

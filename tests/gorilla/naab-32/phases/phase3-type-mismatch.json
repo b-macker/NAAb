@@ -1,0 +1,43 @@
+{
+    "version": "5.0",
+    "mode": 999,
+    "sandbox_level": "elevated",
+    "languages": {
+        "allowed": ["python", "javascript"]
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "write" },
+        "shell": { "enabled": true }
+    },
+    "limits": {
+        "execution": {
+            "loop_iterations": 200
+        },
+        "data": {
+            "array_size": 100
+        }
+    },
+    "requirements": {
+        "main_block": {
+            "enabled": true,
+            "level": 42
+        }
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "soft",
+        "sources": ["env.get"],
+        "sinks": ["file.write"]
+    },
+    "behavioral_sequences": {
+        "enabled": true,
+        "window_size": 50
+    },
+    "scoring": {
+        "enabled": true,
+        "default_weight": 5,
+        "yellow_threshold": 10,
+        "red_threshold": 30
+    }
+}

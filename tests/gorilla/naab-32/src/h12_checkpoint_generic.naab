@@ -1,0 +1,13 @@
+// Hardening test: Checkpoint pressure message uses generic format
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Contradictory sends to trigger checkpoint pressure
+    let r1 = try { agent.send(h, "Analyze security architecture") } catch (e) { null }
+    let r2 = try { agent.send(h, "Write a poem about clouds") } catch (e) { null }
+    let r3 = try { agent.send(h, "Debug database pooling") } catch (e) { null }
+
+    print("checkpoint_generic: completed 3 sends")
+}

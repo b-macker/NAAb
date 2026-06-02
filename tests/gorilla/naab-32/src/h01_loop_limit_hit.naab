@@ -1,0 +1,9 @@
+// Hardening test: Trigger loop iteration limit to capture error message
+// Verify: error message guides toward code fix, doesn't leak config keys
+main {
+    let sum = 0
+    for i in 0..200 {
+        sum = sum + i
+    }
+    print("loop_limit: sum=" + string(sum))
+}
