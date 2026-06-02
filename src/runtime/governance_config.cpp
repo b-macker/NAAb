@@ -150,7 +150,7 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
     if (value.is_object()) {
         bool enabled = value.value("enabled", true);
         EnforcementLevel level = EnforcementLevel::HARD;
-        if (value.contains("level")) {
+        if (value.contains("level") && value["level"].is_string()) {
             std::string s = value["level"].get<std::string>();
             if (s == "approval_required") level = EnforcementLevel::APPROVAL_REQUIRED;
             else if (s == "soft") level = EnforcementLevel::SOFT;
@@ -189,7 +189,7 @@ static void parseRationale(const nlohmann::json& obj, std::string& target) {
 
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Mode
-    if (j.contains("mode")) {
+    if (j.contains("mode") && j["mode"].is_string()) {
         std::string mode = j["mode"].get<std::string>();
         if (mode == "enforce")    rules_.mode = GovernanceMode::ENFORCE;
         else if (mode == "audit") rules_.mode = GovernanceMode::AUDIT;
@@ -676,6 +676,37 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (r.contains("cooldown_on_limit_ms")) rules_.limits.rate.cooldown_on_limit_ms = r["cooldown_on_limit_ms"].get<int>();
         }
     }
+
+    // Clamp all limits fields: negative → 0 (0 = unlimited/disabled, matches > 0 guards)
+    auto clamp0 = [](int& v) { if (v < 0) v = 0; };
+    clamp0(rules_.limits.timeout.global);
+    clamp0(rules_.limits.timeout.per_block);
+    clamp0(rules_.limits.timeout.total_polyglot);
+    clamp0(rules_.limits.memory.per_block_mb);
+    clamp0(rules_.limits.memory.total_mb);
+    clamp0(rules_.limits.execution.call_depth);
+    clamp0(rules_.limits.execution.loop_iterations);
+    clamp0(rules_.limits.execution.polyglot_blocks);
+    clamp0(rules_.limits.execution.parallel_blocks);
+    clamp0(rules_.limits.execution.total_executions);
+    clamp0(rules_.limits.data.array_size);
+    clamp0(rules_.limits.data.dict_size);
+    clamp0(rules_.limits.data.string_length);
+    clamp0(rules_.limits.data.nesting_depth);
+    clamp0(rules_.limits.data.output_size);
+    clamp0(rules_.limits.code.max_lines_per_block);
+    clamp0(rules_.limits.code.max_total_polyglot_lines);
+    clamp0(rules_.limits.code.max_nesting_depth);
+    clamp0(rules_.limits.rate.max_polyglot_per_second);
+    clamp0(rules_.limits.rate.max_stdlib_calls_per_second);
+    clamp0(rules_.limits.rate.max_file_ops_per_second);
+    clamp0(rules_.limits.rate.cooldown_on_limit_ms);
+    clamp0(rules_.timeout_seconds);
+    clamp0(rules_.max_call_depth);
+    clamp0(rules_.max_array_size);
+    clamp0(rules_.memory_limit_mb);
+    clamp0(rules_.runtime.timeout);
+    clamp0(rules_.api.timeout);
 
     // V3 Requirements (expanded objects)
     if (j.contains("requirements") && j["requirements"].is_object()) {
