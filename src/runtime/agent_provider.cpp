@@ -59,22 +59,31 @@ static size_t ProviderWriteCallback(void* contents, size_t size, size_t nmemb, v
 }
 
 // ============================================================================
-// HTTP POST with curl
+// HTTP POST result (structured — does not throw)
 // ============================================================================
 
-static json httpPost(
+struct HttpResult {
+    json body;
+    long status_code = 0;
+    std::string error;       // non-empty on curl or parse failure
+    std::string error_detail; // API error message (from response body)
+};
+
+static HttpResult httpPostRaw(
     const std::string& url,
     const std::string& body,
     const std::vector<std::string>& header_lines,
     long timeout_seconds = 120L) {
 
+    HttpResult result;
+
     CURL* curl = curl_easy_init();
     if (!curl) {
-        throw std::runtime_error("Agent error: Failed to initialize HTTP client");
+        result.error = "Failed to initialize HTTP client";
+        return result;
     }
 
     std::string response_body;
-    long response_code = 0;
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -90,13 +99,11 @@ static json httpPost(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
     // On Termux (Android) the system curl CA bundle is not at the standard path.
-    // Honour the standard env vars; if unset, try the known Termux location.
     const char* ca_env = std::getenv("SSL_CERT_FILE");
     if (!ca_env) ca_env = std::getenv("CURL_CA_BUNDLE");
     if (ca_env && ca_env[0]) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, ca_env);
     } else {
-        // Fallback: Termux default cert bundle
         curl_easy_setopt(curl, CURLOPT_CAINFO,
             "/data/data/com.termux/files/usr/etc/tls/cert.pem");
     }
@@ -108,53 +115,76 @@ static json httpPost(
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
     CURLcode res = curl_easy_perform(curl);
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &result.status_code);
     curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
-        std::string curl_err = curl_easy_strerror(res);
+        result.error = curl_easy_strerror(res);
         curl_easy_cleanup(curl);
+        return result;
+    }
+
+    curl_easy_cleanup(curl);
+
+    try {
+        result.body = json::parse(response_body);
+    } catch (const json::parse_error&) {
+        result.error = "unparseable_response";
+        return result;
+    }
+
+    // Extract error detail from non-2xx responses
+    if (result.status_code < 200 || result.status_code >= 300) {
+        std::string error_msg = "unknown error";
+        if (result.body.contains("error") && result.body["error"].contains("message")) {
+            error_msg = result.body["error"]["message"].get<std::string>();
+        }
+        if (result.body.contains("error") && result.body["error"].contains("status")) {
+            error_msg = result.body["error"]["status"].get<std::string>();
+            if (result.body["error"].contains("message"))
+                error_msg += ": " + result.body["error"]["message"].get<std::string>();
+        }
+        if (error_msg.size() > 200) error_msg = error_msg.substr(0, 200) + "...";
+        result.error_detail = error_msg;
+    }
+
+    return result;
+}
+
+// Throwing wrapper for backward compat — used by callProviderInternal
+static json httpPost(
+    const std::string& url,
+    const std::string& body,
+    const std::vector<std::string>& header_lines,
+    long timeout_seconds = 120L) {
+
+    auto result = httpPostRaw(url, body, header_lines, timeout_seconds);
+
+    if (!result.error.empty() && result.status_code == 0) {
         throw std::runtime_error(fmt::format(
             "Agent error: Network request failed ({})\n\n"
             "  Help:\n"
             "  - Check network connectivity\n"
             "  - The API endpoint may be unreachable\n",
-            curl_err));
+            result.error));
     }
-
-    curl_easy_cleanup(curl);
-
-    json response;
-    try {
-        response = json::parse(response_body);
-    } catch (const json::parse_error&) {
+    if (result.error == "unparseable_response") {
         throw std::runtime_error(
             "Agent error: Invalid response from API\n\n"
             "  Help:\n"
             "  - The API returned an unparseable response\n");
     }
-
-    if (response_code < 200 || response_code >= 300) {
-        std::string error_msg = "unknown error";
-        if (response.contains("error") && response["error"].contains("message")) {
-            error_msg = response["error"]["message"].get<std::string>();
-        }
-        if (response.contains("error") && response["error"].contains("status")) {
-            error_msg = response["error"]["status"].get<std::string>();
-            if (response["error"].contains("message"))
-                error_msg += ": " + response["error"]["message"].get<std::string>();
-        }
-        if (error_msg.size() > 200) error_msg = error_msg.substr(0, 200) + "...";
+    if (result.status_code < 200 || result.status_code >= 300) {
         throw std::runtime_error(fmt::format(
             "Agent error: API returned status {}\n\n"
             "  Got: {}\n\n"
             "  Help:\n"
             "  - Check agent configuration in govern.json\n"
             "  - Verify the model name is valid\n",
-            response_code, error_msg));
+            result.status_code, result.error_detail));
     }
 
-    return response;
+    return result.body;
 }
 
 // ============================================================================
@@ -390,6 +420,139 @@ AgentResponse callAgentMultiTurn(
     }
 
     return result;
+}
+
+// ============================================================================
+// Public API: Multi-turn with HTTP status (non-throwing, for retry loop)
+// ============================================================================
+
+ProviderResult callAgentWithStatus(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const std::string& messages_json_str) {
+
+    ProviderResult pr;
+
+    try {
+        json messages = json::parse(messages_json_str);
+
+        // Build request the same way as the provider-specific functions,
+        // but use httpPostRaw to get structured status codes.
+        json request_body;
+        HttpResult http_result;
+
+        if (config.provider == "gemini" || config.provider == "google") {
+            // Convert to Gemini format
+            json contents = json::array();
+            for (const auto& msg : messages) {
+                json part;
+                part["role"] = (msg["role"] == "assistant") ? "model" : "user";
+                part["parts"] = json::array();
+                json text_part;
+                text_part["text"] = msg["content"];
+                part["parts"].push_back(text_part);
+                contents.push_back(part);
+            }
+            request_body["contents"] = contents;
+
+            json gen_config;
+            gen_config["maxOutputTokens"] = config.max_tokens;
+            if (config.temperature != 1.0)
+                gen_config["temperature"] = config.temperature;
+            request_body["generationConfig"] = gen_config;
+
+            if (!config.system_prompt.empty()) {
+                bool is_gemma = config.model.find("gemma") != std::string::npos;
+                if (is_gemma) {
+                    if (!contents.empty() && contents[0]["role"] == "user") {
+                        std::string original = contents[0]["parts"][0]["text"];
+                        contents[0]["parts"][0]["text"] = config.system_prompt + "\n\n" + original;
+                        request_body["contents"] = contents;
+                    }
+                } else {
+                    json sys;
+                    sys["parts"] = json::array();
+                    json sys_part;
+                    sys_part["text"] = config.system_prompt;
+                    sys["parts"].push_back(sys_part);
+                    request_body["systemInstruction"] = sys;
+                }
+            }
+
+            std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                            + config.model + ":generateContent?key=" + api_key;
+            http_result = httpPostRaw(url, request_body.dump(),
+                {"content-type: application/json", "User-Agent: NAAb/1.0"},
+                static_cast<long>(config.timeout_seconds));
+        } else {
+            // Anthropic format
+            request_body["model"] = config.model;
+            request_body["max_tokens"] = config.max_tokens;
+            request_body["messages"] = messages;
+            if (config.temperature != 1.0)
+                request_body["temperature"] = config.temperature;
+            if (!config.system_prompt.empty())
+                request_body["system"] = config.system_prompt;
+
+            http_result = httpPostRaw(
+                "https://api.anthropic.com/v1/messages",
+                request_body.dump(),
+                {
+                    "x-api-key: " + api_key,
+                    "anthropic-version: 2023-06-01",
+                    "content-type: application/json",
+                    "User-Agent: NAAb/1.0"
+                },
+                static_cast<long>(config.timeout_seconds));
+        }
+
+        pr.http_status = static_cast<int>(http_result.status_code);
+
+        // Network/parse error
+        if (!http_result.error.empty() && http_result.status_code == 0) {
+            pr.response.success = false;
+            pr.response.error = fmt::format(
+                "Agent error: Network request failed ({})\n\n"
+                "  Help:\n"
+                "  - Check network connectivity\n"
+                "  - The API endpoint may be unreachable\n",
+                http_result.error);
+            return pr;
+        }
+        if (http_result.error == "unparseable_response") {
+            pr.response.success = false;
+            pr.response.error = "Agent error: Invalid response from API";
+            return pr;
+        }
+
+        // Non-2xx — return structured error with status code
+        if (http_result.status_code < 200 || http_result.status_code >= 300) {
+            pr.response.success = false;
+            pr.response.http_status = pr.http_status;
+            pr.response.error = fmt::format(
+                "Agent error: API returned status {}\n\n"
+                "  Got: {}\n\n"
+                "  Help:\n"
+                "  - Check agent configuration in govern.json\n"
+                "  - Verify the model name is valid\n",
+                http_result.status_code, http_result.error_detail);
+            return pr;
+        }
+
+        // Success — normalize response
+        auto normalized = normalizeResponse(config.provider, http_result.body);
+        pr.response.success = true;
+        pr.response.content = normalized.content;
+        pr.response.stop_reason = normalized.stop_reason;
+        pr.response.input_tokens = normalized.input_tokens;
+        pr.response.output_tokens = normalized.output_tokens;
+
+    } catch (const std::exception& e) {
+        pr.response.success = false;
+        pr.response.error = e.what();
+    }
+
+    return pr;
 }
 
 } // namespace runtime

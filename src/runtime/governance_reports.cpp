@@ -753,6 +753,60 @@ void GovernanceEngine::writeTelemetry() const {
     }
 }
 
+void GovernanceEngine::writeAgentTelemetry(
+    const std::string& event_type,
+    const std::unordered_map<std::string, std::string>& fields) {
+
+    if (!rules_.telemetry_output.enabled || rules_.telemetry_output.output_file.empty()) return;
+
+    auto fp_deleter = [](FILE* f) {
+#ifndef _WIN32
+        ::flock(fileno(f), LOCK_UN);
+#endif
+        fclose(f);
+    };
+    std::unique_ptr<FILE, decltype(fp_deleter)> fp(
+        fopen(rules_.telemetry_output.output_file.c_str(), "a"), fp_deleter);
+    if (!fp) return;
+#ifndef _WIN32
+    ::flock(fileno(fp.get()), LOCK_EX);
+#endif
+
+    // ISO timestamp
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char ts_buf[32];
+    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+
+    nlohmann::json ev;
+    ev["run_id"] = run_id_;
+    ev["agent_id"] = agent_id_;
+    ev["event_type"] = event_type;
+    ev["timestamp"] = std::string(ts_buf);
+    for (const auto& [k, v] : fields) {
+        ev[k] = v;
+    }
+
+    // Tamper-evident hash chain
+    if (rules_.telemetry_output.tamper_evidence.enabled) {
+        ev["prev_hash"] = last_telemetry_hash_.empty()
+            ? rules_.telemetry_output.tamper_evidence.chain_genesis
+            : last_telemetry_hash_;
+        last_telemetry_hash_ = computeHash(ev.dump(),
+            rules_.telemetry_output.tamper_evidence);
+        ev["hash"] = last_telemetry_hash_;
+    }
+
+    std::string line = ev.dump() + "\n";
+    fwrite(line.c_str(), 1, line.size(), fp.get());
+}
+
 // --- Agent Role Application ---
 void GovernanceEngine::applyAgentRole() {
     for (const auto& role : rules_.agents) {

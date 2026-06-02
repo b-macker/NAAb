@@ -17,6 +17,9 @@
 #include <mutex>
 #include <future>
 #include <regex>
+#include <atomic>
+#include <chrono>
+#include <thread>
 
 namespace naab {
 namespace stdlib {
@@ -41,9 +44,27 @@ struct AgentTracker {
     int turns = 0;
     int input_tokens = 0;
     int output_tokens = 0;
+    int retries = 0;           // total retry attempts across all sends
+    int fallbacks = 0;         // times a fallback model was used
+    int64_t total_latency_ms = 0;  // cumulative API call time
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
+
+// Run-level dispatch counters — shared across all agent calls in this process
+struct DispatchCounters {
+    std::atomic<int> total_calls{0};
+    std::atomic<int> total_retries{0};
+    std::atomic<int> total_tokens{0};
+    std::atomic<int64_t> total_agent_time_ms{0};
+    std::atomic<int> consecutive_failures{0};
+    std::atomic<bool> hard_stopped{false};
+    std::string stop_reason;
+    std::unordered_set<std::string> dead_keys;
+    std::mutex dead_keys_mutex;
+    std::mutex stop_reason_mutex;
+};
+static DispatchCounters s_dispatch;
 
 // ============================================================================
 // Helper: Find agent config by name
@@ -260,18 +281,37 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     user_msg["content"] = message;
     messages_json.push_back(user_msg);
 
-    // Get API key (env var, then ~/.naab/keys/ fallback)
-    std::string api_key = runtime::resolveApiKey(config->api_key_env);
-    if (api_key.empty()) {
+    // Hard stop check
+    if (s_dispatch.hard_stopped.load()) {
+        std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+        throw std::runtime_error(
+            "Agent error: Hard stop active\n\n"
+            "  Got: " + s_dispatch.stop_reason + "\n\n"
+            "  Help:\n"
+            "  - All agent API calls are blocked for the remainder of this run\n"
+            "  - Review agent_dispatch.hard_stop configuration\n");
+    }
+
+    // Build key list and model chain (normalize string → vector)
+    std::vector<std::string> keys = config->api_key_envs;
+    if (keys.empty()) keys.push_back(config->api_key_env);
+    std::vector<std::string> models = config->model_chain;
+    if (models.empty()) models.push_back(config->model);
+
+    // Validate at least one key is resolvable
+    bool any_key = false;
+    for (const auto& k : keys) {
+        if (!runtime::resolveApiKey(k).empty()) { any_key = true; break; }
+    }
+    if (!any_key) {
         throw std::runtime_error(
             "Agent error: API key not available\n\n"
             "  Help:\n"
             "  - Set the required API key environment variable, or\n"
-            "  - Place the key in ~/.naab/keys/" + config->api_key_env + "\n");
+            "  - Place the key in ~/.naab/keys/" + keys[0] + "\n");
     }
 
     // Mid-run governance reload check (Governance Under Survivability)
-    // Detect if operator tightened govern.json since last turn
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
     std::vector<std::string> gov_notices;
     if (gov_engine && gov_engine->isActive()) {
@@ -279,7 +319,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         gov_notices = gov_engine->getAndClearNotices();
     }
 
-    // Behavioral sequence: emit agent.send event and block if it completes a hard pattern
+    // Behavioral sequence: emit agent.send event (once, before retry loop)
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
         gov_engine->setAgentContext(handle_id, current_turn, config_name);
@@ -312,7 +352,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  - Remove or mask PII before sending to external LLM APIs\n",
                 config_name));
         }
-        // Check for information disclosure in outbound prompt
         std::string info_err = gov_engine->checkInfoDisclosure("naab", message, 0);
         if (!info_err.empty()) {
             throw std::runtime_error(fmt::format(
@@ -325,7 +364,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // Pre-call admission: project whether this action would exceed exposure thresholds
+    // Pre-call admission check
     if (gov_engine && gov_engine->isActive()) {
         std::string admission = gov_engine->checkAdmission(config_name);
         if (!admission.empty()) {
@@ -333,25 +372,246 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // Call provider via shared layer
+    // ── Retry loop with key rotation, model fallback, backoff + jitter ──
     runtime::AgentResponse agent_resp;
-    try {
-        agent_resp = runtime::callAgentMultiTurn(*config, api_key, messages_json.dump());
-    } catch (...) {
-        // Record failed turn with CDD so repeated failures trigger drift signals
+    int max_attempts = config->retry.max_attempts;
+    int model_idx = 0;
+    int key_offset = 0;
+    int attempts_made = 0;
+    std::string last_error;
+    std::string messages_str = messages_json.dump();
+
+    // Get hard stop config
+    const auto& hs = gov_engine && gov_engine->isActive()
+        ? gov_engine->getRules().agent_dispatch.hard_stop
+        : governance::GovernanceRules::AgentDispatchConfig::HardStopConfig{};
+
+    for (int attempt = 0; attempt < max_attempts; attempt++) {
+        // Pick key (round-robin, skip dead)
+        std::string key_env;
+        std::string api_key;
+        bool found_key = false;
+        for (size_t k = 0; k < keys.size(); k++) {
+            size_t idx = (key_offset + k) % keys.size();
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                if (s_dispatch.dead_keys.count(keys[idx])) continue;
+            }
+            api_key = runtime::resolveApiKey(keys[idx]);
+            if (!api_key.empty()) {
+                key_env = keys[idx];
+                key_offset = static_cast<int>(idx) + 1;
+                found_key = true;
+                break;
+            }
+        }
+        if (!found_key) {
+            last_error = "All API keys exhausted or dead";
+            break;
+        }
+
+        // Pick model from chain
+        std::string current_model = models[model_idx % models.size()];
+
+        // Build temporary config with current model
+        governance::AgentConfig call_config = *config;
+        call_config.model = current_model;
+
+        // Rate limit: inter-call delay
+        if (config->rate_limit.delay_between_calls_ms > 0 && attempt > 0) {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(config->rate_limit.delay_between_calls_ms));
+        }
+
+        attempts_made++;
+        s_dispatch.total_calls++;
+
+        // Run-level call budget check
+        if (hs.max_calls_per_run > 0 && s_dispatch.total_calls.load() > hs.max_calls_per_run) {
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+                s_dispatch.hard_stopped = true;
+                s_dispatch.stop_reason = "max_calls_per_run (" + std::to_string(hs.max_calls_per_run) + ") exceeded";
+            }
+            throw std::runtime_error("Agent error: Hard stop — " + s_dispatch.stop_reason);
+        }
+
+        auto attempt_start = std::chrono::steady_clock::now();
+        auto result = runtime::callAgentWithStatus(call_config, api_key, messages_str);
+        auto attempt_end = std::chrono::steady_clock::now();
+        int64_t attempt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            attempt_end - attempt_start).count();
+
+        s_dispatch.total_agent_time_ms += attempt_ms;
+
+        // Time budget check
+        if (hs.max_agent_time_ms > 0 && s_dispatch.total_agent_time_ms.load() > hs.max_agent_time_ms) {
+            std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+            s_dispatch.hard_stopped = true;
+            s_dispatch.stop_reason = "max_agent_time_ms (" + std::to_string(hs.max_agent_time_ms) + ") exceeded";
+            if (!result.response.success) {
+                throw std::runtime_error("Agent error: Hard stop — " + s_dispatch.stop_reason);
+            }
+        }
+
+        if (result.response.success) {
+            // Success — reset consecutive failures, populate trace
+            s_dispatch.consecutive_failures = 0;
+            s_dispatch.total_tokens += result.response.input_tokens + result.response.output_tokens;
+
+            // Token budget check (don't throw — this call succeeded, next will be blocked)
+            if (hs.max_tokens_per_run > 0 && s_dispatch.total_tokens.load() > hs.max_tokens_per_run) {
+                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+                s_dispatch.hard_stopped = true;
+                s_dispatch.stop_reason = "max_tokens_per_run (" + std::to_string(hs.max_tokens_per_run) + ") exceeded";
+            }
+
+            agent_resp = result.response;
+            agent_resp.actual_model = current_model;
+            agent_resp.actual_provider = config->provider;
+            agent_resp.actual_api_key_env = key_env;
+            agent_resp.latency_ms = attempt_ms;
+            agent_resp.attempts = attempts_made;
+            agent_resp.fallback_used = (model_idx > 0);
+            agent_resp.original_model = models[0];
+
+            // Telemetry: successful response
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->writeAgentTelemetry("AGENT_RESPONSE", {
+                    {"handle_id", std::to_string(handle_id)},
+                    {"model", current_model},
+                    {"api_key_env", key_env},
+                    {"latency_ms", std::to_string(attempt_ms)},
+                    {"input_tokens", std::to_string(agent_resp.input_tokens)},
+                    {"output_tokens", std::to_string(agent_resp.output_tokens)},
+                    {"attempts", std::to_string(attempts_made)},
+                    {"fallback_used", agent_resp.fallback_used ? "true" : "false"}
+                });
+            }
+            break;
+        }
+
+        // Failure — classify error by HTTP status
+        int status = result.http_status;
+        last_error = result.response.error;
+        s_dispatch.consecutive_failures++;
+        s_dispatch.total_retries++;
+
+        // Telemetry: retry event
+        if (gov_engine && gov_engine->isActive()) {
+            gov_engine->writeAgentTelemetry("AGENT_RETRY", {
+                {"handle_id", std::to_string(handle_id)},
+                {"attempt", std::to_string(attempt + 1)},
+                {"http_status", std::to_string(status)},
+                {"api_key_env", key_env},
+                {"model", current_model}
+            });
+        }
+
+        // Consecutive failure hard stop
+        if (hs.consecutive_failure_limit > 0 &&
+            s_dispatch.consecutive_failures.load() >= hs.consecutive_failure_limit) {
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+                s_dispatch.hard_stopped = true;
+                s_dispatch.stop_reason = "consecutive_failure_limit (" +
+                    std::to_string(hs.consecutive_failure_limit) + ") reached";
+            }
+            // Record CDD before throwing
+            if (gov_engine && gov_engine->isActive() &&
+                gov_engine->getRules().context_drift.enabled) {
+                gov_engine->checkContextDrift(handle_id, current_turn, "api_call_failed");
+            }
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
+                    {"reason", s_dispatch.stop_reason},
+                    {"total_calls", std::to_string(s_dispatch.total_calls.load())},
+                    {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
+                });
+            }
+            throw std::runtime_error("Agent error: Hard stop — " + s_dispatch.stop_reason +
+                "\n\n  Last error: " + last_error);
+        }
+
+        // Never retry (400 = bad request)
+        bool should_never_retry = false;
+        for (int code : config->retry.never_retry) {
+            if (status == code) { should_never_retry = true; break; }
+        }
+        if (should_never_retry) {
+            if (gov_engine && gov_engine->isActive() &&
+                gov_engine->getRules().context_drift.enabled) {
+                gov_engine->checkContextDrift(handle_id, current_turn, last_error);
+            }
+            throw std::runtime_error(last_error);
+        }
+
+        // Skip key on 401 (mark dead for rest of run)
+        for (int code : config->retry.skip_key_on) {
+            if (status == code) {
+                {
+                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                    s_dispatch.dead_keys.insert(key_env);
+                }
+                if (gov_engine && gov_engine->isActive()) {
+                    gov_engine->writeAgentTelemetry("AGENT_KEY_DISABLED", {
+                        {"api_key_env", key_env},
+                        {"http_status", std::to_string(status)}
+                    });
+                }
+                break;
+            }
+        }
+
+        // Fallback model on 404/503
+        for (int code : config->retry.fallback_model_on) {
+            if (status == code && model_idx + 1 < static_cast<int>(models.size())) {
+                if (gov_engine && gov_engine->isActive()) {
+                    gov_engine->writeAgentTelemetry("AGENT_FALLBACK", {
+                        {"handle_id", std::to_string(handle_id)},
+                        {"from_model", models[model_idx]},
+                        {"to_model", models[model_idx + 1]},
+                        {"http_status", std::to_string(status)}
+                    });
+                }
+                model_idx++;
+                break;
+            }
+        }
+
+        // Backoff with jitter before next attempt
+        if (attempt + 1 < max_attempts) {
+            int delay = config->retry.backoff_ms;
+            for (int b = 0; b < attempt; b++) {
+                delay = static_cast<int>(delay * config->retry.backoff_multiplier);
+                if (delay > 60000) { delay = 60000; break; }  // cap at 60s
+            }
+            if (config->retry.jitter && delay > 0) {
+                int jitter_range = delay / 4;
+                if (jitter_range > 0) {
+                    delay += (std::rand() % (2 * jitter_range + 1)) - jitter_range;
+                }
+            }
+            if (delay > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+            }
+        }
+    }
+
+    // All attempts exhausted
+    if (!agent_resp.success) {
         if (gov_engine && gov_engine->isActive() &&
             gov_engine->getRules().context_drift.enabled) {
             gov_engine->checkContextDrift(handle_id, current_turn, "api_call_failed");
         }
-        throw;
-    }
-    if (!agent_resp.success) {
-        // Record API error as CDD signal before throwing
-        if (gov_engine && gov_engine->isActive() &&
-            gov_engine->getRules().context_drift.enabled) {
-            gov_engine->checkContextDrift(handle_id, current_turn, agent_resp.error);
-        }
-        throw std::runtime_error(agent_resp.error);
+        throw std::runtime_error(fmt::format(
+            "Agent error: All {} attempts exhausted\n\n"
+            "  Last error: {}\n"
+            "  Models tried: {}\n\n"
+            "  Help:\n"
+            "  - Check API key validity and quota\n"
+            "  - Review retry configuration in govern.json agents section\n",
+            attempts_made, last_error, model_idx + 1));
     }
 
     std::string content = agent_resp.content;
@@ -578,6 +838,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         tracker.turns++;
         tracker.input_tokens += resp_input_tokens;
         tracker.output_tokens += resp_output_tokens;
+        tracker.retries += agent_resp.attempts - 1;
+        if (agent_resp.fallback_used) tracker.fallbacks++;
+        tracker.total_latency_ms += agent_resp.latency_ms;
         handle["turns"] = NaabVal::makeInt(tracker.turns);
         handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
         handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
@@ -612,6 +875,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     usage_val["input_tokens"] = NaabVal::makeInt(resp_input_tokens);
     usage_val["output_tokens"] = NaabVal::makeInt(resp_output_tokens);
     result["usage"] = NaabVal::makeDict(std::move(usage_val));
+
+    // Trace dict (traceability for key rotation, retry, fallback)
+    std::unordered_map<std::string, NaabVal> trace;
+    trace["model"] = NaabVal::makeString(agent_resp.actual_model);
+    trace["provider"] = NaabVal::makeString(agent_resp.actual_provider);
+    trace["api_key_env"] = NaabVal::makeString(agent_resp.actual_api_key_env);
+    trace["attempts"] = NaabVal::makeInt(agent_resp.attempts);
+    trace["latency_ms"] = NaabVal::makeInt(static_cast<int>(agent_resp.latency_ms));
+    trace["fallback_used"] = NaabVal::makeBool(agent_resp.fallback_used);
+    if (agent_resp.fallback_used) {
+        trace["original_model"] = NaabVal::makeString(agent_resp.original_model);
+    }
+    trace["turn"] = NaabVal::makeInt(current_turn);
+    trace["handle_id"] = NaabVal::makeInt(handle_id);
+    result["trace"] = NaabVal::makeDict(std::move(trace));
 
     // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY
     if (gov_engine && gov_engine->isActive()) {
@@ -755,7 +1033,90 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
     result["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
     result["total_tokens"] = NaabVal::makeInt(tracker.input_tokens + tracker.output_tokens);
     result["turns"] = NaabVal::makeInt(tracker.turns);
+    result["retries"] = NaabVal::makeInt(tracker.retries);
+    result["fallbacks"] = NaabVal::makeInt(tracker.fallbacks);
+    result["total_latency_ms"] = NaabVal::makeInt(static_cast<int>(tracker.total_latency_ms));
 
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
+// agent.key_health(config_name) → dict {available, active, dead}
+// ============================================================================
+
+static NaabVal agentKeyHealth(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isString()) {
+        throw std::runtime_error(
+            "Agent error: agent.key_health requires a config name\n\n"
+            "  Expected: agent.key_health(\"agent_name\")\n\n"
+            "  Help:\n"
+            "  - Returns key rotation status for the named agent config\n"
+            "  - Shows which keys are active vs dead (401 responses)\n");
+    }
+
+    const auto* config = findAgentConfig(args[0].asString());
+    if (!config) {
+        throw std::runtime_error(
+            "Agent error: Unknown agent config '" + args[0].asString() + "'\n\n"
+            "  Help:\n  - Check agent names in govern.json agents section\n");
+    }
+
+    std::vector<std::string> keys = config->api_key_envs;
+    if (keys.empty()) keys.push_back(config->api_key_env);
+
+    std::vector<NaabVal> active_list, dead_list;
+    for (const auto& k : keys) {
+        bool is_dead = false;
+        {
+            std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+            is_dead = s_dispatch.dead_keys.count(k) > 0;
+        }
+        if (is_dead) {
+            dead_list.push_back(NaabVal::makeString(k));
+        } else if (!runtime::resolveApiKey(k).empty()) {
+            active_list.push_back(NaabVal::makeString(k));
+        }
+    }
+
+    std::unordered_map<std::string, NaabVal> result;
+    result["available"] = NaabVal::makeInt(static_cast<int>(active_list.size()));
+    result["active"] = NaabVal::makeList(std::move(active_list));
+    result["dead"] = NaabVal::makeList(std::move(dead_list));
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
+// agent.dispatch_status() → dict {calls_made, tokens_used, hard_stopped, ...}
+// ============================================================================
+
+static NaabVal agentDispatchStatus(std::vector<NaabVal>& /*args*/) {
+    auto* ge = governance::GovernanceEngine::getCurrent();
+
+    int max_calls = 0, max_tokens = 0, max_time_ms = 0;
+    if (ge) {
+        const auto& hs = ge->getRules().agent_dispatch.hard_stop;
+        max_calls = hs.max_calls_per_run;
+        max_tokens = hs.max_tokens_per_run;
+        max_time_ms = hs.max_agent_time_ms;
+    }
+
+    std::unordered_map<std::string, NaabVal> result;
+    result["calls_made"] = NaabVal::makeInt(s_dispatch.total_calls.load());
+    result["calls_remaining"] = NaabVal::makeInt(
+        max_calls > 0 ? std::max(0, max_calls - s_dispatch.total_calls.load()) : -1);
+    result["tokens_used"] = NaabVal::makeInt(s_dispatch.total_tokens.load());
+    result["tokens_remaining"] = NaabVal::makeInt(
+        max_tokens > 0 ? std::max(0, max_tokens - s_dispatch.total_tokens.load()) : -1);
+    result["agent_time_ms"] = NaabVal::makeInt(
+        static_cast<int>(s_dispatch.total_agent_time_ms.load()));
+    result["time_remaining_ms"] = NaabVal::makeInt(
+        max_time_ms > 0 ? std::max(0, static_cast<int>(max_time_ms - s_dispatch.total_agent_time_ms.load())) : -1);
+    result["consecutive_failures"] = NaabVal::makeInt(s_dispatch.consecutive_failures.load());
+    result["hard_stopped"] = NaabVal::makeBool(s_dispatch.hard_stopped.load());
+    {
+        std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+        result["stop_reason"] = NaabVal::makeString(s_dispatch.stop_reason);
+    }
     return NaabVal::makeDict(std::move(result));
 }
 
@@ -1139,6 +1500,7 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
     // Chain: send to each agent sequentially, pass output as input to next
     std::string current_message = args[1].asString();
     NaabVal last_response = NaabVal::makeNull();
+    std::vector<NaabVal> stage_traces;
 
     for (size_t i = 0; i < handles.size(); i++) {
         std::vector<NaabVal> send_args = {handles[i], NaabVal::makeString(current_message)};
@@ -1155,6 +1517,15 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                 }
             }
             throw;
+        }
+
+        // Collect trace from this stage's response
+        if (last_response.isDict()) {
+            auto& rd = last_response.asDict();
+            auto tr_it = rd.find("trace");
+            if (tr_it != rd.end()) {
+                stage_traces.push_back(tr_it->second);
+            }
         }
 
         // Extract content for next stage, prepend governance metadata
@@ -1242,6 +1613,12 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
         }
     }
 
+    // Attach stage_traces to the final pipeline response
+    if (!stage_traces.empty() && last_response.isDict()) {
+        auto& final_dict = last_response.asDict();
+        final_dict["stage_traces"] = NaabVal::makeList(std::move(stage_traces));
+    }
+
     // Mark pipeline response as tainted (LLM output is untrusted external data)
     if (auto* ge = governance::GovernanceEngine::getCurrent();
         ge && ge->isActive() && ge->getRules().taint_tracking.enabled) {
@@ -1258,7 +1635,8 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
 bool AgentModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "create", "send", "run", "messages", "usage",
-        "batch", "fan_out", "pipeline", "check"
+        "batch", "fan_out", "pipeline", "check",
+        "key_health", "dispatch_status"
     };
     return functions.count(name) > 0;
 }
@@ -1276,10 +1654,12 @@ NaabVal AgentModule::call(
     if (function_name == "fan_out") return agentFanOut(args);
     if (function_name == "pipeline") return agentPipeline(args);
     if (function_name == "check") return agentCheck(args);
+    if (function_name == "key_health") return agentKeyHealth(args);
+    if (function_name == "dispatch_status") return agentDispatchStatus(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -1289,8 +1669,29 @@ NaabVal AgentModule::call(
         "  - agent.batch(handles, msgs) — parallel: send msgs[i] to handles[i]\n"
         "  - agent.fan_out(handles, msg) — parallel: send same msg to all handles\n"
         "  - agent.pipeline(handles, msg) — sequential: chain agents, output->input\n"
-        "  - agent.check(name) — pre-flight: validate config + API key, returns {valid, error}\n",
+        "  - agent.check(name) — pre-flight: validate config + API key, returns {valid, error}\n"
+        "  - agent.key_health(name) — key rotation status: active vs dead keys\n"
+        "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n",
         function_name));
+}
+
+AgentDispatchStats getAgentDispatchStats() {
+    AgentDispatchStats stats;
+    stats.total_calls = s_dispatch.total_calls.load();
+    stats.total_retries = s_dispatch.total_retries.load();
+    stats.total_tokens = s_dispatch.total_tokens.load();
+    stats.total_agent_time_ms = s_dispatch.total_agent_time_ms.load();
+    stats.consecutive_failures = s_dispatch.consecutive_failures.load();
+    stats.hard_stopped = s_dispatch.hard_stopped.load();
+    {
+        std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+        stats.stop_reason = s_dispatch.stop_reason;
+    }
+    {
+        std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+        stats.dead_keys.assign(s_dispatch.dead_keys.begin(), s_dispatch.dead_keys.end());
+    }
+    return stats;
 }
 
 } // namespace stdlib

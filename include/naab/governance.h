@@ -1665,10 +1665,12 @@ struct AgentConfig {
     bool shell_allowed = true;
     bool shell_allowed_set = false;
 
-    // --- LLM config (new — populated from "agents" key in govern.json) ---
+    // --- LLM config (populated from "agents" key in govern.json) ---
     std::string provider = "anthropic";
-    std::string model;
-    std::string api_key_env = "ANTHROPIC_API_KEY";
+    std::string model;                          // primary model (first in chain)
+    std::vector<std::string> model_chain;       // fallback models [model, fallback1, ...]
+    std::string api_key_env = "ANTHROPIC_API_KEY";  // primary key env var
+    std::vector<std::string> api_key_envs;      // rotation keys [primary, alt1, alt2, ...]
     int max_tokens = 4096;
     std::string system_prompt;
     std::vector<std::string> tools;
@@ -1680,6 +1682,26 @@ struct AgentConfig {
     int timeout_seconds = 30;  // F11: per-call LLM API timeout
     std::string response_format;  // "json" = validate + warn on non-JSON responses
     int risk_budget = 0;          // F8: finite risk budget (0 = unlimited), consumed by governance events
+
+    // Retry configuration (per-agent)
+    struct RetryConfig {
+        int max_attempts = 1;           // total tries per call (across keys+models). 1 = no retry
+        int backoff_ms = 1000;          // initial backoff delay
+        double backoff_multiplier = 2.0;// exponential backoff factor
+        bool jitter = true;             // random jitter on backoff (thundering herd prevention)
+        std::vector<int> retry_on = {429, 503};      // HTTP codes that trigger retry
+        std::vector<int> skip_key_on = {401};         // mark key dead for this run
+        std::vector<int> fallback_model_on = {404, 503}; // advance model chain
+        std::vector<int> never_retry = {400};         // bad request = don't retry
+    };
+    RetryConfig retry;
+
+    // Client-side rate limiting (per-agent)
+    struct RateLimitConfig {
+        int requests_per_minute = 0;    // 0 = no client-side limit
+        int delay_between_calls_ms = 0; // forced inter-call delay
+    };
+    RateLimitConfig rate_limit;
 };
 
 // ============================================================================
@@ -1809,6 +1831,17 @@ struct GovernanceRules {
         int max_concurrent = 6;    // max concurrent agent API calls
         int pool_size = 6;         // thread pool worker count (I/O-bound, not CPU)
         int pool_queue_max = 50;   // max queued tasks before rejection
+        int max_retries_per_run = 0; // 0 = unlimited
+
+        // Hard stop: run-level kill switch for all agent API calls
+        struct HardStopConfig {
+            int max_calls_per_run = 0;          // 0 = unlimited
+            int max_tokens_per_run = 0;         // 0 = unlimited
+            int max_agent_time_ms = 0;          // 0 = unlimited
+            int consecutive_failure_limit = 0;  // 0 = unlimited
+            std::string action = "block";       // "block" or "warn"
+        };
+        HardStopConfig hard_stop;
     };
     AgentDispatchConfig agent_dispatch;
 
@@ -2048,6 +2081,8 @@ public:
 
     // --- Telemetry ---
     void writeTelemetry() const;
+    void writeAgentTelemetry(const std::string& event_type,
+        const std::unordered_map<std::string, std::string>& fields);
 
     // --- Check context (for report file/line tracking) ---
     void setCheckContext(const std::string& file, int line = 0);

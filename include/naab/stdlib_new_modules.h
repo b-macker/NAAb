@@ -4,6 +4,7 @@
 // Implementations are in src/stdlib/*_impl.cpp files
 
 #include "naab/stdlib.h"
+#include <cstdint>
 #include <functional>
 #include <fstream>
 #include <memory>
@@ -275,6 +276,21 @@ public:
         const std::string& function_name,
         std::vector<interpreter::NaabVal>& args) override;
 };
+
+// Agent dispatch stats — run-level counters for dashboard/telemetry
+struct AgentDispatchStats {
+    int total_calls = 0;
+    int total_retries = 0;
+    int total_tokens = 0;
+    int64_t total_agent_time_ms = 0;
+    int consecutive_failures = 0;
+    bool hard_stopped = false;
+    std::string stop_reason;
+    std::vector<std::string> dead_keys;
+};
+
+// Returns a snapshot of current run-level dispatch counters
+AgentDispatchStats getAgentDispatchStats();
 
 } // namespace stdlib
 } // namespace naab

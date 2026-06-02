@@ -17,6 +17,16 @@ struct AgentResponse {
     int input_tokens = 0;
     int output_tokens = 0;
     std::string error;  // non-empty on failure
+
+    // Traceability (populated by retry loop in agent_impl, not by provider)
+    int http_status = 0;            // last HTTP status code
+    std::string actual_model;       // model that actually responded
+    std::string actual_provider;    // provider used
+    std::string actual_api_key_env; // env var name of key used
+    int64_t latency_ms = 0;        // wall-clock time of successful call
+    int attempts = 1;              // total attempts made
+    bool fallback_used = false;    // true if non-primary model responded
+    std::string original_model;    // primary model (if fallback_used)
 };
 
 // Resolve API key: checks env var first, then falls back to ~/.naab/keys/<varname>.
@@ -33,6 +43,18 @@ AgentResponse callAgentSimple(
 // Multi-turn: send conversation as JSON string (Anthropic-style messages array).
 // Returns normalized response (same as single-shot).
 AgentResponse callAgentMultiTurn(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const std::string& messages_json);
+
+// Multi-turn with HTTP status: same as callAgentMultiTurn but returns status code
+// on failure instead of throwing. Used by retry loop in agent_impl.
+struct ProviderResult {
+    AgentResponse response;
+    int http_status = 0;   // HTTP status code (0 = network/parse error)
+};
+
+ProviderResult callAgentWithStatus(
     const governance::AgentConfig& config,
     const std::string& api_key,
     const std::string& messages_json);

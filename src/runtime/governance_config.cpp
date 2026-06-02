@@ -2039,10 +2039,32 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (agents_key == "agents") {
                 if (cfg_json.contains("provider"))
                     agent.provider = cfg_json["provider"].get<std::string>();
-                if (cfg_json.contains("model"))
-                    agent.model = cfg_json["model"].get<std::string>();
-                if (cfg_json.contains("api_key_env"))
-                    agent.api_key_env = cfg_json["api_key_env"].get<std::string>();
+                // model: string or array (fallback chain)
+                if (cfg_json.contains("model")) {
+                    if (cfg_json["model"].is_array()) {
+                        agent.model_chain.clear();
+                        for (const auto& m : cfg_json["model"])
+                            agent.model_chain.push_back(m.get<std::string>());
+                        if (!agent.model_chain.empty())
+                            agent.model = agent.model_chain[0];
+                    } else {
+                        agent.model = cfg_json["model"].get<std::string>();
+                        agent.model_chain = {agent.model};
+                    }
+                }
+                // api_key_env: string or array (key rotation)
+                if (cfg_json.contains("api_key_env")) {
+                    if (cfg_json["api_key_env"].is_array()) {
+                        agent.api_key_envs.clear();
+                        for (const auto& k : cfg_json["api_key_env"])
+                            agent.api_key_envs.push_back(k.get<std::string>());
+                        if (!agent.api_key_envs.empty())
+                            agent.api_key_env = agent.api_key_envs[0];
+                    } else {
+                        agent.api_key_env = cfg_json["api_key_env"].get<std::string>();
+                        agent.api_key_envs = {agent.api_key_env};
+                    }
+                }
                 if (cfg_json.contains("max_tokens"))
                     agent.max_tokens = cfg_json["max_tokens"].get<int>();
                 if (cfg_json.contains("system_prompt"))
@@ -2067,6 +2089,42 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (cfg_json.contains("risk_budget")) {
                     agent.risk_budget = cfg_json["risk_budget"].get<int>();
                     if (agent.risk_budget < 0) agent.risk_budget = 0;
+                }
+                // Retry configuration
+                if (cfg_json.contains("retry") && cfg_json["retry"].is_object()) {
+                    auto& r = cfg_json["retry"];
+                    if (r.contains("max_attempts"))
+                        agent.retry.max_attempts = std::max(1, r["max_attempts"].get<int>());
+                    if (r.contains("backoff_ms"))
+                        agent.retry.backoff_ms = std::max(0, r["backoff_ms"].get<int>());
+                    if (r.contains("backoff_multiplier"))
+                        agent.retry.backoff_multiplier = std::max(1.0, r["backoff_multiplier"].get<double>());
+                    if (r.contains("jitter"))
+                        agent.retry.jitter = r["jitter"].get<bool>();
+                    if (r.contains("retry_on") && r["retry_on"].is_array()) {
+                        agent.retry.retry_on.clear();
+                        for (const auto& c : r["retry_on"]) agent.retry.retry_on.push_back(c.get<int>());
+                    }
+                    if (r.contains("skip_key_on") && r["skip_key_on"].is_array()) {
+                        agent.retry.skip_key_on.clear();
+                        for (const auto& c : r["skip_key_on"]) agent.retry.skip_key_on.push_back(c.get<int>());
+                    }
+                    if (r.contains("fallback_model_on") && r["fallback_model_on"].is_array()) {
+                        agent.retry.fallback_model_on.clear();
+                        for (const auto& c : r["fallback_model_on"]) agent.retry.fallback_model_on.push_back(c.get<int>());
+                    }
+                    if (r.contains("never_retry") && r["never_retry"].is_array()) {
+                        agent.retry.never_retry.clear();
+                        for (const auto& c : r["never_retry"]) agent.retry.never_retry.push_back(c.get<int>());
+                    }
+                }
+                // Rate limit configuration
+                if (cfg_json.contains("rate_limit") && cfg_json["rate_limit"].is_object()) {
+                    auto& rl = cfg_json["rate_limit"];
+                    if (rl.contains("requests_per_minute"))
+                        agent.rate_limit.requests_per_minute = std::max(0, rl["requests_per_minute"].get<int>());
+                    if (rl.contains("delay_between_calls_ms"))
+                        agent.rate_limit.delay_between_calls_ms = std::max(0, rl["delay_between_calls_ms"].get<int>());
                 }
             }
 
@@ -2177,6 +2235,21 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.agent_dispatch.pool_size = ad["pool_size"].get<int>();
         if (ad.contains("pool_queue_max"))
             rules_.agent_dispatch.pool_queue_max = ad["pool_queue_max"].get<int>();
+        if (ad.contains("max_retries_per_run"))
+            rules_.agent_dispatch.max_retries_per_run = std::max(0, ad["max_retries_per_run"].get<int>());
+        if (ad.contains("hard_stop") && ad["hard_stop"].is_object()) {
+            auto& hs = ad["hard_stop"];
+            if (hs.contains("max_calls_per_run"))
+                rules_.agent_dispatch.hard_stop.max_calls_per_run = std::max(0, hs["max_calls_per_run"].get<int>());
+            if (hs.contains("max_tokens_per_run"))
+                rules_.agent_dispatch.hard_stop.max_tokens_per_run = std::max(0, hs["max_tokens_per_run"].get<int>());
+            if (hs.contains("max_agent_time_ms"))
+                rules_.agent_dispatch.hard_stop.max_agent_time_ms = std::max(0, hs["max_agent_time_ms"].get<int>());
+            if (hs.contains("consecutive_failure_limit"))
+                rules_.agent_dispatch.hard_stop.consecutive_failure_limit = std::max(0, hs["consecutive_failure_limit"].get<int>());
+            if (hs.contains("action"))
+                rules_.agent_dispatch.hard_stop.action = hs["action"].get<std::string>();
+        }
     }
 
     // --- Behavioral Sequence Detection ---

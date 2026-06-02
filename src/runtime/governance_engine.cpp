@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/stdlib_new_modules.h"
 #include "naab/agent_review.h"
 #include "naab/agent_provider.h"
 #include "naab/crypto_utils.h"
@@ -2392,6 +2393,26 @@ void GovernanceEngine::printDashboard() const {
         size_t sources = taint_lineage_.size();
         size_t sinks = taint_flows_.size();
         fprintf(stderr, "Lineage:    %zu tainted values, %zu sink flows\n", sources, sinks);
+    }
+    // Agent dispatch stats (key rotation, retry, fallback)
+    {
+        auto ds = stdlib::getAgentDispatchStats();
+        if (ds.total_calls > 0) {
+            fprintf(stderr, "Dispatch:   %d calls (%d retries, %d tokens, %lldms)\n",
+                    ds.total_calls, ds.total_retries, ds.total_tokens,
+                    static_cast<long long>(ds.total_agent_time_ms));
+            if (!ds.dead_keys.empty()) {
+                std::string dead_str;
+                for (const auto& k : ds.dead_keys) {
+                    if (!dead_str.empty()) dead_str += ", ";
+                    dead_str += k;
+                }
+                fprintf(stderr, "Dead keys:  %s\n", dead_str.c_str());
+            }
+            if (ds.hard_stopped) {
+                fprintf(stderr, "Hard stop:  %s\n", ds.stop_reason.c_str());
+            }
+        }
     }
     fprintf(stderr, "────────────────────────────────\n");
 }
