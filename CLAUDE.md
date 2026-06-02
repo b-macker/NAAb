@@ -125,6 +125,8 @@ include/naab/       All headers
 - `agent.dispatch_status()` returns run-level counters — calls, tokens, time, hard stop status
 - `agent.send()` responses include `trace` dict — model, provider, api_key_env, attempts, latency_ms, fallback_used
 - `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`
+- `agent.environment(handle)` returns current environment snapshot — config limits, remaining capacity, coherence state, key health, dispatch proximity
+- `agent.create()` handle includes `environment` dict (birth snapshot); `agent.send()` response includes updated `environment` dict (live state)
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
 - Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)
