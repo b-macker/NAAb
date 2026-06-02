@@ -988,10 +988,12 @@
 
   "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
   "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
+  "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. rate_limit adds client-side throttling.",
   "agents": {
     "researcher": {
       "provider": "anthropic",
       "model": "claude-sonnet-4-20250514",
+      "api_key_env": "ANTHROPIC_API_KEY",
       "max_tokens": 4096,
       "system_prompt": "You are a research assistant.",
       "max_turns": 20,
@@ -1004,12 +1006,26 @@
       "allowed_paths": ["./src", "./data"],
       "blocked_paths": ["./secrets", "./.env"],
       "shell_allowed": false,
-      "risk_budget": 0
+      "risk_budget": 0,
+      "retry": {
+        "max_attempts": 1,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [429, 503],
+        "skip_key_on": [401],
+        "fallback_model_on": [404, 503],
+        "never_retry": [400]
+      },
+      "rate_limit": {
+        "requests_per_minute": 0,
+        "delay_between_calls_ms": 0
+      }
     },
     "coder": {
       "provider": "gemini",
-      "model": "gemma-3-4b-it",
-      "api_key_env": "GEMINI_API_KEY",
+      "model": ["gemma-3-4b-it", "gemini-2.5-flash"],
+      "api_key_env": ["GEMINI_API_KEY"],
       "max_tokens": 8192,
       "system_prompt": "You are a coding assistant.",
       "max_turns": 50,
@@ -1017,7 +1033,17 @@
       "allowed_languages": ["python", "shell"],
       "allowed_paths": ["./src", "./tests"],
       "shell_allowed": true,
-      "risk_budget": 0
+      "risk_budget": 0,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [429, 503],
+        "skip_key_on": [401],
+        "fallback_model_on": [404, 503],
+        "never_retry": [400]
+      }
     }
   },
   "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
@@ -1666,11 +1692,18 @@
     "fail_strategy": "fail_fast"
   },
 
-  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size and concurrency limits for I/O-bound LLM API calls.",
+  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
   "agent_dispatch": {
     "max_concurrent": 6,
     "pool_size": 6,
-    "pool_queue_max": 50
+    "pool_queue_max": 50,
+    "hard_stop": {
+      "max_calls_per_run": 0,
+      "max_tokens_per_run": 0,
+      "max_agent_time_ms": 0,
+      "consecutive_failure_limit": 0,
+      "action": "block"
+    }
   },
 
   "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",

@@ -487,6 +487,8 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `agent.fan_out(handles, message)` — parallel: send same message to all handles, returns array of response dicts
 - `agent.pipeline(handles, initial_message)` — sequential chain: output of agent N becomes input to agent N+1, returns final response dict
 - `agent.check(config_name)` — pre-flight validation: returns `{valid: bool, error: string, provider, model, api_key_env}`. Checks config exists and API key env var is set. Does NOT make an API call.
+- `agent.key_health(config_name)` — key rotation status: returns `{available: int, active: [...], dead: [...]}`. Shows which API keys are live vs marked dead (401 responses) for the named agent config.
+- `agent.dispatch_status()` — run-level dispatch counters: returns `{calls_made, calls_remaining, tokens_used, tokens_remaining, agent_time_ms, time_remaining_ms, consecutive_failures, hard_stopped, stop_reason}`. Use to check budgets before making calls.
 - `agent.batch()` is resilient: if individual calls fail, returns `{success: false, error: "...", content: ""}` for that slot instead of crashing. Callers should check `resp.get("success") == false`.
 - `agent.batch()` note: handle dicts are copied by value for thread safety — caller's handle objects are NOT updated with turn counts/message history after batch. Use `agent.usage(handle)` for authoritative state.
 - `agent.pipeline()` throws if any non-final stage returns empty content — prevents silent message reuse across stages.
@@ -504,6 +506,11 @@ create, send, run, messages, usage, batch, fan_out, pipeline
   `"max_parallel": 4` — limit concurrent detection agents (0 = unlimited)
   `"fail_strategy": "fail_fast"` — abort on first error (`"continue"` = collect all results)
 - Output tokens estimated (~content.size()/4) when Gemini API omits `candidatesTokenCount` (common with Gemma models)
+- **Key rotation**: `api_key_env` accepts string or array of env var names. Keys are tried round-robin; 401 responses mark a key dead for the rest of the run.
+- **Model fallback**: `model` accepts string or array. On 404/503, the next model in the chain is tried.
+- **Retry with backoff**: Configure `retry` block per agent — `max_attempts`, `backoff_ms`, `backoff_multiplier`, `jitter`. Error classification: `retry_on` (429/503), `skip_key_on` (401), `fallback_model_on` (404/503), `never_retry` (400).
+- **Hard stop**: `agent_dispatch.hard_stop` sets run-level budgets — `max_calls_per_run`, `max_tokens_per_run`, `max_agent_time_ms`, `consecutive_failure_limit`. When exceeded, all agent calls are blocked for the rest of the run.
+- **Traceability**: `agent.send()` responses include a `trace` dict: `{model, provider, api_key_env, attempts, latency_ms, fallback_used, original_model, turn, handle_id}`. `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`. Pipeline responses include `stage_traces`.
 
 ## Functions That Do NOT Exist (use alternatives)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
