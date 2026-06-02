@@ -97,7 +97,7 @@ bool TrustStore::installKey(const std::string& public_key_pem) {
     // Reject private keys — only public keys belong in the trust store
     if (public_key_pem.find("PRIVATE KEY") != std::string::npos) {
         fprintf(stderr, "[trust-store] Error: This is a private key — only public keys can be installed.\n"
-                        "  Private keys should be kept secret. Use --keygen to generate a keypair.\n");
+                        "  Private keys should be kept secret and never placed in the trust store.\n");
         return false;
     }
     // Validate it's a real Ed25519 public key

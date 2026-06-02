@@ -1532,7 +1532,7 @@ std::string GovernanceEngine::checkArraySize(size_t size) {
                 "",
                 fmt::format("limits.array_size = {}", rules_.max_array_size),
                 "Array exceeds maximum element count — process data in batches.\n"
-                "Adjust limits.array_size in govern.json if working with large datasets.",
+                "Split large collections into smaller chunks for processing.",
                 "let all = range(0, 1000000)  // million-element array",
                 "for batch in 0..10 {\n    let chunk = load_batch(batch, 1000)\n    process(chunk)\n}"));
     }
@@ -3252,7 +3252,7 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
         std::string b64_sig = security::CryptoUtils::ed25519Sign(content, sk_pem);
         if (b64_sig.empty()) {
             fprintf(stderr, "[governance] Error: Ed25519 signing failed for %s\n"
-                            "  Check that NAAB_SIGNING_KEY points to a valid Ed25519 private key PEM.\n",
+                            "  Check that the signing key is a valid Ed25519 private key PEM.\n",
                     file_path.c_str());
             return false;
         }
@@ -3263,14 +3263,13 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
         // Legacy HMAC fallback
         const char* key = std::getenv(GOVERN_KEY_ENV);
         if (!key || !*key) {
-            fprintf(stderr, "[governance] Error: No signing key set — cannot sign %s\n"
-                            "  Set NAAB_SIGNING_KEY (Ed25519, recommended) or NAAB_GOVERN_KEY (legacy HMAC).\n"
-                            "  Generate keys with: naab-lang --keygen\n",
+            fprintf(stderr, "[governance] Error: No signing key configured — cannot sign %s\n"
+                            "  A signing key is required. Contact the project owner for key setup.\n",
                     file_path.c_str());
             return false;
         }
         fprintf(stderr, "[governance] WARNING: Using legacy HMAC signing (deprecated).\n"
-                        "  Migrate to Ed25519: naab-lang --keygen\n");
+                        "  Migrate to Ed25519 for stronger integrity guarantees.\n");
         sig_content = std::string(SIG_PREFIX_HMAC) + security::CryptoUtils::hmacSha256(content, key);
     }
 
@@ -3312,7 +3311,7 @@ bool GovernanceEngine::verifySignatureImpl(
                 "[governance] INTEGRITY BLOCK: %s.sig missing but trusted Ed25519 keys are installed.\n"
                 "  When trusted keys exist in %s,\n"
                 "  all governance files must be signed.\n"
-                "  Sign with: naab-lang --sign-governance (or --sign-baseline)\n",
+                "  The signing key holder must sign this file before execution.\n",
                 file_path.c_str(), security::TrustStore::getStorePath().c_str());
             return false;
         }
@@ -3394,14 +3393,14 @@ bool GovernanceEngine::verifySignatureImpl(
                     if (rules_.trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
                         fprintf(stderr,
                             "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
-                            "  Re-sign with: naab-lang --sign-governance\n",
+                            "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
                             rules_.trust_policy.max_signature_age_days);
                         return false;
                     } else if (rules_.trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
                         fprintf(stderr,
                             "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
-                            "  Re-sign with: naab-lang --sign-governance\n",
+                            "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
                             rules_.trust_policy.max_signature_age_days);
                         // SOFT: block unless override enabled
@@ -3409,7 +3408,7 @@ bool GovernanceEngine::verifySignatureImpl(
                     } else {
                         fprintf(stderr,
                             "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
-                            "  Consider re-signing: naab-lang --sign-governance\n",
+                            "  Consider having the signing key holder re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
                             rules_.trust_policy.max_signature_age_days);
                     }
@@ -3506,7 +3505,7 @@ std::string GovernanceEngine::checkDriftDetection(
         // Gate 10: fail-closed when baseline is required but missing (tamper protection)
         if (cfg.require_baseline) {
             std::string msg = "Drift baseline missing or deleted: " + resolved +
-                              ". Re-run with --drift-baseline-save to initialize.";
+                              ". The project owner must initialize the baseline before execution.";
             fprintf(stderr, "[governance] %s\n", msg.c_str());
             enforce("drift_detection.require_baseline", cfg.level, msg);
             return "[governance] Drift detection FAILED:\n  " + msg + "\n";
@@ -3607,11 +3606,11 @@ std::string GovernanceEngine::checkDriftDetection(
             }
             std::string advice;
             if (hasSigningCapability()) {
-                advice = "To baseline this file: naab-lang --drift-baseline-save " + filename;
+                advice = "The signing key holder must baseline this file before it can run.";
             } else if (baseline_save_blocked) {
-                advice = "Ask the project owner (with NAAB_SIGNING_KEY or NAAB_GOVERN_KEY) to baseline this file.";
+                advice = "Ask the project owner to baseline this file.";
             } else {
-                advice = "Run with --drift-baseline-save to add it, or modify the existing baselined script.";
+                advice = "This file must be baselined before execution, or use an already-baselined script.";
             }
             std::string msg = fmt::format(
                 "Drift: '{}' has no baseline entry. When require_baseline is enabled, "
@@ -4020,12 +4019,11 @@ std::string GovernanceEngine::checkDriftDetection(
             std::string help_text;
             if (hasSigningCapability()) {
                 help_text = "  Help: Body hashes (SHA-256) detect ANY modification — even whitespace changes.\n"
-                            "  If these changes are intentional, re-baseline with:\n"
-                            "    naab-lang --drift-baseline-save " + filename;
+                            "  If these changes are intentional, the signing key holder must re-baseline.";
             } else {
                 help_text = "  Help: Restore each listed function to its EXACT original code. Content hashes (SHA-256)\n"
-                            "  detect ANY modification — even whitespace or comment changes. You cannot work around\n"
-                            "  this by editing drift-baseline.json (it is signed and tamper-detected).\n"
+                            "  detect ANY modification — even whitespace or comment changes. The drift baseline\n"
+                            "  is signed and tamper-detected.\n"
                             "  The ONLY paths forward are: (1) restore the original code, or (2) ask the project\n"
                             "  owner to re-baseline after reviewing your changes.";
             }
@@ -4045,13 +4043,12 @@ std::string GovernanceEngine::checkDriftDetection(
         if (!expected.empty() && !current.main_body_hash.empty() && current.main_body_hash != expected) {
             std::string help_text;
             if (hasSigningCapability()) {
-                help_text = "  Help: If this change is intentional, re-baseline with:\n"
-                            "    naab-lang --drift-baseline-save " + filename;
+                help_text = "  Help: If this change is intentional, the signing key holder must\n"
+                            "  re-baseline to accept the new main{} body.";
             } else {
-                help_text = "  Help: If this change is intentional, re-baseline is required.\n"
-                            "  Run: naab-lang --drift-baseline-save " + filename + "\n"
-                            "  Note: Re-baselining requires signing authority (NAAB_SIGNING_KEY).\n"
-                            "  Otherwise, restore main{} to its original code.";
+                help_text = "  Help: Restore main{} to its original code, or ask the project owner\n"
+                            "  to re-baseline after reviewing your changes. Re-baselining requires\n"
+                            "  signing authority.";
             }
             std::string msg = fmt::format(
                 "Drift: main{{}} block has been rewritten (body hash mismatch).\n{}", help_text);
@@ -4121,9 +4118,8 @@ std::string GovernanceEngine::checkDriftDetection(
             if (current.config_hash != prev["config_hash"].get<std::string>()) {
                 std::string cfg_help;
                 if (hasSigningCapability()) {
-                    cfg_help = "  Help: govern.json was modified. To accept the new config, re-baseline with:\n"
-                               "    naab-lang --drift-baseline-save " + filename + "\n"
-                               "  Then re-sign govern.json: naab-lang --sign-governance";
+                    cfg_help = "  Help: govern.json was modified. The signing key holder must re-baseline\n"
+                               "  and re-sign to accept config changes.";
                 } else {
                     cfg_help = "  Help: Restore govern.json to its baseline state. Config changes require\n"
                                "  the project owner to re-baseline and re-sign.\n"
@@ -4159,9 +4155,8 @@ std::string GovernanceEngine::checkDriftDetection(
     if (cfg.check_signature_presence && prev.contains("signature_present") && prev["signature_present"].get<bool>()) {
         if (!current.signature_present) {
             std::string msg = "Drift: govern.json.sig was present at baseline time but is now missing.\n"
-                              "  Help: The govern.json.sig file was removed. Re-sign govern.json using:\n"
-                              "    naab-lang --sign-governance\n"
-                              "  This requires a signing key. Do NOT delete .sig files — they protect\n"
+                              "  Help: The signature file was removed. The signing key holder must\n"
+                              "  re-sign the config. Do NOT delete .sig files — they protect\n"
                               "  config integrity.";
             violations.push_back(msg);
             enforce("drift_detection.signature_presence", EnforcementLevel::HARD, msg);
@@ -4174,9 +4169,8 @@ std::string GovernanceEngine::checkDriftDetection(
     if (cfg.check_signature_presence && prev.contains("baseline_signature_present") && prev["baseline_signature_present"].get<bool>()) {
         if (!current.baseline_signature_present) {
             std::string msg = "Drift: drift-baseline.json.sig was present at baseline time but is now missing.\n"
-                              "  Help: The baseline signature was removed. Re-sign the baseline using:\n"
-                              "    naab-lang --sign-baseline\n"
-                              "  This requires a signing key. Do NOT delete .sig files — they protect\n"
+                              "  Help: The baseline signature was removed. The signing key holder must\n"
+                              "  re-sign the baseline. Do NOT delete .sig files — they protect\n"
                               "  baseline integrity.";
             violations.push_back(msg);
             enforce("drift_detection.baseline_signature_presence", EnforcementLevel::HARD, msg);
@@ -4249,16 +4243,11 @@ std::string GovernanceEngine::checkDriftDetection(
     std::string result = "[governance] Drift detection FAILED:\n";
     for (const auto& v : violations) result += "  " + v + "\n";
 
-    // Owner-aware footer: if the signing key is present, show actionable commands
-    // instead of adversary-facing "ask the project owner" language
     if (hasSigningCapability()) {
-        result += "\n  You have a signing key set. To accept these changes as the new baseline:\n"
-                  "    naab-lang --drift-baseline-save " + filename + "\n"
-                  "  This will update and re-sign the drift baseline.\n";
+        result += "\n  You have signing authority. Re-baseline to accept these changes.\n";
     } else {
         result += "\n  To resolve: revert the code changes that caused the drift, or ask the\n"
-                  "  signing key holder to re-baseline after reviewing your changes:\n"
-                  "    naab-lang --drift-baseline-save " + filename + "\n\n"
+                  "  signing key holder to re-baseline after reviewing your changes.\n"
                   "  The drift baseline is signed — edits to drift-baseline.json will be detected.\n";
     }
     return result;
@@ -5727,31 +5716,21 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                     coherence_prox, risk_prox, signal_dens, depth, bsd_progress, inherited));
                 addTrace(fmt::format("  sustained {} turns", consecutive));
 
-                // Build pressure breakdown for error message
-                std::string breakdown;
-                if (coherence_prox > 0.3)
-                    breakdown += "  - Coherence trending toward threshold\n";
-                if (risk_prox > 0.3)
-                    breakdown += "  - Risk score approaching yellow zone\n";
-                if (signal_dens > 0.3)
-                    breakdown += "  - Multiple drift signals active simultaneously\n";
-                if (depth > 0.3)
-                    breakdown += fmt::format("  - Conversation at {:.0f}% of expected depth\n",
-                        depth * 100);
-                if (bsd_progress > 0.3)
-                    breakdown += "  - Behavioral sequence pattern partially matched\n";
-                if (inherited > 0.3)
-                    breakdown += fmt::format("  - Inherited pressure from prior pipeline stage ({:.2f})\n", inherited);
+                // Build generic pressure summary (no factor breakdown — avoid teaching
+                // agents which signals to game below threshold)
+                int active_factors = (coherence_prox > 0.3 ? 1 : 0) + (risk_prox > 0.3 ? 1 : 0)
+                    + (signal_dens > 0.3 ? 1 : 0) + (depth > 0.3 ? 1 : 0)
+                    + (bsd_progress > 0.3 ? 1 : 0) + (inherited > 0.3 ? 1 : 0);
 
                 return enforce("context_drift.reality_checkpoint", rccfg.level,
                     formatError(rccfg.level,
                         fmt::format("Reality checkpoint — sustained operational pressure\n\n"
-                            "  Pressure score: {:.2f} (sustained {} turns)\n{}",
-                            composite, consecutive, breakdown),
+                            "  Pressure score: {:.2f} (sustained {} turns, {} contributing factors)\n",
+                            composite, consecutive, active_factors),
                         "", "context_drift.reality_checkpoint",
-                        "No single governance signal has crossed its threshold, but aggregate\n"
-                        "operational pressure indicates the agent may be losing alignment with\n"
-                        "the task. Consider reviewing recent actions and providing direction.",
+                        "Multiple governance signals are contributing to elevated pressure.\n"
+                        "The agent may be losing alignment with the task.\n"
+                        "Consider reviewing recent actions and providing clearer direction.",
                         "", ""));
             } else {
                 // Update pressure tracking without firing

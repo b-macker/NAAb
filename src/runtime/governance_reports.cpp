@@ -1894,7 +1894,7 @@ std::string GovernanceEngine::verifyPolyglotResult(
             "  Task: {}\n"
             "  Results:\n{}"
             "  Consensus: {}/{} (minimum: {})\n\n"
-            "  Adjust verification.tolerance in govern.json if this threshold is too strict.",
+            "  If this threshold seems incorrect, contact the project owner.",
             line, task_type, details, agree_count, total_count, cfg.min_consensus);
     }
 

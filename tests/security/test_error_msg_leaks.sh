@@ -25,6 +25,7 @@ SECURITY_FILES=(
     "src/runtime/governance_reports.cpp"
     "src/runtime/shell_executor.cpp"
     "src/runtime/persistent_process_executor.cpp"
+    "src/runtime/trust_store.cpp"
     "src/interpreter/governance_taint.cpp"
     "src/interpreter/interpreter.cpp"
     "src/interpreter/call_dispatch.cpp"
@@ -39,13 +40,28 @@ SECURITY_FILES=(
 # Patterns that should NEVER appear in string literals within these files
 # Format: "pattern|description"
 BANNED_IN_STRINGS=(
+    # CLI bypass flags
     '--no-governance|bypass flag leaked in error string'
     '--governance-override|bypass flag leaked in error string'
     '--sandbox-level|sandbox escape flag leaked in error string'
     '--allow-network|network escape flag leaked in error string'
+    '--drift-baseline-save|baseline bypass flag leaked in error string'
+    '--sign-governance|signing flag leaked in error string'
+    '--sign-baseline|signing flag leaked in error string'
+    '--keygen|key generation flag leaked in error string'
+    # Config keys that teach weakening
     'taint_tracking.sanitizers|config key pointing LLM to sanitizer list'
     'taint_tracking.sources|config key pointing LLM to taint sources'
     'taint_tracking.sinks|config key pointing LLM to sink list'
+    # Env var names for signing keys
+    'NAAB_SIGNING_KEY|signing key env var leaked in error string'
+    'NAAB_GOVERN_KEY|governance key env var leaked in error string'
+    # Config weakening hints
+    'Adjust.*govern.json|config weakening hint in error string'
+    'adjust.*govern.json|config weakening hint in error string'
+    # Enforcement bypass hints
+    'soft-mandatory|enforcement level bypass hint in error string'
+    'soft.mandatory|enforcement level bypass hint in error string'
 )
 
 echo "=== Error Message Leak Check ==="
@@ -59,9 +75,19 @@ for src in "${SECURITY_FILES[@]}"; do
         pattern="${entry%%|*}"
         desc="${entry##*|}"
 
-        # Only match inside string literals (lines containing quotes + pattern)
-        # Skip pure comment lines
-        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null | grep -v '^\s*//')
+        # Only match inside string literals that are likely error messages.
+        # Exclude: comments, variable declarations, comparisons, unsetenv/setenv,
+        # blocklist array entries, and enum-style string constants.
+        matches=$(grep -n "\".*${pattern}" "$filepath" 2>/dev/null \
+            | grep -v '^\s*//' \
+            | grep -v 'static const char\*' \
+            | grep -v 'unsetenv(' \
+            | grep -v 'setenv(' \
+            | grep -v '== "' \
+            | grep -v '{".*,' \
+            | grep -v 'blocked_env_vars' \
+            | grep -v 'NAAB_INTERNAL_ENV_VARS' \
+            | grep -v '^\s*[0-9]*:\s*"[A-Z_]*",' )
         if [ -n "$matches" ]; then
             echo "  FAIL: $src — $desc"
             echo "        Pattern: $pattern"

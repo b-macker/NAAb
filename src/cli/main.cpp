@@ -1254,8 +1254,7 @@ int main(int argc, char** argv) {
                                 "  This flag is listed in integrity.blocked_flags in govern.json.\n"
                                 "  Help: Remove '%s' from your command to proceed.\n"
                                 "  The project owner has restricted this flag to prevent governance bypass.\n"
-                                "  To modify governance settings, contact the project owner or use\n"
-                                "  a signing key (NAAB_SIGNING_KEY env var) if you have signing authority.\n",
+                                "  To modify governance settings, contact the project owner.\n",
                                 flag.c_str(), flag.c_str());
                             naab::governance::g_governance_hard_block = true;
                         }
@@ -1808,8 +1807,7 @@ int main(int argc, char** argv) {
                                 "  This flag is listed in integrity.blocked_flags in govern.json.\n"
                                 "  Help: Remove '%s' from your command to proceed.\n"
                                 "  The project owner has restricted this flag to prevent governance bypass.\n"
-                                "  To modify governance settings, contact the project owner or use\n"
-                                "  a signing key (NAAB_SIGNING_KEY env var) if you have signing authority.\n",
+                                "  To modify governance settings, contact the project owner.\n",
                                 flag.c_str(), flag.c_str());
                             naab::governance::g_governance_hard_block = true;
                         }

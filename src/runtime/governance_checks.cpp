@@ -5975,8 +5975,7 @@ std::string GovernanceEngine::checkLoopIterations(size_t count) {
                 fmt::format("Loop iteration count {} exceeds limit of {}", count, max),
                 "", fmt::format("limits.execution.loop_iterations = {}", max),
                 "Loop exceeded iteration limit — likely infinite or unbounded.\n"
-                "Add a break condition, or process data in chunks.\n"
-                "If the limit is too low, adjust limits.execution.loop_iterations in govern.json.",
+                "Add a break condition, or process data in smaller chunks.",
                 "while true { process() }  // unbounded",
                 "for i in 0..len(items) { process(items[i]) }  // bounded by data"));
     }
@@ -5992,8 +5991,7 @@ std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
                 fmt::format("Polyglot block count {} exceeds limit of {}", count, max),
                 "", fmt::format("limits.execution.polyglot_blocks = {}", max),
                 "Too many polyglot blocks executed — refactor to reduce block count.\n"
-                "Combine related operations into fewer, larger blocks.\n"
-                "Adjust limits.execution.polyglot_blocks in govern.json if needed.", "", ""));
+                "Combine related operations into fewer, larger blocks.", "", ""));
     }
     return "";
 }
@@ -6012,7 +6010,7 @@ std::string GovernanceEngine::checkStringLength(size_t length) {
                 fmt::format("String length {} exceeds limit of {}", length, max),
                 "", fmt::format("limits.data.string_length = {}", max),
                 "String exceeds maximum length — truncate or stream large data.\n"
-                "Adjust limits.data.string_length in govern.json if processing large inputs.", "", ""));
+                "Process large inputs in smaller segments.", "", ""));
     }
     return "";
 }
@@ -6026,8 +6024,7 @@ std::string GovernanceEngine::checkNestingDepth(size_t depth) {
                 fmt::format("Nesting depth {} exceeds limit of {}", depth, max),
                 "", fmt::format("limits.data.nesting_depth = {}", max),
                 "Data structure nesting is too deep — flatten nested objects.\n"
-                "Extract nested data into separate variables or use a flatter schema.\n"
-                "Adjust limits.data.nesting_depth in govern.json if needed.", "", ""));
+                "Extract nested data into separate variables or use a flatter schema.", "", ""));
     }
     return "";
 }
@@ -6041,8 +6038,7 @@ std::string GovernanceEngine::checkOutputSize(size_t size) {
                 fmt::format("Output size {} exceeds limit of {}", size, max),
                 "", fmt::format("limits.data.output_size = {}", max),
                 "Polyglot block output exceeds size limit — return less data.\n"
-                "Filter or summarize results instead of returning full datasets.\n"
-                "Adjust limits.data.output_size in govern.json if needed.", "", ""));
+                "Filter or summarize results instead of returning full datasets.", "", ""));
     }
     return "";
 }
@@ -6056,7 +6052,7 @@ std::string GovernanceEngine::checkDictSize(size_t size) {
                 fmt::format("Dictionary size {} exceeds limit of {}", size, max),
                 "", fmt::format("limits.data.dict_size = {}", max),
                 "Dictionary exceeds maximum entry count — use a smaller data structure.\n"
-                "Adjust limits.data.dict_size in govern.json if needed.", "", ""));
+                "Split large dictionaries or process entries incrementally.", "", ""));
     }
     return "";
 }

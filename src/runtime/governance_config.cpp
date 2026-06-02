@@ -122,8 +122,8 @@ std::string GovernanceEngine::formatError(
     }
 
     if (level == EnforcementLevel::SOFT) {
-        oss << "\n  This is a soft-mandatory rule. Ask the project owner to adjust\n";
-        oss << "  govern.json if this check should be relaxed.\n";
+        oss << "\n  This rule is enforced by the project's governance configuration.\n";
+        oss << "  Contact the project owner if this check needs review.\n";
     } else if (level == EnforcementLevel::ADVISORY) {
         oss << "\n  Note: This is an advisory warning — execution will continue\n";
     }
