@@ -80,6 +80,165 @@ static const governance::AgentConfig* findAgentConfig(const std::string& name) {
 }
 
 // ============================================================================
+// Helper: Build environment dict for agent self-awareness
+// Returns static config (limits, model chain, permissions) + dynamic state
+// (turns/tokens remaining, coherence, key health, dispatch proximity)
+// ============================================================================
+
+static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_name) {
+    std::unordered_map<std::string, NaabVal> env;
+
+    // --- Static config (from govern.json AgentConfig) ---
+    const auto* config = findAgentConfig(config_name);
+    if (config) {
+        // Limits
+        std::unordered_map<std::string, NaabVal> limits;
+        limits["max_turns"] = NaabVal::makeInt(config->max_turns);
+        limits["max_tokens"] = NaabVal::makeInt(config->max_tokens);
+        limits["max_total_tokens"] = NaabVal::makeInt(config->max_total_tokens);
+        limits["timeout_seconds"] = NaabVal::makeInt(config->timeout_seconds);
+        limits["risk_budget"] = NaabVal::makeInt(config->risk_budget);
+        env["limits"] = NaabVal::makeDict(std::move(limits));
+
+        // Model chain
+        std::vector<NaabVal> model_list;
+        for (const auto& m : config->model_chain) {
+            model_list.push_back(NaabVal::makeString(m));
+        }
+        if (model_list.empty()) {
+            model_list.push_back(NaabVal::makeString(config->model));
+        }
+        env["model_chain"] = NaabVal::makeList(std::move(model_list));
+        env["provider"] = NaabVal::makeString(config->provider);
+        env["temperature"] = NaabVal::makeDouble(config->temperature);
+        env["response_format"] = NaabVal::makeString(config->response_format);
+
+        // Key pool size (don't expose key names — security)
+        int key_count = config->api_key_envs.empty() ? 1 : static_cast<int>(config->api_key_envs.size());
+        env["key_pool_size"] = NaabVal::makeInt(key_count);
+
+        // Retry config
+        std::unordered_map<std::string, NaabVal> retry;
+        retry["max_attempts"] = NaabVal::makeInt(config->retry.max_attempts);
+        retry["backoff_ms"] = NaabVal::makeInt(config->retry.backoff_ms);
+        retry["jitter"] = NaabVal::makeBool(config->retry.jitter);
+        env["retry"] = NaabVal::makeDict(std::move(retry));
+
+        // Permissions
+        std::unordered_map<std::string, NaabVal> permissions;
+        permissions["shell_allowed"] = NaabVal::makeBool(
+            !config->shell_allowed_set || config->shell_allowed);
+        std::vector<NaabVal> allowed_langs;
+        for (const auto& l : config->allowed_languages)
+            allowed_langs.push_back(NaabVal::makeString(l));
+        permissions["allowed_languages"] = NaabVal::makeList(std::move(allowed_langs));
+        env["permissions"] = NaabVal::makeDict(std::move(permissions));
+    }
+
+    // --- Dynamic state (computed at call time) ---
+    std::unordered_map<std::string, NaabVal> state;
+
+    // Per-agent usage from tracker
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto it = s_trackers.find(handle_id);
+        if (it != s_trackers.end()) {
+            auto& t = it->second;
+            state["turns_used"] = NaabVal::makeInt(t.turns);
+            state["tokens_used"] = NaabVal::makeInt(t.input_tokens + t.output_tokens);
+            if (config) {
+                state["turns_remaining"] = NaabVal::makeInt(
+                    std::max(0, config->max_turns - t.turns));
+                state["tokens_remaining"] = NaabVal::makeInt(
+                    config->max_total_tokens > 0
+                        ? std::max(0, config->max_total_tokens - t.input_tokens - t.output_tokens)
+                        : -1);
+            }
+        }
+    }
+    // s_agent_mutex released before acquiring dead_keys_mutex (lock ordering)
+
+    // Key health (count only — no key env var names exposed)
+    {
+        std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+        int dead_count = 0;
+        std::vector<std::string> keys = config ? config->api_key_envs : std::vector<std::string>{};
+        if (keys.empty() && config) keys.push_back(config->api_key_env);
+        for (const auto& k : keys) {
+            if (s_dispatch.dead_keys.count(k)) dead_count++;
+        }
+        state["keys_active"] = NaabVal::makeInt(static_cast<int>(keys.size()) - dead_count);
+        state["keys_dead"] = NaabVal::makeInt(dead_count);
+    }
+
+    // Coherence + governance state (from governance engine)
+    auto* ge = governance::GovernanceEngine::getCurrent();
+    if (ge && ge->isActive()) {
+        // getDriftState() returns std::optional<DriftState>, is const and thread-safe
+        auto drift_opt = ge->getDriftState(handle_id);
+        if (drift_opt) {
+            state["coherence"] = NaabVal::makeDouble(drift_opt->coherence_score);
+            state["coherence_velocity"] = NaabVal::makeDouble(drift_opt->coherence_velocity);
+            state["contradictions"] = NaabVal::makeInt(drift_opt->contradictions);
+            state["circular_actions"] = NaabVal::makeInt(drift_opt->circular_action_count);
+            state["repeated_failures"] = NaabVal::makeInt(drift_opt->repeated_failures);
+            state["scope_creep"] = NaabVal::makeInt(drift_opt->scope_creep_count);
+            state["pipeline_depth"] = NaabVal::makeInt(drift_opt->pipeline_depth);
+            state["inherited_pressure"] = NaabVal::makeDouble(drift_opt->inherited_pressure);
+
+            // Capability utilization: what agent has vs what it's used
+            std::vector<NaabVal> granted, exercised;
+            for (const auto& c : drift_opt->granted_capabilities)
+                granted.push_back(NaabVal::makeString(c));
+            for (const auto& c : drift_opt->exercised_capabilities)
+                exercised.push_back(NaabVal::makeString(c));
+            state["capabilities_granted"] = NaabVal::makeList(std::move(granted));
+            state["capabilities_exercised"] = NaabVal::makeList(std::move(exercised));
+        } else {
+            state["coherence"] = NaabVal::makeDouble(1.0);  // fresh agent
+            state["pipeline_depth"] = NaabVal::makeInt(0);
+        }
+
+        // Risk budget remaining (getRemainingBudget() is public, const)
+        if (config && config->risk_budget > 0) {
+            state["risk_budget_remaining"] = NaabVal::makeInt(
+                ge->getRemainingBudget(config_name));
+        }
+
+        // Governance level — enum is NORMAL(0), ELEVATED(1), HIGH(2), CRITICAL(3)
+        auto level = ge->getGovernanceLevel();
+        const char* level_str = "normal";
+        switch (level) {
+            case governance::GovernanceLevel::NORMAL:   level_str = "normal";   break;
+            case governance::GovernanceLevel::ELEVATED: level_str = "elevated"; break;
+            case governance::GovernanceLevel::HIGH:     level_str = "high";     break;
+            case governance::GovernanceLevel::CRITICAL: level_str = "critical"; break;
+        }
+        state["governance_level"] = NaabVal::makeString(level_str);
+    }
+
+    // Dispatch (run-level hard stop proximity)
+    std::unordered_map<std::string, NaabVal> dispatch;
+    if (ge) {
+        const auto& hs = ge->getRules().agent_dispatch.hard_stop;
+        dispatch["calls_remaining"] = NaabVal::makeInt(
+            hs.max_calls_per_run > 0
+                ? std::max(0, hs.max_calls_per_run - s_dispatch.total_calls.load()) : -1);
+        dispatch["tokens_remaining"] = NaabVal::makeInt(
+            hs.max_tokens_per_run > 0
+                ? std::max(0, hs.max_tokens_per_run - s_dispatch.total_tokens.load()) : -1);
+        dispatch["time_remaining_ms"] = NaabVal::makeInt(
+            hs.max_agent_time_ms > 0
+                ? std::max(0, static_cast<int>(hs.max_agent_time_ms - s_dispatch.total_agent_time_ms.load())) : -1);
+        dispatch["hard_stopped"] = NaabVal::makeBool(s_dispatch.hard_stopped.load());
+    }
+    state["dispatch"] = NaabVal::makeDict(std::move(dispatch));
+
+    env["state"] = NaabVal::makeDict(std::move(state));
+    return NaabVal::makeDict(std::move(env));
+}
+
+// ============================================================================
 // agent.create(config_name) → handle dict
 // ============================================================================
 
@@ -168,6 +327,9 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     handle["input_tokens"] = NaabVal::makeInt(0);
     handle["output_tokens"] = NaabVal::makeInt(0);
     handle["turns"] = NaabVal::makeInt(0);
+
+    // Environment self-awareness: agent knows its limits from birth
+    handle["environment"] = buildEnvironmentDict(handle_id, config_name);
 
     return NaabVal::makeDict(std::move(handle));
 }
@@ -909,6 +1071,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Environment self-awareness: updated state after each interaction
+    result["environment"] = buildEnvironmentDict(handle_id, config_name);
+
     // Attach governance reload notices (Governance Under Survivability)
     if (!gov_notices.empty()) {
         std::vector<NaabVal> notice_vals;
@@ -1118,6 +1283,35 @@ static NaabVal agentDispatchStatus(std::vector<NaabVal>& /*args*/) {
         result["stop_reason"] = NaabVal::makeString(s_dispatch.stop_reason);
     }
     return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
+// agent.environment(handle) → environment dict
+// On-demand query for current environment snapshot without making an API call.
+// ============================================================================
+
+static NaabVal agentEnvironment(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isDict()) {
+        throw std::runtime_error(
+            "Agent error: agent.environment requires an agent handle\n\n"
+            "  Expected: agent.environment(handle)\n\n"
+            "  Help:\n"
+            "  - Returns the current environment snapshot for the agent\n"
+            "  - Includes config limits, remaining capacity, coherence state\n");
+    }
+
+    auto& handle = args[0].asDict();
+    auto it = handle.find("__agent_handle");
+    if (it == handle.end() || !it->second.isBool() || !it->second.asBool()) {
+        throw std::runtime_error(
+            "Agent error: Invalid agent handle\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n");
+    }
+
+    int handle_id = handle["id"].asInt();
+    std::string config_name = handle["config_name"].asString();
+
+    return buildEnvironmentDict(handle_id, config_name);
 }
 
 // ============================================================================
@@ -1636,7 +1830,7 @@ bool AgentModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "create", "send", "run", "messages", "usage",
         "batch", "fan_out", "pipeline", "check",
-        "key_health", "dispatch_status"
+        "key_health", "dispatch_status", "environment"
     };
     return functions.count(name) > 0;
 }
@@ -1656,10 +1850,11 @@ NaabVal AgentModule::call(
     if (function_name == "check") return agentCheck(args);
     if (function_name == "key_health") return agentKeyHealth(args);
     if (function_name == "dispatch_status") return agentDispatchStatus(args);
+    if (function_name == "environment") return agentEnvironment(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -1671,7 +1866,8 @@ NaabVal AgentModule::call(
         "  - agent.pipeline(handles, msg) — sequential: chain agents, output->input\n"
         "  - agent.check(name) — pre-flight: validate config + API key, returns {valid, error}\n"
         "  - agent.key_health(name) — key rotation status: active vs dead keys\n"
-        "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n",
+        "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n"
+        "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n",
         function_name));
 }
 

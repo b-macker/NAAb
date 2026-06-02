@@ -5808,6 +5808,10 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             "", ""));
 }
 
+std::optional<governance::DriftState> GovernanceEngine::getDriftState(int handle_id) const {
+    return drift_analyzer_.getDriftState(handle_id);
+}
+
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
     int handle_id, int turn) const {
     CheckpointData data;

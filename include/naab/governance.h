@@ -2433,6 +2433,9 @@ public:
     std::string checkContextDrift(int handle_id, int turn,
                                   const std::string& error = "");
 
+    // Agent environment: get drift state for environment dict
+    std::optional<governance::DriftState> getDriftState(int handle_id) const;
+
     // Reality checkpoint: get pressure data for response dict
     struct CheckpointData {
         bool fired = false;         // true if checkpoint fired this turn (ADVISORY)

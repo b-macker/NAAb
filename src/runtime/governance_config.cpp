@@ -2669,6 +2669,68 @@ static bool checkRatchetViolation(
     chkRestrict(old_r.code_quality.no_simulation_markers.enabled, new_r.code_quality.no_simulation_markers.enabled, "code_quality.no_simulation_markers.enabled");
     chkRestrict(old_r.taint_tracking.enabled, new_r.taint_tracking.enabled, "taint_tracking.enabled");
 
+    // --- E. Per-agent config changes ---
+    auto agentByName = [](const std::vector<AgentConfig>& agents, const std::string& n)
+        -> const AgentConfig* {
+        for (const auto& a : agents) {
+            if (a.name == n) return &a;
+        }
+        return nullptr;
+    };
+
+    for (const auto& new_agent : new_r.agents) {
+        const auto* old_agent = agentByName(old_r.agents, new_agent.name);
+        if (!old_agent) {
+            notices.push_back(fmt::format("agent.{}: new agent config added", new_agent.name));
+            continue;
+        }
+
+        // Tightened limits → notices
+        if (new_agent.max_turns < old_agent->max_turns)
+            notices.push_back(fmt::format("agent.{}.max_turns: {} -> {} (reduced)",
+                new_agent.name, old_agent->max_turns, new_agent.max_turns));
+        if (new_agent.max_total_tokens < old_agent->max_total_tokens && new_agent.max_total_tokens > 0)
+            notices.push_back(fmt::format("agent.{}.max_total_tokens: {} -> {} (reduced)",
+                new_agent.name, old_agent->max_total_tokens, new_agent.max_total_tokens));
+        if (new_agent.max_tokens < old_agent->max_tokens)
+            notices.push_back(fmt::format("agent.{}.max_tokens: {} -> {} (reduced)",
+                new_agent.name, old_agent->max_tokens, new_agent.max_tokens));
+        if (new_agent.risk_budget > 0 && new_agent.risk_budget < old_agent->risk_budget)
+            notices.push_back(fmt::format("agent.{}.risk_budget: {} -> {} (reduced)",
+                new_agent.name, old_agent->risk_budget, new_agent.risk_budget));
+        if (new_agent.timeout_seconds < old_agent->timeout_seconds)
+            notices.push_back(fmt::format("agent.{}.timeout_seconds: {} -> {} (reduced)",
+                new_agent.name, old_agent->timeout_seconds, new_agent.timeout_seconds));
+        if (new_agent.temperature != old_agent->temperature)
+            notices.push_back(fmt::format("agent.{}.temperature: {:.1f} -> {:.1f}",
+                new_agent.name, old_agent->temperature, new_agent.temperature));
+
+        // Model chain changes
+        if (new_agent.model_chain != old_agent->model_chain || new_agent.model != old_agent->model)
+            notices.push_back(fmt::format("agent.{}.model: chain updated", new_agent.name));
+
+        // Key pool changes
+        if (new_agent.api_key_envs.size() != old_agent->api_key_envs.size())
+            notices.push_back(fmt::format("agent.{}.api_key_env: pool size {} -> {}",
+                new_agent.name, old_agent->api_key_envs.size(), new_agent.api_key_envs.size()));
+
+        // Loosened limits → violations (ratchet enforcement)
+        if (new_agent.max_turns > old_agent->max_turns && old_agent->max_turns > 0)
+            violations.push_back(fmt::format("agent.{}.max_turns: {} -> {} (loosened)",
+                new_agent.name, old_agent->max_turns, new_agent.max_turns));
+        if (new_agent.risk_budget > old_agent->risk_budget && old_agent->risk_budget > 0)
+            violations.push_back(fmt::format("agent.{}.risk_budget: {} -> {} (loosened)",
+                new_agent.name, old_agent->risk_budget, new_agent.risk_budget));
+    }
+
+    // Detect removed agents — removing constraints is loosening
+    for (const auto& old_agent : old_r.agents) {
+        if (!agentByName(new_r.agents, old_agent.name)) {
+            violations.push_back(fmt::format("agent.{}: config removed (loosened)",
+                old_agent.name));
+        }
+    }
+
     return violations.empty();
 }
 

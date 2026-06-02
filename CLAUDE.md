@@ -120,6 +120,11 @@ include/naab/       All headers
 - `sorted()` is registered in `hasFunction()` but NOT in `isMutatingFunction()`
 - VM has inline dot-notation for `sorted` in `callBuiltinMethod()`; tree-walker uses module path `array.sorted(arr)`
 - Agent `agent.send()` auto-strips markdown code fences (` ```json ... ``` `) from LLM responses before returning content
+- Agent resilience: `api_key_env`/`model` accept string or array (key rotation, model fallback). `retry` block configures backoff+jitter. `agent_dispatch.hard_stop` sets run-level budgets
+- `agent.key_health(name)` returns `{available, active, dead}` — key rotation status
+- `agent.dispatch_status()` returns run-level counters — calls, tokens, time, hard stop status
+- `agent.send()` responses include `trace` dict — model, provider, api_key_env, attempts, latency_ms, fallback_used
+- `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
 - Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)
