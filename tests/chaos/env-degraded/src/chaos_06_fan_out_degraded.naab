@@ -1,0 +1,80 @@
+// Chaos Test 6: Fan-out with one healthy + one all-bogus agent
+// Tests: mixed success/failure in fan_out, per-slot environment divergence
+use agent
+
+main {
+    // Create one healthy agent and one all-bogus agent
+    let h_good = agent.create("chaos_mixed")
+    let h_bad = agent.create("chaos_all_bogus")
+
+    // Check birth environments
+    let g_env = h_good.get("environment")
+    let b_env = h_bad.get("environment")
+    print("fanout_birth: good_pool=" + string(g_env.get("key_pool_size") ?? 0) +
+          " bad_pool=" + string(b_env.get("key_pool_size") ?? 0))
+
+    // Fan-out: same message to both
+    let results = null
+    try {
+        results = agent.fan_out([h_good, h_bad], "Assess risk of lodash@4.17.20")
+    } catch (e) {
+        print("fanout_dispatch: failed=" + string(e))
+    }
+
+    if results != null {
+        print("fanout_count: " + string(len(results)))
+
+        for i in 0..len(results) {
+            let r = results[i]
+            let ok = (r.get("success") ?? true) != false
+            let env = r.get("environment")
+
+            if ok {
+                let dead = 0
+                let active = 0
+                if env != null {
+                    dead = env.get("state").get("keys_dead") ?? 0
+                    active = env.get("state").get("keys_active") ?? 0
+                }
+                print("fanout_slot" + string(i) + ": ok active=" + string(active) +
+                      " dead=" + string(dead))
+            } else {
+                print("fanout_slot" + string(i) + ": failed=" + (r.get("error") ?? ""))
+                // Even failed slots should have environment from handle
+                if env != null {
+                    let dead = env.get("state").get("keys_dead") ?? 0
+                    print("fanout_slot" + string(i) + "_env: dead=" + string(dead))
+                }
+            }
+        }
+
+        // At least one should succeed (chaos_mixed has 1 valid key)
+        let any_ok = false
+        for i in 0..len(results) {
+            if (results[i].get("success") ?? true) != false {
+                any_ok = true
+            }
+        }
+        print("fanout_any_success: " + string(any_ok))
+
+        // Check divergence: good agent should have fewer dead keys than bad
+        let good_env = results[0].get("environment")
+        let bad_env = results[1].get("environment")
+        if good_env != null && bad_env != null {
+            let g_dead = good_env.get("state").get("keys_dead") ?? 0
+            let b_dead = bad_env.get("state").get("keys_dead") ?? 0
+            print("fanout_divergence: good_dead=" + string(g_dead) +
+                  " bad_dead=" + string(b_dead))
+        } else if good_env != null {
+            // Bad slot failed entirely — divergence is implicit
+            let g_dead = good_env.get("state").get("keys_dead") ?? 0
+            print("fanout_divergence: good_dead=" + string(g_dead) +
+                  " bad_dead=all (slot failed)")
+        } else if bad_env != null {
+            let b_dead = bad_env.get("state").get("keys_dead") ?? 0
+            print("fanout_divergence: good_dead=unknown bad_dead=" + string(b_dead))
+        }
+    }
+
+    print("chaos_fan_out_degraded: completed")
+}

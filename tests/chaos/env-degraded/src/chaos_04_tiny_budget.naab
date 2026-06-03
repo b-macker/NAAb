@@ -1,0 +1,57 @@
+// Chaos Test 4: Tiny agent limits — max_turns=1, max_total_tokens=200
+// Config: chaos_tiny has single turn, minimal tokens
+use agent
+
+main {
+    let h = agent.create("chaos_tiny")
+
+    // Birth: verify tight limits
+    let birth = h.get("environment")
+    let lim = birth.get("limits")
+    print("tiny_limits: turns=" + string(lim.get("max_turns") ?? 0) +
+          " tokens=" + string(lim.get("max_total_tokens") ?? 0) +
+          " max_tokens=" + string(lim.get("max_tokens") ?? 0))
+
+    let state = birth.get("state")
+    print("tiny_birth_remaining: turns=" + string(state.get("turns_remaining") ?? 0) +
+          " tokens=" + string(state.get("tokens_remaining") ?? 0))
+
+    // First send should work (uses the one allowed turn)
+    let resp1 = null
+    try {
+        resp1 = agent.send(h, "Hi")
+    } catch (e) {
+        print("tiny_send1: failed=" + string(e))
+    }
+
+    if resp1 != null {
+        let live = resp1.get("environment")
+        let ls = live.get("state")
+        print("tiny_after_send1: turns_used=" + string(ls.get("turns_used") ?? 0) +
+              " turns_remaining=" + string(ls.get("turns_remaining") ?? 0) +
+              " tokens_used=" + string(ls.get("tokens_used") ?? 0))
+
+        // Should be at limit now (1 turn used out of 1)
+        print("tiny_at_turn_limit: " + string((ls.get("turns_remaining") ?? 1) == 0))
+    }
+
+    // Second send should hit turn limit
+    let send2_ok = false
+    let send2_err = ""
+    try {
+        agent.send(h, "This should fail")
+        send2_ok = true
+    } catch (e) {
+        send2_err = string(e)
+    }
+    print("tiny_send2: ok=" + string(send2_ok) + " err_len=" + string(len(send2_err)))
+    print("tiny_turn_enforced: " + string(!send2_ok))
+
+    // Check environment after rejection
+    let post = agent.environment(h)
+    let ps = post.get("state")
+    print("tiny_post: turns_used=" + string(ps.get("turns_used") ?? 0) +
+          " turns_remaining=" + string(ps.get("turns_remaining") ?? 0))
+
+    print("chaos_tiny_budget: completed")
+}

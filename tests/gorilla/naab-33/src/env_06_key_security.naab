@@ -1,0 +1,31 @@
+// Test: Key pool exposes count only, never key names
+// Validates: key_pool_size is an int, no env var names leak
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let env = h.get("environment")
+
+    // key_pool_size should be an integer count
+    let pool = env.get("key_pool_size")
+    print("key_security: pool_size=" + string(pool))
+
+    // Verify no key name fields exist in environment
+    let env_str = string(env)
+
+    // Check that specific env var names don't appear
+    let has_gk5 = env_str.contains("GK5")
+    let has_api_key = env_str.contains("API_KEY")
+    let has_gemini_key = env_str.contains("GEMINI_API_KEY")
+    print("key_leak_check: has_gk5=" + string(has_gk5) +
+          " has_api_key=" + string(has_api_key) +
+          " has_gemini_key=" + string(has_gemini_key))
+
+    // State should have keys_active/keys_dead as counts, not names
+    let state = env.get("state")
+    let active = state.get("keys_active")
+    let dead = state.get("keys_dead")
+    print("key_counts: active=" + string(active) + " dead=" + string(dead))
+
+    print("key_security: completed")
+}

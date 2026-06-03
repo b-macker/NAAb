@@ -1,0 +1,36 @@
+// Test: Coherence score tracked in environment state
+// Validates: coherence, coherence_velocity, contradictions, etc.
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // Birth coherence should be 1.0 (fresh agent)
+    let birth_coh = h.get("environment").get("state").get("coherence")
+    print("coherence_birth: " + string(birth_coh))
+
+    // Send multiple turns to see coherence tracking
+    let r1 = try { agent.send(h, "Analyze Python security") } catch (e) { null }
+    if r1 == null {
+        print("coherence_tracking: api_failed")
+        return
+    }
+    let s1 = r1.get("environment").get("state")
+    print("coherence_t1: score=" + string(s1.get("coherence")) +
+          " velocity=" + string(s1.get("coherence_velocity")) +
+          " contradictions=" + string(s1.get("contradictions")) +
+          " circular=" + string(s1.get("circular_actions")) +
+          " failures=" + string(s1.get("repeated_failures")) +
+          " scope_creep=" + string(s1.get("scope_creep")))
+
+    let r2 = try { agent.send(h, "Now analyze JavaScript security") } catch (e) { null }
+    if r2 == null {
+        print("coherence_tracking: second_failed")
+        return
+    }
+    let s2 = r2.get("environment").get("state")
+    print("coherence_t2: score=" + string(s2.get("coherence")) +
+          " velocity=" + string(s2.get("coherence_velocity")))
+
+    print("coherence_tracking: completed")
+}

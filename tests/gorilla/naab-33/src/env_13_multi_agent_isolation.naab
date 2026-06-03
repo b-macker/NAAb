@@ -1,0 +1,35 @@
+// Test: Multiple agents have isolated environment state
+// Validates: sending to one agent doesn't affect another's turns/tokens
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    // Send only to h1
+    let r1 = try { agent.send(h1, "Hello") } catch (e) { null }
+    if r1 == null {
+        print("isolation: api_failed")
+        return
+    }
+
+    // h1 should show 1 turn, h2 should show 0
+    let e1 = agent.environment(h1)
+    let e2 = agent.environment(h2)
+    let h1_turns = e1.get("state").get("turns_used")
+    let h2_turns = e2.get("state").get("turns_used")
+    print("isolation: h1_turns=" + string(h1_turns) +
+          " h2_turns=" + string(h2_turns))
+
+    let isolated = h1_turns > 0 and h2_turns == 0
+    print("isolation_correct: " + string(isolated))
+
+    // But dispatch should be shared (run-level)
+    let d1 = e1.get("state").get("dispatch").get("calls_remaining")
+    let d2 = e2.get("state").get("dispatch").get("calls_remaining")
+    let dispatch_shared = d1 == d2
+    print("dispatch_shared: " + string(dispatch_shared) +
+          " value=" + string(d1))
+
+    print("multi_agent_isolation: completed")
+}

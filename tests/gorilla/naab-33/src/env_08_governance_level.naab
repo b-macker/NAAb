@@ -1,0 +1,19 @@
+// Test: Governance level in environment uses correct enum values
+// Validates: level is one of normal/elevated/high/critical (NOT green/yellow/red)
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let gov = h.get("environment").get("state").get("governance_level")
+    print("gov_level: " + gov)
+
+    // Verify it's a valid governance level string
+    let valid = gov == "normal" or gov == "elevated" or gov == "high" or gov == "critical"
+    print("gov_valid: " + string(valid))
+
+    // Verify it's NOT the old color scheme
+    let not_color = gov != "green" and gov != "yellow" and gov != "red"
+    print("gov_not_color: " + string(not_color))
+
+    print("governance_level: completed")
+}

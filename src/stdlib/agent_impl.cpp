@@ -656,8 +656,35 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Failure — classify error by HTTP status
         int status = result.http_status;
         last_error = result.response.error;
-        s_dispatch.consecutive_failures++;
         s_dispatch.total_retries++;
+
+        // Classify error before incrementing consecutive failures.
+        // Key rotation errors (Gemini 400 "API key not valid") are expected
+        // during rotation — they shouldn't count toward consecutive failures
+        // or trigger hard stop (especially in parallel dispatch where multiple
+        // threads rotate keys simultaneously).
+        bool should_never_retry = false;
+        bool is_key_error_400 = false;
+        for (int code : config->retry.never_retry) {
+            if (status == code) { should_never_retry = true; break; }
+        }
+        if (should_never_retry && status == 400 &&
+            (last_error.find("API key not valid") != std::string::npos ||
+             last_error.find("API_KEY_INVALID") != std::string::npos)) {
+            should_never_retry = false;
+            is_key_error_400 = true;
+        }
+
+        // Key skip errors (401 or 400-key-error) don't count as consecutive failures
+        bool is_key_skip = is_key_error_400;
+        if (!is_key_skip) {
+            for (int code : config->retry.skip_key_on) {
+                if (status == code) { is_key_skip = true; break; }
+            }
+        }
+        if (!is_key_skip) {
+            s_dispatch.consecutive_failures++;
+        }
 
         // Telemetry: retry event
         if (gov_engine && gov_engine->isActive()) {
@@ -679,7 +706,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 s_dispatch.stop_reason = "consecutive_failure_limit (" +
                     std::to_string(hs.consecutive_failure_limit) + ") reached";
             }
-            // Record CDD before throwing
             if (gov_engine && gov_engine->isActive() &&
                 gov_engine->getRules().context_drift.enabled) {
                 gov_engine->checkContextDrift(handle_id, current_turn, "api_call_failed");
@@ -695,11 +721,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "\n\n  Last error: " + last_error);
         }
 
-        // Never retry (400 = bad request)
-        bool should_never_retry = false;
-        for (int code : config->retry.never_retry) {
-            if (status == code) { should_never_retry = true; break; }
-        }
+        // Never retry: abort immediately (real 400 bad request, not key error)
         if (should_never_retry) {
             if (gov_engine && gov_engine->isActive() &&
                 gov_engine->getRules().context_drift.enabled) {
@@ -708,20 +730,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             throw std::runtime_error(last_error);
         }
 
-        // Skip key on 401 (mark dead for rest of run)
-        for (int code : config->retry.skip_key_on) {
-            if (status == code) {
-                {
-                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                    s_dispatch.dead_keys.insert(key_env);
-                }
-                if (gov_engine && gov_engine->isActive()) {
-                    gov_engine->writeAgentTelemetry("AGENT_KEY_DISABLED", {
-                        {"api_key_env", key_env},
-                        {"http_status", std::to_string(status)}
-                    });
-                }
-                break;
+        // Mark dead key for rest of run (already classified above as is_key_skip)
+        if (is_key_skip) {
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                s_dispatch.dead_keys.insert(key_env);
+            }
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->writeAgentTelemetry("AGENT_KEY_DISABLED", {
+                    {"api_key_env", key_env},
+                    {"http_status", std::to_string(status)}
+                });
             }
         }
 

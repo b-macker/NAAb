@@ -1,0 +1,53 @@
+// Test: Environment reflects govern.json config accurately
+// Validates: different agents have different limits, temperatures, budgets
+use agent
+
+main {
+    let h_analyst = agent.create("analyst")
+    let h_reviewer = agent.create("reviewer")
+    let h_low = agent.create("low_budget")
+
+    let e_a = h_analyst.get("environment")
+    let e_r = h_reviewer.get("environment")
+    let e_l = h_low.get("environment")
+
+    // Analyst: max_turns=5, max_tokens=256, max_total=2048, temp=0.2, budget=5
+    let a_turns = e_a.get("limits").get("max_turns")
+    let a_total = e_a.get("limits").get("max_total_tokens")
+    let a_temp = e_a.get("temperature")
+    let a_budget = e_a.get("limits").get("risk_budget")
+    print("config_analyst: turns=" + string(a_turns) +
+          " total=" + string(a_total) +
+          " temp=" + string(a_temp) +
+          " budget=" + string(a_budget))
+
+    // Reviewer: max_turns=3, max_total=1024, temp=0.5, budget=3
+    let r_turns = e_r.get("limits").get("max_turns")
+    let r_total = e_r.get("limits").get("max_total_tokens")
+    let r_temp = e_r.get("temperature")
+    let r_budget = e_r.get("limits").get("risk_budget")
+    print("config_reviewer: turns=" + string(r_turns) +
+          " total=" + string(r_total) +
+          " temp=" + string(r_temp) +
+          " budget=" + string(r_budget))
+
+    // Low budget: max_turns=2, max_total=512, temp=0.0, budget=1
+    let l_turns = e_l.get("limits").get("max_turns")
+    let l_total = e_l.get("limits").get("max_total_tokens")
+    let l_temp = e_l.get("temperature")
+    let l_budget = e_l.get("limits").get("risk_budget")
+    print("config_low: turns=" + string(l_turns) +
+          " total=" + string(l_total) +
+          " temp=" + string(l_temp) +
+          " budget=" + string(l_budget))
+
+    // Cross-agent verification: configs should differ
+    let turns_differ = a_turns != r_turns and r_turns != l_turns
+    let temp_differ = a_temp != r_temp
+    let budget_differ = a_budget != r_budget and r_budget != l_budget
+    print("config_differ: turns=" + string(turns_differ) +
+          " temp=" + string(temp_differ) +
+          " budget=" + string(budget_differ))
+
+    print("config_accuracy: completed")
+}

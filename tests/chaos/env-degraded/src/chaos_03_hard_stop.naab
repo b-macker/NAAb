@@ -1,0 +1,88 @@
+// Chaos Test 3: Hard stop — exhaust dispatch budget
+// Config: max_calls_per_run=12, burn through with repeated sends
+use agent
+
+main {
+    // Check initial dispatch
+    let ds0 = agent.dispatch_status()
+    let initial_remaining = ds0.get("calls_remaining") ?? 0
+    print("hardstop_initial: remaining=" + string(initial_remaining) +
+          " stopped=" + string(ds0.get("hard_stopped") ?? false))
+
+    let calls_made = 0
+    let last_env = null
+    let stopped_at = -1
+
+    // Loop until hard stop or 35 attempts (safety valve)
+    for i in 0..35 {
+        let ds = agent.dispatch_status()
+        if ds.get("hard_stopped") ?? false {
+            stopped_at = i
+            print("hardstop_triggered: at_iteration=" + string(i) +
+                  " calls=" + string(ds.get("calls_made") ?? 0))
+            break
+        }
+
+        let h = agent.create("chaos_mixed")
+
+        // Check environment before send
+        let pre = agent.environment(h)
+        let pre_disp = pre.get("state").get("dispatch")
+        if pre_disp.get("hard_stopped") ?? false {
+            stopped_at = i
+            print("hardstop_preflight: at_iteration=" + string(i))
+            break
+        }
+
+        let resp = null
+        try {
+            resp = agent.send(h, "Say " + string(i))
+            calls_made = calls_made + 1
+        } catch (e) {
+            let err = string(e)
+            // Check if error is hard stop vs key failure
+            if err.contains("hard") || err.contains("dispatch") || err.contains("budget") {
+                stopped_at = i
+                print("hardstop_send_blocked: at_iteration=" + string(i) +
+                      " err=" + err)
+                break
+            }
+            print("hardstop_send_err: i=" + string(i) + " err=" + err)
+        }
+
+        if resp != null {
+            last_env = resp.get("environment")
+            let disp = last_env.get("state").get("dispatch")
+            print("hardstop_i" + string(i) + ": calls_left=" +
+                  string(disp.get("calls_remaining") ?? -1) +
+                  " stopped=" + string(disp.get("hard_stopped") ?? false))
+        }
+    }
+
+    // Final state
+    let ds_final = agent.dispatch_status()
+    print("hardstop_final: calls=" + string(ds_final.get("calls_made") ?? 0) +
+          " stopped=" + string(ds_final.get("hard_stopped") ?? false) +
+          " reason=" + string(ds_final.get("stop_reason") ?? ""))
+    print("hardstop_sends_completed: " + string(calls_made))
+    print("hardstop_did_stop: " + string(stopped_at >= 0 || (ds_final.get("hard_stopped") ?? false)))
+
+    // After hard stop: new send should fail
+    if ds_final.get("hard_stopped") ?? false {
+        let h2 = agent.create("chaos_mixed")
+        let post_env = agent.environment(h2)
+        let post_disp = post_env.get("state").get("dispatch")
+        print("hardstop_post_env: stopped=" + string(post_disp.get("hard_stopped") ?? false))
+
+        let post_ok = false
+        try {
+            agent.send(h2, "This should fail")
+            post_ok = true
+        } catch (e) {
+            print("hardstop_post_send: blocked (expected)")
+        }
+        print("hardstop_post_blocked: " + string(!post_ok))
+    }
+
+    print("chaos_hard_stop: completed")
+}

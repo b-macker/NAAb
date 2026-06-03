@@ -1,0 +1,64 @@
+// Test: Birth snapshot — agent.create() handle has environment dict
+// Validates: limits, model_chain, provider, temperature, key_pool_size, retry, permissions
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let env = h.get("environment")
+
+    // Static config: limits
+    let limits = env.get("limits")
+    let max_turns = limits.get("max_turns")
+    let max_tokens = limits.get("max_tokens")
+    let max_total = limits.get("max_total_tokens")
+    let timeout = limits.get("timeout_seconds")
+    let budget = limits.get("risk_budget")
+
+    print("birth_limits: max_turns=" + string(max_turns) +
+          " max_tokens=" + string(max_tokens) +
+          " max_total=" + string(max_total) +
+          " timeout=" + string(timeout) +
+          " budget=" + string(budget))
+
+    // Model chain
+    let chain = env.get("model_chain")
+    let provider = env.get("provider")
+    let temp = env.get("temperature")
+    print("birth_model: provider=" + provider +
+          " chain_len=" + string(len(chain)) +
+          " temp=" + string(temp))
+
+    // Key pool (should NOT expose key names)
+    let pool = env.get("key_pool_size")
+    print("birth_keys: pool_size=" + string(pool))
+
+    // Retry config
+    let retry = env.get("retry")
+    let max_attempts = retry.get("max_attempts")
+    let backoff = retry.get("backoff_ms")
+    let jitter = retry.get("jitter")
+    print("birth_retry: max_attempts=" + string(max_attempts) +
+          " backoff=" + string(backoff) +
+          " jitter=" + string(jitter))
+
+    // Permissions
+    let perms = env.get("permissions")
+    let shell = perms.get("shell_allowed")
+    print("birth_perms: shell=" + string(shell))
+
+    // Dynamic state at birth
+    let state = env.get("state")
+    let turns_used = state.get("turns_used")
+    let coherence = state.get("coherence")
+    let gov_level = state.get("governance_level")
+    print("birth_state: turns_used=" + string(turns_used) +
+          " coherence=" + string(coherence) +
+          " gov_level=" + gov_level)
+
+    // Dispatch at birth
+    let dispatch = state.get("dispatch")
+    let hard_stopped = dispatch.get("hard_stopped")
+    print("birth_dispatch: hard_stopped=" + string(hard_stopped))
+
+    print("birth_snapshot: completed")
+}

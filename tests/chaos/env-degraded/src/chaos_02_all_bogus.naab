@@ -1,0 +1,44 @@
+// Chaos Test 2: All keys bogus — every call fails
+// Config: chaos_all_bogus has 3 bogus keys, no valid ones
+use agent
+
+main {
+    let h = agent.create("chaos_all_bogus")
+
+    // Birth snapshot still looks normal (keys not tried yet)
+    let birth = h.get("environment")
+    let pool = birth.get("key_pool_size") ?? 0
+    print("bogus_birth: pool=" + string(pool) +
+          " active=" + string(birth.get("state").get("keys_active") ?? 0))
+
+    // Send should fail — all keys bogus
+    let send_ok = false
+    let send_err = ""
+    try {
+        let resp = agent.send(h, "Hello")
+        send_ok = true
+    } catch (e) {
+        send_err = string(e)
+    }
+    print("bogus_send: ok=" + string(send_ok) + " err_len=" + string(len(send_err)))
+
+    // After failure: check environment via on-demand query
+    let post = agent.environment(h)
+    let post_dead = post.get("state").get("keys_dead") ?? 0
+    let post_active = post.get("state").get("keys_active") ?? 0
+    print("bogus_post: active=" + string(post_active) +
+          " dead=" + string(post_dead))
+    print("bogus_all_dead: " + string(post_active == 0))
+
+    // Dispatch should show the failed attempts
+    let ds = agent.dispatch_status()
+    print("bogus_dispatch: calls=" + string(ds.get("calls_made") ?? 0) +
+          " failures=" + string(ds.get("consecutive_failures") ?? 0) +
+          " stopped=" + string(ds.get("hard_stopped") ?? false))
+
+    // Error should not leak key names
+    let has_bogus = send_err.contains("CHAOS_BOGUS") || send_err.contains("api_key_env")
+    print("bogus_leak: " + string(has_bogus))
+
+    print("chaos_all_bogus: completed")
+}

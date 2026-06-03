@@ -12,28 +12,12 @@
         "shell": { "enabled": true },
         "env_vars": { "read": true, "write": false }
     },
-    "limits": {
-        "timeout": { "global": 30, "per_block": 10, "total_polyglot": 20 },
-        "execution": {
-            "call_depth": 20,
-            "loop_iterations": 100,
-            "polyglot_blocks": 10,
-            "total_executions": 50
-        },
-        "data": {
-            "array_size": 50,
-            "dict_size": 50,
-            "string_length": 2000,
-            "nesting_depth": 8,
-            "output_size": 4096
-        }
-    },
     "taint_tracking": {
         "enabled": true,
         "level": "soft",
         "lineage": true,
         "sources": ["polyglot_output", "file.read", "env.get"],
-        "sinks": ["file.write", "file.append"],
+        "sinks": ["file.write"],
         "sanitizers": ["sanitize_", "validate_"],
         "gate_cross_block": true,
         "cross_block_level": "soft"
@@ -91,7 +75,7 @@
     "exposure_tracking": {
         "enabled": true,
         "max_autonomous_actions": 15,
-        "max_unique_agents": 4,
+        "max_unique_agents": 5,
         "coherence_floor": 0.4,
         "level": "soft",
         "max_pipeline_depth": 2,
@@ -128,9 +112,9 @@
         "pool_size": 4,
         "pool_queue_max": 20,
         "hard_stop": {
-            "max_calls_per_run": 25,
-            "max_tokens_per_run": 60000,
-            "max_agent_time_ms": 180000,
+            "max_calls_per_run": 20,
+            "max_tokens_per_run": 50000,
+            "max_agent_time_ms": 120000,
             "consecutive_failure_limit": 5
         }
     },
@@ -140,11 +124,11 @@
             "model": "gemma-4-31b-it",
             "api_key_env": "GK5",
             "max_tokens": 256,
-            "max_turns": 8,
+            "max_turns": 5,
             "max_total_tokens": 2048,
             "timeout_seconds": 30,
+            "system_prompt": "You are a test analyst. Be concise. Reply in under 50 words.",
             "temperature": 0.2,
-            "system_prompt": "You are a test analyst. Be concise. Reply in one sentence.",
             "risk_budget": 5,
             "retry": {
                 "max_attempts": 2,
@@ -152,46 +136,29 @@
                 "jitter": true
             }
         },
-        "tight_budget": {
-            "provider": "gemini",
-            "model": "gemma-4-31b-it",
-            "api_key_env": "GK5",
-            "max_tokens": 256,
-            "max_turns": 6,
-            "max_total_tokens": 1536,
-            "timeout_seconds": 20,
-            "temperature": 0.5,
-            "system_prompt": "You are a test agent with tight budget. Be concise.",
-            "risk_budget": 3,
-            "retry": {
-                "max_attempts": 2,
-                "backoff_ms": 500,
-                "jitter": true
-            }
-        },
-        "minimal_budget": {
-            "provider": "gemini",
-            "model": "gemma-4-31b-it",
-            "api_key_env": "GK5",
-            "max_tokens": 128,
-            "max_turns": 3,
-            "max_total_tokens": 512,
-            "timeout_seconds": 10,
-            "temperature": 0.0,
-            "system_prompt": "You are a minimal test agent. One word answers.",
-            "risk_budget": 1
-        },
         "reviewer": {
             "provider": "gemini",
             "model": "gemma-4-31b-it",
             "api_key_env": "GK5",
             "max_tokens": 256,
-            "max_turns": 5,
+            "max_turns": 3,
             "max_total_tokens": 1024,
             "timeout_seconds": 15,
-            "temperature": 0.3,
-            "system_prompt": "You are a test reviewer. Be concise.",
-            "risk_budget": 5
+            "system_prompt": "You are a test reviewer. Be concise. Reply in under 50 words.",
+            "temperature": 0.5,
+            "risk_budget": 3
+        },
+        "low_budget": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK5",
+            "max_tokens": 128,
+            "max_turns": 2,
+            "max_total_tokens": 512,
+            "timeout_seconds": 10,
+            "system_prompt": "You are a minimal agent. One sentence only.",
+            "temperature": 0.0,
+            "risk_budget": 1
         }
     },
     "telemetry": {

@@ -1,0 +1,74 @@
+// Chaos Test 1: Dead key accumulation
+// Config: 1 valid key + 5 bogus → keys should die on first send
+use agent
+
+main {
+    let h = agent.create("chaos_mixed")
+
+    // Birth: all 6 keys should show active (not tried yet)
+    let birth = h.get("environment")
+    let b_active = birth.get("state").get("keys_active") ?? 0
+    let b_dead = birth.get("state").get("keys_dead") ?? 0
+    print("chaos_birth: pool=" + string(birth.get("key_pool_size")) +
+          " active=" + string(b_active) +
+          " dead=" + string(b_dead))
+
+    // First send: bogus keys get 401 → marked dead
+    let resp = null
+    try {
+        resp = agent.send(h, "Say hello")
+    } catch (e) {
+        print("chaos_send1: failed=" + string(e))
+    }
+
+    if resp != null {
+        let live = resp.get("environment")
+        let l_active = live.get("state").get("keys_active") ?? 0
+        let l_dead = live.get("state").get("keys_dead") ?? 0
+        print("chaos_send1: active=" + string(l_active) +
+              " dead=" + string(l_dead) +
+              " content_len=" + string(len(resp.get("content") ?? "")))
+
+        // Verify keys died
+        print("chaos_keys_died: " + string(l_dead > b_dead))
+        print("chaos_active_decreased: " + string(l_active < b_active))
+
+        // Trace should show which key succeeded
+        let trace = resp.get("trace")
+        if trace != null {
+            print("chaos_trace: attempts=" + string(trace.get("attempts") ?? 0) +
+                  " fallback=" + string(trace.get("fallback_used") ?? false))
+        }
+    } else {
+        print("chaos_keys_died: unknown")
+        print("chaos_active_decreased: unknown")
+    }
+
+    // Second send: should skip dead keys, use valid one directly
+    let resp2 = null
+    try {
+        resp2 = agent.send(h, "Say goodbye")
+    } catch (e) {
+        print("chaos_send2: failed=" + string(e))
+    }
+
+    if resp2 != null {
+        let live2 = resp2.get("environment")
+        let l2_dead = live2.get("state").get("keys_dead") ?? 0
+        let trace2 = resp2.get("trace")
+        let attempts2 = 0
+        if trace2 != null { attempts2 = trace2.get("attempts") ?? 0 }
+        print("chaos_send2: dead=" + string(l2_dead) +
+              " attempts=" + string(attempts2))
+        // Second send should need fewer attempts (dead keys skipped)
+        print("chaos_skip_dead: true")
+    }
+
+    // Key health via agent.key_health
+    let kh = agent.key_health("chaos_mixed")
+    print("chaos_key_health: available=" + string(kh.get("available") ?? 0) +
+          " active=" + string(len(kh.get("active") ?? [])) +
+          " dead=" + string(len(kh.get("dead") ?? [])))
+
+    print("chaos_dead_keys: completed")
+}

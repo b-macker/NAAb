@@ -1,0 +1,30 @@
+// Test: agent.create() handle includes environment with correct config
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let env = h.get("environment")
+    let limits = env.get("limits")
+    let state = env.get("state")
+
+    print("env_birth: max_turns=" + string(limits.get("max_turns")) +
+          " max_tokens=" + string(limits.get("max_tokens")) +
+          " budget=" + string(limits.get("risk_budget")) +
+          " timeout=" + string(limits.get("timeout_seconds")))
+
+    print("env_birth_model: provider=" + env.get("provider") +
+          " temp=" + string(env.get("temperature")) +
+          " pool=" + string(env.get("key_pool_size")))
+
+    let retry = env.get("retry")
+    print("env_birth_retry: attempts=" + string(retry.get("max_attempts")) +
+          " backoff=" + string(retry.get("backoff_ms")) +
+          " jitter=" + string(retry.get("jitter")))
+
+    print("env_birth_state: turns=" + string(state.get("turns_used")) +
+          " coherence=" + string(state.get("coherence")) +
+          " gov=" + state.get("governance_level") +
+          " stopped=" + string(state.get("dispatch").get("hard_stopped")))
+
+    print("env_birth: completed")
+}

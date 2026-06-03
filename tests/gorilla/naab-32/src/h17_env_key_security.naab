@@ -1,0 +1,27 @@
+// Test: Environment never leaks API key names
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let env_str = string(h.get("environment"))
+
+    let has_gk5 = env_str.contains("GK5")
+    let has_api = env_str.contains("API_KEY")
+    let pool = h.get("environment").get("key_pool_size")
+    let active = h.get("environment").get("state").get("keys_active")
+    let dead = h.get("environment").get("state").get("keys_dead")
+
+    print("env_key: pool=" + string(pool) +
+          " active=" + string(active) +
+          " dead=" + string(dead) +
+          " gk5_leaked=" + string(has_gk5) +
+          " api_leaked=" + string(has_api))
+
+    // Governance level correct enum
+    let gov = h.get("environment").get("state").get("governance_level")
+    let valid = gov == "normal" or gov == "elevated" or gov == "high" or gov == "critical"
+    let not_color = gov != "green" and gov != "yellow" and gov != "red"
+    print("env_gov: level=" + gov + " valid=" + string(valid) + " not_color=" + string(not_color))
+
+    print("env_key_security: completed")
+}

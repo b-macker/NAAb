@@ -1,0 +1,26 @@
+// Test: risk_budget_remaining tracks budget consumption
+// Validates: decrements as agent makes calls, matches config
+use agent
+
+main {
+    let h = agent.create("low_budget")
+    let birth_budget = h.get("environment").get("state").get("risk_budget_remaining")
+    let config_budget = h.get("environment").get("limits").get("risk_budget")
+    print("budget_birth: remaining=" + string(birth_budget) +
+          " config=" + string(config_budget))
+
+    let r = try { agent.send(h, "Hello") } catch (e) { null }
+    if r == null {
+        print("risk_budget: api_failed")
+        return
+    }
+
+    let post_budget = r.get("environment").get("state").get("risk_budget_remaining")
+    print("budget_after_1: remaining=" + string(post_budget))
+
+    // Budget should have decremented or stayed the same (costs vary)
+    let budget_valid = post_budget <= config_budget
+    print("budget_valid: " + string(budget_valid))
+
+    print("risk_budget: completed")
+}

@@ -1,0 +1,29 @@
+// Test: agent.environment(handle) works without API call
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // On-demand before any send
+    let pre = agent.environment(h)
+    print("env_od_pre: turns=" + string(pre.get("state").get("turns_used")) +
+          " max_turns=" + string(pre.get("limits").get("max_turns")))
+
+    let r = null
+    try { r = agent.send(h, "Hello") } catch (e) { null }
+    if r == null {
+        print("env_od: api_failed")
+        return
+    }
+
+    // On-demand after send — should match response
+    let post = agent.environment(h)
+    let resp = r.get("environment")
+    let od_turns = post.get("state").get("turns_used")
+    let resp_turns = resp.get("state").get("turns_used")
+    print("env_od_post: od_turns=" + string(od_turns) +
+          " resp_turns=" + string(resp_turns) +
+          " match=" + string(od_turns == resp_turns))
+
+    print("env_od: completed")
+}

@@ -1,0 +1,38 @@
+// Test: Multi-agent environment isolation + dispatch sharing
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("tight_budget")
+
+    // Different configs reflected in environment
+    let e1 = h1.get("environment")
+    let e2 = h2.get("environment")
+    print("env_multi_config: analyst_turns=" + string(e1.get("limits").get("max_turns")) +
+          " tight_turns=" + string(e2.get("limits").get("max_turns")) +
+          " analyst_temp=" + string(e1.get("temperature")) +
+          " tight_temp=" + string(e2.get("temperature")))
+
+    // Send to h1 only
+    let r = null
+    try { r = agent.send(h1, "Hello") } catch (e) { null }
+    if r == null {
+        print("env_multi: api_failed")
+        return
+    }
+
+    // h1 state updated, h2 untouched
+    let post1 = agent.environment(h1)
+    let post2 = agent.environment(h2)
+    print("env_multi_isolation: h1_turns=" + string(post1.get("state").get("turns_used")) +
+          " h2_turns=" + string(post2.get("state").get("turns_used")))
+
+    // Dispatch shared
+    let d1 = post1.get("state").get("dispatch").get("calls_remaining")
+    let d2 = post2.get("state").get("dispatch").get("calls_remaining")
+    print("env_multi_dispatch: h1_calls=" + string(d1) +
+          " h2_calls=" + string(d2) +
+          " shared=" + string(d1 == d2))
+
+    print("env_multi: completed")
+}

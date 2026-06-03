@@ -1,0 +1,40 @@
+// Test: agent.send() response environment tracks state changes
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    let r1 = null
+    try { r1 = agent.send(h, "Say hello in 5 words") } catch (e) { print("live_track: error=" + string(e)) }
+    if r1 == null {
+        print("env_live: api_failed")
+        return
+    }
+
+    let s1 = r1.get("environment").get("state")
+    print("env_live_t1: turns=" + string(s1.get("turns_used")) +
+          " tokens=" + string(s1.get("tokens_used")) +
+          " remaining=" + string(s1.get("turns_remaining")) +
+          " coherence=" + string(s1.get("coherence")))
+
+    let r2 = null
+    try { r2 = agent.send(h, "Say goodbye in 5 words") } catch (e) { print("live_track: error2") }
+    if r2 == null {
+        print("env_live: second_failed")
+        return
+    }
+
+    let s2 = r2.get("environment").get("state")
+    print("env_live_t2: turns=" + string(s2.get("turns_used")) +
+          " tokens=" + string(s2.get("tokens_used")) +
+          " remaining=" + string(s2.get("turns_remaining")))
+
+    let grew = s2.get("turns_used") > s1.get("turns_used")
+    let tok_grew = s2.get("tokens_used") > s1.get("tokens_used")
+    let rem_shrank = s2.get("turns_remaining") < s1.get("turns_remaining")
+    print("env_live_mono: turns_grew=" + string(grew) +
+          " tokens_grew=" + string(tok_grew) +
+          " remaining_shrank=" + string(rem_shrank))
+
+    print("env_live: completed")
+}

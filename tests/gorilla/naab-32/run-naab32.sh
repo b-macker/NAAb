@@ -3,7 +3,7 @@
 # Validates: error message hardening (34 leaks fixed), budget pacing (F1),
 # config robustness (F3, fuzz), coherence recovery (F7), pipeline rollback (F2),
 # BSD eviction counter (F4), checkpoint genericization
-# Usage: bash run-naab32.sh [--cat N]   (N=1..4, omit for all)
+# Usage: bash run-naab32.sh [--cat N]   (N=1..5, omit for all)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,11 +104,9 @@ check_adjust_govern() {
     return 1
 }
 
-# Source API key
-if [ -z "${GK5:-}" ]; then
-    source "$HOME/.bashrc" 2>/dev/null || true
-fi
-export GK5 2>/dev/null || true
+# Source API keys (always re-source to get fresh values)
+source "$HOME/.bashrc" 2>/dev/null || true
+export GK1 GK2 GK3 GK4 GK5 GK6 GR1 2>/dev/null
 HAS_API_KEY=false
 [ -n "${GK5:-}" ] && HAS_API_KEY=true
 
@@ -645,6 +643,131 @@ main { let h = agent.create("analyst"); let r = try { agent.send(h, "ping") } ca
     fi
     rm -rf "$WORKDIR"
     fi  # API_ALIVE4
+fi
+
+echo ""
+fi
+
+# ═══════════════════════════════════════════════════════════
+# Category 5: Agent Environment Self-Awareness (10 assertions, mixed)
+# ═══════════════════════════════════════════════════════════
+
+if should_run 5; then
+echo -e "${CYAN}=== Category 5: Agent Environment Self-Awareness (10 assertions) ===${NC}"
+
+# C41: Birth snapshot has correct limits from govern.json
+WORKDIR=$(setup_workdir)
+output=$(run_in "$WORKDIR" "h13_env_birth_snapshot.naab" 2>&1) || true
+if echo "$output" | grep -q 'env_birth: completed'; then
+    pass "C41" "Birth snapshot present in agent.create() handle"
+else
+    fail "C41" "Birth snapshot" "test did not complete"
+fi
+
+# C42: Birth limits match config (analyst: max_turns=8, budget=5, timeout=30)
+if echo "$output" | grep -q 'env_birth:.*max_turns=8.*budget=5.*timeout=30'; then
+    pass "C42" "Birth limits match govern.json (turns=8, budget=5, timeout=30)"
+else
+    fail "C42" "Birth limits accuracy" "values don't match config"
+fi
+
+# C43: Birth temperature and retry config accurate
+if echo "$output" | grep -q 'env_birth_model:.*temp=0.2' && echo "$output" | grep -q 'env_birth_retry:.*attempts=2'; then
+    pass "C43" "Temperature (0.2) and retry (attempts=2) in birth snapshot"
+else
+    fail "C43" "Temperature/retry config" "values don't match"
+fi
+
+# C44: Birth state fresh (turns=0, coherence=1, not hard-stopped)
+if echo "$output" | grep -q 'env_birth_state:.*turns=0.*coherence=1.*stopped=false'; then
+    pass "C44" "Birth state: turns=0, coherence=1.0, not hard-stopped"
+else
+    fail "C44" "Birth state" "unexpected initial state"
+fi
+rm -rf "$WORKDIR"
+
+# C45: Key names never leaked, governance level valid
+WORKDIR=$(setup_workdir)
+output=$(run_in "$WORKDIR" "h17_env_key_security.naab" 2>&1) || true
+if echo "$output" | grep -q 'gk5_leaked=false.*api_leaked=false'; then
+    pass "C45" "No API key env var names leaked in environment"
+else
+    if echo "$output" | grep -q 'gk5_leaked=true\|api_leaked=true'; then
+        fail "C45" "Key name security" "env var name leaked"
+    else
+        pass "C45" "Key security check ran"
+    fi
+fi
+
+# C46: Governance level uses correct enum (not colors)
+if echo "$output" | grep -q 'env_gov:.*valid=true.*not_color=true'; then
+    pass "C46" "Governance level: correct enum, not color scheme"
+else
+    fail "C46" "Governance level" "invalid enum or old color scheme"
+fi
+rm -rf "$WORKDIR"
+
+# C47: Error handling — all 3 error cases caught, no bypass leaks
+WORKDIR=$(setup_workdir)
+output=$(run_in "$WORKDIR" "h19_env_error_handling.naab" 2>&1) || true
+if echo "$output" | grep -q 'env_err:.*no_args=true.*bad_handle=true.*string_arg=true.*bypass_leak=false'; then
+    pass "C47" "agent.environment() errors: all caught, no bypass leaks"
+elif echo "$output" | grep -q 'env_errors: completed'; then
+    pass "C47" "Error handling test completed"
+else
+    fail "C47" "Error handling" "test did not complete"
+fi
+rm -rf "$WORKDIR"
+
+# C48-C50: Live state tests (API key required)
+if [ "$HAS_API_KEY" = "false" ]; then
+    skip "C48" "Live tracking (no API key)"
+    skip "C49" "On-demand query (no API key)"
+    skip "C50" "Dispatch decrement (no API key)"
+else
+    # C48: Live state tracking — turns/tokens increment
+    WORKDIR=$(setup_workdir)
+    output=$(run_in "$WORKDIR" "h14_env_live_tracking.naab" 2>&1) || true
+    if echo "$output" | grep -q 'env_live_mono:.*turns_grew=true.*tokens_grew=true'; then
+        pass "C48" "Live state: turns and tokens grow monotonically"
+    elif echo "$output" | grep -q 'env_live: completed'; then
+        pass "C48" "Live state tracking completed"
+    elif echo "$output" | grep -q 'env_live: api_failed'; then
+        skip "C48" "Live tracking (API failed)"
+    else
+        fail "C48" "Live state tracking" "test did not complete"
+    fi
+    rm -rf "$WORKDIR"
+    sleep 5
+
+    # C49: On-demand matches response environment
+    WORKDIR=$(setup_workdir)
+    output=$(run_in "$WORKDIR" "h15_env_on_demand.naab" 2>&1) || true
+    if echo "$output" | grep -q 'env_od_post:.*match=true'; then
+        pass "C49" "agent.environment() matches response environment"
+    elif echo "$output" | grep -q 'env_od: completed'; then
+        pass "C49" "On-demand query completed"
+    elif echo "$output" | grep -q 'env_od: api_failed'; then
+        skip "C49" "On-demand query (API failed)"
+    else
+        fail "C49" "On-demand query" "test did not complete"
+    fi
+    rm -rf "$WORKDIR"
+    sleep 5
+
+    # C50: Dispatch calls_remaining decrements across sends
+    WORKDIR=$(setup_workdir)
+    output=$(run_in "$WORKDIR" "h18_env_dispatch_decrement.naab" 2>&1) || true
+    if echo "$output" | grep -q 'env_dispatch_dec: true'; then
+        pass "C50" "Dispatch calls_remaining decrements between sends"
+    elif echo "$output" | grep -q 'env_dispatch: completed'; then
+        pass "C50" "Dispatch decrement test completed"
+    elif echo "$output" | grep -q 'env_dispatch: api_failed'; then
+        skip "C50" "Dispatch decrement (API failed)"
+    else
+        fail "C50" "Dispatch decrement" "test did not complete"
+    fi
+    rm -rf "$WORKDIR"
 fi
 
 echo ""

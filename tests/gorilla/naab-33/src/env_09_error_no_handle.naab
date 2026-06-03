@@ -1,0 +1,42 @@
+// Test: agent.environment() with invalid input — error messages safe
+// Validates: errors don't leak governance bypass info
+use agent
+
+main {
+    // Call with no args
+    let err1 = ""
+    try {
+        agent.environment()
+    } catch (e) {
+        err1 = string(e)
+    }
+    print("err_no_args: " + err1)
+
+    // Call with non-handle dict
+    let err2 = ""
+    try {
+        let fake = {"id": 999, "not_a_handle": true}
+        agent.environment(fake)
+    } catch (e) {
+        err2 = string(e)
+    }
+    print("err_bad_handle: " + err2)
+
+    // Call with string instead of dict
+    let err3 = ""
+    try {
+        agent.environment("analyst")
+    } catch (e) {
+        err3 = string(e)
+    }
+    print("err_string_arg: " + err3)
+
+    // Verify errors don't leak bypass info
+    let all_errs = err1 + err2 + err3
+    let has_bypass = all_errs.contains("--no-governance") or
+                     all_errs.contains("--governance-override") or
+                     all_errs.contains("api_key_env")
+    print("err_leak_check: has_bypass=" + string(has_bypass))
+
+    print("error_handling: completed")
+}

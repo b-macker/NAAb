@@ -1,0 +1,24 @@
+// Test: agent.environment() error handling — no leaks
+use agent
+
+main {
+    let err1 = ""
+    try { agent.environment() } catch (e) { err1 = string(e) }
+
+    let err2 = ""
+    try { agent.environment({"id": 999}) } catch (e) { err2 = string(e) }
+
+    let err3 = ""
+    try { agent.environment("analyst") } catch (e) { err3 = string(e) }
+
+    let all = err1 + err2 + err3
+    let has_bypass = all.contains("--no-governance") or
+                     all.contains("--governance-override") or
+                     all.contains("api_key_env")
+    print("env_err: no_args=" + string(len(err1) > 0) +
+          " bad_handle=" + string(len(err2) > 0) +
+          " string_arg=" + string(len(err3) > 0) +
+          " bypass_leak=" + string(has_bypass))
+
+    print("env_errors: completed")
+}

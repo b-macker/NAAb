@@ -1,0 +1,43 @@
+// Test: batch() responses include per-slot environment
+// Validates: each handle's environment reflects that handle's state
+use agent
+
+main {
+    let h1 = agent.create("analyst")
+    let h2 = agent.create("reviewer")
+
+    let results = try {
+        agent.batch([h1, h2], ["Analyze Python", "Review Python"])
+    } catch (e) { null }
+
+    if results == null {
+        print("batch_env: api_failed")
+        return
+    }
+
+    // Check each response has its own environment
+    for i in 0..len(results) {
+        let r = results[i]
+        let env = r.get("environment")
+        if env != null {
+            let lim = env.get("limits")
+            let st = env.get("state")
+            print("batch_slot_" + string(i) + ": max_turns=" +
+                  string(lim.get("max_turns")) +
+                  " turns_used=" + string(st.get("turns_used")))
+        } else {
+            print("batch_slot_" + string(i) + ": no_environment")
+        }
+    }
+
+    // Verify different configs produce different limits
+    let e0 = results[0].get("environment")
+    let e1 = results[1].get("environment")
+    if e0 != null and e1 != null {
+        let t0 = e0.get("limits").get("max_turns")
+        let t1 = e1.get("limits").get("max_turns")
+        print("batch_limits_differ: " + string(t0 != t1))
+    }
+
+    print("batch_env: completed")
+}

@@ -1,0 +1,78 @@
+// Chaos Test 7: Environment consistency after various failures
+// Verify environment dict remains valid and accurate after errors
+use agent
+
+main {
+    // Create agent, cause failure, check environment is still sane
+    let h = agent.create("chaos_all_bogus")
+
+    // Pre-failure environment
+    let pre = agent.environment(h)
+    let pre_turns = pre.get("state").get("turns_used") ?? -1
+    let pre_tokens = pre.get("state").get("tokens_used") ?? -1
+    print("postfail_pre: turns=" + string(pre_turns) +
+          " tokens=" + string(pre_tokens))
+
+    // Cause failure (all keys bogus)
+    try {
+        agent.send(h, "This will fail")
+    } catch (e) {
+        print("postfail_error: caught")
+    }
+
+    // Post-failure environment should still be queryable
+    let post = null
+    try {
+        post = agent.environment(h)
+    } catch (e) {
+        print("postfail_env_query: CRASHED=" + string(e))
+    }
+
+    if post != null {
+        print("postfail_env_query: ok")
+
+        // Validate structure is intact
+        let has_limits = post.get("limits") != null
+        let has_state = post.get("state") != null
+        let has_dispatch = post.get("state").get("dispatch") != null
+        print("postfail_structure: limits=" + string(has_limits) +
+              " state=" + string(has_state) +
+              " dispatch=" + string(has_dispatch))
+
+        // Keys should show dead
+        let dead = post.get("state").get("keys_dead") ?? 0
+        let active = post.get("state").get("keys_active") ?? 0
+        print("postfail_keys: active=" + string(active) +
+              " dead=" + string(dead))
+
+        // Coherence should still be valid (not NaN or negative)
+        let coh = post.get("state").get("coherence") ?? -999.0
+        let valid_coh = coh >= 0.0 && coh <= 1.0
+        print("postfail_coherence: " + string(coh) + " valid=" + string(valid_coh))
+
+        // Governance level should still be valid enum
+        let gov = post.get("state").get("governance_level") ?? ""
+        let valid_gov = gov == "normal" || gov == "elevated" || gov == "high" || gov == "critical"
+        print("postfail_gov: " + gov + " valid=" + string(valid_gov))
+
+        // Dispatch should reflect the failed calls
+        let disp = post.get("state").get("dispatch")
+        print("postfail_dispatch: stopped=" + string(disp.get("hard_stopped") ?? false) +
+              " calls_left=" + string(disp.get("calls_remaining") ?? -1))
+    }
+
+    // Multiple failures shouldn't corrupt state
+    for i in 0..3 {
+        let hx = agent.create("chaos_all_bogus")
+        try { agent.send(hx, "fail " + string(i)) } catch (e) { null }
+    }
+
+    let final_env = agent.environment(h)
+    let final_coh = final_env.get("state").get("coherence") ?? -999.0
+    let final_gov = final_env.get("state").get("governance_level") ?? ""
+    print("postfail_multi: coherence=" + string(final_coh) +
+          " gov=" + string(final_gov) +
+          " coherence_valid=" + string(final_coh >= 0.0 && final_coh <= 1.0))
+
+    print("chaos_env_after_failure: completed")
+}

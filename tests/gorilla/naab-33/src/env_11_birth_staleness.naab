@@ -1,0 +1,38 @@
+// Test: Birth snapshot becomes stale after sends
+// Validates: handle.environment stays at birth values, response.environment is current
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let birth_turns = h.get("environment").get("state").get("turns_used")
+    let birth_tokens = h.get("environment").get("state").get("tokens_used")
+    print("staleness_birth: turns=" + string(birth_turns) +
+          " tokens=" + string(birth_tokens))
+
+    // Send a message — handle's birth snapshot should NOT update
+    let r = try { agent.send(h, "Hello world") } catch (e) { null }
+    if r == null {
+        print("birth_staleness: api_failed")
+        return
+    }
+
+    // Birth snapshot in handle is stale
+    let handle_turns = h.get("environment").get("state").get("turns_used")
+    let handle_tokens = h.get("environment").get("state").get("tokens_used")
+    print("staleness_handle_after: turns=" + string(handle_turns) +
+          " tokens=" + string(handle_tokens))
+
+    // Response environment is current
+    let resp_turns = r.get("environment").get("state").get("turns_used")
+    let resp_tokens = r.get("environment").get("state").get("tokens_used")
+    print("staleness_resp_after: turns=" + string(resp_turns) +
+          " tokens=" + string(resp_tokens))
+
+    // Birth stays stale (handle dict was captured at creation time)
+    let birth_stale = handle_turns == birth_turns
+    let resp_updated = resp_turns > birth_turns
+    print("staleness_check: birth_stale=" + string(birth_stale) +
+          " resp_updated=" + string(resp_updated))
+
+    print("birth_staleness: completed")
+}

@@ -1,0 +1,38 @@
+// Test: agent.environment(handle) — on-demand query without API call
+// Validates: returns same structure as birth snapshot, no API call made
+use agent
+
+main {
+    let h = agent.create("analyst")
+
+    // On-demand query at birth — should match handle environment
+    let on_demand = agent.environment(h)
+    let od_limits = on_demand.get("limits")
+    let od_state = on_demand.get("state")
+
+    print("on_demand: max_turns=" + string(od_limits.get("max_turns")) +
+          " turns_used=" + string(od_state.get("turns_used")) +
+          " coherence=" + string(od_state.get("coherence")))
+
+    // After a send, on-demand should reflect updated state
+    let r = try { agent.send(h, "Say yes") } catch (e) { null }
+    if r == null {
+        print("on_demand: api_failed")
+        return
+    }
+
+    let post_send = agent.environment(h)
+    let ps_state = post_send.get("state")
+    let turns_after = ps_state.get("turns_used")
+    print("on_demand_post: turns_used=" + string(turns_after))
+
+    // Verify on-demand matches response environment
+    let resp_env = r.get("environment")
+    let resp_turns = resp_env.get("state").get("turns_used")
+    let match = turns_after == resp_turns
+    print("on_demand_match: resp_turns=" + string(resp_turns) +
+          " od_turns=" + string(turns_after) +
+          " match=" + string(match))
+
+    print("on_demand: completed")
+}

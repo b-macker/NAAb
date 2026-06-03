@@ -1,0 +1,44 @@
+// Test: Dispatch proximity decrements across sends
+// Validates: calls_remaining decrements, hard_stopped stays false until budget
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let birth_dispatch = h.get("environment").get("state").get("dispatch")
+    let birth_calls = birth_dispatch.get("calls_remaining")
+    print("dispatch_birth: calls_remaining=" + string(birth_calls))
+
+    // First send
+    let r1 = try { agent.send(h, "Count to 3") } catch (e) { null }
+    if r1 == null {
+        print("dispatch_proximity: api_failed")
+        return
+    }
+
+    let d1 = r1.get("environment").get("state").get("dispatch")
+    let calls1 = d1.get("calls_remaining")
+    let stopped1 = d1.get("hard_stopped")
+    print("dispatch_after_1: calls_remaining=" + string(calls1) +
+          " hard_stopped=" + string(stopped1))
+
+    // Second send
+    let r2 = try { agent.send(h, "Count to 5") } catch (e) { null }
+    if r2 == null {
+        print("dispatch_proximity: second_send_failed")
+        return
+    }
+
+    let d2 = r2.get("environment").get("state").get("dispatch")
+    let calls2 = d2.get("calls_remaining")
+    let stopped2 = d2.get("hard_stopped")
+    print("dispatch_after_2: calls_remaining=" + string(calls2) +
+          " hard_stopped=" + string(stopped2))
+
+    // Verify decrement
+    let calls_decremented = calls1 < birth_calls or birth_calls == -1
+    let calls_decremented2 = calls2 < calls1 or calls1 == -1
+    print("dispatch_decrement: first=" + string(calls_decremented) +
+          " second=" + string(calls_decremented2))
+
+    print("dispatch_proximity: completed")
+}

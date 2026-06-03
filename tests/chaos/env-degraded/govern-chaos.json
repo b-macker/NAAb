@@ -1,0 +1,132 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "Chaos test — degraded keys, tiny budgets, tight hard stop",
+  "languages": {
+    "allowed": ["python"],
+    "blocked": [],
+    "require_explicit": true
+  },
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "read", "allowed_paths": ["./"] },
+    "shell": { "enabled": false }
+  },
+  "taint_tracking": { "enabled": false },
+  "requirements": { "main_block": true },
+  "restrictions": { "no_eval": true },
+  "agents": {
+    "chaos_mixed": {
+      "model": ["gemma-4-31b-it", "gemini-2.5-flash"],
+      "provider": "gemini",
+      "api_key_env": ["CHAOS_BOGUS1", "CHAOS_BOGUS2", "CHAOS_BOGUS3", "CHAOS_BOGUS4", "CHAOS_BOGUS5", "CHAOS_VALID"],
+      "max_tokens": 256,
+      "temperature": 0.0,
+      "max_turns": 5,
+      "max_total_tokens": 3000,
+      "response_format": "json",
+      "system_prompt": "Reply with exactly: {\"status\": \"ok\"}",
+      "risk_budget": 15,
+      "retry": {
+        "max_attempts": 6,
+        "backoff_ms": 50,
+        "backoff_multiplier": 1.2,
+        "jitter": true,
+        "retry_on": [429, 503],
+        "skip_key_on": [401],
+        "fallback_model_on": [404, 503],
+        "never_retry": [400]
+      }
+    },
+    "chaos_all_bogus": {
+      "model": "gemma-4-31b-it",
+      "provider": "gemini",
+      "api_key_env": ["CHAOS_BOGUS1", "CHAOS_BOGUS2", "CHAOS_BOGUS3"],
+      "max_tokens": 128,
+      "temperature": 0.0,
+      "max_turns": 2,
+      "max_total_tokens": 500,
+      "system_prompt": "Reply: ok",
+      "risk_budget": 5,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 50,
+        "jitter": false,
+        "skip_key_on": [401],
+        "never_retry": [400]
+      }
+    },
+    "chaos_tiny": {
+      "model": "gemma-4-31b-it",
+      "provider": "gemini",
+      "api_key_env": ["CHAOS_VALID"],
+      "max_tokens": 64,
+      "temperature": 0.0,
+      "max_turns": 1,
+      "max_total_tokens": 200,
+      "system_prompt": "Reply: ok",
+      "risk_budget": 15,
+      "retry": {
+        "max_attempts": 1,
+        "backoff_ms": 50,
+        "jitter": false
+      }
+    }
+  },
+  "agent_dispatch": {
+    "max_concurrent": 4,
+    "pool_size": 4,
+    "pool_queue_max": 20,
+    "hard_stop": {
+      "max_calls_per_run": 30,
+      "max_tokens_per_run": 15000,
+      "max_agent_time_ms": 300000,
+      "consecutive_failure_limit": 6,
+      "action": "block"
+    }
+  },
+  "context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.4,
+    "check_interval_turns": 1,
+    "fingerprint_window": 10,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true,
+      "coherence_velocity": true,
+      "vocabulary_contraction": true
+    },
+    "reality_checkpoint": {
+      "enabled": true,
+      "pressure_threshold": 0.7,
+      "sustained_turns_required": 2
+    }
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8
+  },
+  "exposure_tracking": {
+    "enabled": true,
+    "max_autonomous_actions": 30,
+    "max_unique_agents": 5,
+    "coherence_floor": 0.3
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  },
+  "runtime": {
+    "timeout": 300
+  },
+  "scoring": {
+    "enabled": false
+  },
+  "scanner": {
+    "version": "1.0",
+    "mode": "audit"
+  }
+}

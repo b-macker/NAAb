@@ -1,0 +1,38 @@
+// Test: Environment dict numeric fields are finite (no NaN or Inf)
+// Validates: coherence, temperature, velocity are valid numbers
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let env = h.get("environment")
+    let state = env.get("state")
+
+    // Check all numeric fields that could theoretically be NaN/Inf
+    let coherence = state.get("coherence")
+    let temp = env.get("temperature")
+    let turns = state.get("turns_used")
+    let tokens = state.get("tokens_used")
+
+    // NaN check: NaN != NaN is true for IEEE 754
+    let coh_valid = coherence == coherence
+    let temp_valid = temp == temp
+    let turns_valid = turns >= 0
+    let tokens_valid = tokens >= 0
+
+    print("numeric_birth: coherence_valid=" + string(coh_valid) +
+          " temp_valid=" + string(temp_valid) +
+          " turns_valid=" + string(turns_valid) +
+          " tokens_valid=" + string(tokens_valid))
+
+    // Coherence should be between 0 and 1
+    let coh_range = coherence >= 0.0 and coherence <= 1.0
+    print("coherence_range: " + string(coh_range) +
+          " value=" + string(coherence))
+
+    // Temperature should be non-negative
+    let temp_range = temp >= 0.0
+    print("temp_range: " + string(temp_range) +
+          " value=" + string(temp))
+
+    print("no_nan_inf: completed")
+}

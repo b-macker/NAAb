@@ -1,0 +1,36 @@
+// Test: Dispatch calls_remaining decrements across sends
+use agent
+
+main {
+    let h = agent.create("analyst")
+    let birth = h.get("environment").get("state").get("dispatch")
+    let birth_calls = birth.get("calls_remaining")
+    print("env_dispatch_birth: calls=" + string(birth_calls))
+
+    let r1 = null
+    try { r1 = agent.send(h, "Count to 3") } catch (e) { null }
+    if r1 == null {
+        print("env_dispatch: api_failed")
+        return
+    }
+
+    let d1 = r1.get("environment").get("state").get("dispatch")
+    print("env_dispatch_t1: calls=" + string(d1.get("calls_remaining")) +
+          " stopped=" + string(d1.get("hard_stopped")))
+
+    let r2 = null
+    try { r2 = agent.send(h, "Count to 5") } catch (e) { null }
+    if r2 == null {
+        print("env_dispatch: second_failed")
+        return
+    }
+
+    let d2 = r2.get("environment").get("state").get("dispatch")
+    print("env_dispatch_t2: calls=" + string(d2.get("calls_remaining")) +
+          " stopped=" + string(d2.get("hard_stopped")))
+
+    let dec = d1.get("calls_remaining") > d2.get("calls_remaining")
+    print("env_dispatch_dec: " + string(dec))
+
+    print("env_dispatch: completed")
+}

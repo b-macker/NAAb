@@ -1,0 +1,70 @@
+// Chaos Test 5: Batch under degraded conditions
+// Mixed valid/bogus keys + tight dispatch budget
+use agent
+
+main {
+    // Check how much budget we have
+    let ds = agent.dispatch_status()
+    print("batch_pre: calls_left=" + string(ds.get("calls_remaining") ?? -1) +
+          " stopped=" + string(ds.get("hard_stopped") ?? false))
+
+    // Create 3 handles for batch (each will burn keys on first use)
+    let h1 = agent.create("chaos_mixed")
+    let h2 = agent.create("chaos_mixed")
+    let h3 = agent.create("chaos_mixed")
+
+    // All birth environments should show 6 active, 0 dead
+    let b1 = h1.get("environment").get("state")
+    let b2 = h2.get("environment").get("state")
+    print("batch_birth: h1_active=" + string(b1.get("keys_active") ?? 0) +
+          " h2_active=" + string(b2.get("keys_active") ?? 0))
+
+    // Batch send — some slots may fail if dispatch budget runs out mid-batch
+    let results = null
+    try {
+        results = agent.batch(
+            [h1, h2, h3],
+            ["Say alpha", "Say beta", "Say gamma"]
+        )
+    } catch (e) {
+        print("batch_dispatch: failed=" + string(e))
+    }
+
+    if results != null {
+        print("batch_count: " + string(len(results)))
+
+        let success_count = 0
+        let fail_count = 0
+        let max_dead = 0
+
+        for i in 0..len(results) {
+            let r = results[i]
+            let ok = (r.get("success") ?? true) != false
+            if ok {
+                success_count = success_count + 1
+                let env = r.get("environment")
+                if env != null {
+                    let dead = env.get("state").get("keys_dead") ?? 0
+                    if dead > max_dead { max_dead = dead }
+                    print("batch_slot" + string(i) + ": ok dead=" + string(dead) +
+                          " calls_left=" + string(
+                              env.get("state").get("dispatch").get("calls_remaining") ?? -1))
+                }
+            } else {
+                fail_count = fail_count + 1
+                print("batch_slot" + string(i) + ": failed=" + (r.get("error") ?? ""))
+            }
+        }
+
+        print("batch_results: success=" + string(success_count) +
+              " failed=" + string(fail_count) +
+              " max_dead_keys=" + string(max_dead))
+    }
+
+    // Post-batch dispatch
+    let ds2 = agent.dispatch_status()
+    print("batch_post: calls=" + string(ds2.get("calls_made") ?? 0) +
+          " stopped=" + string(ds2.get("hard_stopped") ?? false))
+
+    print("chaos_batch_degraded: completed")
+}
