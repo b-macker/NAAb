@@ -91,9 +91,11 @@ if(ENABLE_HARDENING AND NOT MSVC)
     # Stack protection
     add_compile_options(-fstack-protector-strong)
 
-    # Position-independent code (PIE) for ASLR
+    # Position-independent code (PIE) for ASLR — executables only
+    # Note: -pie conflicts with -shared, so we use CMAKE_EXE_LINKER_FLAGS
+    # instead of add_link_options() to avoid breaking shared library builds.
     add_compile_options(-fPIE)
-    add_link_options(-pie)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
 
     # Fortify source (buffer overflow detection) — requires -O1+, inactive in Debug
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
