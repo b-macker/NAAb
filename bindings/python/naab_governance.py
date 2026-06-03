@@ -244,29 +244,16 @@ class GovernanceEngine:
         """Run governance scan via naab-gov CLI subprocess."""
         cmd = [self._subprocess_bin, "check", "--language", language]
         if config:
-            # Write temp config file
-            import tempfile
-            tmpdir = os.environ.get("TMPDIR", "/tmp")
-            cfg_fd = tempfile.NamedTemporaryFile(
-                mode="w", delete=False, dir=tmpdir, suffix=".json", prefix="naab_gov_"
+            # Pass config inline via --config-string to avoid signature
+            # verification issues with temp files (Ed25519 .sig required
+            # when trusted keys are installed)
+            cfg_json = json.dumps(
+                config if isinstance(config, dict) else json.loads(config)
             )
-            cfg_path = cfg_fd.name
-            try:
-                json.dump(config if isinstance(config, dict) else json.loads(config), cfg_fd)
-                cfg_fd.close()
-                cmd.extend(["--config", cfg_path])
-                proc = subprocess.run(
-                    cmd, input=code, capture_output=True, text=True, timeout=30
-                )
-            finally:
-                try:
-                    os.unlink(cfg_path)
-                except OSError:
-                    pass
-        else:
-            proc = subprocess.run(
-                cmd, input=code, capture_output=True, text=True, timeout=30
-            )
+            cmd.extend(["--config-string", cfg_json])
+        proc = subprocess.run(
+            cmd, input=code, capture_output=True, text=True, timeout=30
+        )
         if proc.returncode == 1:
             raise RuntimeError(f"naab-gov check failed: {proc.stderr.strip()}")
         if proc.returncode == 4:
