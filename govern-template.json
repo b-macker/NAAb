@@ -986,8 +986,9 @@
     "output_file": "telemetry.jsonl"
   },
 
-  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND) restricts actions. Ratchet enforcement prevents mid-run loosening.",
-  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
+  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND/TOOL_EXEC) restricts actions. Ratchet enforcement prevents mid-run loosening.",
+  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). Turn/token limits enforced server-side.",
+  "_comment_agents_tools": "Tool Execution — tools_enabled (bool, default false) is the master switch. tools (string array) is the allowlist — must match agent.register_tool() names. max_tool_calls_per_turn caps invocations per agentSend(). max_tool_loop_turns caps LLM round-trips. tool_result_max_chars truncates individual results. tool_result_max_total_chars caps cumulative results. tool_timeout_seconds is per-call timeout. All tool config fields are ratchet-enforced (can tighten mid-run, cannot loosen).",
   "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. key_retry_after_seconds enables dead key revival after cooldown (0 = never revive). rate_limit adds client-side throttling.",
   "agents": {
     "researcher": {
@@ -1001,6 +1002,12 @@
       "temperature": 1.0,
       "response_format": "json",
       "tools": ["search", "read_file"],
+      "tools_enabled": false,
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 10,
+      "tool_result_max_chars": 4096,
+      "tool_result_max_total_chars": 32768,
+      "tool_timeout_seconds": 10,
       "allowed_languages": ["python"],
       "blocked_languages": [],
       "allowed_paths": ["./src", "./data"],
@@ -1612,7 +1619,7 @@
   "_comment_governance_plugins": "Governance Plugins — custom NAAb-based governance checks loaded at runtime. Each plugin specifies a .naab file containing check functions.",
   "governance_plugins": [],
 
-  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging) activate when no user patterns are defined.",
+  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Event types: ENV_READ, ENV_WRITE, FILE_READ, FILE_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, AGENT_RESPONSE, TAINT_VIOLATION, TAINT_SANITIZED, ENCODE, DECODE, PROCESS_EXEC, CONFIG_RELOAD, CHECK_FAILED, TOOL_CALL, TOOL_RESULT, TOOL_ERROR, TOOL_BLOCKED. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) activate when no user patterns are defined.",
   "behavioral_sequences": {
     "enabled": false,
     "rationale": "Detect multi-step attack patterns that span individual governance checks.",

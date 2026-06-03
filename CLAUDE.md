@@ -113,7 +113,7 @@ include/naab/       All headers
   - **Credential refresh**: dead API keys revive after cooldown. Config: `retry.key_retry_after_seconds` (0 = never revive). `isKeyDead()` helper used at all `dead_keys` call sites. AGENT_KEY_REVIVED telemetry on revival.
   - **Adaptive baselining**: per-agent baseline window observes normal signal rates before penalizing. Penalties only fire when signals exceed `mean + k*stddev`. Config: `context_drift.adaptive_baseline_enabled`, `adaptive_baseline_window`, `adaptive_baseline_sensitivity`. Default off.
   - **Step-up challenges**: at elevated governance levels, inject challenge prompt and score response (word count + keyword overlap with system_prompt). Pass recovers coherence, fail blocks send. Config: `circuit_breaker.step_up_enabled`, `step_up_at_level`, `step_up_challenge`, `step_up_min_words`, `step_up_cooldown_turns`, `step_up_keyword_threshold`. Challenge state tracked in AgentTracker (server-side).
-  - **Separation of duties**: per-agent `network_allowed` (bool, same pattern as `shell_allowed`) and `allowed_actions` matrix (`["SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND"]`). Enforced in `checkNetworkAllowed()`, `checkShellAllowed()`, `checkFilesystemAllowed()`, and `agentSend()`. Ratchet enforcement prevents mid-run loosening of action matrix.
+  - **Separation of duties**: per-agent `network_allowed` (bool, same pattern as `shell_allowed`) and `allowed_actions` matrix (`["SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND", "TOOL_EXEC"]`). Enforced in `checkNetworkAllowed()`, `checkShellAllowed()`, `checkFilesystemAllowed()`, and `agentSend()`. `TOOL_EXEC` controls tool execution in agent tool loops. Ratchet enforcement prevents mid-run loosening of action matrix.
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)
@@ -137,6 +137,13 @@ include/naab/       All headers
 - Pipeline upstream provenance: downstream stages see `state.upstream_provenance` dict with trust-calibration signals from upstream (model_used, was_fallback, retries, coherence_at_output, keys_dead, keys_active, latency_ms, stage index, pressure). Not present for first stage or non-pipeline agents.
 - Agent environment includes `challenges_passed`/`challenges_failed` counters (from step-up challenges)
 - Agent handles include `__nonce` field (HMAC anti-forge — do not modify or copy between handles)
+- **Agent tool execution**: `agent.register_tool(name, function, schema)` registers NAAb functions as LLM-callable tools. Governed by 7 defense layers (declaration, admission, argument scan, scoped sandbox, result scan, budget check, behavioral). Config: `tools_enabled` (master switch, default false), `tools` (allowlist), `max_tool_calls_per_turn`, `max_tool_loop_turns`, `tool_result_max_chars`, `tool_result_max_total_chars`, `tool_timeout_seconds`. Dual-gate: tool must be in govern.json `tools[]` AND registered via `register_tool()`. `TOOL_EXEC` in `allowed_actions` required if action matrix is non-empty.
+- `agent.send()` tool fields: `tool_calls_made`, `tool_loop_turns`, `tool_results` (array of `{name, success, latency_ms}`), `tool_budget_remaining`, `tool_loop_exit_reason`
+- `agent.usage()` tool fields: `tool_calls_total`, `tool_calls_blocked`, `tool_total_latency_ms`
+- `agent.environment()` tool fields: `permissions.tools_enabled`, `permissions.tools_registered`, `permissions.tools_available`, `state.tool_calls_total`, `state.tool_calls_blocked`, `state.tool_total_latency_ms`
+- BSD event types: `TOOL_CALL`, `TOOL_RESULT`, `TOOL_ERROR`, `TOOL_BLOCKED`. Default patterns include `tool_data_exfil`, `tool_env_harvest`, `tool_shell_escape`, `tool_rapid_fire`
+- Dashboard: `Tools: N calls (N blocked, Nms)` when tool execution occurred
+- Tool config fields are ratchet-enforced (can only tighten mid-run, never loosen)
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
 - Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)

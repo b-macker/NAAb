@@ -477,12 +477,13 @@ get, post, put, delete, head, patch, call
 - `http.call(method, url, options)` — generic request
 
 ### agent (requires `use agent`)
-create, send, run, messages, usage, batch, fan_out, pipeline
+create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
 - `agent.create(config_name)` — create agent handle from govern.json `agents` config, returns handle dict
-- `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}
+- `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}. If the LLM returns tool_use and tools are enabled, executes a governed tool loop transparently.
 - `agent.run(config_name, prompt)` — one-shot: create + send + return content string
 - `agent.messages(handle)` — return conversation history array
-- `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}
+- `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}. Includes tool counters when tools were used: `tool_calls_total`, `tool_calls_blocked`, `tool_total_latency_ms`.
+- `agent.register_tool(name, function, schema)` — register a NAAb function as an LLM-callable tool. Schema dict must have `description` (string) and `parameters` (dict of param name to `{type, description}`). Tool must also appear in the agent's `tools` array in govern.json (dual-gate enforcement).
 - `agent.batch(handles, messages)` — parallel: send messages[i] to handles[i], returns array of response dicts
 - `agent.fan_out(handles, message)` — parallel: send same message to all handles, returns array of response dicts
 - `agent.pipeline(handles, initial_message)` — sequential chain: output of agent N becomes input to agent N+1, returns final response dict
@@ -494,9 +495,8 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - `agent.pipeline()` throws if any non-final stage returns empty content — prevents silent message reuse across stages.
 - Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
 - Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
-- `tool_use`/`FUNCTION_CALL` responses are HARD blocked (agent tool execution not yet supported)
+- **Tool execution**: When `tools_enabled: true` in agent config, LLM tool_use/FUNCTION_CALL responses trigger a governed tool loop. Tool results are scanned for secrets/PII before re-injection to the LLM. Budget enforcement: `max_tool_calls_per_turn`, `max_tool_loop_turns`, `tool_result_max_chars`, `tool_result_max_total_chars`, `tool_timeout_seconds`. Response includes `tool_calls_made`, `tool_loop_turns`, `tool_results`, `tool_budget_remaining`, `tool_loop_exit_reason`.
 - Turn/token limits enforced server-side — handle dict mutation does not bypass governance
-- Per-agent `allowed_paths`/`shell_allowed` logged as advisory once per config name (enforced when tool execution loop lands)
 - Parallel dispatch config (optional in govern.json):
   ```json
   "agent_dispatch": { "max_concurrent": 6, "pool_size": 6, "pool_queue_max": 50 }
@@ -511,7 +511,7 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - **Retry with backoff**: Configure `retry` block per agent — `max_attempts`, `backoff_ms`, `backoff_multiplier`, `jitter`. Error classification: `retry_on` (429/503), `skip_key_on` (401), `fallback_model_on` (404/503), `never_retry` (400).
 - **Hard stop**: `agent_dispatch.hard_stop` sets run-level budgets — `max_calls_per_run`, `max_tokens_per_run`, `max_agent_time_ms`, `consecutive_failure_limit`. When exceeded, all agent calls are blocked for the rest of the run.
 - **Credential refresh**: `key_retry_after_seconds` in the `retry` block enables dead key revival. Dead keys (401 responses) are retried after the cooldown elapses. Set to 0 (default) to never revive dead keys.
-- **Separation of duties**: Per-agent `network_allowed` (bool) and `allowed_actions` (array: `"SHELL_EXEC"`, `"NET_CONNECT"`, `"FS_READ"`, `"FS_WRITE"`, `"AGENT_SEND"`) control fine-grained action permissions. Empty `allowed_actions` = all actions allowed. Ratchet enforcement prevents mid-run loosening.
+- **Separation of duties**: Per-agent `network_allowed` (bool) and `allowed_actions` (array: `"SHELL_EXEC"`, `"NET_CONNECT"`, `"FS_READ"`, `"FS_WRITE"`, `"AGENT_SEND"`, `"TOOL_EXEC"`) control fine-grained action permissions. Empty `allowed_actions` = all actions allowed. `TOOL_EXEC` controls tool execution in agent tool loops. Ratchet enforcement prevents mid-run loosening.
 - **Traceability**: `agent.send()` responses include a `trace` dict: `{model, provider, api_key_env, attempts, latency_ms, fallback_used, original_model, turn, handle_id}`. `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`. Pipeline responses include `stage_traces`.
 - **Environment self-awareness**: `agent.environment(handle)` — returns current environment snapshot without making an API call. Includes config limits (`max_turns`, `max_tokens`, `max_total_tokens`, `timeout_seconds`, `risk_budget`), model chain, provider, temperature, response format, key pool size, retry config, permissions, and dynamic state (turns/tokens used/remaining, keys active/dead, coherence + velocity, contradictions, circular actions, repeated failures, scope creep, pipeline depth, inherited pressure, capabilities granted/exercised, risk budget remaining, governance level, dispatch proximity).
 - **Birth snapshot**: `agent.create()` handle includes an `environment` dict — point-in-time snapshot of config and initial state. Becomes stale after governance reload or sends; compare with current environment to detect mid-run changes.
@@ -573,7 +573,7 @@ will flag unused imports as violations. Common over-imports to avoid:
 | process | run, exit, kill, getpid | Blocked when shell disabled |
 | path | join, dirname, basename, extension | |
 | http | get, post, put, delete, call | Blocked when network disabled |
-| agent | create, send, run, batch, fan_out, pipeline | `use agent` required |
+| agent | create, send, run, register_tool, batch, fan_out, pipeline | `use agent` required |
 | dict | get, has, put, keys, values, merge | Built-in, no `use` needed |
 | debug | type, inspect, keys, values, log | Auto-imported, do NOT `use debug` |
 

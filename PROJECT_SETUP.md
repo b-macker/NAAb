@@ -202,6 +202,57 @@ Add entries to `contracts.functions` for each function you want enforced:
 }
 ```
 
+### Agent Tool Execution
+
+To enable agents to call NAAb functions as tools, add tool configuration to your agent config:
+
+```json
+{
+  "agents": {
+    "researcher": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "system_prompt": "You are a research assistant.",
+      "max_turns": 20,
+      "tools": ["search_database", "calculate_stats"],
+      "tools_enabled": true,
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 10,
+      "tool_result_max_chars": 4096,
+      "tool_timeout_seconds": 10,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"]
+    }
+  }
+}
+```
+
+In your NAAb script, register the tool functions before sending:
+
+```naab
+use agent
+
+fn search_database(query) {
+    // ... real implementation
+    return {"results": found}
+}
+
+main {
+    agent.register_tool("search_database", search_database, {
+        "description": "Search the knowledge base",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+
+    let h = agent.create("researcher")
+    let r = agent.send(h, "Find articles about governance")
+    // r.tool_calls_made shows how many tools were called
+}
+```
+
+**Dual-gate enforcement**: A tool only executes if it appears in BOTH the govern.json `tools` array AND is registered via `agent.register_tool()`. Tool config fields are ratchet-enforced — they can be tightened mid-run but never loosened.
+
 ### Taint Tracking
 
 Taint tracking ensures polyglot output is sanitized before reaching file writes:
