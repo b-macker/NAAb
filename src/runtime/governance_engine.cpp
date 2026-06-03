@@ -1234,6 +1234,41 @@ std::string GovernanceEngine::checkNetworkAllowed() {
                 "http.get(\"https://api.example.com\")",
                 "let data = json.parse(file.read(\"cached_data.json\"))"));
     }
+    // Per-agent network enforcement
+    for (const auto& role : rules_.agents) {
+        if (role.name == agent_id_) {
+            if (role.network_allowed_set && !role.network_allowed) {
+                return enforce("agent_role.network", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        "Agent '" + agent_id_ + "' is not allowed network access",
+                        "",
+                        "agents." + agent_id_ + ".network_allowed = false",
+                        "Your agent role does not permit network operations.\n"
+                        "Use file-based data or NAAb stdlib instead.",
+                        "http.get(\"https://api.example.com\")",
+                        "let data = json.parse(file.read(\"cached_data.json\"))"));
+            }
+            // Per-agent action matrix: check NET_CONNECT
+            if (!role.allowed_actions.empty()) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "NET_CONNECT") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + agent_id_ + "' action matrix does not include NET_CONNECT",
+                            "",
+                            "agents." + agent_id_ + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include NET_CONNECT.\n"
+                            "Add NET_CONNECT to the allowed_actions list to permit network access.",
+                            "http.get(\"https://api.example.com\")",
+                            "let data = json.parse(file.read(\"cached_data.json\"))"));
+                }
+            }
+            break;
+        }
+    }
     recordPass("capabilities.network", EnforcementLevel::HARD);
     return "";
 }
@@ -1326,6 +1361,28 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
                 "Writing files is disabled by governance",
                 "file.write(\"output.txt\", data)",
                 "let data = file.read(\"input.txt\")"));
+    }
+    // Per-agent action matrix: check FS_READ/FS_WRITE
+    for (const auto& role : rules_.agents) {
+        if (role.name == agent_id_ && !role.allowed_actions.empty()) {
+            std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
+            bool allowed = false;
+            for (const auto& a : role.allowed_actions) {
+                if (a == required) { allowed = true; break; }
+            }
+            if (!allowed) {
+                return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        "Agent '" + agent_id_ + "' action matrix does not include " + required,
+                        "",
+                        "agents." + agent_id_ + ".allowed_actions",
+                        "Your agent's allowed_actions list does not include " + required + ".\n"
+                        "Add " + required + " to the allowed_actions list to permit this operation.",
+                        mode == "write" ? "file.write(\"output.txt\", data)" : "file.read(\"input.txt\")",
+                        "Use an agent with the appropriate permissions"));
+            }
+            break;
+        }
     }
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";
@@ -1496,6 +1553,24 @@ std::string GovernanceEngine::checkShellAllowed() {
                         "Use NAAb stdlib or another allowed language instead.",
                         "let result = <<shell\nls -la\n>>",
                         "let files = file.list(\".\")  // NAAb stdlib"));
+            }
+            // Action matrix: check SHELL_EXEC
+            if (!role.allowed_actions.empty()) {
+                bool allowed = false;
+                for (const auto& a : role.allowed_actions) {
+                    if (a == "SHELL_EXEC") { allowed = true; break; }
+                }
+                if (!allowed) {
+                    return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + agent_id_ + "' action matrix does not include SHELL_EXEC",
+                            "",
+                            "agents." + agent_id_ + ".allowed_actions",
+                            "Your agent's allowed_actions list does not include SHELL_EXEC.\n"
+                            "Add SHELL_EXEC to the allowed_actions list to permit shell execution.",
+                            "let result = <<shell\nls -la\n>>",
+                            "let files = file.list(\".\")  // NAAb stdlib"));
+                }
             }
             break;
         }

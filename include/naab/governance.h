@@ -1241,6 +1241,14 @@ struct ContextDriftConfig {
     bool rate_normalized = false;  // F5: scale penalties by rate (count/turns) instead of flat weight
     double coherence_recovery_amount = 0.2;  // F15: recovery when recoverCoherence() is called
     double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
+    // Temporal trust decay — coherence erodes over time even when idle
+    bool temporal_decay_enabled = false;
+    double temporal_decay_per_minute = 0.01;    // coherence loss per minute idle
+    double temporal_decay_grace_minutes = 1.0;  // no decay within grace period
+    // Adaptive baselining — observe normal behavior before penalizing deviations
+    bool adaptive_baseline_enabled = false;
+    int adaptive_baseline_window = 5;           // turns to observe before penalizing
+    double adaptive_baseline_sensitivity = 2.0; // k*stddev threshold above mean
     struct Signals {
         bool repeated_failures = true;
         bool circular_actions = true;
@@ -1317,6 +1325,13 @@ struct CircuitBreakerConfig {
     int elevated_sustained = 2;        // sustained turns for ELEVATED
     int high_sustained = 3;            // for HIGH
     int critical_sustained = 4;        // for CRITICAL
+    // Step-up challenge at elevated governance levels
+    bool step_up_enabled = false;
+    std::string step_up_at_level = "elevated"; // "elevated" or "high"
+    std::string step_up_challenge = "Before responding, restate your current objective in one sentence, then proceed.";
+    int step_up_min_words = 5;
+    int step_up_cooldown_turns = 3;
+    double step_up_keyword_threshold = 0.3; // min fraction of system_prompt keywords in response
 };
 
 // F4: Governance Health — verify governance instrumentation is operational
@@ -1664,6 +1679,12 @@ struct AgentConfig {
     // shell_allowed_set = true + shell_allowed = false → block shell for this role.
     bool shell_allowed = true;
     bool shell_allowed_set = false;
+    // Per-agent network capability override (same pattern as shell_allowed)
+    bool network_allowed = true;
+    bool network_allowed_set = false;
+    // Fine-grained action matrix — empty = all allowed
+    // Actions: "SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND"
+    std::vector<std::string> allowed_actions;
 
     // --- LLM config (populated from "agents" key in govern.json) ---
     std::string provider = "anthropic";
@@ -1693,6 +1714,7 @@ struct AgentConfig {
         std::vector<int> skip_key_on = {401};         // mark key dead for this run
         std::vector<int> fallback_model_on = {404, 503}; // advance model chain
         std::vector<int> never_retry = {400};         // bad request = don't retry
+        int key_retry_after_seconds = 0;             // 0 = never revive dead keys (backward compat)
     };
     RetryConfig retry;
 

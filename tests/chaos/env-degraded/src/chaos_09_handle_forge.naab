@@ -1,0 +1,63 @@
+// Chaos Test 9: Handle Anti-Forge
+// Attempts to craft fake handles and verify rejection.
+// No API calls needed — tests infrastructure hardening only.
+
+use agent
+
+main {
+    // Create a real handle
+    let real = agent.create("chaos_mixed")
+    print("chaos09_real_created: true")
+    print("chaos09_real_has_nonce: " + string(real.get("__nonce") != null))
+
+    // Attempt 1: Forge handle with wrong nonce
+    let forged1 = {
+        "__agent_handle": true,
+        "id": real.get("id"),
+        "config_name": "chaos_mixed",
+        "__nonce": "forged-nonce-value-definitely-wrong"
+    }
+    let forge1_blocked = false
+    try {
+        let resp = agent.send(forged1, "test")
+    } catch (e) {
+        forge1_blocked = true
+        // Verify error doesn't leak internals
+        let msg = string(e)
+        let leaks_hmac = msg.contains("HMAC") || msg.contains("hmac")
+        let leaks_nonce = msg.contains("nonce") || msg.contains("secret")
+        print("chaos09_forge1_leaks: " + string(leaks_hmac || leaks_nonce))
+    }
+    print("chaos09_forge1_blocked: " + string(forge1_blocked))
+
+    // Attempt 2: Forge handle with missing nonce
+    let forged2 = {
+        "__agent_handle": true,
+        "id": real.get("id"),
+        "config_name": "chaos_mixed"
+    }
+    let forge2_blocked = false
+    try {
+        let resp = agent.send(forged2, "test")
+    } catch (e) {
+        forge2_blocked = true
+    }
+    print("chaos09_forge2_blocked: " + string(forge2_blocked))
+
+    // Attempt 3: Forge handle with different ID but real nonce
+    let forged3 = {
+        "__agent_handle": true,
+        "id": 99999,
+        "config_name": "chaos_mixed",
+        "__nonce": real.get("__nonce")
+    }
+    let forge3_blocked = false
+    try {
+        let resp = agent.send(forged3, "test")
+    } catch (e) {
+        forge3_blocked = true
+    }
+    print("chaos09_forge3_blocked: " + string(forge3_blocked))
+
+    print("chaos09_completed: true")
+}

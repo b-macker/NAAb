@@ -1,0 +1,33 @@
+// Chaos Test 11: New Config Features Parsing
+// Verifies all Phase 1-5 config fields are accepted without crash.
+// This test just exercises config loading — no API calls needed.
+
+use agent
+
+main {
+    // If we get here, config loaded successfully with:
+    // - temporal_decay_enabled, temporal_decay_per_minute, temporal_decay_grace_minutes
+    // - adaptive_baseline_enabled, adaptive_baseline_window, adaptive_baseline_sensitivity
+    // - step_up_enabled, step_up_at_level, step_up_cooldown_turns, step_up_min_words, step_up_keyword_threshold
+    // - network_allowed, allowed_actions on chaos_restricted
+    // - key_retry_after_seconds on chaos_refresh
+    print("chaos11_config_loaded: true")
+
+    // Create agents to verify their configs parsed
+    let h1 = agent.create("chaos_mixed")
+    print("chaos11_mixed_created: true")
+
+    let h2 = agent.create("chaos_restricted")
+    print("chaos11_restricted_created: true")
+
+    let h3 = agent.create("chaos_refresh")
+    print("chaos11_refresh_created: true")
+
+    // Check environment dict has new challenge fields
+    let env1 = agent.environment(h1)
+    let state = env1.get("state")
+    let has_challenges = state != null && state.get("challenges_passed") != null
+    print("chaos11_challenges_in_env: " + string(has_challenges))
+
+    print("chaos11_completed: true")
+}

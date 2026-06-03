@@ -103,6 +103,26 @@ struct DriftState {
     // F19: Semantic stability (keyword overlap between consecutive responses)
     std::unordered_set<std::string> prev_response_keywords;
 
+    // Temporal trust decay — trust erodes when not actively reinforced
+    std::chrono::steady_clock::time_point last_activity_time = std::chrono::steady_clock::now();
+
+    // Adaptive baseline — observe "normal" behavior before penalizing deviations
+    bool baseline_complete = false;
+    int baseline_turns_counted = 0;
+    struct BaselineStats {
+        double mean_failures = 0.0;
+        double mean_circular = 0.0;
+        double mean_scope_creep = 0.0;
+        double mean_contradictions = 0.0;
+        double stddev_failures = 0.0;
+        // Running sums for incremental computation
+        double sum_failures = 0.0;
+        double sum_sq_failures = 0.0;
+        double sum_circular = 0.0;
+        double sum_scope_creep = 0.0;
+        double sum_contradictions = 0.0;
+    } baseline;
+
     // Reality checkpoint state
     double last_pressure_score = 0.0;
     int consecutive_high_pressure_turns = 0;

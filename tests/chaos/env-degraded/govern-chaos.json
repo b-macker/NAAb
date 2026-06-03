@@ -71,6 +71,34 @@
         "backoff_ms": 50,
         "jitter": false
       }
+    },
+    "chaos_restricted": {
+      "model": "gemma-4-31b-it",
+      "provider": "gemini",
+      "api_key_env": ["CHAOS_VALID"],
+      "max_tokens": 128,
+      "temperature": 0.0,
+      "max_turns": 3,
+      "max_total_tokens": 1000,
+      "system_prompt": "Reply: ok",
+      "network_allowed": false,
+      "allowed_actions": ["FS_READ", "AGENT_SEND"]
+    },
+    "chaos_refresh": {
+      "model": "gemma-4-31b-it",
+      "provider": "gemini",
+      "api_key_env": ["CHAOS_BOGUS1", "CHAOS_VALID"],
+      "max_tokens": 128,
+      "temperature": 0.0,
+      "max_turns": 3,
+      "max_total_tokens": 1000,
+      "system_prompt": "Reply: ok",
+      "retry": {
+        "max_attempts": 2,
+        "backoff_ms": 50,
+        "skip_key_on": [401],
+        "key_retry_after_seconds": 2
+      }
     }
   },
   "agent_dispatch": {
@@ -90,6 +118,12 @@
     "coherence_threshold": 0.4,
     "check_interval_turns": 1,
     "fingerprint_window": 10,
+    "temporal_decay_enabled": true,
+    "temporal_decay_per_minute": 0.05,
+    "temporal_decay_grace_minutes": 0.01,
+    "adaptive_baseline_enabled": true,
+    "adaptive_baseline_window": 3,
+    "adaptive_baseline_sensitivity": 2.0,
     "signals": {
       "circular_actions": true,
       "repeated_failures": true,
@@ -108,7 +142,12 @@
     "enabled": true,
     "elevated_threshold": 0.4,
     "high_threshold": 0.6,
-    "critical_threshold": 0.8
+    "critical_threshold": 0.8,
+    "step_up_enabled": true,
+    "step_up_at_level": "elevated",
+    "step_up_cooldown_turns": 3,
+    "step_up_min_words": 3,
+    "step_up_keyword_threshold": 0.2
   },
   "exposure_tracking": {
     "enabled": true,

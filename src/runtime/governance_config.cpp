@@ -2035,6 +2035,18 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
             }
 
+            // Per-agent network override
+            if (cfg_json.contains("network_allowed") && cfg_json["network_allowed"].is_boolean()) {
+                agent.network_allowed = cfg_json["network_allowed"].get<bool>();
+                agent.network_allowed_set = true;
+            }
+            // Fine-grained action matrix
+            if (cfg_json.contains("allowed_actions") && cfg_json["allowed_actions"].is_array()) {
+                for (const auto& a : cfg_json["allowed_actions"]) {
+                    if (a.is_string()) agent.allowed_actions.push_back(a.get<std::string>());
+                }
+            }
+
             // --- LLM config (only present in "agents" key, not legacy "agent_roles") ---
             if (agents_key == "agents") {
                 if (cfg_json.contains("provider"))
@@ -2117,6 +2129,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         agent.retry.never_retry.clear();
                         for (const auto& c : r["never_retry"]) agent.retry.never_retry.push_back(c.get<int>());
                     }
+                    if (r.contains("key_retry_after_seconds"))
+                        agent.retry.key_retry_after_seconds = std::max(0, r["key_retry_after_seconds"].get<int>());
                 }
                 // Rate limit configuration
                 if (cfg_json.contains("rate_limit") && cfg_json["rate_limit"].is_object()) {
@@ -2320,6 +2334,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("rate_normalized")) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
         if (cd.contains("coherence_recovery_amount")) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
         if (cd.contains("coherence_natural_healing")) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
+        if (cd.contains("temporal_decay_enabled")) cfg.temporal_decay_enabled = cd["temporal_decay_enabled"].get<bool>();
+        if (cd.contains("temporal_decay_per_minute")) cfg.temporal_decay_per_minute = std::max(0.0, cd["temporal_decay_per_minute"].get<double>());
+        if (cd.contains("temporal_decay_grace_minutes")) cfg.temporal_decay_grace_minutes = std::max(0.0, cd["temporal_decay_grace_minutes"].get<double>());
+        if (cd.contains("adaptive_baseline_enabled")) cfg.adaptive_baseline_enabled = cd["adaptive_baseline_enabled"].get<bool>();
+        if (cd.contains("adaptive_baseline_window")) cfg.adaptive_baseline_window = std::max(1, cd["adaptive_baseline_window"].get<int>());
+        if (cd.contains("adaptive_baseline_sensitivity")) cfg.adaptive_baseline_sensitivity = std::max(0.0, cd["adaptive_baseline_sensitivity"].get<double>());
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
             auto& sig = cd["signals"];
@@ -2418,6 +2438,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("elevated_sustained")) cfg.elevated_sustained = cbj["elevated_sustained"].get<int>();
         if (cbj.contains("high_sustained")) cfg.high_sustained = cbj["high_sustained"].get<int>();
         if (cbj.contains("critical_sustained")) cfg.critical_sustained = cbj["critical_sustained"].get<int>();
+        if (cbj.contains("step_up_enabled")) cfg.step_up_enabled = cbj["step_up_enabled"].get<bool>();
+        if (cbj.contains("step_up_at_level")) cfg.step_up_at_level = cbj["step_up_at_level"].get<std::string>();
+        if (cbj.contains("step_up_challenge")) cfg.step_up_challenge = cbj["step_up_challenge"].get<std::string>();
+        if (cbj.contains("step_up_min_words")) cfg.step_up_min_words = std::max(1, cbj["step_up_min_words"].get<int>());
+        if (cbj.contains("step_up_cooldown_turns")) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
+        if (cbj.contains("step_up_keyword_threshold")) cfg.step_up_keyword_threshold = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
         parseRationale(cbj, cfg.rationale);
     }
 
@@ -2721,6 +2747,38 @@ static bool checkRatchetViolation(
         if (new_agent.risk_budget > old_agent->risk_budget && old_agent->risk_budget > 0)
             violations.push_back(fmt::format("agent.{}.risk_budget: {} -> {} (loosened)",
                 new_agent.name, old_agent->risk_budget, new_agent.risk_budget));
+
+        // Network allowed loosening
+        if (new_agent.network_allowed_set && old_agent->network_allowed_set) {
+            if (new_agent.network_allowed && !old_agent->network_allowed)
+                violations.push_back(fmt::format("agent.{}.network_allowed: false -> true (loosened)",
+                    new_agent.name));
+            if (!new_agent.network_allowed && old_agent->network_allowed)
+                notices.push_back(fmt::format("agent.{}.network_allowed: true -> false (tightened)",
+                    new_agent.name));
+        }
+
+        // Allowed actions: adding actions = loosening, removing = tightening
+        if (!old_agent->allowed_actions.empty() && new_agent.allowed_actions.empty()) {
+            violations.push_back(fmt::format("agent.{}.allowed_actions: removed (loosened — all actions now allowed)",
+                new_agent.name));
+        } else if (!old_agent->allowed_actions.empty() && !new_agent.allowed_actions.empty()) {
+            std::unordered_set<std::string> old_set(old_agent->allowed_actions.begin(), old_agent->allowed_actions.end());
+            for (const auto& a : new_agent.allowed_actions) {
+                if (!old_set.count(a))
+                    violations.push_back(fmt::format("agent.{}.allowed_actions: {} added (loosened)",
+                        new_agent.name, a));
+            }
+            std::unordered_set<std::string> new_set(new_agent.allowed_actions.begin(), new_agent.allowed_actions.end());
+            for (const auto& a : old_agent->allowed_actions) {
+                if (!new_set.count(a))
+                    notices.push_back(fmt::format("agent.{}.allowed_actions: {} removed (tightened)",
+                        new_agent.name, a));
+            }
+        } else if (old_agent->allowed_actions.empty() && !new_agent.allowed_actions.empty()) {
+            notices.push_back(fmt::format("agent.{}.allowed_actions: added (tightened — {} actions allowed)",
+                new_agent.name, new_agent.allowed_actions.size()));
+        }
     }
 
     // Detect removed agents — removing constraints is loosening

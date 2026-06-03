@@ -20,6 +20,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include "naab/crypto_utils.h"
 
 namespace naab {
 namespace stdlib {
@@ -39,6 +40,29 @@ struct GovernanceGuard {
 // Counter for unique handle IDs
 static int s_handle_counter = 0;
 
+// Process-level secret for HMAC nonce generation (anti-forge)
+// Generated once from /dev/urandom; never exposed to scripts
+static std::string s_process_secret;
+static std::once_flag s_secret_init;
+static void ensureProcessSecret() {
+    std::call_once(s_secret_init, []() {
+        unsigned char buf[32];
+        FILE* f = fopen("/dev/urandom", "rb");
+        if (f) {
+            size_t n = fread(buf, 1, 32, f);
+            fclose(f);
+            if (n == 32) {
+                s_process_secret = security::CryptoUtils::toHex(buf, 32);
+                return;
+            }
+        }
+        // Fallback: timestamp + pid (weaker but functional)
+        s_process_secret = std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) +
+            ":" + std::to_string(getpid());
+    });
+}
+
 // Server-side governance tracking — immune to handle mutation
 struct AgentTracker {
     int turns = 0;
@@ -47,6 +71,10 @@ struct AgentTracker {
     int retries = 0;           // total retry attempts across all sends
     int fallbacks = 0;         // times a fallback model was used
     int64_t total_latency_ms = 0;  // cumulative API call time
+    std::string nonce;         // HMAC nonce — verified on every handle use
+    int last_challenge_turn = -100;  // step-up challenge cooldown tracking
+    int challenges_passed = 0;
+    int challenges_failed = 0;
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -60,11 +88,72 @@ struct DispatchCounters {
     std::atomic<int> consecutive_failures{0};
     std::atomic<bool> hard_stopped{false};
     std::string stop_reason;
-    std::unordered_set<std::string> dead_keys;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> dead_keys;
     std::mutex dead_keys_mutex;
     std::mutex stop_reason_mutex;
 };
 static DispatchCounters s_dispatch;
+
+// Check if a key is dead (with optional cooldown-based revival).
+// Caller must hold s_dispatch.dead_keys_mutex.
+// If revived is non-null and a key is revived, *revived is set to true.
+static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
+                      bool* revived = nullptr) {
+    auto it = s_dispatch.dead_keys.find(key_env);
+    if (it == s_dispatch.dead_keys.end()) return false;
+    if (cooldown_seconds <= 0) return true;  // never revive (backward compat)
+    auto elapsed = std::chrono::steady_clock::now() - it->second;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() >= cooldown_seconds) {
+        s_dispatch.dead_keys.erase(it);  // cooldown elapsed — revive
+        if (revived) *revived = true;
+        return false;
+    }
+    return true;
+}
+
+// Score a step-up challenge response: word count + keyword overlap with system prompt
+static bool scoreStepUpChallenge(const std::string& response,
+                                  const std::string& system_prompt,
+                                  int min_words, double keyword_threshold) {
+    // 1. Word count
+    int words = 0;
+    bool in_word = false;
+    for (char c : response) {
+        if (std::isspace(static_cast<unsigned char>(c))) {
+            in_word = false;
+        } else if (!in_word) {
+            in_word = true;
+            words++;
+        }
+    }
+    if (words < min_words) return false;
+
+    // 2. Extract meaningful keywords from system prompt (lowercase, >3 chars)
+    std::unordered_set<std::string> prompt_keywords;
+    std::string current;
+    for (char c : system_prompt) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        } else {
+            if (current.size() > 3) prompt_keywords.insert(current);
+            current.clear();
+        }
+    }
+    if (current.size() > 3) prompt_keywords.insert(current);
+    if (prompt_keywords.empty()) return true;  // no keywords to check
+
+    // 3. Check overlap with response
+    std::string response_lower;
+    response_lower.reserve(response.size());
+    for (char c : response)
+        response_lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+    int found = 0;
+    for (const auto& kw : prompt_keywords) {
+        if (response_lower.find(kw) != std::string::npos) found++;
+    }
+    return static_cast<double>(found) / prompt_keywords.size() >= keyword_threshold;
+}
 
 // Pipeline upstream provenance — keyed by downstream handle_id
 // Set by agentPipeline() after each stage; read by buildEnvironmentDict()
@@ -83,6 +172,9 @@ static const governance::AgentConfig* findAgentConfig(const std::string& name) {
     }
     return nullptr;
 }
+
+// Forward declaration — validates handle and verifies HMAC nonce
+static std::pair<std::string, int> validateHandle(NaabVal& handle_val);
 
 // ============================================================================
 // Helper: Build environment dict for agent self-awareness
@@ -159,6 +251,8 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
                         ? std::max(0, config->max_total_tokens - t.input_tokens - t.output_tokens)
                         : -1);
             }
+            state["challenges_passed"] = NaabVal::makeInt(t.challenges_passed);
+            state["challenges_failed"] = NaabVal::makeInt(t.challenges_failed);
         }
     }
     // s_agent_mutex released before acquiring dead_keys_mutex (lock ordering)
@@ -169,8 +263,9 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         int dead_count = 0;
         std::vector<std::string> keys = config ? config->api_key_envs : std::vector<std::string>{};
         if (keys.empty() && config) keys.push_back(config->api_key_env);
+        int cooldown = config ? config->retry.key_retry_after_seconds : 0;
         for (const auto& k : keys) {
-            if (s_dispatch.dead_keys.count(k)) dead_count++;
+            if (isKeyDead(k, cooldown)) dead_count++;
         }
         state["keys_active"] = NaabVal::makeInt(static_cast<int>(keys.size()) - dead_count);
         state["keys_dead"] = NaabVal::makeInt(dead_count);
@@ -326,15 +421,23 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     }
 
     // Build handle dict — mutex protects s_handle_counter and s_trackers
+    // Generate HMAC nonce to prevent handle forgery/replay
+    ensureProcessSecret();
     int handle_id;
+    std::string nonce;
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
         handle_id = ++s_handle_counter;
-        s_trackers[handle_id] = AgentTracker{};
+        std::string nonce_input = std::to_string(handle_id) + ":" + config_name + ":" +
+            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        nonce = security::CryptoUtils::hmacSha256(nonce_input, s_process_secret);
+        auto& tracker = s_trackers[handle_id];
+        tracker.nonce = nonce;
     }
 
     std::unordered_map<std::string, NaabVal> handle;
     handle["__agent_handle"] = NaabVal::makeBool(true);
+    handle["__nonce"] = NaabVal::makeString(nonce);
     handle["id"] = NaabVal::makeInt(handle_id);
     handle["config_name"] = NaabVal::makeString(config_name);
     handle["messages"] = NaabVal::makeList({});
@@ -362,25 +465,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "    let response = agent.send(h, \"What is 2+2?\")\n");
     }
 
-    if (!args[0].isDict()) {
-        throw std::runtime_error(
-            "Agent error: First argument must be an agent handle from agent.create()\n\n"
-            "  Help:\n"
-            "  - Create a handle first with agent.create(\"name\")\n");
-    }
-
+    // Validate handle (checks __agent_handle marker + HMAC nonce)
+    auto [config_name, validated_id] = validateHandle(args[0]);
     auto& handle = args[0].asDict();
 
-    // Validate handle
-    auto it = handle.find("__agent_handle");
-    if (it == handle.end() || !it->second.isBool() || !it->second.asBool()) {
-        throw std::runtime_error(
-            "Agent error: Invalid agent handle\n\n"
-            "  Help:\n"
-            "  - Use the handle returned by agent.create()\n");
-    }
-
-    std::string config_name = handle["config_name"].asString();
     std::string message;
     if (args[1].isString()) {
         message = args[1].asString();
@@ -402,7 +490,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Server-side governance enforcement (immune to handle mutation)
     // Lock to validate tracker state; released before slow API call
-    int handle_id = handle["id"].asInt();
+    int handle_id = validated_id;
     int current_turn = 0;
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
@@ -546,6 +634,117 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (!admission.empty()) {
             throw std::runtime_error(admission);
         }
+        // Per-agent action matrix: check AGENT_SEND
+        if (config && !config->allowed_actions.empty()) {
+            bool allowed = false;
+            for (const auto& a : config->allowed_actions) {
+                if (a == "AGENT_SEND") { allowed = true; break; }
+            }
+            if (!allowed) {
+                throw std::runtime_error(
+                    "Agent error: Action matrix does not include AGENT_SEND\n\n"
+                    "  Help:\n"
+                    "  - This agent's allowed_actions list does not permit sending messages\n"
+                    "  - Add AGENT_SEND to the agent's allowed_actions configuration\n");
+            }
+        }
+    }
+
+    // ── Step-up challenge: at elevated governance, verify agent coherence ──
+    if (gov_engine && gov_engine->isActive()) {
+        const auto& cb = gov_engine->getRules().circuit_breaker;
+        if (cb.step_up_enabled) {
+            auto level = gov_engine->getGovernanceLevel();
+            int required_level = (cb.step_up_at_level == "high") ? 2 : 1;
+            if (static_cast<int>(level) >= required_level) {
+                // Check cooldown from tracker (server-side, immune to handle mutation)
+                bool should_challenge = false;
+                {
+                    std::lock_guard<std::mutex> lock(s_agent_mutex);
+                    auto it = s_trackers.find(handle_id);
+                    if (it != s_trackers.end()) {
+                        should_challenge = (current_turn - it->second.last_challenge_turn) >= cb.step_up_cooldown_turns;
+                    }
+                }
+                if (should_challenge) {
+                    // Find a usable key for the challenge call
+                    std::string challenge_key;
+                    for (const auto& k : keys) {
+                        std::string resolved = runtime::resolveApiKey(k);
+                        if (!resolved.empty()) {
+                            std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                            if (!isKeyDead(k, config->retry.key_retry_after_seconds)) {
+                                challenge_key = resolved;
+                                break;
+                            }
+                        }
+                    }
+                    if (!challenge_key.empty()) {
+                        // Build challenge message
+                        json challenge_msgs = json::array();
+                        if (!config->system_prompt.empty()) {
+                            json sys_msg;
+                            sys_msg["role"] = "system";
+                            sys_msg["content"] = config->system_prompt;
+                            challenge_msgs.push_back(sys_msg);
+                        }
+                        json challenge_user;
+                        challenge_user["role"] = "user";
+                        challenge_user["content"] = cb.step_up_challenge;
+                        challenge_msgs.push_back(challenge_user);
+
+                        governance::AgentConfig challenge_config = *config;
+                        challenge_config.model = models[0];
+
+                        s_dispatch.total_calls++;
+                        auto challenge_result = runtime::callAgentWithStatus(
+                            challenge_config, challenge_key, challenge_msgs.dump());
+
+                        bool passed = false;
+                        if (challenge_result.response.success) {
+                            passed = scoreStepUpChallenge(
+                                challenge_result.response.content,
+                                config->system_prompt,
+                                cb.step_up_min_words,
+                                cb.step_up_keyword_threshold);
+                        }
+
+                        // Update tracker state (server-side)
+                        {
+                            std::lock_guard<std::mutex> lock(s_agent_mutex);
+                            auto it = s_trackers.find(handle_id);
+                            if (it != s_trackers.end()) {
+                                it->second.last_challenge_turn = current_turn;
+                                if (passed) {
+                                    it->second.challenges_passed++;
+                                } else {
+                                    it->second.challenges_failed++;
+                                }
+                            }
+                        }
+
+                        if (passed) {
+                            gov_engine->recoverCoherence(handle_id);
+                            gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_PASS", {
+                                {"agent", config_name},
+                                {"turn", std::to_string(current_turn)}
+                            });
+                        } else {
+                            gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_FAIL", {
+                                {"agent", config_name},
+                                {"turn", std::to_string(current_turn)}
+                            });
+                            throw std::runtime_error(
+                                "Agent error: Step-up challenge failed\n\n"
+                                "  Help:\n"
+                                "  - The agent could not demonstrate coherence with its task\n"
+                                "  - This check triggers at elevated governance levels\n"
+                                "  - Review the agent's behavior and configuration\n");
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ── Retry loop with key rotation, model fallback, backoff + jitter ──
@@ -570,8 +769,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         for (size_t k = 0; k < keys.size(); k++) {
             size_t idx = (key_offset + k) % keys.size();
             {
+                bool was_revived = false;
                 std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                if (s_dispatch.dead_keys.count(keys[idx])) continue;
+                if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
+                if (was_revived && gov_engine && gov_engine->isActive()) {
+                    gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
+                        {"api_key_env", keys[idx]},
+                        {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
+                    });
+                }
             }
             api_key = runtime::resolveApiKey(keys[idx]);
             if (!api_key.empty()) {
@@ -748,7 +954,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (is_key_skip) {
             {
                 std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                s_dispatch.dead_keys.insert(key_env);
+                s_dispatch.dead_keys[key_env] = std::chrono::steady_clock::now();
             }
             if (gov_engine && gov_engine->isActive()) {
                 gov_engine->writeAgentTelemetry("AGENT_KEY_DISABLED", {
@@ -1267,7 +1473,7 @@ static NaabVal agentKeyHealth(std::vector<NaabVal>& args) {
         bool is_dead = false;
         {
             std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-            is_dead = s_dispatch.dead_keys.count(k) > 0;
+            is_dead = isKeyDead(k, config->retry.key_retry_after_seconds);
         }
         if (is_dead) {
             dead_list.push_back(NaabVal::makeString(k));
@@ -1324,7 +1530,7 @@ static NaabVal agentDispatchStatus(std::vector<NaabVal>& /*args*/) {
 // ============================================================================
 
 static NaabVal agentEnvironment(std::vector<NaabVal>& args) {
-    if (args.empty() || !args[0].isDict()) {
+    if (args.empty()) {
         throw std::runtime_error(
             "Agent error: agent.environment requires an agent handle\n\n"
             "  Expected: agent.environment(handle)\n\n"
@@ -1333,17 +1539,7 @@ static NaabVal agentEnvironment(std::vector<NaabVal>& args) {
             "  - Includes config limits, remaining capacity, coherence state\n");
     }
 
-    auto& handle = args[0].asDict();
-    auto it = handle.find("__agent_handle");
-    if (it == handle.end() || !it->second.isBool() || !it->second.asBool()) {
-        throw std::runtime_error(
-            "Agent error: Invalid agent handle\n\n"
-            "  Help:\n  - Use the handle returned by agent.create()\n");
-    }
-
-    int handle_id = handle["id"].asInt();
-    std::string config_name = handle["config_name"].asString();
-
+    auto [config_name, handle_id] = validateHandle(args[0]);
     return buildEnvironmentDict(handle_id, config_name);
 }
 
@@ -1461,7 +1657,32 @@ static std::pair<std::string, int> validateHandle(NaabVal& handle_val) {
             "Agent error: Invalid agent handle\n\n"
             "  Help:\n  - Use the handle returned by agent.create()\n");
     }
-    return {handle.at("config_name").asString(), handle.at("id").asInt()};
+
+    int handle_id = handle.at("id").asInt();
+    std::string config_name = handle.at("config_name").asString();
+
+    // Verify HMAC nonce — prevents handle forgery and replay
+    auto nonce_it = handle.find("__nonce");
+    if (nonce_it == handle.end() || !nonce_it->second.isString()) {
+        throw std::runtime_error(
+            "Agent error: Invalid agent handle\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n"
+            "  - Forged or modified handles are rejected\n");
+    }
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto tracker_it = s_trackers.find(handle_id);
+        if (tracker_it == s_trackers.end() ||
+            !security::CryptoUtils::constantTimeCompare(
+                nonce_it->second.asString(), tracker_it->second.nonce)) {
+            throw std::runtime_error(
+                "Agent error: Invalid or tampered agent handle\n\n"
+                "  Help:\n  - Use the handle returned by agent.create()\n"
+                "  - Forged or modified handles are rejected\n");
+        }
+    }
+
+    return {config_name, handle_id};
 }
 
 // ============================================================================
@@ -1976,7 +2197,9 @@ AgentDispatchStats getAgentDispatchStats() {
     }
     {
         std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-        stats.dead_keys.assign(s_dispatch.dead_keys.begin(), s_dispatch.dead_keys.end());
+        for (const auto& [key, _] : s_dispatch.dead_keys) {
+            stats.dead_keys.push_back(key);
+        }
     }
     return stats;
 }

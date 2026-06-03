@@ -1,0 +1,34 @@
+// Chaos Test 10: Action Matrix Enforcement
+// Tests that per-agent allowed_actions restrictions are enforced.
+// chaos_restricted has: allowed_actions = ["FS_READ", "AGENT_SEND"]
+// This means: no SHELL_EXEC, no NET_CONNECT, no FS_WRITE
+
+use agent
+
+main {
+    // Create agent with restricted action matrix
+    let h = agent.create("chaos_restricted")
+    print("chaos10_created: true")
+
+    // Check environment shows the agent was created
+    let env = agent.environment(h)
+    print("chaos10_env_available: " + string(env != null))
+
+    // Try to send — AGENT_SEND IS in allowed_actions, should work structurally
+    // (will fail at API level since CHAOS_VALID key is needed, but the action matrix
+    // check happens before the API call)
+    let send_blocked = false
+    let send_error = ""
+    try {
+        let resp = agent.send(h, "test message")
+    } catch (e) {
+        send_error = string(e)
+        // Check if it was blocked by action matrix (shouldn't be — AGENT_SEND is allowed)
+        if send_error.contains("action matrix") {
+            send_blocked = true
+        }
+    }
+    print("chaos10_send_action_blocked: " + string(send_blocked))
+
+    print("chaos10_completed: true")
+}

@@ -461,6 +461,117 @@ if should_run 8; then
 fi
 
 # ═══════════════════════════════════════════════════════
+# TEST 9: Handle Anti-Forge
+# ═══════════════════════════════════════════════════════
+if should_run 9; then
+    echo -e "${CYAN}── Test 9: Handle Anti-Forge ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_09_handle_forge.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_09.log"
+
+    # C55: Test completed
+    echo "$OUT" | grep -q "chaos09_completed: true" && \
+        pass "C55" "handle forge test completed" || \
+        fail "C55" "handle forge test did not complete"
+
+    # C56: Real handle has nonce
+    echo "$OUT" | grep -q "chaos09_real_has_nonce: true" && \
+        pass "C56" "real handle contains __nonce field" || \
+        fail "C56" "real handle missing __nonce"
+
+    # C57: Wrong nonce blocked
+    echo "$OUT" | grep -q "chaos09_forge1_blocked: true" && \
+        pass "C57" "forged nonce rejected" || \
+        fail "C57" "forged nonce was NOT rejected"
+
+    # C58: Error doesn't leak internals
+    echo "$OUT" | grep -q "chaos09_forge1_leaks: false" && \
+        pass "C58" "error message doesn't leak HMAC/nonce details" || \
+        fail "C58" "error message leaks internal details"
+
+    # C59: Missing nonce blocked
+    echo "$OUT" | grep -q "chaos09_forge2_blocked: true" && \
+        pass "C59" "missing nonce rejected" || \
+        fail "C59" "missing nonce was NOT rejected"
+
+    # C60: Wrong ID with real nonce blocked
+    echo "$OUT" | grep -q "chaos09_forge3_blocked: true" && \
+        pass "C60" "wrong ID with real nonce rejected" || \
+        fail "C60" "wrong ID with real nonce was NOT rejected"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 10: Action Matrix Enforcement
+# ═══════════════════════════════════════════════════════
+if should_run 10; then
+    echo -e "${CYAN}── Test 10: Action Matrix Enforcement ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_10_action_matrix.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_10.log"
+
+    # C61: Test completed
+    echo "$OUT" | grep -q "chaos10_completed: true" && \
+        pass "C61" "action matrix test completed" || \
+        fail "C61" "action matrix test did not complete"
+
+    # C62: Agent created successfully
+    echo "$OUT" | grep -q "chaos10_created: true" && \
+        pass "C62" "restricted agent created" || \
+        fail "C62" "restricted agent creation failed"
+
+    # C63: Environment available
+    echo "$OUT" | grep -q "chaos10_env_available: true" && \
+        pass "C63" "agent.environment() works for restricted agent" || \
+        fail "C63" "agent.environment() failed for restricted agent"
+
+    # C64: AGENT_SEND not blocked (it's in allowed_actions)
+    echo "$OUT" | grep -q "chaos10_send_action_blocked: false" && \
+        pass "C64" "AGENT_SEND permitted (in allowed_actions)" || \
+        fail "C64" "AGENT_SEND incorrectly blocked by action matrix"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 11: Config Features Parsing
+# ═══════════════════════════════════════════════════════
+if should_run 11; then
+    echo -e "${CYAN}── Test 11: Config Features Parsing ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_11_config_features.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_11.log"
+
+    # C65: Config loaded with all new fields
+    echo "$OUT" | grep -q "chaos11_config_loaded: true" && \
+        pass "C65" "config with all Phase 1-5 fields loaded" || \
+        fail "C65" "config with new fields failed to load"
+
+    # C66: chaos_mixed agent created
+    echo "$OUT" | grep -q "chaos11_mixed_created: true" && \
+        pass "C66" "chaos_mixed agent created" || \
+        fail "C66" "chaos_mixed creation failed"
+
+    # C67: chaos_restricted agent created
+    echo "$OUT" | grep -q "chaos11_restricted_created: true" && \
+        pass "C67" "chaos_restricted agent created" || \
+        fail "C67" "chaos_restricted creation failed"
+
+    # C68: chaos_refresh agent created
+    echo "$OUT" | grep -q "chaos11_refresh_created: true" && \
+        pass "C68" "chaos_refresh agent created (with key_retry_after_seconds)" || \
+        fail "C68" "chaos_refresh creation failed"
+
+    # C69: Challenges fields in environment
+    echo "$OUT" | grep -q "chaos11_challenges_in_env: true" && \
+        pass "C69" "challenges_passed/failed in environment dict" || \
+        fail "C69" "challenges fields missing from environment"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════${NC}"
