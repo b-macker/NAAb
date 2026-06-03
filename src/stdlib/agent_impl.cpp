@@ -20,7 +20,12 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#else
 #include <unistd.h>
+#endif
 #include "naab/crypto_utils.h"
 
 namespace naab {
