@@ -127,6 +127,7 @@ include/naab/       All headers
 - `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`
 - `agent.environment(handle)` returns current environment snapshot — config limits, remaining capacity, coherence state, key health, dispatch proximity
 - `agent.create()` handle includes `environment` dict (birth snapshot); `agent.send()` response includes updated `environment` dict (live state)
+- Pipeline upstream provenance: downstream stages see `state.upstream_provenance` dict with trust-calibration signals from upstream (model_used, was_fallback, retries, coherence_at_output, keys_dead, keys_active, latency_ms, stage index, pressure). Not present for first stage or non-pipeline agents.
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
 - Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)

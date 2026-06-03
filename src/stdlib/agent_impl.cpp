@@ -66,6 +66,11 @@ struct DispatchCounters {
 };
 static DispatchCounters s_dispatch;
 
+// Pipeline upstream provenance — keyed by downstream handle_id
+// Set by agentPipeline() after each stage; read by buildEnvironmentDict()
+static std::mutex s_provenance_mutex;
+static std::unordered_map<int, NaabVal> s_upstream_provenance;
+
 // ============================================================================
 // Helper: Find agent config by name
 // ============================================================================
@@ -215,6 +220,15 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             case governance::GovernanceLevel::CRITICAL: level_str = "critical"; break;
         }
         state["governance_level"] = NaabVal::makeString(level_str);
+    }
+
+    // Upstream provenance (pipeline stages only — trust calibration for input)
+    {
+        std::lock_guard<std::mutex> lock(s_provenance_mutex);
+        auto prov_it = s_upstream_provenance.find(handle_id);
+        if (prov_it != s_upstream_provenance.end()) {
+            state["upstream_provenance"] = prov_it->second;
+        }
     }
 
     // Dispatch (run-level hard stop proximity)
@@ -1724,7 +1738,7 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
             auto* ge = governance::GovernanceEngine::getCurrent();
             if (ge && ge->isActive() && handles[i].isDict()) {
                 auto& d = handles[i].asDict();
-                auto hid = d.find("handle_id");
+                auto hid = d.find("id");
                 if (hid != d.end()) {
                     ge->recoverCoherence(hid->second.asInt());
                 }
@@ -1783,7 +1797,7 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                             auto* ge = governance::GovernanceEngine::getCurrent();
                             if (ge && ge->isActive() && handles[i + 1].isDict()) {
                                 auto& next_dict = handles[i + 1].asDict();
-                                auto hid_it = next_dict.find("handle_id");
+                                auto hid_it = next_dict.find("id");
                                 if (hid_it != next_dict.end()) {
                                     ge->setInheritedPressure(hid_it->second.asInt(), stage_pressure);
                                 }
@@ -1796,9 +1810,67 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                             auto* ge = governance::GovernanceEngine::getCurrent();
                             if (ge && ge->isActive() && handles[i + 1].isDict()) {
                                 auto& next_dict = handles[i + 1].asDict();
-                                auto hid_it = next_dict.find("handle_id");
+                                auto hid_it = next_dict.find("id");
                                 if (hid_it != next_dict.end()) {
                                     ge->recoverCoherence(hid_it->second.asInt());
+                                }
+                            }
+                        }
+
+                        // Upstream provenance: trust calibration for downstream stage
+                        // Captures what matters for output trustworthiness, not full env
+                        {
+                            std::unordered_map<std::string, NaabVal> prov;
+                            prov["stage"] = NaabVal::makeInt(static_cast<int>(i));
+
+                            // From trace: what model/infra produced this output
+                            auto tr_it = resp_dict.find("trace");
+                            if (tr_it != resp_dict.end() && tr_it->second.isDict()) {
+                                auto& tr = tr_it->second.asDict();
+                                auto m_it = tr.find("model");
+                                if (m_it != tr.end()) prov["model_used"] = m_it->second;
+                                auto f_it = tr.find("fallback_used");
+                                if (f_it != tr.end()) prov["was_fallback"] = f_it->second;
+                                auto a_it = tr.find("attempts");
+                                if (a_it != tr.end())
+                                    prov["retries"] = NaabVal::makeInt(
+                                        std::max(0, a_it->second.asInt() - 1));
+                                auto l_it = tr.find("latency_ms");
+                                if (l_it != tr.end()) prov["latency_ms"] = l_it->second;
+                            }
+
+                            // From environment: reasoning quality + infra health at output time
+                            auto env_it = resp_dict.find("environment");
+                            if (env_it != resp_dict.end() && env_it->second.isDict()) {
+                                auto& env_d = env_it->second.asDict();
+                                auto st_it = env_d.find("state");
+                                if (st_it != env_d.end() && st_it->second.isDict()) {
+                                    auto& st = st_it->second.asDict();
+                                    auto c_it = st.find("coherence");
+                                    if (c_it != st.end())
+                                        prov["coherence_at_output"] = c_it->second;
+                                    auto kd_it = st.find("keys_dead");
+                                    if (kd_it != st.end())
+                                        prov["keys_dead"] = kd_it->second;
+                                    auto ka_it = st.find("keys_active");
+                                    if (ka_it != st.end())
+                                        prov["keys_active"] = ka_it->second;
+                                }
+                            }
+
+                            // Pressure from this stage
+                            if (stage_pressure > 0.0) {
+                                prov["pressure"] = NaabVal::makeDouble(stage_pressure);
+                            }
+
+                            // Store for downstream handle
+                            if (handles[i + 1].isDict()) {
+                                auto& nd = handles[i + 1].asDict();
+                                auto nid = nd.find("id");
+                                if (nid != nd.end()) {
+                                    std::lock_guard<std::mutex> lock(s_provenance_mutex);
+                                    s_upstream_provenance[nid->second.asInt()] =
+                                        NaabVal::makeDict(std::move(prov));
                                 }
                             }
                         }

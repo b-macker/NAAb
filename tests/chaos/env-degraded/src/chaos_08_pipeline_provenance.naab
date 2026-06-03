@@ -1,0 +1,80 @@
+// Chaos Test 8: Pipeline upstream provenance
+// Tests: downstream stages see upstream trust-calibration signals
+use agent
+
+main {
+    let h1 = agent.create("chaos_mixed")
+    let h2 = agent.create("chaos_tiny")
+
+    // Check birth environments — neither should have provenance yet
+    let env1 = agent.environment(h1)
+    let env2 = agent.environment(h2)
+    let has_prov_birth = env1.get("state").get("upstream_provenance") != null
+    print("provenance_birth_h1: " + string(has_prov_birth))
+
+    let has_prov_birth2 = env2.get("state").get("upstream_provenance") != null
+    print("provenance_birth_h2: " + string(has_prov_birth2))
+
+    // Run pipeline: h1 -> h2
+    let result = null
+    try {
+        result = agent.pipeline([h1, h2], "Say hello")
+    } catch (e) {
+        print("provenance_pipeline_err: " + string(e))
+    }
+
+    if result != null {
+        // Check the response environment for the last stage (h2)
+        let resp_env = result.get("environment")
+        if resp_env != null {
+            let state = resp_env.get("state")
+            let prov = state.get("upstream_provenance")
+            if prov != null {
+                print("provenance_exists: true")
+                print("provenance_stage: " + string(prov.get("stage") ?? -1))
+
+                // Trust calibration fields
+                let model = prov.get("model_used") ?? "unknown"
+                print("provenance_model: " + string(model != "unknown"))
+
+                let fallback = prov.get("was_fallback")
+                print("provenance_has_fallback: " + string(fallback != null))
+
+                let retries = prov.get("retries") ?? -1
+                print("provenance_retries: " + string(retries))
+
+                let coherence = prov.get("coherence_at_output")
+                print("provenance_has_coherence: " + string(coherence != null))
+
+                let dead = prov.get("keys_dead") ?? -1
+                print("provenance_keys_dead: " + string(dead))
+
+                let active = prov.get("keys_active") ?? -1
+                print("provenance_keys_active: " + string(active))
+
+                let latency = prov.get("latency_ms") ?? -1
+                print("provenance_has_latency: " + string(latency >= 0))
+            } else {
+                print("provenance_exists: false")
+            }
+        }
+
+        // Also check via on-demand query
+        let h2_env = agent.environment(h2)
+        let h2_prov = h2_env.get("state").get("upstream_provenance")
+        print("provenance_on_demand: " + string(h2_prov != null))
+
+        // h1 should NOT have provenance (it's the first stage)
+        let h1_env = agent.environment(h1)
+        let h1_prov = h1_env.get("state").get("upstream_provenance")
+        print("provenance_h1_absent: " + string(h1_prov == null))
+
+        // Stage traces should exist
+        let traces = result.get("stage_traces")
+        if traces != null {
+            print("provenance_stage_traces: " + string(len(traces)))
+        }
+    }
+
+    print("chaos_pipeline_provenance: completed")
+}

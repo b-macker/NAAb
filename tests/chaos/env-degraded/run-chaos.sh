@@ -378,6 +378,89 @@ if should_run 7; then
 fi
 
 # ═══════════════════════════════════════════════════════
+# TEST 8: Pipeline Upstream Provenance
+# ═══════════════════════════════════════════════════════
+if should_run 8; then
+    echo -e "${CYAN}── Test 8: Pipeline Upstream Provenance ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_08_pipeline_provenance.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_08.log"
+
+    # C41: Test completed
+    echo "$OUT" | grep -q "chaos_pipeline_provenance: completed" && \
+        pass "C41" "pipeline provenance test completed" || \
+        fail "C41" "pipeline provenance test did not complete"
+
+    # C42: No provenance at birth (no upstream yet)
+    echo "$OUT" | grep -q "provenance_birth_h1: false" && \
+        pass "C42" "no provenance at birth for h1" || \
+        fail "C42" "unexpected provenance at birth"
+
+    echo "$OUT" | grep -q "provenance_birth_h2: false" && \
+        pass "C43" "no provenance at birth for h2" || \
+        fail "C43" "unexpected provenance at birth for h2"
+
+    # C44: Provenance exists after pipeline
+    echo "$OUT" | grep -q "provenance_exists: true" && \
+        pass "C44" "upstream provenance present in downstream response" || \
+        fail "C44" "no upstream provenance in downstream response"
+
+    # C45: Stage index correct (upstream is stage 0)
+    echo "$OUT" | grep -q "provenance_stage: 0" && \
+        pass "C45" "provenance stage index is 0 (first stage)" || \
+        fail "C45" "wrong provenance stage index"
+
+    # C46: Model used is populated
+    echo "$OUT" | grep -q "provenance_model: true" && \
+        pass "C46" "provenance includes model_used" || \
+        fail "C46" "provenance missing model_used"
+
+    # C47: Fallback field present
+    echo "$OUT" | grep -q "provenance_has_fallback: true" && \
+        pass "C47" "provenance includes was_fallback" || \
+        fail "C47" "provenance missing was_fallback"
+
+    # C48: Retries reflects key rotation (5 bogus keys = retries)
+    prov_retries=$(echo "$OUT" | grep "provenance_retries:" | grep -oP ': \K[0-9]+')
+    [ "${prov_retries:-0}" -gt 0 ] && \
+        pass "C48" "provenance retries=${prov_retries} (key rotation visible)" || \
+        fail "C48" "provenance retries should be > 0 (got ${prov_retries:-?})"
+
+    # C49: Coherence present
+    echo "$OUT" | grep -q "provenance_has_coherence: true" && \
+        pass "C49" "provenance includes coherence_at_output" || \
+        fail "C49" "provenance missing coherence_at_output"
+
+    # C50: Keys dead reflects degraded upstream
+    prov_dead=$(echo "$OUT" | grep "provenance_keys_dead:" | grep -oP ': \K[0-9]+')
+    [ "${prov_dead:-0}" -gt 0 ] && \
+        pass "C50" "provenance keys_dead=${prov_dead} (upstream degradation visible)" || \
+        fail "C50" "provenance should show dead keys (got ${prov_dead:-?})"
+
+    # C51: Latency present
+    echo "$OUT" | grep -q "provenance_has_latency: true" && \
+        pass "C51" "provenance includes latency_ms" || \
+        fail "C51" "provenance missing latency_ms"
+
+    # C52: On-demand query also returns provenance
+    echo "$OUT" | grep -q "provenance_on_demand: true" && \
+        pass "C52" "agent.environment() returns provenance after pipeline" || \
+        fail "C52" "agent.environment() missing provenance"
+
+    # C53: First stage (h1) has NO provenance
+    echo "$OUT" | grep -q "provenance_h1_absent: true" && \
+        pass "C53" "first pipeline stage has no upstream provenance" || \
+        fail "C53" "first stage incorrectly has provenance"
+
+    # C54: Stage traces collected
+    echo "$OUT" | grep -q "provenance_stage_traces: 2" && \
+        pass "C54" "2 stage traces collected from pipeline" || \
+        fail "C54" "wrong number of stage traces"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
 # SUMMARY
 # ═══════════════════════════════════════════════════════
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════${NC}"
