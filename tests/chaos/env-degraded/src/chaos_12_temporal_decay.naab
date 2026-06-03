@@ -1,0 +1,57 @@
+// Chaos Test 12: Temporal Trust Decay
+// Verifies coherence decays over idle time between sends.
+// Config: temporal_decay_per_minute=10.0, grace=0.05 min (3s)
+// First send initializes drift state, sleep 5s, second send triggers decay.
+// Expected decay ~0.33 (10.0 * (5/60 - 0.05))
+
+use agent
+use time
+
+main {
+    let h = agent.create("chaos_mixed")
+
+    // First send — creates DriftState, sets last_activity_time
+    let resp1 = null
+    try {
+        resp1 = agent.send(h, "init")
+    } catch (e) {
+        print("chaos12_send1_error: " + string(e))
+    }
+
+    let pre_coh = 1.0
+    if resp1 != null {
+        let env1 = resp1.get("environment")
+        pre_coh = env1.get("state").get("coherence") ?? 1.0
+    }
+    print("chaos12_pre_coherence: " + string(pre_coh))
+
+    // Sleep past grace period (3s grace, sleep 5s)
+    time.sleep(5)
+
+    // Second send — temporal decay fires (measures time since first send)
+    let resp2 = null
+    try {
+        resp2 = agent.send(h, "after idle")
+    } catch (e) {
+        print("chaos12_send2_error: " + string(e))
+    }
+
+    if resp2 != null {
+        let env2 = resp2.get("environment")
+        let post_coh = env2.get("state").get("coherence") ?? -1.0
+        print("chaos12_post_coherence: " + string(post_coh))
+        print("chaos12_decayed: " + string(post_coh < pre_coh))
+        print("chaos12_positive: " + string(post_coh >= 0.0))
+        print("chaos12_not_nan: " + string(post_coh == post_coh))
+    } else {
+        // If second send fails, query environment directly
+        let env2 = agent.environment(h)
+        let post_coh = env2.get("state").get("coherence") ?? -1.0
+        print("chaos12_post_coherence: " + string(post_coh))
+        print("chaos12_decayed: " + string(post_coh < pre_coh))
+        print("chaos12_positive: " + string(post_coh >= 0.0))
+        print("chaos12_not_nan: " + string(post_coh == post_coh))
+    }
+
+    print("chaos12_completed: true")
+}

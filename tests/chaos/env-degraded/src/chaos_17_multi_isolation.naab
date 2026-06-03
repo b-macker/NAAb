@@ -1,0 +1,63 @@
+// Chaos Test 17: Multi-Agent Isolation Under Degraded Keys
+// Tests restricted + unrestricted agents coexist under key degradation.
+// chaos_no_send: blocked from AGENT_SEND
+// chaos_mixed: full access, degraded keys (5 bogus + 1 valid)
+// chaos_restricted: AGENT_SEND allowed but network_allowed=false
+
+use agent
+
+main {
+    // Create all three agents
+    let h_no_send = agent.create("chaos_no_send")
+    let h_mixed = agent.create("chaos_mixed")
+    let h_restricted = agent.create("chaos_restricted")
+    print("chaos17_all_created: true")
+
+    // chaos_no_send: send should be blocked by action matrix
+    let no_send_blocked = false
+    try {
+        agent.send(h_no_send, "test")
+    } catch (e) {
+        let err = string(e)
+        if err.contains("action matrix") || err.contains("AGENT_SEND") || err.contains("allowed_actions") {
+            no_send_blocked = true
+        }
+    }
+    print("chaos17_no_send_blocked: " + string(no_send_blocked))
+
+    // chaos_mixed: send should work (has valid key after retries)
+    let mixed_ok = false
+    try {
+        let resp = agent.send(h_mixed, "hello")
+        mixed_ok = resp != null && resp.get("content") != null
+    } catch (e) {
+        print("chaos17_mixed_error: " + string(e))
+    }
+    print("chaos17_mixed_ok: " + string(mixed_ok))
+
+    // chaos_restricted: send should NOT be blocked by action matrix
+    // (AGENT_SEND is in allowed_actions), but may fail at API level
+    let restricted_matrix_blocked = false
+    try {
+        agent.send(h_restricted, "test")
+    } catch (e) {
+        let err = string(e)
+        if err.contains("action matrix") || err.contains("Action matrix") || err.contains("allowed_actions") {
+            restricted_matrix_blocked = true
+        }
+    }
+    print("chaos17_restricted_matrix_blocked: " + string(restricted_matrix_blocked))
+
+    // Verify environments are independently queryable
+    let env_no = agent.environment(h_no_send)
+    let env_mix = agent.environment(h_mixed)
+    let env_res = agent.environment(h_restricted)
+    let all_envs = env_no != null && env_mix != null && env_res != null
+    print("chaos17_all_envs_ok: " + string(all_envs))
+
+    // Mixed agent should show dead keys (from bogus key rotation)
+    let mix_dead = env_mix.get("state").get("keys_dead") ?? 0
+    print("chaos17_mixed_keys_dead: " + string(mix_dead))
+
+    print("chaos17_completed: true")
+}

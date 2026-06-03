@@ -1,0 +1,65 @@
+// Chaos Test 15: Adaptive Baseline Learning
+// Config: adaptive_baseline_window=3, sensitivity=2.0
+// During the first 3 sends (baseline window), coherence penalties
+// from signals should be suppressed. After baseline, penalties resume.
+
+use agent
+
+main {
+    let h = agent.create("chaos_mixed")
+
+    // Birth coherence
+    let birth_env = agent.environment(h)
+    let birth_coh = birth_env.get("state").get("coherence") ?? -1.0
+    print("chaos15_birth_coherence: " + string(birth_coh))
+
+    // Send 3 times (fills baseline window)
+    let coherences = []
+    for i in 0..3 {
+        let resp = null
+        try {
+            resp = agent.send(h, "baseline turn " + string(i))
+        } catch (e) {
+            print("chaos15_send" + string(i) + "_error: " + string(e))
+        }
+
+        if resp != null {
+            let env = resp.get("environment")
+            let coh = env.get("state").get("coherence") ?? -1.0
+            coherences.push(coh)
+        }
+    }
+    print("chaos15_baseline_sends: " + string(len(coherences)))
+
+    // Check coherence during baseline window stayed reasonable
+    let all_valid = true
+    for c in coherences {
+        if c < 0.0 || c != c {
+            all_valid = false
+        }
+    }
+    print("chaos15_baseline_coherences_valid: " + string(all_valid))
+
+    // Post-baseline: send once more (4th send, outside window)
+    let resp4 = null
+    try {
+        resp4 = agent.send(h, "post baseline turn")
+    } catch (e) {
+        print("chaos15_post_baseline_error: " + string(e))
+    }
+
+    if resp4 != null {
+        let env4 = resp4.get("environment")
+        let coh4 = env4.get("state").get("coherence") ?? -1.0
+        print("chaos15_post_baseline_coherence: " + string(coh4))
+        print("chaos15_post_baseline_valid: " + string(coh4 >= 0.0 && coh4 == coh4))
+    } else {
+        // If 4th send fails, query environment directly
+        let env4 = agent.environment(h)
+        let coh4 = env4.get("state").get("coherence") ?? -1.0
+        print("chaos15_post_baseline_coherence: " + string(coh4))
+        print("chaos15_post_baseline_valid: " + string(coh4 >= 0.0 && coh4 == coh4))
+    }
+
+    print("chaos15_completed: true")
+}

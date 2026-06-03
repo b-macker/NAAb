@@ -1,0 +1,51 @@
+// Chaos Test 16: Step-Up Challenge Environment Fields
+// Verifies challenge counters are tracked in the environment dict
+// and survive multiple agent creates and sends
+
+use agent
+
+main {
+    // Create first agent, check initial challenge counters
+    let h1 = agent.create("chaos_mixed")
+    let env1 = agent.environment(h1)
+    let state1 = env1.get("state")
+    let cp1 = state1.get("challenges_passed") ?? -1
+    let cf1 = state1.get("challenges_failed") ?? -1
+    print("chaos16_h1_challenges: passed=" + string(cp1) + " failed=" + string(cf1))
+    print("chaos16_h1_zero: " + string(cp1 == 0 && cf1 == 0))
+
+    // Create second agent, verify independent tracking
+    let h2 = agent.create("chaos_restricted")
+    let env2 = agent.environment(h2)
+    let state2 = env2.get("state")
+    let cp2 = state2.get("challenges_passed") ?? -1
+    let cf2 = state2.get("challenges_failed") ?? -1
+    print("chaos16_h2_challenges: passed=" + string(cp2) + " failed=" + string(cf2))
+
+    // Send to h1, check counters still present in response environment
+    let resp = null
+    try {
+        resp = agent.send(h1, "test")
+    } catch (e) {
+        print("chaos16_send_error: " + string(e))
+    }
+
+    if resp != null {
+        let resp_env = resp.get("environment")
+        let resp_state = resp_env.get("state")
+        let rcp = resp_state.get("challenges_passed") ?? -1
+        let rcf = resp_state.get("challenges_failed") ?? -1
+        print("chaos16_post_send_challenges: passed=" + string(rcp) + " failed=" + string(rcf))
+        print("chaos16_fields_survived_send: " + string(rcp >= 0 && rcf >= 0))
+    } else {
+        // Query on-demand after failed send
+        let post_env = agent.environment(h1)
+        let post_state = post_env.get("state")
+        let rcp = post_state.get("challenges_passed") ?? -1
+        let rcf = post_state.get("challenges_failed") ?? -1
+        print("chaos16_post_send_challenges: passed=" + string(rcp) + " failed=" + string(rcf))
+        print("chaos16_fields_survived_send: " + string(rcp >= 0 && rcf >= 0))
+    }
+
+    print("chaos16_completed: true")
+}

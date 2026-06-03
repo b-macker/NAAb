@@ -3,7 +3,7 @@
 # Exercises: dead keys, all-bogus keys, hard stop, tiny budgets,
 #            batch under stress, fan-out mixed health, post-failure consistency
 #
-# Usage: bash run-chaos.sh [--test N]   (N=1..7, omit for all)
+# Usage: bash run-chaos.sh [--test N]   (N=1..17, omit for all)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -567,6 +567,240 @@ if should_run 11; then
     echo "$OUT" | grep -q "chaos11_challenges_in_env: true" && \
         pass "C69" "challenges_passed/failed in environment dict" || \
         fail "C69" "challenges fields missing from environment"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 12: Temporal Trust Decay
+# ═══════════════════════════════════════════════════════
+if should_run 12; then
+    echo -e "${CYAN}── Test 12: Temporal Trust Decay ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_12_temporal_decay.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_12.log"
+
+    # C70: Test completed
+    echo "$OUT" | grep -q "chaos12_completed: true" && \
+        pass "C70" "temporal decay test completed" || \
+        fail "C70" "temporal decay test did not complete"
+
+    # C71: Pre-decay coherence is 1.0
+    echo "$OUT" | grep -q "chaos12_pre_coherence: 1" && \
+        pass "C71" "pre-decay coherence is 1.0" || \
+        fail "C71" "pre-decay coherence not 1.0"
+
+    # C72: Coherence decayed after sleep
+    echo "$OUT" | grep -q "chaos12_decayed: true" && \
+        pass "C72" "coherence decayed after idle period" || \
+        fail "C72" "coherence did NOT decay after idle period"
+
+    # C73: Coherence still positive (not negative)
+    echo "$OUT" | grep -q "chaos12_positive: true" && \
+        pass "C73" "decayed coherence is non-negative" || \
+        fail "C73" "decayed coherence went negative"
+
+    # C74: Coherence not NaN
+    echo "$OUT" | grep -q "chaos12_not_nan: true" && \
+        pass "C74" "decayed coherence is not NaN" || \
+        fail "C74" "decayed coherence is NaN"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 13: Key Revival After Cooldown
+# ═══════════════════════════════════════════════════════
+if should_run 13; then
+    echo -e "${CYAN}── Test 13: Key Revival After Cooldown ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_13_key_revival.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_13.log"
+
+    # C75: Test completed
+    echo "$OUT" | grep -q "chaos13_completed: true" && \
+        pass "C75" "key revival test completed" || \
+        fail "C75" "key revival test did not complete"
+
+    # C76: First send was attempted
+    echo "$OUT" | grep -q "chaos13_send1_attempted: true" && \
+        pass "C76" "first send attempted" || \
+        fail "C76" "first send not attempted"
+
+    # C77: Key health info available
+    echo "$OUT" | grep -q "chaos13_kh1_has_info: true" && \
+        pass "C77" "key health reports key pool info" || \
+        fail "C77" "key health missing pool info"
+
+    # C78: After cooldown, dead keys revived OR no keys died
+    # (revival_visible=true means dead count dropped; revival_na=true means no keys died)
+    if echo "$OUT" | grep -q "chaos13_revival_visible: true"; then
+        pass "C78" "dead keys revived after cooldown"
+    elif echo "$OUT" | grep -q "chaos13_revival_na: true"; then
+        pass "C78" "no keys died (API returned non-401) — revival N/A"
+    else
+        fail "C78" "dead keys NOT revived after cooldown"
+    fi
+
+    # C79: Second send succeeded after cooldown
+    echo "$OUT" | grep -q "chaos13_send2_ok: true" && \
+        pass "C79" "second send succeeded after cooldown" || \
+        fail "C79" "second send failed after cooldown"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 14: Action Matrix Blocking
+# ═══════════════════════════════════════════════════════
+if should_run 14; then
+    echo -e "${CYAN}── Test 14: Action Matrix Blocking ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_14_action_block.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_14.log"
+
+    # C80: Test completed
+    echo "$OUT" | grep -q "chaos14_completed: true" && \
+        pass "C80" "action matrix blocking test completed" || \
+        fail "C80" "action matrix blocking test did not complete"
+
+    # C81: Agent without AGENT_SEND created
+    echo "$OUT" | grep -q "chaos14_created: true" && \
+        pass "C81" "agent without AGENT_SEND created" || \
+        fail "C81" "agent creation failed"
+
+    # C82: Send blocked by action matrix
+    echo "$OUT" | grep -q "chaos14_send_blocked: true" && \
+        pass "C82" "send blocked by action matrix (no AGENT_SEND)" || \
+        fail "C82" "send was NOT blocked by action matrix"
+
+    # C83: Error mentions action matrix restriction
+    echo "$OUT" | grep -q "chaos14_error_mentions_restriction: true" && \
+        pass "C83" "error references action matrix restriction" || \
+        fail "C83" "error does not mention action matrix"
+
+    # C84: Error doesn't leak allowed action values
+    echo "$OUT" | grep -q "chaos14_error_leaks_actions: false" && \
+        pass "C84" "error doesn't leak allowed action list" || \
+        fail "C84" "error leaks allowed action list"
+
+    # C85: Environment queryable after block
+    echo "$OUT" | grep -q "chaos14_env_after_block: true" && \
+        pass "C85" "environment queryable after action matrix block" || \
+        fail "C85" "environment broken after block"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 15: Adaptive Baseline Learning
+# ═══════════════════════════════════════════════════════
+if should_run 15; then
+    echo -e "${CYAN}── Test 15: Adaptive Baseline Learning ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_15_adaptive_baseline.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_15.log"
+
+    # C86: Test completed
+    echo "$OUT" | grep -q "chaos15_completed: true" && \
+        pass "C86" "adaptive baseline test completed" || \
+        fail "C86" "adaptive baseline test did not complete"
+
+    # C87: Birth coherence is 1.0
+    echo "$OUT" | grep -q "chaos15_birth_coherence: 1" && \
+        pass "C87" "baseline birth coherence is 1.0" || \
+        fail "C87" "baseline birth coherence not 1.0"
+
+    # C88: Baseline sends completed (at least 1)
+    baseline_sends=$(echo "$OUT" | grep "chaos15_baseline_sends:" | grep -oP ': \K[0-9]+')
+    [ "${baseline_sends:-0}" -ge 1 ] && \
+        pass "C88" "${baseline_sends} baseline sends completed" || \
+        fail "C88" "no baseline sends completed"
+
+    # C89: All baseline coherences valid
+    echo "$OUT" | grep -q "chaos15_baseline_coherences_valid: true" && \
+        pass "C89" "coherences valid during baseline window" || \
+        fail "C89" "invalid coherences during baseline window"
+
+    # C90: Post-baseline coherence valid
+    echo "$OUT" | grep -q "chaos15_post_baseline_valid: true" && \
+        pass "C90" "post-baseline coherence valid" || \
+        fail "C90" "post-baseline coherence invalid"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 16: Step-Up Challenge Fields
+# ═══════════════════════════════════════════════════════
+if should_run 16; then
+    echo -e "${CYAN}── Test 16: Step-Up Challenge Fields ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_16_challenge_fields.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_16.log"
+
+    # C91: Test completed
+    echo "$OUT" | grep -q "chaos16_completed: true" && \
+        pass "C91" "challenge fields test completed" || \
+        fail "C91" "challenge fields test did not complete"
+
+    # C92: Initial challenge counters are zero
+    echo "$OUT" | grep -q "chaos16_h1_zero: true" && \
+        pass "C92" "initial challenge counters are 0/0" || \
+        fail "C92" "initial challenge counters not zero"
+
+    # C93: Challenge fields survived send
+    echo "$OUT" | grep -q "chaos16_fields_survived_send: true" && \
+        pass "C93" "challenge counters present after send" || \
+        fail "C93" "challenge counters missing after send"
+
+    echo ""
+fi
+
+# ═══════════════════════════════════════════════════════
+# TEST 17: Multi-Agent Isolation Under Stress
+# ═══════════════════════════════════════════════════════
+if should_run 17; then
+    echo -e "${CYAN}── Test 17: Multi-Agent Isolation Under Stress ──${NC}"
+    W=$(setup_workdir)
+    OUT=$(run_chaos "$W" "chaos_17_multi_isolation.naab")
+    echo "$OUT" > "$TEST_TMP/chaos_17.log"
+
+    # C94: Test completed
+    echo "$OUT" | grep -q "chaos17_completed: true" && \
+        pass "C94" "multi-agent isolation test completed" || \
+        fail "C94" "multi-agent isolation test did not complete"
+
+    # C95: All three agents created
+    echo "$OUT" | grep -q "chaos17_all_created: true" && \
+        pass "C95" "all 3 agents (no_send + mixed + restricted) created" || \
+        fail "C95" "agent creation failed"
+
+    # C96: chaos_no_send correctly blocked
+    echo "$OUT" | grep -q "chaos17_no_send_blocked: true" && \
+        pass "C96" "no_send agent blocked by action matrix" || \
+        fail "C96" "no_send agent was NOT blocked"
+
+    # C97: chaos_mixed send succeeded (valid key after retries)
+    echo "$OUT" | grep -q "chaos17_mixed_ok: true" && \
+        pass "C97" "mixed agent send succeeded under degraded keys" || \
+        fail "C97" "mixed agent send failed"
+
+    # C98: chaos_restricted not blocked by matrix (AGENT_SEND allowed)
+    echo "$OUT" | grep -q "chaos17_restricted_matrix_blocked: false" && \
+        pass "C98" "restricted agent not blocked by action matrix" || \
+        fail "C98" "restricted agent incorrectly blocked by matrix"
+
+    # C99: All environments independently queryable
+    echo "$OUT" | grep -q "chaos17_all_envs_ok: true" && \
+        pass "C99" "all 3 agent environments independently queryable" || \
+        fail "C99" "environment query failed for some agents"
+
+    # C100: Mixed agent shows dead keys (key degradation visible)
+    mixed_dead=$(echo "$OUT" | grep "chaos17_mixed_keys_dead:" | grep -oP ': \K[0-9]+')
+    [ "${mixed_dead:-0}" -gt 0 ] && \
+        pass "C100" "mixed agent shows ${mixed_dead} dead keys" || \
+        fail "C100" "mixed agent shows 0 dead keys"
 
     echo ""
 fi

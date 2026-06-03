@@ -84,6 +84,17 @@
       "network_allowed": false,
       "allowed_actions": ["FS_READ", "AGENT_SEND"]
     },
+    "chaos_no_send": {
+      "model": "gemma-4-31b-it",
+      "provider": "gemini",
+      "api_key_env": ["CHAOS_VALID"],
+      "max_tokens": 128,
+      "temperature": 0.0,
+      "max_turns": 3,
+      "max_total_tokens": 1000,
+      "system_prompt": "Reply: ok",
+      "allowed_actions": ["FS_READ", "NET_CONNECT"]
+    },
     "chaos_refresh": {
       "model": "gemma-4-31b-it",
       "provider": "gemini",
@@ -113,14 +124,18 @@
       "action": "block"
     }
   },
+  "behavioral_sequences": {
+    "enabled": true,
+    "window_size": 50
+  },
   "context_drift": {
     "enabled": true,
     "coherence_threshold": 0.4,
     "check_interval_turns": 1,
     "fingerprint_window": 10,
     "temporal_decay_enabled": true,
-    "temporal_decay_per_minute": 0.05,
-    "temporal_decay_grace_minutes": 0.01,
+    "temporal_decay_per_minute": 10.0,
+    "temporal_decay_grace_minutes": 0.05,
     "adaptive_baseline_enabled": true,
     "adaptive_baseline_window": 3,
     "adaptive_baseline_sensitivity": 2.0,

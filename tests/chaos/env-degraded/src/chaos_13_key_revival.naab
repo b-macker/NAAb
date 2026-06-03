@@ -1,0 +1,69 @@
+// Chaos Test 13: Key Revival After Cooldown
+// chaos_refresh has key_retry_after_seconds=2
+// api_key_env: ["CHAOS_BOGUS1", "CHAOS_VALID"]
+// First send: BOGUS1 gets 401 → marked dead, VALID succeeds
+// Wait 3s (past 2s cooldown), send again: BOGUS1 revived and retried
+
+use agent
+use time
+
+main {
+    let h = agent.create("chaos_refresh")
+
+    // First send — BOGUS1 should get 401, marked dead, VALID may succeed
+    let send1_ok = false
+    try {
+        let resp1 = agent.send(h, "first")
+        send1_ok = true
+    } catch (e) {
+        // API might fail entirely, that's OK for this test
+        print("chaos13_send1_note: failed (API)")
+    }
+    print("chaos13_send1_attempted: true")
+
+    // Key health after first send
+    let kh1 = agent.key_health("chaos_refresh")
+    let kh1_dead = len(kh1.get("dead") ?? [])
+    let kh1_available = kh1.get("available") ?? 0
+    print("chaos13_kh1: dead=" + string(kh1_dead) + " available=" + string(kh1_available))
+    print("chaos13_kh1_has_info: " + string(kh1_available > 0))
+
+    // Wait past cooldown (key_retry_after_seconds=2, sleep 3)
+    time.sleep(3)
+
+    // After cooldown, check key health — dead keys should be revived
+    let kh2 = agent.key_health("chaos_refresh")
+    let kh2_dead = len(kh2.get("dead") ?? [])
+    print("chaos13_kh2: dead=" + string(kh2_dead))
+
+    // Dead count should decrease after cooldown (revived keys removed from dead set)
+    let revival_visible = kh2_dead < kh1_dead
+    // If no keys died (API returned non-401), revival isn't testable
+    let revival_na = kh1_dead == 0
+    print("chaos13_revival_visible: " + string(revival_visible))
+    print("chaos13_revival_na: " + string(revival_na))
+
+    // Second send — should succeed (revived + valid keys available)
+    let send2_ok = false
+    let send2_attempts = 0
+    try {
+        let resp2 = agent.send(h, "second")
+        send2_ok = true
+        let trace2 = resp2.get("trace")
+        if trace2 != null { send2_attempts = trace2.get("attempts") ?? 0 }
+    } catch (e) {
+        print("chaos13_send2_note: " + string(e))
+    }
+    print("chaos13_send2_ok: " + string(send2_ok))
+    print("chaos13_send2_attempts: " + string(send2_attempts))
+
+    // If revival happened, second send should retry revived key (attempts > 1)
+    // Only meaningful if keys actually died in send1
+    if !revival_na && send2_ok {
+        print("chaos13_revival_retried: " + string(send2_attempts > 1))
+    } else {
+        print("chaos13_revival_retried: na")
+    }
+
+    print("chaos13_completed: true")
+}
