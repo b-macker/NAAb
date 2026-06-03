@@ -1,0 +1,51 @@
+// Gorilla Test: Handle Anti-Forge Advanced Vectors
+// Tests nonce uniqueness, cross-handle nonce swap, nonce mutation, empty nonce
+// Covers bypass paths NOT tested by chaos_09
+
+use agent
+
+main {
+    // Create two handles
+    let h1 = agent.create("basic")
+    let h2 = agent.create("basic")
+
+    let nonce1 = h1.get("__nonce")
+    let nonce2 = h2.get("__nonce")
+
+    // A1: Each handle gets a unique nonce
+    print("cg01_nonce_unique: " + string(nonce1 != nonce2))
+
+    // A2: Swap nonce — put h2's nonce on h1's ID
+    let forged_swap = {"__agent_handle": true, "id": h1.get("id"), "config_name": h1.get("config_name"), "__nonce": nonce2}
+    try {
+        agent.send(forged_swap, "test")
+        print("cg01_swap_blocked: false")
+    } catch (e) {
+        let err = string(e)
+        print("cg01_swap_blocked: true")
+        // A5: Error doesn't leak HMAC/secret/nonce internals
+        let leaks = err.contains("HMAC") || err.contains("hmac") || err.contains("secret") || err.contains("nonce") || err.contains("__nonce") || err.contains("process_secret")
+        print("cg01_swap_leaks_internals: " + string(leaks))
+    }
+
+    // A3: Mutated nonce — append char to real nonce
+    let mutated = nonce1 + "X"
+    let forged_mutate = {"__agent_handle": true, "id": h1.get("id"), "config_name": h1.get("config_name"), "__nonce": mutated}
+    try {
+        agent.send(forged_mutate, "test")
+        print("cg01_mutate_blocked: false")
+    } catch (e) {
+        print("cg01_mutate_blocked: true")
+    }
+
+    // A4: Empty string nonce
+    let forged_empty = {"__agent_handle": true, "id": h1.get("id"), "config_name": h1.get("config_name"), "__nonce": ""}
+    try {
+        agent.send(forged_empty, "test")
+        print("cg01_empty_blocked: false")
+    } catch (e) {
+        print("cg01_empty_blocked: true")
+    }
+
+    print("cg01_completed: true")
+}

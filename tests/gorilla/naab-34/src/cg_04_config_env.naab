@@ -1,0 +1,29 @@
+// Gorilla Test: Config Acceptance + Environment Fields
+// Verifies all new config fields parse without warnings
+// Verifies environment dict includes continuous governance state
+
+use agent
+
+main {
+    // A12/A13: Config loaded successfully (reaching here = no crash)
+    print("cg04_config_loaded: true")
+
+    // A14: Agent with network_allowed=false created successfully
+    let h = agent.create("send_only")
+    print("cg04_net_restricted_created: true")
+
+    // A15/A16: Environment has challenge counters
+    let env = agent.environment(h)
+    let state = env.get("state")
+    if state != null {
+        let has_passed = state.get("challenges_passed") != null
+        let has_failed = state.get("challenges_failed") != null
+        print("cg04_has_challenges_passed: " + string(has_passed))
+        print("cg04_has_challenges_failed: " + string(has_failed))
+    } else {
+        print("cg04_has_challenges_passed: false")
+        print("cg04_has_challenges_failed: false")
+    }
+
+    print("cg04_completed: true")
+}

@@ -1,0 +1,41 @@
+// Gorilla Test: Action Matrix — Blocked Actions
+// Agent "no_send" has allowed_actions=["FS_READ", "NET_CONNECT"] — no AGENT_SEND
+// Verifies AGENT_SEND is blocked and error doesn't leak the action list
+
+use agent
+
+main {
+    // A6: Agent without AGENT_SEND created successfully
+    let h = agent.create("no_send")
+    print("cg02_created: true")
+
+    // A7: Send to agent without AGENT_SEND should be blocked
+    let blocked = false
+    let error_msg = ""
+    try {
+        let resp = agent.send(h, "test message")
+        print("cg02_send_blocked: false")
+    } catch (e) {
+        error_msg = string(e)
+        blocked = true
+        print("cg02_send_blocked: true")
+    }
+
+    // A8: Block error mentions action matrix restriction specifically
+    if blocked {
+        let mentions = error_msg.contains("action matrix") || error_msg.contains("Action matrix") || error_msg.contains("AGENT_SEND") || error_msg.contains("allowed_actions")
+        print("cg02_error_mentions_restriction: " + string(mentions))
+    } else {
+        print("cg02_error_mentions_restriction: false")
+    }
+
+    // A9: Block error doesn't leak the actual allowed list values
+    if blocked {
+        let leaks_list = error_msg.contains("FS_READ") || error_msg.contains("NET_CONNECT")
+        print("cg02_error_leaks_actions: " + string(leaks_list))
+    } else {
+        print("cg02_error_leaks_actions: true")
+    }
+
+    print("cg02_completed: true")
+}

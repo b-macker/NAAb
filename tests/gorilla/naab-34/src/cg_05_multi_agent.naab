@@ -1,0 +1,43 @@
+// Gorilla Test: Multi-Agent Isolation
+// Verifies restricted and unrestricted agents coexist independently
+// Restricted agent blocked, unrestricted agent not blocked by matrix
+
+use agent
+
+main {
+    // A17: Both restricted and unrestricted agents created
+    let h_restricted = agent.create("no_send")
+    let h_unrestricted = agent.create("full_access")
+    print("cg05_both_created: true")
+
+    // A18: Restricted agent send blocked (no AGENT_SEND in matrix)
+    let restricted_blocked = false
+    try {
+        agent.send(h_restricted, "test")
+    } catch (e) {
+        let err = string(e)
+        if err.contains("action matrix") || err.contains("AGENT_SEND") || err.contains("permitted") {
+            restricted_blocked = true
+        }
+    }
+    print("cg05_restricted_blocked: " + string(restricted_blocked))
+
+    // A19: Unrestricted agent NOT blocked by action matrix
+    let unrestricted_matrix_blocked = false
+    try {
+        agent.send(h_unrestricted, "test")
+    } catch (e) {
+        let err = string(e)
+        if err.contains("action matrix") || err.contains("Action matrix") || err.contains("allowed_actions") {
+            unrestricted_matrix_blocked = true
+        }
+    }
+    print("cg05_unrestricted_matrix_blocked: " + string(unrestricted_matrix_blocked))
+
+    // A20: Key health available for multi-key agent
+    let health = agent.key_health("multi_key")
+    let has_available = health.get("available") != null
+    print("cg05_key_health_available: " + string(has_available))
+
+    print("cg05_completed: true")
+}

@@ -1,0 +1,38 @@
+// Gorilla Test: Action Matrix — Allowed Actions
+// Tests that AGENT_SEND passes when in allowed_actions
+// Tests that empty allowed_actions means all actions allowed
+
+use agent
+
+main {
+    // A10: Agent WITH AGENT_SEND in matrix — send NOT blocked by matrix
+    // (may fail at API level since key may be invalid, but
+    //  the action matrix check happens before the API call)
+    let h1 = agent.create("send_only")
+    let matrix_blocked = false
+    try {
+        let resp = agent.send(h1, "test message")
+    } catch (e) {
+        let err = string(e)
+        // Check for action matrix error specifically (not "configuration" which contains "action")
+        if err.contains("action matrix") || err.contains("Action matrix") || err.contains("allowed_actions") {
+            matrix_blocked = true
+        }
+    }
+    print("cg03_send_only_matrix_blocked: " + string(matrix_blocked))
+
+    // A11: Agent with empty allowed_actions — all actions allowed
+    let h2 = agent.create("full_access")
+    let full_matrix_blocked = false
+    try {
+        let resp2 = agent.send(h2, "test message")
+    } catch (e) {
+        let err2 = string(e)
+        if err2.contains("action matrix") || err2.contains("Action matrix") || err2.contains("allowed_actions") {
+            full_matrix_blocked = true
+        }
+    }
+    print("cg03_full_access_matrix_blocked: " + string(full_matrix_blocked))
+
+    print("cg03_completed: true")
+}

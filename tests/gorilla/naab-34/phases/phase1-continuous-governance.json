@@ -1,0 +1,111 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "languages": {
+    "allowed": ["python"],
+    "require_explicit": false
+  },
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "write" },
+    "shell": { "enabled": false }
+  },
+  "context_drift": {
+    "enabled": true,
+    "level": "advisory",
+    "coherence_threshold": 0.5,
+    "check_interval_turns": 1,
+    "temporal_decay_enabled": true,
+    "temporal_decay_per_minute": 0.05,
+    "temporal_decay_grace_minutes": 0.5,
+    "adaptive_baseline_enabled": true,
+    "adaptive_baseline_window": 3,
+    "adaptive_baseline_sensitivity": 2.0,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true
+    }
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "step_up_enabled": true,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Restate your current objective in one sentence.",
+    "step_up_min_words": 3,
+    "step_up_cooldown_turns": 2,
+    "step_up_keyword_threshold": 0.2
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "window_size": 50
+  },
+  "exposure_tracking": {
+    "enabled": true,
+    "max_autonomous_actions": 50,
+    "max_unique_agents": 10
+  },
+  "agents": {
+    "basic": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GK5",
+      "max_tokens": 256,
+      "system_prompt": "You are a test agent.",
+      "max_turns": 10,
+      "max_total_tokens": 5000
+    },
+    "no_send": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GK5",
+      "max_tokens": 256,
+      "system_prompt": "You are a restricted agent without send permission.",
+      "max_turns": 10,
+      "allowed_actions": ["FS_READ", "NET_CONNECT"]
+    },
+    "send_only": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GK5",
+      "max_tokens": 256,
+      "system_prompt": "You are a send-only agent.",
+      "max_turns": 10,
+      "network_allowed": false,
+      "allowed_actions": ["AGENT_SEND", "FS_READ"]
+    },
+    "full_access": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": "GK5",
+      "max_tokens": 256,
+      "system_prompt": "You are a full access agent.",
+      "max_turns": 10,
+      "allowed_actions": []
+    },
+    "multi_key": {
+      "provider": "gemini",
+      "model": "gemma-3-4b-it",
+      "api_key_env": ["NAAB34_BOGUS", "GK5"],
+      "max_tokens": 256,
+      "system_prompt": "You are a multi-key test agent.",
+      "max_turns": 10,
+      "retry": {
+        "max_attempts": 2,
+        "backoff_ms": 100,
+        "key_retry_after_seconds": 2
+      }
+    }
+  },
+  "telemetry": {
+    "enabled": true,
+    "output_file": "telemetry.jsonl"
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  }
+}
