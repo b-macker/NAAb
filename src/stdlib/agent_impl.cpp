@@ -81,6 +81,10 @@ struct AgentTracker {
     int last_challenge_turn = -100;  // step-up challenge cooldown tracking
     int challenges_passed = 0;
     int challenges_failed = 0;
+    // Tool execution counters (Phase 4 — L5 telemetry)
+    int tool_calls_total = 0;      // cumulative tool invocations across all sends
+    int tool_calls_blocked = 0;    // cumulative blocked tool calls
+    int64_t tool_total_latency_ms = 0; // cumulative tool execution time
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -99,6 +103,55 @@ struct DispatchCounters {
     std::mutex stop_reason_mutex;
 };
 static DispatchCounters s_dispatch;
+
+// Tool registration — script-side allowlist for agent tool execution
+struct ToolRegistration {
+    std::string name;
+    NaabVal function;           // NaabVal holding the FunctionValue
+    std::string description;    // from schema
+    json input_schema;          // JSON Schema for parameters
+};
+static std::mutex s_tools_mutex;
+static std::unordered_map<std::string, ToolRegistration> s_registered_tools;
+
+// Thread-local tool execution context
+static thread_local const governance::AgentConfig* t_tool_agent_context = nullptr;
+static thread_local int t_in_tool_execution_for_handle = -1;
+
+// RAII guard for scoped tool agent context
+struct ScopedToolContext {
+    const governance::AgentConfig* previous;
+    ScopedToolContext(const governance::AgentConfig* config)
+        : previous(t_tool_agent_context) { t_tool_agent_context = config; }
+    ~ScopedToolContext() { t_tool_agent_context = previous; }
+};
+
+// Validate tool name: alphanumeric + underscore, reasonable length
+static bool isValidToolName(const std::string& name) {
+    if (name.empty() || name.size() > 128) return false;
+    for (char c : name) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') return false;
+    }
+    if (std::isdigit(static_cast<unsigned char>(name[0]))) return false;
+    return true;
+}
+
+// Builtin names that cannot be used as tool names
+static bool isReservedToolName(const std::string& name) {
+    static const std::unordered_set<std::string> reserved = {
+        "print", "len", "type", "typeof", "int", "float", "string", "bool",
+        "range", "null", "true", "false", "main", "return", "if", "else",
+        "for", "while", "break", "continue", "fn", "let", "const", "use",
+        "import", "export", "struct", "enum", "match", "try", "catch", "throw",
+        "new", "in", "config"
+    };
+    return reserved.count(name) > 0;
+}
+
+// Get current tool agent context (for stdlib functions to check per-agent restrictions)
+const governance::AgentConfig* getToolAgentContext() {
+    return t_tool_agent_context;
+}
 
 // Check if a key is dead (with optional cooldown-based revival).
 // Caller must hold s_dispatch.dead_keys_mutex.
@@ -244,6 +297,24 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
                 actions.push_back(NaabVal::makeString(a));
             permissions["allowed_actions"] = NaabVal::makeList(std::move(actions));
         }
+        // Tool execution permissions
+        permissions["tools_enabled"] = NaabVal::makeBool(config->tools_enabled);
+        if (config->tools_enabled) {
+            // Count registered tools that match config allowlist
+            int registered_count = 0;
+            std::vector<NaabVal> tool_names;
+            {
+                std::lock_guard<std::mutex> tlock(s_tools_mutex);
+                for (const auto& t : config->tools) {
+                    if (s_registered_tools.count(t)) {
+                        registered_count++;
+                        tool_names.push_back(NaabVal::makeString(t));
+                    }
+                }
+            }
+            permissions["tools_registered"] = NaabVal::makeInt(registered_count);
+            permissions["tools_available"] = NaabVal::makeList(std::move(tool_names));
+        }
         env["permissions"] = NaabVal::makeDict(std::move(permissions));
     }
 
@@ -268,6 +339,12 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             }
             state["challenges_passed"] = NaabVal::makeInt(t.challenges_passed);
             state["challenges_failed"] = NaabVal::makeInt(t.challenges_failed);
+            // Tool execution state
+            if (t.tool_calls_total > 0 || (config && config->tools_enabled)) {
+                state["tool_calls_total"] = NaabVal::makeInt(t.tool_calls_total);
+                state["tool_calls_blocked"] = NaabVal::makeInt(t.tool_calls_blocked);
+                state["tool_total_latency_ms"] = NaabVal::makeInt(static_cast<int>(t.tool_total_latency_ms));
+            }
         }
     }
     // s_agent_mutex released before acquiring dead_keys_mutex (lock ordering)
@@ -360,6 +437,120 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
 
     env["state"] = NaabVal::makeDict(std::move(state));
     return NaabVal::makeDict(std::move(env));
+}
+
+// ============================================================================
+// agent.register_tool(name, function, schema) — register NAAb function as LLM tool
+// ============================================================================
+
+static NaabVal agentRegisterTool(std::vector<NaabVal>& args) {
+    if (args.size() < 3 || !args[0].isString()) {
+        throw std::runtime_error(
+            "Agent error: agent.register_tool requires (name, function, schema)\n\n"
+            "  Help:\n"
+            "  - name: string name for the tool\n"
+            "  - function: the NAAb function to call\n"
+            "  - schema: dict with 'description' and 'parameters' keys\n\n"
+            "  Example:\n"
+            "    agent.register_tool(\"search\", search_fn, {\n"
+            "      \"description\": \"Search the database\",\n"
+            "      \"parameters\": {\"query\": {\"type\": \"string\"}}\n"
+            "    })\n");
+    }
+
+    std::string name = args[0].asString();
+
+    // Validate tool name (Gap I)
+    if (!isValidToolName(name)) {
+        throw std::runtime_error(
+            "Agent error: Invalid tool name\n\n"
+            "  Help:\n"
+            "  - Tool names must be 1-128 characters\n"
+            "  - Only letters, digits, and underscores allowed\n"
+            "  - Must start with a letter or underscore\n");
+    }
+    if (isReservedToolName(name)) {
+        throw std::runtime_error(
+            "Agent error: Tool name conflicts with a reserved keyword\n\n"
+            "  Help:\n"
+            "  - Choose a different name that doesn't conflict with NAAb builtins\n");
+    }
+
+    // Validate function argument
+    if (!args[1].isFunction()) {
+        throw std::runtime_error(
+            "Agent error: Second argument to register_tool must be a function\n\n"
+            "  Help:\n"
+            "  - Pass a function reference, not a string or other value\n");
+    }
+
+    // Parse schema from dict
+    std::string description;
+    json input_schema;
+
+    if (args[2].isDict()) {
+        auto& schema_dict = args[2].asDict();
+        auto desc_it = schema_dict.find("description");
+        if (desc_it != schema_dict.end() && desc_it->second.isString()) {
+            description = desc_it->second.asString();
+        }
+        auto params_it = schema_dict.find("parameters");
+        if (params_it != schema_dict.end() && params_it->second.isDict()) {
+            // Convert NaabVal dict to JSON schema
+            auto& params = params_it->second.asDict();
+            input_schema["type"] = "object";
+            json properties = json::object();
+            for (auto& [key, val] : params) {
+                if (val.isDict()) {
+                    auto& pdict = val.asDict();
+                    json prop;
+                    auto type_it = pdict.find("type");
+                    if (type_it != pdict.end() && type_it->second.isString())
+                        prop["type"] = type_it->second.asString();
+                    auto pdesc_it = pdict.find("description");
+                    if (pdesc_it != pdict.end() && pdesc_it->second.isString())
+                        prop["description"] = pdesc_it->second.asString();
+                    properties[key] = prop;
+                }
+            }
+            input_schema["properties"] = properties;
+        }
+    }
+
+    if (description.empty()) {
+        throw std::runtime_error(
+            "Agent error: Tool schema must include a 'description' field\n\n"
+            "  Help:\n"
+            "  - Provide a description so the LLM knows when to use this tool\n");
+    }
+
+    // Register (or warn on re-registration)
+    {
+        std::lock_guard<std::mutex> lock(s_tools_mutex);
+        auto it = s_registered_tools.find(name);
+        if (it != s_registered_tools.end()) {
+            // Re-registration: warn but allow (existing agents keep their snapshots)
+            auto* gov_engine = governance::GovernanceEngine::getCurrent();
+            if (gov_engine) {
+                gov_engine->emitEvent(governance::RuntimeEventType::AGENT_SEND,
+                    "register_tool_reregistration('" + name + "')", "", 0);
+            }
+        }
+        s_registered_tools[name] = ToolRegistration{
+            name, args[1], description, input_schema
+        };
+    }
+
+    // Emit telemetry
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->writeAgentTelemetry("AGENT_TOOL_REGISTERED", {
+            {"tool_name", name},
+            {"description", description}
+        });
+    }
+
+    return NaabVal::makeBool(true);
 }
 
 // ============================================================================
@@ -1092,17 +1283,566 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int resp_input_tokens = agent_resp.input_tokens;
     int resp_output_tokens = agent_resp.output_tokens;
 
-    // ── Gap 1: Block tool_use responses (no tool execution loop yet) ──
-    if (stop_reason == "tool_use" || stop_reason == "FUNCTION_CALL" ||
-        stop_reason == "tool_calls") {
+    // ── Governed Tool Execution Loop ──
+    // When the LLM returns tool_use/FUNCTION_CALL, execute registered tool functions
+    // and send results back. Every step passes through 7 defense layers.
+    int tool_calls_this_send = 0;
+    int tool_blocked_this_send = 0;
+    int tool_loop_turns = 0;
+    int tool_total_result_chars = 0;
+    std::vector<NaabVal> tool_results_summary;  // for response dict
+    std::string tool_loop_exit_reason = "text_response";
+
+    // Check if this is a tool_use response AND tools are enabled
+    bool is_tool_response = (stop_reason == "tool_use" || stop_reason == "FUNCTION_CALL" ||
+                             stop_reason == "tool_calls" || !agent_resp.tool_calls.empty());
+
+    if (is_tool_response && config && !config->tools_enabled) {
+        // Tools not enabled — hard block as before
+        throw std::runtime_error(fmt::format(
+            "Agent error: Agent '{}' returned a tool_use response but tools are not enabled\n\n"
+            "  Help:\n"
+            "  - Tool execution must be enabled in the agent configuration\n"
+            "  - Register tool functions before sending messages\n",
+            config_name));
+    }
+
+    if (is_tool_response && config && config->tools_enabled) {
+        // Layer 1D: Check TOOL_EXEC in action matrix
+        if (!config->allowed_actions.empty()) {
+            bool tool_exec_allowed = false;
+            for (const auto& a : config->allowed_actions) {
+                if (a == "TOOL_EXEC") { tool_exec_allowed = true; break; }
+            }
+            if (!tool_exec_allowed) {
+                if (gov_engine) {
+                    gov_engine->emitEvent(governance::RuntimeEventType::TOOL_BLOCKED,
+                        "tool_exec_not_in_action_matrix(" + config_name + ")", "", 0);
+                }
+                throw std::runtime_error(fmt::format(
+                    "Agent error: Agent '{}' attempted tool execution but TOOL_EXEC is not in allowed_actions\n\n"
+                    "  Help:\n"
+                    "  - Add TOOL_EXEC to the agent's allowed_actions in govern.json\n",
+                    config_name));
+            }
+        }
+
+        // Get the tool registration snapshot for this handle
+        std::unordered_map<std::string, ToolRegistration> tool_snapshot;
+        {
+            std::lock_guard<std::mutex> lock(s_tools_mutex);
+            // Only include tools that are in BOTH the govern.json allowlist AND registered
+            for (const auto& tool_name : config->tools) {
+                auto it = s_registered_tools.find(tool_name);
+                if (it != s_registered_tools.end()) {
+                    tool_snapshot[tool_name] = it->second;
+                }
+            }
+        }
+
+        // Build tool definitions for the provider
+        std::vector<runtime::ToolDefinition> tool_defs;
+        for (const auto& [name, reg] : tool_snapshot) {
+            tool_defs.push_back({name, reg.description, reg.input_schema.dump()});
+        }
+
+        // Emit TOOL_LOOP_START telemetry
+        if (gov_engine && gov_engine->isActive()) {
+            gov_engine->writeAgentTelemetry("AGENT_TOOL_LOOP_START", {
+                {"handle_id", std::to_string(handle_id)},
+                {"tool_count", std::to_string(tool_snapshot.size())}
+            });
+        }
+
+        // ── TOOL LOOP ──
+        while (is_tool_response && tool_loop_turns < config->max_tool_loop_turns) {
+            tool_loop_turns++;
+
+            // E1: Empty tool_calls with tool_use stop_reason
+            if (agent_resp.tool_calls.empty()) {
+                tool_loop_exit_reason = "empty_tool_calls";
+                break;
+            }
+
+            // Process each tool call in this response
+            // Build Anthropic-style content array for assistant turn
+            json assistant_content = json::array();
+            // Preserve any text content alongside tool calls (Gap N)
+            if (!content.empty()) {
+                assistant_content.push_back({{"type", "text"}, {"text", content}});
+            }
+
+            json tool_result_blocks = json::array();
+
+            for (const auto& tc : agent_resp.tool_calls) {
+                // Budget check: max_tool_calls_per_turn
+                if (tool_calls_this_send >= config->max_tool_calls_per_turn) {
+                    tool_loop_exit_reason = "max_tool_calls_per_turn";
+                    break;
+                }
+
+                // Step 0: Tool name validation (Gap I)
+                if (!isValidToolName(tc.name)) {
+                    if (gov_engine) {
+                        gov_engine->emitEvent(governance::RuntimeEventType::TOOL_BLOCKED,
+                            "tool_name_invalid", "", 0);
+                    }
+                    json error_result;
+                    error_result["type"] = "tool_result";
+                    error_result["tool_use_id"] = tc.id;
+                    error_result["content"] = "Error: invalid tool name";
+                    error_result["is_error"] = true;
+                    tool_result_blocks.push_back(error_result);
+                    tool_calls_this_send++;
+                    tool_blocked_this_send++;
+                    continue;
+                }
+
+                // Step 1: Dual-gate allowlist check
+                auto snap_it = tool_snapshot.find(tc.name);
+                if (snap_it == tool_snapshot.end()) {
+                    // Tool not in allowlist or not registered
+                    if (gov_engine) {
+                        gov_engine->emitEvent(governance::RuntimeEventType::TOOL_BLOCKED,
+                            "tool_not_allowed(" + tc.name + ")", "", 0);
+                        gov_engine->writeAgentTelemetry("AGENT_TOOL_BLOCKED", {
+                            {"tool_name", tc.name},
+                            {"reason", "not_in_allowlist"},
+                            {"handle_id", std::to_string(handle_id)}
+                        });
+                    }
+                    json error_result;
+                    error_result["type"] = "tool_result";
+                    error_result["tool_use_id"] = tc.id;
+                    error_result["content"] = "Error: tool not available";
+                    error_result["is_error"] = true;
+                    tool_result_blocks.push_back(error_result);
+                    tool_calls_this_send++;
+                    tool_blocked_this_send++;
+
+                    // Track for response dict
+                    std::unordered_map<std::string, NaabVal> ts;
+                    ts["name"] = NaabVal::makeString(tc.name);
+                    ts["success"] = NaabVal::makeBool(false);
+                    ts["error"] = NaabVal::makeString("not_in_allowlist");
+                    tool_results_summary.push_back(NaabVal::makeDict(std::move(ts)));
+                    continue;
+                }
+
+                // Step 2: Parse arguments with depth guard (Gap J)
+                json tool_args;
+                try {
+                    tool_args = json::parse(tc.arguments);
+                } catch (const std::exception&) {
+                    if (gov_engine) {
+                        gov_engine->emitEvent(governance::RuntimeEventType::TOOL_ERROR,
+                            "tool_args_parse_failed(" + tc.name + ")", "", 0);
+                    }
+                    json error_result;
+                    error_result["type"] = "tool_result";
+                    error_result["tool_use_id"] = tc.id;
+                    error_result["content"] = "Error: invalid arguments";
+                    error_result["is_error"] = true;
+                    tool_result_blocks.push_back(error_result);
+                    tool_calls_this_send++;
+                    tool_blocked_this_send++;
+                    continue;
+                }
+
+                // Step 3: Scan arguments for secrets/PII (Gap B)
+                if (gov_engine && gov_engine->isActive()) {
+                    std::string secret_err = gov_engine->checkSecrets(tc.arguments, 0);
+                    if (!secret_err.empty()) {
+                        gov_engine->emitEvent(governance::RuntimeEventType::TOOL_BLOCKED,
+                            "tool_args_secrets(" + tc.name + ")", "", 0);
+                        json error_result;
+                        error_result["type"] = "tool_result";
+                        error_result["tool_use_id"] = tc.id;
+                        error_result["content"] = "Error: arguments contain potential secrets";
+                        error_result["is_error"] = true;
+                        tool_result_blocks.push_back(error_result);
+                        tool_calls_this_send++;
+                        tool_blocked_this_send++;
+                        continue;
+                    }
+                }
+
+                // Emit TOOL_CALL BSD event (Gap F)
+                if (gov_engine) {
+                    gov_engine->emitEvent(governance::RuntimeEventType::TOOL_CALL,
+                        "tool_call('" + tc.name + "')", "", 0);
+                    gov_engine->writeAgentTelemetry("AGENT_TOOL_CALL", {
+                        {"tool_name", tc.name},
+                        {"handle_id", std::to_string(handle_id)},
+                        {"tool_loop_turn", std::to_string(tool_loop_turns)},
+                        {"args_size", std::to_string(tc.arguments.size())}
+                    });
+                }
+
+                // Step 4-5: Execute tool function under scoped agent restrictions
+                auto tool_start = std::chrono::steady_clock::now();
+                std::string tool_result_str;
+                bool tool_success = true;
+
+                // Convert JSON args to NaabVal vector
+                std::vector<NaabVal> naab_args;
+                if (tool_args.is_object()) {
+                    // Pass properties as positional args in schema order
+                    if (snap_it->second.input_schema.contains("properties")) {
+                        for (auto& [key, schema] : snap_it->second.input_schema["properties"].items()) {
+                            if (tool_args.contains(key)) {
+                                auto& val = tool_args[key];
+                                if (val.is_string()) naab_args.push_back(NaabVal::makeString(val.get<std::string>()));
+                                else if (val.is_number_integer()) naab_args.push_back(NaabVal::makeInt(val.get<int>()));
+                                else if (val.is_number_float()) naab_args.push_back(NaabVal::makeDouble(val.get<double>()));
+                                else if (val.is_boolean()) naab_args.push_back(NaabVal::makeBool(val.get<bool>()));
+                                else if (val.is_null()) naab_args.push_back(NaabVal::makeNull());
+                                else naab_args.push_back(NaabVal::makeString(val.dump()));
+                            } else {
+                                naab_args.push_back(NaabVal::makeNull());
+                            }
+                        }
+                    }
+                }
+
+                {
+                    // Gap A: Scoped agent context — per-agent restrictions apply during tool execution
+                    ScopedToolContext tool_ctx(config);
+
+                    // Gap O: Guard against recursive agent.send() on same handle
+                    int prev_handle = t_in_tool_execution_for_handle;
+                    t_in_tool_execution_for_handle = handle_id;
+
+                    try {
+                        // Call tool function via the VM callback
+                        NaabVal result_val;
+                        if (gov_engine && gov_engine->hasVMCallbacks()) {
+                            result_val = gov_engine->callVMFunction(
+                                snap_it->second.function, naab_args);
+                        } else {
+                            throw std::runtime_error("Agent error: no VM callback for tool execution");
+                        }
+
+                        // Step 6: Validate return type (E4: reject function/closure)
+                        if (result_val.isFunction()) {
+                            tool_result_str = "Error: tool returned a function (non-serializable)";
+                            tool_success = false;
+                        } else if (result_val.isNull()) {
+                            tool_result_str = "null";
+                        } else if (result_val.isString()) {
+                            tool_result_str = result_val.asString();
+                        } else if (result_val.isInt()) {
+                            tool_result_str = std::to_string(result_val.asInt());
+                        } else if (result_val.isBool()) {
+                            tool_result_str = result_val.asBool() ? "true" : "false";
+                        } else if (result_val.isDouble()) {
+                            tool_result_str = std::to_string(result_val.asDouble());
+                        } else {
+                            // Dict/list — serialize to JSON
+                            // Use a simple recursive serialization
+                            try {
+                                std::function<json(const NaabVal&)> toJson;
+                                toJson = [&toJson](const NaabVal& v) -> json {
+                                    if (v.isNull()) return nullptr;
+                                    if (v.isInt()) return v.asInt();
+                                    if (v.isDouble()) return v.asDouble();
+                                    if (v.isBool()) return v.asBool();
+                                    if (v.isString()) return v.asString();
+                                    if (v.isList()) {
+                                        json arr = json::array();
+                                        for (const auto& item : v.asListConst())
+                                            arr.push_back(toJson(item));
+                                        return arr;
+                                    }
+                                    if (v.isDict()) {
+                                        json obj = json::object();
+                                        for (const auto& [k, val] : v.asDictConst())
+                                            obj[k] = toJson(val);
+                                        return obj;
+                                    }
+                                    return "<unsupported>";
+                                };
+                                tool_result_str = toJson(result_val).dump();
+                            } catch (...) {
+                                tool_result_str = "Error: failed to serialize tool result";
+                                tool_success = false;
+                            }
+                        }
+                    } catch (const std::exception& e) {
+                        // Step 9: Exception sanitization (Gap M)
+                        std::string err_msg = e.what();
+                        // Sanitize: strip file paths
+                        std::regex path_re("/[^ \\n]+\\.(cpp|h|naab)");
+                        err_msg = std::regex_replace(err_msg, path_re, "[internal]");
+                        // Truncate
+                        if (err_msg.size() > 256) err_msg = err_msg.substr(0, 256) + "...";
+                        tool_result_str = "Error: " + err_msg;
+                        tool_success = false;
+
+                        // Check if this is a HARD governance block — rethrow
+                        std::string err_full = e.what();
+                        if (err_full.find("[HARD") != std::string::npos) {
+                            t_in_tool_execution_for_handle = prev_handle;
+                            throw;  // Propagate HARD blocks
+                        }
+
+                        if (gov_engine) {
+                            gov_engine->emitEvent(governance::RuntimeEventType::TOOL_ERROR,
+                                "tool_error('" + tc.name + "')", "", 0);
+                        }
+                    }
+
+                    t_in_tool_execution_for_handle = prev_handle;
+                }
+
+                auto tool_end = std::chrono::steady_clock::now();
+                int tool_latency_ms = static_cast<int>(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(tool_end - tool_start).count());
+
+                // Step 7: Truncation (Gap L)
+                bool truncated = false;
+                if (static_cast<int>(tool_result_str.size()) > config->tool_result_max_chars) {
+                    tool_result_str = tool_result_str.substr(0, static_cast<size_t>(config->tool_result_max_chars))
+                        + "\n[truncated]";
+                    truncated = true;
+                }
+                tool_total_result_chars += static_cast<int>(tool_result_str.size());
+                if (tool_total_result_chars > config->tool_result_max_total_chars) {
+                    tool_result_str = "[TRUNCATED: cumulative tool result limit reached]";
+                    truncated = true;
+                }
+
+                // Step 8: Result content scanning (Gap B)
+                bool redacted = false;
+                if (gov_engine && gov_engine->isActive() && tool_success) {
+                    std::string secret_err = gov_engine->checkSecrets(tool_result_str, 0);
+                    if (!secret_err.empty()) {
+                        tool_result_str = "[REDACTED: tool result contained potential secrets]";
+                        redacted = true;
+                        gov_engine->writeAgentTelemetry("AGENT_TOOL_SCAN_HIT", {
+                            {"tool_name", tc.name},
+                            {"scan_type", "secrets"},
+                            {"direction", "result"},
+                            {"action", "redact"}
+                        });
+                    }
+                    std::string pii_err = gov_engine->checkPii(tool_result_str, 0);
+                    if (!pii_err.empty()) {
+                        tool_result_str = "[REDACTED: tool result contained potential PII]";
+                        redacted = true;
+                    }
+                }
+
+                // Step 10: Taint marking (Gap E)
+                if (gov_engine && gov_engine->isActive() &&
+                    gov_engine->getRules().taint_tracking.enabled) {
+                    gov_engine->setLastReturnTainted(true, "tool_result:" + tc.name);
+                }
+
+                // Step 11: BSD event (Gap F)
+                if (gov_engine) {
+                    gov_engine->emitEvent(governance::RuntimeEventType::TOOL_RESULT,
+                        "tool_result('" + tc.name + "')", "", 0);
+                    gov_engine->writeAgentTelemetry("AGENT_TOOL_RESULT", {
+                        {"tool_name", tc.name},
+                        {"handle_id", std::to_string(handle_id)},
+                        {"success", tool_success ? "true" : "false"},
+                        {"latency_ms", std::to_string(tool_latency_ms)},
+                        {"result_chars", std::to_string(tool_result_str.size())},
+                        {"truncated", truncated ? "true" : "false"},
+                        {"redacted", redacted ? "true" : "false"}
+                    });
+                }
+
+                // Build tool_use content block for assistant message
+                json tool_use_block;
+                tool_use_block["type"] = "tool_use";
+                tool_use_block["id"] = tc.id;
+                tool_use_block["name"] = tc.name;
+                tool_use_block["input"] = tool_args;
+                assistant_content.push_back(tool_use_block);
+
+                // Build tool_result block for user message
+                json result_block;
+                result_block["type"] = "tool_result";
+                result_block["tool_use_id"] = tc.id;
+                result_block["content"] = tool_result_str;
+                if (!tool_success) result_block["is_error"] = true;
+                tool_result_blocks.push_back(result_block);
+
+                tool_calls_this_send++;
+
+                // Track for response dict
+                std::unordered_map<std::string, NaabVal> ts;
+                ts["name"] = NaabVal::makeString(tc.name);
+                ts["success"] = NaabVal::makeBool(tool_success);
+                ts["latency_ms"] = NaabVal::makeInt(tool_latency_ms);
+                tool_results_summary.push_back(NaabVal::makeDict(std::move(ts)));
+
+                // D3: Hard stop check after each tool function
+                if (s_dispatch.hard_stopped.load()) {
+                    tool_loop_exit_reason = "hard_stop";
+                    break;
+                }
+            } // end for each tool_call
+
+            if (tool_loop_exit_reason != "text_response") break;
+
+            // Append assistant (tool_use) message to history
+            json asst_msg;
+            asst_msg["role"] = "assistant";
+            asst_msg["content"] = assistant_content;
+            messages_json.push_back(asst_msg);
+
+            // Append user (tool_result) message to history
+            json user_tool_msg;
+            user_tool_msg["role"] = "user";
+            user_tool_msg["content"] = tool_result_blocks;
+            messages_json.push_back(user_tool_msg);
+
+            // Budget enforcement per round-trip (Gap C) + tracker updates (L5)
+            {
+                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                auto& tracker = s_trackers[handle_id];
+                tracker.turns++;
+                tracker.input_tokens += resp_input_tokens;
+                tracker.output_tokens += resp_output_tokens;
+                if (tracker.turns >= config->max_turns) {
+                    tool_loop_exit_reason = "max_turns";
+                    break;
+                }
+                int total_tokens_used = tracker.input_tokens + tracker.output_tokens;
+                if (total_tokens_used >= config->max_total_tokens) {
+                    tool_loop_exit_reason = "max_tokens";
+                    break;
+                }
+            }
+
+            // Check tool-specific limits
+            if (tool_calls_this_send >= config->max_tool_calls_per_turn) {
+                tool_loop_exit_reason = "max_tool_calls_per_turn";
+                break;
+            }
+            if (s_dispatch.hard_stopped.load()) {
+                tool_loop_exit_reason = "hard_stop";
+                break;
+            }
+
+            // D8: Governance level check before next LLM call
+            if (gov_engine && gov_engine->isActive()) {
+                auto level = gov_engine->getGovernanceLevel();
+                if (level == governance::GovernanceLevel::CRITICAL) {
+                    tool_loop_exit_reason = "governance_critical";
+                    break;
+                }
+            }
+
+            // Reload governance config before next LLM call (S1)
+            if (gov_engine) {
+                gov_engine->reloadIfChanged();
+                config = findAgentConfig(config_name);
+                if (!config) {
+                    throw std::runtime_error(fmt::format(
+                        "Agent error: Agent config '{}' removed during governance reload\n\n"
+                        "  Help:\n"
+                        "  - The governance configuration was reloaded mid-run\n"
+                        "  - The agent config is no longer available\n",
+                        config_name));
+                }
+                // Check if tools were disabled mid-loop
+                if (!config->tools_enabled) {
+                    tool_loop_exit_reason = "tools_disabled";
+                    gov_notices.push_back("Tools disabled during tool loop (governance reload)");
+                    break;
+                }
+            }
+
+            // Make next LLM API call (with tool definitions)
+            messages_str = messages_json.dump();
+
+            // Retry loop for the tool-loop's LLM call (simplified — single attempt)
+            std::string key_env_loop;
+            std::string api_key_loop;
+            {
+                bool found_key = false;
+                for (size_t k = 0; k < keys.size(); k++) {
+                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                    if (isKeyDead(keys[k], config->retry.key_retry_after_seconds)) continue;
+                    api_key_loop = runtime::resolveApiKey(keys[k]);
+                    if (!api_key_loop.empty()) {
+                        key_env_loop = keys[k];
+                        found_key = true;
+                        break;
+                    }
+                }
+                if (!found_key) {
+                    tool_loop_exit_reason = "no_api_keys";
+                    break;
+                }
+            }
+
+            governance::AgentConfig loop_config = *config;
+            loop_config.model = models[0];  // Use primary model for tool loop
+
+            auto loop_result = runtime::callAgentWithTools(
+                loop_config, api_key_loop, messages_str, tool_defs);
+
+            if (!loop_result.response.success) {
+                tool_loop_exit_reason = "api_error";
+                break;
+            }
+
+            // Update response data
+            agent_resp = loop_result.response;
+            content = agent_resp.content;
+            stop_reason = agent_resp.stop_reason;
+            resp_input_tokens = agent_resp.input_tokens;
+            resp_output_tokens = agent_resp.output_tokens;
+
+            // Check if this is still a tool response
+            is_tool_response = (stop_reason == "tool_use" || stop_reason == "FUNCTION_CALL" ||
+                                stop_reason == "tool_calls" || !agent_resp.tool_calls.empty());
+            if (!is_tool_response) {
+                tool_loop_exit_reason = "text_response";
+            }
+        } // end while tool loop
+
+        // Update tracker tool counters (L5)
+        {
+            std::lock_guard<std::mutex> lock(s_agent_mutex);
+            auto& tracker = s_trackers[handle_id];
+            tracker.tool_calls_total += tool_calls_this_send;
+            tracker.tool_calls_blocked += tool_blocked_this_send;
+            // Sum latency from tool_results_summary
+            for (const auto& ts_entry : tool_results_summary) {
+                if (ts_entry.isDict()) {
+                    auto lat_it = ts_entry.asDictConst().find("latency_ms");
+                    if (lat_it != ts_entry.asDictConst().end() && lat_it->second.isInt())
+                        tracker.tool_total_latency_ms += lat_it->second.asInt();
+                }
+            }
+        }
+
+        // Emit TOOL_LOOP_END telemetry
+        if (gov_engine && gov_engine->isActive()) {
+            gov_engine->writeAgentTelemetry("AGENT_TOOL_LOOP_END", {
+                {"handle_id", std::to_string(handle_id)},
+                {"tool_calls_made", std::to_string(tool_calls_this_send)},
+                {"tool_loop_turns", std::to_string(tool_loop_turns)},
+                {"exit_reason", tool_loop_exit_reason}
+            });
+        }
+    } // end if tools_enabled
+
+    // Block tool_use if still unresolved (tools not enabled or tool loop exhausted without text)
+    if ((stop_reason == "tool_use" || stop_reason == "FUNCTION_CALL" ||
+         stop_reason == "tool_calls") && !config->tools_enabled) {
         throw std::runtime_error(fmt::format(
             "Agent error: Agent '{}' returned a tool_use response\n\n"
-            "  Got: stop_reason={}\n\n"
             "  Help:\n"
-            "  - Agent tool execution is not yet supported\n"
-            "  - The agent attempted to call a function instead of responding with text\n"
-            "  - Rephrase your prompt to request a text response\n",
-            config_name, stop_reason));
+            "  - Tool execution must be enabled in the agent configuration\n"
+            "  - Register tool functions before sending messages\n",
+            config_name));
     }
 
     // ── Gap 2: Output content filtering (secrets + PII) ──
@@ -1318,6 +2058,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     trace["handle_id"] = NaabVal::makeInt(handle_id);
     result["trace"] = NaabVal::makeDict(std::move(trace));
 
+    // Tool execution summary (L4)
+    if (tool_calls_this_send > 0) {
+        result["tool_calls_made"] = NaabVal::makeInt(tool_calls_this_send);
+        result["tool_loop_turns"] = NaabVal::makeInt(tool_loop_turns);
+        result["tool_results"] = NaabVal::makeList(std::move(tool_results_summary));
+        result["tool_budget_remaining"] = NaabVal::makeInt(
+            std::max(0, config->max_tool_calls_per_turn - tool_calls_this_send));
+        result["tool_loop_exit_reason"] = NaabVal::makeString(tool_loop_exit_reason);
+    }
+
     // Reality checkpoint: add pressure data if checkpoint fired at ADVISORY
     if (gov_engine && gov_engine->isActive()) {
         auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
@@ -1466,6 +2216,12 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
     result["retries"] = NaabVal::makeInt(tracker.retries);
     result["fallbacks"] = NaabVal::makeInt(tracker.fallbacks);
     result["total_latency_ms"] = NaabVal::makeInt(static_cast<int>(tracker.total_latency_ms));
+    // Tool execution counters (L5)
+    if (tracker.tool_calls_total > 0) {
+        result["tool_calls_total"] = NaabVal::makeInt(tracker.tool_calls_total);
+        result["tool_calls_blocked"] = NaabVal::makeInt(tracker.tool_calls_blocked);
+        result["tool_total_latency_ms"] = NaabVal::makeInt(static_cast<int>(tracker.tool_total_latency_ms));
+    }
 
     return NaabVal::makeDict(std::move(result));
 }
@@ -2105,6 +2861,12 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                                 }
                             }
 
+                            // Tool execution data for provenance (5D)
+                            auto tc_it = resp_dict.find("tool_calls_made");
+                            if (tc_it != resp_dict.end() && tc_it->second.isInt()) {
+                                prov["tool_calls_made"] = tc_it->second;
+                            }
+
                             // Pressure from this stage
                             if (stage_pressure > 0.0) {
                                 prov["pressure"] = NaabVal::makeDouble(stage_pressure);
@@ -2168,7 +2930,8 @@ bool AgentModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "create", "send", "run", "messages", "usage",
         "batch", "fan_out", "pipeline", "check",
-        "key_health", "dispatch_status", "environment"
+        "key_health", "dispatch_status", "environment",
+        "register_tool"
     };
     return functions.count(name) > 0;
 }
@@ -2189,10 +2952,11 @@ NaabVal AgentModule::call(
     if (function_name == "key_health") return agentKeyHealth(args);
     if (function_name == "dispatch_status") return agentDispatchStatus(args);
     if (function_name == "environment") return agentEnvironment(args);
+    if (function_name == "register_tool") return agentRegisterTool(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -2205,7 +2969,8 @@ NaabVal AgentModule::call(
         "  - agent.check(name) — pre-flight: validate config + API key, returns {valid, error}\n"
         "  - agent.key_health(name) — key rotation status: active vs dead keys\n"
         "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n"
-        "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n",
+        "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n"
+        "  - agent.register_tool(name, fn, schema) — register function as LLM-callable tool\n",
         function_name));
 }
 
@@ -2225,6 +2990,15 @@ AgentDispatchStats getAgentDispatchStats() {
         std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
         for (const auto& [key, _] : s_dispatch.dead_keys) {
             stats.dead_keys.push_back(key);
+        }
+    }
+    // Aggregate tool stats from all trackers
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        for (const auto& [_, tracker] : s_trackers) {
+            stats.total_tool_calls += tracker.tool_calls_total;
+            stats.total_tool_calls_blocked += tracker.tool_calls_blocked;
+            stats.total_tool_latency_ms += tracker.tool_total_latency_ms;
         }
     }
     return stats;

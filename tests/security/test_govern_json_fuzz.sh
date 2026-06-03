@@ -383,6 +383,42 @@ else
     echo "  PASS:  F$TOTAL top-level null (exit $rc)"; PASS=$((PASS+1))
 fi
 
+# ── Tool config fuzz cases ──
+
+fuzz_tool() {
+    local desc="$1"
+    local json="$2"
+    TOTAL=$((TOTAL + 1))
+    echo "$json" > "$FUZZ_DIR/govern.json"
+    output=$(cd "$FUZZ_DIR" && timeout 10 "$NAAB" minimal.naab 2>&1); rc=$?
+    if [ $rc -eq 139 ] || [ $rc -eq 134 ] || [ $rc -eq 136 ]; then
+        echo "  CRASH: F$TOTAL $desc (exit $rc)"; CRASH=$((CRASH+1)); FAIL=$((FAIL+1))
+    else
+        echo "  PASS:  F$TOTAL $desc (exit $rc)"; PASS=$((PASS+1))
+    fi
+}
+
+fuzz_tool "tools_enabled: string" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tools_enabled":"yes"}}}'
+fuzz_tool "tools_enabled: null" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tools_enabled":null}}}'
+fuzz_tool "max_tool_calls_per_turn: negative" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","max_tool_calls_per_turn":-5}}}'
+fuzz_tool "max_tool_calls_per_turn: overflow" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","max_tool_calls_per_turn":999999}}}'
+fuzz_tool "max_tool_loop_turns: 0" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","max_tool_loop_turns":0}}}'
+fuzz_tool "tool_result_max_chars: negative" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tool_result_max_chars":-1}}}'
+fuzz_tool "tool_timeout_seconds: 0" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tool_timeout_seconds":0}}}'
+fuzz_tool "tools: string not array" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tools":"not_an_array"}}}'
+fuzz_tool "tools: non-string elements" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tools":[123,null,true]}}}'
+fuzz_tool "tools: oversized name" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tools":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}}}'
+
 # Cleanup
 rm -rf "$FUZZ_DIR"
 

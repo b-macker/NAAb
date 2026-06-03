@@ -287,6 +287,10 @@ struct AgentDispatchStats {
     bool hard_stopped = false;
     std::string stop_reason;
     std::vector<std::string> dead_keys;
+    // Tool execution stats (aggregated across all agents)
+    int total_tool_calls = 0;
+    int total_tool_calls_blocked = 0;
+    int64_t total_tool_latency_ms = 0;
 };
 
 // Returns a snapshot of current run-level dispatch counters

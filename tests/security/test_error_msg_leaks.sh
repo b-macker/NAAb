@@ -35,6 +35,7 @@ SECURITY_FILES=(
     "src/stdlib/process_impl.cpp"
     "src/vm/vm.cpp"
     "src/api/governance_c_api.cpp"
+    "src/stdlib/agent_impl.cpp"
 )
 
 # Patterns that should NEVER appear in string literals within these files
@@ -62,6 +63,11 @@ BANNED_IN_STRINGS=(
     # Enforcement bypass hints
     'soft-mandatory|enforcement level bypass hint in error string'
     'soft.mandatory|enforcement level bypass hint in error string'
+    # Tool execution internals
+    's_registered_tools|internal tool map name leaked in error string'
+    't_tool_agent_context|thread-local name leaked in error string'
+    't_in_tool_execution|thread-local name leaked in error string'
+    'tool_snapshot|internal structure name leaked in error string'
 )
 
 echo "=== Error Message Leak Check ==="

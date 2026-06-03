@@ -9,6 +9,13 @@
 namespace naab {
 namespace runtime {
 
+// Tool call requested by LLM (parsed from tool_use / functionCall responses)
+struct ToolCallInfo {
+    std::string id;        // tool_use block id (Anthropic) or generated id (Gemini)
+    std::string name;      // function name requested by LLM
+    std::string arguments; // JSON string of arguments
+};
+
 // Normalized response from any LLM provider
 struct AgentResponse {
     bool success = false;
@@ -17,6 +24,9 @@ struct AgentResponse {
     int input_tokens = 0;
     int output_tokens = 0;
     std::string error;  // non-empty on failure
+
+    // Tool calls (populated when stop_reason indicates tool use)
+    std::vector<ToolCallInfo> tool_calls;
 
     // Traceability (populated by retry loop in agent_impl, not by provider)
     int http_status = 0;            // last HTTP status code
@@ -58,6 +68,20 @@ ProviderResult callAgentWithStatus(
     const governance::AgentConfig& config,
     const std::string& api_key,
     const std::string& messages_json);
+
+// Tool definition for sending to LLM providers
+struct ToolDefinition {
+    std::string name;
+    std::string description;
+    std::string input_schema_json;  // JSON string of parameter schema
+};
+
+// Multi-turn with tool definitions: sends tool schemas to LLM, parses tool_use responses
+ProviderResult callAgentWithTools(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const std::string& messages_json,
+    const std::vector<ToolDefinition>& tools);
 
 } // namespace runtime
 } // namespace naab

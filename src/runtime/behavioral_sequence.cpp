@@ -117,6 +117,54 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         p.level = EnforcementLevel::ADVISORY;
         default_patterns_.push_back(std::move(p));
     }
+
+    // 8. Tool data exfiltration: tool reads data → network connect
+    {
+        SequencePattern p;
+        p.name = "tool_data_exfil";
+        p.steps.push_back(makeStep({"TOOL_CALL"}, {"*read*|*get*|*fetch*"}));
+        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.max_gap = 5;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 9. Tool env harvest: env read → tool result → network
+    {
+        SequencePattern p;
+        p.name = "tool_env_harvest";
+        p.steps.push_back(makeStep({"ENV_READ"}));
+        p.steps.push_back(makeStep({"TOOL_RESULT"}));
+        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.max_gap = 10;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 10. Tool shell escape: tool execution leads to shell command
+    {
+        SequencePattern p;
+        p.name = "tool_shell_escape";
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"SHELL_EXEC", "PROCESS_EXEC"}));
+        p.max_gap = 3;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 11. Tool rapid fire: burst of tool calls (possible enumeration)
+    {
+        SequencePattern p;
+        p.name = "tool_rapid_fire";
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.max_gap = 3;
+        p.level = EnforcementLevel::ADVISORY;
+        default_patterns_.push_back(std::move(p));
+    }
 }
 
 const std::vector<SequencePattern>& BehavioralSequenceDetector::getActivePatterns() const {
@@ -354,6 +402,10 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
         case RuntimeEventType::PROCESS_EXEC:    return "process.exec";
         case RuntimeEventType::CONFIG_RELOAD:   return "config_reload";
         case RuntimeEventType::CHECK_FAILED:    return "check_failed";
+        case RuntimeEventType::TOOL_CALL:       return "tool_call";
+        case RuntimeEventType::TOOL_RESULT:     return "tool_result";
+        case RuntimeEventType::TOOL_ERROR:      return "tool_error";
+        case RuntimeEventType::TOOL_BLOCKED:    return "tool_blocked";
     }
     return "unknown";
 }

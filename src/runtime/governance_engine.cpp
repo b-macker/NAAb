@@ -2487,6 +2487,11 @@ void GovernanceEngine::printDashboard() const {
             if (ds.hard_stopped) {
                 fprintf(stderr, "Hard stop:  %s\n", ds.stop_reason.c_str());
             }
+            if (ds.total_tool_calls > 0) {
+                fprintf(stderr, "Tools:      %d calls (%d blocked, %lldms)\n",
+                        ds.total_tool_calls, ds.total_tool_calls_blocked,
+                        static_cast<long long>(ds.total_tool_latency_ms));
+            }
         }
     }
     fprintf(stderr, "────────────────────────────────\n");

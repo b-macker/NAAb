@@ -2214,6 +2214,19 @@ int main(int argc, char** argv) {
                 // ScopedTimeout disarms the alarm automatically on any exit path.
                 naab::security::ScopedTimeout vm_timeout(timeout);
 
+                // Set VM callbacks for tool execution during agent.send()
+                // (must be set before execute so callVMFunction works in tool loops)
+                if (vm_governance.isActive()) {
+                    vm_governance.setVMCallbacks(
+                        [&bytecode_vm](auto fn, const auto& args) {
+                            return bytecode_vm.callNaabFunction(fn, args);
+                        },
+                        [&bytecode_vm]() -> const auto& {
+                            return bytecode_vm.getGlobals();
+                        }
+                    );
+                }
+
                 try {
                     auto result = bytecode_vm.execute(main_fn);
                     (void)result;

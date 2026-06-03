@@ -34,7 +34,11 @@ enum class RuntimeEventType {
     DECODE,             // crypto.base64_decode
     PROCESS_EXEC,       // process.exec
     CONFIG_RELOAD,      // govern.json reloaded mid-run
-    CHECK_FAILED        // governance check failed
+    CHECK_FAILED,       // governance check failed
+    TOOL_CALL,          // LLM requested tool invocation
+    TOOL_RESULT,        // tool executed, result returned
+    TOOL_ERROR,         // tool invocation failed
+    TOOL_BLOCKED        // tool call blocked by governance
 };
 
 // --- Single Runtime Event ---

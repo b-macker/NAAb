@@ -283,6 +283,7 @@ struct NormalizedResponse {
     std::string stop_reason;
     int input_tokens = 0;
     int output_tokens = 0;
+    std::vector<ToolCallInfo> tool_calls;
 };
 
 static NormalizedResponse normalizeResponse(
@@ -299,6 +300,16 @@ static NormalizedResponse normalizeResponse(
                     if (part.contains("text")) {
                         if (!result.content.empty()) result.content += "\n";
                         result.content += part["text"].get<std::string>();
+                    } else if (part.contains("functionCall")) {
+                        ToolCallInfo tc;
+                        tc.id = "gemini_" + std::to_string(result.tool_calls.size());
+                        if (part["functionCall"].contains("name"))
+                            tc.name = part["functionCall"]["name"].get<std::string>();
+                        if (part["functionCall"].contains("args"))
+                            tc.arguments = part["functionCall"]["args"].dump();
+                        else
+                            tc.arguments = "{}";
+                        result.tool_calls.push_back(std::move(tc));
                     }
                 }
             }
@@ -321,6 +332,17 @@ static NormalizedResponse normalizeResponse(
                 if (block.contains("type") && block["type"] == "text" && block.contains("text")) {
                     if (!result.content.empty()) result.content += "\n";
                     result.content += block["text"].get<std::string>();
+                } else if (block.contains("type") && block["type"] == "tool_use") {
+                    ToolCallInfo tc;
+                    if (block.contains("id"))
+                        tc.id = block["id"].get<std::string>();
+                    if (block.contains("name"))
+                        tc.name = block["name"].get<std::string>();
+                    if (block.contains("input"))
+                        tc.arguments = block["input"].dump();
+                    else
+                        tc.arguments = "{}";
+                    result.tool_calls.push_back(std::move(tc));
                 }
             }
         }
@@ -414,6 +436,7 @@ AgentResponse callAgentMultiTurn(
         result.stop_reason = normalized.stop_reason;
         result.input_tokens = normalized.input_tokens;
         result.output_tokens = normalized.output_tokens;
+        result.tool_calls = std::move(normalized.tool_calls);
     } catch (const std::exception& e) {
         result.success = false;
         result.error = e.what();
@@ -546,6 +569,199 @@ ProviderResult callAgentWithStatus(
         pr.response.stop_reason = normalized.stop_reason;
         pr.response.input_tokens = normalized.input_tokens;
         pr.response.output_tokens = normalized.output_tokens;
+        pr.response.tool_calls = std::move(normalized.tool_calls);
+
+    } catch (const std::exception& e) {
+        pr.response.success = false;
+        pr.response.error = e.what();
+    }
+
+    return pr;
+}
+
+// ============================================================================
+// Public API: Multi-turn with tool definitions
+// ============================================================================
+
+ProviderResult callAgentWithTools(
+    const governance::AgentConfig& config,
+    const std::string& api_key,
+    const std::string& messages_json_str,
+    const std::vector<ToolDefinition>& tools) {
+
+    ProviderResult pr;
+
+    try {
+        json messages = json::parse(messages_json_str);
+        json request_body;
+        HttpResult http_result;
+
+        if (config.provider == "gemini" || config.provider == "google") {
+            // Convert messages to Gemini format (supporting tool result turns)
+            json contents = json::array();
+            for (const auto& msg : messages) {
+                json part;
+                part["role"] = (msg["role"] == "assistant") ? "model" : "user";
+                part["parts"] = json::array();
+
+                if (msg["content"].is_string()) {
+                    json text_part;
+                    text_part["text"] = msg["content"];
+                    part["parts"].push_back(text_part);
+                } else if (msg["content"].is_array()) {
+                    // Tool use/result content blocks
+                    for (const auto& block : msg["content"]) {
+                        if (block.contains("type") && block["type"] == "tool_use") {
+                            // Assistant's function call → Gemini functionCall
+                            json fc_part;
+                            fc_part["functionCall"]["name"] = block["name"];
+                            fc_part["functionCall"]["args"] = json::parse(
+                                block.contains("input") ? block["input"].dump() : "{}");
+                            part["parts"].push_back(fc_part);
+                        } else if (block.contains("type") && block["type"] == "tool_result") {
+                            // User's function response → Gemini functionResponse
+                            json fr_part;
+                            fr_part["functionResponse"]["name"] = block.value("tool_use_id", "");
+                            json resp_content;
+                            resp_content["result"] = block.value("content", "");
+                            fr_part["functionResponse"]["response"] = resp_content;
+                            part["parts"].push_back(fr_part);
+                        } else if (block.contains("type") && block["type"] == "text") {
+                            json text_part;
+                            text_part["text"] = block["text"];
+                            part["parts"].push_back(text_part);
+                        }
+                    }
+                }
+                contents.push_back(part);
+            }
+            request_body["contents"] = contents;
+
+            json gen_config;
+            gen_config["maxOutputTokens"] = config.max_tokens;
+            if (config.temperature != 1.0)
+                gen_config["temperature"] = config.temperature;
+            request_body["generationConfig"] = gen_config;
+
+            if (!config.system_prompt.empty()) {
+                bool is_gemma = config.model.find("gemma") != std::string::npos;
+                if (is_gemma) {
+                    if (!contents.empty() && contents[0]["role"] == "user") {
+                        std::string original = contents[0]["parts"][0]["text"].get<std::string>();
+                        contents[0]["parts"][0]["text"] = config.system_prompt + "\n\n" + original;
+                        request_body["contents"] = contents;
+                    }
+                } else {
+                    json sys;
+                    sys["parts"] = json::array();
+                    json sys_part;
+                    sys_part["text"] = config.system_prompt;
+                    sys["parts"].push_back(sys_part);
+                    request_body["systemInstruction"] = sys;
+                }
+            }
+
+            // Inject tool definitions
+            if (!tools.empty()) {
+                json func_decls = json::array();
+                for (const auto& tool : tools) {
+                    json fd;
+                    fd["name"] = tool.name;
+                    fd["description"] = tool.description;
+                    if (!tool.input_schema_json.empty()) {
+                        try {
+                            fd["parameters"] = json::parse(tool.input_schema_json);
+                        } catch (...) {
+                            fd["parameters"] = json::object();
+                        }
+                    }
+                    func_decls.push_back(fd);
+                }
+                request_body["tools"] = json::array({{{"functionDeclarations", func_decls}}});
+            }
+
+            std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                            + config.model + ":generateContent?key=" + api_key;
+            http_result = httpPostRaw(url, request_body.dump(),
+                {"content-type: application/json", "User-Agent: NAAb/1.0"},
+                static_cast<long>(config.timeout_seconds));
+        } else {
+            // Anthropic format
+            request_body["model"] = config.model;
+            request_body["max_tokens"] = config.max_tokens;
+            request_body["messages"] = messages;
+            if (config.temperature != 1.0)
+                request_body["temperature"] = config.temperature;
+            if (!config.system_prompt.empty())
+                request_body["system"] = config.system_prompt;
+
+            // Inject tool definitions
+            if (!tools.empty()) {
+                json tools_array = json::array();
+                for (const auto& tool : tools) {
+                    json td;
+                    td["name"] = tool.name;
+                    td["description"] = tool.description;
+                    if (!tool.input_schema_json.empty()) {
+                        try {
+                            td["input_schema"] = json::parse(tool.input_schema_json);
+                        } catch (...) {
+                            td["input_schema"] = {{"type", "object"}, {"properties", json::object()}};
+                        }
+                    }
+                    tools_array.push_back(td);
+                }
+                request_body["tools"] = tools_array;
+            }
+
+            http_result = httpPostRaw(
+                "https://api.anthropic.com/v1/messages",
+                request_body.dump(),
+                {
+                    "x-api-key: " + api_key,
+                    "anthropic-version: 2023-06-01",
+                    "content-type: application/json",
+                    "User-Agent: NAAb/1.0"
+                },
+                static_cast<long>(config.timeout_seconds));
+        }
+
+        pr.http_status = static_cast<int>(http_result.status_code);
+
+        if (!http_result.error.empty() && http_result.status_code == 0) {
+            pr.response.success = false;
+            pr.response.error = fmt::format(
+                "Agent error: Network request failed ({})\n\n"
+                "  Help:\n"
+                "  - Check network connectivity\n",
+                http_result.error);
+            return pr;
+        }
+        if (http_result.error == "unparseable_response") {
+            pr.response.success = false;
+            pr.response.error = "Agent error: Invalid response from API";
+            return pr;
+        }
+        if (http_result.status_code < 200 || http_result.status_code >= 300) {
+            pr.response.success = false;
+            pr.response.http_status = pr.http_status;
+            pr.response.error = fmt::format(
+                "Agent error: API returned status {}\n\n"
+                "  Got: {}\n\n"
+                "  Help:\n"
+                "  - Check agent configuration in govern.json\n"
+                "  - Verify the model name is valid\n",
+                http_result.status_code, http_result.error_detail);
+            return pr;
+        }
+
+        auto normalized = normalizeResponse(config.provider, http_result.body);
+        pr.response.success = true;
+        pr.response.content = normalized.content;
+        pr.response.stop_reason = normalized.stop_reason;
+        pr.response.input_tokens = normalized.input_tokens;
+        pr.response.output_tokens = normalized.output_tokens;
+        pr.response.tool_calls = std::move(normalized.tool_calls);
 
     } catch (const std::exception& e) {
         pr.response.success = false;

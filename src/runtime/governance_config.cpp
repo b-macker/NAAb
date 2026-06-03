@@ -2083,7 +2083,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.system_prompt = cfg_json["system_prompt"].get<std::string>();
                 if (cfg_json.contains("tools") && cfg_json["tools"].is_array())
                     for (const auto& t : cfg_json["tools"])
-                        agent.tools.push_back(t.get<std::string>());
+                        if (t.is_string()) agent.tools.push_back(t.get<std::string>());
+                // Tool execution configuration
+                if (cfg_json.contains("tools_enabled") && cfg_json["tools_enabled"].is_boolean())
+                    agent.tools_enabled = cfg_json["tools_enabled"].get<bool>();
+                if (cfg_json.contains("max_tool_calls_per_turn"))
+                    agent.max_tool_calls_per_turn = std::max(1, cfg_json["max_tool_calls_per_turn"].get<int>());
+                if (cfg_json.contains("max_tool_loop_turns"))
+                    agent.max_tool_loop_turns = std::max(1, cfg_json["max_tool_loop_turns"].get<int>());
+                if (cfg_json.contains("tool_result_max_chars"))
+                    agent.tool_result_max_chars = std::max(0, cfg_json["tool_result_max_chars"].get<int>());
+                if (cfg_json.contains("tool_result_max_total_chars"))
+                    agent.tool_result_max_total_chars = std::max(0, cfg_json["tool_result_max_total_chars"].get<int>());
+                if (cfg_json.contains("tool_timeout_seconds"))
+                    agent.tool_timeout_seconds = std::max(1, cfg_json["tool_timeout_seconds"].get<int>());
                 if (cfg_json.contains("max_turns"))
                     agent.max_turns = cfg_json["max_turns"].get<int>();
                 if (cfg_json.contains("max_total_tokens"))
@@ -2779,6 +2792,44 @@ static bool checkRatchetViolation(
             notices.push_back(fmt::format("agent.{}.allowed_actions: added (tightened — {} actions allowed)",
                 new_agent.name, new_agent.allowed_actions.size()));
         }
+
+        // Tool config ratchet enforcement (S6)
+        // tools_enabled: false→true = loosening
+        if (new_agent.tools_enabled && !old_agent->tools_enabled) {
+            violations.push_back(fmt::format("agent.{}.tools_enabled: false -> true (loosened)",
+                new_agent.name));
+        } else if (!new_agent.tools_enabled && old_agent->tools_enabled) {
+            notices.push_back(fmt::format("agent.{}.tools_enabled: true -> false (tightened)",
+                new_agent.name));
+        }
+        // tools[] array: adding entries = loosening
+        if (!old_agent->tools.empty() || !new_agent.tools.empty()) {
+            std::unordered_set<std::string> old_tools(old_agent->tools.begin(), old_agent->tools.end());
+            std::unordered_set<std::string> new_tools(new_agent.tools.begin(), new_agent.tools.end());
+            for (const auto& t : new_agent.tools) {
+                if (!old_tools.count(t))
+                    violations.push_back(fmt::format("agent.{}.tools: '{}' added (loosened)",
+                        new_agent.name, t));
+            }
+            for (const auto& t : old_agent->tools) {
+                if (!new_tools.count(t))
+                    notices.push_back(fmt::format("agent.{}.tools: '{}' removed (tightened)",
+                        new_agent.name, t));
+            }
+        }
+        // Numeric tool limits: increasing = loosening
+        if (new_agent.max_tool_calls_per_turn > old_agent->max_tool_calls_per_turn)
+            violations.push_back(fmt::format("agent.{}.max_tool_calls_per_turn: {} -> {} (loosened)",
+                new_agent.name, old_agent->max_tool_calls_per_turn, new_agent.max_tool_calls_per_turn));
+        else if (new_agent.max_tool_calls_per_turn < old_agent->max_tool_calls_per_turn)
+            notices.push_back(fmt::format("agent.{}.max_tool_calls_per_turn: {} -> {} (tightened)",
+                new_agent.name, old_agent->max_tool_calls_per_turn, new_agent.max_tool_calls_per_turn));
+        if (new_agent.max_tool_loop_turns > old_agent->max_tool_loop_turns)
+            violations.push_back(fmt::format("agent.{}.max_tool_loop_turns: {} -> {} (loosened)",
+                new_agent.name, old_agent->max_tool_loop_turns, new_agent.max_tool_loop_turns));
+        else if (new_agent.max_tool_loop_turns < old_agent->max_tool_loop_turns)
+            notices.push_back(fmt::format("agent.{}.max_tool_loop_turns: {} -> {} (tightened)",
+                new_agent.name, old_agent->max_tool_loop_turns, new_agent.max_tool_loop_turns));
     }
 
     // Detect removed agents — removing constraints is loosening

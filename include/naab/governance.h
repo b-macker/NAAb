@@ -1695,6 +1695,13 @@ struct AgentConfig {
     int max_tokens = 4096;
     std::string system_prompt;
     std::vector<std::string> tools;
+    // Tool execution configuration
+    bool tools_enabled = false;                  // master switch — tools blocked unless true
+    int max_tool_calls_per_turn = 5;             // max tool invocations per agentSend() call
+    int max_tool_loop_turns = 10;                // max LLM round-trips in tool loop
+    int tool_result_max_chars = 4096;            // truncate individual tool results beyond this
+    int tool_result_max_total_chars = 32768;     // cumulative tool result cap per agentSend()
+    int tool_timeout_seconds = 10;               // per-tool-call execution timeout
     int max_turns = 50;
     int max_total_tokens = 100000;
     double temperature = 1.0;
@@ -2097,6 +2104,16 @@ public:
         vm_globals_fn_ = std::move(globals_fn);
     }
     void clearVMCallbacks() { vm_call_fn_ = nullptr; vm_globals_fn_ = nullptr; }
+
+    // Call a NaabVal function via the VM callback (used by tool execution loop)
+    interpreter::NaabVal callVMFunction(const interpreter::NaabVal& fn,
+                                         const std::vector<interpreter::NaabVal>& args) {
+        if (!vm_call_fn_) {
+            throw std::runtime_error("Agent error: no VM callback available for tool execution");
+        }
+        return vm_call_fn_(fn, args);
+    }
+    bool hasVMCallbacks() const { return vm_call_fn_ != nullptr; }
 
     // --- Path access control ---
     std::string checkPathAccess(const std::string& filepath, const std::string& mode);
