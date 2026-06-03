@@ -72,6 +72,7 @@ static void printHelp() {
         "  --language <lang>       Target language (required: python, javascript, go, ...)\n"
         "  --file <path>           Read code from file instead of stdin\n"
         "  --config <govern.json>  Use this govern.json instead of auto-discovery\n"
+        "  --config-string <json>  Use inline JSON config string\n"
         "  --sarif                 Output SARIF instead of JSON\n"
         "  --env <name>            Apply named environment overlay from govern.json\n"
         "\n"
@@ -265,6 +266,7 @@ static int cmdCheck(const std::vector<std::string>& args) {
     std::string language;
     std::string file_path;
     std::string config_path;
+    std::string config_string;
     std::string env_name;
     bool sarif_output = false;
 
@@ -276,6 +278,8 @@ static int cmdCheck(const std::vector<std::string>& args) {
             file_path = args[++i];
         } else if (args[i] == "--config" && i + 1 < args.size()) {
             config_path = args[++i];
+        } else if (args[i] == "--config-string" && i + 1 < args.size()) {
+            config_string = args[++i];
         } else if (args[i] == "--env" && i + 1 < args.size()) {
             env_name = args[++i];
         } else if (args[i] == "--sarif") {
@@ -284,6 +288,11 @@ static int cmdCheck(const std::vector<std::string>& args) {
             std::cerr << "naab-gov check: unknown option: " << args[i] << "\n";
             return 1;
         }
+    }
+
+    if (!config_string.empty() && !config_path.empty()) {
+        std::cerr << "naab-gov check: --config and --config-string are mutually exclusive\n";
+        return 4;
     }
 
     if (language.empty()) {
@@ -322,10 +331,25 @@ static int cmdCheck(const std::vector<std::string>& args) {
     }
 
     // Load governance config
+    //
+    // Threat model for --config-string: naab-gov is a user-space CLI tool,
+    // never setuid/setgid, never runs with elevated privileges. The caller
+    // already has full control of the process (can pass --no-governance to
+    // naab-lang, or simply not invoke governance at all). --config-string
+    // exists for programmatic callers (Python subprocess binding) that need
+    // to pass config without writing temp files that require Ed25519 signing.
+    // Signature verification gates file-based configs; inline configs are
+    // trusted as caller-provided input, same as any other CLI argument.
     naab::governance::GovernanceEngine engine;
 
     bool loaded = false;
-    if (!config_path.empty()) {
+    if (!config_string.empty()) {
+        loaded = engine.loadFromString(config_string);
+        if (!loaded) {
+            std::cerr << "naab-gov check: failed to parse config string\n";
+            return 4;
+        }
+    } else if (!config_path.empty()) {
         if (!fs::exists(config_path)) {
             std::cerr << "naab-gov check: govern.json not found: " << config_path << "\n";
             return 4;

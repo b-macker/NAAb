@@ -75,6 +75,32 @@ MISSING_EXIT=$?
 check "lint non-existent file returns non-zero" \
     "$([ "${MISSING_EXIT}" -ne 0 ] && echo 0 || echo 1)"
 
+# Test 6: check --config-string passes JSON inline
+CONFIG_STR_OUT=$(echo "x = 1" | "${GOV}" check --language python --config-string '{"version":"5.0","mode":"enforce"}' 2>&1)
+CONFIG_STR_EXIT=$?
+check "--config-string exits 0" "$CONFIG_STR_EXIT"
+check "--config-string returns JSON" \
+    "$(echo "${CONFIG_STR_OUT}" | grep -q '"blocked"' && echo 0 || echo 1)"
+
+# Test 7: check --config-string with invalid JSON returns exit 4
+echo "x = 1" | "${GOV}" check --language python --config-string '{bad json' 2>/dev/null
+BADJSON_EXIT=$?
+check "--config-string bad JSON exits 4" \
+    "$([ "${BADJSON_EXIT}" -eq 4 ] && echo 0 || echo 1)"
+
+# Test 8: check --config-string actually applies config (dangerous code → exit 3)
+echo 'import os; os.system("rm -rf /")' | "${GOV}" check --language python \
+    --config-string '{"version":"5.0","mode":"enforce","restrictions":{"dangerous_calls":{"level":"hard"}}}' 2>/dev/null
+DANGEROUS_EXIT=$?
+check "--config-string enforces config (exit 3)" \
+    "$([ "${DANGEROUS_EXIT}" -eq 3 ] && echo 0 || echo 1)"
+
+# Test 9: --config and --config-string are mutually exclusive (exit 4)
+echo "x = 1" | "${GOV}" check --language python --config /dev/null --config-string '{}' 2>/dev/null
+MUTEX_EXIT=$?
+check "--config + --config-string mutually exclusive (exit 4)" \
+    "$([ "${MUTEX_EXIT}" -eq 4 ] && echo 0 || echo 1)"
+
 echo ""
 echo "Results: ${PASS}/${TESTS} passed"
 echo ""
