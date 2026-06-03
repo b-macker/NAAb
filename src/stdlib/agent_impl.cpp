@@ -225,6 +225,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         retry["max_attempts"] = NaabVal::makeInt(config->retry.max_attempts);
         retry["backoff_ms"] = NaabVal::makeInt(config->retry.backoff_ms);
         retry["jitter"] = NaabVal::makeBool(config->retry.jitter);
+        retry["key_retry_after_seconds"] = NaabVal::makeInt(config->retry.key_retry_after_seconds);
         env["retry"] = NaabVal::makeDict(std::move(retry));
 
         // Permissions
@@ -235,6 +236,14 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         for (const auto& l : config->allowed_languages)
             allowed_langs.push_back(NaabVal::makeString(l));
         permissions["allowed_languages"] = NaabVal::makeList(std::move(allowed_langs));
+        permissions["network_allowed"] = NaabVal::makeBool(
+            !config->network_allowed_set || config->network_allowed);
+        if (!config->allowed_actions.empty()) {
+            std::vector<NaabVal> actions;
+            for (const auto& a : config->allowed_actions)
+                actions.push_back(NaabVal::makeString(a));
+            permissions["allowed_actions"] = NaabVal::makeList(std::move(actions));
+        }
         env["permissions"] = NaabVal::makeDict(std::move(permissions));
     }
 
@@ -587,6 +596,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     if (gov_engine && gov_engine->isActive()) {
         gov_engine->reloadIfChanged();
         gov_notices = gov_engine->getAndClearNotices();
+        // Re-lookup config: reloadIfChanged() may have swapped rules_.agents,
+        // invalidating the pointer obtained before reload.
+        config = findAgentConfig(config_name);
+        if (!config) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Agent config '{}' removed during governance reload\n\n"
+                "  Help:\n"
+                "  - The governance configuration was reloaded mid-run\n"
+                "  - The agent config is no longer available\n",
+                config_name));
+        }
     }
 
     // Behavioral sequence: emit agent.send event (once, before retry loop)

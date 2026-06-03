@@ -2,6 +2,10 @@
 # Live integration test for Governance Under Survivability
 # Requires: GK1 environment variable (Gemini API key)
 # Tests: mid-run govern.json reload produces governance_notices in agent.send() response
+#
+# NOTE: NAAB_SIGNING_KEY is scrubbed from shell polyglot subprocess environments
+# (V-SC-006 security measure). So we pre-sign the tightened govern.json outside the
+# naab-lang process and have the shell block write both govern.json and its .sig file.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
@@ -12,6 +16,14 @@ mkdir -p "$TEST_DIR"
 
 cleanup() { rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
+
+# Sign a govern.json in the current directory using the default signing key
+sign_govern() {
+    local signing_key="${HOME}/.naab/keys/signing.pem"
+    if [ -f "$signing_key" ]; then
+        NAAB_SIGNING_KEY="$signing_key" "$NAAB_BIN" --sign-governance 2>/dev/null
+    fi
+}
 
 check() {
     local desc="$1"
@@ -53,6 +65,14 @@ fi
 echo "  Using API key: $WORKING_KEY_NAME"
 export NAAB_TEST_GK="$WORKING_KEY"
 
+# Signing key must exist for pre-signing
+SIGNING_KEY_PATH="${HOME}/.naab/keys/signing.pem"
+if [ ! -f "$SIGNING_KEY_PATH" ]; then
+    echo "  SKIP: No signing key found at $SIGNING_KEY_PATH"
+    echo "=== Results: 0/0 passed, 0 failed (skipped) ==="
+    exit 0
+fi
+
 # --- Test 1: agent.send() returns governance_notices after mid-run tightening ---
 echo "--- Live Reload: governance_notices in agent.send() ---"
 
@@ -88,13 +108,35 @@ cat > "$TEST_DIR/govern.json" <<GOVEOF
 }
 GOVEOF
 
+# Pre-create the tightened govern.json and sign it OUTSIDE naab-lang
+# (NAAB_SIGNING_KEY is scrubbed from subprocess environments per V-SC-006)
+TIGHTENED_JSON='{"version":"5.0","mode":"enforce","sandbox_level":"unrestricted","update_reason":"test tightening for CI","limits":{"execution":{"loop_iterations":100},"data":{"output_size":5000}},"capabilities":{"shell":{"enabled":false}},"agents":{"test_bot":{"provider":"gemini","model":"gemini-2.5-flash","api_key_env":"NAAB_TEST_GK","max_tokens":50,"max_turns":5,"system_prompt":"Reply with exactly one word. Nothing else."}}}'
+
+# Write tightened config to a temp file, sign it, capture the sig
+PRESIGN_DIR="${TEST_DIR}/.presign"
+mkdir -p "$PRESIGN_DIR"
+echo "$TIGHTENED_JSON" > "$PRESIGN_DIR/govern.json"
+cd "$PRESIGN_DIR"
+sign_govern
+TIGHTENED_SIG=$(cat "$PRESIGN_DIR/govern.json.sig" 2>/dev/null || echo "")
+cd "$TEST_DIR"
+rm -rf "$PRESIGN_DIR"
+
+if [ -z "$TIGHTENED_SIG" ]; then
+    echo "  SKIP: Failed to pre-sign tightened govern.json"
+    echo "=== Results: 0/0 passed, 0 failed (skipped) ==="
+    exit 0
+fi
+
+# Export the pre-computed sig so the shell block can write it
+export NAAB_PRESIGNED_SIG="$TIGHTENED_SIG"
+export NAAB_PRESIGNED_JSON="$TIGHTENED_JSON"
+
 # Create .naab test script that:
 # 1. Sends first agent message (no reload expected)
-# 2. Modifies govern.json via shell block (tightens limits)
+# 2. Replaces govern.json + .sig via shell block (tightens limits)
 # 3. Sends second agent message (reload + notices expected)
 cat > "$TEST_DIR/reload_live.naab" <<'NAABEOF'
-use json
-use file
 use agent
 
 main {
@@ -106,39 +148,11 @@ main {
     print("FIRST_HAS_NOTICES=" + string(has_notices_r1))
     print("FIRST_CONTENT=" + r1.get("content"))
 
-    // Tighten govern.json via shell block (lower limits, disable shell)
+    // Replace govern.json + sig with pre-signed tightened version
+    // (NAAB_SIGNING_KEY is scrubbed from subprocess env, so we write pre-computed sig)
     let _ = <<shell
-cat > govern.json << 'TIGHTEOF'
-{
-  "version": "5.0",
-  "mode": "enforce",
-  "sandbox_level": "unrestricted",
-  "update_reason": "test tightening for CI",
-  "limits": {
-    "execution": {
-      "loop_iterations": 100
-    },
-    "data": {
-      "output_size": 5000
-    }
-  },
-  "capabilities": {
-    "shell": {
-      "enabled": false
-    }
-  },
-  "agents": {
-    "test_bot": {
-      "provider": "gemini",
-      "model": "gemini-2.5-flash",
-      "api_key_env": "NAAB_TEST_GK",
-      "max_tokens": 50,
-      "max_turns": 5,
-      "system_prompt": "Reply with exactly one word. Nothing else."
-    }
-  }
-}
-TIGHTEOF
+echo "$NAAB_PRESIGNED_JSON" > govern.json
+echo "$NAAB_PRESIGNED_SIG" > govern.json.sig
 >>
 
     // Second agent.send — should detect mtime change and produce notices
@@ -158,8 +172,11 @@ TIGHTEOF
 }
 NAABEOF
 
-# Run from the test directory so govern.json is discovered
+# Sign the initial govern.json
 cd "$TEST_DIR"
+sign_govern
+
+# Run from the test directory so govern.json is discovered
 "$NAAB_BIN" "$TEST_DIR/reload_live.naab" \
     --governance-dashboard \
     > "$TEST_DIR/live_stdout.txt" 2> "$TEST_DIR/live_stderr.txt"
@@ -229,9 +246,23 @@ cat > "$TEST_DIR/govern.json" <<GOVEOF
 }
 GOVEOF
 
+# Pre-sign the loosened config (it will be rejected by ratchet, but sig must be valid
+# for the rejection to be a ratchet violation rather than a sig failure)
+LOOSENED_JSON='{"version":"5.0","mode":"enforce","sandbox_level":"unrestricted","limits":{"execution":{"loop_iterations":9999}},"capabilities":{"shell":{"enabled":true}},"agents":{"test_bot":{"provider":"gemini","model":"gemini-2.5-flash","api_key_env":"NAAB_TEST_GK","max_tokens":50,"max_turns":5,"system_prompt":"Reply with exactly one word."}}}'
+PRESIGN_DIR="${TEST_DIR}/.presign"
+mkdir -p "$PRESIGN_DIR"
+echo "$LOOSENED_JSON" > "$PRESIGN_DIR/govern.json"
+cd "$PRESIGN_DIR"
+sign_govern
+LOOSENED_SIG=$(cat "$PRESIGN_DIR/govern.json.sig" 2>/dev/null || echo "")
+cd "$TEST_DIR"
+rm -rf "$PRESIGN_DIR"
+
+export NAAB_PRESIGNED_SIG="$LOOSENED_SIG"
+export NAAB_PRESIGNED_JSON="$LOOSENED_JSON"
+
 # Script that tries to loosen limits
 cat > "$TEST_DIR/reload_loosen.naab" <<'NAABEOF'
-use json
 use agent
 
 main {
@@ -240,34 +271,10 @@ main {
     print("FIRST_OK=true")
 
     // Try to LOOSEN govern.json (increase loop_iterations)
+    // Uses pre-signed content since NAAB_SIGNING_KEY is scrubbed from subprocess env
     let _ = <<shell
-cat > govern.json << 'LOOSEEOF'
-{
-  "version": "5.0",
-  "mode": "enforce",
-  "sandbox_level": "unrestricted",
-  "limits": {
-    "execution": {
-      "loop_iterations": 9999
-    }
-  },
-  "capabilities": {
-    "shell": {
-      "enabled": true
-    }
-  },
-  "agents": {
-    "test_bot": {
-      "provider": "gemini",
-      "model": "gemini-2.5-flash",
-      "api_key_env": "NAAB_TEST_GK",
-      "max_tokens": 50,
-      "max_turns": 5,
-      "system_prompt": "Reply with exactly one word."
-    }
-  }
-}
-LOOSEEOF
+echo "$NAAB_PRESIGNED_JSON" > govern.json
+echo "$NAAB_PRESIGNED_SIG" > govern.json.sig
 >>
 
     // Second send — ratchet should reject, no notices
@@ -278,6 +285,8 @@ LOOSEEOF
 NAABEOF
 
 cd "$TEST_DIR"
+rm -f govern.json.sig
+sign_govern
 "$NAAB_BIN" "$TEST_DIR/reload_loosen.naab" \
     > "$TEST_DIR/loosen_stdout.txt" 2> "$TEST_DIR/loosen_stderr.txt" || true
 
