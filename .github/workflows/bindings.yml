@@ -40,13 +40,20 @@ jobs:
           # Verify shared lib was built
           ls -la build/libnaab-governance.so*
 
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          # Copy the real .so file (not symlinks — artifacts don't preserve them)
+          cp build/libnaab-governance.so.*.* artifacts/libnaab-governance.so 2>/dev/null || \
+            cp build/libnaab-governance.so artifacts/libnaab-governance.so
+          cp build/naab-gov artifacts/
+          ls -la artifacts/
+
       - name: Upload shared library
         uses: actions/upload-artifact@v4
         with:
           name: libnaab-governance
-          path: |
-            build/libnaab-governance.so*
-            build/naab-gov
+          path: artifacts/
           retention-days: 1
 
   test-go:
@@ -59,15 +66,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: false
 
       - name: Download shared library
         uses: actions/download-artifact@v4
         with:
           name: libnaab-governance
+          path: build
 
       - name: Install shared library
         run: |
-          sudo cp build/libnaab-governance.so* /usr/local/lib/
+          sudo cp build/libnaab-governance.so /usr/local/lib/
           sudo ldconfig
 
       - name: Run Go tests
@@ -89,10 +98,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: libnaab-governance
+          path: build
 
       - name: Install shared library
         run: |
-          sudo cp build/libnaab-governance.so* /usr/local/lib/
+          sudo cp build/libnaab-governance.so /usr/local/lib/
           sudo ldconfig
 
       - name: Run Rust tests
@@ -116,10 +126,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: libnaab-governance
+          path: build
 
       - name: Install shared library
         run: |
-          sudo cp build/libnaab-governance.so* /usr/local/lib/
+          sudo cp build/libnaab-governance.so /usr/local/lib/
           sudo ldconfig
 
       - name: Build JNI bridge
@@ -168,10 +179,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: libnaab-governance
+          path: build
 
       - name: Install shared library
         run: |
-          sudo cp build/libnaab-governance.so* /usr/local/lib/
+          sudo cp build/libnaab-governance.so /usr/local/lib/
           sudo ldconfig
 
       - name: Run C# tests
@@ -194,9 +206,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: libnaab-governance
+          path: build
 
-      - name: Make naab-gov executable
-        run: chmod +x build/naab-gov
+      - name: Install shared library and CLI
+        run: |
+          sudo cp build/libnaab-governance.so /usr/local/lib/
+          sudo ldconfig
+          chmod +x build/naab-gov
 
       - name: Run Python binding smoke test
         run: |
