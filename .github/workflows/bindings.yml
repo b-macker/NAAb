@@ -216,26 +216,32 @@ jobs:
 
       - name: Run Python binding smoke test
         run: |
-          NAAB_GOV_BIN=./build/naab-gov python3 -c "
+          python3 -c "
           import sys, os
           sys.path.insert(0, 'bindings/python')
-          os.environ['NAAB_GOV_LIB'] = '/nonexistent'
-          os.environ['NAAB_GOV_BIN'] = os.path.abspath('./build/naab-gov')
+
+          # Test 1: ctypes mode (shared lib available)
+          os.environ['NAAB_GOV_LIB'] = os.path.abspath('build/libnaab-governance.so')
           from naab_governance import GovernanceEngine
 
           eng = GovernanceEngine()
-          assert eng._subprocess_mode, 'should be in subprocess mode'
-
-          # Test with inline config (validates --config-string fix)
-          eng.load_config_dict({'version': '5.0', 'mode': 'enforce',
-              'restrictions': {'dangerous_calls': {'level': 'hard'}}})
-
+          assert not eng._subprocess_mode, 'should be in ctypes mode'
+          eng.load_config_string('{\"version\":\"5.0\",\"mode\":\"enforce\"}')
           result = eng.scan('python', 'x = 42')
           assert not result.get('blocked'), 'safe code should not be blocked'
+          del eng
+          print('Python ctypes binding: OK')
 
-          result = eng.scan('python', 'import os; os.system(\"rm -rf /\")')
-          # May or may not block depending on config specifics, just check it runs
-          assert 'blocked' in result, 'result should have blocked field'
-
+          # Test 2: subprocess mode (force by pointing to nonexistent lib)
+          os.environ['NAAB_GOV_LIB'] = '/nonexistent'
+          os.environ['NAAB_GOV_BIN'] = os.path.abspath('build/naab-gov')
+          # Re-import to get fresh instance
+          import importlib, naab_governance
+          importlib.reload(naab_governance)
+          eng2 = naab_governance.GovernanceEngine(lib_path='/nonexistent')
+          assert eng2._subprocess_mode, 'should be in subprocess mode'
+          eng2.load_config_dict({'version': '5.0', 'mode': 'enforce'})
+          result2 = eng2.scan('python', 'x = 42')
+          assert 'blocked' in result2, 'result should have blocked field'
           print('Python subprocess binding: OK')
           "

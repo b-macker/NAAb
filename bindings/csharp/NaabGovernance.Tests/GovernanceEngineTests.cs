@@ -14,7 +14,7 @@ public class GovernanceEngineTests
     [Fact]
     public void Version_ReturnsNonEmpty()
     {
-        var v = GovernanceEngine.Version();
+        var v = GovernanceEngine.Version;
         Assert.False(string.IsNullOrEmpty(v));
     }
 

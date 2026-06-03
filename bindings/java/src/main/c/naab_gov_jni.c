@@ -8,6 +8,7 @@
  */
 
 #include <jni.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include "naab_governance.h"
 
