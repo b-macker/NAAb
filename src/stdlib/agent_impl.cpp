@@ -20,6 +20,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <unistd.h>
 #include "naab/crypto_utils.h"
 
 namespace naab {
