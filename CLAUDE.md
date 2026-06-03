@@ -107,6 +107,13 @@ include/naab/       All headers
 - Decision trace storage: `t_current_decision_trace` is `static thread_local` in `governance_engine.cpp` (NOT a class member) — thread-safe for concurrent polyglot/agent threads
 - Mid-run reload (Governance Under Survivability): `reloadIfChanged()` detects govern.json mtime changes during agent turns, validates signature, enforces one-way ratchet (only tightening allowed), and surfaces structured notices via `agent.send()` return dict `governance_notices` field. Reload is triggered automatically before each `agent.send()` and `agent.batch()` call.
 - Fail-closed enforcement: govern.json capabilities sync to sandbox at load and mid-run reload. `capabilities.shell.enabled: false` removes SYS_EXEC from sandbox; `capabilities.network.enabled: false` removes NET_CONNECT; `capabilities.filesystem.mode: "none"` removes FS_READ+FS_WRITE. Enforce mode defaults to `standard` sandbox (not `unrestricted`). Agent worker threads inherit sandbox config from main thread.
+- Continuous governance (6 features):
+  - **Handle anti-forge**: HMAC-SHA256 nonce ties `agent.create()` handle to server-side state. `validateHandle()` uses constant-time comparison. Forgery/replay/mutation rejected. Process secret from `/dev/urandom`.
+  - **Temporal trust decay**: coherence erodes over time when idle. Config: `context_drift.temporal_decay_enabled`, `temporal_decay_per_minute`, `temporal_decay_grace_minutes`. Default off.
+  - **Credential refresh**: dead API keys revive after cooldown. Config: `retry.key_retry_after_seconds` (0 = never revive). `isKeyDead()` helper used at all `dead_keys` call sites. AGENT_KEY_REVIVED telemetry on revival.
+  - **Adaptive baselining**: per-agent baseline window observes normal signal rates before penalizing. Penalties only fire when signals exceed `mean + k*stddev`. Config: `context_drift.adaptive_baseline_enabled`, `adaptive_baseline_window`, `adaptive_baseline_sensitivity`. Default off.
+  - **Step-up challenges**: at elevated governance levels, inject challenge prompt and score response (word count + keyword overlap with system_prompt). Pass recovers coherence, fail blocks send. Config: `circuit_breaker.step_up_enabled`, `step_up_at_level`, `step_up_challenge`, `step_up_min_words`, `step_up_cooldown_turns`, `step_up_keyword_threshold`. Challenge state tracked in AgentTracker (server-side).
+  - **Separation of duties**: per-agent `network_allowed` (bool, same pattern as `shell_allowed`) and `allowed_actions` matrix (`["SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND"]`). Enforced in `checkNetworkAllowed()`, `checkShellAllowed()`, `checkFilesystemAllowed()`, and `agentSend()`. Ratchet enforcement prevents mid-run loosening of action matrix.
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)
@@ -128,6 +135,8 @@ include/naab/       All headers
 - `agent.environment(handle)` returns current environment snapshot — config limits, remaining capacity, coherence state, key health, dispatch proximity
 - `agent.create()` handle includes `environment` dict (birth snapshot); `agent.send()` response includes updated `environment` dict (live state)
 - Pipeline upstream provenance: downstream stages see `state.upstream_provenance` dict with trust-calibration signals from upstream (model_used, was_fallback, retries, coherence_at_output, keys_dead, keys_active, latency_ms, stage index, pressure). Not present for first stage or non-pipeline agents.
+- Agent environment includes `challenges_passed`/`challenges_failed` counters (from step-up challenges)
+- Agent handles include `__nonce` field (HMAC anti-forge — do not modify or copy between handles)
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
 - Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)

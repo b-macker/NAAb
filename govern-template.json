@@ -986,9 +986,9 @@
     "output_file": "telemetry.jsonl"
   },
 
-  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
+  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND) restricts actions. Ratchet enforcement prevents mid-run loosening.",
   "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
-  "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. rate_limit adds client-side throttling.",
+  "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. key_retry_after_seconds enables dead key revival after cooldown (0 = never revive). rate_limit adds client-side throttling.",
   "agents": {
     "researcher": {
       "provider": "anthropic",
@@ -1006,6 +1006,8 @@
       "allowed_paths": ["./src", "./data"],
       "blocked_paths": ["./secrets", "./.env"],
       "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": [],
       "risk_budget": 0,
       "retry": {
         "max_attempts": 1,
@@ -1015,7 +1017,8 @@
         "retry_on": [429, 503],
         "skip_key_on": [401],
         "fallback_model_on": [404, 503],
-        "never_retry": [400]
+        "never_retry": [400],
+        "key_retry_after_seconds": 0
       },
       "rate_limit": {
         "requests_per_minute": 0,
@@ -1033,6 +1036,8 @@
       "allowed_languages": ["python", "shell"],
       "allowed_paths": ["./src", "./tests"],
       "shell_allowed": true,
+      "network_allowed": true,
+      "allowed_actions": [],
       "risk_budget": 0,
       "retry": {
         "max_attempts": 3,
@@ -1042,7 +1047,8 @@
         "retry_on": [429, 503],
         "skip_key_on": [401],
         "fallback_model_on": [404, 503],
-        "never_retry": [400]
+        "never_retry": [400],
+        "key_retry_after_seconds": 0
       }
     }
   },
@@ -1623,7 +1629,7 @@
     ]
   },
 
-  "_comment_context_drift": "Context Drift Detection (CDD) — monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems, fires when aggregate pressure is sustained without any single signal crossing its own threshold.",
+  "_comment_context_drift": "Context Drift Detection (CDD) — monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems. Temporal trust decay: coherence erodes over time when idle (grace period configurable). Adaptive baselining: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold).",
   "context_drift": {
     "enabled": false,
     "rationale": "Detect when agents lose alignment with their task through behavioral drift.",
@@ -1635,6 +1641,12 @@
     "rate_normalized": false,
     "coherence_recovery_amount": 0.2,
     "coherence_natural_healing": 0.0,
+    "temporal_decay_enabled": false,
+    "temporal_decay_per_minute": 0.01,
+    "temporal_decay_grace_minutes": 1.0,
+    "adaptive_baseline_enabled": false,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.0,
     "signals": {
       "circular_actions": true,
       "repeated_failures": true,
@@ -1804,7 +1816,7 @@
     "utilization_check_after_turns": 10
   },
 
-  "_comment_circuit_breaker": "Graduated Circuit Breakers — system-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained composite pressure. NYSE circuit breaker analog. ELEVATED: CDD check_interval → 1. HIGH: all ADVISORY escalate to SOFT. CRITICAL: admission denied for all agents.",
+  "_comment_circuit_breaker": "Graduated Circuit Breakers — system-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained composite pressure. NYSE circuit breaker analog. ELEVATED: CDD check_interval → 1. HIGH: all ADVISORY escalate to SOFT. CRITICAL: admission denied for all agents. Step-up challenges: at configurable governance level, inject challenge prompt and score response (word count + keyword overlap). Pass recovers coherence, fail blocks send.",
   "circuit_breaker": {
     "enabled": false,
     "elevated_threshold": 0.4,
@@ -1814,6 +1826,12 @@
     "high_sustained": 3,
     "critical_sustained": 4,
     "critical_coherence": 0.2,
+    "step_up_enabled": false,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Before responding, restate your current objective in one sentence, then proceed.",
+    "step_up_min_words": 5,
+    "step_up_cooldown_turns": 3,
+    "step_up_keyword_threshold": 0.3,
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
   },
 

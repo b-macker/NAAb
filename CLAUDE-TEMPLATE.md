@@ -510,12 +510,19 @@ create, send, run, messages, usage, batch, fan_out, pipeline
 - **Model fallback**: `model` accepts string or array. On 404/503, the next model in the chain is tried.
 - **Retry with backoff**: Configure `retry` block per agent — `max_attempts`, `backoff_ms`, `backoff_multiplier`, `jitter`. Error classification: `retry_on` (429/503), `skip_key_on` (401), `fallback_model_on` (404/503), `never_retry` (400).
 - **Hard stop**: `agent_dispatch.hard_stop` sets run-level budgets — `max_calls_per_run`, `max_tokens_per_run`, `max_agent_time_ms`, `consecutive_failure_limit`. When exceeded, all agent calls are blocked for the rest of the run.
+- **Credential refresh**: `key_retry_after_seconds` in the `retry` block enables dead key revival. Dead keys (401 responses) are retried after the cooldown elapses. Set to 0 (default) to never revive dead keys.
+- **Separation of duties**: Per-agent `network_allowed` (bool) and `allowed_actions` (array: `"SHELL_EXEC"`, `"NET_CONNECT"`, `"FS_READ"`, `"FS_WRITE"`, `"AGENT_SEND"`) control fine-grained action permissions. Empty `allowed_actions` = all actions allowed. Ratchet enforcement prevents mid-run loosening.
 - **Traceability**: `agent.send()` responses include a `trace` dict: `{model, provider, api_key_env, attempts, latency_ms, fallback_used, original_model, turn, handle_id}`. `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`. Pipeline responses include `stage_traces`.
 - **Environment self-awareness**: `agent.environment(handle)` — returns current environment snapshot without making an API call. Includes config limits (`max_turns`, `max_tokens`, `max_total_tokens`, `timeout_seconds`, `risk_budget`), model chain, provider, temperature, response format, key pool size, retry config, permissions, and dynamic state (turns/tokens used/remaining, keys active/dead, coherence + velocity, contradictions, circular actions, repeated failures, scope creep, pipeline depth, inherited pressure, capabilities granted/exercised, risk budget remaining, governance level, dispatch proximity).
 - **Birth snapshot**: `agent.create()` handle includes an `environment` dict — point-in-time snapshot of config and initial state. Becomes stale after governance reload or sends; compare with current environment to detect mid-run changes.
 - **Live environment**: `agent.send()` response includes an updated `environment` dict — reflects state after the interaction (decremented turns/tokens, updated coherence, key health changes).
 - **Config change notices**: When governance reloads mid-run, per-agent config changes appear in `governance_notices` (e.g., `"agent.risk_assessor.max_tokens: 4096 -> 2048 (reduced)"`). Tightened limits produce notices; loosened limits or removed agents produce ratchet violations.
 - `agent.run()` returns content string only — does NOT include environment. Use `agent.create()` + `agent.send()` for environment awareness.
+- **Handle anti-forge**: Agent handles include a `__nonce` field (HMAC-SHA256). Do not modify or copy nonces between handles — tampered handles are rejected.
+- **Temporal trust decay**: When `context_drift.temporal_decay_enabled` is true, agent coherence decays over time when idle (configurable grace period and decay rate).
+- **Adaptive baselining**: When `context_drift.adaptive_baseline_enabled` is true, per-agent signal rates are observed for a baseline window before penalties are applied. Deviations beyond `mean + sensitivity * stddev` trigger penalties.
+- **Step-up challenges**: When `circuit_breaker.step_up_enabled` is true, agents at elevated governance levels receive a challenge prompt. Response is scored for word count and keyword overlap with the system prompt. Pass recovers coherence; fail blocks the send.
+- Agent environment includes `challenges_passed`/`challenges_failed` counters (from step-up challenges).
 
 ## Functions That Do NOT Exist (use alternatives)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
@@ -1175,6 +1182,12 @@ automatically.
     "rate_normalized": false,
     "coherence_recovery_amount": 0.2,
     "coherence_natural_healing": 0.0,
+    "temporal_decay_enabled": false,
+    "temporal_decay_per_minute": 0.01,
+    "temporal_decay_grace_minutes": 1.0,
+    "adaptive_baseline_enabled": false,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.0,
     "signals": {
         "circular_actions": true,
         "repeated_failures": true,
@@ -1222,6 +1235,8 @@ Key CDD options:
 - **coherence_recovery_amount**: coherence restored at pipeline stage transitions (0.2 default)
 - **coherence_natural_healing**: coherence recovered per turn when no signals fire (0.0 default)
 - **coherence_acceleration**: second-order derivative factor in reality checkpoint composite
+- **temporal_decay_enabled**: coherence erodes over time when idle (grace period + per-minute rate)
+- **adaptive_baseline_enabled**: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold)
 
 ### Exposure Tracking
 ```json
@@ -1271,12 +1286,20 @@ Agent admission denied when budget exhausted. 0 = unlimited. Cap-and-trade analo
     "elevated_sustained": 2,
     "high_sustained": 3,
     "critical_sustained": 4,
-    "critical_coherence": 0.2
+    "critical_coherence": 0.2,
+    "step_up_enabled": false,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Restate your current objective in one sentence.",
+    "step_up_min_words": 5,
+    "step_up_cooldown_turns": 3,
+    "step_up_keyword_threshold": 0.3
 }
 ```
 System-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained
 composite pressure. Effects: ELEVATED = CDD check every turn, HIGH = ADVISORY escalates
-to SOFT, CRITICAL = all agent admission denied. NYSE circuit breaker analog.
+to SOFT, CRITICAL = all agent admission denied. Step-up challenges inject a verification
+prompt at configurable governance level — pass recovers coherence, fail blocks send.
+NYSE circuit breaker analog.
 
 ### Governance Health
 ```json
