@@ -82,10 +82,11 @@ echo -e "${CYAN}  NAAb Agent Tool Execution — Chaos Tests${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════${NC}"
 echo ""
 
-# Pre-check: verify at least one Gemini API key works
+# Pre-check: verify at least one Gemini API key is available
+# Only probe ONE key to avoid burning rate limit quota
 HAS_LIVE_KEY=false
 if command -v curl >/dev/null 2>&1; then
-    for kname in GK1 GK2 GK3 GK4 GK5 GK6; do
+    for kname in GK7 GK8 GK9 GK1 GK2 GK3 GK4 GK5 GK6; do
         eval kval=\${$kname:-}
         [ -z "$kval" ] && continue
         probe=$(curl -s --max-time 10 \
@@ -96,11 +97,21 @@ if command -v curl >/dev/null 2>&1; then
             HAS_LIVE_KEY=true
             echo -e "  ${GREEN}API key check: $kname works${NC}"
             break
+        elif echo "$probe" | grep -q '"RESOURCE_EXHAUSTED"\|"retry in"'; then
+            HAS_LIVE_KEY=true
+            echo -e "  ${YELLOW}API key check: $kname valid but rate-limited (runtime will rotate)${NC}"
+            break
+        elif echo "$probe" | grep -q '"INVALID_ARGUMENT"\|"API_KEY_INVALID"'; then
+            continue
+        else
+            HAS_LIVE_KEY=true
+            echo -e "  ${YELLOW}API key check: $kname status unknown (proceeding)${NC}"
+            break
         fi
     done
 fi
 if ! $HAS_LIVE_KEY; then
-    echo -e "  ${YELLOW}API key check: No working Gemini key found — live tests will skip${NC}"
+    echo -e "  ${YELLOW}API key check: No Gemini key found — live tests will skip${NC}"
 fi
 
 # ── Test 1: Tool Registration Validation (No API) ──
