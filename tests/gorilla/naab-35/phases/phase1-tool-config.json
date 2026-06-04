@@ -14,7 +14,7 @@
   "agents": {
     "tool_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 512,
       "max_turns": 10,
@@ -31,7 +31,7 @@
     },
     "no_tools_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 5,
@@ -41,7 +41,7 @@
     },
     "no_tool_exec_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 5,
@@ -53,7 +53,7 @@
     },
     "tight_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 5,
@@ -69,7 +69,7 @@
     },
     "partial_tools_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 5,

@@ -90,7 +90,7 @@ if command -v curl >/dev/null 2>&1; then
         eval kval=\${$kname:-}
         [ -z "$kval" ] && continue
         probe=$(curl -s --max-time 10 \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${kval}" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${kval}" \
             -H 'Content-Type: application/json' \
             -d '{"contents":[{"parts":[{"text":"hi"}]}]}' 2>&1)
         if echo "$probe" | grep -q '"text"'; then

@@ -14,7 +14,7 @@
   "agents": {
     "tools_enabled_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 10,
@@ -31,7 +31,7 @@
     },
     "tools_disabled_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 10,
@@ -40,7 +40,7 @@
     },
     "no_tool_exec_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 10,
@@ -52,7 +52,7 @@
     },
     "tight_budget_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
       "max_tokens": 256,
       "max_turns": 10,
@@ -68,7 +68,7 @@
     },
     "bogus_key_agent": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": "CHAOS_BOGUS",
       "max_tokens": 256,
       "max_turns": 5,

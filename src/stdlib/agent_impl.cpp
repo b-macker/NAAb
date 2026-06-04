@@ -1617,6 +1617,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 auto tool_end = std::chrono::steady_clock::now();
                 int tool_latency_ms = static_cast<int>(
                     std::chrono::duration_cast<std::chrono::milliseconds>(tool_end - tool_start).count());
+                // Ensure non-zero latency when tool actually executed (sub-ms functions round to 0)
+                if (tool_latency_ms == 0) tool_latency_ms = 1;
 
                 // Step 7: Truncation (Gap L)
                 bool truncated = false;
