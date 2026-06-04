@@ -298,6 +298,9 @@ static NormalizedResponse normalizeResponse(
             if (candidate.contains("content") && candidate["content"].contains("parts")) {
                 for (const auto& part : candidate["content"]["parts"]) {
                     if (part.contains("text")) {
+                        // Skip Gemini/Gemma "thought" parts (internal reasoning tokens)
+                        if (part.contains("thought") && part["thought"].is_boolean() && part["thought"].get<bool>())
+                            continue;
                         if (!result.content.empty()) result.content += "\n";
                         result.content += part["text"].get<std::string>();
                     } else if (part.contains("functionCall")) {

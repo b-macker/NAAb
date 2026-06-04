@@ -40,14 +40,14 @@ check() {
 echo "=== NAAb Governance Reload Live Tests ==="
 echo ""
 
-# Find a working Gemini API key from GK1-GK6
+# Find a working Gemini API key from GK1-GK9
 WORKING_KEY=""
 WORKING_KEY_NAME=""
-for kname in GK1 GK2 GK3 GK4 GK5 GK6; do
+for kname in GK1 GK2 GK3 GK4 GK5 GK6 GK7 GK8 GK9; do
     kval="${!kname}"
     [ -z "$kval" ] && continue
     PROBE=$(curl -s --max-time 10 \
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${kval}" \
+        "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${kval}" \
         -H 'Content-Type: application/json' \
         -d '{"contents":[{"parts":[{"text":"hi"}]}]}' 2>&1)
     if echo "$PROBE" | grep -q '"text"'; then
@@ -58,7 +58,7 @@ for kname in GK1 GK2 GK3 GK4 GK5 GK6; do
 done
 
 if [ -z "$WORKING_KEY" ]; then
-    echo "  SKIP: No working Gemini API key found (GK1-GK6 all invalid or quota exhausted)"
+    echo "  SKIP: No working Gemini API key found (GK1-GK9 all invalid or quota exhausted)"
     echo "=== Results: 0/0 passed, 0 failed (skipped) ==="
     exit 0
 fi
@@ -98,9 +98,9 @@ cat > "$TEST_DIR/govern.json" <<GOVEOF
   "agents": {
     "test_bot": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": "NAAB_TEST_GK",
-      "max_tokens": 50,
+      "max_tokens": 200,
       "max_turns": 5,
       "system_prompt": "Reply with exactly one word. Nothing else."
     }
@@ -110,7 +110,7 @@ GOVEOF
 
 # Pre-create the tightened govern.json and sign it OUTSIDE naab-lang
 # (NAAB_SIGNING_KEY is scrubbed from subprocess environments per V-SC-006)
-TIGHTENED_JSON='{"version":"5.0","mode":"enforce","sandbox_level":"unrestricted","update_reason":"test tightening for CI","limits":{"execution":{"loop_iterations":100},"data":{"output_size":5000}},"capabilities":{"shell":{"enabled":false}},"agents":{"test_bot":{"provider":"gemini","model":"gemini-2.5-flash","api_key_env":"NAAB_TEST_GK","max_tokens":50,"max_turns":5,"system_prompt":"Reply with exactly one word. Nothing else."}}}'
+TIGHTENED_JSON='{"version":"5.0","mode":"enforce","sandbox_level":"unrestricted","update_reason":"test tightening for CI","limits":{"execution":{"loop_iterations":100},"data":{"output_size":5000}},"capabilities":{"shell":{"enabled":false}},"agents":{"test_bot":{"provider":"gemini","model":"gemma-4-31b-it","api_key_env":"NAAB_TEST_GK","max_tokens":50,"max_turns":5,"system_prompt":"Reply with exactly one word. Nothing else."}}}'
 
 # Write tightened config to a temp file, sign it, capture the sig
 PRESIGN_DIR="${TEST_DIR}/.presign"
@@ -236,9 +236,9 @@ cat > "$TEST_DIR/govern.json" <<GOVEOF
   "agents": {
     "test_bot": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemma-4-31b-it",
       "api_key_env": "NAAB_TEST_GK",
-      "max_tokens": 50,
+      "max_tokens": 200,
       "max_turns": 5,
       "system_prompt": "Reply with exactly one word."
     }
@@ -248,7 +248,7 @@ GOVEOF
 
 # Pre-sign the loosened config (it will be rejected by ratchet, but sig must be valid
 # for the rejection to be a ratchet violation rather than a sig failure)
-LOOSENED_JSON='{"version":"5.0","mode":"enforce","sandbox_level":"unrestricted","limits":{"execution":{"loop_iterations":9999}},"capabilities":{"shell":{"enabled":true}},"agents":{"test_bot":{"provider":"gemini","model":"gemini-2.5-flash","api_key_env":"NAAB_TEST_GK","max_tokens":50,"max_turns":5,"system_prompt":"Reply with exactly one word."}}}'
+LOOSENED_JSON='{"version":"5.0","mode":"enforce","sandbox_level":"unrestricted","limits":{"execution":{"loop_iterations":9999}},"capabilities":{"shell":{"enabled":true}},"agents":{"test_bot":{"provider":"gemini","model":"gemma-4-31b-it","api_key_env":"NAAB_TEST_GK","max_tokens":50,"max_turns":5,"system_prompt":"Reply with exactly one word."}}}'
 PRESIGN_DIR="${TEST_DIR}/.presign"
 mkdir -p "$PRESIGN_DIR"
 echo "$LOOSENED_JSON" > "$PRESIGN_DIR/govern.json"
