@@ -1,0 +1,47 @@
+// Gorilla test: agent environment includes governance_health field
+use agent
+use governance
+
+main {
+    // Pre-check: health is available before agent call
+    let h0 = governance.health()
+    let v0 = h0.get("verdict") ?? "MISSING"
+    print("t1_pre_verdict: " + v0)
+
+    // Create agent and check birth environment
+    let a = agent.create("pulse_agent")
+    let birth_env = a.get("environment") ?? {}
+    let birth_state = birth_env.get("state") ?? {}
+    let birth_health = birth_state.get("governance_health") ?? "MISSING"
+    print("t2_birth_governance_health: " + birth_health)
+
+    // Send a simple message
+    let resp = agent.send(a, "What is 2+2? Answer with just the number.")
+    let success = resp.get("success") ?? false
+    print("t3_send_success: " + string(success))
+
+    // Check live environment after send (agent.environment returns full env dict)
+    let live_env = agent.environment(a)
+    let live_state = live_env.get("state") ?? {}
+    let live_health = live_state.get("governance_health") ?? "MISSING"
+    print("t4_live_governance_health: " + live_health)
+
+    // Post-check: health after agent activity
+    let h1 = governance.health()
+    let v1 = h1.get("verdict") ?? "MISSING"
+    let c1 = h1.get("total_checks") ?? -1
+    print("t5_post_verdict: " + v1)
+    print("t5_post_checks: " + string(c1))
+
+    // Verify verdict is one of the allowed values (not an internal enum name)
+    let valid = (live_health == "healthy" or live_health == "degraded" or live_health == "impaired")
+    print("t6_verdict_is_safe_string: " + string(valid))
+
+    // Verify no internal details leak through state dict
+    let has_entropy = live_state.get("entropy") ?? "ABSENT"
+    let has_consecutive = live_state.get("consecutive_degraded") ?? "ABSENT"
+    print("t7_no_entropy_leak: " + string(has_entropy == "ABSENT"))
+    print("t7_no_degraded_leak: " + string(has_consecutive == "ABSENT"))
+
+    print("gorilla_pulse_env_completed: true")
+}

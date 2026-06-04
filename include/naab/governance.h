@@ -1354,17 +1354,12 @@ struct GovernancePulse {
     // Monotonic counters (updated in recordPass/enforce under results_mutex_)
     int total_checks = 0;
     int consecutive_passes = 0;       // reset on any block/enforcement
-    int advisory_suppressions = 0;    // advisory findings that didn't escalate
+    int advisory_count = 0;           // advisory findings emitted (did not block execution)
 
     // Per-subsystem health
     bool bsd_connected = true;
     bool cdd_connected = true;
     double entropy = -1.0;            // -1 = not yet computed
-
-    // Wired signal accumulators
-    int codegen_blocks = 0;
-    int bsd_evictions = 0;
-    int taint_violations_emitted = 0;
 
     // Hysteresis (sustained degradation required before transition)
     int consecutive_degraded = 0;

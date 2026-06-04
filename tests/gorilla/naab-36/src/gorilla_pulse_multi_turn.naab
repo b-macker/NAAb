@@ -1,0 +1,46 @@
+// Gorilla test: pulse survives multi-turn agent conversation
+use agent
+use governance
+
+main {
+    let a = agent.create("pulse_agent")
+
+    // Multiple turns to exercise pulse counters and CDD
+    let messages = [
+        "Say hello in one word.",
+        "Now say goodbye in one word.",
+        "What is 1+1? Just the number."
+    ]
+
+    let all_ok = true
+    for i in range(messages.size()) {
+        let resp = agent.send(a, messages[i])
+        let ok = resp.get("success") ?? false
+        if !ok {
+            all_ok = false
+        }
+        print("t1_turn_" + string(i) + "_success: " + string(ok))
+    }
+
+    // After 3 turns, pulse should have more data
+    let h = governance.health()
+    let verdict = h.get("verdict") ?? "MISSING"
+    let checks = h.get("total_checks") ?? 0
+    print("t2_final_verdict: " + verdict)
+    print("t2_final_checks: " + string(checks))
+    print("t2_checks_positive: " + string(checks > 0))
+
+    // Environment should still show verdict (nested under state)
+    let env = agent.environment(a)
+    let env_state = env.get("state") ?? {}
+    let env_health = env_state.get("governance_health") ?? "MISSING"
+    print("t3_env_health: " + env_health)
+
+    // Usage should show multi-turn activity
+    let usage = agent.usage(a)
+    let turns = usage.get("turns") ?? 0
+    print("t4_turns: " + string(turns))
+    print("t4_turns_match: " + string(turns == 3))
+
+    print("gorilla_pulse_multi_completed: true")
+}

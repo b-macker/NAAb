@@ -1,0 +1,16 @@
+// Chaos test: governance.health() when no governance is active
+use governance
+
+main {
+    let h = governance.health()
+
+    // T1: verdict is "healthy" (no false positives)
+    let verdict = h.get("verdict") ?? "MISSING"
+    print("t1_verdict_no_gov: " + verdict)
+
+    // T2: active is false
+    let active = h.get("active") ?? "MISSING"
+    print("t2_active_no_gov: " + string(active))
+
+    print("chaos_pulse_no_gov_completed: true")
+}

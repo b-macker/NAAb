@@ -1,0 +1,51 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "Pulse chaos test — circuit breaker DISABLED, pulse should still work",
+  "languages": {
+    "allowed": ["python"],
+    "require_explicit": false
+  },
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read" },
+    "shell": { "enabled": false }
+  },
+  "code_quality": {
+    "enabled": true,
+    "level": "advisory",
+    "intent_validation": {
+      "enabled": true,
+      "level": "advisory"
+    }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "level": "advisory",
+    "buffer_size": 100
+  },
+  "context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.3,
+    "level": "advisory",
+    "reality_checkpoint": {
+      "enabled": true,
+      "pressure_threshold": 0.6,
+      "sustained_turns_required": 3,
+      "level": "advisory",
+      "weights": {
+        "codegen_pressure": 0.15,
+        "bsd_eviction_pressure": 0.15
+      }
+    }
+  },
+  "governance_health": {
+    "enabled": true,
+    "bsd_silence_warning_turns": 5,
+    "cdd_silence_warning_turns": 5,
+    "governance_entropy_warning": 0.5
+  },
+  "circuit_breaker": {
+    "enabled": false
+  }
+}

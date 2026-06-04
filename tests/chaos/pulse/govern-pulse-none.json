@@ -1,0 +1,11 @@
+{
+  "version": "5.0",
+  "mode": "audit",
+  "description": "Pulse chaos test — governance present but minimal (no health monitoring)",
+  "languages": {
+    "allowed": ["python"]
+  },
+  "governance_health": {
+    "enabled": false
+  }
+}

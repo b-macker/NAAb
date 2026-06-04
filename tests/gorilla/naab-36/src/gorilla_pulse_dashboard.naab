@@ -1,0 +1,16 @@
+// Gorilla test: dashboard pulse line after agent activity
+use agent
+use governance
+
+main {
+    let a = agent.create("pulse_agent")
+    let resp = agent.send(a, "Say yes.")
+    let ok = resp.get("success") ?? false
+    print("t1_send_success: " + string(ok))
+
+    let h = governance.health()
+    print("t2_verdict: " + h.get("verdict"))
+    print("t2_active: " + string(h.get("active")))
+
+    print("gorilla_pulse_dashboard_completed: true")
+}

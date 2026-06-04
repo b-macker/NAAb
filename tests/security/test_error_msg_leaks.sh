@@ -79,7 +79,7 @@ BANNED_IN_STRINGS=(
     'PULSE_IMPAIRED|pulse BSD event constant leaked in error string'
     'computePulseVerdict|internal pulse method name leaked in error string'
     'consecutive_degraded|pulse hysteresis field leaked in error string'
-    'advisory_suppressions|pulse counter field leaked in error string'
+    'advisory_count|pulse counter field leaked in error string'
     'pulse_.bsd_connected|internal pulse state leaked in error string'
 )
 

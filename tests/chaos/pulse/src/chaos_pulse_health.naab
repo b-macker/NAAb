@@ -1,0 +1,49 @@
+// Chaos test: governance.health() structure and pulse defaults
+use governance
+
+main {
+    let h = governance.health()
+
+    // T1: health() returns a dict
+    print("t1_is_dict: " + string(h != null))
+
+    // T2: verdict field exists and is "healthy" at startup
+    let verdict = h.get("verdict") ?? "MISSING"
+    print("t2_verdict: " + verdict)
+
+    // T3: active field is true (governance is on)
+    let active = h.get("active") ?? false
+    print("t3_active: " + string(active))
+
+    // T4: total_checks field exists (may be 0 at startup)
+    let checks = h.get("total_checks") ?? -1
+    print("t4_total_checks: " + string(checks))
+
+    // T5: consecutive_passes field exists
+    let passes = h.get("consecutive_passes") ?? -1
+    print("t5_consecutive_passes: " + string(passes))
+
+    // T6: bsd_connected field exists
+    let bsd = h.get("bsd_connected") ?? "MISSING"
+    print("t6_bsd_connected: " + string(bsd))
+
+    // T7: cdd_connected field exists
+    let cdd = h.get("cdd_connected") ?? "MISSING"
+    print("t7_cdd_connected: " + string(cdd))
+
+    // T8: Call health() again after some governance activity
+    // (function definitions trigger code_quality checks)
+    fn helper_a() { return 1 }
+    fn helper_b() { return helper_a() + 1 }
+    let r = helper_b()
+
+    let h2 = governance.health()
+    let checks2 = h2.get("total_checks") ?? -1
+    print("t8_checks_after_activity: " + string(checks2))
+
+    // T9: verdict still healthy after normal activity
+    let verdict2 = h2.get("verdict") ?? "MISSING"
+    print("t9_verdict_after_activity: " + verdict2)
+
+    print("chaos_pulse_health_completed: true")
+}

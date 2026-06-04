@@ -1,0 +1,77 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-36 Phase 1: Pulse with live agent — basic config",
+  "languages": {
+    "allowed": ["python"],
+    "require_explicit": false
+  },
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "read" },
+    "shell": { "enabled": false }
+  },
+  "agents": {
+    "pulse_agent": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 128,
+      "max_turns": 5,
+      "max_total_tokens": 2000,
+      "system_prompt": "You are a helpful assistant. Always respond in plain text. Keep responses under 50 words.",
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+    }
+  },
+  "code_quality": {
+    "enabled": true,
+    "level": "advisory",
+    "intent_validation": {
+      "enabled": true,
+      "level": "advisory"
+    }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "level": "advisory",
+    "buffer_size": 100
+  },
+  "context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.3,
+    "level": "advisory",
+    "reality_checkpoint": {
+      "enabled": true,
+      "pressure_threshold": 0.6,
+      "sustained_turns_required": 3,
+      "level": "advisory",
+      "weights": {
+        "coherence_proximity": 0.20,
+        "risk_score_proximity": 0.15,
+        "signal_density": 0.15,
+        "conversation_depth": 0.10,
+        "bsd_partial_progress": 0.10,
+        "pipeline_inherited": 0.0,
+        "coherence_acceleration": 0.0,
+        "codegen_pressure": 0.15,
+        "bsd_eviction_pressure": 0.15
+      }
+    }
+  },
+  "governance_health": {
+    "enabled": true,
+    "bsd_silence_warning_turns": 5,
+    "cdd_silence_warning_turns": 5,
+    "governance_entropy_warning": 0.5
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.4,
+    "elevated_sustained": 2,
+    "high_threshold": 0.6,
+    "high_sustained": 3,
+    "critical_threshold": 0.8,
+    "critical_sustained": 4
+  }
+}

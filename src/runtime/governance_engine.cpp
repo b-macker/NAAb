@@ -906,7 +906,7 @@ std::string GovernanceEngine::enforce(
         pulse_.last_check_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
         if (level == EnforcementLevel::ADVISORY) {
-            pulse_.advisory_suppressions++;
+            pulse_.advisory_count++;
         }
     }
 
@@ -2568,7 +2568,7 @@ void GovernanceEngine::printDashboard() const {
         }
     }
     // Governance Pulse (no lock — printDashboard runs post-execution, same as check_results_)
-    if (pulse_.total_checks > 0) {
+    if (rules_.governance_health.enabled) {
         const char* verdict_str = "HEALTHY";
         if (pulse_.verdict == PulseVerdict::DEGRADED) verdict_str = "DEGRADED";
         else if (pulse_.verdict == PulseVerdict::IMPAIRED) verdict_str = "IMPAIRED";
@@ -5777,7 +5777,12 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
         } else if (pulse_.consecutive_degraded >= 2 && degradation_signals >= 1) {
             new_verdict = PulseVerdict::DEGRADED;
         } else if (pulse_.consecutive_degraded == 0) {
-            new_verdict = PulseVerdict::HEALTHY;  // recovery to baseline
+            // Stepped recovery: IMPAIRED → DEGRADED → HEALTHY (never skip levels)
+            if (pulse_.verdict == PulseVerdict::IMPAIRED) {
+                new_verdict = PulseVerdict::DEGRADED;
+            } else {
+                new_verdict = PulseVerdict::HEALTHY;
+            }
         }
     }
 
@@ -5790,10 +5795,12 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
 }
 
 PulseVerdict GovernanceEngine::getPulseVerdict() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     return pulse_.verdict;
 }
 
 GovernancePulse GovernanceEngine::getPulse() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     return pulse_;
 }
 
@@ -6017,6 +6024,18 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 drift_analyzer_.updateCheckpointState(handle_id, composite, consecutive, -1);
             }
 
+            // Pulse: compute verdict unconditionally (not gated on circuit breaker)
+            PulseVerdict prev_pv = getPulseVerdict();
+            PulseVerdict pv = computePulseVerdict(turn);
+
+            // Emit BSD events for pulse state transitions
+            if (pv != prev_pv) {
+                if (pv == PulseVerdict::DEGRADED)
+                    emitEvent(RuntimeEventType::PULSE_DEGRADED, "governance pulse degraded", "", 0);
+                else if (pv == PulseVerdict::IMPAIRED)
+                    emitEvent(RuntimeEventType::PULSE_IMPAIRED, "governance pulse impaired", "", 0);
+            }
+
             // F6: Update system-wide governance level from sustained pressure
             const auto& cb = rules_.circuit_breaker;
             if (cb.enabled) {
@@ -6025,21 +6044,11 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) level = 2;
                 else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) level = 1;
 
-                // Pulse escalation: degraded governance raises the floor (never lowers)
-                PulseVerdict prev_pv = getPulseVerdict();
-                PulseVerdict pv = computePulseVerdict(turn);
+                // Pulse escalation: raises per-call floor (never below pressure-computed level)
                 if (pv == PulseVerdict::IMPAIRED && level < 2) level = 2;
                 else if (pv == PulseVerdict::DEGRADED && level < 1) level = 1;
 
                 governance_level_.store(level, std::memory_order_relaxed);
-
-                // Emit BSD events for pulse state transitions (after lock release)
-                if (pv != prev_pv) {
-                    if (pv == PulseVerdict::DEGRADED)
-                        emitEvent(RuntimeEventType::PULSE_DEGRADED, "governance pulse degraded", "", 0);
-                    else if (pv == PulseVerdict::IMPAIRED)
-                        emitEvent(RuntimeEventType::PULSE_IMPAIRED, "governance pulse impaired", "", 0);
-                }
             }
         }
     }

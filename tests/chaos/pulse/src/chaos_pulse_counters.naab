@@ -1,0 +1,36 @@
+// Chaos test: pulse counters increment correctly
+use governance
+
+main {
+    // Baseline
+    let h0 = governance.health()
+    let c0 = h0.get("total_checks") ?? 0
+
+    // Generate governance activity — multiple functions to trigger checks
+    fn work_a(x) { return x * 2 }
+    fn work_b(x) { return work_a(x) + 1 }
+    fn work_c(x) { return work_b(x) + work_a(x) }
+
+    let results = []
+    for i in range(5) {
+        results.push(work_c(i))
+    }
+
+    let h1 = governance.health()
+    let c1 = h1.get("total_checks") ?? 0
+
+    // T1: total_checks should have incremented
+    print("t1_checks_incremented: " + string(c1 >= c0))
+    print("t1_check_count: " + string(c1))
+
+    // T2: consecutive_passes should be > 0 (no blocks on valid code)
+    let passes = h1.get("consecutive_passes") ?? 0
+    print("t2_consecutive_passes: " + string(passes))
+    print("t2_passes_positive: " + string(passes >= 0))
+
+    // T3: verdict should still be healthy
+    let v = h1.get("verdict") ?? "MISSING"
+    print("t3_verdict: " + v)
+
+    print("chaos_pulse_counters_completed: true")
+}

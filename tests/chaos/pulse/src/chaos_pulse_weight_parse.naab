@@ -1,0 +1,21 @@
+// Chaos test: new pressure weight fields parse correctly from govern.json
+// This test runs with govern-pulse-basic.json which has codegen_pressure=0.15
+// and bsd_eviction_pressure=0.15. If parsing fails, these would be 0.0 (default)
+// and the reality checkpoint composite would be lower than expected.
+// We verify by checking that governance.health() runs without crash and
+// the config was accepted (governance is active).
+use governance
+
+main {
+    let h = governance.health()
+
+    // T1: governance is active (config parsed successfully including new weights)
+    let active = h.get("active") ?? false
+    print("t1_config_parsed: " + string(active))
+
+    // T2: verdict is healthy (no crash from weight parsing)
+    let verdict = h.get("verdict") ?? "MISSING"
+    print("t2_verdict: " + verdict)
+
+    print("chaos_pulse_weight_parse_completed: true")
+}
