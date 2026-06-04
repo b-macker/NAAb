@@ -419,6 +419,28 @@ fuzz_tool "tools: non-string elements" \
 fuzz_tool "tools: oversized name" \
     '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","tools":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}}}'
 
+# --- Category 14: Codegen config fuzz ---
+fuzz_tool "codegen.enabled: string" \
+    '{"codegen":{"enabled":"yes"}}'
+fuzz_tool "codegen.enabled: null" \
+    '{"codegen":{"enabled":null}}'
+fuzz_tool "codegen.max_code_size_bytes: negative" \
+    '{"codegen":{"enabled":true,"max_code_size_bytes":-5}}'
+fuzz_tool "codegen.max_code_size_bytes: overflow" \
+    '{"codegen":{"enabled":true,"max_code_size_bytes":999999999}}'
+fuzz_tool "codegen.max_code_lines: 0" \
+    '{"codegen":{"enabled":true,"max_code_lines":0}}'
+fuzz_tool "codegen.timeout_seconds: negative" \
+    '{"codegen":{"enabled":true,"timeout_seconds":-1}}'
+fuzz_tool "codegen.allowed_languages: string" \
+    '{"codegen":{"enabled":true,"allowed_languages":"python"}}'
+fuzz_tool "codegen.allowed_languages: non-string elements" \
+    '{"codegen":{"enabled":true,"allowed_languages":[123,null]}}'
+fuzz_tool "codegen.max_nesting_depth: negative" \
+    '{"codegen":{"enabled":true,"max_nesting_depth":-1}}'
+fuzz_tool "codegen.max_cumulative_calls: 0" \
+    '{"codegen":{"enabled":true,"max_cumulative_calls":0}}'
+
 # Cleanup
 rm -rf "$FUZZ_DIR"
 

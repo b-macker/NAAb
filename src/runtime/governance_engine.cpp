@@ -802,6 +802,8 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
         auto it = rules_.contracts.functions.find(fn);
         if (it != rules_.contracts.functions.end()) return it->second.rationale;
     }
+    // Codegen
+    if (rule_name.rfind("codegen", 0) == 0) return rules_.codegen.rationale;
     // Custom rules
     if (rule_name.rfind("custom.", 0) == 0) {
         std::string id = rule_name.substr(7);
@@ -1109,6 +1111,55 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
 // ============================================================================
 // Enforcement Checks
 // ============================================================================
+
+std::string GovernanceEngine::checkCodegenAllowed(
+    const std::string& language, size_t code_size, int line) {
+    clearTrace();
+
+    if (!rules_.codegen.enabled) {
+        addTrace("codegen.enabled = false → blocked");
+        return enforce("codegen.enabled", rules_.codegen.level,
+            "Codegen error: dynamic code execution is not enabled\n\n"
+            "  codegen.run() requires explicit enablement in governance configuration.\n"
+            "  Use static polyglot blocks instead: <<" + language + " ... >>\n");
+    }
+
+    // Check codegen-specific language restrictions
+    if (!rules_.codegen.allowed_languages.empty()) {
+        bool found = false;
+        for (const auto& l : rules_.codegen.allowed_languages) {
+            if (l == language) { found = true; break; }
+        }
+        if (!found) {
+            addTrace("codegen.allowed_languages does not contain '" + language + "' → blocked");
+            return enforce("codegen.allowed_languages", rules_.codegen.level,
+                "Codegen error: language '" + language + "' is not allowed for dynamic code\n");
+        }
+    }
+    if (!rules_.codegen.blocked_languages.empty()) {
+        for (const auto& l : rules_.codegen.blocked_languages) {
+            if (l == language) {
+                addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
+                return enforce("codegen.blocked_languages", rules_.codegen.level,
+                    "Codegen error: language '" + language + "' is blocked for dynamic code\n");
+            }
+        }
+    }
+
+    // Check per-call size
+    if (rules_.codegen.max_code_size_bytes > 0 &&
+        static_cast<int>(code_size) > rules_.codegen.max_code_size_bytes) {
+        addTrace("code_size " + std::to_string(code_size) + " > max " +
+                 std::to_string(rules_.codegen.max_code_size_bytes) + " → blocked");
+        return enforce("codegen.max_code_size_bytes", rules_.codegen.level,
+            "Codegen error: code exceeds maximum size\n\n"
+            "  Got: " + std::to_string(code_size) + " bytes\n"
+            "  Limit: " + std::to_string(rules_.codegen.max_code_size_bytes) + " bytes\n");
+    }
+
+    addTrace("codegen allowed: " + language + ", " + std::to_string(code_size) + " bytes");
+    return "";
+}
 
 std::string GovernanceEngine::checkLanguageAllowed(
     const std::string& language, int line) {
@@ -2492,6 +2543,15 @@ void GovernanceEngine::printDashboard() const {
                         ds.total_tool_calls, ds.total_tool_calls_blocked,
                         static_cast<long long>(ds.total_tool_latency_ms));
             }
+        }
+    }
+    // Codegen stats
+    {
+        auto cs = stdlib::getCodegenStats();
+        if (cs.total_calls > 0 || cs.total_blocked > 0) {
+            fprintf(stderr, "Codegen:    %d calls (%d blocked, %lldms)\n",
+                    cs.total_calls, cs.total_blocked,
+                    static_cast<long long>(cs.total_duration_ms));
         }
     }
     fprintf(stderr, "────────────────────────────────\n");

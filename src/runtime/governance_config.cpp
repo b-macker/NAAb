@@ -1976,6 +1976,51 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // --- Dynamic Code Generation (codegen) ---
+    if (j.contains("codegen") && j["codegen"].is_object()) {
+        auto& cg = j["codegen"];
+        if (cg.contains("enabled") && cg["enabled"].is_boolean())
+            rules_.codegen.enabled = cg["enabled"].get<bool>();
+        if (cg.contains("level") && cg["level"].is_string()) {
+            std::string lev = cg["level"].get<std::string>();
+            if (lev == "hard") rules_.codegen.level = EnforcementLevel::HARD;
+            else if (lev == "soft") rules_.codegen.level = EnforcementLevel::SOFT;
+            else rules_.codegen.level = EnforcementLevel::ADVISORY;
+        }
+        if (cg.contains("rationale") && cg["rationale"].is_string())
+            rules_.codegen.rationale = cg["rationale"].get<std::string>();
+        if (cg.contains("max_code_size_bytes") && cg["max_code_size_bytes"].is_number_integer())
+            rules_.codegen.max_code_size_bytes = std::max(0, cg["max_code_size_bytes"].get<int>());
+        if (cg.contains("max_code_lines") && cg["max_code_lines"].is_number_integer())
+            rules_.codegen.max_code_lines = std::max(0, cg["max_code_lines"].get<int>());
+        if (cg.contains("timeout_seconds") && cg["timeout_seconds"].is_number_integer())
+            rules_.codegen.timeout_seconds = std::max(0, cg["timeout_seconds"].get<int>());
+        if (cg.contains("max_cumulative_code_bytes") && cg["max_cumulative_code_bytes"].is_number_integer())
+            rules_.codegen.max_cumulative_code_bytes = std::max(0, cg["max_cumulative_code_bytes"].get<int>());
+        if (cg.contains("max_cumulative_calls") && cg["max_cumulative_calls"].is_number_integer())
+            rules_.codegen.max_cumulative_calls = std::max(0, cg["max_cumulative_calls"].get<int>());
+        if (cg.contains("max_cumulative_calls_per_agent") && cg["max_cumulative_calls_per_agent"].is_number_integer())
+            rules_.codegen.max_cumulative_calls_per_agent = std::max(0, cg["max_cumulative_calls_per_agent"].get<int>());
+        if (cg.contains("allow_tainted_code") && cg["allow_tainted_code"].is_boolean())
+            rules_.codegen.allow_tainted_code = cg["allow_tainted_code"].get<bool>();
+        if (cg.contains("max_nesting_depth") && cg["max_nesting_depth"].is_number_integer())
+            rules_.codegen.max_nesting_depth = std::max(0, cg["max_nesting_depth"].get<int>());
+        if (cg.contains("allowed_languages") && cg["allowed_languages"].is_array()) {
+            for (const auto& lang : cg["allowed_languages"]) {
+                if (lang.is_string()) rules_.codegen.allowed_languages.push_back(lang.get<std::string>());
+            }
+        }
+        if (cg.contains("blocked_languages") && cg["blocked_languages"].is_array()) {
+            for (const auto& lang : cg["blocked_languages"]) {
+                if (lang.is_string()) rules_.codegen.blocked_languages.push_back(lang.get<std::string>());
+            }
+        }
+        if (cg.contains("sanitize_stderr") && cg["sanitize_stderr"].is_boolean())
+            rules_.codegen.sanitize_stderr = cg["sanitize_stderr"].get<bool>();
+        if (cg.contains("max_stderr_chars") && cg["max_stderr_chars"].is_number_integer())
+            rules_.codegen.max_stderr_chars = std::max(0, cg["max_stderr_chars"].get<int>());
+    }
+
     // --- Telemetry output config ---
     if (j.contains("telemetry") && j["telemetry"].is_object()) {
         auto& tel = j["telemetry"];
@@ -2839,6 +2884,32 @@ static bool checkRatchetViolation(
                 old_agent.name));
         }
     }
+
+    // --- Codegen ratchet enforcement ---
+    // codegen.enabled: false→true = loosening
+    if (new_r.codegen.enabled && !old_r.codegen.enabled)
+        violations.push_back("codegen.enabled: false -> true (loosened)");
+    else if (!new_r.codegen.enabled && old_r.codegen.enabled)
+        notices.push_back("codegen.enabled: true -> false (tightened)");
+    // allow_tainted_code: false→true = loosening
+    if (new_r.codegen.allow_tainted_code && !old_r.codegen.allow_tainted_code)
+        violations.push_back("codegen.allow_tainted_code: false -> true (loosened)");
+    else if (!new_r.codegen.allow_tainted_code && old_r.codegen.allow_tainted_code)
+        notices.push_back("codegen.allow_tainted_code: true -> false (tightened)");
+    // Numeric codegen limits: increasing = loosening
+    auto chkCodegenLimit = [&](int old_v, int new_v, const char* field) {
+        if (new_v > old_v)
+            violations.push_back(fmt::format("codegen.{}: {} -> {} (loosened)", field, old_v, new_v));
+        else if (new_v < old_v)
+            notices.push_back(fmt::format("codegen.{}: {} -> {} (tightened)", field, old_v, new_v));
+    };
+    chkCodegenLimit(old_r.codegen.max_code_size_bytes, new_r.codegen.max_code_size_bytes, "max_code_size_bytes");
+    chkCodegenLimit(old_r.codegen.max_code_lines, new_r.codegen.max_code_lines, "max_code_lines");
+    chkCodegenLimit(old_r.codegen.timeout_seconds, new_r.codegen.timeout_seconds, "timeout_seconds");
+    chkCodegenLimit(old_r.codegen.max_cumulative_code_bytes, new_r.codegen.max_cumulative_code_bytes, "max_cumulative_code_bytes");
+    chkCodegenLimit(old_r.codegen.max_cumulative_calls, new_r.codegen.max_cumulative_calls, "max_cumulative_calls");
+    chkCodegenLimit(old_r.codegen.max_cumulative_calls_per_agent, new_r.codegen.max_cumulative_calls_per_agent, "max_cumulative_calls_per_agent");
+    chkCodegenLimit(old_r.codegen.max_nesting_depth, new_r.codegen.max_nesting_depth, "max_nesting_depth");
 
     return violations.empty();
 }

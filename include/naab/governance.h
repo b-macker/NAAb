@@ -1683,7 +1683,7 @@ struct AgentConfig {
     bool network_allowed = true;
     bool network_allowed_set = false;
     // Fine-grained action matrix — empty = all allowed
-    // Actions: "SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND"
+    // Actions: "SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND", "TOOL_EXEC", "CODEGEN_EXEC"
     std::vector<std::string> allowed_actions;
 
     // --- LLM config (populated from "agents" key in govern.json) ---
@@ -1734,6 +1734,40 @@ struct AgentConfig {
 };
 
 // ============================================================================
+// Dynamic Code Execution Configuration
+// ============================================================================
+
+struct CodegenConfig {
+    bool enabled = false;                      // Master switch (default off)
+    EnforcementLevel level = EnforcementLevel::HARD;
+    std::string rationale;
+
+    // Per-call limits
+    int max_code_size_bytes = 65536;           // 64KB per call
+    int max_code_lines = 500;                  // per call
+    int timeout_seconds = 15;                  // per-call execution timeout
+
+    // Cumulative session limits
+    int max_cumulative_code_bytes = 524288;    // 512KB per process lifetime
+    int max_cumulative_calls = 100;            // total codegen.run() calls per process
+    int max_cumulative_calls_per_agent = 20;   // per agent handle
+
+    // Taint policy
+    bool allow_tainted_code = false;           // tainted code strings HARD-blocked by default
+
+    // Recursion prevention
+    int max_nesting_depth = 0;                 // 0 = no nesting allowed
+
+    // Language restrictions (augments global languages.allowed)
+    std::vector<std::string> allowed_languages;   // empty = use global policy
+    std::vector<std::string> blocked_languages;   // additional blocks for codegen
+
+    // Error handling
+    bool sanitize_stderr = true;               // scrub system paths from stderr
+    int max_stderr_chars = 2048;               // truncate stderr
+};
+
+// ============================================================================
 // Master Rules Structure
 // ============================================================================
 
@@ -1773,6 +1807,7 @@ struct GovernanceRules {
     TrustPolicyConfig trust_policy;
     PrerequisitesConfig prerequisites;
     ContradictionDetectionConfig contradiction_detection;
+    CodegenConfig codegen;
 
     // Integrity: HMAC signing of govern.json and drift baselines
     struct IntegrityConfig {
@@ -2091,6 +2126,10 @@ public:
     std::string getAuditLevel() const { return rules_.audit_level; }
     bool isTamperEvidenceEnabled() const { return rules_.tamper_evidence; }
 
+    // --- Codegen accessors ---
+    bool getCodegenEnabled() const { return rules_.codegen.enabled; }
+    const CodegenConfig& getCodegenConfig() const { return rules_.codegen; }
+
     // --- Agent identity ---
     void setAgentId(const std::string& id) { agent_id_ = id; }
     const std::string& getAgentId() const { return agent_id_; }
@@ -2130,6 +2169,9 @@ public:
     int getTimeoutForLanguage(const std::string& lang) const;
     int getMaxLinesForLanguage(const std::string& lang) const;
     const LanguageConfig* getLanguageConfig(const std::string& lang) const;
+
+    // --- Codegen checks ---
+    std::string checkCodegenAllowed(const std::string& language, size_t code_size, int line = 0);
 
     // --- Original checks (backward compatible) ---
     std::string checkLanguageAllowed(const std::string& language, int line = 0);

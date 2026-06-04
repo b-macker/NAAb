@@ -1795,6 +1795,12 @@ interpreter::NaabVal VM::run() {
                             }
                         }
 
+                        // Codegen taint plumbing: pass arg[1] taint state to codegen module
+                        if (mod == "codegen" && (method == "run" || method == "run_with_args") && argc >= 2) {
+                            ptrdiff_t arg1_offset = (args_ptr + 1) - stack_.get();
+                            stdlib::setCodegenArgTainted(taint_stack_[arg1_offset]);
+                        }
+
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                         // Clear stale slots before adjusting stack pointer
                         for (int si = 0; si < argc + 1; si++)

@@ -1470,6 +1470,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                         }
                     }
 
+                    // Codegen taint plumbing: pass arg[1] taint state to codegen module
+                    if (module_alias == "codegen" &&
+                        (func_name == "run" || func_name == "run_with_args") &&
+                        node.getArgs().size() >= 2 && governance_ && governance_->isActive()) {
+                        stdlib::setCodegenArgTainted(
+                            expressionContainsTaint(node.getArgs()[1].get()));
+                    }
+
                     // Call the stdlib function
                     result_ = module->call(func_name, args);
 

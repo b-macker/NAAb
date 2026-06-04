@@ -717,6 +717,7 @@ add_library(naab_stdlib
     src/stdlib/validate_impl.cpp
     src/stdlib/process_impl.cpp
     src/stdlib/agent_impl.cpp
+    src/stdlib/codegen_impl.cpp
     src/stdlib/governance_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp

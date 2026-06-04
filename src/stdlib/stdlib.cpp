@@ -403,6 +403,7 @@ void StdLib::registerModules() {
     modules_["validate"] = std::make_shared<ValidateModule>();
     modules_["process"]  = std::make_shared<ProcessModule>();
     modules_["agent"]    = std::make_shared<AgentModule>();
+    modules_["codegen"]  = std::make_shared<CodegenModule>();
     modules_["governance"] = std::make_shared<GovernanceModule>();
 }
 

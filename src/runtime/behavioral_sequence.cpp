@@ -165,6 +165,40 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         p.level = EnforcementLevel::ADVISORY;
         default_patterns_.push_back(std::move(p));
     }
+
+    // 12. Codegen exfiltration: env read → codegen exec (Gap pattern: exfil via dynamic code)
+    {
+        SequencePattern p;
+        p.name = "codegen_exfil";
+        p.steps.push_back(makeStep({"env.get"}));
+        p.steps.push_back(makeStep({"codegen_exec"}));
+        p.max_gap = 5;
+        p.level = EnforcementLevel::SOFT;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 13. Codegen rapid fire: burst of dynamic code executions (enumeration/probing)
+    {
+        SequencePattern p;
+        p.name = "codegen_rapid_fire";
+        p.steps.push_back(makeStep({"codegen_exec"}));
+        p.steps.push_back(makeStep({"codegen_exec"}));
+        p.steps.push_back(makeStep({"codegen_exec"}));
+        p.max_gap = 2;
+        p.level = EnforcementLevel::ADVISORY;
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 14. Tool result → codegen: tool output flows into generated code
+    {
+        SequencePattern p;
+        p.name = "codegen_after_tool";
+        p.steps.push_back(makeStep({"tool_result"}));
+        p.steps.push_back(makeStep({"codegen_exec"}));
+        p.max_gap = 3;
+        p.level = EnforcementLevel::ADVISORY;
+        default_patterns_.push_back(std::move(p));
+    }
 }
 
 const std::vector<SequencePattern>& BehavioralSequenceDetector::getActivePatterns() const {
@@ -406,6 +440,8 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
         case RuntimeEventType::TOOL_RESULT:     return "tool_result";
         case RuntimeEventType::TOOL_ERROR:      return "tool_error";
         case RuntimeEventType::TOOL_BLOCKED:    return "tool_blocked";
+        case RuntimeEventType::CODEGEN_EXEC:    return "codegen_exec";
+        case RuntimeEventType::CODEGEN_BLOCKED: return "codegen_blocked";
     }
     return "unknown";
 }

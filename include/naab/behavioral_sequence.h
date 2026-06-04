@@ -38,7 +38,9 @@ enum class RuntimeEventType {
     TOOL_CALL,          // LLM requested tool invocation
     TOOL_RESULT,        // tool executed, result returned
     TOOL_ERROR,         // tool invocation failed
-    TOOL_BLOCKED        // tool call blocked by governance
+    TOOL_BLOCKED,       // tool call blocked by governance
+    CODEGEN_EXEC,       // codegen.run() dynamic code execution
+    CODEGEN_BLOCKED     // codegen.run() blocked by governance
 };
 
 // --- Single Runtime Event ---

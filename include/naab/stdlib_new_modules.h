@@ -267,6 +267,19 @@ public:
         std::vector<interpreter::NaabVal>& args) override;
 };
 
+// Codegen Module — governed dynamic code execution via polyglot executors
+class CodegenModule : public Module {
+public:
+    std::string getName() const override { return "codegen"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
+// Codegen taint plumbing — called by VM/interpreter before codegen module dispatch
+void setCodegenArgTainted(bool v);
+
 // Agent Module — LLM conversation management with governance enforcement
 class AgentModule : public Module {
 public:
@@ -295,6 +308,15 @@ struct AgentDispatchStats {
 
 // Returns a snapshot of current run-level dispatch counters
 AgentDispatchStats getAgentDispatchStats();
+
+// Codegen dashboard stats
+struct CodegenStats {
+    int total_calls = 0;
+    int total_blocked = 0;
+    int64_t total_duration_ms = 0;
+};
+
+CodegenStats getCodegenStats();
 
 } // namespace stdlib
 } // namespace naab

@@ -1865,5 +1865,24 @@
     "rationale": "Detect suspicious inter-agent timing correlation"
   },
 
+  "_comment_codegen": "Dynamic Code Execution — codegen.run(language, code_string) routes runtime-generated code through the same 39+ governance checks as static <<language ... >> blocks. Disabled by default. Per-call limits (size, lines, timeout), cumulative limits (calls, bytes, per-agent calls), taint policy (allow_tainted_code = false blocks LLM-generated code by default), nesting prevention, language restrictions, and stderr sanitization. Shares polyglot rate limiter and block counter with static blocks. Requires CODEGEN_EXEC in agent allowed_actions if action matrix is set.",
+  "codegen": {
+    "enabled": false,
+    "level": "hard",
+    "max_code_size_bytes": 65536,
+    "max_code_lines": 500,
+    "timeout_seconds": 15,
+    "max_cumulative_code_bytes": 524288,
+    "max_cumulative_calls": 100,
+    "max_cumulative_calls_per_agent": 20,
+    "allow_tainted_code": false,
+    "max_nesting_depth": 0,
+    "allowed_languages": [],
+    "blocked_languages": [],
+    "sanitize_stderr": true,
+    "max_stderr_chars": 2048,
+    "rationale": "Governed dynamic code execution for LLM agents"
+  },
+
   "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }

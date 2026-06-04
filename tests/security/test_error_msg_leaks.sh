@@ -36,6 +36,7 @@ SECURITY_FILES=(
     "src/vm/vm.cpp"
     "src/api/governance_c_api.cpp"
     "src/stdlib/agent_impl.cpp"
+    "src/stdlib/codegen_impl.cpp"
 )
 
 # Patterns that should NEVER appear in string literals within these files
@@ -68,6 +69,10 @@ BANNED_IN_STRINGS=(
     't_tool_agent_context|thread-local name leaked in error string'
     't_in_tool_execution|thread-local name leaked in error string'
     'tool_snapshot|internal structure name leaked in error string'
+    # Codegen internals (match only inside string literals)
+    't_codegen_nesting_depth|thread-local name leaked in error string'
+    't_codegen_arg_tainted|thread-local name leaked in error string'
+    'setCodegenArgTainted|internal function name leaked in error string'
 )
 
 echo "=== Error Message Leak Check ==="
