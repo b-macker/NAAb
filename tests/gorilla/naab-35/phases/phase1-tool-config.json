@@ -1,0 +1,96 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-35: Agent tool execution gorilla test",
+  "languages": {
+    "allowed": ["python"],
+    "require_explicit": false
+  },
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "write" },
+    "shell": { "enabled": false }
+  },
+  "agents": {
+    "tool_agent": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 512,
+      "max_turns": 10,
+      "max_total_tokens": 10000,
+      "system_prompt": "You are a helpful assistant with access to tools. When asked to search or calculate, ALWAYS use the provided tools. Never guess — use tools.",
+      "tools_enabled": true,
+      "tools": ["search_data", "calculate", "get_status"],
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 5,
+      "tool_result_max_chars": 2048,
+      "tool_timeout_seconds": 10,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+    },
+    "no_tools_agent": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 256,
+      "max_turns": 5,
+      "tools_enabled": false,
+      "system_prompt": "You are a test agent.",
+      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+    },
+    "no_tool_exec_agent": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 256,
+      "max_turns": 5,
+      "tools_enabled": true,
+      "tools": ["search_data"],
+      "allowed_actions": ["AGENT_SEND"],
+      "system_prompt": "You are a test agent. Always use the search_data tool.",
+      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+    },
+    "tight_agent": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 256,
+      "max_turns": 5,
+      "system_prompt": "You are a test agent. Always use available tools. Call multiple tools per request.",
+      "tools_enabled": true,
+      "tools": ["search_data", "calculate"],
+      "max_tool_calls_per_turn": 2,
+      "max_tool_loop_turns": 2,
+      "tool_result_max_chars": 100,
+      "tool_timeout_seconds": 5,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+    },
+    "partial_tools_agent": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 256,
+      "max_turns": 5,
+      "system_prompt": "You are a test agent. Use the search_data tool when asked to search.",
+      "tools_enabled": true,
+      "tools": ["search_data"],
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 3,
+      "tool_result_max_chars": 1024,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+    }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": []
+  },
+  "context_drift": {
+    "enabled": false
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  }
+}

@@ -1,0 +1,84 @@
+// Chaos 21: Basic tool execution loop
+// Tests: LLM calls tool, gets result, returns text response
+use agent
+
+fn search_data(query) {
+    return {"results": ["item1", "item2", "item3"], "query": query}
+}
+
+fn calculate(expression) {
+    // Simple calculator
+    return {"result": 42, "expression": expression}
+}
+
+main {
+    // Register tools
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store for information. Returns a dict with results array.",
+        "parameters": {
+            "query": {"type": "string", "description": "What to search for"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Calculate a mathematical expression. Returns a dict with result.",
+        "parameters": {
+            "expression": {"type": "string", "description": "Math expression to evaluate"}
+        }
+    })
+
+    let h = agent.create("tools_enabled_agent")
+
+    let resp = null
+    let send_ok = false
+    try {
+        resp = agent.send(h, "Use the search_data tool to find information about 'governance rules'. Then tell me what you found.")
+        send_ok = true
+    } catch (e) {
+        print("send_error: " + string(e))
+    }
+    print("t1_send_succeeded: " + string(send_ok))
+
+    if resp != null {
+        // T2: Response has content
+        let content = resp.get("content") ?? ""
+        print("t2_has_content: " + string(len(content) > 0))
+
+        // T3: Tool calls were made
+        let tcm = resp.get("tool_calls_made") ?? 0
+        print("t3_tool_calls_made: " + string(tcm))
+
+        // T4: Tool loop turns > 0
+        let tlt = resp.get("tool_loop_turns") ?? 0
+        print("t4_tool_loop_turns: " + string(tlt))
+
+        // T5: Tool results array present
+        let tr = resp.get("tool_results") ?? []
+        print("t5_tool_results_count: " + string(len(tr)))
+
+        // T6: Each tool result has expected keys
+        if len(tr) > 0 {
+            let first = tr[0]
+            let has_name = first.get("name") != null
+            let has_success = first.get("success") != null
+            let has_latency = first.get("latency_ms") != null
+            print("t6_result_has_name: " + string(has_name))
+            print("t6_result_has_success: " + string(has_success))
+            print("t6_result_has_latency: " + string(has_latency))
+        }
+
+        // T7: Tool budget remaining
+        let tbr = resp.get("tool_budget_remaining") ?? -1
+        print("t7_budget_remaining: " + string(tbr))
+
+        // T8: Tool loop exit reason
+        let reason = resp.get("tool_loop_exit_reason") ?? "none"
+        print("t8_exit_reason: " + reason)
+
+        // T9: Usage counters updated
+        let usage = agent.usage(h)
+        let ut_total = usage.get("tool_calls_total") ?? 0
+        print("t9_usage_tool_calls_total: " + string(ut_total))
+    }
+
+    print("chaos_21_completed: true")
+}

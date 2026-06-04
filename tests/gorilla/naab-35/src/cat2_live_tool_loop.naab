@@ -1,0 +1,103 @@
+// NAAb-35 Category 2: Live Tool Execution Loop
+// 10 assertions testing the full tool call → result → response cycle
+use agent
+
+fn search_data(query) {
+    return {"results": ["governance_rule_1", "governance_rule_2"], "query": query, "count": 2}
+}
+
+fn calculate(x) {
+    return {"result": 42, "input": x}
+}
+
+fn get_status(service) {
+    return {"status": "healthy", "uptime_hours": 720, "service": service}
+}
+
+main {
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store for records matching a query. Returns results array.",
+        "parameters": {
+            "query": {"type": "string", "description": "What to search for"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Perform a mathematical calculation. Returns the result.",
+        "parameters": {
+            "x": {"type": "string", "description": "Math expression"}
+        }
+    })
+    agent.register_tool("get_status", get_status, {
+        "description": "Get the health status of a service. Returns status and uptime.",
+        "parameters": {
+            "service": {"type": "string", "description": "Service name to check"}
+        }
+    })
+
+    let h = agent.create("tool_agent")
+
+    // Send a message that should trigger tool use
+    let resp = null
+    let send_ok = false
+    try {
+        resp = agent.send(h, "Use the search_data tool to search for 'governance policies'. Report what you find.")
+        send_ok = true
+    } catch (e) {
+        print("send_error: " + string(e))
+    }
+    print("a1_send_ok: " + string(send_ok))
+
+    if resp != null {
+        // A2: Response has text content
+        let content = resp.get("content") ?? ""
+        print("a2_has_content: " + string(len(content) > 0))
+
+        // A3: Tool calls were made
+        let tcm = resp.get("tool_calls_made") ?? 0
+        print("a3_tool_calls_made: " + string(tcm))
+
+        // A4: Tool loop turns > 0
+        let tlt = resp.get("tool_loop_turns") ?? 0
+        print("a4_tool_loop_turns: " + string(tlt))
+
+        // A5: Tool results array present with entries
+        let tr = resp.get("tool_results") ?? []
+        print("a5_tool_results_count: " + string(len(tr)))
+
+        // A6: First tool result has correct structure
+        if len(tr) > 0 {
+            let first = tr[0]
+            let has_name = first.get("name") != null
+            let has_success = first.get("success") != null
+            let has_latency = first.get("latency_ms") != null
+            print("a6_result_keys: " + string(has_name && has_success && has_latency))
+            print("a6_first_name: " + string(first.get("name") ?? "unknown"))
+            print("a6_first_success: " + string(first.get("success") ?? false))
+        } else {
+            print("a6_result_keys: false")
+        }
+
+        // A7: Budget remaining reflects calls made
+        let tbr = resp.get("tool_budget_remaining") ?? -1
+        print("a7_budget_remaining: " + string(tbr))
+
+        // A8: Exit reason is text_response (normal completion)
+        let reason = resp.get("tool_loop_exit_reason") ?? "none"
+        print("a8_exit_reason: " + reason)
+
+        // A9: Usage counters updated after tool execution
+        let usage = agent.usage(h)
+        let ut_total = usage.get("tool_calls_total") ?? 0
+        let ut_latency = usage.get("tool_total_latency_ms") ?? 0
+        print("a9_usage_total: " + string(ut_total))
+        print("a9_usage_latency: " + string(ut_latency))
+
+        // A10: Environment reflects tool activity
+        let live_env = agent.environment(h)
+        let state = live_env.get("state") ?? {}
+        let live_total = state.get("tool_calls_total") ?? 0
+        print("a10_env_tool_total: " + string(live_total))
+    }
+
+    print("cat2_completed: true")
+}

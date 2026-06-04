@@ -1,0 +1,48 @@
+// Chaos 20: TOOL_EXEC action matrix enforcement
+// Tests: agent without TOOL_EXEC gets blocked when LLM returns tool_use
+use agent
+
+fn search_data(query) {
+    return "found: " + query
+}
+
+main {
+    // Register tool
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store for information",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+
+    // Create agent that has tools_enabled but NOT TOOL_EXEC in allowed_actions
+    let h = agent.create("no_tool_exec_agent")
+
+    // Sending should work (AGENT_SEND is in allowed_actions)
+    // but if LLM returns tool_use, it should be blocked
+    let blocked = false
+    let error_msg = ""
+    try {
+        let resp = agent.send(h, "Use the search_data tool to find information about governance")
+        // If we get here, LLM didn't try to use tools (also valid)
+        print("t1_send_succeeded: true")
+        print("t1_tool_calls_made: " + string(resp.get("tool_calls_made") ?? 0))
+    } catch (e) {
+        error_msg = string(e)
+        // Check if blocked due to TOOL_EXEC missing
+        if error_msg.contains("TOOL_EXEC") {
+            blocked = true
+        }
+        print("t1_send_succeeded: false")
+    }
+    print("t1_tool_exec_blocked: " + string(blocked))
+
+    // Error should not leak the full allowed_actions list
+    if error_msg != "" {
+        let leaks_actions = error_msg.contains("AGENT_SEND") ||
+                            error_msg.contains("FS_READ")
+        print("t2_error_leaks_actions: " + string(leaks_actions))
+    }
+
+    print("chaos_20_completed: true")
+}

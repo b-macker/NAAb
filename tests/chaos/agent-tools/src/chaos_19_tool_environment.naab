@@ -1,0 +1,67 @@
+// Chaos 19: Tool environment reflection
+// Tests: tools show in environment, birth snapshot, on-demand query
+use agent
+
+fn search_data(query) {
+    return "found: " + query
+}
+
+fn calculate(x) {
+    return x * 2
+}
+
+main {
+    // Register tools
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Calculate a value",
+        "parameters": {
+            "x": {"type": "number", "description": "Input value"}
+        }
+    })
+
+    // Create handle with tools_enabled config
+    let h = agent.create("tools_enabled_agent")
+
+    // T1: Birth environment shows tools_enabled
+    let birth = h.get("environment")
+    let perms = birth.get("permissions") ?? {}
+    let tools_enabled = perms.get("tools_enabled") ?? false
+    print("t1_tools_enabled: " + string(tools_enabled))
+
+    // T2: Birth environment shows registered tools count
+    let tools_reg = perms.get("tools_registered") ?? 0
+    print("t2_tools_registered: " + string(tools_reg))
+
+    // T3: Birth environment shows available tools
+    let tools_avail = perms.get("tools_available") ?? []
+    let avail_count = len(tools_avail)
+    print("t3_tools_available_count: " + string(avail_count))
+
+    // T4: On-demand environment query shows same
+    let live = agent.environment(h)
+    let live_perms = live.get("permissions") ?? {}
+    let live_enabled = live_perms.get("tools_enabled") ?? false
+    print("t4_live_tools_enabled: " + string(live_enabled))
+
+    // T5: Tool state counters start at zero
+    let state = birth.get("state") ?? {}
+    let tc_total = state.get("tool_calls_total") ?? 0
+    let tc_blocked = state.get("tool_calls_blocked") ?? 0
+    print("t5_initial_calls_zero: " + string(tc_total == 0))
+    print("t5_initial_blocked_zero: " + string(tc_blocked == 0))
+
+    // T6: Create handle for tools_disabled agent — no tools in environment
+    let h2 = agent.create("tools_disabled_agent")
+    let birth2 = h2.get("environment")
+    let perms2 = birth2.get("permissions") ?? {}
+    let disabled_enabled = perms2.get("tools_enabled") ?? false
+    print("t6_disabled_tools_enabled: " + string(disabled_enabled))
+
+    print("chaos_19_completed: true")
+}

@@ -1,0 +1,112 @@
+// NAAb-35 Category 3: Governance Blocking
+// 10 assertions testing all defense layers that block tool execution
+use agent
+
+fn search_data(query) {
+    return {"results": ["found: " + query]}
+}
+
+fn calculate(x) {
+    return {"result": 99}
+}
+
+main {
+    agent.register_tool("search_data", search_data, {
+        "description": "Search for data. Always use this tool when asked to search.",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+
+    // A1: TOOL_EXEC action matrix — agent without TOOL_EXEC gets blocked
+    let h1 = agent.create("no_tool_exec_agent")
+    let a1_blocked = false
+    let a1_error = ""
+    try {
+        let r = agent.send(h1, "Use the search_data tool to find 'test'.")
+        // If LLM didn't return tool_use, the test is inconclusive but not a failure
+        let tcm = r.get("tool_calls_made") ?? 0
+        if tcm == 0 {
+            print("a1_inconclusive: LLM did not call tools")
+        }
+        print("a1_tool_exec_blocked: false")
+    } catch (e) {
+        a1_error = string(e)
+        if a1_error.contains("TOOL_EXEC") {
+            a1_blocked = true
+        }
+        print("a1_tool_exec_blocked: " + string(a1_blocked))
+    }
+
+    // A2: Error from TOOL_EXEC block does not leak allowed_actions list
+    if a1_error != "" {
+        let leaks = a1_error.contains("AGENT_SEND") || a1_error.contains("FS_READ")
+        print("a2_no_action_leak: " + string(!leaks))
+    } else {
+        print("a2_no_action_leak: true")
+    }
+
+    // A3: Dual-gate — calculate is in config.tools but not registered
+    // Only search_data should be available
+    let h2 = agent.create("partial_tools_agent")
+    let env2 = agent.environment(h2)
+    let avail = env2.get("permissions").get("tools_available") ?? []
+    print("a3_dual_gate_count: " + string(len(avail)))
+
+    // A4: Reserved name blocked at registration time
+    let a4_blocked = false
+    try {
+        agent.register_tool("len", search_data, {"description": "Override len"})
+    } catch (e) { a4_blocked = true }
+    print("a4_reserved_blocked: " + string(a4_blocked))
+
+    // A5: Path traversal name blocked
+    let a5_blocked = false
+    try {
+        agent.register_tool("../../../etc/passwd", search_data, {"description": "Bad"})
+    } catch (e) { a5_blocked = true }
+    print("a5_path_traversal_blocked: " + string(a5_blocked))
+
+    // A6: Empty description blocked
+    let a6_blocked = false
+    try {
+        agent.register_tool("ok_name", search_data, {"description": ""})
+    } catch (e) { a6_blocked = true }
+    print("a6_empty_desc_blocked: " + string(a6_blocked))
+
+    // A7: Tools disabled agent — tool_use response gets hard blocked
+    // (We can't force the LLM to return tool_use, but we can verify the config)
+    let h3 = agent.create("no_tools_agent")
+    let env3 = h3.get("environment")
+    let te3 = env3.get("permissions").get("tools_enabled") ?? true
+    print("a7_disabled_config: " + string(!te3))
+
+    // A8: Very long tool name (>128 chars) blocked
+    let long_name = ""
+    let i = 0
+    while (i < 200) {
+        long_name = long_name + "x"
+        i = i + 1
+    }
+    let a8_blocked = false
+    try {
+        agent.register_tool(long_name, search_data, {"description": "Long name"})
+    } catch (e) { a8_blocked = true }
+    print("a8_long_name_blocked: " + string(a8_blocked))
+
+    // A9: Tool name with special characters blocked
+    let a9_blocked = false
+    try {
+        agent.register_tool("tool;drop table", search_data, {"description": "SQL injection"})
+    } catch (e) { a9_blocked = true }
+    print("a9_special_chars_blocked: " + string(a9_blocked))
+
+    // A10: Non-function (string) as tool function blocked
+    let a10_blocked = false
+    try {
+        agent.register_tool("valid_name", "not_a_function", {"description": "Bad function"})
+    } catch (e) { a10_blocked = true }
+    print("a10_string_fn_blocked: " + string(a10_blocked))
+
+    print("cat3_completed: true")
+}

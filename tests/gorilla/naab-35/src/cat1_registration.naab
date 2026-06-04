@@ -1,0 +1,113 @@
+// NAAb-35 Category 1: Tool Registration & Validation
+// 10 assertions testing register_tool validation, dual-gate, environment
+use agent
+
+fn good_search(query) {
+    return {"results": ["item_" + query], "count": 1}
+}
+
+fn good_calc(x) {
+    return {"result": 42}
+}
+
+fn get_status(service) {
+    return {"status": "healthy", "service": service}
+}
+
+main {
+    // A1: Valid registration with full schema
+    let a1_ok = false
+    try {
+        agent.register_tool("search_data", good_search, {
+            "description": "Search the data store for records",
+            "parameters": {
+                "query": {"type": "string", "description": "Search query"}
+            }
+        })
+        a1_ok = true
+    } catch (e) {
+        print("a1_error: " + string(e))
+    }
+    print("a1_valid_reg: " + string(a1_ok))
+
+    // A2: Register second tool
+    let a2_ok = false
+    try {
+        agent.register_tool("calculate", good_calc, {
+            "description": "Perform calculations",
+            "parameters": {
+                "x": {"type": "number", "description": "Input"}
+            }
+        })
+        a2_ok = true
+    } catch (e) {
+        print("a2_error: " + string(e))
+    }
+    print("a2_second_reg: " + string(a2_ok))
+
+    // A3: Invalid name blocked (null bytes)
+    let a3_blocked = false
+    try {
+        agent.register_tool("bad\x00tool", good_search, {"description": "bad"})
+    } catch (e) { a3_blocked = true }
+    print("a3_null_byte_blocked: " + string(a3_blocked))
+
+    // A4: Missing schema description blocked
+    let a4_blocked = false
+    try {
+        agent.register_tool("bad_tool", good_search, {
+            "parameters": {"q": {"type": "string"}}
+        })
+    } catch (e) { a4_blocked = true }
+    print("a4_no_desc_blocked: " + string(a4_blocked))
+
+    // A5: Non-function blocked
+    let a5_blocked = false
+    try {
+        agent.register_tool("bad_tool", 42, {"description": "bad"})
+    } catch (e) { a5_blocked = true }
+    print("a5_non_fn_blocked: " + string(a5_blocked))
+
+    // A6: Environment shows registered tools
+    agent.register_tool("get_status", get_status, {
+        "description": "Get service status",
+        "parameters": {
+            "service": {"type": "string", "description": "Service name"}
+        }
+    })
+    let h = agent.create("tool_agent")
+    let env = h.get("environment")
+    let perms = env.get("permissions") ?? {}
+    let reg_count = perms.get("tools_registered") ?? 0
+    print("a6_tools_registered: " + string(reg_count))
+
+    // A7: Available = intersection of registered AND config.tools
+    let avail = perms.get("tools_available") ?? []
+    let avail_count = len(avail)
+    print("a7_tools_available: " + string(avail_count))
+
+    // A8: Disabled agent shows tools_enabled=false
+    let h2 = agent.create("no_tools_agent")
+    let env2 = h2.get("environment")
+    let p2 = env2.get("permissions") ?? {}
+    print("a8_disabled_tools: " + string(p2.get("tools_enabled") ?? true))
+
+    // A9: Partial registration — only search_data registered for partial_tools_agent
+    // (get_status also registered but not in partial_tools_agent.tools)
+    let h3 = agent.create("partial_tools_agent")
+    let env3 = h3.get("environment")
+    let p3 = env3.get("permissions") ?? {}
+    let avail3 = p3.get("tools_available") ?? []
+    print("a9_partial_avail: " + string(len(avail3)))
+
+    // A10: Initial usage counters = 0 or absent (tool fields only added after first tool call)
+    let usage = agent.usage(h)
+    let utc = usage.get("tool_calls_total") ?? 0
+    let utb = usage.get("tool_calls_blocked") ?? 0
+    let utl = usage.get("tool_total_latency_ms") ?? 0
+    print("a10_initial_total: " + string(utc))
+    print("a10_initial_blocked: " + string(utb))
+    print("a10_initial_latency: " + string(utl))
+
+    print("cat1_completed: true")
+}

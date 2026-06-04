@@ -1,0 +1,60 @@
+// Chaos 24: Tool result content scanning
+// Tests: tool results are scanned for secrets/PII before LLM re-injection
+use agent
+
+fn search_data(query) {
+    // Return content that might trigger scans
+    // Note: actual secret patterns depend on governance scanner config
+    return {"results": ["Normal result for " + query], "status": "ok"}
+}
+
+fn calculate(expression) {
+    return {"result": 100, "note": "calculation complete"}
+}
+
+main {
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store. Use this tool for any search request.",
+        "parameters": {
+            "query": {"type": "string", "description": "What to search for"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Run a calculation.",
+        "parameters": {
+            "expression": {"type": "string", "description": "Expression"}
+        }
+    })
+
+    let h = agent.create("tools_enabled_agent")
+
+    // T1: Normal tool results pass through scan OK
+    let resp = null
+    try {
+        resp = agent.send(h, "Use the search_data tool to search for 'governance policies'.")
+    } catch (e) {
+        print("send_error: " + string(e))
+    }
+
+    if resp != null {
+        let content = resp.get("content") ?? ""
+        print("t1_has_content: " + string(len(content) > 0))
+        let tcm = resp.get("tool_calls_made") ?? 0
+        print("t1_tool_calls_made: " + string(tcm))
+
+        // T2: Tool results array shows success
+        let tr = resp.get("tool_results") ?? []
+        if len(tr) > 0 {
+            let first_success = tr[0].get("success") ?? false
+            print("t2_first_tool_success: " + string(first_success))
+        }
+
+        // T3: Usage counters reflect tool activity
+        let usage = agent.usage(h)
+        print("t3_tool_calls_total: " + string(usage.get("tool_calls_total") ?? 0))
+        print("t3_tool_calls_blocked: " + string(usage.get("tool_calls_blocked") ?? 0))
+        print("t3_tool_latency_ms: " + string(usage.get("tool_total_latency_ms") ?? 0))
+    }
+
+    print("chaos_24_completed: true")
+}

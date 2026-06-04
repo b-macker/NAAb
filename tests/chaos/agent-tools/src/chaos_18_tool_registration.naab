@@ -1,0 +1,126 @@
+// Chaos 18: Tool registration validation
+// Tests: name validation, schema validation, reserved names, re-registration
+use agent
+
+fn good_tool(query) {
+    return "result for: " + query
+}
+
+fn another_tool(x) {
+    return x + 1
+}
+
+main {
+    // T1: Valid registration succeeds
+    let reg_ok = false
+    try {
+        agent.register_tool("search_data", good_tool, {
+            "description": "Search the database",
+            "parameters": {
+                "query": {"type": "string", "description": "Search query"}
+            }
+        })
+        reg_ok = true
+    } catch (e) {
+        print("t1_error: " + string(e))
+    }
+    print("t1_valid_registration: " + string(reg_ok))
+
+    // T2: Invalid name (path traversal) rejected
+    let invalid_blocked = false
+    try {
+        agent.register_tool("../../etc/passwd", good_tool, {
+            "description": "Bad tool"
+        })
+    } catch (e) {
+        invalid_blocked = true
+    }
+    print("t2_path_traversal_blocked: " + string(invalid_blocked))
+
+    // T3: Invalid name (special chars) rejected
+    let special_blocked = false
+    try {
+        agent.register_tool("tool;rm -rf /", good_tool, {
+            "description": "Bad tool"
+        })
+    } catch (e) {
+        special_blocked = true
+    }
+    print("t3_special_chars_blocked: " + string(special_blocked))
+
+    // T4: Empty name rejected
+    let empty_blocked = false
+    try {
+        agent.register_tool("", good_tool, {
+            "description": "Bad tool"
+        })
+    } catch (e) {
+        empty_blocked = true
+    }
+    print("t4_empty_name_blocked: " + string(empty_blocked))
+
+    // T5: Missing description rejected
+    let no_desc_blocked = false
+    try {
+        agent.register_tool("bad_tool", good_tool, {
+            "parameters": {"x": {"type": "string"}}
+        })
+    } catch (e) {
+        no_desc_blocked = true
+    }
+    print("t5_no_description_blocked: " + string(no_desc_blocked))
+
+    // T6: Non-function second arg rejected
+    let non_fn_blocked = false
+    try {
+        agent.register_tool("bad_tool", "not a function", {
+            "description": "Bad tool"
+        })
+    } catch (e) {
+        non_fn_blocked = true
+    }
+    print("t6_non_function_blocked: " + string(non_fn_blocked))
+
+    // T7: Reserved name (print) rejected
+    let reserved_blocked = false
+    try {
+        agent.register_tool("print", good_tool, {
+            "description": "Override print"
+        })
+    } catch (e) {
+        reserved_blocked = true
+    }
+    print("t7_reserved_name_blocked: " + string(reserved_blocked))
+
+    // T8: Re-registration succeeds (warning only)
+    let rereg_ok = false
+    try {
+        agent.register_tool("search_data", another_tool, {
+            "description": "Updated search",
+            "parameters": {"x": {"type": "number"}}
+        })
+        rereg_ok = true
+    } catch (e) {
+        print("t8_error: " + string(e))
+    }
+    print("t8_reregistration_ok: " + string(rereg_ok))
+
+    // T9: Very long name (>128 chars) rejected
+    let long_name = "a"
+    let i = 0
+    while (i < 130) {
+        long_name = long_name + "a"
+        i = i + 1
+    }
+    let long_blocked = false
+    try {
+        agent.register_tool(long_name, good_tool, {
+            "description": "Long name tool"
+        })
+    } catch (e) {
+        long_blocked = true
+    }
+    print("t9_long_name_blocked: " + string(long_blocked))
+
+    print("chaos_18_completed: true")
+}

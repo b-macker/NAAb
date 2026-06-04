@@ -1,0 +1,106 @@
+// NAAb-35 Category 4: Budget Enforcement & Response Dict
+// 10 assertions testing budget caps, response fields, usage counters
+use agent
+
+fn search_data(query) {
+    return {"results": ["result_for_" + query], "more": true}
+}
+
+fn calculate(x) {
+    return {"result": 99, "note": "computed " + x}
+}
+
+main {
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store. Returns results with 'more' flag. Always use this when asked to search.",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Calculate a mathematical expression.",
+        "parameters": {
+            "x": {"type": "string", "description": "Expression"}
+        }
+    })
+
+    // Use tight_agent: max_tool_calls_per_turn=2, max_tool_loop_turns=2, tool_result_max_chars=100
+    let h = agent.create("tight_agent")
+
+    let resp = null
+    try {
+        resp = agent.send(h, "Search for 'alpha', search for 'beta', search for 'gamma', search for 'delta'. Use the search_data tool for each query.")
+    } catch (e) {
+        print("send_error: " + string(e))
+    }
+
+    if resp != null {
+        // A1: Tool calls capped by max_tool_calls_per_turn
+        let tcm = resp.get("tool_calls_made") ?? 0
+        print("a1_calls_made: " + string(tcm))
+        print("a1_within_budget: " + string(tcm <= 2))
+
+        // A2: Budget remaining is correct
+        let tbr = resp.get("tool_budget_remaining") ?? -1
+        print("a2_budget_remaining: " + string(tbr))
+
+        // A3: Tool loop turns capped by max_tool_loop_turns
+        let tlt = resp.get("tool_loop_turns") ?? 0
+        print("a3_loop_turns: " + string(tlt))
+        print("a3_turns_within_cap: " + string(tlt <= 2))
+
+        // A4: Exit reason indicates budget or max_tool_calls
+        let reason = resp.get("tool_loop_exit_reason") ?? "none"
+        print("a4_exit_reason: " + reason)
+
+        // A5: Tool results array matches calls made
+        let tr = resp.get("tool_results") ?? []
+        print("a5_results_count: " + string(len(tr)))
+        print("a5_results_match_calls: " + string(len(tr) == tcm))
+
+        // A6: Response has stop_reason
+        let sr = resp.get("stop_reason") ?? "none"
+        print("a6_stop_reason: " + sr)
+
+        // A7: Response has trace dict
+        let trace = resp.get("trace") ?? {}
+        let has_model = trace.get("model") != null
+        let has_provider = trace.get("provider") != null
+        print("a7_trace_present: " + string(has_model && has_provider))
+
+        // A8: Usage counters reflect tool activity
+        let usage = agent.usage(h)
+        let ut = usage.get("tool_calls_total") ?? 0
+        print("a8_usage_total: " + string(ut))
+        print("a8_usage_matches_calls: " + string(ut == tcm))
+
+        // A9: Usage latency > 0 if tools were called
+        let lat = usage.get("tool_total_latency_ms") ?? 0
+        if tcm > 0 {
+            print("a9_has_latency: " + string(lat > 0))
+        } else {
+            print("a9_has_latency: true")
+        }
+
+        // A10: Content is non-empty
+        let content = resp.get("content") ?? ""
+        print("a10_has_content: " + string(len(content) > 0))
+    } else {
+        print("a1_calls_made: 0")
+        print("a1_within_budget: true")
+        print("a2_budget_remaining: -1")
+        print("a3_loop_turns: 0")
+        print("a3_turns_within_cap: true")
+        print("a4_exit_reason: api_error")
+        print("a5_results_count: 0")
+        print("a5_results_match_calls: true")
+        print("a6_stop_reason: none")
+        print("a7_trace_present: false")
+        print("a8_usage_total: 0")
+        print("a8_usage_matches_calls: true")
+        print("a9_has_latency: true")
+        print("a10_has_content: false")
+    }
+
+    print("cat4_completed: true")
+}

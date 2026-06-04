@@ -1,0 +1,57 @@
+// Chaos 22: Tool budget enforcement
+// Tests: max_tool_calls_per_turn limits tool invocations
+use agent
+
+fn search_data(query) {
+    return {"results": ["found: " + query], "more": true}
+}
+
+fn calculate(x) {
+    return {"result": 99}
+}
+
+main {
+    agent.register_tool("search_data", search_data, {
+        "description": "Search the data store. Returns results with 'more' flag indicating more results available.",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Calculate a value.",
+        "parameters": {
+            "x": {"type": "string", "description": "Expression"}
+        }
+    })
+
+    // Use tight_budget_agent: max_tool_calls_per_turn=2, max_tool_loop_turns=2
+    let h = agent.create("tight_budget_agent")
+
+    let resp = null
+    try {
+        resp = agent.send(h, "Search for 'alpha', then search for 'beta', then search for 'gamma', then search for 'delta'. Use the search_data tool for each one.")
+    } catch (e) {
+        print("send_error: " + string(e))
+    }
+
+    if resp != null {
+        // T1: Tool calls should be capped at max_tool_calls_per_turn (2)
+        let tcm = resp.get("tool_calls_made") ?? 0
+        print("t1_tool_calls_made: " + string(tcm))
+        print("t1_within_budget: " + string(tcm <= 2))
+
+        // T2: Budget remaining should reflect cap
+        let tbr = resp.get("tool_budget_remaining") ?? -1
+        print("t2_budget_remaining: " + string(tbr))
+
+        // T3: Exit reason should indicate budget hit
+        let reason = resp.get("tool_loop_exit_reason") ?? "unknown"
+        print("t3_exit_reason: " + reason)
+
+        // T4: Result truncation (tool_result_max_chars=50)
+        let tr = resp.get("tool_results") ?? []
+        print("t4_results_count: " + string(len(tr)))
+    }
+
+    print("chaos_22_completed: true")
+}

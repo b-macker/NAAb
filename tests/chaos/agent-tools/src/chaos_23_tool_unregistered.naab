@@ -1,0 +1,46 @@
+// Chaos 23: Tool in govern.json but not registered
+// Tests: dual-gate enforcement — tool must be both in config AND registered
+use agent
+
+fn search_data(query) {
+    return "found: " + query
+}
+
+main {
+    // Only register search_data, NOT calculate
+    // (govern.json has both in tools[])
+    agent.register_tool("search_data", search_data, {
+        "description": "Search for data. Always use this tool when asked to search.",
+        "parameters": {
+            "query": {"type": "string", "description": "Search query"}
+        }
+    })
+
+    let h = agent.create("tools_enabled_agent")
+
+    // T1: Environment should only show search_data as available (not calculate)
+    let env = agent.environment(h)
+    let perms = env.get("permissions") ?? {}
+    let avail = perms.get("tools_available") ?? []
+    let avail_count = len(avail)
+    print("t1_available_tools: " + string(avail_count))
+
+    // The LLM will only see search_data in tool definitions
+    // (calculate is in govern.json but not registered, so not sent to LLM)
+    let resp = null
+    try {
+        resp = agent.send(h, "Use the search_data tool to search for 'test query'.")
+    } catch (e) {
+        print("send_error: " + string(e))
+    }
+
+    if resp != null {
+        // T2: Response should work with search_data
+        let content = resp.get("content") ?? ""
+        print("t2_has_content: " + string(len(content) > 0))
+        let tcm = resp.get("tool_calls_made") ?? 0
+        print("t2_tool_calls_made: " + string(tcm))
+    }
+
+    print("chaos_23_completed: true")
+}

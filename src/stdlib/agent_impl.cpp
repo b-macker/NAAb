@@ -476,8 +476,8 @@ static NaabVal agentRegisterTool(std::vector<NaabVal>& args) {
             "  - Choose a different name that doesn't conflict with NAAb builtins\n");
     }
 
-    // Validate function argument
-    if (!args[1].isFunction()) {
+    // Validate function argument (accept both tree-walker FunctionValue and VM closures)
+    if (!args[1].isFunction() && !args[1].isVMClosure()) {
         throw std::runtime_error(
             "Agent error: Second argument to register_tool must be a function\n\n"
             "  Help:\n"
@@ -964,6 +964,22 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // ── Build tool definitions for initial API call (if tools enabled) ──
+    std::vector<runtime::ToolDefinition> initial_tool_defs;
+    if (config && config->tools_enabled && !config->tools.empty()) {
+        std::lock_guard<std::mutex> lock(s_tools_mutex);
+        for (const auto& tool_name : config->tools) {
+            auto it = s_registered_tools.find(tool_name);
+            if (it != s_registered_tools.end()) {
+                initial_tool_defs.push_back({
+                    it->second.name,
+                    it->second.description,
+                    it->second.input_schema.dump()
+                });
+            }
+        }
+    }
+
     // ── Retry loop with key rotation, model fallback, backoff + jitter ──
     runtime::AgentResponse agent_resp;
     int max_attempts = config->retry.max_attempts;
@@ -1036,7 +1052,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
 
         auto attempt_start = std::chrono::steady_clock::now();
-        auto result = runtime::callAgentWithStatus(call_config, api_key, messages_str);
+        // Use callAgentWithTools when tool definitions are available (sends tool schema to LLM)
+        auto result = initial_tool_defs.empty()
+            ? runtime::callAgentWithStatus(call_config, api_key, messages_str)
+            : runtime::callAgentWithTools(call_config, api_key, messages_str, initial_tool_defs);
         auto attempt_end = std::chrono::steady_clock::now();
         int64_t attempt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             attempt_end - attempt_start).count();
@@ -1524,7 +1543,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         }
 
                         // Step 6: Validate return type (E4: reject function/closure)
-                        if (result_val.isFunction()) {
+                        if (result_val.isFunction() || result_val.isVMClosure()) {
                             tool_result_str = "Error: tool returned a function (non-serializable)";
                             tool_success = false;
                         } else if (result_val.isNull()) {
