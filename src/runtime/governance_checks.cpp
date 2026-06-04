@@ -6357,7 +6357,8 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "circuit_breaker", "governance_health",
         "pipeline_separation", "temporal_coupling",
         "subprocess_scrub_mode", "allowed_subprocess_vars",
-        "blocked_subprocess_vars", "blocked_subprocess_prefixes"
+        "blocked_subprocess_vars", "blocked_subprocess_prefixes",
+        "codegen"
     };
 
     try {
@@ -6601,6 +6602,12 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
 
     // Log the decision
     logTaintDecision(var_name, "BLOCKED", sink_type, file, line);
+
+    // Emit BSD event for behavioral sequence detection
+    if (rules_.behavioral_sequences.enabled) {
+        emitEvent(RuntimeEventType::TAINT_VIOLATION,
+            var_name + " → " + sink_type, file, line);
+    }
 
     // Pass 2: Record taint flow for post-execution audit
     taint_flows_.push_back({var_name, "", sink_type, "BLOCKED", file, line});

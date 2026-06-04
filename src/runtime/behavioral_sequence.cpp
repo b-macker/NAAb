@@ -442,6 +442,8 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
         case RuntimeEventType::TOOL_BLOCKED:    return "tool_blocked";
         case RuntimeEventType::CODEGEN_EXEC:    return "codegen_exec";
         case RuntimeEventType::CODEGEN_BLOCKED: return "codegen_blocked";
+        case RuntimeEventType::PULSE_DEGRADED:  return "pulse_degraded";
+        case RuntimeEventType::PULSE_IMPAIRED:  return "pulse_impaired";
     }
     return "unknown";
 }

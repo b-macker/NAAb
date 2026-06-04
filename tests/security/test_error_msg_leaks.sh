@@ -73,6 +73,14 @@ BANNED_IN_STRINGS=(
     't_codegen_nesting_depth|thread-local name leaked in error string'
     't_codegen_arg_tainted|thread-local name leaked in error string'
     'setCodegenArgTainted|internal function name leaked in error string'
+    # Pulse internals
+    'PulseVerdict|pulse enum type leaked in error string'
+    'PULSE_DEGRADED|pulse BSD event constant leaked in error string'
+    'PULSE_IMPAIRED|pulse BSD event constant leaked in error string'
+    'computePulseVerdict|internal pulse method name leaked in error string'
+    'consecutive_degraded|pulse hysteresis field leaked in error string'
+    'advisory_suppressions|pulse counter field leaked in error string'
+    'pulse_.bsd_connected|internal pulse state leaked in error string'
 )
 
 echo "=== Error Message Leak Check ==="

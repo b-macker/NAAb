@@ -40,7 +40,9 @@ enum class RuntimeEventType {
     TOOL_ERROR,         // tool invocation failed
     TOOL_BLOCKED,       // tool call blocked by governance
     CODEGEN_EXEC,       // codegen.run() dynamic code execution
-    CODEGEN_BLOCKED     // codegen.run() blocked by governance
+    CODEGEN_BLOCKED,    // codegen.run() blocked by governance
+    PULSE_DEGRADED,     // governance pulse entered DEGRADED state
+    PULSE_IMPAIRED      // governance pulse entered IMPAIRED state
 };
 
 // --- Single Runtime Event ---

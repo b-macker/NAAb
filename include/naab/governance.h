@@ -1287,6 +1287,8 @@ struct ContextDriftConfig {
             double bsd_partial_progress = 0.10;
             double pipeline_inherited = 0.0;  // weight for inherited pressure (0 when not in pipeline)
             double coherence_acceleration = 0.0;  // F1: weight for coherence acceleration (opt-in, Factor 7)
+            double codegen_pressure = 0.0;  // ratio of blocked to total codegen calls (opt-in)
+            double bsd_eviction_pressure = 0.0;  // ratio of evicted to total BSD events (opt-in)
         } weights;
     } reality_checkpoint;
 };
@@ -1340,6 +1342,36 @@ struct GovernanceHealthConfig {
     std::string rationale;
     int check_after_turns = 10;           // begin checking after N agent turns
     double governance_entropy_warning = 0.5;  // F16: low entropy in check results = suspicious
+};
+
+// Governance Pulse — real-time self-assessment of governance health
+// Per-subsystem tracking with hysteresis before escalation
+enum class PulseVerdict { HEALTHY = 0, DEGRADED = 1, IMPAIRED = 2 };
+
+struct GovernancePulse {
+    PulseVerdict verdict = PulseVerdict::HEALTHY;
+
+    // Monotonic counters (updated in recordPass/enforce under results_mutex_)
+    int total_checks = 0;
+    int consecutive_passes = 0;       // reset on any block/enforcement
+    int advisory_suppressions = 0;    // advisory findings that didn't escalate
+
+    // Per-subsystem health
+    bool bsd_connected = true;
+    bool cdd_connected = true;
+    double entropy = -1.0;            // -1 = not yet computed
+
+    // Wired signal accumulators
+    int codegen_blocks = 0;
+    int bsd_evictions = 0;
+    int taint_violations_emitted = 0;
+
+    // Hysteresis (sustained degradation required before transition)
+    int consecutive_degraded = 0;
+    int last_transition_turn = -100;  // cooldown between transitions
+
+    // Timing
+    int64_t last_check_epoch_ms = 0;
 };
 
 // F7: Pipeline Separation of Duties — no adjacent pipeline stages may share the same agent config
@@ -2500,6 +2532,9 @@ public:
     std::string checkGovernanceHealth(int turn);    // F4: verify governance instrumentation
     double computeGovernanceEntropy() const;        // F16: entropy of governance check results
     GovernanceLevel getGovernanceLevel() const;     // F6: current system-wide governance level
+    PulseVerdict computePulseVerdict(int turn);     // compute and update pulse health
+    PulseVerdict getPulseVerdict() const;            // read current pulse verdict
+    GovernancePulse getPulse() const;                // full pulse struct for dashboard/stdlib
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
     std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
@@ -2624,6 +2659,7 @@ private:
     std::vector<CheckResult> check_results_;
     mutable std::mutex results_mutex_;  // V-CONC-007: Thread-safe check_results_ access
     static constexpr size_t MAX_CHECK_RESULTS = 10000;  // V-GOV-024: Cap telemetry entries
+    GovernancePulse pulse_;  // Governance self-health assessment (writes under results_mutex_)
     std::string agent_id_ = "anonymous";
     std::string run_id_;  // Unique per-execution ID for telemetry run separation
     std::string active_env_;            // Set by applyEnvironment()

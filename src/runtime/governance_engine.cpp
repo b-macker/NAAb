@@ -829,6 +829,11 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     if (check_results_.size() > MAX_CHECK_RESULTS) {
         check_results_.erase(check_results_.begin());
     }
+    // Pulse: track governance liveness
+    pulse_.total_checks++;
+    pulse_.consecutive_passes++;
+    pulse_.last_check_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 std::string GovernanceEngine::enforce(
@@ -894,6 +899,14 @@ std::string GovernanceEngine::enforce(
                                    cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "GREEN";
                 last.decision_trace.push_back(fmt::format("risk zone: {}", zone));
             }
+        }
+        // Pulse: reset consecutive passes on any enforcement
+        pulse_.total_checks++;
+        pulse_.consecutive_passes = 0;
+        pulse_.last_check_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (level == EnforcementLevel::ADVISORY) {
+            pulse_.advisory_suppressions++;
         }
     }
 
@@ -2553,6 +2566,14 @@ void GovernanceEngine::printDashboard() const {
                     cs.total_calls, cs.total_blocked,
                     static_cast<long long>(cs.total_duration_ms));
         }
+    }
+    // Governance Pulse (no lock — printDashboard runs post-execution, same as check_results_)
+    if (pulse_.total_checks > 0) {
+        const char* verdict_str = "HEALTHY";
+        if (pulse_.verdict == PulseVerdict::DEGRADED) verdict_str = "DEGRADED";
+        else if (pulse_.verdict == PulseVerdict::IMPAIRED) verdict_str = "IMPAIRED";
+        fprintf(stderr, "Pulse:      %s (%d checks, %d consecutive passes)\n",
+                verdict_str, pulse_.total_checks, pulse_.consecutive_passes);
     }
     fprintf(stderr, "────────────────────────────────\n");
 }
@@ -5705,6 +5726,77 @@ std::string GovernanceEngine::checkTemporalCoupling() {
     return warnings;
 }
 
+// ============================================================================
+// Governance Pulse — real-time self-assessment of governance health
+// ============================================================================
+
+PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
+    // Phase 1: Read subsystem health (NO results_mutex_ — uses independent mutexes)
+    int degradation_signals = 0;
+
+    // Subsystem: BSD instrumentation
+    size_t bsd_events = sequence_detector_.totalEventsProcessed();
+    bool bsd_ok = (bsd_events > 0 || turn < 3);  // grace period for startup
+    if (!bsd_ok) degradation_signals++;
+
+    // Subsystem: CDD instrumentation
+    size_t cdd_turns = drift_analyzer_.totalTurnsAnalyzed();
+    bool cdd_ok = (cdd_turns > 0 || turn < 3 || !cdd_enabled_.load());
+    if (!cdd_ok && cdd_enabled_.load()) degradation_signals++;
+
+    // Subsystem: entropy health
+    double ent = computeGovernanceEntropy();
+    if (ent >= 0.0 && ent < rules_.governance_health.governance_entropy_warning)
+        degradation_signals++;
+
+    // Phase 2: Update pulse state (ACQUIRE results_mutex_ for write)
+    std::lock_guard<std::mutex> lock(results_mutex_);
+
+    pulse_.bsd_connected = bsd_ok;
+    pulse_.cdd_connected = cdd_ok;
+    pulse_.entropy = ent;
+
+    // Consecutive passes check (suspiciously uniform — all governance checks passing)
+    if (pulse_.consecutive_passes > 50) degradation_signals++;
+
+    // Hysteresis: sustained degradation required (mirror circuit breaker pattern)
+    if (degradation_signals >= 1) {
+        pulse_.consecutive_degraded++;
+    } else {
+        pulse_.consecutive_degraded = std::max(0, pulse_.consecutive_degraded - 1);  // decay
+    }
+
+    // Transition thresholds (with cooldown)
+    int cooldown = 3;
+    bool can_transition = (turn - pulse_.last_transition_turn) >= cooldown;
+
+    PulseVerdict new_verdict = pulse_.verdict;
+    if (can_transition) {
+        if (pulse_.consecutive_degraded >= 3 && degradation_signals >= 3) {
+            new_verdict = PulseVerdict::IMPAIRED;
+        } else if (pulse_.consecutive_degraded >= 2 && degradation_signals >= 1) {
+            new_verdict = PulseVerdict::DEGRADED;
+        } else if (pulse_.consecutive_degraded == 0) {
+            new_verdict = PulseVerdict::HEALTHY;  // recovery to baseline
+        }
+    }
+
+    if (new_verdict != pulse_.verdict && can_transition) {
+        pulse_.last_transition_turn = turn;
+    }
+
+    pulse_.verdict = new_verdict;
+    return new_verdict;
+}
+
+PulseVerdict GovernanceEngine::getPulseVerdict() const {
+    return pulse_.verdict;
+}
+
+GovernancePulse GovernanceEngine::getPulse() const {
+    return pulse_;
+}
+
 GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
     return static_cast<GovernanceLevel>(governance_level_.load(std::memory_order_relaxed));
 }
@@ -5842,6 +5934,28 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             double accel_factor = std::max(0.0, std::min(1.0,
                 std::abs(state->coherence_acceleration) * 5.0));
 
+            // Factor 8: Codegen pressure (ratio of blocked to total codegen calls)
+            double codegen_pres = 0.0;
+            {
+                auto cs = stdlib::getCodegenStats();
+                int total_cg = cs.total_calls + cs.total_blocked;
+                if (total_cg > 0) {
+                    codegen_pres = std::max(0.0, std::min(1.0,
+                        static_cast<double>(cs.total_blocked) / total_cg));
+                }
+            }
+
+            // Factor 9: BSD eviction pressure (buffer overflow = high activity volume)
+            double eviction_pres = 0.0;
+            {
+                size_t evicted = sequence_detector_.totalEventsEvicted();
+                size_t total_ev = sequence_detector_.totalEventsProcessed();
+                if (total_ev > 0) {
+                    eviction_pres = std::max(0.0, std::min(1.0,
+                        static_cast<double>(evicted) / total_ev));
+                }
+            }
+
             // Weighted composite
             double composite =
                 rccfg.weights.coherence_proximity * coherence_prox +
@@ -5850,7 +5964,9 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 rccfg.weights.conversation_depth * depth +
                 rccfg.weights.bsd_partial_progress * bsd_progress +
                 rccfg.weights.pipeline_inherited * inherited +
-                rccfg.weights.coherence_acceleration * accel_factor;
+                rccfg.weights.coherence_acceleration * accel_factor +
+                rccfg.weights.codegen_pressure * codegen_pres +
+                rccfg.weights.bsd_eviction_pressure * eviction_pres;
 
             // Track sustained pressure
             int consecutive = state->consecutive_high_pressure_turns;
@@ -5873,15 +5989,18 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
                     composite, rccfg.pressure_threshold));
                 addTrace(fmt::format("  coherence_proximity={:.2f} risk_proximity={:.2f} "
-                    "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f} inherited={:.2f}",
-                    coherence_prox, risk_prox, signal_dens, depth, bsd_progress, inherited));
+                    "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f} inherited={:.2f} "
+                    "codegen={:.2f} eviction={:.2f}",
+                    coherence_prox, risk_prox, signal_dens, depth, bsd_progress, inherited,
+                    codegen_pres, eviction_pres));
                 addTrace(fmt::format("  sustained {} turns", consecutive));
 
                 // Build generic pressure summary (no factor breakdown — avoid teaching
                 // agents which signals to game below threshold)
                 int active_factors = (coherence_prox > 0.3 ? 1 : 0) + (risk_prox > 0.3 ? 1 : 0)
                     + (signal_dens > 0.3 ? 1 : 0) + (depth > 0.3 ? 1 : 0)
-                    + (bsd_progress > 0.3 ? 1 : 0) + (inherited > 0.3 ? 1 : 0);
+                    + (bsd_progress > 0.3 ? 1 : 0) + (inherited > 0.3 ? 1 : 0)
+                    + (codegen_pres > 0.3 ? 1 : 0) + (eviction_pres > 0.3 ? 1 : 0);
 
                 return enforce("context_drift.reality_checkpoint", rccfg.level,
                     formatError(rccfg.level,
@@ -5905,7 +6024,22 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) level = 3;
                 else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) level = 2;
                 else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) level = 1;
+
+                // Pulse escalation: degraded governance raises the floor (never lowers)
+                PulseVerdict prev_pv = getPulseVerdict();
+                PulseVerdict pv = computePulseVerdict(turn);
+                if (pv == PulseVerdict::IMPAIRED && level < 2) level = 2;
+                else if (pv == PulseVerdict::DEGRADED && level < 1) level = 1;
+
                 governance_level_.store(level, std::memory_order_relaxed);
+
+                // Emit BSD events for pulse state transitions (after lock release)
+                if (pv != prev_pv) {
+                    if (pv == PulseVerdict::DEGRADED)
+                        emitEvent(RuntimeEventType::PULSE_DEGRADED, "governance pulse degraded", "", 0);
+                    else if (pv == PulseVerdict::IMPAIRED)
+                        emitEvent(RuntimeEventType::PULSE_IMPAIRED, "governance pulse impaired", "", 0);
+                }
             }
         }
     }

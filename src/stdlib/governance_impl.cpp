@@ -311,12 +311,44 @@ static NaabVal governanceParseFindings(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// governance.health() — pulse verdict + liveness counters
+// ============================================================================
+
+static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
+    auto* engine = GovernanceEngine::getCurrent();
+    if (!engine) {
+        // No governance active — return healthy (no false positives)
+        std::unordered_map<std::string, NaabVal> result;
+        result["verdict"] = NaabVal::makeString("healthy");
+        result["active"] = NaabVal::makeBool(false);
+        return NaabVal::makeDict(std::move(result));
+    }
+
+    auto pulse = engine->getPulse();
+    std::unordered_map<std::string, NaabVal> result;
+
+    const char* verdict_str = "healthy";
+    if (pulse.verdict == governance::PulseVerdict::DEGRADED) verdict_str = "degraded";
+    else if (pulse.verdict == governance::PulseVerdict::IMPAIRED) verdict_str = "impaired";
+
+    result["verdict"] = NaabVal::makeString(verdict_str);
+    result["active"] = NaabVal::makeBool(true);
+    result["total_checks"] = NaabVal::makeInt(pulse.total_checks);
+    result["consecutive_passes"] = NaabVal::makeInt(pulse.consecutive_passes);
+    // Full breakdown for scripts — operator context, not agent context
+    result["bsd_connected"] = NaabVal::makeBool(pulse.bsd_connected);
+    result["cdd_connected"] = NaabVal::makeBool(pulse.cdd_connected);
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
 // Module interface
 // ============================================================================
 
 bool GovernanceModule::hasFunction(const std::string& name) const {
     return name == "scorer" || name == "finding" || name == "evaluate" ||
-           name == "findings" || name == "score" || name == "parse_findings";
+           name == "findings" || name == "score" || name == "parse_findings" ||
+           name == "health";
 }
 
 NaabVal GovernanceModule::call(
@@ -328,11 +360,12 @@ NaabVal GovernanceModule::call(
     if (function_name == "findings") return governanceFindings(args);
     if (function_name == "score") return governanceScore(args);
     if (function_name == "parse_findings") return governanceParseFindings(args);
+    if (function_name == "health") return governanceHealth(args);
 
     throw std::runtime_error(
         "Runtime error: governance module has no function '" + function_name + "'\n\n"
         "  Help:\n"
-        "  - Available: scorer, finding, evaluate, findings, score, parse_findings\n");
+        "  - Available: scorer, finding, evaluate, findings, score, parse_findings, health\n");
 }
 
 } // namespace stdlib

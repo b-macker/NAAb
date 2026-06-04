@@ -2443,6 +2443,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (rw.contains("bsd_partial_progress")) rccfg.weights.bsd_partial_progress = rw["bsd_partial_progress"].get<double>();
                 if (rw.contains("pipeline_inherited")) rccfg.weights.pipeline_inherited = rw["pipeline_inherited"].get<double>();
                 if (rw.contains("coherence_acceleration")) rccfg.weights.coherence_acceleration = rw["coherence_acceleration"].get<double>();
+                if (rw.contains("codegen_pressure")) rccfg.weights.codegen_pressure = rw["codegen_pressure"].get<double>();
+                if (rw.contains("bsd_eviction_pressure")) rccfg.weights.bsd_eviction_pressure = rw["bsd_eviction_pressure"].get<double>();
             }
         }
     }

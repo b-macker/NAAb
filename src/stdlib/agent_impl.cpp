@@ -407,6 +407,13 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             case governance::GovernanceLevel::CRITICAL: level_str = "critical"; break;
         }
         state["governance_level"] = NaabVal::makeString(level_str);
+
+        // Governance pulse — verdict only (no breakdown, prevent gaming)
+        auto pulse_verdict = ge->getPulseVerdict();
+        const char* pulse_str = "healthy";
+        if (pulse_verdict == governance::PulseVerdict::DEGRADED) pulse_str = "degraded";
+        else if (pulse_verdict == governance::PulseVerdict::IMPAIRED) pulse_str = "impaired";
+        state["governance_health"] = NaabVal::makeString(pulse_str);
     }
 
     // Upstream provenance (pipeline stages only — trust calibration for input)
@@ -2049,6 +2056,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             // Hard/soft enforcement: abort the agent call immediately
             // (advisory returns "" from enforce(), so only real blocks reach here)
             throw std::runtime_error(drift_err);
+        }
+    }
+
+    // Governance health check — verify instrumentation is operational
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().governance_health.enabled) {
+        std::string health_warnings = gov_engine->checkGovernanceHealth(current_turn);
+        if (!health_warnings.empty()) {
+            // Surface to operator via stderr (NOT to agent — verdict only)
+            fprintf(stderr, "%s", health_warnings.c_str());
+        }
+    }
+
+    // Temporal coupling — inter-agent timing correlation
+    if (gov_engine && gov_engine->isActive()) {
+        std::string coupling_warnings = gov_engine->checkTemporalCoupling();
+        if (!coupling_warnings.empty()) {
+            fprintf(stderr, "%s", coupling_warnings.c_str());
         }
     }
 

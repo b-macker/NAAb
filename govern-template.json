@@ -1688,7 +1688,9 @@
         "conversation_depth": 0.10,
         "bsd_partial_progress": 0.10,
         "pipeline_inherited": 0.0,
-        "coherence_acceleration": 0.0
+        "coherence_acceleration": 0.0,
+        "codegen_pressure": 0.0,
+        "bsd_eviction_pressure": 0.0
       }
     }
   },
