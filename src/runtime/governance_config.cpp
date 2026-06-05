@@ -3375,6 +3375,75 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
         if (cl.execution.polyglot_blocks == dl.execution.polyglot_blocks && bl.execution.polyglot_blocks > 0)
             cl.execution.polyglot_blocks = bl.execution.polyglot_blocks;
     }
+    // Memory limits
+    if (parent_wins) {
+        if (bl.memory.per_block_mb > 0) cl.memory.per_block_mb = bl.memory.per_block_mb;
+        if (bl.memory.total_mb > 0) cl.memory.total_mb = bl.memory.total_mb;
+    } else {
+        if (cl.memory.per_block_mb == dl.memory.per_block_mb && bl.memory.per_block_mb > 0)
+            cl.memory.per_block_mb = bl.memory.per_block_mb;
+        if (cl.memory.total_mb == dl.memory.total_mb && bl.memory.total_mb > 0)
+            cl.memory.total_mb = bl.memory.total_mb;
+    }
+    // Data limits
+    if (parent_wins) {
+        if (bl.data.array_size > 0) cl.data.array_size = bl.data.array_size;
+        if (bl.data.dict_size > 0) cl.data.dict_size = bl.data.dict_size;
+        if (bl.data.string_length > 0) cl.data.string_length = bl.data.string_length;
+        if (bl.data.nesting_depth > 0) cl.data.nesting_depth = bl.data.nesting_depth;
+        if (bl.data.output_size > 0) cl.data.output_size = bl.data.output_size;
+        if (bl.data.input_size > 0) cl.data.input_size = bl.data.input_size;
+    } else {
+        if (cl.data.array_size == dl.data.array_size && bl.data.array_size > 0)
+            cl.data.array_size = bl.data.array_size;
+        if (cl.data.dict_size == dl.data.dict_size && bl.data.dict_size > 0)
+            cl.data.dict_size = bl.data.dict_size;
+        if (cl.data.string_length == dl.data.string_length && bl.data.string_length > 0)
+            cl.data.string_length = bl.data.string_length;
+        if (cl.data.nesting_depth == dl.data.nesting_depth && bl.data.nesting_depth > 0)
+            cl.data.nesting_depth = bl.data.nesting_depth;
+        if (cl.data.output_size == dl.data.output_size && bl.data.output_size > 0)
+            cl.data.output_size = bl.data.output_size;
+        if (cl.data.input_size == dl.data.input_size && bl.data.input_size > 0)
+            cl.data.input_size = bl.data.input_size;
+    }
+    // Code limits
+    if (parent_wins) {
+        if (bl.code.max_lines_per_block > 0) cl.code.max_lines_per_block = bl.code.max_lines_per_block;
+        if (bl.code.max_total_polyglot_lines > 0) cl.code.max_total_polyglot_lines = bl.code.max_total_polyglot_lines;
+        if (bl.code.max_functions > 0) cl.code.max_functions = bl.code.max_functions;
+        if (bl.code.max_variables > 0) cl.code.max_variables = bl.code.max_variables;
+        if (bl.code.max_nesting_depth > 0) cl.code.max_nesting_depth = bl.code.max_nesting_depth;
+    } else {
+        if (cl.code.max_lines_per_block == dl.code.max_lines_per_block && bl.code.max_lines_per_block > 0)
+            cl.code.max_lines_per_block = bl.code.max_lines_per_block;
+        if (cl.code.max_total_polyglot_lines == dl.code.max_total_polyglot_lines && bl.code.max_total_polyglot_lines > 0)
+            cl.code.max_total_polyglot_lines = bl.code.max_total_polyglot_lines;
+        if (cl.code.max_functions == dl.code.max_functions && bl.code.max_functions > 0)
+            cl.code.max_functions = bl.code.max_functions;
+        if (cl.code.max_variables == dl.code.max_variables && bl.code.max_variables > 0)
+            cl.code.max_variables = bl.code.max_variables;
+        if (cl.code.max_nesting_depth == dl.code.max_nesting_depth && bl.code.max_nesting_depth > 0)
+            cl.code.max_nesting_depth = bl.code.max_nesting_depth;
+    }
+    // Rate limits (cooldown_on_limit_ms defaults to 100, rest to 0)
+    if (parent_wins) {
+        if (bl.rate.max_polyglot_per_second > 0) cl.rate.max_polyglot_per_second = bl.rate.max_polyglot_per_second;
+        if (bl.rate.max_stdlib_calls_per_second > 0) cl.rate.max_stdlib_calls_per_second = bl.rate.max_stdlib_calls_per_second;
+        if (bl.rate.max_file_ops_per_second > 0) cl.rate.max_file_ops_per_second = bl.rate.max_file_ops_per_second;
+        if (bl.rate.cooldown_on_limit_ms != dl.rate.cooldown_on_limit_ms)
+            cl.rate.cooldown_on_limit_ms = bl.rate.cooldown_on_limit_ms;
+    } else {
+        if (cl.rate.max_polyglot_per_second == dl.rate.max_polyglot_per_second && bl.rate.max_polyglot_per_second > 0)
+            cl.rate.max_polyglot_per_second = bl.rate.max_polyglot_per_second;
+        if (cl.rate.max_stdlib_calls_per_second == dl.rate.max_stdlib_calls_per_second && bl.rate.max_stdlib_calls_per_second > 0)
+            cl.rate.max_stdlib_calls_per_second = bl.rate.max_stdlib_calls_per_second;
+        if (cl.rate.max_file_ops_per_second == dl.rate.max_file_ops_per_second && bl.rate.max_file_ops_per_second > 0)
+            cl.rate.max_file_ops_per_second = bl.rate.max_file_ops_per_second;
+        if (cl.rate.cooldown_on_limit_ms == dl.rate.cooldown_on_limit_ms &&
+            bl.rate.cooldown_on_limit_ms != dl.rate.cooldown_on_limit_ms)
+            cl.rate.cooldown_on_limit_ms = bl.rate.cooldown_on_limit_ms;
+    }
 
     // --- Requirements: inherit from base if child didn't set ---
     if (!parent_wins) {
@@ -3509,6 +3578,339 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
         if (base.max_call_depth > 0) child.max_call_depth = base.max_call_depth;
         if (base.max_array_size > 0) child.max_array_size = base.max_array_size;
     }
+
+    // --- Governance depth features: inherit if child didn't configure ---
+    if (!child.circuit_breaker.enabled && base.circuit_breaker.enabled)
+        child.circuit_breaker = base.circuit_breaker;
+    if (!child.advisory_escalation.enabled && base.advisory_escalation.enabled)
+        child.advisory_escalation = base.advisory_escalation;
+    if (!child.exposure_tracking.enabled && base.exposure_tracking.enabled)
+        child.exposure_tracking = base.exposure_tracking;
+    if (!child.pipeline_separation.enabled && base.pipeline_separation.enabled)
+        child.pipeline_separation = base.pipeline_separation;
+    if (!child.governance_health.enabled && base.governance_health.enabled)
+        child.governance_health = base.governance_health;
+    if (!child.temporal_coupling.enabled && base.temporal_coupling.enabled)
+        child.temporal_coupling = base.temporal_coupling;
+    if (!child.contradiction_detection.enabled && base.contradiction_detection.enabled)
+        child.contradiction_detection = base.contradiction_detection;
+    if (!child.codegen.enabled && base.codegen.enabled)
+        child.codegen = base.codegen;
+    if (!child.telemetry_output.enabled && base.telemetry_output.enabled)
+        child.telemetry_output = base.telemetry_output;
+    if (!child.quality_gate.enabled && base.quality_gate.enabled)
+        child.quality_gate = base.quality_gate;
+    if (!child.governance_baseline.enabled && base.governance_baseline.enabled)
+        child.governance_baseline = base.governance_baseline;
+    if (!child.baselines.enabled && base.baselines.enabled)
+        child.baselines = base.baselines;
+    if (!child.prerequisites.enabled && base.prerequisites.enabled)
+        child.prerequisites = base.prerequisites;
+    if (!child.agent_review.enabled && base.agent_review.enabled)
+        child.agent_review = base.agent_review;
+
+    // --- Restriction sub-configs: parent_wins can force-enable ---
+    if (parent_wins) {
+        if (base.restrictions.dangerous_calls.enabled)
+            child.restrictions.dangerous_calls = base.restrictions.dangerous_calls;
+        if (base.restrictions.shell_injection.enabled)
+            child.restrictions.shell_injection = base.restrictions.shell_injection;
+        if (base.restrictions.imports.enabled)
+            child.restrictions.imports = base.restrictions.imports;
+        if (base.restrictions.data_exfiltration.enabled)
+            child.restrictions.data_exfiltration = base.restrictions.data_exfiltration;
+        if (base.restrictions.resource_abuse.enabled)
+            child.restrictions.resource_abuse = base.restrictions.resource_abuse;
+        if (base.restrictions.privilege_escalation.enabled)
+            child.restrictions.privilege_escalation = base.restrictions.privilege_escalation;
+        if (base.restrictions.information_disclosure.enabled)
+            child.restrictions.information_disclosure = base.restrictions.information_disclosure;
+        if (base.restrictions.code_injection.enabled)
+            child.restrictions.code_injection = base.restrictions.code_injection;
+        if (base.restrictions.crypto.enabled)
+            child.restrictions.crypto = base.restrictions.crypto;
+        if (base.restrictions.vcs_secret_extraction.enabled)
+            child.restrictions.vcs_secret_extraction = base.restrictions.vcs_secret_extraction;
+        if (base.restrictions.obfuscation.enabled)
+            child.restrictions.obfuscation = base.restrictions.obfuscation;
+    } else {
+        if (!child.restrictions.dangerous_calls.enabled && base.restrictions.dangerous_calls.enabled)
+            child.restrictions.dangerous_calls = base.restrictions.dangerous_calls;
+        if (!child.restrictions.shell_injection.enabled && base.restrictions.shell_injection.enabled)
+            child.restrictions.shell_injection = base.restrictions.shell_injection;
+        if (!child.restrictions.imports.enabled && base.restrictions.imports.enabled)
+            child.restrictions.imports = base.restrictions.imports;
+        if (!child.restrictions.data_exfiltration.enabled && base.restrictions.data_exfiltration.enabled)
+            child.restrictions.data_exfiltration = base.restrictions.data_exfiltration;
+        if (!child.restrictions.resource_abuse.enabled && base.restrictions.resource_abuse.enabled)
+            child.restrictions.resource_abuse = base.restrictions.resource_abuse;
+        if (!child.restrictions.privilege_escalation.enabled && base.restrictions.privilege_escalation.enabled)
+            child.restrictions.privilege_escalation = base.restrictions.privilege_escalation;
+        if (!child.restrictions.information_disclosure.enabled && base.restrictions.information_disclosure.enabled)
+            child.restrictions.information_disclosure = base.restrictions.information_disclosure;
+        if (!child.restrictions.code_injection.enabled && base.restrictions.code_injection.enabled)
+            child.restrictions.code_injection = base.restrictions.code_injection;
+        if (!child.restrictions.crypto.enabled && base.restrictions.crypto.enabled)
+            child.restrictions.crypto = base.restrictions.crypto;
+        if (!child.restrictions.vcs_secret_extraction.enabled && base.restrictions.vcs_secret_extraction.enabled)
+            child.restrictions.vcs_secret_extraction = base.restrictions.vcs_secret_extraction;
+        if (!child.restrictions.obfuscation.enabled && base.restrictions.obfuscation.enabled)
+            child.restrictions.obfuscation = base.restrictions.obfuscation;
+    }
+    // PolyglotOutputRestriction (no enabled) — field-by-field gap-fill
+    {
+        auto& cpo = child.restrictions.polyglot_output;
+        const auto& bpo = base.restrictions.polyglot_output;
+        const auto& dpo = defaults.restrictions.polyglot_output;
+        if (cpo.format == dpo.format && bpo.format != dpo.format) cpo.format = bpo.format;
+        if (cpo.max_size == dpo.max_size && bpo.max_size > 0) cpo.max_size = bpo.max_size;
+        if (!cpo.require_structured && bpo.require_structured) cpo.require_structured = true;
+        if (!cpo.validate_json && bpo.validate_json) cpo.validate_json = true;
+    }
+
+    // --- Code quality: inherit each check if child didn't configure ---
+    if (!child.code_quality.no_secrets.enabled && base.code_quality.no_secrets.enabled)
+        child.code_quality.no_secrets = base.code_quality.no_secrets;
+    if (!child.code_quality.no_placeholders.enabled && base.code_quality.no_placeholders.enabled)
+        child.code_quality.no_placeholders = base.code_quality.no_placeholders;
+    if (!child.code_quality.no_hardcoded_results.enabled && base.code_quality.no_hardcoded_results.enabled)
+        child.code_quality.no_hardcoded_results = base.code_quality.no_hardcoded_results;
+    if (!child.code_quality.no_pii.enabled && base.code_quality.no_pii.enabled)
+        child.code_quality.no_pii = base.code_quality.no_pii;
+    if (!child.code_quality.no_temporary_code.enabled && base.code_quality.no_temporary_code.enabled)
+        child.code_quality.no_temporary_code = base.code_quality.no_temporary_code;
+    if (!child.code_quality.no_simulation_markers.enabled && base.code_quality.no_simulation_markers.enabled)
+        child.code_quality.no_simulation_markers = base.code_quality.no_simulation_markers;
+    if (!child.code_quality.no_mock_data.enabled && base.code_quality.no_mock_data.enabled)
+        child.code_quality.no_mock_data = base.code_quality.no_mock_data;
+    if (!child.code_quality.no_apologetic_language.enabled && base.code_quality.no_apologetic_language.enabled)
+        child.code_quality.no_apologetic_language = base.code_quality.no_apologetic_language;
+    if (!child.code_quality.no_dead_code.enabled && base.code_quality.no_dead_code.enabled)
+        child.code_quality.no_dead_code = base.code_quality.no_dead_code;
+    if (!child.code_quality.no_debug_artifacts.enabled && base.code_quality.no_debug_artifacts.enabled)
+        child.code_quality.no_debug_artifacts = base.code_quality.no_debug_artifacts;
+    if (!child.code_quality.no_unsafe_deserialization.enabled && base.code_quality.no_unsafe_deserialization.enabled)
+        child.code_quality.no_unsafe_deserialization = base.code_quality.no_unsafe_deserialization;
+    if (!child.code_quality.no_sql_injection.enabled && base.code_quality.no_sql_injection.enabled)
+        child.code_quality.no_sql_injection = base.code_quality.no_sql_injection;
+    if (!child.code_quality.no_path_traversal.enabled && base.code_quality.no_path_traversal.enabled)
+        child.code_quality.no_path_traversal = base.code_quality.no_path_traversal;
+    if (!child.code_quality.no_hardcoded_urls.enabled && base.code_quality.no_hardcoded_urls.enabled)
+        child.code_quality.no_hardcoded_urls = base.code_quality.no_hardcoded_urls;
+    if (!child.code_quality.no_hardcoded_ips.enabled && base.code_quality.no_hardcoded_ips.enabled)
+        child.code_quality.no_hardcoded_ips = base.code_quality.no_hardcoded_ips;
+    if (!child.code_quality.max_complexity.enabled && base.code_quality.max_complexity.enabled)
+        child.code_quality.max_complexity = base.code_quality.max_complexity;
+    if (!child.code_quality.encoding.enabled && base.code_quality.encoding.enabled)
+        child.code_quality.encoding = base.code_quality.encoding;
+    if (!child.code_quality.no_oversimplification.enabled && base.code_quality.no_oversimplification.enabled)
+        child.code_quality.no_oversimplification = base.code_quality.no_oversimplification;
+    if (!child.code_quality.no_incomplete_logic.enabled && base.code_quality.no_incomplete_logic.enabled)
+        child.code_quality.no_incomplete_logic = base.code_quality.no_incomplete_logic;
+    if (!child.code_quality.no_hallucinated_apis.enabled && base.code_quality.no_hallucinated_apis.enabled)
+        child.code_quality.no_hallucinated_apis = base.code_quality.no_hallucinated_apis;
+    if (!child.code_quality.complexity_floor.enabled && base.code_quality.complexity_floor.enabled)
+        child.code_quality.complexity_floor = base.code_quality.complexity_floor;
+    if (!child.code_quality.duplicate_calls.enabled && base.code_quality.duplicate_calls.enabled)
+        child.code_quality.duplicate_calls = base.code_quality.duplicate_calls;
+    if (!child.code_quality.polyglot_try_catch.enabled && base.code_quality.polyglot_try_catch.enabled)
+        child.code_quality.polyglot_try_catch = base.code_quality.polyglot_try_catch;
+    if (!child.code_quality.semantic_checks.enabled && base.code_quality.semantic_checks.enabled)
+        child.code_quality.semantic_checks = base.code_quality.semantic_checks;
+    if (!child.code_quality.intent_validation.enabled && base.code_quality.intent_validation.enabled)
+        child.code_quality.intent_validation = base.code_quality.intent_validation;
+    if (!child.code_quality.drift_detection.enabled && base.code_quality.drift_detection.enabled)
+        child.code_quality.drift_detection = base.code_quality.drift_detection;
+
+    // --- Requirements sub-configs: parent_wins can force-enable ---
+    if (parent_wins) {
+        if (base.requirements.main_block.enabled)
+            child.requirements.main_block = base.requirements.main_block;
+        if (base.requirements.error_handling.enabled)
+            child.requirements.error_handling = base.requirements.error_handling;
+        if (base.requirements.strict_types.enabled)
+            child.requirements.strict_types = base.requirements.strict_types;
+        if (base.requirements.no_global_state.enabled)
+            child.requirements.no_global_state = base.requirements.no_global_state;
+        if (base.requirements.naming_conventions.enabled)
+            child.requirements.naming_conventions = base.requirements.naming_conventions;
+        if (base.requirements.documentation.enabled)
+            child.requirements.documentation = base.requirements.documentation;
+        if (base.requirements.version_pinning.enabled)
+            child.requirements.version_pinning = base.requirements.version_pinning;
+    } else {
+        if (!child.requirements.main_block.enabled && base.requirements.main_block.enabled)
+            child.requirements.main_block = base.requirements.main_block;
+        if (!child.requirements.error_handling.enabled && base.requirements.error_handling.enabled)
+            child.requirements.error_handling = base.requirements.error_handling;
+        if (!child.requirements.strict_types.enabled && base.requirements.strict_types.enabled)
+            child.requirements.strict_types = base.requirements.strict_types;
+        if (!child.requirements.no_global_state.enabled && base.requirements.no_global_state.enabled)
+            child.requirements.no_global_state = base.requirements.no_global_state;
+        if (!child.requirements.naming_conventions.enabled && base.requirements.naming_conventions.enabled)
+            child.requirements.naming_conventions = base.requirements.naming_conventions;
+        if (!child.requirements.documentation.enabled && base.requirements.documentation.enabled)
+            child.requirements.documentation = base.requirements.documentation;
+        if (!child.requirements.version_pinning.enabled && base.requirements.version_pinning.enabled)
+            child.requirements.version_pinning = base.requirements.version_pinning;
+    }
+
+    // --- Trust policy ---
+    {
+        const auto& bt = base.trust_policy;
+        auto& ct = child.trust_policy;
+        const auto& dt = defaults.trust_policy;
+        if (parent_wins) {
+            if (bt.max_signature_age_days > 0)
+                ct.max_signature_age_days = bt.max_signature_age_days;
+            if (bt.require_fresh_signature) ct.require_fresh_signature = true;
+            if (bt.stale_signature_level != dt.stale_signature_level)
+                ct.stale_signature_level = bt.stale_signature_level;
+        } else {
+            if (ct.max_signature_age_days == dt.max_signature_age_days && bt.max_signature_age_days > 0)
+                ct.max_signature_age_days = bt.max_signature_age_days;
+            if (!ct.require_fresh_signature && bt.require_fresh_signature)
+                ct.require_fresh_signature = true;
+            if (ct.stale_signature_level == dt.stale_signature_level &&
+                bt.stale_signature_level != dt.stale_signature_level)
+                ct.stale_signature_level = bt.stale_signature_level;
+        }
+        if (!ct.check_key_expiry && bt.check_key_expiry) ct.check_key_expiry = true;
+        if (!ct.check_revocation && bt.check_revocation) ct.check_revocation = true;
+    }
+
+    // --- Approval ---
+    if (child.approval.approver_keys.empty() && !base.approval.approver_keys.empty())
+        child.approval.approver_keys = base.approval.approver_keys;
+    if (child.approval.default_expiry_hours == defaults.approval.default_expiry_hours &&
+        base.approval.default_expiry_hours != defaults.approval.default_expiry_hours)
+        child.approval.default_expiry_hours = base.approval.default_expiry_hours;
+
+    // --- Agent dispatch ---
+    {
+        const auto& bad = base.agent_dispatch;
+        auto& cad = child.agent_dispatch;
+        const auto& dad = defaults.agent_dispatch;
+        if (parent_wins) {
+            if (bad.max_concurrent != dad.max_concurrent) cad.max_concurrent = bad.max_concurrent;
+            if (bad.pool_size != dad.pool_size) cad.pool_size = bad.pool_size;
+            if (bad.pool_queue_max != dad.pool_queue_max) cad.pool_queue_max = bad.pool_queue_max;
+            if (bad.max_retries_per_run > 0) cad.max_retries_per_run = bad.max_retries_per_run;
+            if (bad.hard_stop.max_calls_per_run > 0) cad.hard_stop.max_calls_per_run = bad.hard_stop.max_calls_per_run;
+            if (bad.hard_stop.max_tokens_per_run > 0) cad.hard_stop.max_tokens_per_run = bad.hard_stop.max_tokens_per_run;
+            if (bad.hard_stop.max_agent_time_ms > 0) cad.hard_stop.max_agent_time_ms = bad.hard_stop.max_agent_time_ms;
+            if (bad.hard_stop.consecutive_failure_limit > 0)
+                cad.hard_stop.consecutive_failure_limit = bad.hard_stop.consecutive_failure_limit;
+            if (bad.hard_stop.action != dad.hard_stop.action) cad.hard_stop.action = bad.hard_stop.action;
+        } else {
+            if (cad.max_concurrent == dad.max_concurrent && bad.max_concurrent != dad.max_concurrent)
+                cad.max_concurrent = bad.max_concurrent;
+            if (cad.pool_size == dad.pool_size && bad.pool_size != dad.pool_size)
+                cad.pool_size = bad.pool_size;
+            if (cad.pool_queue_max == dad.pool_queue_max && bad.pool_queue_max != dad.pool_queue_max)
+                cad.pool_queue_max = bad.pool_queue_max;
+            if (cad.max_retries_per_run == 0 && bad.max_retries_per_run > 0)
+                cad.max_retries_per_run = bad.max_retries_per_run;
+            if (cad.hard_stop.max_calls_per_run == 0 && bad.hard_stop.max_calls_per_run > 0)
+                cad.hard_stop.max_calls_per_run = bad.hard_stop.max_calls_per_run;
+            if (cad.hard_stop.max_tokens_per_run == 0 && bad.hard_stop.max_tokens_per_run > 0)
+                cad.hard_stop.max_tokens_per_run = bad.hard_stop.max_tokens_per_run;
+            if (cad.hard_stop.max_agent_time_ms == 0 && bad.hard_stop.max_agent_time_ms > 0)
+                cad.hard_stop.max_agent_time_ms = bad.hard_stop.max_agent_time_ms;
+            if (cad.hard_stop.consecutive_failure_limit == 0 && bad.hard_stop.consecutive_failure_limit > 0)
+                cad.hard_stop.consecutive_failure_limit = bad.hard_stop.consecutive_failure_limit;
+            if (cad.hard_stop.action == dad.hard_stop.action && bad.hard_stop.action != dad.hard_stop.action)
+                cad.hard_stop.action = bad.hard_stop.action;
+        }
+    }
+
+    // --- Audit ---
+    if (parent_wins) {
+        if (base.audit.level != defaults.audit.level) child.audit.level = base.audit.level;
+    } else {
+        if (child.audit.level == defaults.audit.level && base.audit.level != defaults.audit.level)
+            child.audit.level = base.audit.level;
+    }
+    if (child.audit.output_file == defaults.audit.output_file &&
+        base.audit.output_file != defaults.audit.output_file)
+        child.audit.output_file = base.audit.output_file;
+    if (!child.audit.tamper_evidence.enabled && base.audit.tamper_evidence.enabled)
+        child.audit.tamper_evidence = base.audit.tamper_evidence;
+    if (!child.audit.provenance.enabled && base.audit.provenance.enabled)
+        child.audit.provenance = base.audit.provenance;
+
+    // --- Hooks ---
+    if (child.hooks.on_violation.command.empty() && !base.hooks.on_violation.command.empty())
+        child.hooks.on_violation = base.hooks.on_violation;
+    if (child.hooks.on_override.command.empty() && !base.hooks.on_override.command.empty())
+        child.hooks.on_override = base.hooks.on_override;
+    if (child.hooks.on_complete.command.empty() && !base.hooks.on_complete.command.empty())
+        child.hooks.on_complete = base.hooks.on_complete;
+    if (child.hooks.pre_check.command.empty() && !base.hooks.pre_check.command.empty())
+        child.hooks.pre_check = base.hooks.pre_check;
+    if (child.hooks.post_check.command.empty() && !base.hooks.post_check.command.empty())
+        child.hooks.post_check = base.hooks.post_check;
+
+    // --- Languages ---
+    if (parent_wins) {
+        if (base.languages.require_explicit) child.languages.require_explicit = true;
+    } else {
+        if (!child.languages.require_explicit && base.languages.require_explicit)
+            child.languages.require_explicit = true;
+    }
+    if (child.languages.allowed.empty() && !base.languages.allowed.empty())
+        child.languages.allowed = base.languages.allowed;
+    if (child.languages.blocked.empty() && !base.languages.blocked.empty())
+        child.languages.blocked = base.languages.blocked;
+    for (const auto& [lang, cfg] : base.languages.per_language) {
+        if (child.languages.per_language.find(lang) == child.languages.per_language.end())
+            child.languages.per_language[lang] = cfg;
+    }
+
+    // --- Output ---
+    if (child.output.max_advisories == defaults.output.max_advisories &&
+        base.output.max_advisories != defaults.output.max_advisories)
+        child.output.max_advisories = base.output.max_advisories;
+    if (child.output.file_output.report_json.empty() && !base.output.file_output.report_json.empty())
+        child.output.file_output.report_json = base.output.file_output.report_json;
+    if (child.output.file_output.report_sarif.empty() && !base.output.file_output.report_sarif.empty())
+        child.output.file_output.report_sarif = base.output.file_output.report_sarif;
+    if (child.output.file_output.report_junit.empty() && !base.output.file_output.report_junit.empty())
+        child.output.file_output.report_junit = base.output.file_output.report_junit;
+    if (child.output.file_output.report_csv.empty() && !base.output.file_output.report_csv.empty())
+        child.output.file_output.report_csv = base.output.file_output.report_csv;
+    if (child.output.file_output.report_html.empty() && !base.output.file_output.report_html.empty())
+        child.output.file_output.report_html = base.output.file_output.report_html;
+
+    // --- Polyglot ---
+    if (!child.polyglot.context_isolation.enabled && base.polyglot.context_isolation.enabled)
+        child.polyglot.context_isolation = base.polyglot.context_isolation;
+    if (!child.polyglot.variable_binding.require_explicit && base.polyglot.variable_binding.require_explicit)
+        child.polyglot.variable_binding.require_explicit = true;
+    if (child.polyglot.variable_binding.max_bound_variables == 0 &&
+        base.polyglot.variable_binding.max_bound_variables > 0)
+        child.polyglot.variable_binding.max_bound_variables = base.polyglot.variable_binding.max_bound_variables;
+    if (!child.polyglot.output.require_json_pipe && base.polyglot.output.require_json_pipe)
+        child.polyglot.output.require_json_pipe = true;
+    if (!child.polyglot.output.require_naab_return && base.polyglot.output.require_naab_return)
+        child.polyglot.output.require_naab_return = true;
+    if (child.polyglot.output.max_output_lines == 0 && base.polyglot.output.max_output_lines > 0)
+        child.polyglot.output.max_output_lines = base.polyglot.output.max_output_lines;
+    if (child.polyglot.parallel.max_parallel_blocks == 0 && base.polyglot.parallel.max_parallel_blocks > 0)
+        child.polyglot.parallel.max_parallel_blocks = base.polyglot.parallel.max_parallel_blocks;
+    if (child.polyglot.parallel.timeout_per_block == 0 && base.polyglot.parallel.timeout_per_block > 0)
+        child.polyglot.parallel.timeout_per_block = base.polyglot.parallel.timeout_per_block;
+    if (child.polyglot.parallel.fail_strategy == defaults.polyglot.parallel.fail_strategy &&
+        base.polyglot.parallel.fail_strategy != defaults.polyglot.parallel.fail_strategy)
+        child.polyglot.parallel.fail_strategy = base.polyglot.parallel.fail_strategy;
+    if (child.polyglot.persistent_runtime.max_sessions == 0 && base.polyglot.persistent_runtime.max_sessions > 0)
+        child.polyglot.persistent_runtime.max_sessions = base.polyglot.persistent_runtime.max_sessions;
+    if (child.polyglot.persistent_runtime.session_timeout == 0 && base.polyglot.persistent_runtime.session_timeout > 0)
+        child.polyglot.persistent_runtime.session_timeout = base.polyglot.persistent_runtime.session_timeout;
+    if (child.polyglot.persistent_runtime.max_memory_per_session_mb == 0 &&
+        base.polyglot.persistent_runtime.max_memory_per_session_mb > 0)
+        child.polyglot.persistent_runtime.max_memory_per_session_mb =
+            base.polyglot.persistent_runtime.max_memory_per_session_mb;
 }
 
 bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
