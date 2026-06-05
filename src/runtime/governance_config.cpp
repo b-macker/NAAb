@@ -3302,6 +3302,8 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
 
     // --- Mode: child can only set equal-or-stricter (ratchet semantics) ---
     // Strictness: ENFORCE > AUDIT > OFF
+    // NOTE (M5): Both branches below are intentionally identical. Mode is a
+    // security floor — base always constrains child regardless of merge_strategy.
     if (parent_wins) {
         // Parent mode wins if stricter
         if (static_cast<int>(base.mode) < static_cast<int>(child.mode)) {

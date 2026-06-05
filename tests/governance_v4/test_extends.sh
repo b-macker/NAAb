@@ -133,20 +133,31 @@ cat > "$T2CHILD/govern.json" << 'EOF'
     }
   },
   "limits": {
-    "timeout": { "global": 5 }
+    "timeout": { "global": 2 }
   }
 }
 EOF
 sign_gov "$T2CHILD"
 
+# Functional test: child timeout is 2s, parent is 30s.
+# If parent_wins works, the 30s timeout applies and sleep(3) completes.
+# If child's 2s wins, the polyglot block times out.
 cat > "$T2CHILD/test.naab" << 'EOF'
-main { print("parent_wins") }
+main {
+    let r = <<python
+import time
+time.sleep(3)
+print("survived_3s")
+>>
+    print(r)
+}
 EOF
 
-OUTPUT=$(cd "$T2CHILD" && "$NAAB" --governance-dashboard test.naab 2>&1)
+OUTPUT=$(cd "$T2CHILD" && timeout 15 "$NAAB" run --governance-dashboard test.naab 2>&1)
 EXIT_CODE=$?
 
 check "T2a: parent_wins config loads" "0" "$EXIT_CODE"
+check_contains "T2b: parent timeout wins over child" "survived_3s" "$OUTPUT"
 
 
 # ============================================================
@@ -270,18 +281,19 @@ sign_gov "$T5CHILD"
 # Try to use shell — should be blocked (inherited from base)
 cat > "$T5CHILD/test.naab" << 'EOF'
 main {
-    let r = <<sh>>
+    let r = <<sh
 echo "shell_test"
 >>
     print(r)
 }
 EOF
 
-OUTPUT=$(cd "$T5CHILD" && "$NAAB" test.naab 2>&1)
+OUTPUT=$(cd "$T5CHILD" && "$NAAB" run test.naab 2>&1)
 EXIT_CODE=$?
 
 # Shell should be blocked because base disables it and child inherits
 check "T5a: shell blocked by inherited config" "1" "$([ $EXIT_CODE -ne 0 ] && echo 1 || echo 0)"
+check_contains "T5b: shell governance block message" "denied" "$OUTPUT"
 
 
 # ============================================================
@@ -381,6 +393,156 @@ EXIT_CODE=$?
 
 check "T8a: no extends works normally" "0" "$EXIT_CODE"
 check_contains "T8b: output correct" "no_extends" "$OUTPUT"
+
+
+# ============================================================
+# T9: Multi-level extends chain (grandparent → parent → child)
+# ============================================================
+echo ""
+echo "--- T9: Multi-level extends chain ---"
+T9GP="$WORKDIR/t9/grandparent"
+T9P="$WORKDIR/t9/parent"
+T9C="$WORKDIR/t9/child"
+mkdir -p "$T9GP" "$T9P" "$T9C"
+
+cat > "$T9GP/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "capabilities": { "shell": { "enabled": false } },
+  "limits": { "timeout": { "global": 60 } }
+}
+EOF
+sign_gov "$T9GP"
+
+cat > "$T9P/govern.json" << 'EOF'
+{
+  "extends": "../grandparent/govern.json",
+  "limits": { "timeout": { "global": 30 } }
+}
+EOF
+sign_gov "$T9P"
+
+cat > "$T9C/govern.json" << 'EOF'
+{
+  "extends": "../parent/govern.json"
+}
+EOF
+sign_gov "$T9C"
+
+cat > "$T9C/test.naab" << 'EOF'
+main { print("chain_ok") }
+EOF
+
+OUTPUT=$(cd "$T9C" && "$NAAB" run --governance-dashboard test.naab 2>&1)
+EXIT_CODE=$?
+
+check "T9a: 3-level chain loads" "0" "$EXIT_CODE"
+check_contains "T9b: output correct" "chain_ok" "$OUTPUT"
+
+# Verify grandparent capability propagates through parent to child
+cat > "$T9C/test_shell.naab" << 'EOF'
+main {
+    let r = <<sh
+echo "should_fail"
+>>
+    print(r)
+}
+EOF
+
+OUTPUT2=$(cd "$T9C" && "$NAAB" run test_shell.naab 2>&1)
+EXIT2=$?
+
+check "T9c: grandparent shell block inherited" "1" "$([ $EXIT2 -ne 0 ] && echo 1 || echo 0)"
+
+
+# ============================================================
+# T10: Tree-walk extends
+# ============================================================
+echo ""
+echo "--- T10: Tree-walk extends ---"
+T10BASE="$WORKDIR/t10/base"
+T10CHILD="$WORKDIR/t10/child"
+mkdir -p "$T10BASE" "$T10CHILD"
+
+cat > "$T10BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "limits": { "timeout": { "global": 30 } }
+}
+EOF
+sign_gov "$T10BASE"
+
+cat > "$T10CHILD/govern.json" << 'EOF'
+{
+  "extends": "../base/govern.json",
+  "limits": { "timeout": { "global": 10 } }
+}
+EOF
+sign_gov "$T10CHILD"
+
+cat > "$T10CHILD/test.naab" << 'EOF'
+main { print("tree_walk_extends") }
+EOF
+
+OUTPUT=$(cd "$T10CHILD" && "$NAAB" run --tree-walk --governance-dashboard test.naab 2>&1)
+EXIT_CODE=$?
+
+check "T10a: tree-walk extends loads" "0" "$EXIT_CODE"
+check_contains "T10b: tree-walk output correct" "tree_walk_extends" "$OUTPUT"
+
+
+# ============================================================
+# T11: M4 field inheritance (restrictions inherited from parent)
+# ============================================================
+echo ""
+echo "--- T11: M4 field inheritance ---"
+T11BASE="$WORKDIR/t11/base"
+T11CHILD="$WORKDIR/t11/child"
+mkdir -p "$T11BASE" "$T11CHILD"
+
+cat > "$T11BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" }
+  }
+}
+EOF
+sign_gov "$T11BASE"
+
+cat > "$T11CHILD/govern.json" << 'EOF'
+{
+  "extends": "../base/govern.json",
+  "mode": "enforce"
+}
+EOF
+sign_gov "$T11CHILD"
+
+cat > "$T11CHILD/test_safe.naab" << 'EOF'
+main { print("m4_ok") }
+EOF
+
+OUTPUT=$(cd "$T11CHILD" && "$NAAB" run test_safe.naab 2>&1)
+EXIT_CODE=$?
+check "T11a: M4 inheritance loads" "0" "$EXIT_CODE"
+check_contains "T11b: safe code passes" "m4_ok" "$OUTPUT"
+
+# Dangerous code should be blocked by inherited restriction
+cat > "$T11CHILD/test_danger.naab" << 'EOF'
+main {
+    let r = <<python
+import os
+os.system("echo pwned")
+>>
+    print(r)
+}
+EOF
+
+OUTPUT2=$(cd "$T11CHILD" && "$NAAB" run test_danger.naab 2>&1)
+EXIT2=$?
+
+check "T11c: inherited restriction blocks" "3" "$EXIT2"
+check_contains "T11d: dangerous pattern detected" "Dangerous pattern" "$OUTPUT2"
 
 
 echo ""

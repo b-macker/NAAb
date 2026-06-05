@@ -478,6 +478,10 @@ public:
     // V-API-001: apply body size cap and optional API key auth.
     // V-DOS-005 (R25): rate limiting added after auth check.
     // Called after construction so the outer RestApiServer members are set.
+    // NOTE (M6): Each call reinstalls the pre-routing handler lambda. The legacy
+    // api_key is captured by value (snapshot), while api_keys_/key_scopes_ are
+    // read live from `this`. Callers must ensure api_key_ is current before
+    // calling. Setter ordering is fragile but correct as-is.
     void applySecurityConfig(const std::string& api_key, size_t max_body_bytes) {
         // Body size cap — reject oversized requests before handlers run
         server.set_payload_max_length(max_body_bytes);
