@@ -5,13 +5,31 @@
 
 set -e
 
-NAAB_BIN="${NAAB_BIN:-./build/naab-lang}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+NAAB_BIN="${NAAB_BIN:-$PROJECT_DIR/build/naab-lang}"
+# Resolve to absolute path so sign_gov works from temp dirs
+NAAB_BIN="$(cd "$(dirname "$NAAB_BIN")" && pwd)/$(basename "$NAAB_BIN")"
 TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_prop_XXXXXX")
-mkdir -p "$TMPDIR"
-# V-GOV-007: provide govern.json so fail-closed default doesn't block the "with governance" runs.
-# mode:off means governance is loaded (satisfying require_governance) but isActive()=false,
-# which is equivalent to --no-governance for pure-computation transparency testing.
-echo '{"mode":"off"}' > "$TMPDIR/govern.json"
+mkdir -p "$TMPDIR/gov" "$TMPDIR/nogov"
+
+# Signing helper (trusted keys require govern.json signatures)
+SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
+sign_gov() {
+    local dir="$1"
+    if [ -f "$SIGNING_KEY" ]; then
+        (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB_BIN" --sign-governance 2>/dev/null) || true
+    fi
+}
+
+# "With governance" dir: enforce mode, allow all pure NAAb (no polyglot needed)
+echo '{"mode":"enforce","security":{"sandbox_level":"elevated"}}' > "$TMPDIR/gov/govern.json"
+sign_gov "$TMPDIR/gov"
+
+# "Without governance" dir: mode off (governance loaded but inactive)
+# Cannot use --no-governance because signed trust store blocks it.
+echo '{"mode":"off"}' > "$TMPDIR/nogov/govern.json"
+sign_gov "$TMPDIR/nogov"
 
 PASSED=0
 FAILED=0
@@ -22,29 +40,30 @@ check_transparency() {
     local program="$2"
     TOTAL=$((TOTAL + 1))
 
-    local src="$TMPDIR/prop_${name}.naab"
-    echo "$program" > "$src"
+    # Write program to both dirs (each has its own govern.json)
+    local src_gov="$TMPDIR/gov/prop_${name}.naab"
+    local src_nogov="$TMPDIR/nogov/prop_${name}.naab"
+    echo "$program" > "$src_gov"
+    echo "$program" > "$src_nogov"
 
     local out_gov="$TMPDIR/out_gov_${name}.txt"
     local out_nogov="$TMPDIR/out_nogov_${name}.txt"
 
-    # Run WITH governance (uses tests/property/govern.json)
-    if ! timeout 10s "$NAAB_BIN" run "$src" > "$out_gov" 2>/dev/null; then
-        # If governance run fails, that's also a transparency violation
-        # (correct code should never be blocked)
+    # Run WITH governance (enforce mode)
+    if ! timeout 10s "$NAAB_BIN" "$src_gov" > "$out_gov" 2>/dev/null; then
         echo "  FAIL: $name — governance run crashed/blocked"
         FAILED=$((FAILED + 1))
         return
     fi
 
-    # Run WITHOUT governance
-    if ! timeout 10s "$NAAB_BIN" --no-governance run "$src" > "$out_nogov" 2>/dev/null; then
-        echo "  FAIL: $name — no-governance run crashed"
+    # Run WITHOUT governance (mode:off — signed trust store blocks --no-governance)
+    if ! timeout 10s "$NAAB_BIN" "$src_nogov" > "$out_nogov" 2>/dev/null; then
+        echo "  FAIL: $name — mode:off run crashed"
         FAILED=$((FAILED + 1))
         return
     fi
 
-    # Diff stdout
+    # Diff stdout — governance must never alter pure-computation output
     if diff -q "$out_gov" "$out_nogov" > /dev/null 2>&1; then
         echo "  PASS: $name"
         PASSED=$((PASSED + 1))
