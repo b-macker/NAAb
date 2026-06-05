@@ -130,6 +130,11 @@ cat > "$B3DIR/govern.json" << 'EOF'
             "message": "Score marker found"
         }
     ],
+    "advisory_escalation": {
+        "enabled": true,
+        "soft_after": 10,
+        "weight_multiplier": 2.0
+    },
     "scoring": {
         "enabled": true,
         "default_weight": 5,

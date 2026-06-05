@@ -6354,7 +6354,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "behavioral_sequences", "context_drift",
         "trust", "prerequisites", "contradiction_detection",
         "exposure_tracking", "drift_detection",
-        "circuit_breaker", "governance_health",
+        "circuit_breaker", "governance_health", "advisory_escalation",
         "pipeline_separation", "temporal_coupling",
         "subprocess_scrub_mode", "allowed_subprocess_vars",
         "blocked_subprocess_vars", "blocked_subprocess_prefixes",

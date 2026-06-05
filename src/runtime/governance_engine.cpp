@@ -2760,6 +2760,8 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         if (r.passed || r.level != EnforcementLevel::ADVISORY) continue;
         // Pass 2 entries bypass enforce() — exclude from integrity recomputation
         if (r.rule_name.compare(0, 6, "pass2.") == 0) continue;
+        // Escalated advisories return before scoring in enforce() — exclude
+        if (r.escalated) continue;
         int weight = rules_.scoring.default_weight;
         auto wit = rules_.scoring.rule_weights.find(r.rule_name);
         if (wit != rules_.scoring.rule_weights.end()) {
@@ -2769,10 +2771,12 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         }
         weight = std::max(0, weight);
         // Advisory Escalation: mirror enforce() weight multiplier (lines 886-891)
-        occ_counts[r.rule_name]++;
+        // enforce() reads emitted_advisories_ BEFORE incrementing (score at L887, increment at L983)
+        // so we must also check BEFORE incrementing
         if (rules_.advisory_escalation.enabled && occ_counts[r.rule_name] > 1) {
             weight = static_cast<int>(weight * rules_.advisory_escalation.weight_multiplier);
         }
+        occ_counts[r.rule_name]++;
         if (recomputed <= SCORE_SATURATION_LIMIT - weight) {
             recomputed += weight;
         } else {
