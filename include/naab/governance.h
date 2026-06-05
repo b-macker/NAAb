@@ -2183,22 +2183,23 @@ public:
     bool hasValidApproval(const std::string& rule_name, std::string& approver_id_out) const;
     const std::string& getLoadedPath() const { return loaded_path_; }
     const std::string& getLastError() const { return last_error_; }
-    GovernanceMode getMode() const { return rules_.mode; }
+    GovernanceMode getMode() const;
     const std::string& getGovernDir() const { return govern_json_dir_; }
-    const GovernanceRules& getRules() const { return rules_; }
-    GovernanceRules& getMutableRules() { return rules_; }
+    const GovernanceRules& getRules() const;
+    std::shared_ptr<const GovernanceRules> getRulesPtr() const;
+    GovernanceRules& getMutableRules();  // init-only — UB if called during concurrent execution
 
     // --- Legacy Getters (backward compatible) ---
-    int getTimeoutSeconds() const { return rules_.timeout_seconds; }
-    int getMemoryLimitMB() const { return rules_.memory_limit_mb; }
-    bool requiresErrorHandling() const { return rules_.require_error_handling; }
-    bool requiresMainBlock() const { return rules_.require_main_block; }
-    std::string getAuditLevel() const { return rules_.audit_level; }
-    bool isTamperEvidenceEnabled() const { return rules_.tamper_evidence; }
+    int getTimeoutSeconds() const;
+    int getMemoryLimitMB() const;
+    bool requiresErrorHandling() const;
+    bool requiresMainBlock() const;
+    std::string getAuditLevel() const;
+    bool isTamperEvidenceEnabled() const;
 
     // --- Codegen accessors ---
-    bool getCodegenEnabled() const { return rules_.codegen.enabled; }
-    const CodegenConfig& getCodegenConfig() const { return rules_.codegen; }
+    bool getCodegenEnabled() const;
+    const CodegenConfig& getCodegenConfig() const;
 
     // --- Agent identity ---
     void setAgentId(const std::string& id) { agent_id_ = id; }
@@ -2369,7 +2370,7 @@ public:
 
     // --- Governance Integrity (EVA-11/EVA-12) ---
     // Prevents LLM config manipulation by enforcing minimum levels
-    void enforceMinimumLevels();
+    void enforceMinimumLevels(GovernanceRules& r);
 
     // --- Function Contract Check ---
     // Verifies function return values against declared contracts
@@ -2687,13 +2688,20 @@ public:
 private:
     // --- extends / policy distribution ---
     bool loadWithExtends(const std::string& path, int depth,
-                         int max_depth, std::set<std::string>& visited);
+                         int max_depth, std::set<std::string>& visited,
+                         GovernanceRules& child_rules);
     static void mergeRules(const GovernanceRules& base, GovernanceRules& child,
                            const InheritanceConfig& cfg);
     static std::string resolveExtendsPath(const std::string& extends_val,
                                           const std::string& config_dir);
 
-    bool active_ = false;
+    // C1: thread-local snapshot for data-race-free rules access
+    class RulesSnapshot;
+    friend class RulesSnapshot;
+    const GovernanceRules& rules() const;
+    std::shared_ptr<const GovernanceRules> rulesPtr() const;
+
+    std::atomic<bool> active_{false};
     bool override_enabled_ = false;
     std::string override_reason_;
     std::unordered_map<std::string, int> override_counts_;
@@ -2702,7 +2710,7 @@ private:
     mutable std::mutex approval_mutex_;
     std::string loaded_path_;
     std::string last_error_;   // "not_found" or empty when loaded successfully
-    GovernanceRules rules_;
+    std::shared_ptr<const GovernanceRules> rules_ptr_;
     std::vector<CheckResult> check_results_;
     mutable std::mutex results_mutex_;  // V-CONC-007: Thread-safe check_results_ access
     static constexpr size_t MAX_CHECK_RESULTS = 10000;  // V-GOV-024: Cap telemetry entries

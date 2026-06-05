@@ -34,7 +34,8 @@ namespace governance {
 // Destructor
 // ============================================================================
 
-GovernanceEngine::GovernanceEngine() {}
+GovernanceEngine::GovernanceEngine()
+    : rules_ptr_(std::make_shared<GovernanceRules>()) {}
 
 GovernanceEngine::~GovernanceEngine() {
     // Flush telemetry forwarder before anything else
@@ -3084,7 +3085,7 @@ bool GovernanceEngine::reloadIfChanged() {
         // One-way ratchet: reject any loosening
         std::vector<std::string> violations;
         std::vector<std::string> notices;
-        if (!checkRatchetViolation(rules_, new_rules, violations, notices)) {
+        if (!checkRatchetViolation(rules(), new_rules, violations, notices)) {
             std::string detail;
             for (const auto& v : violations) {
                 if (!detail.empty()) detail += "; ";
@@ -3107,9 +3108,10 @@ bool GovernanceEngine::reloadIfChanged() {
                 fmt::format("Governance update: {}", update_reason));
         }
 
-        // Atomic swap
-        rules_ = std::move(new_rules);
-        active_ = (rules_.mode != GovernanceMode::OFF);
+        // C1: Atomic swap via shared_ptr — readers see consistent snapshot
+        auto new_rp = std::make_shared<const GovernanceRules>(std::move(new_rules));
+        std::atomic_store(&rules_ptr_, new_rp);
+        active_.store(new_rp->mode != GovernanceMode::OFF);
         loaded_mtime_ns_ = current_mtime;
         reload_count_++;
 
@@ -3123,11 +3125,11 @@ bool GovernanceEngine::reloadIfChanged() {
         // Fail-closed: sync tightened governance into active sandbox
         auto* sb = security::ScopedSandbox::getCurrent();
         if (sb) {
-            if (!rules_.network_allowed) {
+            if (!new_rp->network_allowed) {
                 sb->setNetworkEnabled(false);
                 sb->removeCapability(security::Capability::NET_CONNECT);
             }
-            if (!rules_.shell_allowed) {
+            if (!new_rp->shell_allowed) {
                 sb->setAllowExec(false);
                 sb->removeCapability(security::Capability::SYS_EXEC);
             }
@@ -3139,26 +3141,26 @@ bool GovernanceEngine::reloadIfChanged() {
         bool was_bsd = bsd_enabled_.load(std::memory_order_relaxed);
         bool was_cdd = cdd_enabled_.load(std::memory_order_relaxed);
 
-        if (rules_.behavioral_sequences.enabled) {
+        if (new_rp->behavioral_sequences.enabled) {
             if (was_bsd) {
-                sequence_detector_.updateConfig(rules_.behavioral_sequences);
+                sequence_detector_.updateConfig(new_rp->behavioral_sequences);
             } else {
-                sequence_detector_.configure(rules_.behavioral_sequences);
+                sequence_detector_.configure(new_rp->behavioral_sequences);
             }
         } else {
             sequence_detector_.reset();
         }
-        if (rules_.context_drift.enabled) {
+        if (new_rp->context_drift.enabled) {
             if (was_cdd) {
-                drift_analyzer_.updateConfig(rules_.context_drift);
+                drift_analyzer_.updateConfig(new_rp->context_drift);
             } else {
-                drift_analyzer_.configure(rules_.context_drift);
+                drift_analyzer_.configure(new_rp->context_drift);
             }
         } else {
             drift_analyzer_.reset();
         }
-        bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
-        cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
+        bsd_enabled_.store(new_rp->behavioral_sequences.enabled, std::memory_order_release);
+        cdd_enabled_.store(new_rp->context_drift.enabled, std::memory_order_release);
 
         // C3: restart telemetry forwarder if webhook config changed
         {
@@ -3166,23 +3168,23 @@ bool GovernanceEngine::reloadIfChanged() {
             {
                 std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
                 bool needs_restart = false;
-                if (telemetry_forwarder_ && !rules_.telemetry_output.webhook_url.empty()) {
+                if (telemetry_forwarder_ && !new_rp->telemetry_output.webhook_url.empty()) {
                     needs_restart = true;  // config may have changed — restart with new settings
-                } else if (!telemetry_forwarder_ && !rules_.telemetry_output.webhook_url.empty()) {
+                } else if (!telemetry_forwarder_ && !new_rp->telemetry_output.webhook_url.empty()) {
                     needs_restart = true;  // webhook newly configured mid-run
                 }
 
                 if (needs_restart) {
                     old_fwd = std::move(telemetry_forwarder_);
                     TelemetryForwarderConfig fwd_cfg;
-                    fwd_cfg.webhook_url = rules_.telemetry_output.webhook_url;
-                    fwd_cfg.auth_header = rules_.telemetry_output.webhook_auth_header;
-                    fwd_cfg.batch_size = rules_.telemetry_output.forward_batch_size;
-                    fwd_cfg.timeout_ms = rules_.telemetry_output.forward_timeout_ms;
-                    fwd_cfg.retry_count = rules_.telemetry_output.forward_retry_count;
-                    fwd_cfg.buffer_max = rules_.telemetry_output.forward_buffer_max;
+                    fwd_cfg.webhook_url = new_rp->telemetry_output.webhook_url;
+                    fwd_cfg.auth_header = new_rp->telemetry_output.webhook_auth_header;
+                    fwd_cfg.batch_size = new_rp->telemetry_output.forward_batch_size;
+                    fwd_cfg.timeout_ms = new_rp->telemetry_output.forward_timeout_ms;
+                    fwd_cfg.retry_count = new_rp->telemetry_output.forward_retry_count;
+                    fwd_cfg.buffer_max = new_rp->telemetry_output.forward_buffer_max;
                     telemetry_forwarder_ = std::make_shared<TelemetryForwarder>(fwd_cfg);
-                } else if (telemetry_forwarder_ && rules_.telemetry_output.webhook_url.empty()) {
+                } else if (telemetry_forwarder_ && new_rp->telemetry_output.webhook_url.empty()) {
                     // Webhook removed — shut down forwarder
                     old_fwd = std::move(telemetry_forwarder_);
                 }
@@ -3232,28 +3234,28 @@ std::vector<std::string> GovernanceEngine::getAndClearNotices() {
 // Prevents LLM config manipulation by ensuring anti-evasion checks have
 // minimum enforcement levels. An LLM could write govern.json with all
 // checks set to "advisory" (warn-only) to bypass quality gates.
-void GovernanceEngine::enforceMinimumLevels() {
+void GovernanceEngine::enforceMinimumLevels(GovernanceRules& r) {
     // F3: Signed configs cannot use AUDIT mode — override to ENFORCE
-    if (rules_.mode == GovernanceMode::AUDIT && !loaded_path_.empty()) {
+    if (r.mode == GovernanceMode::AUDIT && !loaded_path_.empty()) {
         std::string sig_path = loaded_path_ + ".sig";
         std::error_code ec;
         if (std::filesystem::exists(sig_path, ec)) {
             fprintf(stderr,
                 "[governance] WARNING: Signed govern.json has mode:audit — "
                 "overriding to ENFORCE.\n");
-            rules_.mode = GovernanceMode::ENFORCE;
+            r.mode = GovernanceMode::ENFORCE;
         }
     }
 
-    enforceMinimumLevelsOnRules(rules_);
+    enforceMinimumLevelsOnRules(r);
 
     // Warn about contradictory config: code quality checks enabled but mode is audit/off
-    if (rules_.mode != GovernanceMode::ENFORCE) {
-        if (rules_.code_quality.no_oversimplification.enabled ||
-            rules_.code_quality.no_incomplete_logic.enabled) {
+    if (r.mode != GovernanceMode::ENFORCE) {
+        if (r.code_quality.no_oversimplification.enabled ||
+            r.code_quality.no_incomplete_logic.enabled) {
             fprintf(stderr, "[governance] WARNING: Code quality checks are enabled but mode is %s. "
                     "Code quality checks will NOT block — use mode: enforce for protection.\n",
-                    rules_.mode == GovernanceMode::AUDIT ? "audit" : "off");
+                    r.mode == GovernanceMode::AUDIT ? "audit" : "off");
         }
     }
 }
@@ -3506,7 +3508,8 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
 
 bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
                                         int max_depth,
-                                        std::set<std::string>& visited) {
+                                        std::set<std::string>& visited,
+                                        GovernanceRules& child_rules) {
     // Circular detection
     auto canonical = std::filesystem::weakly_canonical(path).string();
     if (visited.count(canonical)) {
@@ -3563,18 +3566,14 @@ bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
             return false;
         }
 
-        // Create a temporary engine to recursively load the grandparent
-        // We reuse this engine's visited set for circular detection
-        GovernanceEngine temp;
-        temp.rules_ = base_rules;
-        if (!temp.loadWithExtends(resolved, depth + 1, max_depth, visited)) {
+        // Recursively resolve grandparent — pass base_rules as the child
+        if (!loadWithExtends(resolved, depth + 1, max_depth, visited, base_rules)) {
             return false;
         }
-        base_rules = temp.rules_;
     }
 
-    // Merge: base fills gaps in child (rules_ is the child)
-    mergeRules(base_rules, rules_, rules_.meta.inheritance);
+    // Merge: base fills gaps in child
+    mergeRules(base_rules, child_rules, child_rules.meta.inheritance);
 
     return true;
 }
@@ -3592,7 +3591,8 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
                        "(V-GOV-019 cap)\n", MAX_GOV_ARRAY_ELEMS);
             return false;
         }
-        loadFromJson(j, rules_);
+        auto new_rules = std::make_shared<GovernanceRules>();
+        loadFromJson(j, *new_rules);
         loaded_path_ = path;
 
         // H4: verify child signature BEFORE resolving extends chain —
@@ -3603,24 +3603,24 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
 
         // --- Policy distribution: resolve extends chain ---
-        if (!rules_.extends_path.empty()) {
+        if (!new_rules->extends_path.empty()) {
             auto config_dir = std::filesystem::path(path).parent_path().string();
-            auto resolved = resolveExtendsPath(rules_.extends_path, config_dir);
+            auto resolved = resolveExtendsPath(new_rules->extends_path, config_dir);
             if (resolved.empty()) {
                 fmt::print(stderr, "[governance] Cannot resolve extends: {}\n",
-                           rules_.extends_path);
+                           new_rules->extends_path);
                 return false;
             }
             std::set<std::string> visited;
             visited.insert(std::filesystem::weakly_canonical(path).string());
-            int max_depth = rules_.meta.inheritance.max_depth;
+            int max_depth = new_rules->meta.inheritance.max_depth;
             if (max_depth <= 0) max_depth = 5;
-            if (!loadWithExtends(resolved, 1, max_depth, visited)) {
+            if (!loadWithExtends(resolved, 1, max_depth, visited, *new_rules)) {
                 return false;
             }
         }
 
-        active_ = (rules_.mode != GovernanceMode::OFF);
+        active_.store(new_rules->mode != GovernanceMode::OFF);
 
         // Generate unique run_id for telemetry run separation
         if (run_id_.empty()) {
@@ -3631,14 +3631,14 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
 
         // Initialize telemetry forwarder if webhook configured
-        if (!rules_.telemetry_output.webhook_url.empty() && !telemetry_forwarder_) {
+        if (!new_rules->telemetry_output.webhook_url.empty() && !telemetry_forwarder_) {
             TelemetryForwarderConfig fwd_cfg;
-            fwd_cfg.webhook_url = rules_.telemetry_output.webhook_url;
-            fwd_cfg.auth_header = rules_.telemetry_output.webhook_auth_header;
-            fwd_cfg.batch_size = rules_.telemetry_output.forward_batch_size;
-            fwd_cfg.timeout_ms = rules_.telemetry_output.forward_timeout_ms;
-            fwd_cfg.retry_count = rules_.telemetry_output.forward_retry_count;
-            fwd_cfg.buffer_max = rules_.telemetry_output.forward_buffer_max;
+            fwd_cfg.webhook_url = new_rules->telemetry_output.webhook_url;
+            fwd_cfg.auth_header = new_rules->telemetry_output.webhook_auth_header;
+            fwd_cfg.batch_size = new_rules->telemetry_output.forward_batch_size;
+            fwd_cfg.timeout_ms = new_rules->telemetry_output.forward_timeout_ms;
+            fwd_cfg.retry_count = new_rules->telemetry_output.forward_retry_count;
+            fwd_cfg.buffer_max = new_rules->telemetry_output.forward_buffer_max;
             telemetry_forwarder_ = std::make_shared<TelemetryForwarder>(fwd_cfg);
         }
 
@@ -3653,11 +3653,11 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
 
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
-        enforceMinimumLevels();
+        enforceMinimumLevels(*new_rules);
 
         // V-SC-006-ext: Apply subprocess env scrub policy from capabilities.env_vars
         {
-            const auto& ev = rules_.capabilities.env_vars;
+            const auto& ev = new_rules->capabilities.env_vars;
             runtime::EnvScrubPolicy policy;
             if (!ev.subprocess_scrub_mode.empty() ||
                 !ev.blocked_subprocess_prefixes.empty() ||
@@ -3677,14 +3677,18 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
 
         // Configure behavioral sequence + context drift detectors
-        if (rules_.behavioral_sequences.enabled) {
-            sequence_detector_.configure(rules_.behavioral_sequences);
+        if (new_rules->behavioral_sequences.enabled) {
+            sequence_detector_.configure(new_rules->behavioral_sequences);
         }
-        if (rules_.context_drift.enabled) {
-            drift_analyzer_.configure(rules_.context_drift);
+        if (new_rules->context_drift.enabled) {
+            drift_analyzer_.configure(new_rules->context_drift);
         }
-        bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
-        cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
+        bsd_enabled_.store(new_rules->behavioral_sequences.enabled, std::memory_order_release);
+        cdd_enabled_.store(new_rules->context_drift.enabled, std::memory_order_release);
+
+        // C1: Publish rules atomically — all mutations done
+        std::atomic_store(&rules_ptr_,
+            std::const_pointer_cast<const GovernanceRules>(new_rules));
 
         // Signature already verified before extends resolution (H4 ordering)
 
@@ -3699,7 +3703,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             static const std::set<std::string> builtin_casts = {
                 "int(", "float(", "string(", "bool("
             };
-            for (const auto& san : rules_.taint_tracking.sanitizers) {
+            for (const auto& san : rules().taint_tracking.sanitizers) {
                 if (!san.empty() && san.back() == '(' &&
                     builtin_casts.find(san) == builtin_casts.end()) {
                     fmt::print(stderr, "[WARN] Sanitizer '{}' ends with '(' — with prefix matching, "
@@ -3708,7 +3712,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
                 }
             }
             // Warn about empty scope patterns
-            for (const auto& scope : rules_.scopes) {
+            for (const auto& scope : rules().scopes) {
                 if (scope.glob_pattern.empty()) {
                     fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
                 }
@@ -3768,18 +3772,23 @@ bool GovernanceEngine::loadFromString(const std::string& json_config) {
             last_error_ = "Config rejected: JSON array exceeds element cap (V-GOV-019)";
             return false;
         }
-        loadFromJson(j, rules_);
+        auto new_rules = std::make_shared<GovernanceRules>();
+        loadFromJson(j, *new_rules);
         loaded_path_ = "<inline>";
-        active_ = (rules_.mode != GovernanceMode::OFF);
+        active_.store(new_rules->mode != GovernanceMode::OFF);
 
-        enforceMinimumLevels();
+        enforceMinimumLevels(*new_rules);
 
-        if (rules_.behavioral_sequences.enabled)
-            sequence_detector_.configure(rules_.behavioral_sequences);
-        if (rules_.context_drift.enabled)
-            drift_analyzer_.configure(rules_.context_drift);
-        bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
-        cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
+        if (new_rules->behavioral_sequences.enabled)
+            sequence_detector_.configure(new_rules->behavioral_sequences);
+        if (new_rules->context_drift.enabled)
+            drift_analyzer_.configure(new_rules->context_drift);
+        bsd_enabled_.store(new_rules->behavioral_sequences.enabled, std::memory_order_release);
+        cdd_enabled_.store(new_rules->context_drift.enabled, std::memory_order_release);
+
+        // C1: Publish rules atomically
+        std::atomic_store(&rules_ptr_,
+            std::const_pointer_cast<const GovernanceRules>(new_rules));
 
         return true;
     } catch (const nlohmann::json::parse_error& e) {

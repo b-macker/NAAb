@@ -49,6 +49,46 @@ namespace governance {
     // Thread-local decision trace — avoids data races from concurrent check threads
     static thread_local std::vector<std::string> t_current_decision_trace;
 
+    // C1: Thread-local rules snapshot for data-race-free access
+    static thread_local std::shared_ptr<const GovernanceRules> t_rules_snapshot;
+
+    class GovernanceEngine::RulesSnapshot {
+        std::shared_ptr<const GovernanceRules> prev_;
+    public:
+        explicit RulesSnapshot(const GovernanceEngine* engine) {
+            prev_ = t_rules_snapshot;
+            t_rules_snapshot = engine->rulesPtr();
+        }
+        ~RulesSnapshot() { t_rules_snapshot = std::move(prev_); }
+        RulesSnapshot(const RulesSnapshot&) = delete;
+        RulesSnapshot& operator=(const RulesSnapshot&) = delete;
+    };
+
+    const GovernanceRules& GovernanceEngine::rules() const {
+        if (t_rules_snapshot) return *t_rules_snapshot;
+        return *std::atomic_load(&rules_ptr_);
+    }
+
+    std::shared_ptr<const GovernanceRules> GovernanceEngine::rulesPtr() const {
+        return std::atomic_load(&rules_ptr_);
+    }
+
+    // Getters (moved from header for thread-safe access)
+    GovernanceMode GovernanceEngine::getMode() const { return rules().mode; }
+    const GovernanceRules& GovernanceEngine::getRules() const { return rules(); }
+    std::shared_ptr<const GovernanceRules> GovernanceEngine::getRulesPtr() const { return rulesPtr(); }
+    GovernanceRules& GovernanceEngine::getMutableRules() {
+        return *std::const_pointer_cast<GovernanceRules>(rules_ptr_);
+    }
+    int GovernanceEngine::getTimeoutSeconds() const { return rules().timeout_seconds; }
+    int GovernanceEngine::getMemoryLimitMB() const { return rules().memory_limit_mb; }
+    bool GovernanceEngine::requiresErrorHandling() const { return rules().require_error_handling; }
+    bool GovernanceEngine::requiresMainBlock() const { return rules().require_main_block; }
+    std::string GovernanceEngine::getAuditLevel() const { return rules().audit_level; }
+    bool GovernanceEngine::isTamperEvidenceEnabled() const { return rules().tamper_evidence; }
+    bool GovernanceEngine::getCodegenEnabled() const { return rules().codegen.enabled; }
+    const CodegenConfig& GovernanceEngine::getCodegenConfig() const { return rules().codegen; }
+
     GovernanceEngine* GovernanceEngine::getCurrent() { return t_current_engine; }
     void GovernanceEngine::setCurrent(GovernanceEngine* engine) { t_current_engine = engine; }
 }
@@ -664,24 +704,24 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
             if (!loaded) return false;
 
             // Project Context Awareness — load supplemental rules from project files
-            if (rules_.project_context.enabled) {
+            if (rules().project_context.enabled) {
                 ProjectContextLoader loader;
-                auto extractions = loader.loadContext(start_dir, rules_.project_context);
+                auto extractions = loader.loadContext(start_dir, rules().project_context);
 
                 if (!extractions.empty()) {
-                    if (!rules_.project_context.dry_run) {
+                    if (!rules().project_context.dry_run) {
                         // Parse enforcement level
                         EnforcementLevel ctx_level = EnforcementLevel::ADVISORY;
-                        if (rules_.project_context.enforcement_level == "soft")
+                        if (rules().project_context.enforcement_level == "soft")
                             ctx_level = EnforcementLevel::SOFT;
-                        else if (rules_.project_context.enforcement_level == "hard")
+                        else if (rules().project_context.enforcement_level == "hard")
                             ctx_level = EnforcementLevel::HARD;
 
-                        loader.applyToRules(rules_, extractions, ctx_level);
+                        loader.applyToRules(getMutableRules(), extractions, ctx_level);
 
-                        if (rules_.project_context.feed_optimization) {
+                        if (rules().project_context.feed_optimization) {
                             loader.applyOptimizationHints(
-                                rules_.polyglot_optimization, extractions);
+                                getMutableRules().polyglot_optimization, extractions);
                         }
                     } else {
                         // Dry run: mark all as dry_run status
@@ -690,7 +730,7 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
                         }
                     }
 
-                    if (rules_.project_context.show_extractions) {
+                    if (rules().project_context.show_extractions) {
                         std::string report = loader.formatReport(extractions);
                         if (!report.empty()) {
                             fprintf(stderr, "%s", report.c_str());
@@ -730,84 +770,84 @@ void GovernanceEngine::clearTrace() {
 
 std::string GovernanceEngine::lookupRationale(const std::string& rule_name) const {
     // Capabilities
-    if (rule_name == "capabilities.network") return rules_.capabilities.network.rationale;
-    if (rule_name == "capabilities.filesystem") return rules_.capabilities.filesystem.rationale;
-    if (rule_name == "capabilities.shell") return rules_.capabilities.shell.rationale;
-    if (rule_name == "capabilities.env_vars") return rules_.capabilities.env_vars.rationale;
-    if (rule_name == "capabilities.process") return rules_.capabilities.process.rationale;
+    if (rule_name == "capabilities.network") return rules().capabilities.network.rationale;
+    if (rule_name == "capabilities.filesystem") return rules().capabilities.filesystem.rationale;
+    if (rule_name == "capabilities.shell") return rules().capabilities.shell.rationale;
+    if (rule_name == "capabilities.env_vars") return rules().capabilities.env_vars.rationale;
+    if (rule_name == "capabilities.process") return rules().capabilities.process.rationale;
     // Requirements
     if (rule_name.rfind("requirements.", 0) == 0) {
-        if (rule_name.find("main_block") != std::string::npos) return rules_.requirements.main_block.rationale;
-        if (rule_name.find("error_handling") != std::string::npos) return rules_.requirements.error_handling.rationale;
+        if (rule_name.find("main_block") != std::string::npos) return rules().requirements.main_block.rationale;
+        if (rule_name.find("error_handling") != std::string::npos) return rules().requirements.error_handling.rationale;
         return "";
     }
     // Restrictions
     if (rule_name.rfind("restrictions.", 0) == 0) {
         std::string suffix = rule_name.substr(13);
-        if (suffix == "dangerous_calls") return rules_.restrictions.dangerous_calls.rationale;
-        if (suffix == "shell_injection") return rules_.restrictions.shell_injection.rationale;
-        if (suffix == "privilege_escalation") return rules_.restrictions.privilege_escalation.rationale;
-        if (suffix == "code_injection") return rules_.restrictions.code_injection.rationale;
-        if (suffix == "crypto") return rules_.restrictions.crypto.rationale;
-        if (suffix == "vcs_secret_extraction") return rules_.restrictions.vcs_secret_extraction.rationale;
-        if (suffix == "data_exfiltration") return rules_.restrictions.data_exfiltration.rationale;
-        if (suffix == "resource_abuse") return rules_.restrictions.resource_abuse.rationale;
-        if (suffix == "information_disclosure") return rules_.restrictions.information_disclosure.rationale;
-        if (suffix == "imports") return rules_.restrictions.imports.rationale;
+        if (suffix == "dangerous_calls") return rules().restrictions.dangerous_calls.rationale;
+        if (suffix == "shell_injection") return rules().restrictions.shell_injection.rationale;
+        if (suffix == "privilege_escalation") return rules().restrictions.privilege_escalation.rationale;
+        if (suffix == "code_injection") return rules().restrictions.code_injection.rationale;
+        if (suffix == "crypto") return rules().restrictions.crypto.rationale;
+        if (suffix == "vcs_secret_extraction") return rules().restrictions.vcs_secret_extraction.rationale;
+        if (suffix == "data_exfiltration") return rules().restrictions.data_exfiltration.rationale;
+        if (suffix == "resource_abuse") return rules().restrictions.resource_abuse.rationale;
+        if (suffix == "information_disclosure") return rules().restrictions.information_disclosure.rationale;
+        if (suffix == "imports") return rules().restrictions.imports.rationale;
         return "";
     }
     // Code quality
     if (rule_name.rfind("code_quality.", 0) == 0) {
         std::string suffix = rule_name.substr(13);
-        if (suffix == "no_secrets") return rules_.code_quality.no_secrets.rationale;
-        if (suffix == "no_placeholders") return rules_.code_quality.no_placeholders.rationale;
-        if (suffix == "no_hardcoded_results") return rules_.code_quality.no_hardcoded_results.rationale;
-        if (suffix == "no_pii") return rules_.code_quality.no_pii.rationale;
-        if (suffix == "no_temporary_code") return rules_.code_quality.no_temporary_code.rationale;
-        if (suffix == "no_simulation_markers") return rules_.code_quality.no_simulation_markers.rationale;
-        if (suffix == "no_mock_data") return rules_.code_quality.no_mock_data.rationale;
-        if (suffix == "no_apologetic_language") return rules_.code_quality.no_apologetic_language.rationale;
-        if (suffix == "no_dead_code") return rules_.code_quality.no_dead_code.rationale;
-        if (suffix == "no_debug_artifacts") return rules_.code_quality.no_debug_artifacts.rationale;
-        if (suffix == "no_unsafe_deserialization") return rules_.code_quality.no_unsafe_deserialization.rationale;
-        if (suffix == "no_sql_injection") return rules_.code_quality.no_sql_injection.rationale;
-        if (suffix == "no_path_traversal") return rules_.code_quality.no_path_traversal.rationale;
-        if (suffix == "no_hardcoded_urls") return rules_.code_quality.no_hardcoded_urls.rationale;
-        if (suffix == "no_hardcoded_ips") return rules_.code_quality.no_hardcoded_ips.rationale;
-        if (suffix == "max_complexity") return rules_.code_quality.max_complexity.rationale;
-        if (suffix == "complexity_floor") return rules_.code_quality.complexity_floor.rationale;
-        if (suffix == "encoding") return rules_.code_quality.encoding.rationale;
-        if (suffix == "no_oversimplification") return rules_.code_quality.no_oversimplification.rationale;
-        if (suffix == "no_incomplete_logic") return rules_.code_quality.no_incomplete_logic.rationale;
-        if (suffix == "no_hallucinated_apis") return rules_.code_quality.no_hallucinated_apis.rationale;
-        if (suffix == "intent_validation" || suffix.rfind("intent_validation.", 0) == 0) return rules_.code_quality.intent_validation.rationale;
-        if (suffix == "duplicate_calls") return rules_.code_quality.duplicate_calls.rationale;
-        if (suffix == "drift_detection") return rules_.code_quality.drift_detection.rationale;
-        if (suffix == "semantic_checks") return rules_.code_quality.semantic_checks.rationale;
+        if (suffix == "no_secrets") return rules().code_quality.no_secrets.rationale;
+        if (suffix == "no_placeholders") return rules().code_quality.no_placeholders.rationale;
+        if (suffix == "no_hardcoded_results") return rules().code_quality.no_hardcoded_results.rationale;
+        if (suffix == "no_pii") return rules().code_quality.no_pii.rationale;
+        if (suffix == "no_temporary_code") return rules().code_quality.no_temporary_code.rationale;
+        if (suffix == "no_simulation_markers") return rules().code_quality.no_simulation_markers.rationale;
+        if (suffix == "no_mock_data") return rules().code_quality.no_mock_data.rationale;
+        if (suffix == "no_apologetic_language") return rules().code_quality.no_apologetic_language.rationale;
+        if (suffix == "no_dead_code") return rules().code_quality.no_dead_code.rationale;
+        if (suffix == "no_debug_artifacts") return rules().code_quality.no_debug_artifacts.rationale;
+        if (suffix == "no_unsafe_deserialization") return rules().code_quality.no_unsafe_deserialization.rationale;
+        if (suffix == "no_sql_injection") return rules().code_quality.no_sql_injection.rationale;
+        if (suffix == "no_path_traversal") return rules().code_quality.no_path_traversal.rationale;
+        if (suffix == "no_hardcoded_urls") return rules().code_quality.no_hardcoded_urls.rationale;
+        if (suffix == "no_hardcoded_ips") return rules().code_quality.no_hardcoded_ips.rationale;
+        if (suffix == "max_complexity") return rules().code_quality.max_complexity.rationale;
+        if (suffix == "complexity_floor") return rules().code_quality.complexity_floor.rationale;
+        if (suffix == "encoding") return rules().code_quality.encoding.rationale;
+        if (suffix == "no_oversimplification") return rules().code_quality.no_oversimplification.rationale;
+        if (suffix == "no_incomplete_logic") return rules().code_quality.no_incomplete_logic.rationale;
+        if (suffix == "no_hallucinated_apis") return rules().code_quality.no_hallucinated_apis.rationale;
+        if (suffix == "intent_validation" || suffix.rfind("intent_validation.", 0) == 0) return rules().code_quality.intent_validation.rationale;
+        if (suffix == "duplicate_calls") return rules().code_quality.duplicate_calls.rationale;
+        if (suffix == "drift_detection") return rules().code_quality.drift_detection.rationale;
+        if (suffix == "semantic_checks") return rules().code_quality.semantic_checks.rationale;
         return "";
     }
     // Taint tracking
-    if (rule_name.rfind("taint", 0) == 0) return rules_.taint_tracking.rationale;
+    if (rule_name.rfind("taint", 0) == 0) return rules().taint_tracking.rationale;
     // Context drift
-    if (rule_name == "context_drift.coherence_loss") return rules_.context_drift.rationale;
-    if (rule_name == "context_drift.reality_checkpoint") return rules_.context_drift.reality_checkpoint.rationale;
+    if (rule_name == "context_drift.coherence_loss") return rules().context_drift.rationale;
+    if (rule_name == "context_drift.reality_checkpoint") return rules().context_drift.reality_checkpoint.rationale;
     // Exposure tracking
-    if (rule_name == "exposure_tracking") return rules_.exposure_tracking.rationale;
+    if (rule_name == "exposure_tracking") return rules().exposure_tracking.rationale;
     // Scoring
-    if (rule_name.rfind("scoring", 0) == 0) return rules_.scoring.rationale;
+    if (rule_name.rfind("scoring", 0) == 0) return rules().scoring.rationale;
     // Contracts — look up per-function rationale
     if (rule_name.rfind("contract.", 0) == 0) {
         // rule_name is "contract.<function_name>"
         std::string fn = rule_name.substr(9);
-        auto it = rules_.contracts.functions.find(fn);
-        if (it != rules_.contracts.functions.end()) return it->second.rationale;
+        auto it = rules().contracts.functions.find(fn);
+        if (it != rules().contracts.functions.end()) return it->second.rationale;
     }
     // Codegen
-    if (rule_name.rfind("codegen", 0) == 0) return rules_.codegen.rationale;
+    if (rule_name.rfind("codegen", 0) == 0) return rules().codegen.rationale;
     // Custom rules
     if (rule_name.rfind("custom.", 0) == 0) {
         std::string id = rule_name.substr(7);
-        for (const auto& cr : rules_.custom_rules) {
+        for (const auto& cr : rules().custom_rules) {
             if (cr.id == id) return cr.rationale;
         }
     }
@@ -870,11 +910,11 @@ std::string GovernanceEngine::enforce(
 
         // Cumulative risk scoring — ADVISORY findings only
         // MONOTONIC: weight >= 0 guaranteed (clamped), score can only increase
-        if (rules_.scoring.enabled && level == EnforcementLevel::ADVISORY) {
-            int weight = rules_.scoring.default_weight;
+        if (rules().scoring.enabled && level == EnforcementLevel::ADVISORY) {
+            int weight = rules().scoring.default_weight;
             std::string weight_source = "default";
-            auto wit = rules_.scoring.rule_weights.find(rule_name);
-            if (wit != rules_.scoring.rule_weights.end()) {
+            auto wit = rules().scoring.rule_weights.find(rule_name);
+            if (wit != rules().scoring.rule_weights.end()) {
                 weight = wit->second;
                 weight_source = "rule_weights";
             } else if (rule_name == "code_quality.intent_validation.self_declared") {
@@ -883,10 +923,10 @@ std::string GovernanceEngine::enforce(
             }
             weight = std::max(0, weight);
             // Advisory Escalation: multiply weight on 2nd+ occurrence
-            if (rules_.advisory_escalation.enabled) {
+            if (rules().advisory_escalation.enabled) {
                 int occ = emitted_advisories_[rule_name];  // already incremented above
                 if (occ > 1) {
-                    weight = static_cast<int>(weight * rules_.advisory_escalation.weight_multiplier);
+                    weight = static_cast<int>(weight * rules().advisory_escalation.weight_multiplier);
                     weight_source += " (escalated x" + std::to_string(occ) + ")";
                 }
             }
@@ -903,8 +943,8 @@ std::string GovernanceEngine::enforce(
                 last.decision_trace.push_back(fmt::format(
                     "scoring: weight={} ({}), cumulative: {} → {}",
                     weight, weight_source, prev_score, cumulative_score_));
-                std::string zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
-                                   cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "GREEN";
+                std::string zone = cumulative_score_ >= rules().scoring.red_threshold ? "RED" :
+                                   cumulative_score_ >= rules().scoring.yellow_threshold ? "YELLOW" : "GREEN";
                 last.decision_trace.push_back(fmt::format("risk zone: {}", zone));
             }
         }
@@ -919,7 +959,7 @@ std::string GovernanceEngine::enforce(
     }
 
     // Audit mode: never block, just log — except safety-critical checks
-    if (rules_.mode == GovernanceMode::AUDIT) {
+    if (rules().mode == GovernanceMode::AUDIT) {
         // F3: no_secrets and no_pii always enforce, even in AUDIT mode
         if (rule_name != "code_quality.no_secrets" &&
             rule_name != "code_quality.no_pii") {
@@ -956,7 +996,7 @@ std::string GovernanceEngine::enforce(
         case EnforcementLevel::SOFT:
             if (override_enabled_) {
                 // Require reason if configured — block silently if missing
-                if (rules_.require_override_reason && override_reason_.empty()) {
+                if (rules().require_override_reason && override_reason_.empty()) {
                     g_governance_hard_block = true;
                     return violation_message;
                 }
@@ -984,7 +1024,7 @@ std::string GovernanceEngine::enforce(
 
             // Advisory Escalation: repeated advisories harden
             // 1st: warn. 2nd+: increase weight. N-th (soft_after): escalate to SOFT block
-            const auto& esc = rules_.advisory_escalation;
+            const auto& esc = rules().advisory_escalation;
             if (esc.enabled && occurrence >= esc.soft_after) {
                 // Escalate to SOFT — release lock, recurse with SOFT level
                 // (can't call enforce recursively under same lock — set flag and return)
@@ -1008,14 +1048,14 @@ std::string GovernanceEngine::enforce(
             }
 
             // Yellow-zone: warn ONCE when score first enters yellow zone
-            if (rules_.scoring.enabled && !score_yellow_warned_ &&
-                cumulative_score_ >= rules_.scoring.yellow_threshold) {
+            if (rules().scoring.enabled && !score_yellow_warned_ &&
+                cumulative_score_ >= rules().scoring.yellow_threshold) {
                 score_yellow_warned_ = true;
                 fprintf(stderr,
                     "[governance] Risk score %d reached yellow threshold %d "
                     "(red threshold: %d)\n",
-                    cumulative_score_, rules_.scoring.yellow_threshold,
-                    rules_.scoring.red_threshold);
+                    cumulative_score_, rules().scoring.yellow_threshold,
+                    rules().scoring.red_threshold);
                 // Show top contributor so LLM knows what's causing the score
                 if (!score_contributions_.empty()) {
                     auto top = std::max_element(score_contributions_.begin(),
@@ -1040,7 +1080,7 @@ std::string GovernanceEngine::generateExplanation(
     EnforcementLevel level,
     bool passed,
     const std::string& rationale) const {
-    if (passed || !rules_.explanations_enabled) return "";
+    if (passed || !rules().explanations_enabled) return "";
 
     std::string action;
     switch (level) {
@@ -1070,10 +1110,10 @@ std::string GovernanceEngine::generateExplanation(
 
 bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
                                          std::string& approver_id_out) const {
-    if (rules_.approval.store_path.empty()) return false;
+    if (rules().approval.store_path.empty()) return false;
 
     // Resolve store path relative to govern.json directory
-    std::string store_path = rules_.approval.store_path;
+    std::string store_path = rules().approval.store_path;
     if (!store_path.empty() && store_path[0] != '/') {
         store_path = govern_json_dir_ + "/" + store_path;
     }
@@ -1117,7 +1157,7 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
         time(nullptr) > token.expiry_timestamp) return false;
 
     // Verify Ed25519 signature if approver_keys are configured
-    if (!rules_.approval.approver_keys.empty() && !token.signature_b64.empty()) {
+    if (!rules().approval.approver_keys.empty() && !token.signature_b64.empty()) {
         // Length-prefixed canonical encoding — prevents pipe injection in reason field.
         // Format: "len:rule_name""len:approver_id""len:reason""expiry_timestamp"
         // Breaking change: pre-existing signed tokens will fail verification.
@@ -1128,7 +1168,7 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
             + lpEncode(token.reason) + std::to_string(token.expiry_timestamp);
         // Load trusted keys and check if any matching fingerprint verifies
         auto keys = security::TrustStore::loadKeys();
-        for (const auto& key_fp : rules_.approval.approver_keys) {
+        for (const auto& key_fp : rules().approval.approver_keys) {
             for (const auto& [fp, pem] : keys) {
                 if (fp == key_fp) {
                     if (security::CryptoUtils::ed25519Verify(canonical, token.signature_b64, pem)) {
@@ -1144,7 +1184,7 @@ bool GovernanceEngine::hasValidApproval(const std::string& rule_name,
 
     // H6 fix: fail-closed when approver_keys not configured.
     // Without configured keys, approval system is not meaningful.
-    if (rules_.approval.approver_keys.empty()) {
+    if (rules().approval.approver_keys.empty()) {
         return false;
     }
     // Signature required but not provided
@@ -1159,45 +1199,45 @@ std::string GovernanceEngine::checkCodegenAllowed(
     const std::string& language, size_t code_size, int line) {
     clearTrace();
 
-    if (!rules_.codegen.enabled) {
+    if (!rules().codegen.enabled) {
         addTrace("codegen.enabled = false → blocked");
-        return enforce("codegen.enabled", rules_.codegen.level,
+        return enforce("codegen.enabled", rules().codegen.level,
             "Codegen error: dynamic code execution is not enabled\n\n"
             "  codegen.run() requires explicit enablement in governance configuration.\n"
             "  Use static polyglot blocks instead: <<" + language + " ... >>\n");
     }
 
     // Check codegen-specific language restrictions
-    if (!rules_.codegen.allowed_languages.empty()) {
+    if (!rules().codegen.allowed_languages.empty()) {
         bool found = false;
-        for (const auto& l : rules_.codegen.allowed_languages) {
+        for (const auto& l : rules().codegen.allowed_languages) {
             if (l == language) { found = true; break; }
         }
         if (!found) {
             addTrace("codegen.allowed_languages does not contain '" + language + "' → blocked");
-            return enforce("codegen.allowed_languages", rules_.codegen.level,
+            return enforce("codegen.allowed_languages", rules().codegen.level,
                 "Codegen error: language '" + language + "' is not allowed for dynamic code\n");
         }
     }
-    if (!rules_.codegen.blocked_languages.empty()) {
-        for (const auto& l : rules_.codegen.blocked_languages) {
+    if (!rules().codegen.blocked_languages.empty()) {
+        for (const auto& l : rules().codegen.blocked_languages) {
             if (l == language) {
                 addTrace("codegen.blocked_languages contains '" + language + "' → blocked");
-                return enforce("codegen.blocked_languages", rules_.codegen.level,
+                return enforce("codegen.blocked_languages", rules().codegen.level,
                     "Codegen error: language '" + language + "' is blocked for dynamic code\n");
             }
         }
     }
 
     // Check per-call size
-    if (rules_.codegen.max_code_size_bytes > 0 &&
-        static_cast<int>(code_size) > rules_.codegen.max_code_size_bytes) {
+    if (rules().codegen.max_code_size_bytes > 0 &&
+        static_cast<int>(code_size) > rules().codegen.max_code_size_bytes) {
         addTrace("code_size " + std::to_string(code_size) + " > max " +
-                 std::to_string(rules_.codegen.max_code_size_bytes) + " → blocked");
-        return enforce("codegen.max_code_size_bytes", rules_.codegen.level,
+                 std::to_string(rules().codegen.max_code_size_bytes) + " → blocked");
+        return enforce("codegen.max_code_size_bytes", rules().codegen.level,
             "Codegen error: code exceeds maximum size\n\n"
             "  Got: " + std::to_string(code_size) + " bytes\n"
-            "  Limit: " + std::to_string(rules_.codegen.max_code_size_bytes) + " bytes\n");
+            "  Limit: " + std::to_string(rules().codegen.max_code_size_bytes) + " bytes\n");
     }
 
     addTrace("codegen allowed: " + language + ", " + std::to_string(code_size) + " bytes");
@@ -1209,13 +1249,13 @@ std::string GovernanceEngine::checkLanguageAllowed(
     clearTrace();
 
     // Check blocked list first
-    if (rules_.blocked_languages.count(language)) {
+    if (rules().blocked_languages.count(language)) {
         std::string location = line > 0
             ? fmt::format("line {}: <<{}", line, language)
             : fmt::format("<<{}", language);
 
         std::string blocked_list;
-        for (auto& l : rules_.blocked_languages) {
+        for (auto& l : rules().blocked_languages) {
             if (!blocked_list.empty()) blocked_list += ", ";
             blocked_list += l;
         }
@@ -1227,22 +1267,22 @@ std::string GovernanceEngine::checkLanguageAllowed(
                 fmt::format("languages.blocked contains \"{}\"", language),
                 fmt::format("The \"{}\" language is explicitly blocked in governance", language),
                 fmt::format("let result = <<{}\n...\n>>", language),
-                !rules_.allowed_languages.empty()
+                !rules().allowed_languages.empty()
                     ? fmt::format("let result = <<{}\n...\n>>",
-                        *rules_.allowed_languages.begin())
+                        *rules().allowed_languages.begin())
                     : ""));
     }
 
     // Check allowed list (only if non-empty — empty means all allowed)
-    if (!rules_.allowed_languages.empty() &&
-        !rules_.allowed_languages.count(language)) {
+    if (!rules().allowed_languages.empty() &&
+        !rules().allowed_languages.count(language)) {
 
         std::string location = line > 0
             ? fmt::format("line {}: <<{}", line, language)
             : fmt::format("<<{}", language);
 
         std::string allowed_list;
-        for (auto& l : rules_.allowed_languages) {
+        for (auto& l : rules().allowed_languages) {
             if (!allowed_list.empty()) allowed_list += ", ";
             allowed_list += l;
         }
@@ -1257,11 +1297,11 @@ std::string GovernanceEngine::checkLanguageAllowed(
                     allowed_list, language),
                 fmt::format("let result = <<{}\n...\n>>", language),
                 fmt::format("let result = <<{}\n...\n>>",
-                    *rules_.allowed_languages.begin())));
+                    *rules().allowed_languages.begin())));
     }
 
     // V-GOV-020: Per-agent language enforcement (defense-in-depth beyond applyAgentRole)
-    for (const auto& role : rules_.agents) {
+    for (const auto& role : rules().agents) {
         if (role.name == agent_id_) {
             // Check per-agent blocked languages
             for (const auto& bl : role.blocked_languages) {
@@ -1276,9 +1316,9 @@ std::string GovernanceEngine::checkLanguageAllowed(
                             fmt::format("Your agent role does not permit the \"{}\" language.\n"
                                 "Check your agent's allowed_languages in govern.json.", language),
                             fmt::format("let result = <<{}\n...\n>>", language),
-                            !rules_.allowed_languages.empty()
+                            !rules().allowed_languages.empty()
                                 ? fmt::format("let result = <<{}\n...\n>>",
-                                    *rules_.allowed_languages.begin())
+                                    *rules().allowed_languages.begin())
                                 : "Use an allowed language for this agent"));
                 }
             }
@@ -1317,7 +1357,7 @@ std::string GovernanceEngine::checkLanguageAllowed(
 
 std::string GovernanceEngine::checkNetworkAllowed() {
     clearTrace();
-    if (!rules_.network_allowed) {
+    if (!rules().network_allowed) {
         return enforce("capabilities.network", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "Network access is not allowed",
@@ -1329,7 +1369,7 @@ std::string GovernanceEngine::checkNetworkAllowed() {
                 "let data = json.parse(file.read(\"cached_data.json\"))"));
     }
     // Per-agent network enforcement
-    for (const auto& role : rules_.agents) {
+    for (const auto& role : rules().agents) {
         if (role.name == agent_id_) {
             if (role.network_allowed_set && !role.network_allowed) {
                 return enforce("agent_role.network", EnforcementLevel::HARD,
@@ -1370,7 +1410,7 @@ std::string GovernanceEngine::checkNetworkAllowed() {
 std::string GovernanceEngine::checkNetworkImports(
     const std::string& language, const std::string& code, int line) {
     clearTrace();
-    if (rules_.network_allowed) {
+    if (rules().network_allowed) {
         recordPass("capabilities.network", EnforcementLevel::HARD);
         return "";
     }
@@ -1402,7 +1442,7 @@ std::string GovernanceEngine::checkFilesystemImports(
     const std::string& language, const std::string& code, int line) {
     clearTrace();
     // Only enforce when filesystem access is restricted (not the default "write" mode)
-    if (rules_.filesystem_mode == "write" || rules_.filesystem_mode.empty()) {
+    if (rules().filesystem_mode == "write" || rules().filesystem_mode.empty()) {
         recordPass("capabilities.filesystem", EnforcementLevel::HARD);
         return "";
     }
@@ -1417,7 +1457,7 @@ std::string GovernanceEngine::checkFilesystemImports(
                                     pat.description, language),
                         fmt::format("line {}", line),
                         fmt::format("capabilities.filesystem = \"{}\"",
-                                    rules_.filesystem_mode),
+                                    rules().filesystem_mode),
                         "Filesystem operations are restricted by governance policy.\n"
                         "Use NAAb stdlib file module for controlled file access.",
                         fmt::format("{} in <<{}>> block", pat.description, language),
@@ -1435,7 +1475,7 @@ std::string GovernanceEngine::checkFilesystemImports(
 
 std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
     clearTrace();
-    if (rules_.filesystem_mode == "none") {
+    if (rules().filesystem_mode == "none") {
         return enforce("capabilities.filesystem", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "Filesystem access is not allowed",
@@ -1445,7 +1485,7 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
                 "file.write(\"output.txt\", data)",
                 "print(data)  // Use stdout instead"));
     }
-    if (rules_.filesystem_mode == "read" && mode == "write") {
+    if (rules().filesystem_mode == "read" && mode == "write") {
         return enforce("capabilities.filesystem", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "Filesystem write access is not allowed",
@@ -1457,7 +1497,7 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
                 "let data = file.read(\"input.txt\")"));
     }
     // Per-agent action matrix: check FS_READ/FS_WRITE
-    for (const auto& role : rules_.agents) {
+    for (const auto& role : rules().agents) {
         if (role.name == agent_id_ && !role.allowed_actions.empty()) {
             std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
             bool allowed = false;
@@ -1523,8 +1563,8 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
 
     // Layer 1: Check allowed_paths first (specific allow beats broad deny)
     bool explicitly_allowed = false;
-    if (!rules_.capabilities.filesystem.allowed_paths.empty()) {
-        for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
+    if (!rules().capabilities.filesystem.allowed_paths.empty()) {
+        for (const auto& ap : rules().capabilities.filesystem.allowed_paths) {
             if (pathPrefixMatch(canon_n, canonAndNorm(ap))) {
                 explicitly_allowed = true;
                 break;
@@ -1534,15 +1574,15 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
             // V-GOV-025: Show resolved paths to help diagnose mismatches
             std::string resolved_list;
             std::string raw_list;
-            for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
+            for (const auto& ap : rules().capabilities.filesystem.allowed_paths) {
                 if (!resolved_list.empty()) { resolved_list += ", "; raw_list += ", "; }
                 resolved_list += canonAndNorm(ap);
                 raw_list += ap;
             }
             // Show first allowed path as example
-            std::string example_path = rules_.capabilities.filesystem.allowed_paths.empty()
+            std::string example_path = rules().capabilities.filesystem.allowed_paths.empty()
                 ? "allowed/path/file.txt"
-                : rules_.capabilities.filesystem.allowed_paths[0] + "file.txt";
+                : rules().capabilities.filesystem.allowed_paths[0] + "file.txt";
             return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                 formatError(EnforcementLevel::HARD,
                     "File path not in allowed paths: " + filepath,
@@ -1557,7 +1597,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     // Layer 2: blocked_paths — but skip if path is explicitly allowed
     // (specific allow like "./data/" beats broad deny like "/")
     if (!explicitly_allowed) {
-        for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
+        for (const auto& bp : rules().capabilities.filesystem.blocked_paths) {
             if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
                 return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
@@ -1573,7 +1613,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     }
 
     // Layer 3+4: Agent role path restrictions
-    for (const auto& role : rules_.agents) {
+    for (const auto& role : rules().agents) {
         if (role.name == agent_id_) {
             // Agent blocked_paths
             for (const auto& bp : role.blocked_paths) {
@@ -1623,7 +1663,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
 
 std::string GovernanceEngine::checkShellAllowed() {
     clearTrace();
-    if (!rules_.shell_allowed) {
+    if (!rules().shell_allowed) {
         return enforce("capabilities.shell", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 "Shell execution is not allowed",
@@ -1635,7 +1675,7 @@ std::string GovernanceEngine::checkShellAllowed() {
                 "let files = file.list(\".\")"));
     }
     // V-GOV-020: Per-agent shell enforcement (defense-in-depth beyond applyAgentRole)
-    for (const auto& role : rules_.agents) {
+    for (const auto& role : rules().agents) {
         if (role.name == agent_id_) {
             if (role.shell_allowed_set && !role.shell_allowed) {
                 return enforce("agent_role.shell", EnforcementLevel::HARD,
@@ -1675,14 +1715,14 @@ std::string GovernanceEngine::checkShellAllowed() {
 
 std::string GovernanceEngine::checkCallDepth(size_t current_depth) {
     clearTrace();
-    if (rules_.max_call_depth > 0 &&
-        static_cast<int>(current_depth) > rules_.max_call_depth) {
+    if (rules().max_call_depth > 0 &&
+        static_cast<int>(current_depth) > rules().max_call_depth) {
         return enforce("limits.call_depth", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 fmt::format("Call depth {} exceeds limit of {}",
-                    current_depth, rules_.max_call_depth),
+                    current_depth, rules().max_call_depth),
                 "",
-                fmt::format("limits.call_depth = {}", rules_.max_call_depth),
+                fmt::format("limits.call_depth = {}", rules().max_call_depth),
                 "Function call depth exceeded — likely infinite recursion.\n"
                 "Add a base case to recursive functions, or convert to iterative logic.",
                 "fn count(n) { return count(n + 1) }  // no base case",
@@ -1693,14 +1733,14 @@ std::string GovernanceEngine::checkCallDepth(size_t current_depth) {
 
 std::string GovernanceEngine::checkArraySize(size_t size) {
     clearTrace();
-    if (rules_.max_array_size > 0 &&
-        size > static_cast<size_t>(rules_.max_array_size)) {
+    if (rules().max_array_size > 0 &&
+        size > static_cast<size_t>(rules().max_array_size)) {
         return enforce("limits.array_size", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
                 fmt::format("Array size {} exceeds limit of {}",
-                    size, rules_.max_array_size),
+                    size, rules().max_array_size),
                 "",
-                fmt::format("limits.array_size = {}", rules_.max_array_size),
+                fmt::format("limits.array_size = {}", rules().max_array_size),
                 "Array exceeds maximum element count — process data in batches.\n"
                 "Split large collections into smaller chunks for processing.",
                 "let all = range(0, 1000000)  // million-element array",
@@ -1711,7 +1751,7 @@ std::string GovernanceEngine::checkArraySize(size_t size) {
 
 std::string GovernanceEngine::checkPolyglotOutput(const std::string& output) {
     clearTrace();
-    if (rules_.polyglot_output == "json") {
+    if (rules().polyglot_output == "json") {
         // Try to parse as JSON
         try {
             (void)nlohmann::json::parse(output);
@@ -1734,7 +1774,7 @@ std::string GovernanceEngine::checkDangerousCall(
     const std::string& language, const std::string& code, int line) {
     clearTrace();
 
-    if (!rules_.restrict_dangerous_calls) return "";
+    if (!rules().restrict_dangerous_calls) return "";
 
     for (const auto& pattern : DANGEROUS_PATTERNS_DB) {
         // Check if pattern applies to this language
@@ -1753,13 +1793,13 @@ std::string GovernanceEngine::checkDangerousCall(
                 if (matched_text.size() > 60) matched_text = matched_text.substr(0, 60) + "...";
 
                 return enforce("restrictions.dangerous_calls",
-                    rules_.dangerous_calls_level,
-                    formatError(rules_.dangerous_calls_level,
+                    rules().dangerous_calls_level,
+                    formatError(rules().dangerous_calls_level,
                         fmt::format("Dangerous pattern in {} block: {}",
                             language, pattern.description),
                         location,
                         fmt::format("restrictions.dangerous_calls = \"{}\"",
-                            levelToString(rules_.dangerous_calls_level)),
+                            levelToString(rules().dangerous_calls_level)),
                         fmt::format("{}\n  Matched: \"{}\"\n{}",
                             pattern.description, matched_text,
                             pattern.safe_alternative),
@@ -1770,7 +1810,7 @@ std::string GovernanceEngine::checkDangerousCall(
         }
     }
 
-    recordPass("restrictions.dangerous_calls", rules_.dangerous_calls_level);
+    recordPass("restrictions.dangerous_calls", rules().dangerous_calls_level);
     return "";
 }
 
@@ -1778,7 +1818,7 @@ std::string GovernanceEngine::checkSecrets(
     const std::string& code, int line) {
     clearTrace();
 
-    if (!rules_.no_secrets) return "";
+    if (!rules().no_secrets) return "";
 
     for (const auto& pattern : SECRET_PATTERNS) {
         try {
@@ -1801,12 +1841,12 @@ std::string GovernanceEngine::checkSecrets(
                     : masked;
 
                 return enforce("code_quality.no_secrets",
-                    rules_.no_secrets_level,
-                    formatError(rules_.no_secrets_level,
+                    rules().no_secrets_level,
+                    formatError(rules().no_secrets_level,
                         fmt::format("Secret detected: {}", pattern.description),
                         location,
                         fmt::format("code_quality.no_secrets = \"{}\"",
-                            levelToString(rules_.no_secrets_level)),
+                            levelToString(rules().no_secrets_level)),
                         "Never hardcode secrets in source code\n"
                         "Use environment variables instead",
                         fmt::format("{} = \"{}\"",
@@ -1821,7 +1861,7 @@ std::string GovernanceEngine::checkSecrets(
         }
     }
 
-    recordPass("code_quality.no_secrets", rules_.no_secrets_level);
+    recordPass("code_quality.no_secrets", rules().no_secrets_level);
     return "";
 }
 
@@ -1829,7 +1869,7 @@ std::string GovernanceEngine::checkPlaceholders(
     const std::string& code, int line) {
     clearTrace();
 
-    if (!rules_.no_placeholders) return "";
+    if (!rules().no_placeholders) return "";
 
     for (const auto& placeholder : PLACEHOLDER_PATTERNS_DB) {
         // Case-insensitive word boundary search
@@ -1878,12 +1918,12 @@ std::string GovernanceEngine::checkPlaceholders(
                     : matched_line;
 
                 return enforce("code_quality.no_placeholders",
-                    rules_.no_placeholders_level,
-                    formatError(rules_.no_placeholders_level,
+                    rules().no_placeholders_level,
+                    formatError(rules().no_placeholders_level,
                         fmt::format("Placeholder \"{}\" found in code", placeholder),
                         location,
                         fmt::format("code_quality.no_placeholders = \"{}\"",
-                            levelToString(rules_.no_placeholders_level)),
+                            levelToString(rules().no_placeholders_level)),
                         "Code must be complete — no placeholder markers allowed.\n"
                         "Implement the actual functionality instead of deferring.\n"
                         "The most common fix: delete the comment and write real logic.",
@@ -1895,7 +1935,7 @@ std::string GovernanceEngine::checkPlaceholders(
         }
     }
 
-    recordPass("code_quality.no_placeholders", rules_.no_placeholders_level);
+    recordPass("code_quality.no_placeholders", rules().no_placeholders_level);
     return "";
 }
 
@@ -1903,7 +1943,7 @@ std::string GovernanceEngine::checkHardcodedResults(
     const std::string& code, int line) {
     clearTrace();
 
-    if (!rules_.no_hardcoded_results) return "";
+    if (!rules().no_hardcoded_results) return "";
 
     for (const auto& pattern : HARDCODED_RESULT_PATTERNS_DB) {
         try {
@@ -1920,12 +1960,12 @@ std::string GovernanceEngine::checkHardcodedResults(
                     : matched;
 
                 return enforce("code_quality.no_hardcoded_results",
-                    rules_.no_hardcoded_results_level,
-                    formatError(rules_.no_hardcoded_results_level,
+                    rules().no_hardcoded_results_level,
+                    formatError(rules().no_hardcoded_results_level,
                         fmt::format("Hardcoded result: {}", pattern.description),
                         location,
                         fmt::format("code_quality.no_hardcoded_results = \"{}\"",
-                            levelToString(rules_.no_hardcoded_results_level)),
+                            levelToString(rules().no_hardcoded_results_level)),
                         "Code must contain real logic, not hardcoded return values\n"
                         "Implement actual validation/processing instead",
                         "def validate(data):\n    return True  # for now",
@@ -1940,7 +1980,7 @@ std::string GovernanceEngine::checkHardcodedResults(
     }
 
     recordPass("code_quality.no_hardcoded_results",
-        rules_.no_hardcoded_results_level);
+        rules().no_hardcoded_results_level);
     return "";
 }
 
@@ -1949,7 +1989,7 @@ std::string GovernanceEngine::checkHardcodedResults(
 // ============================================================================
 
 void GovernanceEngine::emitAdvisory(const std::string& msg) {
-    int max = rules_.output.max_advisories;
+    int max = rules().output.max_advisories;
     if (max > 0 && advisory_count_ >= max) {
         advisory_suppressed_++;
         return;
@@ -1964,7 +2004,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
         std::string msg = "[ADVISORY] Duplicate calls (store results in variables):";
         int shown = 0;
         for (const auto& [call, entries] : dup_call_summary_) {
-            if (shown >= rules_.code_quality.duplicate_calls.max_entries) {
+            if (shown >= rules().code_quality.duplicate_calls.max_entries) {
                 msg += fmt::format("\n  ... and {} more unique calls",
                     static_cast<int>(dup_call_summary_.size()) - shown);
                 break;
@@ -1989,7 +2029,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
         std::string msg = "[ADVISORY] Polyglot blocks without try/catch:";
         int shown = 0;
         for (const auto& [name, line] : ptc_functions_) {
-            if (shown >= rules_.code_quality.polyglot_try_catch.max_entries) {
+            if (shown >= rules().code_quality.polyglot_try_catch.max_entries) {
                 msg += fmt::format(", +{} more",
                     static_cast<int>(ptc_functions_.size()) - shown);
                 break;
@@ -2002,7 +2042,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
     }
 
     // 3. Suppression summary
-    if (advisory_suppressed_ > 0 && rules_.output.advisory_summary) {
+    if (advisory_suppressed_ > 0 && rules().output.advisory_summary) {
         fmt::print(stderr, "[ADVISORY] ... and {} more advisories suppressed "
                    "(increase output.max_advisories to see all)\n", advisory_suppressed_);
     }
@@ -2035,8 +2075,8 @@ std::string GovernanceEngine::formatSummary() const {
 
     std::ostringstream oss;
     std::string mode_str = "enforce";
-    if (rules_.mode == GovernanceMode::AUDIT) mode_str = "audit";
-    else if (rules_.mode == GovernanceMode::OFF) mode_str = "off";
+    if (rules().mode == GovernanceMode::AUDIT) mode_str = "audit";
+    else if (rules().mode == GovernanceMode::OFF) mode_str = "off";
 
     oss << "[governance] Summary (mode: " << mode_str << "): "
         << passed << " passed, "
@@ -2046,9 +2086,9 @@ std::string GovernanceEngine::formatSummary() const {
     // Voice summary replaces individual violation details
     if (governance_voiced_ && !governance_voice_summary_.empty()) {
         oss << "\n" << governance_voice_summary_ << "\n";
-        if (rules_.scoring.enabled && cumulative_score_ > 0) {
-            const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
-                               cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
+        if (rules().scoring.enabled && cumulative_score_ > 0) {
+            const char* zone = cumulative_score_ >= rules().scoring.red_threshold ? "RED" :
+                               cumulative_score_ >= rules().scoring.yellow_threshold ? "YELLOW" : "green";
             oss << fmt::format("  Risk score: {} ({})\n", cumulative_score_, zone);
         }
         return oss.str();
@@ -2082,9 +2122,9 @@ std::string GovernanceEngine::formatSummary() const {
         }
     }
 
-    if (rules_.scoring.enabled && cumulative_score_ > 0) {
-        const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
-                           cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
+    if (rules().scoring.enabled && cumulative_score_ > 0) {
+        const char* zone = cumulative_score_ >= rules().scoring.red_threshold ? "RED" :
+                           cumulative_score_ >= rules().scoring.yellow_threshold ? "YELLOW" : "green";
         oss << fmt::format("  Risk score: {} ({})\n", cumulative_score_, zone);
     }
 
@@ -2096,21 +2136,21 @@ std::string GovernanceEngine::formatSummary() const {
 // ============================================================================
 
 void GovernanceEngine::runAgentReview(const std::string& source) {
-    if (!rules_.agent_review.enabled) return;
+    if (!rules().agent_review.enabled) return;
 
     // Build AgentReviewConfig from govern.json section
     runtime::AgentReviewConfig config;
     config.enabled = true;
-    config.detection_agents = rules_.agent_review.detection;
-    config.validation_agent = rules_.agent_review.validation;
-    config.voice_agent = rules_.agent_review.voice;
-    config.scorer_name = rules_.agent_review.scorer;
-    config.enforcement = rules_.agent_review.enforcement;
-    config.cache = rules_.agent_review.cache;
-    config.hints = rules_.agent_review.hints;
-    config.dispatch_mode = rules_.agent_review.dispatch_mode;
-    config.max_parallel = rules_.agent_review.max_parallel;
-    config.fail_strategy = rules_.agent_review.fail_strategy;
+    config.detection_agents = rules().agent_review.detection;
+    config.validation_agent = rules().agent_review.validation;
+    config.voice_agent = rules().agent_review.voice;
+    config.scorer_name = rules().agent_review.scorer;
+    config.enforcement = rules().agent_review.enforcement;
+    config.cache = rules().agent_review.cache;
+    config.hints = rules().agent_review.hints;
+    config.dispatch_mode = rules().agent_review.dispatch_mode;
+    config.max_parallel = rules().agent_review.max_parallel;
+    config.fail_strategy = rules().agent_review.fail_strategy;
 
     // Include govern.json hash in cache key so config changes invalidate cache
     std::string govern_path = govern_json_dir_ + "/govern.json";
@@ -2121,7 +2161,7 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
         config.config_hash = security::CryptoUtils::sha256(govern_content);
     }
 
-    auto result = runtime::runAgentReview(config, rules_, source, govern_json_dir_);
+    auto result = runtime::runAgentReview(config, rules(), source, govern_json_dir_);
 
     if (result.cache_hit) {
         fprintf(stderr, "[governance] Agent review: cache hit (source + config unchanged)\n");
@@ -2129,7 +2169,7 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     if (!result.error.empty()) {
         fprintf(stderr, "[governance] Agent review error: %s\n", result.error.c_str());
         // F10: fail_policy controls behavior on agent review errors
-        if (rules_.agent_review.fail_policy == "closed") {
+        if (rules().agent_review.fail_policy == "closed") {
             fprintf(stderr, "[governance] Agent review fail_policy:closed — blocking execution.\n");
             g_governance_hard_block = true;
         }
@@ -2173,7 +2213,7 @@ void GovernanceEngine::runAgentReview(const std::string& source) {
     }
 
     // Print rejected findings as hints (when enabled in govern.json)
-    if (rules_.agent_review.hints && !result.rejected_findings.empty()) {
+    if (rules().agent_review.hints && !result.rejected_findings.empty()) {
         fprintf(stderr, "[hint] Agent review rejected %zu finding(s):\n",
                 result.rejected_findings.size());
         for (const auto& f : result.rejected_findings) {
@@ -2193,7 +2233,7 @@ void GovernanceEngine::setSource(const std::string& source) {
 }
 
 void GovernanceEngine::runGovernanceVoice() {
-    if (rules_.output.voice.empty() || source_.empty()) return;
+    if (rules().output.voice.empty() || source_.empty()) return;
 
     // Collect non-passing results
     std::vector<const CheckResult*> violations;
@@ -2204,12 +2244,12 @@ void GovernanceEngine::runGovernanceVoice() {
 
     // Find voice agent config
     const AgentConfig* voice_cfg = nullptr;
-    for (const auto& a : rules_.agents) {
-        if (a.name == rules_.output.voice) { voice_cfg = &a; break; }
+    for (const auto& a : rules().agents) {
+        if (a.name == rules().output.voice) { voice_cfg = &a; break; }
     }
     if (!voice_cfg) {
         fprintf(stderr, "[governance] Voice agent '%s' not found in agents config\n",
-                rules_.output.voice.c_str());
+                rules().output.voice.c_str());
         return;
     }
 
@@ -2231,7 +2271,7 @@ void GovernanceEngine::runGovernanceVoice() {
     std::string cache_key = security::CryptoUtils::sha256(source_hash + config_hash);
 
     // Cache check
-    if (rules_.output.voice_cache && !govern_json_dir_.empty()) {
+    if (rules().output.voice_cache && !govern_json_dir_.empty()) {
         std::string cpath = govern_json_dir_ + "/.naab_cache/" + cache_key + ".voice.json";
         std::ifstream cf(cpath);
         if (cf.is_open()) {
@@ -2311,7 +2351,7 @@ void GovernanceEngine::runGovernanceVoice() {
         governance_voiced_ = true;
 
         // Cache save (HMAC wrapper, same pattern as agent_review)
-        if (rules_.output.voice_cache && !govern_json_dir_.empty()) {
+        if (rules().output.voice_cache && !govern_json_dir_.empty()) {
             std::string cache_dir = govern_json_dir_ + "/.naab_cache";
 #ifdef _WIN32
             _mkdir(cache_dir.c_str());
@@ -2376,8 +2416,8 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
 
     std::ostringstream oss;
     std::string mode_str = "enforce";
-    if (rules_.mode == GovernanceMode::AUDIT) mode_str = "audit";
-    else if (rules_.mode == GovernanceMode::OFF) mode_str = "off";
+    if (rules().mode == GovernanceMode::AUDIT) mode_str = "audit";
+    else if (rules().mode == GovernanceMode::OFF) mode_str = "off";
 
     oss << "[governance] Summary (mode: " << mode_str << "): "
         << passed << " passed, "
@@ -2439,12 +2479,12 @@ void GovernanceEngine::printDashboard() const {
     fprintf(stderr, "\n─── Agent Governance Summary ───\n");
     fprintf(stderr, "Agent:      %s\n", agent_id_.c_str());
     // Show active config context
-    std::string mode_str = (rules_.mode == GovernanceMode::ENFORCE) ? "enforce"
-                         : (rules_.mode == GovernanceMode::AUDIT) ? "audit" : "off";
+    std::string mode_str = (rules().mode == GovernanceMode::ENFORCE) ? "enforce"
+                         : (rules().mode == GovernanceMode::AUDIT) ? "audit" : "off";
     std::string config_line = "Mode:       " + mode_str;
     if (!active_env_.empty()) config_line += " | Env: " + active_env_;
-    if (!rules_.sandbox_level_config.empty() && rules_.sandbox_level_config != "unrestricted")
-        config_line += " | Sandbox: " + rules_.sandbox_level_config;
+    if (!rules().sandbox_level_config.empty() && rules().sandbox_level_config != "unrestricted")
+        config_line += " | Sandbox: " + rules().sandbox_level_config;
     fprintf(stderr, "%s\n", config_line.c_str());
     if (reload_count_ > 0)
         fprintf(stderr, "Reloads:    %d mid-run reload(s) applied\n", reload_count_);
@@ -2467,12 +2507,12 @@ void GovernanceEngine::printDashboard() const {
             }
         }
     }
-    if (rules_.scoring.enabled && cumulative_score_ > 0) {
-        const char* zone = cumulative_score_ >= rules_.scoring.red_threshold ? "RED" :
-                           cumulative_score_ >= rules_.scoring.yellow_threshold ? "YELLOW" : "green";
+    if (rules().scoring.enabled && cumulative_score_ > 0) {
+        const char* zone = cumulative_score_ >= rules().scoring.red_threshold ? "RED" :
+                           cumulative_score_ >= rules().scoring.yellow_threshold ? "YELLOW" : "green";
         fprintf(stderr, "Risk score: %d (%s) [%d/%d]\n",
                 cumulative_score_, zone,
-                rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+                rules().scoring.yellow_threshold, rules().scoring.red_threshold);
         // Count occurrences per rule for display
         std::unordered_map<std::string, int> occ_count;
         for (const auto& r : check_results_) {
@@ -2500,9 +2540,9 @@ void GovernanceEngine::printDashboard() const {
             fprintf(stderr, "  INTEGRITY: score mismatch (incremental vs recomputed)\n");
         }
     }
-    if (rules_.telemetry_output.enabled)
+    if (rules().telemetry_output.enabled)
         fprintf(stderr, "Telemetry:  %zu events → %s\n",
-                check_results_.size(), rules_.telemetry_output.output_file.c_str());
+                check_results_.size(), rules().telemetry_output.output_file.c_str());
     // BSD/CDD feature summary
     if (bsd_enabled_.load(std::memory_order_relaxed)) {
         size_t evicted = sequence_detector_.totalEventsEvicted();
@@ -2523,7 +2563,7 @@ void GovernanceEngine::printDashboard() const {
             fprintf(stderr, "CDD:        coherence=%.2f vel=%.3f accel=%.3f (%zu turns analyzed)\n",
                     state->coherence_score, state->coherence_velocity,
                     state->coherence_acceleration, drift_analyzer_.totalTurnsAnalyzed());
-            if (rules_.context_drift.reality_checkpoint.enabled &&
+            if (rules().context_drift.reality_checkpoint.enabled &&
                 state->last_pressure_score > 0.0) {
                 fprintf(stderr, "Checkpoint: pressure=%.2f (%d consecutive)\n",
                         state->last_pressure_score,
@@ -2558,7 +2598,7 @@ void GovernanceEngine::printDashboard() const {
             }
         }
     }
-    if (rules_.taint_tracking.enabled && rules_.taint_tracking.lineage) {
+    if (rules().taint_tracking.enabled && rules().taint_tracking.lineage) {
         size_t sources = taint_lineage_.size();
         size_t sinks = taint_flows_.size();
         fprintf(stderr, "Lineage:    %zu tainted values, %zu sink flows\n", sources, sinks);
@@ -2598,7 +2638,7 @@ void GovernanceEngine::printDashboard() const {
         }
     }
     // Governance Pulse (no lock — printDashboard runs post-execution, same as check_results_)
-    if (rules_.governance_health.enabled) {
+    if (rules().governance_health.enabled) {
         const char* verdict_str = "HEALTHY";
         if (pulse_.verdict == PulseVerdict::DEGRADED) verdict_str = "DEGRADED";
         else if (pulse_.verdict == PulseVerdict::IMPAIRED) verdict_str = "IMPAIRED";
@@ -2628,10 +2668,10 @@ bool GovernanceEngine::wasBlocked() const {
 // ============================================================================
 
 std::string GovernanceEngine::evaluateQualityGate() const {
-    bool audit_mode = (rules_.mode == GovernanceMode::AUDIT);
+    bool audit_mode = (rules().mode == GovernanceMode::AUDIT);
 
     // Quality gate conditions (only when enabled)
-    if (rules_.quality_gate.enabled) {
+    if (rules().quality_gate.enabled) {
         int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
         for (const auto& r : check_results_) {
             if (r.passed) continue;
@@ -2642,7 +2682,7 @@ std::string GovernanceEngine::evaluateQualityGate() const {
             if (r.severity == "critical" || r.severity == "high") security++;
         }
 
-        for (const auto& cond : rules_.quality_gate.conditions) {
+        for (const auto& cond : rules().quality_gate.conditions) {
             int value = 0;
             if (cond.metric == "hard_violations") value = hard;
             else if (cond.metric == "soft_violations") value = soft;
@@ -2690,12 +2730,12 @@ std::string GovernanceEngine::evaluateQualityGate() const {
     }
 
     // Cumulative risk scoring gate (independent of quality_gate.enabled)
-    if (rules_.scoring.enabled && cumulative_score_ >= rules_.scoring.red_threshold) {
+    if (rules().scoring.enabled && cumulative_score_ >= rules().scoring.red_threshold) {
         if (audit_mode) {
             fprintf(stderr, "[governance] AUDIT: Scoring gate WOULD block — score %d >= threshold %d\n",
-                    cumulative_score_, rules_.scoring.red_threshold);
+                    cumulative_score_, rules().scoring.red_threshold);
         } else {
-            int deficit = cumulative_score_ - rules_.scoring.red_threshold;
+            int deficit = cumulative_score_ - rules().scoring.red_threshold;
             std::string breakdown = formatScoreBreakdown();
             return fmt::format(
                 "Governance error: Cumulative risk score {} reached threshold {}\n\n"
@@ -2705,7 +2745,7 @@ std::string GovernanceEngine::evaluateQualityGate() const {
                 "  - Fix the top contributor to drop below threshold fastest\n"
                 "  - Each fixed violation removes its weight from the score\n"
                 "  - Target: reduce score by at least {} points\n",
-                cumulative_score_, rules_.scoring.red_threshold,
+                cumulative_score_, rules().scoring.red_threshold,
                 deficit, breakdown, deficit);
         }
     }
@@ -2753,7 +2793,7 @@ std::string GovernanceEngine::formatScoreBreakdown() const {
 
 bool GovernanceEngine::verifyScoreIntegrity() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
-    if (!rules_.scoring.enabled) return true;
+    if (!rules().scoring.enabled) return true;
     int recomputed = 0;
     std::unordered_map<std::string, int> occ_counts;
     for (const auto& r : check_results_) {
@@ -2762,9 +2802,9 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         if (r.rule_name.compare(0, 6, "pass2.") == 0) continue;
         // Escalated advisories return before scoring in enforce() — exclude
         if (r.escalated) continue;
-        int weight = rules_.scoring.default_weight;
-        auto wit = rules_.scoring.rule_weights.find(r.rule_name);
-        if (wit != rules_.scoring.rule_weights.end()) {
+        int weight = rules().scoring.default_weight;
+        auto wit = rules().scoring.rule_weights.find(r.rule_name);
+        if (wit != rules().scoring.rule_weights.end()) {
             weight = wit->second;
         } else if (r.rule_name == "code_quality.intent_validation.self_declared") {
             weight = 1;  // supporting functions: reduced weight
@@ -2773,8 +2813,8 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         // Advisory Escalation: mirror enforce() weight multiplier (lines 886-891)
         // enforce() reads emitted_advisories_ BEFORE incrementing (score at L887, increment at L983)
         // so we must also check BEFORE incrementing
-        if (rules_.advisory_escalation.enabled && occ_counts[r.rule_name] > 1) {
-            weight = static_cast<int>(weight * rules_.advisory_escalation.weight_multiplier);
+        if (rules().advisory_escalation.enabled && occ_counts[r.rule_name] > 1) {
+            weight = static_cast<int>(weight * rules().advisory_escalation.weight_multiplier);
         }
         occ_counts[r.rule_name]++;
         if (recomputed <= SCORE_SATURATION_LIMIT - weight) {
@@ -2791,7 +2831,7 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
 // ============================================================================
 
 void GovernanceEngine::saveGovernanceBaseline() const {
-    if (rules_.governance_baseline.path.empty()) return;
+    if (rules().governance_baseline.path.empty()) return;
 
     int hard = 0, soft = 0, advisory = 0, security = 0;
     for (const auto& r : check_results_) {
@@ -2802,7 +2842,7 @@ void GovernanceEngine::saveGovernanceBaseline() const {
         if (r.severity == "critical" || r.severity == "high") security++;
     }
 
-    std::filesystem::path p(rules_.governance_baseline.path);
+    std::filesystem::path p(rules().governance_baseline.path);
     if (p.has_parent_path())
         std::filesystem::create_directories(p.parent_path());
 
@@ -2826,18 +2866,18 @@ void GovernanceEngine::saveGovernanceBaseline() const {
     baseline["security_findings"] = security;
     baseline["total_checks"] = static_cast<int>(check_results_.size());
 
-    std::ofstream ofs(rules_.governance_baseline.path);
+    std::ofstream ofs(rules().governance_baseline.path);
     if (ofs.is_open()) {
         ofs << baseline.dump(2) << "\n";
         fprintf(stderr, "[governance] Baseline saved to %s\n",
-                rules_.governance_baseline.path.c_str());
+                rules().governance_baseline.path.c_str());
     }
 }
 
 std::string GovernanceEngine::checkGovernanceBaseline() const {
-    if (!rules_.governance_baseline.enabled) return "";
+    if (!rules().governance_baseline.enabled) return "";
 
-    std::ifstream ifs(rules_.governance_baseline.path);
+    std::ifstream ifs(rules().governance_baseline.path);
     if (!ifs.is_open()) return "";  // No baseline yet — skip
 
     nlohmann::json prev;
@@ -3011,7 +3051,7 @@ static std::string extractMainBody(const std::string& source) {
 std::string GovernanceEngine::preflightIntentCheck(
     const ast::Program& program, const std::string& source) {
 
-    auto& cfg = rules_.code_quality.intent_validation;
+    auto& cfg = rules().code_quality.intent_validation;
     if (!cfg.enabled) return "";
     if (cfg.mode == "agent") return "";  // agent-only defers to LLM review
 
@@ -3372,7 +3412,7 @@ GovernanceEngine::DriftMetrics GovernanceEngine::collectDriftMetrics(
 
 // Resolve drift baseline path relative to govern.json directory
 std::string GovernanceEngine::resolveDriftBaselinePath() const {
-    const auto& bp = rules_.code_quality.drift_detection.baseline_path;
+    const auto& bp = rules().code_quality.drift_detection.baseline_path;
     if (bp.empty()) return bp;
     std::filesystem::path p(bp);
     if (p.is_absolute()) return bp;
@@ -3612,23 +3652,23 @@ bool GovernanceEngine::verifySignatureImpl(
             }
 
             // Authority Decay: check signature staleness
-            if (signed_at > 0 && rules_.trust_policy.max_signature_age_days > 0) {
+            if (signed_at > 0 && rules().trust_policy.max_signature_age_days > 0) {
                 int64_t now = static_cast<int64_t>(std::time(nullptr));
                 int64_t age_days = (now - signed_at) / 86400;
-                if (age_days > rules_.trust_policy.max_signature_age_days) {
-                    if (rules_.trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
+                if (age_days > rules().trust_policy.max_signature_age_days) {
+                    if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::HARD) {
                         fprintf(stderr,
                             "[governance] STALE SIGNATURE BLOCK: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules_.trust_policy.max_signature_age_days);
+                            rules().trust_policy.max_signature_age_days);
                         return false;
-                    } else if (rules_.trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
+                    } else if (rules().trust_policy.stale_signature_level == governance::EnforcementLevel::SOFT) {
                         fprintf(stderr,
                             "[governance] STALE SIGNATURE: %s is %lld days old (max: %d).\n"
                             "  The signing key holder must re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules_.trust_policy.max_signature_age_days);
+                            rules().trust_policy.max_signature_age_days);
                         // SOFT: block unless override enabled
                         if (!override_enabled_) return false;
                     } else {
@@ -3636,7 +3676,7 @@ bool GovernanceEngine::verifySignatureImpl(
                             "[governance] WARNING: Signature on %s is %lld days old (max: %d).\n"
                             "  Consider having the signing key holder re-sign this file.\n",
                             file_path.c_str(), static_cast<long long>(age_days),
-                            rules_.trust_policy.max_signature_age_days);
+                            rules().trust_policy.max_signature_age_days);
                     }
                 }
             }
@@ -3712,7 +3752,7 @@ bool GovernanceEngine::verifyContentSignature(
 }
 
 bool GovernanceEngine::isBlockedFlag(const std::string& flag) const {
-    for (const auto& blocked : rules_.integrity.blocked_flags) {
+    for (const auto& blocked : rules().integrity.blocked_flags) {
         if (flag == blocked) return true;
     }
     return false;
@@ -3721,7 +3761,7 @@ bool GovernanceEngine::isBlockedFlag(const std::string& flag) const {
 std::string GovernanceEngine::checkDriftDetection(
     const std::string& filename, const DriftMetrics& current)
 {
-    const auto& cfg = rules_.code_quality.drift_detection;
+    const auto& cfg = rules().code_quality.drift_detection;
     if (!cfg.enabled) return "";
 
     // Load baseline
@@ -3827,7 +3867,7 @@ std::string GovernanceEngine::checkDriftDetection(
         // This prevents creating parallel ungoverned copies (e.g., script_v14.naab)
         if (cfg.require_baseline) {
             bool baseline_save_blocked = false;
-            for (const auto& bf : rules_.integrity.blocked_flags) {
+            for (const auto& bf : rules().integrity.blocked_flags) {
                 if (bf == "--drift-baseline-save") { baseline_save_blocked = true; break; }
             }
             std::string advice;
@@ -4482,7 +4522,7 @@ std::string GovernanceEngine::checkDriftDetection(
 void GovernanceEngine::saveDriftBaseline(
     const std::string& filename, const DriftMetrics& metrics) const
 {
-    const auto& cfg = rules_.code_quality.drift_detection;
+    const auto& cfg = rules().code_quality.drift_detection;
     if (cfg.baseline_path.empty()) return;
     std::string resolved = resolveDriftBaselinePath();
 
@@ -4672,40 +4712,41 @@ void GovernanceEngine::saveDriftBaseline(
 // ============================================================================
 
 void GovernanceEngine::applyEnvironment(const std::string& env_name) {
-    auto it = rules_.environments.find(env_name);
-    if (it == rules_.environments.end()) {
+    auto it = rules().environments.find(env_name);
+    if (it == rules().environments.end()) {
         fprintf(stderr, "[governance] WARNING: Environment '%s' not found in govern.json. Available:",
                 env_name.c_str());
-        for (const auto& [name, _] : rules_.environments) {
+        for (const auto& [name, _] : rules().environments) {
             fprintf(stderr, " %s", name.c_str());
         }
         fprintf(stderr, "\n");
         return;
     }
 
+    auto& mr = getMutableRules();  // init-only: applyEnvironment called before concurrent execution
     for (const auto& [key, value] : it->second) {
         if (key == "mode") {
-            if (value == "enforce") rules_.mode = GovernanceMode::ENFORCE;
-            else if (value == "audit") rules_.mode = GovernanceMode::AUDIT;
-            else if (value == "off") rules_.mode = GovernanceMode::OFF;
+            if (value == "enforce") mr.mode = GovernanceMode::ENFORCE;
+            else if (value == "audit") mr.mode = GovernanceMode::AUDIT;
+            else if (value == "off") mr.mode = GovernanceMode::OFF;
         } else if (key == "quality_gate.enabled") {
-            rules_.quality_gate.enabled = (value == "true");
+            mr.quality_gate.enabled = (value == "true");
         } else if (key == "governance_baseline.enabled") {
-            rules_.governance_baseline.enabled = (value == "true");
+            mr.governance_baseline.enabled = (value == "true");
         } else if (key == "governance_baseline.fail_on_regression") {
-            rules_.governance_baseline.fail_on_regression = (value == "true");
+            mr.governance_baseline.fail_on_regression = (value == "true");
         } else if (key == "output.file_output.report_sarif") {
-            rules_.output.file_output.report_sarif = value;
+            mr.output.file_output.report_sarif = value;
         } else if (key == "output.file_output.report_json") {
-            rules_.output.file_output.report_json = value;
+            mr.output.file_output.report_json = value;
         } else if (key == "output.file_output.report_junit") {
-            rules_.output.file_output.report_junit = value;
+            mr.output.file_output.report_junit = value;
         }
         // Additional dot-path overrides can be added as needed
     }
     active_env_ = env_name;
     fprintf(stderr, "[governance] Applied environment: %s\n", env_name.c_str());
-    if (rules_.verbose) {
+    if (rules().verbose) {
         for (const auto& [key, value] : it->second) {
             fprintf(stderr, "[governance]   %s = %s\n", key.c_str(), value.c_str());
         }
@@ -4773,10 +4814,10 @@ static bool versionSatisfies(const std::string& observed_raw,
 void GovernanceEngine::checkRuntimeVersions(const std::string& language,
                                              const std::string& observed_version) {
     if (!active_) return;
-    if (rules_.runtime_versions.empty()) return;
+    if (rules().runtime_versions.empty()) return;
     if (observed_version.empty()) return;
 
-    for (const auto& pin : rules_.runtime_versions) {
+    for (const auto& pin : rules().runtime_versions) {
         if (pin.language != language) continue;
 
         bool ok = versionSatisfies(observed_version, pin.required_version);
@@ -4812,9 +4853,9 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
     attestation_results_.clear();
     attestation_passed_ = true;
 
-    if (!rules_.prerequisites.enabled) return attestation_results_;
+    if (!rules().prerequisites.enabled) return attestation_results_;
 
-    for (const auto& check : rules_.prerequisites.checks) {
+    for (const auto& check : rules().prerequisites.checks) {
         AttestationResult result;
         result.check_type = check.type;
         result.check_name = check.name;
@@ -4930,14 +4971,14 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
 
 std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     std::vector<ContradictionResult> results;
-    if (!rules_.contradiction_detection.enabled) return results;
+    if (!rules().contradiction_detection.enabled) return results;
 
-    auto level = rules_.contradiction_detection.max_level;
+    auto level = rules().contradiction_detection.max_level;
 
     // CONTRA-001: shell disabled but "shell" in allowed languages
-    if (!rules_.capabilities.shell.enabled) {
-        if (rules_.languages.allowed.count("shell") ||
-            rules_.allowed_languages.count("shell")) {
+    if (!rules().capabilities.shell.enabled) {
+        if (rules().languages.allowed.count("shell") ||
+            rules().allowed_languages.count("shell")) {
             ContradictionResult c;
             c.pattern_id = "CONTRA-001";
             c.description = "Shell capability is disabled but 'shell' is in allowed languages";
@@ -4948,8 +4989,8 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-002: network disabled but allowed_hosts non-empty
-    if (!rules_.capabilities.network.enabled &&
-        !rules_.capabilities.network.allowed_hosts.empty()) {
+    if (!rules().capabilities.network.enabled &&
+        !rules().capabilities.network.allowed_hosts.empty()) {
         ContradictionResult c;
         c.pattern_id = "CONTRA-002";
         c.description = "Network capability is disabled but allowed_hosts is non-empty";
@@ -4959,8 +5000,8 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-003: no_hardcoded_urls enabled but allowed_hosts non-empty
-    if (rules_.code_quality.no_hardcoded_urls.enabled &&
-        !rules_.capabilities.network.allowed_hosts.empty()) {
+    if (rules().code_quality.no_hardcoded_urls.enabled &&
+        !rules().capabilities.network.allowed_hosts.empty()) {
         ContradictionResult c;
         c.pattern_id = "CONTRA-003";
         c.description = "no_hardcoded_urls is enabled but network.allowed_hosts is non-empty";
@@ -4970,11 +5011,11 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-004: high complexity_floor with very low duplicate_calls threshold
-    if (rules_.code_quality.complexity_floor.enabled &&
-        rules_.code_quality.complexity_floor.min_score >= 20 &&
-        rules_.code_quality.duplicate_calls.enabled &&
-        rules_.code_quality.duplicate_calls.threshold > 0 &&
-        rules_.code_quality.duplicate_calls.threshold <= 2) {
+    if (rules().code_quality.complexity_floor.enabled &&
+        rules().code_quality.complexity_floor.min_score >= 20 &&
+        rules().code_quality.duplicate_calls.enabled &&
+        rules().code_quality.duplicate_calls.threshold > 0 &&
+        rules().code_quality.duplicate_calls.threshold <= 2) {
         ContradictionResult c;
         c.pattern_id = "CONTRA-004";
         c.description = "High complexity floor (>= 20) with very low duplicate_calls threshold (<= 2)";
@@ -4984,9 +5025,9 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-005: filesystem mode=none but taint sinks include file operations
-    if (rules_.capabilities.filesystem.mode == "none" &&
-        rules_.taint_tracking.enabled) {
-        for (const auto& sink : rules_.taint_tracking.sinks) {
+    if (rules().capabilities.filesystem.mode == "none" &&
+        rules().taint_tracking.enabled) {
+        for (const auto& sink : rules().taint_tracking.sinks) {
             if (sink.find("file") != std::string::npos) {
                 ContradictionResult c;
                 c.pattern_id = "CONTRA-005";
@@ -5000,8 +5041,8 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-007: language in both allowed and blocked lists
-    for (const auto& lang : rules_.languages.allowed) {
-        if (rules_.languages.blocked.count(lang)) {
+    for (const auto& lang : rules().languages.allowed) {
+        if (rules().languages.blocked.count(lang)) {
             ContradictionResult c;
             c.pattern_id = "CONTRA-007";
             c.description = fmt::format("Language '{}' appears in both allowed and blocked lists", lang);
@@ -5012,8 +5053,8 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-008: contract defined for a function that is also banned
-    for (const auto& [func_name, contract] : rules_.contracts.functions) {
-        for (const auto& [lang, lang_cfg] : rules_.languages.per_language) {
+    for (const auto& [func_name, contract] : rules().contracts.functions) {
+        for (const auto& [lang, lang_cfg] : rules().languages.per_language) {
             for (const auto& banned : lang_cfg.banned_functions) {
                 if (banned == func_name) {
                     ContradictionResult c;
@@ -5029,7 +5070,7 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
     }
 
     // CONTRA-009: audit level=full but output_file empty
-    if (rules_.audit.level == "full" && rules_.audit.output_file.empty()) {
+    if (rules().audit.level == "full" && rules().audit.output_file.empty()) {
         ContradictionResult c;
         c.pattern_id = "CONTRA-009";
         c.description = "Audit level is 'full' but audit.output_file is empty";
@@ -5219,8 +5260,8 @@ void GovernanceEngine::auditCrossBlockFlows() {
     if (unsanitized > 0) {
         // F14: gate_cross_block enables enforcement beyond advisory
         EnforcementLevel cbLevel = EnforcementLevel::ADVISORY;
-        if (rules_.taint_tracking.gate_cross_block) {
-            cbLevel = rules_.taint_tracking.cross_block_level;
+        if (rules().taint_tracking.gate_cross_block) {
+            cbLevel = rules().taint_tracking.cross_block_level;
         }
         check_results_.push_back({"pass2.cross_block_taint", cbLevel,
             false, std::to_string(unsanitized) + " cross-block data flow(s) without sanitization",
@@ -5483,7 +5524,7 @@ void GovernanceEngine::setInheritedPressure(int handle_id, double pressure) {
 
 void GovernanceEngine::recoverCoherence(int handle_id) {
     drift_analyzer_.resetCoherence(handle_id,
-        rules_.context_drift.coherence_recovery_amount);
+        rules().context_drift.coherence_recovery_amount);
 }
 
 // Read-only copy of pipeline depth, synced from agent_impl.cpp via setPipelineDepth().
@@ -5496,7 +5537,7 @@ void GovernanceEngine::setPipelineDepth(int /*handle_id*/, int depth) {
 int GovernanceEngine::consumeRiskBudget(const std::string& config, int cost) {
     // Find agent config to check if budget is configured
     const AgentConfig* ac = nullptr;
-    for (const auto& a : rules_.agents) {
+    for (const auto& a : rules().agents) {
         if (a.name == config) { ac = &a; break; }
     }
     if (!ac || ac->risk_budget <= 0) return -1;  // -1 = unlimited
@@ -5508,7 +5549,7 @@ int GovernanceEngine::consumeRiskBudget(const std::string& config, int cost) {
 
 int GovernanceEngine::getRemainingBudget(const std::string& config) const {
     const AgentConfig* ac = nullptr;
-    for (const auto& a : rules_.agents) {
+    for (const auto& a : rules().agents) {
         if (a.name == config) { ac = &a; break; }
     }
     if (!ac || ac->risk_budget <= 0) return -1;  // unlimited
@@ -5520,11 +5561,11 @@ int GovernanceEngine::getRemainingBudget(const std::string& config) const {
 }
 
 std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
-    const auto& cfg = rules_.exposure_tracking;
+    const auto& cfg = rules().exposure_tracking;
     if (!cfg.enabled) return "";
 
     // F6: CRITICAL governance level = deny all admission
-    if (rules_.circuit_breaker.enabled &&
+    if (rules().circuit_breaker.enabled &&
         governance_level_.load(std::memory_order_relaxed) >= static_cast<int>(GovernanceLevel::CRITICAL)) {
         clearTrace();
         addTrace("admission_denied: governance level CRITICAL — all agent actions suspended");
@@ -5648,7 +5689,7 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
 }
 
 std::string GovernanceEngine::checkGovernanceHealth(int turn) {
-    const auto& cfg = rules_.governance_health;
+    const auto& cfg = rules().governance_health;
     if (!cfg.enabled || turn < cfg.check_after_turns) return "";
 
     std::string warnings;
@@ -5683,16 +5724,16 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
     }
 
     // Check 5: Telemetry hash chain advancing
-    if (rules_.telemetry_output.enabled && pulse_.total_checks > 0 && last_telemetry_hash_.empty()) {
+    if (rules().telemetry_output.enabled && pulse_.total_checks > 0 && last_telemetry_hash_.empty()) {
         warnings += "WARNING: Telemetry hash chain not advancing (telemetry may be disconnected)\n";
     }
     // Check 6: Telemetry file still writable
-    if (rules_.telemetry_output.enabled && !rules_.telemetry_output.output_file.empty()) {
-        FILE* tf = fopen(rules_.telemetry_output.output_file.c_str(), "a");
+    if (rules().telemetry_output.enabled && !rules().telemetry_output.output_file.empty()) {
+        FILE* tf = fopen(rules().telemetry_output.output_file.c_str(), "a");
         if (tf) { fclose(tf); }
         else {
             warnings += fmt::format("WARNING: Telemetry file not writable: {}\n",
-                rules_.telemetry_output.output_file);
+                rules().telemetry_output.output_file);
         }
     }
 
@@ -5729,7 +5770,7 @@ int GovernanceEngine::checkDecisionTraceCoherence(const std::string& agent_confi
 }
 
 std::string GovernanceEngine::checkTemporalCoupling() {
-    const auto& cfg = rules_.temporal_coupling;
+    const auto& cfg = rules().temporal_coupling;
     if (!cfg.enabled) return "";
 
     std::lock_guard<std::mutex> lock(temporal_mutex_);
@@ -5804,11 +5845,11 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
 
     // Subsystem: entropy health
     double ent = computeGovernanceEntropy();
-    if (ent >= 0.0 && ent < rules_.governance_health.governance_entropy_warning)
+    if (ent >= 0.0 && ent < rules().governance_health.governance_entropy_warning)
         degradation_signals++;
 
     // Subsystem: telemetry health (hash chain advancing = telemetry operational)
-    bool telemetry_ok = !rules_.telemetry_output.enabled ||
+    bool telemetry_ok = !rules().telemetry_output.enabled ||
                         pulse_.total_checks == 0 ||
                         !last_telemetry_hash_.empty();
     if (!telemetry_ok) degradation_signals++;
@@ -5986,27 +6027,27 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
 
     // --- Reality Checkpoint: composite pressure detection ---
-    const auto& rccfg = rules_.context_drift.reality_checkpoint;
+    const auto& rccfg = rules().context_drift.reality_checkpoint;
     if (!drifted && rccfg.enabled) {
         auto state = drift_analyzer_.getDriftState(handle_id);
         if (state) {
             // Factor 1: Coherence proximity (how close to threshold)
             double coherence_prox = 0.0;
-            if (rules_.context_drift.coherence_threshold > 0.0) {
+            if (rules().context_drift.coherence_threshold > 0.0) {
                 coherence_prox = std::max(0.0, std::min(1.0,
-                    1.0 - (state->coherence_score / rules_.context_drift.coherence_threshold)));
+                    1.0 - (state->coherence_score / rules().context_drift.coherence_threshold)));
             }
 
             // Factor 2: Risk score proximity (snapshot under results_mutex_)
             double risk_prox = 0.0;
-            if (rules_.scoring.enabled && rules_.scoring.yellow_threshold > 0) {
+            if (rules().scoring.enabled && rules().scoring.yellow_threshold > 0) {
                 int score_snapshot;
                 {
                     std::lock_guard<std::mutex> lock(results_mutex_);
                     score_snapshot = cumulative_score_;
                 }
                 risk_prox = std::max(0.0, std::min(1.0,
-                    static_cast<double>(score_snapshot) / rules_.scoring.yellow_threshold));
+                    static_cast<double>(score_snapshot) / rules().scoring.yellow_threshold));
             }
 
             // Factor 3: Signal density (how many CDD signals fired this turn)
@@ -6123,7 +6164,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             }
 
             // F6: Update system-wide governance level from sustained pressure
-            const auto& cb = rules_.circuit_breaker;
+            const auto& cb = rules().circuit_breaker;
             if (cb.enabled) {
                 int level = 0;
                 if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) level = 3;
@@ -6154,7 +6195,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     clearTrace();
     addTrace(fmt::format("context_drift: coherence={:.2f} vel={:.3f} accel={:.3f} (threshold={:.2f})",
         state->coherence_score, state->coherence_velocity, state->coherence_acceleration,
-        rules_.context_drift.coherence_threshold));
+        rules().context_drift.coherence_threshold));
     if (state->circular_action_count > 0)
         addTrace(fmt::format("  circular_actions: {}", state->circular_action_count));
     if (state->repeated_failures > 0)
@@ -6171,11 +6212,11 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
         if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 1);
     }
 
-    return enforce("context_drift.coherence_loss", rules_.context_drift.level,
-        formatError(rules_.context_drift.level,
+    return enforce("context_drift.coherence_loss", rules().context_drift.level,
+        formatError(rules().context_drift.level,
             fmt::format("Agent context drift detected: coherence score {:.2f} "
                 "below threshold {:.2f} (circular={}, failures={}, scope_creep={}, vocab_contraction={})",
-                state->coherence_score, rules_.context_drift.coherence_threshold,
+                state->coherence_score, rules().context_drift.coherence_threshold,
                 state->circular_action_count, state->repeated_failures,
                 state->scope_creep_count, state->vocabulary_contraction_count),
             "", "context_drift.coherence_loss",
@@ -6191,7 +6232,7 @@ std::optional<governance::DriftState> GovernanceEngine::getDriftState(int handle
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
     int handle_id, int turn) const {
     CheckpointData data;
-    if (!rules_.context_drift.reality_checkpoint.enabled) return data;
+    if (!rules().context_drift.reality_checkpoint.enabled) return data;
     auto state = drift_analyzer_.getDriftState(handle_id);
     if (!state) return data;
     data.pressure = state->last_pressure_score;

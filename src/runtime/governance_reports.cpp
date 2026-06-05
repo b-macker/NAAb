@@ -47,10 +47,10 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
                                       const std::string& rule_name,
                                       const std::string& message,
                                       const std::string& file, int line) {
-    if (rules_.audit.level == "none") return;
+    if (rules().audit.level == "none") return;
     std::lock_guard<std::mutex> lock(audit_mutex_);
 
-    std::string output_file = rules_.audit.output_file;
+    std::string output_file = rules().audit.output_file;
     if (output_file.empty()) output_file = ".governance-audit.jsonl";
 
     // Build entry
@@ -67,9 +67,9 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
     if (!rationale.empty()) entry["rationale"] = rationale;
 
     // Tamper-evident hash chain
-    if (rules_.audit.tamper_evidence.enabled) {
+    if (rules().audit.tamper_evidence.enabled) {
         entry["prev_hash"] = last_audit_hash_.empty()
-            ? rules_.audit.tamper_evidence.chain_genesis
+            ? rules().audit.tamper_evidence.chain_genesis
             : last_audit_hash_;
         last_audit_hash_ = computeAuditHash(entry.dump());
         entry["hash"] = last_audit_hash_;
@@ -88,8 +88,8 @@ void GovernanceEngine::logPolyglotExecution(const std::string& language,
                                               int64_t duration_us,
                                               const std::string& file, int line,
                                               const std::string& runtime_version) {
-    if (!rules_.audit.log_events.polyglot_executed &&
-        !rules_.audit.log_events.polyglot_timing) return;
+    if (!rules().audit.log_events.polyglot_executed &&
+        !rules().audit.log_events.polyglot_timing) return;
 
     std::string vars_str;
     for (size_t i = 0; i < bound_vars.size(); ++i) {
@@ -100,7 +100,7 @@ void GovernanceEngine::logPolyglotExecution(const std::string& language,
     std::string msg = "lang=" + language;
     if (!runtime_version.empty()) msg += " runtime=" + runtime_version;
     if (!vars_str.empty()) msg += " vars=[" + vars_str + "]";
-    if (rules_.audit.log_events.polyglot_timing) {
+    if (rules().audit.log_events.polyglot_timing) {
         msg += " duration=" + std::to_string(duration_us) + "us";
     }
 
@@ -111,7 +111,7 @@ void GovernanceEngine::logTaintDecision(const std::string& var_name,
                                          const std::string& decision,
                                          const std::string& sink,
                                          const std::string& file, int line) {
-    if (!rules_.audit.log_events.taint_decisions) return;
+    if (!rules().audit.log_events.taint_decisions) return;
 
     std::string msg = "var=" + var_name + " decision=" + decision;
     if (!sink.empty()) msg += " sink=" + sink;
@@ -123,7 +123,7 @@ void GovernanceEngine::logContractCheck(const std::string& func_name,
                                          const std::string& result,
                                          const std::string& detail,
                                          const std::string& file, int line) {
-    if (!rules_.audit.log_events.contract_checks) return;
+    if (!rules().audit.log_events.contract_checks) return;
 
     std::string msg = "func=" + func_name + " result=" + result;
     if (!detail.empty()) msg += " " + detail;
@@ -132,7 +132,7 @@ void GovernanceEngine::logContractCheck(const std::string& func_name,
 }
 
 std::string GovernanceEngine::computeAuditHash(const std::string& data) const {
-    return computeHash(data, rules_.audit.tamper_evidence);
+    return computeHash(data, rules().audit.tamper_evidence);
 }
 
 std::string GovernanceEngine::computeHash(const std::string& data,
@@ -146,8 +146,8 @@ std::string GovernanceEngine::computeHash(const std::string& data,
 
 void GovernanceEngine::emitAttestation(const std::string& action_type,
     const std::string& agent_config, int turn, double pressure) {
-    if (!rules_.audit.provenance.enabled ||
-        !rules_.audit.provenance.record_attestations) return;
+    if (!rules().audit.provenance.enabled ||
+        !rules().audit.provenance.record_attestations) return;
 
     nlohmann::json att;
     att["action"] = action_type;
@@ -157,10 +157,10 @@ void GovernanceEngine::emitAttestation(const std::string& action_type,
     att["run_id"] = run_id_;
 
     // Sign the attestation if signing is enabled and key is available
-    if (rules_.audit.provenance.sign_records &&
-        !rules_.audit.provenance.signing_key.empty()) {
+    if (rules().audit.provenance.sign_records &&
+        !rules().audit.provenance.signing_key.empty()) {
         try {
-            std::ifstream kf(rules_.audit.provenance.signing_key);
+            std::ifstream kf(rules().audit.provenance.signing_key);
             if (kf.is_open()) {
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
@@ -245,7 +245,7 @@ static std::string htmlEscape(const std::string& s) {
 std::string GovernanceEngine::generateJsonReport() const {
     nlohmann::json report;
     report["version"] = "4.0";
-    report["mode"] = rules_.mode == GovernanceMode::ENFORCE ? "enforce" : (rules_.mode == GovernanceMode::AUDIT ? "audit" : "off");
+    report["mode"] = rules().mode == GovernanceMode::ENFORCE ? "enforce" : (rules().mode == GovernanceMode::AUDIT ? "audit" : "off");
 
     int total = 0, passed = 0, failed_hard = 0, failed_soft = 0, advisories = 0;
     for (const auto& r : check_results_) {
@@ -261,10 +261,10 @@ std::string GovernanceEngine::generateJsonReport() const {
     report["summary"]["failed_soft"] = failed_soft;
     report["summary"]["advisories"] = advisories;
 
-    if (rules_.scoring.enabled) {
+    if (rules().scoring.enabled) {
         report["summary"]["cumulative_risk_score"] = cumulative_score_;
-        report["summary"]["risk_zone"] = cumulative_score_ >= rules_.scoring.red_threshold ? "red" :
-                                         cumulative_score_ >= rules_.scoring.yellow_threshold ? "yellow" : "green";
+        report["summary"]["risk_zone"] = cumulative_score_ >= rules().scoring.red_threshold ? "red" :
+                                         cumulative_score_ >= rules().scoring.yellow_threshold ? "yellow" : "green";
         nlohmann::json breakdown = nlohmann::json::object();
         for (const auto& [rule, score] : score_contributions_) {
             breakdown[rule] = score;
@@ -665,17 +665,17 @@ void GovernanceEngine::writeReports() const {
         std::ofstream ofs(path);
         if (ofs.is_open()) ofs << content;
     };
-    writeFile(rules_.output.file_output.report_json, generateJsonReport());
-    writeFile(rules_.output.file_output.report_sarif, generateSarifReport());
-    writeFile(rules_.output.file_output.report_junit, generateJunitReport());
-    writeFile(rules_.output.file_output.report_csv, generateCsvReport());
-    writeFile(rules_.output.file_output.report_html, generateHtmlReport());
+    writeFile(rules().output.file_output.report_json, generateJsonReport());
+    writeFile(rules().output.file_output.report_sarif, generateSarifReport());
+    writeFile(rules().output.file_output.report_junit, generateJunitReport());
+    writeFile(rules().output.file_output.report_csv, generateCsvReport());
+    writeFile(rules().output.file_output.report_html, generateHtmlReport());
     writeTelemetry();
 }
 
 // --- Telemetry JSONL Output ---
 void GovernanceEngine::writeTelemetry() const {
-    if (!rules_.telemetry_output.enabled || rules_.telemetry_output.output_file.empty()) return;
+    if (!rules().telemetry_output.enabled || rules().telemetry_output.output_file.empty()) return;
 
     // Use C FILE* + flock for atomic multi-process writes.
     // RAII wrapper ensures fclose+unlock even if json serialization throws.
@@ -686,10 +686,10 @@ void GovernanceEngine::writeTelemetry() const {
         fclose(f);
     };
     std::unique_ptr<FILE, decltype(fp_deleter)> fp(
-        fopen(rules_.telemetry_output.output_file.c_str(), "a"), fp_deleter);
+        fopen(rules().telemetry_output.output_file.c_str(), "a"), fp_deleter);
     if (!fp) {
         fprintf(stderr, "[governance] Warning: Could not open telemetry file: %s\n",
-                rules_.telemetry_output.output_file.c_str());
+                rules().telemetry_output.output_file.c_str());
         return;
     }
 #ifndef _WIN32
@@ -734,12 +734,12 @@ void GovernanceEngine::writeTelemetry() const {
             for (const auto& o : r.owasp_ids) ev["owasp"].push_back(o);
         }
         // Tamper-evident hash chain for telemetry entries
-        if (rules_.telemetry_output.tamper_evidence.enabled) {
+        if (rules().telemetry_output.tamper_evidence.enabled) {
             ev["prev_hash"] = last_telemetry_hash_.empty()
-                ? rules_.telemetry_output.tamper_evidence.chain_genesis
+                ? rules().telemetry_output.tamper_evidence.chain_genesis
                 : last_telemetry_hash_;
             last_telemetry_hash_ = computeHash(ev.dump(),
-                rules_.telemetry_output.tamper_evidence);
+                rules().telemetry_output.tamper_evidence);
             ev["hash"] = last_telemetry_hash_;
         }
 
@@ -760,7 +760,7 @@ void GovernanceEngine::writeTelemetry() const {
 
     if (!check_results_.empty()) {
         fprintf(stderr, "[governance] Telemetry: %zu events written to %s\n",
-                check_results_.size(), rules_.telemetry_output.output_file.c_str());
+                check_results_.size(), rules().telemetry_output.output_file.c_str());
     }
 }
 
@@ -768,7 +768,7 @@ void GovernanceEngine::writeAgentTelemetry(
     const std::string& event_type,
     const std::unordered_map<std::string, std::string>& fields) {
 
-    if (!rules_.telemetry_output.enabled || rules_.telemetry_output.output_file.empty()) return;
+    if (!rules().telemetry_output.enabled || rules().telemetry_output.output_file.empty()) return;
 
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
@@ -777,7 +777,7 @@ void GovernanceEngine::writeAgentTelemetry(
         fclose(f);
     };
     std::unique_ptr<FILE, decltype(fp_deleter)> fp(
-        fopen(rules_.telemetry_output.output_file.c_str(), "a"), fp_deleter);
+        fopen(rules().telemetry_output.output_file.c_str(), "a"), fp_deleter);
     if (!fp) return;
 #ifndef _WIN32
     ::flock(fileno(fp.get()), LOCK_EX);
@@ -805,12 +805,12 @@ void GovernanceEngine::writeAgentTelemetry(
     }
 
     // Tamper-evident hash chain
-    if (rules_.telemetry_output.tamper_evidence.enabled) {
+    if (rules().telemetry_output.tamper_evidence.enabled) {
         ev["prev_hash"] = last_telemetry_hash_.empty()
-            ? rules_.telemetry_output.tamper_evidence.chain_genesis
+            ? rules().telemetry_output.tamper_evidence.chain_genesis
             : last_telemetry_hash_;
         last_telemetry_hash_ = computeHash(ev.dump(),
-            rules_.telemetry_output.tamper_evidence);
+            rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
     }
 
@@ -829,23 +829,25 @@ void GovernanceEngine::writeAgentTelemetry(
 }
 
 // --- Agent Role Application ---
+// C1: init-only — copy-mutate-swap to avoid writing shared rules_ptr_
 void GovernanceEngine::applyAgentRole() {
-    for (const auto& role : rules_.agents) {
+    auto new_rules = std::make_shared<GovernanceRules>(rules());  // copy current
+    for (const auto& role : new_rules->agents) {
         if (role.name == agent_id_) {
             // Restrict allowed languages: intersect with base allowed_languages
             if (!role.allowed_languages.empty()) {
-                if (rules_.allowed_languages.empty()) {
+                if (new_rules->allowed_languages.empty()) {
                     // No base restriction — apply role's languages as the restriction
                     for (const auto& l : role.allowed_languages)
-                        rules_.allowed_languages.insert(l);
+                        new_rules->allowed_languages.insert(l);
                 } else {
                     // Intersect: keep only languages in both base AND role
                     std::unordered_set<std::string> intersection;
                     for (const auto& l : role.allowed_languages) {
-                        if (rules_.allowed_languages.count(l))
+                        if (new_rules->allowed_languages.count(l))
                             intersection.insert(l);
                     }
-                    rules_.allowed_languages = intersection;
+                    new_rules->allowed_languages = intersection;
                 }
             }
 
@@ -853,20 +855,24 @@ void GovernanceEngine::applyAgentRole() {
             // Roles can only restrict (deny shell); they cannot grant shell if
             // the global policy already denies it.
             if (role.shell_allowed_set && !role.shell_allowed) {
-                rules_.shell_allowed = false;
+                new_rules->shell_allowed = false;
             }
+
+            // Publish updated rules
+            std::atomic_store(&rules_ptr_,
+                std::const_pointer_cast<const GovernanceRules>(new_rules));
 
             // Path restrictions enforced at runtime via checkPathAccess()
             fprintf(stderr, "[governance] Agent role applied: %s (languages: ",
                     agent_id_.c_str());
             bool first = true;
-            for (const auto& l : rules_.allowed_languages) {
+            for (const auto& l : new_rules->allowed_languages) {
                 if (!first) fprintf(stderr, ", ");
                 fprintf(stderr, "%s", l.c_str());
                 first = false;
             }
             fprintf(stderr, "), shell: %s\n",
-                    rules_.shell_allowed ? "allowed" : "blocked");
+                    new_rules->shell_allowed ? "allowed" : "blocked");
             return;
         }
     }
@@ -875,7 +881,7 @@ void GovernanceEngine::applyAgentRole() {
 
 // --- Environment Variable Substitution ---
 std::string GovernanceEngine::substituteEnvVars(const std::string& value) const {
-    if (!rules_.meta.environment.allow_env_var_substitution) return value;
+    if (!rules().meta.environment.allow_env_var_substitution) return value;
     std::string result = value;
     try {
         std::regex re("\\$\\{([^}:]+)(?::-([^}]*))?\\}");
@@ -897,14 +903,14 @@ std::string GovernanceEngine::substituteEnvVars(const std::string& value) const 
 
 // --- Config Inheritance ---
 void GovernanceEngine::loadInheritedConfig(const std::string& base_dir, int depth) {
-    if (rules_.extends_path.empty()) return;
-    if (depth >= rules_.meta.inheritance.max_depth) {
+    if (rules().extends_path.empty()) return;
+    if (depth >= rules().meta.inheritance.max_depth) {
         fprintf(stderr, "[governance] Warning: Max inheritance depth (%d) reached\n",
-                rules_.meta.inheritance.max_depth);
+                rules().meta.inheritance.max_depth);
         return;
     }
     namespace fs = std::filesystem;
-    fs::path parent_path = fs::path(base_dir) / rules_.extends_path;
+    fs::path parent_path = fs::path(base_dir) / rules().extends_path;
     if (!fs::exists(parent_path)) {
         fprintf(stderr, "[governance] Warning: Extended config not found: %s\n",
                 parent_path.string().c_str());
@@ -929,11 +935,11 @@ std::string GovernanceEngine::checkPolyglotOptimization(
     int line
 ) {
     if (!active_) return "";
-    if (!rules_.polyglot_optimization.enabled) return "";
+    if (!rules().polyglot_optimization.enabled) return "";
 
     // Create detector with task→language matrix from config
     std::map<std::string, std::map<std::string, int>> matrix;
-    for (const auto& [task, lang_scores] : rules_.polyglot_optimization.task_language_matrix) {
+    for (const auto& [task, lang_scores] : rules().polyglot_optimization.task_language_matrix) {
         for (const auto& [lang, score_data] : lang_scores) {
             matrix[task][lang] = score_data.score;
         }
@@ -941,7 +947,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
 
     // Phase 2: Fuse calibration data — measured scores override hardcoded defaults
     // Priority: calibration > govern.json matrix > hardcoded defaults
-    if (rules_.polyglot_optimization.calibration.enabled) {
+    if (rules().polyglot_optimization.calibration.enabled) {
         const_cast<GovernanceEngine*>(this)->loadCalibration();
         for (const auto& [task, lang_entries] : calibration_data_) {
             for (const auto& [lang, entry] : lang_entries) {
@@ -958,10 +964,10 @@ std::string GovernanceEngine::checkPolyglotOptimization(
     auto result = detector.analyze(code, language);
 
     // Check enforcement level
-    std::string level = rules_.polyglot_optimization.enforcement_level;
+    std::string level = rules().polyglot_optimization.enforcement_level;
 
     // Helper errors config
-    bool show_suggestions = rules_.polyglot_optimization.helper_errors.enabled;
+    bool show_suggestions = rules().polyglot_optimization.helper_errors.enabled;
 
     // Determine if we should suggest different language
     bool should_suggest = false;
@@ -984,7 +990,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
     }
 
     // Never suggest a language that is blocked by governance
-    if (should_suggest && rules_.blocked_languages.count(result.optimal_language)) {
+    if (should_suggest && rules().blocked_languages.count(result.optimal_language)) {
         should_suggest = false;
     }
 
@@ -1056,9 +1062,9 @@ void GovernanceEngine::suggestBetterLanguage(
     int improvement_percent,
     const std::vector<std::string>& reasons
 ) {
-    if (!rules_.polyglot_optimization.helper_errors.enabled) return;
+    if (!rules().polyglot_optimization.helper_errors.enabled) return;
 
-    bool show_example = rules_.polyglot_optimization.helper_errors.show_example_code;
+    bool show_example = rules().polyglot_optimization.helper_errors.show_example_code;
 
     // Phase 3: Determine confidence level
     std::string confidence = "ESTIMATED";
@@ -1116,7 +1122,7 @@ void GovernanceEngine::suggestBetterLanguage(
     }
 
     // Check confidence display level
-    const auto& conf_cfg = rules_.polyglot_optimization.confidence;
+    const auto& conf_cfg = rules().polyglot_optimization.confidence;
     if (conf_cfg.min_display_level == "measured" && confidence != "MEASURED") return;
     if (conf_cfg.min_display_level == "calibrated" &&
         confidence != "MEASURED" && confidence != "CALIBRATED") return;
@@ -1175,8 +1181,8 @@ void GovernanceEngine::suggestBetterLanguage(
 // ============================================================================
 
 bool GovernanceEngine::isProfilingEnabled() const {
-    return active_ && rules_.polyglot_optimization.enabled &&
-           rules_.polyglot_optimization.profiling.enabled;
+    return active_ && rules().polyglot_optimization.enabled &&
+           rules().polyglot_optimization.profiling.enabled;
 }
 
 void GovernanceEngine::writeProfileEntry(const std::string& language,
@@ -1185,7 +1191,7 @@ void GovernanceEngine::writeProfileEntry(const std::string& language,
                                          int64_t duration_us) {
     if (!isProfilingEnabled()) return;
 
-    auto& cfg = rules_.polyglot_optimization.profiling;
+    auto& cfg = rules().polyglot_optimization.profiling;
 
     // Expand ~ in path
     std::string path = cfg.profile_path;
@@ -1248,7 +1254,7 @@ bool GovernanceEngine::loadCalibration() {
     if (calibration_loaded_) return !calibration_data_.empty();
     calibration_loaded_ = true;
 
-    auto& cfg = rules_.polyglot_optimization.calibration;
+    auto& cfg = rules().polyglot_optimization.calibration;
     if (!cfg.enabled) return false;
 
     // Expand ~ in path
@@ -1297,9 +1303,9 @@ bool GovernanceEngine::loadCalibration() {
 
 bool GovernanceEngine::isVerificationEnabled() const {
     return active_ &&
-           rules_.polyglot_optimization.enabled &&
-           rules_.polyglot_optimization.verification.enabled &&
-           !rules_.polyglot_optimization.verification.consensus_languages.empty();
+           rules().polyglot_optimization.enabled &&
+           rules().polyglot_optimization.verification.enabled &&
+           !rules().polyglot_optimization.verification.consensus_languages.empty();
 }
 
 bool GovernanceEngine::isNumericString(const std::string& s) {
@@ -1360,7 +1366,7 @@ std::string GovernanceEngine::classifyTaskForVerification(
     const std::string& code, const std::string& language) {
 
     std::map<std::string, std::map<std::string, int>> matrix;
-    for (const auto& [task, lang_scores] : rules_.polyglot_optimization.task_language_matrix) {
+    for (const auto& [task, lang_scores] : rules().polyglot_optimization.task_language_matrix) {
         for (const auto& [lang, score_data] : lang_scores) {
             matrix[task][lang] = score_data.score;
         }
@@ -1542,7 +1548,7 @@ void GovernanceEngine::loadBaselines() {
     baselines_loaded_ = true;
 
     // Resolve path relative to govern.json directory
-    std::string path = rules_.baselines.path;
+    std::string path = rules().baselines.path;
     if (!path.empty() && path[0] != '/') {
         auto gov_dir = std::filesystem::path(loaded_path_).parent_path();
         path = (gov_dir / path).string();
@@ -1608,7 +1614,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
                                              const std::string& output,
                                              const std::string& type,
                                              int line) {
-    if (!rules_.baselines.enabled) return "";
+    if (!rules().baselines.enabled) return "";
 
     loadBaselines();
     if (!baselines_data_) return "";
@@ -1617,7 +1623,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
     auto& entries = (*data)["entries"];
     if (!entries.contains(key)) {
         // No baseline exists
-        if (rules_.baselines.auto_record) {
+        if (rules().baselines.auto_record) {
             recordBaseline(key, output, type);
         }
         return "";
@@ -1631,7 +1637,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
     bool matches = false;
     if ((type == "float" || type == "int") &&
         (expected_type == "float" || expected_type == "int")) {
-        matches = compareResults(output, expected, rules_.baselines.tolerance);
+        matches = compareResults(output, expected, rules().baselines.tolerance);
     } else {
         matches = (output == expected);
     }
@@ -1649,8 +1655,8 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
     }
 
     // Mismatch
-    return enforce("baselines", rules_.baselines.level,
-        formatError(rules_.baselines.level,
+    return enforce("baselines", rules().baselines.level,
+        formatError(rules().baselines.level,
             fmt::format("Baseline mismatch for '{}': expected '{}', got '{}'",
                 key, expected, output),
             line > 0 ? fmt::format("line {}", line) : "",
@@ -1667,7 +1673,7 @@ void GovernanceEngine::writeDriftEvent(
     const std::string& got, int line, int consensus, int total,
     const std::string& file) {
 
-    auto& dtc = rules_.polyglot_optimization.verification.drift_tracking;
+    auto& dtc = rules().polyglot_optimization.verification.drift_tracking;
     if (!dtc.enabled) return;
 
     // Expand ~ in path
@@ -1736,7 +1742,7 @@ void GovernanceEngine::writeDriftEvent(
 }
 
 void GovernanceEngine::analyzeDriftTrend(const std::string& language) {
-    auto& dtc = rules_.polyglot_optimization.verification.drift_tracking;
+    auto& dtc = rules().polyglot_optimization.verification.drift_tracking;
     if (!dtc.enabled) return;
 
     // Expand ~ in path
@@ -1801,7 +1807,7 @@ std::string GovernanceEngine::verifyPolyglotResult(
 {
     if (!isVerificationEnabled()) return "";
 
-    auto& cfg = rules_.polyglot_optimization.verification;
+    auto& cfg = rules().polyglot_optimization.verification;
 
     // 1. Classify the task
     std::string task_type = classifyTaskForVerification(code, language);
@@ -1991,7 +1997,7 @@ void GovernanceEngine::loadPlugins() {
     }
 
     namespace fs = std::filesystem;
-    for (auto& plugin : rules_.governance_plugins) {
+    for (auto& plugin : getMutableRules().governance_plugins) {
         if (plugin.rules.empty()) continue;
 
         // Resolve file path relative to govern.json directory
@@ -2027,7 +2033,7 @@ std::string GovernanceEngine::checkPluginRules(
     if (in_plugin_check_) return "";
 
     // No plugins configured — fast path
-    if (rules_.governance_plugins.empty()) return "";
+    if (rules().governance_plugins.empty()) return "";
 
     // Lazy-load plugins on first call
     if (!plugins_loaded_) loadPlugins();
@@ -2042,7 +2048,7 @@ std::string GovernanceEngine::checkPluginRules(
         ~PluginGuard() { flag = false; }
     } guard(in_plugin_check_);
 
-    for (const auto& plugin : rules_.governance_plugins) {
+    for (const auto& plugin : rules().governance_plugins) {
         if (!plugin.loaded) continue;
 
         for (const auto& rule : plugin.rules) {

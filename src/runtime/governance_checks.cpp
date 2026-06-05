@@ -812,7 +812,7 @@ static const std::vector<std::pair<std::string, std::string>> DEFAULT_PII_PATTER
 };
 
 std::string GovernanceEngine::checkPii(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_pii;
+    auto& cfg = rules().code_quality.no_pii;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -896,7 +896,7 @@ static const std::vector<std::string> DEFAULT_TEMP_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkTemporaryCode(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_temporary_code;
+    auto& cfg = rules().code_quality.no_temporary_code;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_TEMP_PATTERNS : cfg.patterns;
@@ -926,7 +926,7 @@ static const std::vector<std::string> DEFAULT_SIMULATION_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkSimulationMarkers(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_simulation_markers;
+    auto& cfg = rules().code_quality.no_simulation_markers;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_SIMULATION_PATTERNS : cfg.patterns;
@@ -946,7 +946,7 @@ std::string GovernanceEngine::checkSimulationMarkers(const std::string& code, in
 
 // --- Mock Data ---
 std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_mock_data;
+    auto& cfg = rules().code_quality.no_mock_data;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -993,7 +993,7 @@ std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
 
 // --- Apologetic Language ---
 std::string GovernanceEngine::checkApologeticLanguage(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_apologetic_language;
+    auto& cfg = rules().code_quality.no_apologetic_language;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -1022,7 +1022,7 @@ std::string GovernanceEngine::checkApologeticLanguage(const std::string& code, i
 
 // --- Dead Code ---
 std::string GovernanceEngine::checkDeadCode(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_dead_code;
+    auto& cfg = rules().code_quality.no_dead_code;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -1063,7 +1063,7 @@ static const std::vector<std::string> DEFAULT_DEBUG_PATTERNS = {
 
 std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
                                                    const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_debug_artifacts;
+    auto& cfg = rules().code_quality.no_debug_artifacts;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -1104,7 +1104,7 @@ static const std::vector<std::string> DEFAULT_DESER_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkUnsafeDeserialization(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_unsafe_deserialization;
+    auto& cfg = rules().code_quality.no_unsafe_deserialization;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_DESER_PATTERNS : cfg.patterns;
@@ -1131,7 +1131,7 @@ static const std::vector<std::string> DEFAULT_SQL_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkSqlInjection(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_sql_injection;
+    auto& cfg = rules().code_quality.no_sql_injection;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_SQL_PATTERNS : cfg.patterns;
@@ -1158,7 +1158,7 @@ static const std::vector<std::string> DEFAULT_PATH_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkPathTraversal(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_path_traversal;
+    auto& cfg = rules().code_quality.no_path_traversal;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_PATH_PATTERNS : cfg.patterns;
@@ -1181,7 +1181,7 @@ std::string GovernanceEngine::checkPathTraversal(const std::string& code, int li
 
 // --- Hardcoded URLs ---
 std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_hardcoded_urls;
+    auto& cfg = rules().code_quality.no_hardcoded_urls;
     if (!cfg.enabled) return "";
     clearTrace();
     try {
@@ -1207,7 +1207,7 @@ std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int li
 
 // --- Hardcoded IPs ---
 std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_hardcoded_ips;
+    auto& cfg = rules().code_quality.no_hardcoded_ips;
     if (!cfg.enabled) return "";
     clearTrace();
     try {
@@ -1233,7 +1233,7 @@ std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int lin
 
 // --- Encoding ---
 std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.encoding;
+    auto& cfg = rules().code_quality.encoding;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -1279,7 +1279,7 @@ std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
 
 // --- Complexity ---
 std::string GovernanceEngine::checkComplexity(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.max_complexity;
+    auto& cfg = rules().code_quality.max_complexity;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -1438,7 +1438,7 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkOversimplification(const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_oversimplification;
+    auto& cfg = rules().code_quality.no_oversimplification;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_OVERSIMPLIFICATION_PATTERNS : cfg.patterns;
@@ -1587,7 +1587,7 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
 };
 
 std::string GovernanceEngine::checkEmptyMain(const std::string& source) {
-    auto& cfg = rules_.code_quality.no_incomplete_logic;
+    auto& cfg = rules().code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -2184,7 +2184,7 @@ std::string GovernanceEngine::checkIntentValidation(
     const std::string& function_name, const std::string& llm_intent,
     const std::string& body, int line) {
 
-    auto& cfg = rules_.code_quality.intent_validation;
+    auto& cfg = rules().code_quality.intent_validation;
     if (!cfg.enabled) return "";
     clearTrace();
     if (cfg.mode == "agent") {
@@ -2636,7 +2636,7 @@ std::string GovernanceEngine::checkIntentValidation(
 }
 
 std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line, const std::string& source_file) {
-    auto& cfg = rules_.code_quality.no_incomplete_logic;
+    auto& cfg = rules().code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
     clearTrace();
     auto& pats = cfg.patterns.empty() ? DEFAULT_INCOMPLETE_LOGIC_PATTERNS : cfg.patterns;
@@ -2708,12 +2708,12 @@ std::string GovernanceEngine::checkFunctionContract(
     setCheckContext(source_file, line);
 
     clearTrace();
-    auto it = rules_.contracts.functions.find(func_name);
-    if (it == rules_.contracts.functions.end()) return "";
+    auto it = rules().contracts.functions.find(func_name);
+    if (it == rules().contracts.functions.end()) return "";
 
     const auto& contract = it->second;
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
     addTrace(fmt::format("contract found for '{}' in govern.json", func_name));
 
     auto make_err = [&](const std::string& detail) -> std::string {
@@ -2963,10 +2963,10 @@ std::string GovernanceEngine::checkFunctionInputContract(
     const std::vector<std::string>& arg_types,
     int line) {
 
-    if (!rules_.contracts.validate_inputs) return "";
+    if (!rules().contracts.validate_inputs) return "";
 
-    auto it = rules_.contracts.functions.find(func_name);
-    if (it == rules_.contracts.functions.end()) return "";
+    auto it = rules().contracts.functions.find(func_name);
+    if (it == rules().contracts.functions.end()) return "";
 
     const auto& contract = it->second;
     if (contract.params.empty()) return "";
@@ -2979,7 +2979,7 @@ std::string GovernanceEngine::checkFunctionInputContract(
         if (line > 0) msg += " (line " + std::to_string(line) + ")";
 
         EnforcementLevel lvl = (contract.level != EnforcementLevel::NONE)
-            ? contract.level : rules_.contracts.level;
+            ? contract.level : rules().contracts.level;
         if (lvl == EnforcementLevel::HARD || (lvl == EnforcementLevel::SOFT && !override_enabled_)) {
             return msg;
         }
@@ -3006,7 +3006,7 @@ std::string GovernanceEngine::checkFunctionInputContract(
             if (line > 0) msg += " (line " + std::to_string(line) + ")";
 
             EnforcementLevel lvl = (contract.level != EnforcementLevel::NONE)
-                ? contract.level : rules_.contracts.level;
+                ? contract.level : rules().contracts.level;
             if (lvl == EnforcementLevel::HARD || (lvl == EnforcementLevel::SOFT && !override_enabled_)) {
                 return msg;
             }
@@ -3027,7 +3027,7 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
     const std::string& body,
     int line) {
 
-    auto& cfg = rules_.code_quality.no_incomplete_logic;
+    auto& cfg = rules().code_quality.no_incomplete_logic;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -3141,7 +3141,7 @@ std::string GovernanceEngine::checkComplexityFloor(
     const std::string& function_name,
     int line) {
 
-    auto& cfg = rules_.code_quality.complexity_floor;
+    auto& cfg = rules().code_quality.complexity_floor;
     clearTrace();
 
     // B2: Skip floor for short functions (can't meaningfully reach high scores)
@@ -3311,14 +3311,14 @@ std::string GovernanceEngine::checkFunctionBehavioralContract(
     int line,
     int param_count) {
 
-    auto it = rules_.contracts.functions.find(func_name);
-    if (it == rules_.contracts.functions.end()) return "";
+    auto it = rules().contracts.functions.find(func_name);
+    if (it == rules().contracts.functions.end()) return "";
 
     const auto& contract = it->second;
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
 
     // naab-29 L-08: Arity check
     if (param_count >= 0) {
@@ -3613,7 +3613,7 @@ std::string GovernanceEngine::checkMustProduce(
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
 
     for (size_t i = 0; i < contract.must_produce.size(); ++i) {
         const auto& tc = contract.must_produce[i];
@@ -3692,7 +3692,7 @@ std::string GovernanceEngine::checkMustVary(
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
 
     for (size_t i = 0; i < contract.must_vary.size(); ++i) {
         const auto& spec = contract.must_vary[i];
@@ -3795,7 +3795,7 @@ std::string GovernanceEngine::checkMustDifferentiate(
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
 
     for (size_t i = 0; i < contract.must_differentiate.size(); ++i) {
         const auto& dc = contract.must_differentiate[i];
@@ -3868,7 +3868,7 @@ std::string GovernanceEngine::checkMustHandleCase(
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
 
     for (size_t i = 0; i < contract.must_handle_case.size(); ++i) {
         const auto& spec = contract.must_handle_case[i];
@@ -3943,7 +3943,7 @@ std::string GovernanceEngine::checkMustSatisfy(
 
     clearTrace();
     EnforcementLevel level = contract.level != EnforcementLevel::NONE
-        ? contract.level : rules_.contracts.level;
+        ? contract.level : rules().contracts.level;
 
     // must_satisfy needs test inputs. Priority: must_satisfy_args > must_produce args > no args.
     // must_satisfy_args entries are {"args": [...]} objects — unwrap the args array.
@@ -4080,7 +4080,7 @@ std::string GovernanceEngine::runExecutionContracts() {
     if (!isActive()) return "";
     if (in_contract_test_) return "";  // Re-entrancy guard
 
-    for (const auto& [func_name, contract] : rules_.contracts.functions) {
+    for (const auto& [func_name, contract] : rules().contracts.functions) {
         if (!contract.must_produce.empty()) {
             std::string err = checkMustProduce(func_name, contract, 0);
             if (!err.empty()) return err;
@@ -4117,15 +4117,15 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     setCheckContext(source_file, line);
 
-    auto& os_cfg = rules_.code_quality.no_oversimplification;
-    auto& il_cfg = rules_.code_quality.no_incomplete_logic;
-    auto& ph_cfg = rules_.code_quality.no_placeholders;
+    auto& os_cfg = rules().code_quality.no_oversimplification;
+    auto& il_cfg = rules().code_quality.no_incomplete_logic;
+    auto& ph_cfg = rules().code_quality.no_placeholders;
 
     // Skip if all checks disabled (but still allow complexity_floor, secrets, PII, and plugins if enabled)
-    auto& cf_cfg_early = rules_.code_quality.complexity_floor;
-    bool has_plugins = !rules_.governance_plugins.empty();
-    bool has_secrets = rules_.code_quality.no_secrets.enabled;
-    bool has_pii = rules_.code_quality.no_pii.enabled;
+    auto& cf_cfg_early = rules().code_quality.complexity_floor;
+    bool has_plugins = !rules().governance_plugins.empty();
+    bool has_secrets = rules().code_quality.no_secrets.enabled;
+    bool has_pii = rules().code_quality.no_pii.enabled;
     if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled && !has_plugins && !has_secrets && !has_pii) return "";
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
@@ -4156,17 +4156,17 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     }
 
     // Secrets/PII checks — use RAW source (secrets CAN be in string literals)
-    if (rules_.code_quality.no_secrets.enabled) {
+    if (rules().code_quality.no_secrets.enabled) {
         err = checkSecrets(source_code, line);
         if (!err.empty()) return err;
     }
-    if (rules_.code_quality.no_pii.enabled) {
+    if (rules().code_quality.no_pii.enabled) {
         err = checkPii(source_code, line);
         if (!err.empty()) return err;
     }
 
     // Complexity floor check for NAAb functions
-    auto& cf_cfg = rules_.code_quality.complexity_floor;
+    auto& cf_cfg = rules().code_quality.complexity_floor;
     if (cf_cfg.enabled && cf_cfg.check_naab) {
         // Skip if function contains polyglot blocks and skip_if_has_polyglot_block is set
         bool has_polyglot = source_code.find("<<") != std::string::npos;
@@ -4182,7 +4182,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
 
     // FIX-DX-6: Detect duplicate function calls — deferred to grouped output
     {
-        auto& dc_cfg = rules_.code_quality.duplicate_calls;
+        auto& dc_cfg = rules().code_quality.duplicate_calls;
         if (dc_cfg.enabled) {
             std::unordered_map<std::string, int> call_counts;
             size_t ci = 0;
@@ -4217,7 +4217,7 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     // FIX-DX-7: Polyglot blocks without try/catch — deferred to grouped output
     // Keep il_cfg.enabled check for backward compatibility
     {
-        auto& ptc_cfg = rules_.code_quality.polyglot_try_catch;
+        auto& ptc_cfg = rules().code_quality.polyglot_try_catch;
         if (il_cfg.enabled && ptc_cfg.enabled) {
             bool has_polyglot_block = source_code.find("<<") != std::string::npos;
             bool has_try_block = source_code.find("try") != std::string::npos;
@@ -4479,7 +4479,7 @@ static std::string stripComments(const std::string& code, const std::string& lan
 
 std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                                                      const std::string& code, int line) {
-    auto& cfg = rules_.code_quality.no_hallucinated_apis;
+    auto& cfg = rules().code_quality.no_hallucinated_apis;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -4870,7 +4870,7 @@ static const std::vector<SemanticCheck> NIM_SAFETY_CHECKS = {
 std::string GovernanceEngine::checkSemanticIssues(
     const std::string& language, const std::string& code, int line) {
 
-    auto& cfg = rules_.code_quality.semantic_checks;
+    auto& cfg = rules().code_quality.semantic_checks;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -5151,7 +5151,7 @@ std::string GovernanceEngine::checkSemanticIssues(
 
 // --- Security: Shell Injection ---
 std::string GovernanceEngine::checkShellInjection(const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.shell_injection;
+    auto& cfg = rules().restrictions.shell_injection;
     if (!cfg.enabled) return "";
     clearTrace();
     static const std::vector<std::string> default_patterns = {
@@ -5196,7 +5196,7 @@ std::string GovernanceEngine::checkShellInjection(const std::string& code, int l
 // --- Security: Code Injection ---
 std::string GovernanceEngine::checkCodeInjection(const std::string& language,
                                                   const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.code_injection;
+    auto& cfg = rules().restrictions.code_injection;
     if (!cfg.enabled) return "";
     clearTrace();
     std::vector<std::string> pats;
@@ -5251,7 +5251,7 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
 
 // --- Security: Privilege Escalation ---
 std::string GovernanceEngine::checkPrivilegeEscalation(const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.privilege_escalation;
+    auto& cfg = rules().restrictions.privilege_escalation;
     if (!cfg.enabled) return "";
     clearTrace();
     std::vector<std::string> pats;
@@ -5275,7 +5275,7 @@ std::string GovernanceEngine::checkPrivilegeEscalation(const std::string& code, 
 
 // --- Security: Data Exfiltration ---
 std::string GovernanceEngine::checkDataExfiltration(const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.data_exfiltration;
+    auto& cfg = rules().restrictions.data_exfiltration;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -5345,7 +5345,7 @@ std::string GovernanceEngine::checkDataExfiltration(const std::string& code, int
 
 // --- Security: Resource Abuse ---
 std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.resource_abuse;
+    auto& cfg = rules().restrictions.resource_abuse;
     if (!cfg.enabled) return "";
     clearTrace();
     std::vector<std::string> pats;
@@ -5368,7 +5368,7 @@ std::string GovernanceEngine::checkResourceAbuse(const std::string& code, int li
 // --- Security: Info Disclosure ---
 std::string GovernanceEngine::checkInfoDisclosure(const std::string& language,
                                                    const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.information_disclosure;
+    auto& cfg = rules().restrictions.information_disclosure;
     if (!cfg.enabled) return "";
     clearTrace();
     std::vector<std::string> pats;
@@ -5399,7 +5399,7 @@ std::string GovernanceEngine::checkInfoDisclosure(const std::string& language,
 
 // --- Security: Crypto Weakness ---
 std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.crypto;
+    auto& cfg = rules().restrictions.crypto;
     if (!cfg.enabled) return "";
     clearTrace();
     std::vector<std::string> pats;
@@ -5437,7 +5437,7 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int l
 //
 // 3/4 signals = ADVISORY, 4/4 = configured level (default SOFT)
 std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.vcs_secret_extraction;
+    auto& cfg = rules().restrictions.vcs_secret_extraction;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -5560,7 +5560,7 @@ std::string GovernanceEngine::checkVcsSecretExtraction(const std::string& code, 
 std::string GovernanceEngine::checkObfuscationSignals(
     const std::string& language, const std::string& raw_code,
     const std::string& stripped_code, int line) {
-    auto& cfg = rules_.restrictions.obfuscation;
+    auto& cfg = rules().restrictions.obfuscation;
     if (!cfg.enabled) return "";
     clearTrace();
 
@@ -5757,11 +5757,11 @@ std::string GovernanceEngine::checkObfuscationSignals(
 // --- Per-Language: Imports ---
 std::string GovernanceEngine::checkImports(const std::string& language,
                                             const std::string& code, int line) {
-    auto& cfg = rules_.restrictions.imports;
+    auto& cfg = rules().restrictions.imports;
 
     // Check per-language config even if restrictions.imports is not enabled
-    auto it = rules_.languages.per_language.find(language);
-    bool has_per_lang = (it != rules_.languages.per_language.end() &&
+    auto it = rules().languages.per_language.find(language);
+    bool has_per_lang = (it != rules().languages.per_language.end() &&
                          (!it->second.imports.blocked.empty() || !it->second.banned_imports.empty()));
     if (!cfg.enabled && !has_per_lang) return "";
     clearTrace();
@@ -5777,7 +5777,7 @@ std::string GovernanceEngine::checkImports(const std::string& language,
     }
 
     // Also check per-language config
-    if (it != rules_.languages.per_language.end()) {
+    if (it != rules().languages.per_language.end()) {
         auto& lc = it->second;
         for (const auto& b : lc.imports.blocked) blocked.push_back(b);
         for (const auto& b : lc.banned_imports) blocked.push_back(b);
@@ -5829,8 +5829,8 @@ std::string GovernanceEngine::checkImports(const std::string& language,
 // --- Per-Language: Banned Functions ---
 std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
                                                     const std::string& code, int line) {
-    auto it = rules_.languages.per_language.find(language);
-    if (it == rules_.languages.per_language.end()) return "";
+    auto it = rules().languages.per_language.find(language);
+    if (it == rules().languages.per_language.end()) return "";
     auto& lc = it->second;
     if (lc.banned_functions.empty()) return "";
     clearTrace();
@@ -5879,8 +5879,8 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
 // --- Per-Language: Style Rules ---
 std::string GovernanceEngine::checkLanguageStyle(const std::string& language,
                                                   const std::string& code, int line) {
-    auto it = rules_.languages.per_language.find(language);
-    if (it == rules_.languages.per_language.end()) return "";
+    auto it = rules().languages.per_language.find(language);
+    if (it == rules().languages.per_language.end()) return "";
     auto& lc = it->second;
     clearTrace();
 
@@ -5918,8 +5918,8 @@ std::string GovernanceEngine::checkLanguageStyle(const std::string& language,
 // --- Per-Language: Code Size ---
 std::string GovernanceEngine::checkCodeSize(const std::string& language,
                                              const std::string& code, int line) {
-    auto it = rules_.languages.per_language.find(language);
-    if (it == rules_.languages.per_language.end()) return "";
+    auto it = rules().languages.per_language.find(language);
+    if (it == rules().languages.per_language.end()) return "";
     auto& lc = it->second;
     clearTrace();
 
@@ -5942,7 +5942,7 @@ std::string GovernanceEngine::checkCodeSize(const std::string& language,
 std::string GovernanceEngine::checkCustomRules(const std::string& language,
                                                 const std::string& code, int line) {
     clearTrace();
-    for (const auto& rule : rules_.custom_rules) {
+    for (const auto& rule : rules().custom_rules) {
         if (!rule.enabled || !rule.pattern_valid) continue;
         if (!rule.languages.empty()) {
             bool matches = false;
@@ -5968,7 +5968,7 @@ std::string GovernanceEngine::checkCustomRules(const std::string& language,
 // --- Resource Limits ---
 std::string GovernanceEngine::checkLoopIterations(size_t count) {
     clearTrace();
-    int max = rules_.limits.execution.loop_iterations;
+    int max = rules().limits.execution.loop_iterations;
     if (max > 0 && static_cast<int>(count) > max) {
         return enforce("limits.execution.loop_iterations", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
@@ -5984,7 +5984,7 @@ std::string GovernanceEngine::checkLoopIterations(size_t count) {
 
 std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
     clearTrace();
-    int max = rules_.limits.execution.polyglot_blocks;
+    int max = rules().limits.execution.polyglot_blocks;
     if (max > 0 && static_cast<int>(count) > max) {
         return enforce("limits.execution.polyglot_blocks", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
@@ -6003,7 +6003,7 @@ std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
 
 std::string GovernanceEngine::checkStringLength(size_t length) {
     clearTrace();
-    int max = rules_.limits.data.string_length;
+    int max = rules().limits.data.string_length;
     if (max > 0 && static_cast<int>(length) > max) {
         return enforce("limits.data.string_length", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
@@ -6017,7 +6017,7 @@ std::string GovernanceEngine::checkStringLength(size_t length) {
 
 std::string GovernanceEngine::checkNestingDepth(size_t depth) {
     clearTrace();
-    int max = rules_.limits.data.nesting_depth;
+    int max = rules().limits.data.nesting_depth;
     if (max > 0 && static_cast<int>(depth) > max) {
         return enforce("limits.data.nesting_depth", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
@@ -6031,7 +6031,7 @@ std::string GovernanceEngine::checkNestingDepth(size_t depth) {
 
 std::string GovernanceEngine::checkOutputSize(size_t size) {
     clearTrace();
-    int max = rules_.limits.data.output_size;
+    int max = rules().limits.data.output_size;
     if (max > 0 && static_cast<int>(size) > max) {
         return enforce("limits.data.output_size", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
@@ -6045,7 +6045,7 @@ std::string GovernanceEngine::checkOutputSize(size_t size) {
 
 std::string GovernanceEngine::checkDictSize(size_t size) {
     clearTrace();
-    int max = rules_.limits.data.dict_size;
+    int max = rules().limits.data.dict_size;
     if (max > 0 && static_cast<int>(size) > max) {
         return enforce("limits.data.dict_size", EnforcementLevel::HARD,
             formatError(EnforcementLevel::HARD,
@@ -6059,50 +6059,50 @@ std::string GovernanceEngine::checkDictSize(size_t size) {
 
 // --- Rate Limiting ---
 bool GovernanceEngine::checkPolyglotRate() {
-    polyglot_rate_.max_per_second = rules_.limits.rate.max_polyglot_per_second;
+    polyglot_rate_.max_per_second = rules().limits.rate.max_polyglot_per_second;
     return polyglot_rate_.check();
 }
 
 bool GovernanceEngine::checkStdlibRate() {
-    stdlib_rate_.max_per_second = rules_.limits.rate.max_stdlib_calls_per_second;
+    stdlib_rate_.max_per_second = rules().limits.rate.max_stdlib_calls_per_second;
     return stdlib_rate_.check();
 }
 
 bool GovernanceEngine::checkFileOpsRate() {
-    file_ops_rate_.max_per_second = rules_.limits.rate.max_file_ops_per_second;
+    file_ops_rate_.max_per_second = rules().limits.rate.max_file_ops_per_second;
     return file_ops_rate_.check();
 }
 
 // --- Per-Language Getters ---
 int GovernanceEngine::getTimeoutForLanguage(const std::string& lang) const {
-    auto it = rules_.languages.per_language.find(lang);
-    if (it != rules_.languages.per_language.end() && it->second.timeout > 0)
+    auto it = rules().languages.per_language.find(lang);
+    if (it != rules().languages.per_language.end() && it->second.timeout > 0)
         return it->second.timeout;
-    if (rules_.limits.timeout.per_block > 0) return rules_.limits.timeout.per_block;
-    return rules_.timeout_seconds;
+    if (rules().limits.timeout.per_block > 0) return rules().limits.timeout.per_block;
+    return rules().timeout_seconds;
 }
 
 int GovernanceEngine::getMaxLinesForLanguage(const std::string& lang) const {
     // FIX 18: Normalize language alias before lookup
     std::string normalized = normalizeLanguage(lang);
-    auto it = rules_.languages.per_language.find(normalized);
-    if (it != rules_.languages.per_language.end() && it->second.max_lines > 0)
+    auto it = rules().languages.per_language.find(normalized);
+    if (it != rules().languages.per_language.end() && it->second.max_lines > 0)
         return it->second.max_lines;
-    return rules_.limits.code.max_lines_per_block;
+    return rules().limits.code.max_lines_per_block;
 }
 
 const LanguageConfig* GovernanceEngine::getLanguageConfig(const std::string& lang) const {
     // FIX 18: Normalize language alias before lookup
     std::string normalized = normalizeLanguage(lang);
-    auto it = rules_.languages.per_language.find(normalized);
-    if (it != rules_.languages.per_language.end()) return &it->second;
+    auto it = rules().languages.per_language.find(normalized);
+    if (it != rules().languages.per_language.end()) return &it->second;
     return nullptr;
 }
 
 // --- Comprehensive Polyglot Block Check ---
 std::string GovernanceEngine::checkVariableBinding(size_t binding_count, int line) {
     clearTrace();
-    if (!rules_.polyglot.variable_binding.require_explicit) return "";
+    if (!rules().polyglot.variable_binding.require_explicit) return "";
     if (binding_count > 0) return "";  // Has bindings, OK
 
     std::string msg = "[governance] Polyglot block at line " + std::to_string(line) +
@@ -6111,7 +6111,7 @@ std::string GovernanceEngine::checkVariableBinding(size_t binding_count, int lin
         "  Fix: Add variable bindings: <<python[var1, var2] ... >>\n";
 
     return enforce("polyglot.variable_binding.require_explicit",
-                   rules_.polyglot.variable_binding.require_explicit_level, msg);
+                   rules().polyglot.variable_binding.require_explicit_level, msg);
 }
 
 std::string GovernanceEngine::checkPolyglotBlock(
@@ -6178,7 +6178,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
         if (!err.empty()) return err;
 
         // naab-29 C-05: Enforce blocked_commands against shell code
-        for (const auto& blocked : rules_.capabilities.shell.blocked_commands) {
+        for (const auto& blocked : rules().capabilities.shell.blocked_commands) {
             if (stripped.find(blocked) != std::string::npos) {
                 err = enforce("capabilities.shell.blocked_commands", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
@@ -6438,10 +6438,10 @@ void GovernanceEngine::markTainted(const std::string& var_name,
                                     const std::string& origin_arg,
                                     const std::string& file,
                                     int line) {
-    if (!rules_.taint_tracking.enabled) return;
+    if (!rules().taint_tracking.enabled) return;
     std::lock_guard<std::mutex> lock(taint_mutex_);
     taint_set_.insert(var_name);
-    if (rules_.taint_tracking.lineage && !origin_func.empty()) {
+    if (rules().taint_tracking.lineage && !origin_func.empty()) {
         taint_lineage_[var_name] = {origin_func, origin_arg, file, line,
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count()};
@@ -6518,8 +6518,8 @@ void GovernanceEngine::setLastReturnTainted(bool v, const std::string& source_fu
 }
 
 bool GovernanceEngine::isTaintSource(const std::string& func_name) const {
-    if (!rules_.taint_tracking.enabled) return false;
-    for (const auto& src : rules_.taint_tracking.sources) {
+    if (!rules().taint_tracking.enabled) return false;
+    for (const auto& src : rules().taint_tracking.sources) {
         // FIX-DX-1: PREFIX match (not substring) to avoid false positives
         // e.g., "env.get" matches "env.get_var" but NOT "prevent.get"
         if (func_name.size() >= src.size() &&
@@ -6541,8 +6541,8 @@ bool GovernanceEngine::isTaintSource(const std::string& func_name) const {
 }
 
 bool GovernanceEngine::isSanitizer(const std::string& func_name) const {
-    if (!rules_.taint_tracking.enabled) return false;
-    for (const auto& san : rules_.taint_tracking.sanitizers) {
+    if (!rules().taint_tracking.enabled) return false;
+    for (const auto& san : rules().taint_tracking.sanitizers) {
         // FIX-DX-1: PREFIX match (not substring) to avoid false positives
         // e.g., "validate_" matches "validate_input" but NOT "revalidate_input"
         // e.g., "int(" matches "int(x)" but NOT "print(x)" or "hint(x)"
@@ -6563,14 +6563,14 @@ bool GovernanceEngine::isSanitizer(const std::string& func_name) const {
 std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
                                                 const std::string& sink_type,
                                                 const std::string& file, int line) {
-    if (!rules_.taint_tracking.enabled) return "";
+    if (!rules().taint_tracking.enabled) return "";
     clearTrace();
     {
         std::lock_guard<std::mutex> lock(taint_mutex_);
         if (taint_set_.count(var_name) == 0) return "";
         addTrace(fmt::format("variable '{}' is tainted", var_name));
         // Lineage: include origin info in trace if available (same lock scope)
-        if (rules_.taint_tracking.lineage) {
+        if (rules().taint_tracking.lineage) {
             auto lit = taint_lineage_.find(var_name);
             if (lit != taint_lineage_.end()) {
                 const auto& meta = lit->second;
@@ -6586,7 +6586,7 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     std::string effective_sink = sink_type;
     if (sink_type == "file.append") effective_sink = "file.write";
     bool is_sink = false;
-    for (const auto& s : rules_.taint_tracking.sinks) {
+    for (const auto& s : rules().taint_tracking.sinks) {
         if (effective_sink.size() >= s.size() &&
             effective_sink.compare(0, s.size(), s) == 0) { is_sink = true; break; }
         // Also check the original sink_type for exact/prefix match
@@ -6604,7 +6604,7 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     logTaintDecision(var_name, "BLOCKED", sink_type, file, line);
 
     // Emit BSD event for behavioral sequence detection
-    if (rules_.behavioral_sequences.enabled) {
+    if (rules().behavioral_sequences.enabled) {
         emitEvent(RuntimeEventType::TAINT_VIOLATION,
             var_name + " → " + sink_type, file, line);
     }
@@ -6629,8 +6629,8 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
 
     // Determine enforcement level from config
     EnforcementLevel taint_level = EnforcementLevel::HARD;
-    if (rules_.taint_tracking.level == "soft") taint_level = EnforcementLevel::SOFT;
-    else if (rules_.taint_tracking.level == "advisory") taint_level = EnforcementLevel::ADVISORY;
+    if (rules().taint_tracking.level == "soft") taint_level = EnforcementLevel::SOFT;
+    else if (rules().taint_tracking.level == "advisory") taint_level = EnforcementLevel::ADVISORY;
 
     // Record via enforce() so it appears in reports and audit trail
     std::string result = enforce("taint_tracking.sink_violation", taint_level, msg);
@@ -6639,7 +6639,7 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
 
 // FIX-DX-8: Validate scope patterns against actual function names
 void GovernanceEngine::validateScopePatterns(const std::vector<std::string>& function_names) {
-    for (const auto& scope : rules_.scopes) {
+    for (const auto& scope : rules().scopes) {
         if (scope.glob_pattern.empty()) continue;
         bool any_match = false;
         for (const auto& fn : function_names) {
