@@ -1016,6 +1016,7 @@
       "network_allowed": true,
       "allowed_actions": [],
       "risk_budget": 0,
+      "standing_lease_turns": 0,
       "retry": {
         "max_attempts": 1,
         "backoff_ms": 1000,
@@ -1046,6 +1047,7 @@
       "network_allowed": true,
       "allowed_actions": [],
       "risk_budget": 0,
+      "standing_lease_turns": 0,
       "retry": {
         "max_attempts": 3,
         "backoff_ms": 1000,
@@ -1842,6 +1844,14 @@
     "step_up_cooldown_turns": 3,
     "step_up_keyword_threshold": 0.3,
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
+  },
+
+  "_comment_advisory_escalation": "Advisory Escalation — repeated advisory findings harden over time. 1st occurrence: warn. 2nd+: increase scoring weight by multiplier. N-th (soft_after): escalate to SOFT block. OSHA violation escalation analog: informal warning → formal → citation.",
+  "advisory_escalation": {
+    "enabled": false,
+    "soft_after": 3,
+    "weight_multiplier": 1.5,
+    "rationale": "Repeated advisories harden — persistent issues must be addressed"
   },
 
   "_comment_governance_health": "Governance Health Monitoring — verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Nuclear safety system exercising analog.",

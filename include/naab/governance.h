@@ -1336,6 +1336,16 @@ struct CircuitBreakerConfig {
     double step_up_keyword_threshold = 0.3; // min fraction of system_prompt keywords in response
 };
 
+// Advisory Escalation — repeated advisories harden over time
+// 1st occurrence: ADVISORY (warn). 2nd: increased weight. 3rd+: escalate to SOFT (block)
+// Mirrors OSHA violation escalation: first informal warning, then formal, then citation.
+struct AdvisoryEscalationConfig {
+    bool enabled = false;
+    std::string rationale;
+    int soft_after = 3;                   // escalate to SOFT after N occurrences of same rule
+    double weight_multiplier = 1.5;       // multiply scoring weight on 2nd+ occurrence
+};
+
 // F4: Governance Health — verify governance instrumentation is operational
 struct GovernanceHealthConfig {
     bool enabled = false;
@@ -1758,6 +1768,11 @@ struct AgentConfig {
         int delay_between_calls_ms = 0; // forced inter-call delay
     };
     RateLimitConfig rate_limit;
+
+    // Standing Lease — TTL on agent authorization (Kerberos TGT / OAuth access token analog)
+    // After N turns, standing expires. Agent must re-authorize via step-up challenge.
+    // 0 = no lease (unlimited standing). Requires step_up_enabled in circuit_breaker.
+    int standing_lease_turns = 0;
 };
 
 // ============================================================================
@@ -1827,6 +1842,7 @@ struct GovernanceRules {
     PipelineSeparationConfig pipeline_separation;
     GovernanceHealthConfig governance_health;
     CircuitBreakerConfig circuit_breaker;
+    AdvisoryEscalationConfig advisory_escalation;
     TemporalCouplingConfig temporal_coupling;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
@@ -2530,6 +2546,7 @@ public:
     PulseVerdict computePulseVerdict(int turn);     // compute and update pulse health
     PulseVerdict getPulseVerdict() const;            // read current pulse verdict
     GovernancePulse getPulse() const;                // full pulse struct for dashboard/stdlib
+    int getGovernanceEpoch() const;                   // monotonic evidence epoch counter
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
     std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
@@ -2660,7 +2677,7 @@ private:
     std::string active_env_;            // Set by applyEnvironment()
     std::string current_check_file_;    // Set by setCheckContext() for report tracking
     int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
-    std::unordered_set<std::string> emitted_advisories_;  // Dedup advisory warnings
+    std::unordered_map<std::string, int> emitted_advisories_;  // Advisory occurrence counts (escalation)
     bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
     std::unordered_set<std::string> taint_set_;
     std::unordered_map<std::string, TaintMetadata> taint_lineage_;
@@ -2746,6 +2763,10 @@ private:
     static constexpr int SCORE_SATURATION_LIMIT = 100000;
     int cumulative_score_ = 0;
     std::unordered_map<std::string, int> score_contributions_;
+
+    // Evidence Epoch — monotonic counter incremented on state transitions
+    // Prior-epoch evidence is discounted (database MVCC / court jurisdiction analog)
+    int governance_epoch_ = 0;
     bool score_yellow_warned_ = false;
 
     // Ed25519 signature warning dedup (per engine instance, not static)

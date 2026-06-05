@@ -85,6 +85,9 @@ struct AgentTracker {
     int tool_calls_total = 0;      // cumulative tool invocations across all sends
     int tool_calls_blocked = 0;    // cumulative blocked tool calls
     int64_t tool_total_latency_ms = 0; // cumulative tool execution time
+    // Standing Lease — TTL on agent authorization (Kerberos TGT / OAuth access token analog)
+    int lease_granted_turn = 0;    // turn when lease was last granted/renewed
+    int lease_expires_turn = 0;    // turn after which agent must re-authorize (0 = no lease)
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -339,6 +342,11 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             }
             state["challenges_passed"] = NaabVal::makeInt(t.challenges_passed);
             state["challenges_failed"] = NaabVal::makeInt(t.challenges_failed);
+            // Standing Lease: remaining turns before re-authorization required
+            if (t.lease_expires_turn > 0) {
+                state["lease_remaining"] = NaabVal::makeInt(
+                    std::max(0, t.lease_expires_turn - t.turns));
+            }
             // Tool execution state
             if (t.tool_calls_total > 0 || (config && config->tools_enabled)) {
                 state["tool_calls_total"] = NaabVal::makeInt(t.tool_calls_total);
@@ -414,6 +422,9 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         if (pulse_verdict == governance::PulseVerdict::DEGRADED) pulse_str = "degraded";
         else if (pulse_verdict == governance::PulseVerdict::IMPAIRED) pulse_str = "impaired";
         state["governance_health"] = NaabVal::makeString(pulse_str);
+
+        // Evidence epoch — monotonic counter for evidence freshness
+        state["governance_epoch"] = NaabVal::makeInt(ge->getGovernanceEpoch());
     }
 
     // Upstream provenance (pipeline stages only — trust calibration for input)
@@ -646,6 +657,11 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         nonce = security::CryptoUtils::hmacSha256(nonce_input, s_process_secret);
         auto& tracker = s_trackers[handle_id];
         tracker.nonce = nonce;
+        // Standing Lease: grant initial lease if configured
+        if (config->standing_lease_turns > 0) {
+            tracker.lease_granted_turn = 0;
+            tracker.lease_expires_turn = config->standing_lease_turns;
+        }
     }
 
     std::unordered_map<std::string, NaabVal> handle;
@@ -727,6 +743,27 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  - Create a new agent handle for a fresh conversation\n"
                 "  - Or increase max_turns in govern.json agents config\n",
                 config->max_turns, tracker.turns, config->max_turns));
+        }
+
+        // Standing Lease: check if authorization has expired
+        if (tracker.lease_expires_turn > 0 && tracker.turns >= tracker.lease_expires_turn) {
+            // Lease expired — agent must re-authorize via step-up challenge
+            // The step-up challenge below will handle re-authorization if enabled.
+            // If step-up is not enabled, we throw — the agent cannot continue.
+            auto* gov_engine = governance::GovernanceEngine::getCurrent();
+            const auto& cb_cfg = gov_engine ? gov_engine->getRules().circuit_breaker
+                                             : governance::CircuitBreakerConfig{};
+            if (!cb_cfg.step_up_enabled) {
+                throw std::runtime_error(fmt::format(
+                    "Agent error: Standing lease expired at turn {}\n\n"
+                    "  Got: {} turns used, lease granted for {} turns\n\n"
+                    "  Help:\n"
+                    "  - Create a new agent handle for a fresh conversation\n"
+                    "  - Or enable step_up challenges to allow lease renewal\n",
+                    tracker.lease_expires_turn, tracker.turns,
+                    config->standing_lease_turns));
+            }
+            // Mark that a forced step-up is needed (handled below in step-up section)
         }
 
         // Enforce token budget from tracker (not handle dict)
@@ -874,20 +911,30 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // ── Step-up challenge: at elevated governance, verify agent coherence ──
+    // ── Step-up challenge: at elevated governance or expired lease ──
     if (gov_engine && gov_engine->isActive()) {
         const auto& cb = gov_engine->getRules().circuit_breaker;
         if (cb.step_up_enabled) {
             auto level = gov_engine->getGovernanceLevel();
             int required_level = (cb.step_up_at_level == "high") ? 2 : 1;
-            if (static_cast<int>(level) >= required_level) {
+            // Standing Lease: force step-up when lease expired (regardless of gov level)
+            bool lease_expired = false;
+            {
+                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                auto it = s_trackers.find(handle_id);
+                if (it != s_trackers.end() && it->second.lease_expires_turn > 0) {
+                    lease_expired = (it->second.turns >= it->second.lease_expires_turn);
+                }
+            }
+            if (static_cast<int>(level) >= required_level || lease_expired) {
                 // Check cooldown from tracker (server-side, immune to handle mutation)
                 bool should_challenge = false;
                 {
                     std::lock_guard<std::mutex> lock(s_agent_mutex);
                     auto it = s_trackers.find(handle_id);
                     if (it != s_trackers.end()) {
-                        should_challenge = (current_turn - it->second.last_challenge_turn) >= cb.step_up_cooldown_turns;
+                        should_challenge = lease_expired ||  // always challenge on lease expiry
+                            (current_turn - it->second.last_challenge_turn) >= cb.step_up_cooldown_turns;
                     }
                 }
                 if (should_challenge) {
@@ -941,6 +988,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 it->second.last_challenge_turn = current_turn;
                                 if (passed) {
                                     it->second.challenges_passed++;
+                                    // Standing Lease: renew lease on successful challenge
+                                    if (config->standing_lease_turns > 0) {
+                                        it->second.lease_granted_turn = current_turn;
+                                        it->second.lease_expires_turn = current_turn + config->standing_lease_turns;
+                                    }
                                 } else {
                                     it->second.challenges_failed++;
                                 }

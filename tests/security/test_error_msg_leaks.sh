@@ -81,6 +81,14 @@ BANNED_IN_STRINGS=(
     'consecutive_degraded|pulse hysteresis field leaked in error string'
     'advisory_count|pulse counter field leaked in error string'
     'pulse_.bsd_connected|internal pulse state leaked in error string'
+    # Standing Lease internals
+    'lease_granted_turn|standing lease tracker field leaked in error string'
+    'lease_expires_turn|standing lease tracker field leaked in error string'
+    # Advisory Escalation internals
+    'AdvisoryEscalationConfig|advisory escalation config type leaked in error string'
+    'weight_multiplier_|advisory escalation field leaked in error string'
+    # Evidence Epoch internals
+    'governance_epoch_|evidence epoch field leaked in error string'
 )
 
 echo "=== Error Message Leak Check ==="

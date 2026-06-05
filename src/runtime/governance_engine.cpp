@@ -882,6 +882,14 @@ std::string GovernanceEngine::enforce(
                 weight_source = "self_declared reduction";
             }
             weight = std::max(0, weight);
+            // Advisory Escalation: multiply weight on 2nd+ occurrence
+            if (rules_.advisory_escalation.enabled) {
+                int occ = emitted_advisories_[rule_name];  // already incremented above
+                if (occ > 1) {
+                    weight = static_cast<int>(weight * rules_.advisory_escalation.weight_multiplier);
+                    weight_source += " (escalated x" + std::to_string(occ) + ")";
+                }
+            }
             int prev_score = cumulative_score_;
             if (cumulative_score_ <= SCORE_SATURATION_LIMIT - weight) {
                 cumulative_score_ += weight;
@@ -971,12 +979,33 @@ std::string GovernanceEngine::enforce(
         case EnforcementLevel::ADVISORY: {
             // V-CONC-F7: mutex-guard emitted_advisories_ and score_yellow_warned_
             std::lock_guard<std::mutex> adv_lock(results_mutex_);
-            if (emitted_advisories_.insert(rule_name).second) {
-                // Suppress individual warnings for agent_review.* — voice block covers them
+            int& occurrence = emitted_advisories_[rule_name];
+            occurrence++;
+
+            // Advisory Escalation: repeated advisories harden
+            // 1st: warn. 2nd+: increase weight. N-th (soft_after): escalate to SOFT block
+            const auto& esc = rules_.advisory_escalation;
+            if (esc.enabled && occurrence >= esc.soft_after) {
+                // Escalate to SOFT — release lock, recurse with SOFT level
+                // (can't call enforce recursively under same lock — set flag and return)
+                g_governance_hard_block = true;
+                fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
+                    rule_name.c_str(), occurrence, esc.soft_after);
+                return violation_message +
+                    "\n\n  This advisory was escalated after repeated occurrences.\n";
+            }
+
+            if (occurrence == 1) {
+                // First occurrence — standard advisory warning
                 if (rule_name.rfind("agent_review.", 0) != 0) {
                     fprintf(stderr, "[governance] WARNING %s\n", rule_name.c_str());
                 }
+            } else if (esc.enabled) {
+                // 2nd+ occurrence — warn with count
+                fprintf(stderr, "[governance] WARNING %s (occurrence %d/%d)\n",
+                    rule_name.c_str(), occurrence, esc.soft_after);
             }
+
             // Yellow-zone: warn ONCE when score first enters yellow zone
             if (rules_.scoring.enabled && !score_yellow_warned_ &&
                 cumulative_score_ >= rules_.scoring.yellow_threshold) {
@@ -2572,8 +2601,9 @@ void GovernanceEngine::printDashboard() const {
         const char* verdict_str = "HEALTHY";
         if (pulse_.verdict == PulseVerdict::DEGRADED) verdict_str = "DEGRADED";
         else if (pulse_.verdict == PulseVerdict::IMPAIRED) verdict_str = "IMPAIRED";
-        fprintf(stderr, "Pulse:      %s (%d checks, %d consecutive passes)\n",
-                verdict_str, pulse_.total_checks, pulse_.consecutive_passes);
+        fprintf(stderr, "Pulse:      %s (%d checks, %d consecutive passes, epoch %d)\n",
+                verdict_str, pulse_.total_checks, pulse_.consecutive_passes,
+                governance_epoch_);
     }
     fprintf(stderr, "────────────────────────────────\n");
 }
@@ -5788,6 +5818,9 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
 
     if (new_verdict != pulse_.verdict && can_transition) {
         pulse_.last_transition_turn = turn;
+        // Evidence Epoch: state transition invalidates prior-epoch evidence
+        governance_epoch_++;
+        pulse_.consecutive_passes = 0;  // reset on epoch boundary
     }
 
     pulse_.verdict = new_verdict;
@@ -5806,6 +5839,11 @@ GovernancePulse GovernanceEngine::getPulse() const {
 
 GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
     return static_cast<GovernanceLevel>(governance_level_.load(std::memory_order_relaxed));
+}
+
+int GovernanceEngine::getGovernanceEpoch() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
+    return governance_epoch_;
 }
 
 double GovernanceEngine::computeGovernanceEntropy() const {
@@ -6048,6 +6086,11 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 if (pv == PulseVerdict::IMPAIRED && level < 2) level = 2;
                 else if (pv == PulseVerdict::DEGRADED && level < 1) level = 1;
 
+                // Evidence Epoch: governance level change invalidates prior evidence
+                int prev_level = governance_level_.load(std::memory_order_relaxed);
+                if (level != prev_level) {
+                    governance_epoch_++;
+                }
                 governance_level_.store(level, std::memory_order_relaxed);
             }
         }

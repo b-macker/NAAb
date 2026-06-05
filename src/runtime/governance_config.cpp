@@ -2160,6 +2160,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.risk_budget = cfg_json["risk_budget"].get<int>();
                     if (agent.risk_budget < 0) agent.risk_budget = 0;
                 }
+                // Standing Lease — TTL on agent authorization
+                if (cfg_json.contains("standing_lease_turns"))
+                    agent.standing_lease_turns = std::max(0, cfg_json["standing_lease_turns"].get<int>());
                 // Retry configuration
                 if (cfg_json.contains("retry") && cfg_json["retry"].is_object()) {
                     auto& r = cfg_json["retry"];
@@ -2505,6 +2508,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_cooldown_turns")) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
         if (cbj.contains("step_up_keyword_threshold")) cfg.step_up_keyword_threshold = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
         parseRationale(cbj, cfg.rationale);
+    }
+
+    // --- Advisory Escalation ---
+    if (j.contains("advisory_escalation") && j["advisory_escalation"].is_object()) {
+        auto& ae = j["advisory_escalation"];
+        auto& cfg = rules_.advisory_escalation;
+        if (ae.contains("enabled")) cfg.enabled = ae["enabled"].get<bool>();
+        if (ae.contains("soft_after")) cfg.soft_after = std::max(2, ae["soft_after"].get<int>());
+        if (ae.contains("weight_multiplier")) cfg.weight_multiplier = std::max(1.0, ae["weight_multiplier"].get<double>());
+        parseRationale(ae, cfg.rationale);
     }
 
     // --- Governance Health (F4) ---
@@ -2877,6 +2890,17 @@ static bool checkRatchetViolation(
         else if (new_agent.max_tool_loop_turns < old_agent->max_tool_loop_turns)
             notices.push_back(fmt::format("agent.{}.max_tool_loop_turns: {} -> {} (tightened)",
                 new_agent.name, old_agent->max_tool_loop_turns, new_agent.max_tool_loop_turns));
+        // Standing Lease: increasing lease = loosening (more turns before re-auth)
+        if (new_agent.standing_lease_turns > old_agent->standing_lease_turns && old_agent->standing_lease_turns > 0)
+            violations.push_back(fmt::format("agent.{}.standing_lease_turns: {} -> {} (loosened)",
+                new_agent.name, old_agent->standing_lease_turns, new_agent.standing_lease_turns));
+        else if (new_agent.standing_lease_turns < old_agent->standing_lease_turns)
+            notices.push_back(fmt::format("agent.{}.standing_lease_turns: {} -> {} (tightened)",
+                new_agent.name, old_agent->standing_lease_turns, new_agent.standing_lease_turns));
+        // Removing lease (N→0) is loosening
+        if (new_agent.standing_lease_turns == 0 && old_agent->standing_lease_turns > 0)
+            violations.push_back(fmt::format("agent.{}.standing_lease_turns: {} -> 0 (loosened — lease removed)",
+                new_agent.name, old_agent->standing_lease_turns));
     }
 
     // Detect removed agents — removing constraints is loosening
@@ -2912,6 +2936,20 @@ static bool checkRatchetViolation(
     chkCodegenLimit(old_r.codegen.max_cumulative_calls, new_r.codegen.max_cumulative_calls, "max_cumulative_calls");
     chkCodegenLimit(old_r.codegen.max_cumulative_calls_per_agent, new_r.codegen.max_cumulative_calls_per_agent, "max_cumulative_calls_per_agent");
     chkCodegenLimit(old_r.codegen.max_nesting_depth, new_r.codegen.max_nesting_depth, "max_nesting_depth");
+
+    // --- Advisory Escalation ratchet ---
+    // Disabling escalation = loosening (repeated advisories would no longer harden)
+    if (!new_r.advisory_escalation.enabled && old_r.advisory_escalation.enabled)
+        violations.push_back("advisory_escalation.enabled: true -> false (loosened)");
+    else if (new_r.advisory_escalation.enabled && !old_r.advisory_escalation.enabled)
+        notices.push_back("advisory_escalation.enabled: false -> true (tightened)");
+    // Increasing soft_after = loosening (more occurrences before escalation)
+    if (new_r.advisory_escalation.soft_after > old_r.advisory_escalation.soft_after)
+        violations.push_back(fmt::format("advisory_escalation.soft_after: {} -> {} (loosened)",
+            old_r.advisory_escalation.soft_after, new_r.advisory_escalation.soft_after));
+    else if (new_r.advisory_escalation.soft_after < old_r.advisory_escalation.soft_after)
+        notices.push_back(fmt::format("advisory_escalation.soft_after: {} -> {} (tightened)",
+            old_r.advisory_escalation.soft_after, new_r.advisory_escalation.soft_after));
 
     return violations.empty();
 }
@@ -3002,6 +3040,9 @@ bool GovernanceEngine::reloadIfChanged() {
         active_ = (rules_.mode != GovernanceMode::OFF);
         loaded_mtime_ns_ = current_mtime;
         reload_count_++;
+
+        // Evidence Epoch: config reload invalidates prior-epoch evidence
+        governance_epoch_++;
 
         // Fail-closed: sync tightened governance into active sandbox
         auto* sb = security::ScopedSandbox::getCurrent();
