@@ -1838,6 +1838,10 @@ struct GovernanceRules {
     std::string extends_path;  // "extends" field
     std::string description;
 
+    // M3: tracks which JSON keys were explicitly present in the config file.
+    // Used by mergeRules() to distinguish "user set field to default" from "never set".
+    std::unordered_set<std::string> explicitly_set;
+
     LanguagesConfig languages;
     CapabilitiesConfig capabilities;
     LimitsConfig limits;

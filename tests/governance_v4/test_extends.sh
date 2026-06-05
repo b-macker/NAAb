@@ -545,6 +545,109 @@ check "T11c: inherited restriction blocks" "3" "$EXIT2"
 check_contains "T11d: dangerous pattern detected" "Dangerous pattern" "$OUTPUT2"
 
 
+# ============================================================
+# T12: M3 explicit-set — child explicitly sets timeout to 0
+# ============================================================
+echo ""
+echo "--- T12: M3 explicit timeout=0 preserved ---"
+T12BASE="$WORKDIR/t12/base"
+T12CHILD="$WORKDIR/t12/child"
+mkdir -p "$T12BASE" "$T12CHILD"
+
+cat > "$T12BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "limits": {
+    "timeout": { "global": 5 }
+  }
+}
+EOF
+sign_gov "$T12BASE"
+
+# Child explicitly sets timeout to 0 (unlimited)
+cat > "$T12CHILD/govern.json" << 'EOF'
+{
+  "extends": "../base/govern.json",
+  "mode": "enforce",
+  "limits": {
+    "timeout": { "global": 0 }
+  }
+}
+EOF
+sign_gov "$T12CHILD"
+
+# Sleep 8 seconds. If child's explicit 0 is preserved (unlimited), script survives.
+# If overwritten to parent's 5, the polyglot block times out.
+cat > "$T12CHILD/test.naab" << 'EOF'
+main {
+    let r = <<python
+import time
+time.sleep(8)
+print("timeout_zero_preserved")
+>>
+    print(r)
+}
+EOF
+
+OUTPUT=$(cd "$T12CHILD" && timeout 20 "$NAAB" run test.naab 2>&1)
+EXIT_CODE=$?
+
+check "T12a: explicit timeout=0 preserved" "0" "$EXIT_CODE"
+check_contains "T12b: script survived with unlimited timeout" "timeout_zero_preserved" "$OUTPUT"
+
+
+# ============================================================
+# T13: M3 explicit-set — child explicitly disables scoring
+# ============================================================
+echo ""
+echo "--- T13: M3 explicit scoring disable preserved ---"
+T13BASE="$WORKDIR/t13/base"
+T13CHILD="$WORKDIR/t13/child"
+mkdir -p "$T13BASE" "$T13CHILD"
+
+cat > "$T13BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 20,
+    "red_threshold": 50
+  }
+}
+EOF
+sign_gov "$T13BASE"
+
+# Child explicitly disables scoring
+cat > "$T13CHILD/govern.json" << 'EOF'
+{
+  "extends": "../base/govern.json",
+  "mode": "enforce",
+  "scoring": {
+    "enabled": false
+  }
+}
+EOF
+sign_gov "$T13CHILD"
+
+cat > "$T13CHILD/test.naab" << 'EOF'
+main { print("scoring_disabled") }
+EOF
+
+OUTPUT=$(cd "$T13CHILD" && "$NAAB" run --governance-dashboard test.naab 2>&1)
+EXIT_CODE=$?
+
+check "T13a: explicit scoring disable loads" "0" "$EXIT_CODE"
+check_contains "T13b: output correct" "scoring_disabled" "$OUTPUT"
+# Scoring should NOT appear in dashboard since child explicitly disabled it
+if echo "$OUTPUT" | grep -q "Scoring:"; then
+    echo "  FAIL: T13c: scoring should be disabled but dashboard shows Scoring"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: T13c: scoring correctly disabled in dashboard"
+    PASS=$((PASS + 1))
+fi
+
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed out of $((PASS + FAIL))"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1
