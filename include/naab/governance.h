@@ -1714,6 +1714,7 @@ struct TelemetryOutputConfig {
     int forward_timeout_ms = 5000;      // per-request timeout
     int forward_retry_count = 2;        // retries on transient failure
     int forward_buffer_max = 1000;      // max queued events before drop
+    int forward_shutdown_drain_ms = 5000; // M2: max shutdown drain time
 };
 
 // ============================================================================

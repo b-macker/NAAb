@@ -2099,6 +2099,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             int v = tel["forward_buffer_max"].get<int>();
             rules_.telemetry_output.forward_buffer_max = v < 0 ? 0 : v;
         }
+        if (tel.contains("forward_shutdown_drain_ms")) {
+            int v = tel["forward_shutdown_drain_ms"].get<int>();
+            rules_.telemetry_output.forward_shutdown_drain_ms = v < 0 ? 0 : v;
+        }
     }
 
     // --- Agents (unified config: permissions + LLM) ---
@@ -3183,6 +3187,7 @@ bool GovernanceEngine::reloadIfChanged() {
                     fwd_cfg.timeout_ms = new_rp->telemetry_output.forward_timeout_ms;
                     fwd_cfg.retry_count = new_rp->telemetry_output.forward_retry_count;
                     fwd_cfg.buffer_max = new_rp->telemetry_output.forward_buffer_max;
+                    fwd_cfg.shutdown_drain_ms = new_rp->telemetry_output.forward_shutdown_drain_ms;
                     telemetry_forwarder_ = std::make_shared<TelemetryForwarder>(fwd_cfg);
                 } else if (telemetry_forwarder_ && new_rp->telemetry_output.webhook_url.empty()) {
                     // Webhook removed — shut down forwarder
@@ -3639,6 +3644,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             fwd_cfg.timeout_ms = new_rules->telemetry_output.forward_timeout_ms;
             fwd_cfg.retry_count = new_rules->telemetry_output.forward_retry_count;
             fwd_cfg.buffer_max = new_rules->telemetry_output.forward_buffer_max;
+            fwd_cfg.shutdown_drain_ms = new_rules->telemetry_output.forward_shutdown_drain_ms;
             telemetry_forwarder_ = std::make_shared<TelemetryForwarder>(fwd_cfg);
         }
 

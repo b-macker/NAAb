@@ -18,6 +18,7 @@ struct TelemetryForwarderConfig {
     int timeout_ms = 5000;
     int retry_count = 2;
     int buffer_max = 1000;
+    int shutdown_drain_ms = 5000;  // M2: max wall-clock time for final drain (0 = skip drain)
 };
 
 class TelemetryForwarder {

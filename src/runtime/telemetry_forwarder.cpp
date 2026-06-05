@@ -41,21 +41,31 @@ void TelemetryForwarder::shutdown() {
         worker_.join();
     }
 
-    // Final drain — flush remaining events
-    std::lock_guard<std::mutex> lock(mutex_);
-    while (!buffer_.empty()) {
-        std::string payload = "[";
-        int count = 0;
-        while (!buffer_.empty() && count < config_.batch_size) {
-            if (count > 0) payload += ",";
-            payload += buffer_.front();
-            buffer_.pop_front();
-            count++;
-        }
-        payload += "]";
-        if (!postBatch(payload)) {
-            // Final flush failed — events lost
-            events_dropped_ += static_cast<size_t>(count);
+    // M2: Final drain — flush remaining events (bounded by deadline)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto deadline = std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(config_.shutdown_drain_ms);
+        while (!buffer_.empty()) {
+            if (std::chrono::steady_clock::now() >= deadline) {
+                size_t dropped = buffer_.size();
+                events_dropped_ += dropped;
+                buffer_.clear();
+                fprintf(stderr, "[telemetry] Shutdown drain timeout: %zu events dropped\n", dropped);
+                break;
+            }
+            std::string payload = "[";
+            int count = 0;
+            while (!buffer_.empty() && count < config_.batch_size) {
+                if (count > 0) payload += ",";
+                payload += buffer_.front();
+                buffer_.pop_front();
+                count++;
+            }
+            payload += "]";
+            if (!postBatch(payload)) {
+                events_dropped_ += static_cast<size_t>(count);
+            }
         }
     }
 }
@@ -102,6 +112,7 @@ void TelemetryForwarder::workerLoop() {
             }
             // Brief backoff before retry
             if (attempt < config_.retry_count) {
+                if (!running_.load()) break;  // shutdown requested — skip remaining retries
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(100 * (1 << attempt)));
             }
