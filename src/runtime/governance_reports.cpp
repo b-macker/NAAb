@@ -746,9 +746,14 @@ void GovernanceEngine::writeTelemetry() const {
         std::string line = ev.dump() + "\n";
         fwrite(line.c_str(), 1, line.size(), fp.get());
 
-        // Forward to webhook if configured
-        if (telemetry_forwarder_) {
-            telemetry_forwarder_->enqueue(ev.dump());
+        // C2: local shared_ptr copy prevents use-after-free during reload/destruction
+        {
+            std::shared_ptr<TelemetryForwarder> fwd;
+            {
+                std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
+                fwd = telemetry_forwarder_;
+            }
+            if (fwd) fwd->enqueue(ev.dump());
         }
     }
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
@@ -812,9 +817,14 @@ void GovernanceEngine::writeAgentTelemetry(
     std::string line = ev.dump() + "\n";
     fwrite(line.c_str(), 1, line.size(), fp.get());
 
-    // Forward to webhook if configured
-    if (telemetry_forwarder_) {
-        telemetry_forwarder_->enqueue(ev.dump());
+    // C2: local shared_ptr copy prevents use-after-free during reload/destruction
+    {
+        std::shared_ptr<TelemetryForwarder> fwd;
+        {
+            std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
+            fwd = telemetry_forwarder_;
+        }
+        if (fwd) fwd->enqueue(ev.dump());
     }
 }
 

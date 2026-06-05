@@ -50,6 +50,11 @@ enum class GovernanceMode {
     AUDIT,      // Dry-run: check everything, block nothing
     OFF         // Disabled
 };
+// M7: Ratchet logic depends on ENFORCE < AUDIT < OFF ordering
+static_assert(static_cast<int>(GovernanceMode::ENFORCE) < static_cast<int>(GovernanceMode::AUDIT),
+              "GovernanceMode ordering broken — ratchet enforcement will malfunction");
+static_assert(static_cast<int>(GovernanceMode::AUDIT) < static_cast<int>(GovernanceMode::OFF),
+              "GovernanceMode ordering broken — ratchet enforcement will malfunction");
 
 // ============================================================================
 // Section 1: Language Control
@@ -2682,7 +2687,7 @@ public:
 private:
     // --- extends / policy distribution ---
     bool loadWithExtends(const std::string& path, int depth,
-                         std::set<std::string>& visited);
+                         int max_depth, std::set<std::string>& visited);
     static void mergeRules(const GovernanceRules& base, GovernanceRules& child,
                            const InheritanceConfig& cfg);
     static std::string resolveExtendsPath(const std::string& extends_val,
@@ -2837,7 +2842,8 @@ private:
     mutable std::mutex audit_mutex_;
 
     // Telemetry forwarding (webhook/SIEM)
-    std::unique_ptr<TelemetryForwarder> telemetry_forwarder_;
+    mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;
+    mutable std::mutex telemetry_fwd_mutex_;  // guards pointer swap during reload/destruction
 
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;

@@ -2071,7 +2071,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (tel.contains("webhook_auth_env")) {
             std::string env_name = tel["webhook_auth_env"].get<std::string>();
             const char* env_val = std::getenv(env_name.c_str());
-            if (env_val) rules_.telemetry_output.webhook_auth_header = std::string("Bearer ") + env_val;
+            if (env_val) {
+                // H2: raw value — user provides full scheme ("Bearer xxx", "Basic xxx", etc.)
+                std::string val(env_val);
+                // H1: strip CR/LF to prevent HTTP header injection via env var
+                for (auto it = val.begin(); it != val.end(); ) {
+                    if (*it == '\r' || *it == '\n') it = val.erase(it);
+                    else ++it;
+                }
+                rules_.telemetry_output.webhook_auth_header = val;
+            }
         }
         if (tel.contains("forward_batch_size")) {
             int v = tel["forward_batch_size"].get<int>();
@@ -2079,7 +2088,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (tel.contains("forward_timeout_ms")) {
             int v = tel["forward_timeout_ms"].get<int>();
-            rules_.telemetry_output.forward_timeout_ms = v < 0 ? 0 : v;
+            rules_.telemetry_output.forward_timeout_ms = v < 1 ? 1 : v;  // 0 = infinite in libcurl
         }
         if (tel.contains("forward_retry_count")) {
             int v = tel["forward_retry_count"].get<int>();
@@ -3151,6 +3160,37 @@ bool GovernanceEngine::reloadIfChanged() {
         bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
         cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
 
+        // C3: restart telemetry forwarder if webhook config changed
+        {
+            std::shared_ptr<TelemetryForwarder> old_fwd;
+            {
+                std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
+                bool needs_restart = false;
+                if (telemetry_forwarder_ && !rules_.telemetry_output.webhook_url.empty()) {
+                    needs_restart = true;  // config may have changed — restart with new settings
+                } else if (!telemetry_forwarder_ && !rules_.telemetry_output.webhook_url.empty()) {
+                    needs_restart = true;  // webhook newly configured mid-run
+                }
+
+                if (needs_restart) {
+                    old_fwd = std::move(telemetry_forwarder_);
+                    TelemetryForwarderConfig fwd_cfg;
+                    fwd_cfg.webhook_url = rules_.telemetry_output.webhook_url;
+                    fwd_cfg.auth_header = rules_.telemetry_output.webhook_auth_header;
+                    fwd_cfg.batch_size = rules_.telemetry_output.forward_batch_size;
+                    fwd_cfg.timeout_ms = rules_.telemetry_output.forward_timeout_ms;
+                    fwd_cfg.retry_count = rules_.telemetry_output.forward_retry_count;
+                    fwd_cfg.buffer_max = rules_.telemetry_output.forward_buffer_max;
+                    telemetry_forwarder_ = std::make_shared<TelemetryForwarder>(fwd_cfg);
+                } else if (telemetry_forwarder_ && rules_.telemetry_output.webhook_url.empty()) {
+                    // Webhook removed — shut down forwarder
+                    old_fwd = std::move(telemetry_forwarder_);
+                }
+            }
+            // Shutdown old forwarder OUTSIDE the lock (may block on final drain)
+            if (old_fwd) old_fwd->shutdown();
+        }
+
         // Store notices for retrieval by agent.send()
         size_t notice_count = notices.size();
         {
@@ -3465,6 +3505,7 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
 }
 
 bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
+                                        int max_depth,
                                         std::set<std::string>& visited) {
     // Circular detection
     auto canonical = std::filesystem::weakly_canonical(path).string();
@@ -3474,8 +3515,7 @@ bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
     }
     visited.insert(canonical);
 
-    // Depth check (uses child's InheritanceConfig.max_depth — already parsed)
-    int max_depth = rules_.meta.inheritance.max_depth;
+    // C4: max_depth passed from originating child — consistent throughout chain
     if (max_depth <= 0) max_depth = 5;
     if (depth > max_depth) {
         fmt::print(stderr, "[governance] extends chain exceeds max_depth ({})\n", max_depth);
@@ -3527,7 +3567,7 @@ bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
         // We reuse this engine's visited set for circular detection
         GovernanceEngine temp;
         temp.rules_ = base_rules;
-        if (!temp.loadWithExtends(resolved, depth + 1, visited)) {
+        if (!temp.loadWithExtends(resolved, depth + 1, max_depth, visited)) {
             return false;
         }
         base_rules = temp.rules_;
@@ -3555,6 +3595,13 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         loadFromJson(j, rules_);
         loaded_path_ = path;
 
+        // H4: verify child signature BEFORE resolving extends chain —
+        // reject untrusted children before touching anything they reference
+        if (!verifyFileSignature(path)) {
+            g_governance_hard_block = true;
+            return false;
+        }
+
         // --- Policy distribution: resolve extends chain ---
         if (!rules_.extends_path.empty()) {
             auto config_dir = std::filesystem::path(path).parent_path().string();
@@ -3566,7 +3613,9 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             }
             std::set<std::string> visited;
             visited.insert(std::filesystem::weakly_canonical(path).string());
-            if (!loadWithExtends(resolved, 1, visited)) {
+            int max_depth = rules_.meta.inheritance.max_depth;
+            if (max_depth <= 0) max_depth = 5;
+            if (!loadWithExtends(resolved, 1, max_depth, visited)) {
                 return false;
             }
         }
@@ -3590,7 +3639,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             fwd_cfg.timeout_ms = rules_.telemetry_output.forward_timeout_ms;
             fwd_cfg.retry_count = rules_.telemetry_output.forward_retry_count;
             fwd_cfg.buffer_max = rules_.telemetry_output.forward_buffer_max;
-            telemetry_forwarder_ = std::make_unique<TelemetryForwarder>(fwd_cfg);
+            telemetry_forwarder_ = std::make_shared<TelemetryForwarder>(fwd_cfg);
         }
 
         // Store mtime for mid-run reload detection (truncate to seconds for portability)
@@ -3637,11 +3686,7 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         bsd_enabled_.store(rules_.behavioral_sequences.enabled, std::memory_order_release);
         cdd_enabled_.store(rules_.context_drift.enabled, std::memory_order_release);
 
-        // Integrity: verify govern.json signature
-        if (!verifyFileSignature(path)) {
-            g_governance_hard_block = true;
-            return false;
-        }
+        // Signature already verified before extends resolution (H4 ordering)
 
         // Schema key validation is done by caller (main.cpp) where --no-governance is known
 

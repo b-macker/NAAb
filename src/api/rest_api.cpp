@@ -560,20 +560,27 @@ public:
                     // Scope check: if the matched key has scopes, verify this endpoint is allowed
                     if (t_has_scoped_key_) {
                         std::string required = scopeForPath(req.path);
-                        if (!required.empty()) {
-                            bool scope_ok = false;
-                            for (const auto& s : t_matched_scopes_) {
-                                if (s == required) { scope_ok = true; break; }
-                            }
-                            if (!scope_ok) {
-                                res.status = 403;
-                                res.set_content(
-                                    nlohmann::json{{"error","Forbidden: insufficient scope"},
-                                                   {"status","error"},
-                                                   {"required_scope", required}}.dump(2),
-                                    "application/json");
-                                return httplib::Server::HandlerResponse::Handled;
-                            }
+                        if (required.empty()) {
+                            // H3: default-deny — scoped keys cannot access unrecognized endpoints
+                            res.status = 403;
+                            res.set_content(
+                                nlohmann::json{{"error","Forbidden: unknown endpoint for scoped key"},
+                                               {"status","error"}}.dump(2),
+                                "application/json");
+                            return httplib::Server::HandlerResponse::Handled;
+                        }
+                        bool scope_ok = false;
+                        for (const auto& s : t_matched_scopes_) {
+                            if (s == required) { scope_ok = true; break; }
+                        }
+                        if (!scope_ok) {
+                            res.status = 403;
+                            res.set_content(
+                                nlohmann::json{{"error","Forbidden: insufficient scope"},
+                                               {"status","error"},
+                                               {"required_scope", required}}.dump(2),
+                                "application/json");
+                            return httplib::Server::HandlerResponse::Handled;
                         }
                     }
                 }
