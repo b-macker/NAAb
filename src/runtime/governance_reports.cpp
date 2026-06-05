@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 5603-7484
 
 #include "naab/governance.h"
+#include "naab/telemetry_forwarder.h"
 #include "naab/crypto_utils.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
@@ -744,6 +745,11 @@ void GovernanceEngine::writeTelemetry() const {
 
         std::string line = ev.dump() + "\n";
         fwrite(line.c_str(), 1, line.size(), fp.get());
+
+        // Forward to webhook if configured
+        if (telemetry_forwarder_) {
+            telemetry_forwarder_->enqueue(ev.dump());
+        }
     }
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
@@ -805,6 +811,11 @@ void GovernanceEngine::writeAgentTelemetry(
 
     std::string line = ev.dump() + "\n";
     fwrite(line.c_str(), 1, line.size(), fp.get());
+
+    // Forward to webhook if configured
+    if (telemetry_forwarder_) {
+        telemetry_forwarder_->enqueue(ev.dump());
+    }
 }
 
 // --- Agent Role Application ---

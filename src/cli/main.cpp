@@ -3391,6 +3391,7 @@ int main(int argc, char** argv) {
         unsigned int api_rate_limit = 0; // V-DOS-005 (R25): 0 = disabled
 
         // Load govern.json API defaults from CWD
+        std::vector<naab::governance::GovernanceRules::ApiKeyEntry> api_keys;
         {
             naab::governance::GovernanceEngine api_gov;
             if (api_gov.discoverAndLoad(std::filesystem::current_path().string())) {
@@ -3399,6 +3400,7 @@ int main(int argc, char** argv) {
                 if (rules.api.timeout != 10 && api_timeout == 10) api_timeout = static_cast<unsigned int>(rules.api.timeout);
                 if (rules.api.rate_limit > 0 && api_rate_limit == 0) api_rate_limit = static_cast<unsigned int>(rules.api.rate_limit);
                 if (rules.api.max_body != 1048576 && max_body == 1048576) max_body = rules.api.max_body;
+                api_keys = rules.api.keys;
             }
         }
 
@@ -3429,6 +3431,8 @@ int main(int argc, char** argv) {
             // V-API-001: apply body size cap and optional API key auth
             server.setMaxBodySize(max_body);
             if (!api_key.empty()) server.setApiKey(api_key);
+            // Multi-key with scoped permissions (from govern.json api.keys[])
+            if (!api_keys.empty()) server.setApiKeys(api_keys);
             // V-API-004 (R24): per-request execution timeout
             server.setApiTimeout(api_timeout);
             // V-DOS-005 (R25): per-client rate limiting

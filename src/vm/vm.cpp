@@ -2691,6 +2691,7 @@ interpreter::NaabVal VM::run() {
                 int polyglot_gov_line = CURRENT_CHUNK().getLine(
                     static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                 if (governance_) {
+                    governance_->reloadIfChanged();
                     int gov_line = polyglot_gov_line;
                     governance_->setCheckContext(current_file_, gov_line);
                     std::string err = governance_->checkPolyglotBlock(

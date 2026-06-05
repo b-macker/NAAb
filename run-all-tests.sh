@@ -1334,6 +1334,61 @@ else
     echo "  test_consequence_proof.sh: not found, skipping"
 fi
 
+# --- Enterprise Readiness Tests (Phases 1-4) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Enterprise Readiness Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+
+POLYGLOT_RELOAD_SCRIPT="tests/governance_v4/test_polyglot_reload.sh"
+if [ -f "$POLYGLOT_RELOAD_SCRIPT" ]; then
+    if bash "$POLYGLOT_RELOAD_SCRIPT" 2>&1; then
+        echo "  test_polyglot_reload.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_reload.sh")
+    fi
+else
+    echo "  test_polyglot_reload.sh: not found, skipping"
+fi
+
+TEL_FORWARD_SCRIPT="tests/governance_v4/test_telemetry_forward.sh"
+if [ -f "$TEL_FORWARD_SCRIPT" ]; then
+    if bash "$TEL_FORWARD_SCRIPT" 2>&1; then
+        echo "  test_telemetry_forward.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_telemetry_forward.sh")
+    fi
+else
+    echo "  test_telemetry_forward.sh: not found, skipping"
+fi
+
+API_AUTH_SCRIPT="tests/api/test_api_auth.sh"
+if [ -f "$API_AUTH_SCRIPT" ]; then
+    if bash "$API_AUTH_SCRIPT" 2>&1; then
+        echo "  test_api_auth.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_api_auth.sh")
+    fi
+else
+    echo "  test_api_auth.sh: not found, skipping"
+fi
+
+EXTENDS_SCRIPT="tests/governance_v4/test_extends.sh"
+if [ -f "$EXTENDS_SCRIPT" ]; then
+    if bash "$EXTENDS_SCRIPT" 2>&1; then
+        echo "  test_extends.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_extends.sh")
+    fi
+else
+    echo "  test_extends.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

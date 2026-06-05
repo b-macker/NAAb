@@ -1,10 +1,12 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <memory>
 #include <atomic>
 #include "naab/interpreter.h"
 #include "naab/block_loader.h"
+#include "naab/governance.h"
 
 namespace naab {
 namespace api {
@@ -64,6 +66,14 @@ public:
      * Passing an empty string disables authentication (default).
      */
     void setApiKey(const std::string& key);
+
+    /**
+     * Set multi-key authentication with scoped permissions.
+     * Each key has a name and a list of allowed scopes.
+     * Valid scopes: "execute", "check", "blocks", "stats".
+     * Keys with empty scopes have full access (backward compat).
+     */
+    void setApiKeys(const std::vector<governance::GovernanceRules::ApiKeyEntry>& keys);
 
     /**
      * Set maximum accepted request body size in bytes (V-API-001).

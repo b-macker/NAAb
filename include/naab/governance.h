@@ -20,6 +20,7 @@
 #include <regex>
 #include <mutex>
 #include <atomic>
+#include <memory>
 #include <set>
 #include <functional>
 
@@ -28,6 +29,7 @@
 #include "naab/behavioral_sequence.h"
 
 namespace naab {
+class TelemetryForwarder;  // Forward declaration (telemetry_forwarder.h)
 namespace ast { class Program; }  // Forward declaration for drift detection
 namespace governance {
 
@@ -1698,6 +1700,15 @@ struct TelemetryOutputConfig {
     bool enabled = false;
     std::string output_file;  // JSONL path, append mode
     TamperEvidenceConfig tamper_evidence;  // hash chain for telemetry entries
+
+    // --- Forwarding (webhook/SIEM) ---
+    std::string webhook_url;            // POST endpoint for JSON event batches
+    std::string webhook_auth_header;    // full header value, e.g. "Bearer xxx"
+    std::string webhook_auth_env;       // env var name for auth header value
+    int forward_batch_size = 10;        // events per POST request
+    int forward_timeout_ms = 5000;      // per-request timeout
+    int forward_retry_count = 2;        // retries on transient failure
+    int forward_buffer_max = 1000;      // max queued events before drop
 };
 
 // ============================================================================
@@ -1896,11 +1907,19 @@ struct GovernanceRules {
     bool strict_types_config = false;  // --strict-types
 
     // --- API settings (configurable via govern.json "api" section) ---
+    struct ApiKeyEntry {
+        std::string key;                    // the API key value
+        std::string name;                   // human-readable label
+        std::vector<std::string> scopes;    // e.g. ["execute", "check", "blocks", "stats"]
+    };
     struct ApiConfig {
-        std::string key;
+        std::string key;                     // legacy single key (backward compat)
+        std::vector<ApiKeyEntry> keys;       // multi-key with scoped permissions
         int timeout = 10;
-        int rate_limit = 0;          // 0 = unlimited
-        size_t max_body = 1048576;   // 1 MiB
+        int rate_limit = 0;                  // 0 = unlimited
+        size_t max_body = 1048576;           // 1 MiB
+        std::string tls_cert_path;           // PEM cert for HTTPS
+        std::string tls_key_path;            // PEM key for HTTPS
     };
     ApiConfig api;
 
@@ -2133,7 +2152,7 @@ public:
         int score = 0;    // Normalized 0-100
     };
 
-    GovernanceEngine() = default;
+    GovernanceEngine();
     ~GovernanceEngine();
 
     // --- Thread-local accessor (for stdlib modules that need governance config) ---
@@ -2661,6 +2680,14 @@ public:
     static std::vector<std::string> validateSchema(const std::string& json_path);
 
 private:
+    // --- extends / policy distribution ---
+    bool loadWithExtends(const std::string& path, int depth,
+                         std::set<std::string>& visited);
+    static void mergeRules(const GovernanceRules& base, GovernanceRules& child,
+                           const InheritanceConfig& cfg);
+    static std::string resolveExtendsPath(const std::string& extends_val,
+                                          const std::string& config_dir);
+
     bool active_ = false;
     bool override_enabled_ = false;
     std::string override_reason_;
@@ -2808,6 +2835,9 @@ private:
     std::string last_audit_hash_;
     mutable std::string last_telemetry_hash_;
     mutable std::mutex audit_mutex_;
+
+    // Telemetry forwarding (webhook/SIEM)
+    std::unique_ptr<TelemetryForwarder> telemetry_forwarder_;
 
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;

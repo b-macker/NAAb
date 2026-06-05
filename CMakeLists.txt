@@ -393,6 +393,7 @@ add_library(naab_security
     src/runtime/finding_parser.cpp         # Shared FINDING/VERDICT line parser
     src/runtime/agent_review.cpp           # Agent review engine (detection → validation → scoring)
     src/runtime/governance_reports.cpp      # Governance reports (audit, hooks, plugins)
+    src/runtime/telemetry_forwarder.cpp    # Telemetry webhook/SIEM forwarder
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging

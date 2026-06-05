@@ -2,6 +2,7 @@
 // Extracted from governance.cpp lines 1-1727
 
 #include "naab/governance.h"
+#include "naab/telemetry_forwarder.h"
 #include "naab/limits.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
@@ -33,7 +34,14 @@ namespace governance {
 // Destructor
 // ============================================================================
 
+GovernanceEngine::GovernanceEngine() {}
+
 GovernanceEngine::~GovernanceEngine() {
+    // Flush telemetry forwarder before anything else
+    if (telemetry_forwarder_) {
+        telemetry_forwarder_->shutdown();
+        telemetry_forwarder_.reset();
+    }
     if (baselines_dirty_) {
         saveBaselines();
     }
@@ -251,6 +259,22 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (api.contains("timeout")) rules_.api.timeout = api["timeout"].get<int>();
         if (api.contains("rate_limit")) rules_.api.rate_limit = api["rate_limit"].get<int>();
         if (api.contains("max_body")) rules_.api.max_body = api["max_body"].get<size_t>();
+        if (api.contains("tls_cert")) rules_.api.tls_cert_path = api["tls_cert"].get<std::string>();
+        if (api.contains("tls_key")) rules_.api.tls_key_path = api["tls_key"].get<std::string>();
+        if (api.contains("keys") && api["keys"].is_array()) {
+            for (auto& k : api["keys"]) {
+                if (!k.is_object() || !k.contains("key")) continue;
+                GovernanceRules::ApiKeyEntry entry;
+                entry.key = k["key"].get<std::string>();
+                if (k.contains("name")) entry.name = k["name"].get<std::string>();
+                if (k.contains("scopes") && k["scopes"].is_array()) {
+                    for (auto& s : k["scopes"]) {
+                        if (s.is_string()) entry.scopes.push_back(s.get<std::string>());
+                    }
+                }
+                rules_.api.keys.push_back(std::move(entry));
+            }
+        }
     }
 
     // Languages
@@ -2038,6 +2062,33 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (env_val) rules_.telemetry_output.tamper_evidence.hmac_key = env_val;
             }
         }
+
+        // Forwarding config
+        if (tel.contains("webhook_url"))
+            rules_.telemetry_output.webhook_url = tel["webhook_url"].get<std::string>();
+        if (tel.contains("webhook_auth_header"))
+            rules_.telemetry_output.webhook_auth_header = tel["webhook_auth_header"].get<std::string>();
+        if (tel.contains("webhook_auth_env")) {
+            std::string env_name = tel["webhook_auth_env"].get<std::string>();
+            const char* env_val = std::getenv(env_name.c_str());
+            if (env_val) rules_.telemetry_output.webhook_auth_header = std::string("Bearer ") + env_val;
+        }
+        if (tel.contains("forward_batch_size")) {
+            int v = tel["forward_batch_size"].get<int>();
+            rules_.telemetry_output.forward_batch_size = v < 1 ? 1 : v;
+        }
+        if (tel.contains("forward_timeout_ms")) {
+            int v = tel["forward_timeout_ms"].get<int>();
+            rules_.telemetry_output.forward_timeout_ms = v < 0 ? 0 : v;
+        }
+        if (tel.contains("forward_retry_count")) {
+            int v = tel["forward_retry_count"].get<int>();
+            rules_.telemetry_output.forward_retry_count = v < 0 ? 0 : v;
+        }
+        if (tel.contains("forward_buffer_max")) {
+            int v = tel["forward_buffer_max"].get<int>();
+            rules_.telemetry_output.forward_buffer_max = v < 0 ? 0 : v;
+        }
     }
 
     // --- Agents (unified config: permissions + LLM) ---
@@ -3167,6 +3218,327 @@ void GovernanceEngine::enforceMinimumLevels() {
     }
 }
 
+// ============================================================================
+// Policy Distribution: extends / inheritance
+// ============================================================================
+
+std::string GovernanceEngine::resolveExtendsPath(const std::string& extends_val,
+                                                  const std::string& config_dir) {
+    if (extends_val.empty()) return "";
+    // Absolute path
+    if (extends_val[0] == '/') return extends_val;
+    // Home-relative
+    if (extends_val.size() >= 2 && extends_val[0] == '~' && extends_val[1] == '/') {
+        const char* home = std::getenv("HOME");
+        if (home) return std::string(home) + extends_val.substr(1);
+        return extends_val; // fallback: literal
+    }
+    // Remote: not yet supported
+    if (extends_val.find("http://") == 0 || extends_val.find("https://") == 0) {
+        return ""; // caller will error
+    }
+    // Relative to config directory
+    auto p = std::filesystem::path(config_dir) / extends_val;
+    return std::filesystem::weakly_canonical(p).string();
+}
+
+void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& child,
+                                   const InheritanceConfig& cfg) {
+    bool parent_wins = (cfg.merge_strategy == "parent_wins");
+
+    // Helper: for scalar fields, base fills gaps in child.
+    // With child_wins (default): child keeps its value if explicitly different from default.
+    // With parent_wins: base value takes precedence if different from default.
+    // Since GovernanceRules lacks "was explicitly set" tracking, we compare against
+    // a default-constructed GovernanceRules to detect which fields were set.
+    GovernanceRules defaults;
+
+    // --- Mode: child can only set equal-or-stricter (ratchet semantics) ---
+    // Strictness: ENFORCE > AUDIT > OFF
+    if (parent_wins) {
+        // Parent mode wins if stricter
+        if (static_cast<int>(base.mode) < static_cast<int>(child.mode)) {
+            child.mode = base.mode;  // lower enum = stricter
+        }
+    } else {
+        // Child mode wins, but base provides floor
+        if (static_cast<int>(base.mode) < static_cast<int>(child.mode)) {
+            child.mode = base.mode;  // can't be looser than base
+        }
+    }
+
+    // --- Capabilities: merge each sub-field ---
+    auto& cc = child.capabilities;
+    const auto& bc = base.capabilities;
+    const auto& dc = defaults.capabilities;
+
+    // Shell
+    if (parent_wins) {
+        if (!bc.shell.enabled) cc.shell.enabled = false;  // parent disables → stays disabled
+    } else {
+        if (cc.shell.enabled == dc.shell.enabled && !bc.shell.enabled) cc.shell.enabled = false;
+    }
+    // Network
+    if (parent_wins) {
+        if (!bc.network.enabled) cc.network.enabled = false;
+    } else {
+        if (cc.network.enabled == dc.network.enabled && !bc.network.enabled) cc.network.enabled = false;
+    }
+    // Filesystem
+    if (parent_wins) {
+        if (!bc.filesystem.mode.empty()) cc.filesystem.mode = bc.filesystem.mode;
+    } else {
+        if (cc.filesystem.mode == dc.filesystem.mode && !bc.filesystem.mode.empty()) {
+            cc.filesystem.mode = bc.filesystem.mode;
+        }
+    }
+    // Blocked commands: merge arrays
+    if (cfg.merge_arrays == "append") {
+        for (const auto& cmd : bc.shell.blocked_commands) {
+            if (std::find(cc.shell.blocked_commands.begin(), cc.shell.blocked_commands.end(), cmd) ==
+                cc.shell.blocked_commands.end()) {
+                cc.shell.blocked_commands.push_back(cmd);
+            }
+        }
+    } else if (cc.shell.blocked_commands.empty()) {
+        cc.shell.blocked_commands = bc.shell.blocked_commands;
+    }
+
+    // --- Limits: child wins or parent wins, with gap-filling ---
+    auto& cl = child.limits;
+    const auto& bl = base.limits;
+    const auto& dl = defaults.limits;
+
+    if (parent_wins) {
+        if (bl.timeout.global > 0) cl.timeout.global = bl.timeout.global;
+        if (bl.timeout.total_polyglot > 0) cl.timeout.total_polyglot = bl.timeout.total_polyglot;
+        if (bl.execution.loop_iterations > 0) cl.execution.loop_iterations = bl.execution.loop_iterations;
+        if (bl.execution.call_depth > 0) cl.execution.call_depth = bl.execution.call_depth;
+        if (bl.execution.polyglot_blocks > 0) cl.execution.polyglot_blocks = bl.execution.polyglot_blocks;
+    } else {
+        // Child wins: base fills gaps (where child has default value)
+        if (cl.timeout.global == dl.timeout.global && bl.timeout.global > 0)
+            cl.timeout.global = bl.timeout.global;
+        if (cl.timeout.total_polyglot == dl.timeout.total_polyglot && bl.timeout.total_polyglot > 0)
+            cl.timeout.total_polyglot = bl.timeout.total_polyglot;
+        if (cl.execution.loop_iterations == dl.execution.loop_iterations && bl.execution.loop_iterations > 0)
+            cl.execution.loop_iterations = bl.execution.loop_iterations;
+        if (cl.execution.call_depth == dl.execution.call_depth && bl.execution.call_depth > 0)
+            cl.execution.call_depth = bl.execution.call_depth;
+        if (cl.execution.polyglot_blocks == dl.execution.polyglot_blocks && bl.execution.polyglot_blocks > 0)
+            cl.execution.polyglot_blocks = bl.execution.polyglot_blocks;
+    }
+
+    // --- Requirements: inherit from base if child didn't set ---
+    if (!parent_wins) {
+        if (!child.require_error_handling && base.require_error_handling)
+            child.require_error_handling = base.require_error_handling;
+        if (!child.require_main_block && base.require_main_block)
+            child.require_main_block = base.require_main_block;
+    } else {
+        if (base.require_error_handling) child.require_error_handling = true;
+        if (base.require_main_block) child.require_main_block = true;
+    }
+
+    // --- Restrictions: inherit from base if child didn't set ---
+    if (!parent_wins) {
+        if (!child.no_placeholders && base.no_placeholders) child.no_placeholders = true;
+        if (!child.no_secrets && base.no_secrets) child.no_secrets = true;
+        if (!child.restrict_dangerous_calls && base.restrict_dangerous_calls)
+            child.restrict_dangerous_calls = true;
+        if (!child.no_hardcoded_results && base.no_hardcoded_results)
+            child.no_hardcoded_results = true;
+    } else {
+        if (base.no_placeholders) child.no_placeholders = true;
+        if (base.no_secrets) child.no_secrets = true;
+        if (base.restrict_dangerous_calls) child.restrict_dangerous_calls = true;
+        if (base.no_hardcoded_results) child.no_hardcoded_results = true;
+    }
+
+    // --- Custom rules: array merge ---
+    if (cfg.merge_arrays == "append") {
+        // Append base rules that don't exist in child (by name)
+        std::set<std::string> child_names;
+        for (const auto& r : child.custom_rules) child_names.insert(r.name);
+        for (const auto& r : base.custom_rules) {
+            if (child_names.find(r.name) == child_names.end()) {
+                child.custom_rules.push_back(r);
+            }
+        }
+    } else if (child.custom_rules.empty()) {
+        child.custom_rules = base.custom_rules;
+    }
+
+    // --- Taint tracking: inherit if child didn't configure ---
+    if (child.taint_tracking.level == defaults.taint_tracking.level &&
+        base.taint_tracking.level != defaults.taint_tracking.level) {
+        child.taint_tracking.level = base.taint_tracking.level;
+    }
+    // Taint sources/sinks/sanitizers: array merge
+    if (cfg.merge_arrays == "append") {
+        for (const auto& s : base.taint_tracking.sources) {
+            if (std::find(child.taint_tracking.sources.begin(),
+                          child.taint_tracking.sources.end(), s) == child.taint_tracking.sources.end())
+                child.taint_tracking.sources.push_back(s);
+        }
+        for (const auto& s : base.taint_tracking.sinks) {
+            if (std::find(child.taint_tracking.sinks.begin(),
+                          child.taint_tracking.sinks.end(), s) == child.taint_tracking.sinks.end())
+                child.taint_tracking.sinks.push_back(s);
+        }
+        for (const auto& s : base.taint_tracking.sanitizers) {
+            if (std::find(child.taint_tracking.sanitizers.begin(),
+                          child.taint_tracking.sanitizers.end(), s) == child.taint_tracking.sanitizers.end())
+                child.taint_tracking.sanitizers.push_back(s);
+        }
+    } else {
+        if (child.taint_tracking.sources.empty()) child.taint_tracking.sources = base.taint_tracking.sources;
+        if (child.taint_tracking.sinks.empty()) child.taint_tracking.sinks = base.taint_tracking.sinks;
+        if (child.taint_tracking.sanitizers.empty()) child.taint_tracking.sanitizers = base.taint_tracking.sanitizers;
+    }
+
+    // --- Scoring: inherit if child didn't configure ---
+    if (!child.scoring.enabled && base.scoring.enabled) {
+        child.scoring = base.scoring;
+    } else if (child.scoring.enabled && base.scoring.enabled) {
+        // Both set: child wins on thresholds it set, base fills gaps
+        if (!parent_wins) {
+            if (child.scoring.yellow_threshold == defaults.scoring.yellow_threshold)
+                child.scoring.yellow_threshold = base.scoring.yellow_threshold;
+            if (child.scoring.red_threshold == defaults.scoring.red_threshold)
+                child.scoring.red_threshold = base.scoring.red_threshold;
+        }
+    }
+
+    // --- Contracts: inherit function contracts from base (map by name) ---
+    for (const auto& [name, contract] : base.contracts.functions) {
+        if (child.contracts.functions.find(name) == child.contracts.functions.end()) {
+            child.contracts.functions[name] = contract;
+        }
+    }
+
+    // --- Behavioral sequences: inherit if child didn't configure ---
+    if (!child.behavioral_sequences.enabled && base.behavioral_sequences.enabled) {
+        child.behavioral_sequences = base.behavioral_sequences;
+    }
+
+    // --- Context drift: inherit if child didn't configure ---
+    if (!child.context_drift.enabled && base.context_drift.enabled) {
+        child.context_drift = base.context_drift;
+    }
+
+    // --- Agent configs: array merge (by agent name) ---
+    if (cfg.merge_arrays == "append") {
+        std::set<std::string> child_agents;
+        for (const auto& a : child.agents) child_agents.insert(a.name);
+        for (const auto& a : base.agents) {
+            if (child_agents.find(a.name) == child_agents.end()) {
+                child.agents.push_back(a);
+            }
+        }
+    } else if (child.agents.empty()) {
+        child.agents = base.agents;
+    }
+
+    // --- Blocked/allowed languages ---
+    if (child.allowed_languages.empty() && !base.allowed_languages.empty())
+        child.allowed_languages = base.allowed_languages;
+    if (child.blocked_languages.empty() && !base.blocked_languages.empty())
+        child.blocked_languages = base.blocked_languages;
+
+    // --- Legacy scalar fields: gap-fill from base ---
+    if (!parent_wins) {
+        if (child.timeout_seconds == 0 && base.timeout_seconds > 0)
+            child.timeout_seconds = base.timeout_seconds;
+        if (child.memory_limit_mb == 0 && base.memory_limit_mb > 0)
+            child.memory_limit_mb = base.memory_limit_mb;
+        if (child.max_call_depth == 0 && base.max_call_depth > 0)
+            child.max_call_depth = base.max_call_depth;
+        if (child.max_array_size == 0 && base.max_array_size > 0)
+            child.max_array_size = base.max_array_size;
+    } else {
+        if (base.timeout_seconds > 0) child.timeout_seconds = base.timeout_seconds;
+        if (base.memory_limit_mb > 0) child.memory_limit_mb = base.memory_limit_mb;
+        if (base.max_call_depth > 0) child.max_call_depth = base.max_call_depth;
+        if (base.max_array_size > 0) child.max_array_size = base.max_array_size;
+    }
+}
+
+bool GovernanceEngine::loadWithExtends(const std::string& path, int depth,
+                                        std::set<std::string>& visited) {
+    // Circular detection
+    auto canonical = std::filesystem::weakly_canonical(path).string();
+    if (visited.count(canonical)) {
+        fmt::print(stderr, "[governance] Circular extends detected: {}\n", canonical);
+        return false;
+    }
+    visited.insert(canonical);
+
+    // Depth check (uses child's InheritanceConfig.max_depth — already parsed)
+    int max_depth = rules_.meta.inheritance.max_depth;
+    if (max_depth <= 0) max_depth = 5;
+    if (depth > max_depth) {
+        fmt::print(stderr, "[governance] extends chain exceeds max_depth ({})\n", max_depth);
+        return false;
+    }
+
+    // Load this config file
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        fmt::print(stderr, "[governance] Cannot open extends base: {}\n", path);
+        return false;
+    }
+
+    nlohmann::json j;
+    try {
+        j = nlohmann::json::parse(ifs);
+    } catch (const std::exception& e) {
+        fmt::print(stderr, "[governance] Parse error in extends base {}: {}\n", path, e.what());
+        return false;
+    }
+
+    if (!checkJsonArrayWidth(j)) {
+        fmt::print(stderr, "[governance] extends base rejected: JSON array exceeds cap\n");
+        return false;
+    }
+
+    // Parse base config into temporary rules
+    GovernanceRules base_rules;
+    loadFromJson(j, base_rules);
+
+    // Verify signature on base config
+    if (!verifyFileSignature(path)) {
+        fmt::print(stderr, "[governance] extends base signature verification failed: {}\n", path);
+        g_governance_hard_block = true;
+        return false;
+    }
+
+    // Recursively resolve base's extends (if it has one)
+    if (!base_rules.extends_path.empty()) {
+        auto base_dir = std::filesystem::path(path).parent_path().string();
+        auto resolved = resolveExtendsPath(base_rules.extends_path, base_dir);
+        if (resolved.empty()) {
+            fmt::print(stderr, "[governance] Cannot resolve extends path in base: {}\n",
+                       base_rules.extends_path);
+            return false;
+        }
+
+        // Create a temporary engine to recursively load the grandparent
+        // We reuse this engine's visited set for circular detection
+        GovernanceEngine temp;
+        temp.rules_ = base_rules;
+        if (!temp.loadWithExtends(resolved, depth + 1, visited)) {
+            return false;
+        }
+        base_rules = temp.rules_;
+    }
+
+    // Merge: base fills gaps in child (rules_ is the child)
+    mergeRules(base_rules, rules_, rules_.meta.inheritance);
+
+    return true;
+}
+
 bool GovernanceEngine::loadFromFile(const std::string& path) {
     try {
         std::ifstream ifs(path);
@@ -3182,6 +3554,23 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
         loadFromJson(j, rules_);
         loaded_path_ = path;
+
+        // --- Policy distribution: resolve extends chain ---
+        if (!rules_.extends_path.empty()) {
+            auto config_dir = std::filesystem::path(path).parent_path().string();
+            auto resolved = resolveExtendsPath(rules_.extends_path, config_dir);
+            if (resolved.empty()) {
+                fmt::print(stderr, "[governance] Cannot resolve extends: {}\n",
+                           rules_.extends_path);
+                return false;
+            }
+            std::set<std::string> visited;
+            visited.insert(std::filesystem::weakly_canonical(path).string());
+            if (!loadWithExtends(resolved, 1, visited)) {
+                return false;
+            }
+        }
+
         active_ = (rules_.mode != GovernanceMode::OFF);
 
         // Generate unique run_id for telemetry run separation
@@ -3190,6 +3579,18 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 now.time_since_epoch()).count();
             run_id_ = fmt::format("{}-{}", ms, ::getpid());
+        }
+
+        // Initialize telemetry forwarder if webhook configured
+        if (!rules_.telemetry_output.webhook_url.empty() && !telemetry_forwarder_) {
+            TelemetryForwarderConfig fwd_cfg;
+            fwd_cfg.webhook_url = rules_.telemetry_output.webhook_url;
+            fwd_cfg.auth_header = rules_.telemetry_output.webhook_auth_header;
+            fwd_cfg.batch_size = rules_.telemetry_output.forward_batch_size;
+            fwd_cfg.timeout_ms = rules_.telemetry_output.forward_timeout_ms;
+            fwd_cfg.retry_count = rules_.telemetry_output.forward_retry_count;
+            fwd_cfg.buffer_max = rules_.telemetry_output.forward_buffer_max;
+            telemetry_forwarder_ = std::make_unique<TelemetryForwarder>(fwd_cfg);
         }
 
         // Store mtime for mid-run reload detection (truncate to seconds for portability)

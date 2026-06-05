@@ -457,6 +457,24 @@ public:
         });
     }
 
+    // Multi-key storage (populated by setApiKeys)
+    std::vector<governance::GovernanceRules::ApiKeyEntry> api_keys_;
+    std::mutex keys_mutex_;
+
+    // Thread-local matched scopes (set by pre-routing handler, read by route handlers)
+    // Using a simple thread-local since cpp-httplib doesn't have per-request context.
+    static thread_local std::vector<std::string> t_matched_scopes_;
+    static thread_local bool t_has_scoped_key_;
+
+    // Scope required by endpoint path
+    static std::string scopeForPath(const std::string& path) {
+        if (path.find("/api/v1/execute") == 0) return "execute";
+        if (path.find("/api/v1/check") == 0) return "check";
+        if (path.find("/api/v1/blocks") == 0) return "blocks";
+        if (path.find("/api/v1/stats") == 0) return "stats";
+        return "";
+    }
+
     // V-API-001: apply body size cap and optional API key auth.
     // V-DOS-005 (R25): rate limiting added after auth check.
     // Called after construction so the outer RestApiServer members are set.
@@ -464,8 +482,7 @@ public:
         // Body size cap — reject oversized requests before handlers run
         server.set_payload_max_length(max_body_bytes);
 
-        // Pre-routing handler: auth + rate limiting
-        // Always install if either auth or rate limiting could be enabled.
+        // Pre-routing handler: auth + rate limiting + scope check
         server.set_pre_routing_handler(
             [this, api_key](const httplib::Request& req, httplib::Response& res) {
                 // /health is always public — no auth, no rate limit
@@ -473,31 +490,96 @@ public:
                     return httplib::Server::HandlerResponse::Unhandled;
                 }
 
-                // Auth check (V-API-001) — skip if no key configured
-                if (!api_key.empty()) {
-                    bool ok = false;
+                // Reset thread-local scope state
+                t_matched_scopes_.clear();
+                t_has_scoped_key_ = false;
+
+                // Determine if we have any auth configured
+                bool has_legacy_key = !api_key.empty();
+                bool has_multi_keys = false;
+                {
+                    std::lock_guard<std::mutex> lock(keys_mutex_);
+                    has_multi_keys = !api_keys_.empty();
+                }
+                bool auth_required = has_legacy_key || has_multi_keys;
+
+                if (auth_required) {
+                    std::string presented_key;
                     if (req.has_header("Authorization")) {
-                        // V-API-002: constant-time comparison
-                        ok = naab::security::CryptoUtils::constantTimeCompare(
-                            req.get_header_value("Authorization"), "Bearer " + api_key);
+                        auto auth_val = req.get_header_value("Authorization");
+                        if (auth_val.substr(0, 7) == "Bearer ") {
+                            presented_key = auth_val.substr(7);
+                        }
                     }
-                    if (!ok && req.has_header("X-API-Key")) {
-                        ok = naab::security::CryptoUtils::constantTimeCompare(
-                            req.get_header_value("X-API-Key"), api_key);
+                    if (presented_key.empty() && req.has_header("X-API-Key")) {
+                        presented_key = req.get_header_value("X-API-Key");
                     }
-                    if (!ok) {
+
+                    if (presented_key.empty()) {
                         res.status = 401;
                         res.set_content(
                             nlohmann::json{{"error","Unauthorized"},{"status","error"}}.dump(2),
                             "application/json");
                         return httplib::Server::HandlerResponse::Handled;
                     }
+
+                    bool authenticated = false;
+
+                    // Check multi-key list first (takes priority)
+                    if (has_multi_keys) {
+                        std::lock_guard<std::mutex> lock(keys_mutex_);
+                        for (const auto& entry : api_keys_) {
+                            // V-API-002: constant-time comparison
+                            if (naab::security::CryptoUtils::constantTimeCompare(
+                                    presented_key, entry.key)) {
+                                authenticated = true;
+                                t_matched_scopes_ = entry.scopes;
+                                t_has_scoped_key_ = !entry.scopes.empty();
+                                break;
+                            }
+                        }
+                    }
+
+                    // Fall back to legacy single key
+                    if (!authenticated && has_legacy_key) {
+                        if (naab::security::CryptoUtils::constantTimeCompare(
+                                presented_key, api_key)) {
+                            authenticated = true;
+                            // Legacy key has full access (no scopes)
+                        }
+                    }
+
+                    if (!authenticated) {
+                        res.status = 401;
+                        res.set_content(
+                            nlohmann::json{{"error","Unauthorized"},{"status","error"}}.dump(2),
+                            "application/json");
+                        return httplib::Server::HandlerResponse::Handled;
+                    }
+
+                    // Scope check: if the matched key has scopes, verify this endpoint is allowed
+                    if (t_has_scoped_key_) {
+                        std::string required = scopeForPath(req.path);
+                        if (!required.empty()) {
+                            bool scope_ok = false;
+                            for (const auto& s : t_matched_scopes_) {
+                                if (s == required) { scope_ok = true; break; }
+                            }
+                            if (!scope_ok) {
+                                res.status = 403;
+                                res.set_content(
+                                    nlohmann::json{{"error","Forbidden: insufficient scope"},
+                                                   {"status","error"},
+                                                   {"required_scope", required}}.dump(2),
+                                    "application/json");
+                                return httplib::Server::HandlerResponse::Handled;
+                            }
+                        }
+                    }
                 }
 
-                // V-DOS-008: Use the authenticated identity for rate limiting,
-                // not the spoofable X-API-Key header. If auth is configured,
-                // use the configured api_key (single identity); otherwise remote_addr.
-                std::string rate_key = api_key.empty() ? req.remote_addr : api_key;
+                // V-DOS-008: rate limiting keyed by authenticated identity
+                std::string rate_key = auth_required ? "authenticated" : req.remote_addr;
                 if (!checkRateLimit(rate_key)) {
                     res.status = 429;
                     res.set_header("Retry-After", "1");
@@ -512,6 +594,10 @@ public:
     }
 };
 
+// Thread-local scope state
+thread_local std::vector<std::string> RestApiServer::Impl::t_matched_scopes_;
+thread_local bool RestApiServer::Impl::t_has_scoped_key_ = false;
+
 // RestApiServer implementation
 RestApiServer::RestApiServer(int port, const std::string& host)
     : impl_(std::make_unique<Impl>()),
@@ -524,7 +610,16 @@ RestApiServer::RestApiServer(int port, const std::string& host)
 void RestApiServer::setApiKey(const std::string& key) {
     api_key_ = key;
     impl_->applySecurityConfig(api_key_, max_body_bytes_);
-    spdlog::info("REST API: API key authentication enabled");
+    if (!key.empty()) spdlog::info("REST API: API key authentication enabled");
+}
+
+void RestApiServer::setApiKeys(const std::vector<governance::GovernanceRules::ApiKeyEntry>& keys) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->keys_mutex_);
+        impl_->api_keys_ = keys;
+    }
+    impl_->applySecurityConfig(api_key_, max_body_bytes_);
+    spdlog::info("REST API: {} API key(s) with scoped permissions configured", keys.size());
 }
 
 void RestApiServer::setMaxBodySize(size_t bytes) {

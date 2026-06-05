@@ -152,6 +152,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         throw std::runtime_error(msg);
     }
 
+    // Mid-execution config reload: pick up tightened governance between polyglot blocks
+    if (governance_ && governance_->isActive()) {
+        governance_->reloadIfChanged();
+    }
+
     // Governance v3.0: Comprehensive polyglot block check
     if (governance_ && governance_->isActive()) {
         int line = node.getLocation().line;
