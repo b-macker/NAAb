@@ -1017,6 +1017,7 @@
       "allowed_actions": [],
       "risk_budget": 0,
       "standing_lease_turns": 0,
+      "standing_lease_seconds": 0,
       "retry": {
         "max_attempts": 1,
         "backoff_ms": 1000,
@@ -1048,6 +1049,7 @@
       "allowed_actions": [],
       "risk_budget": 0,
       "standing_lease_turns": 0,
+      "standing_lease_seconds": 0,
       "retry": {
         "max_attempts": 3,
         "backoff_ms": 1000,

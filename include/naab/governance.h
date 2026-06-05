@@ -1369,6 +1369,7 @@ struct GovernancePulse {
     // Per-subsystem health
     bool bsd_connected = true;
     bool cdd_connected = true;
+    bool telemetry_connected = true;
     double entropy = -1.0;            // -1 = not yet computed
 
     // Hysteresis (sustained degradation required before transition)
@@ -1773,6 +1774,7 @@ struct AgentConfig {
     // After N turns, standing expires. Agent must re-authorize via step-up challenge.
     // 0 = no lease (unlimited standing). Requires step_up_enabled in circuit_breaker.
     int standing_lease_turns = 0;
+    int standing_lease_seconds = 0;  // 0 = no wall-clock lease
 };
 
 // ============================================================================
@@ -2012,6 +2014,7 @@ struct CheckResult {
     std::vector<std::string> decision_trace;
     // Human-readable explanation: plain-English sentence for end users
     std::string explanation;
+    bool escalated = false;   // advisory escalated to effective block
 };
 
 // ============================================================================
@@ -2678,6 +2681,7 @@ private:
     std::string current_check_file_;    // Set by setCheckContext() for report tracking
     int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_map<std::string, int> emitted_advisories_;  // Advisory occurrence counts (escalation)
+    void decayAdvisoryHistory();  // halve occurrence counts on epoch boundary (caller must hold results_mutex_)
     bool preflight_mode_ = false;  // F8: marks results as preflight during preflightIntentCheck
     std::unordered_set<std::string> taint_set_;
     std::unordered_map<std::string, TaintMetadata> taint_lineage_;
@@ -2766,7 +2770,7 @@ private:
 
     // Evidence Epoch — monotonic counter incremented on state transitions
     // Prior-epoch evidence is discounted (database MVCC / court jurisdiction analog)
-    int governance_epoch_ = 0;
+    std::atomic<int> governance_epoch_{0};
     bool score_yellow_warned_ = false;
 
     // Ed25519 signature warning dedup (per engine instance, not static)

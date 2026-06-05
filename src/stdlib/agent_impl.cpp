@@ -63,6 +63,7 @@ static void ensureProcessSecret() {
             }
         }
         // Fallback: timestamp + pid (weaker but functional)
+        fprintf(stderr, "[governance] Warning: /dev/urandom unavailable — agent handle security is degraded\n");
         s_process_secret = std::to_string(
             std::chrono::steady_clock::now().time_since_epoch().count()) +
             ":" + std::to_string(getpid());
@@ -88,6 +89,7 @@ struct AgentTracker {
     // Standing Lease — TTL on agent authorization (Kerberos TGT / OAuth access token analog)
     int lease_granted_turn = 0;    // turn when lease was last granted/renewed
     int lease_expires_turn = 0;    // turn after which agent must re-authorize (0 = no lease)
+    std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -346,6 +348,14 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             if (t.lease_expires_turn > 0) {
                 state["lease_remaining"] = NaabVal::makeInt(
                     std::max(0, t.lease_expires_turn - t.turns));
+            }
+            // Wall-clock lease: remaining seconds
+            if (config && config->standing_lease_seconds > 0) {
+                auto elapsed = std::chrono::steady_clock::now() - t.lease_granted_time;
+                int elapsed_sec = static_cast<int>(
+                    std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+                state["lease_remaining_seconds"] = NaabVal::makeInt(
+                    std::max(0, config->standing_lease_seconds - elapsed_sec));
             }
             // Tool execution state
             if (t.tool_calls_total > 0 || (config && config->tools_enabled)) {
@@ -662,6 +672,9 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
             tracker.lease_granted_turn = 0;
             tracker.lease_expires_turn = config->standing_lease_turns;
         }
+        if (config->standing_lease_seconds > 0) {
+            tracker.lease_granted_time = std::chrono::steady_clock::now();
+        }
     }
 
     std::unordered_map<std::string, NaabVal> handle;
@@ -764,6 +777,27 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     config->standing_lease_turns));
             }
             // Mark that a forced step-up is needed (handled below in step-up section)
+        }
+
+        // Wall-clock lease: check if time-based authorization has expired
+        if (config->standing_lease_seconds > 0) {
+            auto elapsed = std::chrono::steady_clock::now() - tracker.lease_granted_time;
+            int elapsed_sec = static_cast<int>(
+                std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+            if (elapsed_sec >= config->standing_lease_seconds) {
+                auto* gov_engine = governance::GovernanceEngine::getCurrent();
+                const auto& cb_cfg = gov_engine ? gov_engine->getRules().circuit_breaker
+                                                 : governance::CircuitBreakerConfig{};
+                if (!cb_cfg.step_up_enabled) {
+                    throw std::runtime_error(fmt::format(
+                        "Agent error: Wall-clock lease expired after {} seconds\n\n"
+                        "  Help:\n"
+                        "  - Create a new agent handle for a fresh conversation\n"
+                        "  - Or enable step_up challenges to allow lease renewal\n",
+                        elapsed_sec));
+                }
+                // Falls through to step-up challenge handling below
+            }
         }
 
         // Enforce token budget from tracker (not handle dict)
@@ -922,8 +956,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             {
                 std::lock_guard<std::mutex> lock(s_agent_mutex);
                 auto it = s_trackers.find(handle_id);
-                if (it != s_trackers.end() && it->second.lease_expires_turn > 0) {
-                    lease_expired = (it->second.turns >= it->second.lease_expires_turn);
+                if (it != s_trackers.end()) {
+                    if (it->second.lease_expires_turn > 0) {
+                        lease_expired = (it->second.turns >= it->second.lease_expires_turn);
+                    }
+                    // Wall-clock lease check
+                    if (!lease_expired && config->standing_lease_seconds > 0) {
+                        auto elapsed = std::chrono::steady_clock::now() - it->second.lease_granted_time;
+                        int elapsed_sec = static_cast<int>(
+                            std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+                        lease_expired = (elapsed_sec >= config->standing_lease_seconds);
+                    }
                 }
             }
             if (static_cast<int>(level) >= required_level || lease_expired) {
@@ -992,6 +1035,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                     if (config->standing_lease_turns > 0) {
                                         it->second.lease_granted_turn = current_turn;
                                         it->second.lease_expires_turn = current_turn + config->standing_lease_turns;
+                                    }
+                                    if (config->standing_lease_seconds > 0) {
+                                        it->second.lease_granted_time = std::chrono::steady_clock::now();
                                     }
                                 } else {
                                     it->second.challenges_failed++;

@@ -71,6 +71,14 @@ else
     SUITES_FAILED=$((SUITES_FAILED + 1))
 fi
 
+# --- Invariant 6: Governance Properties ---
+echo ""
+if bash "$SCRIPT_DIR/test_governance_properties.sh"; then
+    SUITES_PASSED=$((SUITES_PASSED + 1))
+else
+    SUITES_FAILED=$((SUITES_FAILED + 1))
+fi
+
 # Summary
 echo ""
 echo "==============================================="

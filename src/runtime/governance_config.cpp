@@ -2163,6 +2163,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 // Standing Lease — TTL on agent authorization
                 if (cfg_json.contains("standing_lease_turns"))
                     agent.standing_lease_turns = std::max(0, cfg_json["standing_lease_turns"].get<int>());
+                if (cfg_json.contains("standing_lease_seconds"))
+                    agent.standing_lease_seconds = std::max(0, cfg_json["standing_lease_seconds"].get<int>());
                 // Retry configuration
                 if (cfg_json.contains("retry") && cfg_json["retry"].is_object()) {
                     auto& r = cfg_json["retry"];
@@ -2901,6 +2903,16 @@ static bool checkRatchetViolation(
         if (new_agent.standing_lease_turns == 0 && old_agent->standing_lease_turns > 0)
             violations.push_back(fmt::format("agent.{}.standing_lease_turns: {} -> 0 (loosened — lease removed)",
                 new_agent.name, old_agent->standing_lease_turns));
+        // Wall-clock lease: same ratchet rules
+        if (new_agent.standing_lease_seconds > old_agent->standing_lease_seconds && old_agent->standing_lease_seconds > 0)
+            violations.push_back(fmt::format("agent.{}.standing_lease_seconds: {} -> {} (loosened)",
+                new_agent.name, old_agent->standing_lease_seconds, new_agent.standing_lease_seconds));
+        else if (new_agent.standing_lease_seconds < old_agent->standing_lease_seconds)
+            notices.push_back(fmt::format("agent.{}.standing_lease_seconds: {} -> {} (tightened)",
+                new_agent.name, old_agent->standing_lease_seconds, new_agent.standing_lease_seconds));
+        if (new_agent.standing_lease_seconds == 0 && old_agent->standing_lease_seconds > 0)
+            violations.push_back(fmt::format("agent.{}.standing_lease_seconds: {} -> 0 (loosened — lease removed)",
+                new_agent.name, old_agent->standing_lease_seconds));
     }
 
     // Detect removed agents — removing constraints is loosening
@@ -3043,6 +3055,10 @@ bool GovernanceEngine::reloadIfChanged() {
 
         // Evidence Epoch: config reload invalidates prior-epoch evidence
         governance_epoch_++;
+        {
+            std::lock_guard<std::mutex> lock(results_mutex_);
+            decayAdvisoryHistory();
+        }
 
         // Fail-closed: sync tightened governance into active sandbox
         auto* sb = security::ScopedSandbox::getCurrent();
@@ -3058,13 +3074,26 @@ bool GovernanceEngine::reloadIfChanged() {
         }
 
         // Re-configure BSD/CDD detectors with new rules
+        // Use updateConfig() when already enabled (preserve behavioral evidence)
+        // Use configure() for fresh enable (off→on transition)
+        bool was_bsd = bsd_enabled_.load(std::memory_order_relaxed);
+        bool was_cdd = cdd_enabled_.load(std::memory_order_relaxed);
+
         if (rules_.behavioral_sequences.enabled) {
-            sequence_detector_.configure(rules_.behavioral_sequences);
+            if (was_bsd) {
+                sequence_detector_.updateConfig(rules_.behavioral_sequences);
+            } else {
+                sequence_detector_.configure(rules_.behavioral_sequences);
+            }
         } else {
             sequence_detector_.reset();
         }
         if (rules_.context_drift.enabled) {
-            drift_analyzer_.configure(rules_.context_drift);
+            if (was_cdd) {
+                drift_analyzer_.updateConfig(rules_.context_drift);
+            } else {
+                drift_analyzer_.configure(rules_.context_drift);
+            }
         } else {
             drift_analyzer_.reset();
         }

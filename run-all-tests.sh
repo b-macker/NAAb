@@ -1321,6 +1321,19 @@ else
     echo "  test_bsd_cdd_fixes.sh: not found, skipping"
 fi
 
+# Consequence-boundary proof harness
+CONSEQUENCE_SCRIPT="tests/governance_v4/consequence_boundary/test_consequence_proof.sh"
+if [ -f "$CONSEQUENCE_SCRIPT" ]; then
+    if bash "$CONSEQUENCE_SCRIPT" 2>&1; then
+        echo "  test_consequence_proof.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_consequence_proof.sh")
+    fi
+else
+    echo "  test_consequence_proof.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

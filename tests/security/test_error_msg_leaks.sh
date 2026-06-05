@@ -89,6 +89,14 @@ BANNED_IN_STRINGS=(
     'weight_multiplier_|advisory escalation field leaked in error string'
     # Evidence Epoch internals
     'governance_epoch_|evidence epoch field leaked in error string'
+    # Wall-clock lease internals
+    'lease_granted_time|standing lease wall-clock field leaked in error string'
+    # Advisory decay internals
+    'decayAdvisoryHistory|advisory decay method leaked in error string'
+    # BSD/CDD reconfigure internals
+    'updateConfig|BSD/CDD internal method leaked in error string'
+    # Telemetry pulse internals
+    'telemetry_connected|pulse telemetry field leaked in error string'
 )
 
 echo "=== Error Message Leak Check ==="

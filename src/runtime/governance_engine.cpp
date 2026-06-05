@@ -989,6 +989,7 @@ std::string GovernanceEngine::enforce(
                 // Escalate to SOFT — release lock, recurse with SOFT level
                 // (can't call enforce recursively under same lock — set flag and return)
                 g_governance_hard_block = true;
+                check_results_.back().escalated = true;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
                     rule_name.c_str(), occurrence, esc.soft_after);
                 return violation_message +
@@ -2603,7 +2604,10 @@ void GovernanceEngine::printDashboard() const {
         else if (pulse_.verdict == PulseVerdict::IMPAIRED) verdict_str = "IMPAIRED";
         fprintf(stderr, "Pulse:      %s (%d checks, %d consecutive passes, epoch %d)\n",
                 verdict_str, pulse_.total_checks, pulse_.consecutive_passes,
-                governance_epoch_);
+                governance_epoch_.load(std::memory_order_relaxed));
+        if (!pulse_.telemetry_connected) {
+            fprintf(stderr, "            telemetry: DISCONNECTED\n");
+        }
     }
     fprintf(stderr, "────────────────────────────────\n");
 }
@@ -2614,7 +2618,7 @@ void GovernanceEngine::printDashboard() const {
 
 bool GovernanceEngine::wasBlocked() const {
     for (const auto& r : check_results_) {
-        if (!r.passed && r.level == EnforcementLevel::HARD) return true;
+        if (!r.passed && (r.level == EnforcementLevel::HARD || r.escalated)) return true;
     }
     return false;
 }
@@ -2751,6 +2755,7 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
     if (!rules_.scoring.enabled) return true;
     int recomputed = 0;
+    std::unordered_map<std::string, int> occ_counts;
     for (const auto& r : check_results_) {
         if (r.passed || r.level != EnforcementLevel::ADVISORY) continue;
         // Pass 2 entries bypass enforce() — exclude from integrity recomputation
@@ -2763,6 +2768,11 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
             weight = 1;  // supporting functions: reduced weight
         }
         weight = std::max(0, weight);
+        // Advisory Escalation: mirror enforce() weight multiplier (lines 886-891)
+        occ_counts[r.rule_name]++;
+        if (rules_.advisory_escalation.enabled && occ_counts[r.rule_name] > 1) {
+            weight = static_cast<int>(weight * rules_.advisory_escalation.weight_multiplier);
+        }
         if (recomputed <= SCORE_SATURATION_LIMIT - weight) {
             recomputed += weight;
         } else {
@@ -5668,6 +5678,20 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
             "— suspiciously uniform check results\n", entropy, cfg.governance_entropy_warning);
     }
 
+    // Check 5: Telemetry hash chain advancing
+    if (rules_.telemetry_output.enabled && pulse_.total_checks > 0 && last_telemetry_hash_.empty()) {
+        warnings += "WARNING: Telemetry hash chain not advancing (telemetry may be disconnected)\n";
+    }
+    // Check 6: Telemetry file still writable
+    if (rules_.telemetry_output.enabled && !rules_.telemetry_output.output_file.empty()) {
+        FILE* tf = fopen(rules_.telemetry_output.output_file.c_str(), "a");
+        if (tf) { fclose(tf); }
+        else {
+            warnings += fmt::format("WARNING: Telemetry file not writable: {}\n",
+                rules_.telemetry_output.output_file);
+        }
+    }
+
     return warnings;
 }
 
@@ -5779,11 +5803,18 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     if (ent >= 0.0 && ent < rules_.governance_health.governance_entropy_warning)
         degradation_signals++;
 
+    // Subsystem: telemetry health (hash chain advancing = telemetry operational)
+    bool telemetry_ok = !rules_.telemetry_output.enabled ||
+                        pulse_.total_checks == 0 ||
+                        !last_telemetry_hash_.empty();
+    if (!telemetry_ok) degradation_signals++;
+
     // Phase 2: Update pulse state (ACQUIRE results_mutex_ for write)
     std::lock_guard<std::mutex> lock(results_mutex_);
 
     pulse_.bsd_connected = bsd_ok;
     pulse_.cdd_connected = cdd_ok;
+    pulse_.telemetry_connected = telemetry_ok;
     pulse_.entropy = ent;
 
     // Consecutive passes check (suspiciously uniform — all governance checks passing)
@@ -5821,6 +5852,7 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
         // Evidence Epoch: state transition invalidates prior-epoch evidence
         governance_epoch_++;
         pulse_.consecutive_passes = 0;  // reset on epoch boundary
+        decayAdvisoryHistory();
     }
 
     pulse_.verdict = new_verdict;
@@ -5842,8 +5874,20 @@ GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
 }
 
 int GovernanceEngine::getGovernanceEpoch() const {
-    std::lock_guard<std::mutex> lock(results_mutex_);
-    return governance_epoch_;
+    return governance_epoch_.load(std::memory_order_relaxed);
+}
+
+void GovernanceEngine::decayAdvisoryHistory() {
+    // Caller must hold results_mutex_
+    // Halve occurrence counts on epoch boundary — prior-epoch advisory evidence discounted
+    for (auto it = emitted_advisories_.begin(); it != emitted_advisories_.end(); ) {
+        it->second /= 2;
+        if (it->second == 0) {
+            it = emitted_advisories_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 double GovernanceEngine::computeGovernanceEntropy() const {
@@ -6090,6 +6134,8 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 int prev_level = governance_level_.load(std::memory_order_relaxed);
                 if (level != prev_level) {
                     governance_epoch_++;
+                    std::lock_guard<std::mutex> lock(results_mutex_);
+                    decayAdvisoryHistory();
                 }
                 governance_level_.store(level, std::memory_order_relaxed);
             }

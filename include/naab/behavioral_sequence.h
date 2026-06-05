@@ -158,6 +158,9 @@ public:
     // Reset all state
     void reset();
 
+    // Re-bind config without clearing behavioral state (threshold-only reloads)
+    void updateConfig(const BehavioralSequenceConfig& config);
+
     // Check if enabled
     bool isEnabled() const;
 
@@ -193,6 +196,9 @@ public:
     ContextDriftAnalyzer() = default;
 
     void configure(const ContextDriftConfig& config);
+
+    // Re-bind config without clearing drift state (threshold-only reloads)
+    void updateConfig(const ContextDriftConfig& config);
 
     // Called after each agent turn; returns true if drift detected
     bool recordTurn(int handle_id, int turn_number,

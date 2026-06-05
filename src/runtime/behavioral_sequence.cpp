@@ -24,6 +24,16 @@ void BehavioralSequenceDetector::configure(const BehavioralSequenceConfig& confi
     }
 }
 
+void BehavioralSequenceDetector::updateConfig(const BehavioralSequenceConfig& config) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_ = &config;
+    if (config.patterns.empty()) {
+        buildDefaultPatterns();
+    }
+    // Preserve: event_buffer_, sequence_counter_, evicted_event_count_,
+    //           match_count_, pattern_states_
+}
+
 void BehavioralSequenceDetector::buildDefaultPatterns() {
     default_patterns_.clear();
 
@@ -559,6 +569,12 @@ void ContextDriftAnalyzer::configure(const ContextDriftConfig& config) {
     std::lock_guard<std::mutex> lock(mutex_);
     config_ = &config;
     drift_states_.clear();
+}
+
+void ContextDriftAnalyzer::updateConfig(const ContextDriftConfig& config) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    config_ = &config;
+    // Preserve: drift_states_, turns_analyzed_
 }
 
 bool ContextDriftAnalyzer::isEnabled() const {
