@@ -1400,6 +1400,17 @@ else
     echo "  test_uncatchable.sh: not found, skipping"
 fi
 
+CONTAINMENT_SCRIPT="tests/security/test_subprocess_containment.sh"
+if [ -f "$CONTAINMENT_SCRIPT" ]; then
+    if bash "$CONTAINMENT_SCRIPT" 2>/dev/null; then
+        echo "  test_subprocess_containment.sh: ALL PASSED"
+    else
+        FAILED_TESTS+=("test_subprocess_containment.sh")
+    fi
+else
+    echo "  test_subprocess_containment.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

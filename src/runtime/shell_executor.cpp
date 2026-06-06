@@ -93,13 +93,15 @@ naab::interpreter::NaabVal ShellExecutor::executeWithReturn(
         // Use platform shell to interpret command
 #ifdef _WIN32
         std::vector<std::string> args = {"/c", code};
+        auto containment = SubprocessContainment::fromCurrentSandbox("cmd.exe");
         exit_code = execute_subprocess_with_pipes(
-            "cmd.exe", args, stdout_output, stderr_output, nullptr
+            "cmd.exe", args, stdout_output, stderr_output, nullptr, &containment
         );
 #else
         std::vector<std::string> args = {"-c", code};
+        auto containment = SubprocessContainment::fromCurrentSandbox("sh");
         exit_code = execute_subprocess_with_pipes(
-            "sh", args, stdout_output, stderr_output, nullptr
+            "sh", args, stdout_output, stderr_output, nullptr, &containment
         );
 #endif
     } else {
@@ -112,8 +114,9 @@ naab::interpreter::NaabVal ShellExecutor::executeWithReturn(
         while (iss >> arg) {
             args.push_back(arg);
         }
+        auto containment = SubprocessContainment::fromCurrentSandbox(cmd_path);
         exit_code = execute_subprocess_with_pipes(
-            cmd_path, args, stdout_output, stderr_output, nullptr
+            cmd_path, args, stdout_output, stderr_output, nullptr, &containment
         );
     }
 
@@ -329,8 +332,9 @@ bool ShellExecutor::runCommand(const std::string& command) {
     if (command.find('\n') != std::string::npos) {
         // Execute as a shell script using sh -c
         std::vector<std::string> args = {"-c", command};
+        auto containment = SubprocessContainment::fromCurrentSandbox("sh");
         exit_code = execute_subprocess_with_pipes(
-            "sh", args, stdout_buffer_local, stderr_buffer_local, nullptr
+            "sh", args, stdout_buffer_local, stderr_buffer_local, nullptr, &containment
         );
     } else {
         // Parse the command string into command and arguments
@@ -344,8 +348,9 @@ bool ShellExecutor::runCommand(const std::string& command) {
             args.push_back(arg);
         }
 
+        auto containment = SubprocessContainment::fromCurrentSandbox(cmd_path);
         exit_code = execute_subprocess_with_pipes(
-            cmd_path, args, stdout_buffer_local, stderr_buffer_local, nullptr
+            cmd_path, args, stdout_buffer_local, stderr_buffer_local, nullptr, &containment
         );
     }
     

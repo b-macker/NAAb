@@ -130,8 +130,9 @@ bool JuliaExecutor::execute(const std::string& code) {
         std::string exec_stdout, exec_stderr;
         std::vector<std::string> exec_args = {temp_jl.string()};
 
+        auto containment = SubprocessContainment::fromCurrentSandbox("julia");
         int exec_exit = execute_subprocess_with_pipes(
-            "julia", exec_args, exec_stdout, exec_stderr, nullptr
+            "julia", exec_args, exec_stdout, exec_stderr, nullptr, &containment
         );
 
         stdout_buffer_.append(exec_stdout);
@@ -188,9 +189,10 @@ interpreter::NaabVal JuliaExecutor::executeWithReturn(
 
         // Execute
         std::string exec_stdout, exec_stderr;
+        auto containment = SubprocessContainment::fromCurrentSandbox("julia");
         int exec_exit = execute_subprocess_with_pipes(
             "julia", {temp_jl.string()},
-            exec_stdout, exec_stderr, nullptr
+            exec_stdout, exec_stderr, nullptr, &containment
         );
 
         if (exec_exit != 0) {

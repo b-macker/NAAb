@@ -15,6 +15,10 @@
 #include <string>
 #include <algorithm>
 
+#ifndef _WIN32
+#  include <sys/resource.h>  // For setrlimit/getrlimit (RLIMIT_NPROC containment)
+#endif
+
 namespace naab {
 namespace runtime {
 
@@ -187,6 +191,27 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         scrub_code << "del _naab_os\n";
         PyRun_SimpleString(scrub_code.str().c_str());
     }
+
+    // OS-level containment: set RLIMIT_NPROC=0 to prevent Python from forking
+    // (subprocess.run, os.system, os.fork all fail with EAGAIN)
+    // This is process-wide but safe: NAAb doesn't fork during in-process Python execution.
+    // RAII guard restores NPROC on all exit paths (normal, exception, early return).
+#ifndef _WIN32
+    struct NprocGuard {
+        struct rlimit saved = {0, 0};
+        bool active = false;
+        ~NprocGuard() { if (active) setrlimit(RLIMIT_NPROC, &saved); }
+    } nproc_guard;
+    {
+        auto containment = SubprocessContainment::fromCurrentSandbox("python3");
+        if (containment.block_fork) {
+            getrlimit(RLIMIT_NPROC, &nproc_guard.saved);
+            struct rlimit zero = {0, 0};
+            setrlimit(RLIMIT_NPROC, &zero);
+            nproc_guard.active = true;
+        }
+    }
+#endif
 
     // Helper lambda: restore stdout and get captured output
     auto captureAndRestoreStdout = [&globals, env_scrub_applied]() -> std::string {

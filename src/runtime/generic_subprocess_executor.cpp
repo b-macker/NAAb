@@ -153,8 +153,9 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
             args.push_back(arg);
         }
 
+        auto containment = SubprocessContainment::fromCurrentSandbox(cmd);
         exit_code = execute_subprocess_with_pipes(
-            cmd, args, stdout_output, stderr_output, nullptr);
+            cmd, args, stdout_output, stderr_output, nullptr, &containment);
 
     } else {
         // Write to temp file and run
@@ -325,8 +326,9 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
             args.push_back(arg);
         }
 
+        auto containment = SubprocessContainment::fromCurrentSandbox(cmd);
         exit_code = execute_subprocess_with_pipes(
-            cmd, args, stdout_output, stderr_output, nullptr);
+            cmd, args, stdout_output, stderr_output, nullptr, &containment);
     }
 
     // Buffer output for flushExecutorOutput (don't print raw)
@@ -431,8 +433,9 @@ bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& com
     std::string stdout_buffer_local;
     std::string stderr_buffer_local;
 
+    auto containment = SubprocessContainment::fromCurrentSandbox(cmd_path);
     int exit_code = execute_subprocess_with_pipes(
-        cmd_path, args, stdout_buffer_local, stderr_buffer_local, nullptr // Explicitly pass nullptr for env
+        cmd_path, args, stdout_buffer_local, stderr_buffer_local, nullptr, &containment
     );
 
     // Append to internal buffers

@@ -1689,10 +1689,26 @@ int main(int argc, char** argv) {
                     if (rules.runtime.gc_threshold != 5000 && gc_threshold == 5000) gc_threshold = rules.runtime.gc_threshold;
                     if (rules.runtime.gc_stats && !gc_stats) gc_stats = true;
                     // Category C: security
-                    if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") sandbox_level = rules.sandbox_level_config;
+                    bool sandbox_level_changed = false;
+                    if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") {
+                        sandbox_level = rules.sandbox_level_config;
+                        sandbox_level_changed = true;
+                        // Rebuild security_config from govern.json-specified level
+                        if (sandbox_level == "restricted") {
+                            security_config = naab::security::SandboxConfig::fromPermissionLevel(
+                                naab::security::PermissionLevel::RESTRICTED);
+                        } else if (sandbox_level == "standard") {
+                            security_config = createEnterpriseConfig();
+                        } else if (sandbox_level == "elevated") {
+                            security_config = naab::security::SandboxConfig::fromPermissionLevel(
+                                naab::security::PermissionLevel::ELEVATED);
+                        }
+                        security_config.max_cpu_seconds = timeout;
+                        security_config.max_memory_mb = memory_limit;
+                    }
                     // Fail-closed: enforce mode defaults to standard sandbox (not unrestricted)
                     // Only apply when governance is actually active (not --no-governance)
-                    bool upgraded_to_standard = false;
+                    bool upgraded_to_standard = sandbox_level_changed;
                     if (!no_governance &&
                         vm_governance.getMode() == naab::governance::GovernanceMode::ENFORCE &&
                         rules.sandbox_level_config.empty() &&
@@ -1714,25 +1730,10 @@ int main(int argc, char** argv) {
                         // Update the live sandbox with governance-driven restrictions
                         auto* live_sb = naab::security::ScopedSandbox::getCurrent();
                         if (live_sb) {
-                            // When upgrading from unrestricted → standard, remove capabilities
-                            // that the standard config doesn't grant
+                            // When governance changes sandbox level, replace the live
+                            // sandbox config with the governance-specified one
                             if (upgraded_to_standard) {
-                                // Standard config only has: FS_READ, FS_WRITE, BLOCK_CALL
-                                // Remove everything else the unrestricted config granted
-                                live_sb->removeCapability(naab::security::Capability::SYS_EXEC);
-                                live_sb->removeCapability(naab::security::Capability::NET_CONNECT);
-                                live_sb->removeCapability(naab::security::Capability::NET_LISTEN);
-                                live_sb->removeCapability(naab::security::Capability::NET_RAW);
-                                live_sb->removeCapability(naab::security::Capability::SYS_ENV);
-                                live_sb->removeCapability(naab::security::Capability::RES_UNLIMITED_MEM);
-                                live_sb->removeCapability(naab::security::Capability::RES_UNLIMITED_CPU);
-                                live_sb->removeCapability(naab::security::Capability::UNSAFE);
-                                live_sb->removeCapability(naab::security::Capability::FS_EXECUTE);
-                                live_sb->removeCapability(naab::security::Capability::FS_DELETE);
-                                live_sb->removeCapability(naab::security::Capability::FS_CREATE_DIR);
-                                live_sb->removeCapability(naab::security::Capability::BLOCK_LOAD);
-                                live_sb->setNetworkEnabled(false);
-                                live_sb->setAllowExec(false);
+                                live_sb->replaceConfig(security_config);
                             }
                             if (!rules.network_allowed) {
                                 live_sb->setNetworkEnabled(false);

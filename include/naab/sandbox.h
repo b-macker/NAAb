@@ -119,6 +119,9 @@ public:
     // Get current configuration
     const SandboxConfig& getConfig() const { return config_; }
 
+    // Replace entire config (used when governance changes sandbox level mid-init)
+    void replaceConfig(const SandboxConfig& new_config) { config_ = new_config; }
+
     // Update network access (used when governance enables network after sandbox creation)
     void setNetworkEnabled(bool enabled) { config_.network_enabled = enabled; }
 
@@ -130,6 +133,7 @@ public:
 
     // Update exec permission (used when governance disables shell mid-run)
     void setAllowExec(bool allowed) { config_.allow_exec = allowed; }
+    void setAllowFork(bool allowed) { config_.allow_fork = allowed; }
 
     // Audit logging
     void logViolation(const std::string& operation,
@@ -160,6 +164,8 @@ public:
     void removeCapability(Capability cap) { if (sandbox_) sandbox_->removeCapability(cap); }
     void setNetworkEnabled(bool enabled) { if (sandbox_) sandbox_->setNetworkEnabled(enabled); }
     void setAllowExec(bool allowed) { if (sandbox_) sandbox_->setAllowExec(allowed); }
+    void setAllowFork(bool allowed) { if (sandbox_) sandbox_->setAllowFork(allowed); }
+    void replaceConfig(const SandboxConfig& config) { if (sandbox_) sandbox_->replaceConfig(config); }
 
 private:
     std::unique_ptr<Sandbox> sandbox_;

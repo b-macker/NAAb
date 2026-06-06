@@ -6,6 +6,7 @@
 // Arguments are passed directly to the kernel via execvp's argv array.
 
 #include "naab/subprocess_helpers.h"
+#include "naab/sandbox.h"           // For ScopedSandbox::getCurrent(), SandboxConfig
 #include "naab/paths.h"
 #include "naab/resource_limits.h"  // V-RT-003: isTimeoutTriggered() for orphan prevention
 #include <cstdio>       // For FILE, fopen, fclose, fprintf
@@ -23,8 +24,11 @@
 #ifndef _WIN32
 #  include <unistd.h>     // For fork, execvp, dup2, unlink, getpid, _exit
 #  include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
-#  include <sys/resource.h> // For getrlimit, RLIMIT_AS
+#  include <sys/resource.h> // For getrlimit, RLIMIT_AS, setrlimit, RLIMIT_NPROC/FSIZE/NOFILE
 #  include <signal.h>     // For kill()
+#  ifdef __linux__
+#    include <sys/prctl.h>  // For prctl(PR_SET_NO_NEW_PRIVS)
+#  endif
 #  ifdef __APPLE__
 #    include <crt_externs.h>
 #    define environ (*_NSGetEnviron())
@@ -98,6 +102,87 @@ static std::string readFileContents(const std::string& path) {
     if (!ifs.is_open()) return "";
     return std::string((std::istreambuf_iterator<char>(ifs)),
                         std::istreambuf_iterator<char>());
+}
+
+// --- OS-Level Subprocess Containment ---
+
+#ifndef _WIN32
+// Apply containment restrictions in the child process (post-fork, pre-exec).
+// These setrlimit/prctl calls only affect the child — parent is unaffected.
+static void apply_posix_containment(const SubprocessContainment& c) {
+    // L4: Lock privileges — must be before exec
+#ifdef __linux__
+    if (c.no_new_privs) {
+        prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); // ignore failure (Termux may block)
+    }
+#endif
+
+    // L2: Block fork — RLIMIT_NPROC=0 prevents grandchildren
+    // execve() still works (replaces current process, no new PID)
+    if (c.block_fork) {
+        struct rlimit rl = {0, 0};
+        setrlimit(RLIMIT_NPROC, &rl);
+    }
+
+    // L3: File size limit
+    if (c.max_fsize_bytes > 0) {
+        struct rlimit rl = {(rlim_t)c.max_fsize_bytes, (rlim_t)c.max_fsize_bytes};
+        setrlimit(RLIMIT_FSIZE, &rl);
+    }
+
+    // L3: File descriptor limit
+    if (c.max_nofile > 0) {
+        struct rlimit rl = {(rlim_t)c.max_nofile, (rlim_t)c.max_nofile};
+        setrlimit(RLIMIT_NOFILE, &rl);
+    }
+
+    // L1: PATH restriction — strip to interpreter dir only
+    if (c.restrict_path && !c.interpreter_dir.empty()) {
+        setenv("PATH", c.interpreter_dir.c_str(), 1);
+    }
+
+    // L5: Network env stripping — remove proxy vars
+    if (c.strip_network_env) {
+        for (const char* v : {"http_proxy","https_proxy","HTTP_PROXY",
+                              "HTTPS_PROXY","ALL_PROXY","no_proxy","NO_PROXY"})
+            unsetenv(v);
+    }
+}
+#endif // !_WIN32
+
+// Factory: build SubprocessContainment from current thread-local ScopedSandbox
+SubprocessContainment SubprocessContainment::fromCurrentSandbox(const std::string& command_path) {
+    SubprocessContainment c;
+
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return c;  // No sandbox active → no containment
+    const auto& config = sandbox->getConfig();
+
+    // Unrestricted sandbox → no containment
+    if (config.hasCapability(security::Capability::UNSAFE)) return c;
+
+    // Derive interpreter directory from command path
+    auto slash = command_path.rfind('/');
+#ifdef _WIN32
+    if (slash == std::string::npos) slash = command_path.rfind('\\');
+#endif
+    if (slash != std::string::npos) c.interpreter_dir = command_path.substr(0, slash);
+
+    c.restrict_path = !config.allow_exec;
+    c.block_fork = !config.allow_fork;
+    c.no_new_privs = true;  // Always for non-unrestricted
+    c.strip_network_env = !config.network_enabled;
+
+    if (config.max_file_size_mb > 0)
+        c.max_fsize_bytes = config.max_file_size_mb * 1024ULL * 1024ULL;
+    if (config.max_memory_mb > 0)
+        c.max_memory_bytes = config.max_memory_mb * 1024ULL * 1024ULL;
+    if (config.max_cpu_seconds > 0)
+        c.max_cpu_ms = config.max_cpu_seconds * 1000ULL;
+
+    c.max_nofile = config.allow_exec ? 0 : 256;  // Restrict FDs for sandboxed execution
+
+    return c;
 }
 
 #ifndef _WIN32
@@ -194,6 +279,33 @@ static HANDLE getNaabJobObject() {
     }();
     return job;
 }
+// Per-child Job Object with containment limits.
+// Unlike getNaabJobObject(), does NOT include BREAKAWAY_OK — contained
+// children cannot escape. ACTIVE_PROCESS=1 prevents grandchild spawning.
+static HANDLE createContainedJobObject(const SubprocessContainment& c) {
+    HANDLE job = ::CreateJobObjectA(nullptr, nullptr);
+    if (!job) return nullptr;
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ext = {};
+    ext.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    if (c.block_fork) {
+        ext.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+        ext.BasicLimitInformation.ActiveProcessLimit = 1;
+    }
+    if (c.max_memory_bytes > 0) {
+        ext.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_JOB_MEMORY;
+        ext.JobMemoryLimit = c.max_memory_bytes;
+    }
+    if (c.max_cpu_ms > 0) {
+        ext.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_JOB_TIME;
+        ext.BasicLimitInformation.PerJobUserTimeLimit.QuadPart =
+            static_cast<LONGLONG>(c.max_cpu_ms) * 10000LL;
+    }
+
+    ::SetInformationJobObject(job, JobObjectExtendedLimitInformation, &ext, sizeof(ext));
+    return job;
+}
 #endif // _WIN32
 
 // Helper to execute a subprocess and capture its stdout/stderr.
@@ -210,7 +322,8 @@ int execute_subprocess_with_pipes(
     const std::vector<std::string>& args,
     std::string& stdout_str,
     std::string& stderr_str,
-    const std::map<std::string, std::string>* env) {
+    const std::map<std::string, std::string>* env,
+    const SubprocessContainment* containment) {
 
 #ifdef _WIN32
     // =========================================================================
@@ -279,6 +392,24 @@ int execute_subprocess_with_pipes(
                     if (shouldScrubEnvVar(key)) continue;
                     // Skip keys that custom env overrides
                     if (env && !env->empty() && env->count(key) > 0) continue;
+                    // Containment-aware filtering (L1/L5)
+                    if (containment) {
+                        // L1: Replace PATH with interpreter dir only
+                        if (containment->restrict_path && key == "PATH" && !containment->interpreter_dir.empty()) {
+                            std::string new_path = "PATH=" + containment->interpreter_dir;
+                            for (char c2 : new_path) env_block.push_back(c2);
+                            env_block.push_back('\0');
+                            continue;
+                        }
+                        // L5: Strip proxy env vars
+                        if (containment->strip_network_env) {
+                            static const std::unordered_set<std::string> proxy_vars = {
+                                "http_proxy","https_proxy","HTTP_PROXY","HTTPS_PROXY",
+                                "ALL_PROXY","no_proxy","NO_PROXY"
+                            };
+                            if (proxy_vars.count(key)) continue;
+                        }
+                    }
                     for (char c : entry) env_block.push_back(c);
                     env_block.push_back('\0');
                 }
@@ -306,12 +437,15 @@ int execute_subprocess_with_pipes(
         HANDLE hOut = INVALID_HANDLE_VALUE;
         HANDLE hErr = INVALID_HANDLE_VALUE;
         LPPROC_THREAD_ATTRIBUTE_LIST attrs = nullptr;
+        HANDLE per_child_job = nullptr;  // Per-child containment Job Object
         ~WinSubprocessCleanup() {
             if (attrs) { ::DeleteProcThreadAttributeList(attrs); std::free(attrs); }
             if (hOut != INVALID_HANDLE_VALUE) ::CloseHandle(hOut);
             if (hErr != INVALID_HANDLE_VALUE) ::CloseHandle(hErr);
             if (thread) ::CloseHandle(thread);
             if (proc) ::CloseHandle(proc);
+            // KILL_ON_JOB_CLOSE triggers on close — kills any orphaned children
+            if (per_child_job) ::CloseHandle(per_child_job);
             if (!out_path.empty()) ::DeleteFileA(out_path.c_str());
             if (!err_path.empty()) ::DeleteFileA(err_path.c_str());
         }
@@ -395,8 +529,16 @@ int execute_subprocess_with_pipes(
     cleanup.proc = pi.hProcess;
     cleanup.thread = pi.hThread;
 
-    // Assign to the process-wide Job Object BEFORE resuming (W2).
-    HANDLE job = getNaabJobObject();
+    // Assign to Job Object BEFORE resuming (W2).
+    // Containment: use per-child job with resource limits.
+    // No containment: use process-wide job (orphan prevention only).
+    HANDLE job;
+    if (containment) {
+        cleanup.per_child_job = createContainedJobObject(*containment);
+        job = cleanup.per_child_job;
+    } else {
+        job = getNaabJobObject();
+    }
     if (job && !::AssignProcessToJobObject(job, pi.hProcess)) {
         DWORD err = ::GetLastError();
         fprintf(stderr, "[subprocess] AssignProcessToJobObject failed (error %lu)\n", err);
@@ -534,6 +676,12 @@ int execute_subprocess_with_pipes(
                     }
                 }
             }
+        }
+
+        // OS-level containment (post-fork, pre-exec)
+        // setrlimit/prctl only affect this child — parent is unaffected.
+        if (containment) {
+            apply_posix_containment(*containment);
         }
 
         // Child process: redirect stdout/stderr to temp files

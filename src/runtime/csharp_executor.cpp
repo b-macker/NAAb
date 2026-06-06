@@ -65,8 +65,9 @@ bool CSharpExecutor::execute(const std::string& code) {
         std::string exec_stdout, exec_stderr;
         std::vector<std::string> exec_args = {temp_exe.string()};
 
+        auto containment = SubprocessContainment::fromCurrentSandbox("mono");
         int exec_exit = execute_subprocess_with_pipes(
-            "mono", exec_args, exec_stdout, exec_stderr, nullptr
+            "mono", exec_args, exec_stdout, exec_stderr, nullptr, &containment
         );
 
         // Capture output
@@ -198,9 +199,10 @@ interpreter::NaabVal CSharpExecutor::executeWithReturn(
 
         // Execute
         std::string exec_stdout, exec_stderr;
+        auto containment = SubprocessContainment::fromCurrentSandbox("mono");
         int exec_exit = execute_subprocess_with_pipes(
             "mono", {temp_exe.string()},
-            exec_stdout, exec_stderr, nullptr
+            exec_stdout, exec_stderr, nullptr, &containment
         );
 
         // Buffer output for interpreter to handle (avoid double-printing)

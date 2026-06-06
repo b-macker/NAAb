@@ -130,12 +130,14 @@ bool RustExecutor::execute(const std::string& code) {
 
     // Execute the binary
     std::string exec_stdout, exec_stderr;
+    auto containment = SubprocessContainment::fromCurrentSandbox(temp_bin.string());
     int exec_exit = execute_subprocess_with_pipes(
         temp_bin.string(),
         {},
         exec_stdout,
         exec_stderr,
-        nullptr
+        nullptr,
+        &containment
     );
 
     // Store output in buffer
@@ -320,9 +322,10 @@ interpreter::NaabVal RustExecutor::executeWithReturn(
 
     // Execute
     std::string exec_stdout, exec_stderr;
+    auto containment = SubprocessContainment::fromCurrentSandbox(temp_bin.string());
     int exec_exit = execute_subprocess_with_pipes(
         temp_bin.string(), {},
-        exec_stdout, exec_stderr, nullptr
+        exec_stdout, exec_stderr, nullptr, &containment
     );
 
     // Buffer only log output (strip last line = return value)

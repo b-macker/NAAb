@@ -71,8 +71,9 @@ interpreter::NaabVal ProcessModule::call(
         }
 
         std::string stdout_str, stderr_str;
+        auto containment = naab::runtime::SubprocessContainment::fromCurrentSandbox(cmd);
         int exit_code = naab::runtime::execute_subprocess_with_pipes(
-            cmd, argv_vec, stdout_str, stderr_str, nullptr
+            cmd, argv_vec, stdout_str, stderr_str, nullptr, &containment
         );
 
         std::unordered_map<std::string, interpreter::NaabVal> result;

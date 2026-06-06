@@ -264,12 +264,14 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 
         // Execute the binary
         std::string exec_stdout, exec_stderr;
+        auto containment = SubprocessContainment::fromCurrentSandbox(temp_bin.string());
         int exec_exit = execute_subprocess_with_pipes(
             temp_bin.string(),
             {},
             exec_stdout,
             exec_stderr,
-            nullptr
+            nullptr,
+            &containment
         );
 
         // Store output in buffer
@@ -376,12 +378,14 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 
     // Execute the binary
     std::string exec_stdout, exec_stderr;
+    auto containment = SubprocessContainment::fromCurrentSandbox(temp_bin.string());
     int exec_exit = execute_subprocess_with_pipes(
         temp_bin.string(),
         {},
         exec_stdout,
         exec_stderr,
-        nullptr
+        nullptr,
+        &containment
     );
 
     // Print output immediately
@@ -479,8 +483,9 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
 
         // Execute
         std::string exec_stdout, exec_stderr;
+        auto containment = SubprocessContainment::fromCurrentSandbox(temp_bin_main.string());
         int exec_exit = execute_subprocess_with_pipes(
-            temp_bin_main.string(), {}, exec_stdout, exec_stderr, nullptr
+            temp_bin_main.string(), {}, exec_stdout, exec_stderr, nullptr, &containment
         );
 
         // Buffer only log output (strip last line = return value)
@@ -772,8 +777,9 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
 
     // Execute
     std::string exec_stdout, exec_stderr;
+    auto containment = SubprocessContainment::fromCurrentSandbox(temp_bin.string());
     int exec_exit = execute_subprocess_with_pipes(
-        temp_bin.string(), {}, exec_stdout, exec_stderr, nullptr
+        temp_bin.string(), {}, exec_stdout, exec_stderr, nullptr, &containment
     );
 
     // Phase 3.3.1: Only cleanup if not using cached binary
