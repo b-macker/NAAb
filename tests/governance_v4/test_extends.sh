@@ -648,6 +648,243 @@ else
 fi
 
 
+# ============================================================
+# T14: merge_arrays=append for blocked_commands
+# ============================================================
+echo ""
+echo "--- T14: merge_arrays=append blocked_commands ---"
+T14BASE="$WORKDIR/t14_base"
+T14CHILD="$WORKDIR/t14_child"
+mkdir -p "$T14BASE" "$T14CHILD"
+
+cat > "$T14BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "shell": { "enabled": true, "blocked_commands": ["wget"] }
+  }
+}
+EOF
+sign_gov "$T14BASE"
+
+cat > "$T14CHILD/govern.json" << 'EOF'
+{
+  "extends": "../t14_base/govern.json",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "meta": { "inheritance": { "merge_arrays": "append" } },
+  "capabilities": {
+    "shell": { "enabled": true, "blocked_commands": ["curl"] }
+  }
+}
+EOF
+sign_gov "$T14CHILD"
+
+# Test wget (inherited from base via append)
+cat > "$T14CHILD/test_wget.naab" << 'EOF'
+main {
+    let r = <<sh
+wget http://example.com 2>&1
+echo "wget_ran"
+>>
+    print(r)
+}
+EOF
+
+# Test curl (child's own)
+cat > "$T14CHILD/test_curl.naab" << 'EOF'
+main {
+    let r = <<sh
+curl http://example.com 2>&1
+echo "curl_ran"
+>>
+    print(r)
+}
+EOF
+
+OUTPUT_W=$(cd "$T14CHILD" && timeout 15s "$NAAB" run test_wget.naab 2>&1); EXIT_W=$?
+OUTPUT_C=$(cd "$T14CHILD" && timeout 15s "$NAAB" run test_curl.naab 2>&1); EXIT_C=$?
+
+check "T14a: wget blocked (appended from base)" "1" "$([ $EXIT_W -ne 0 ] && echo 1 || echo 0)"
+check "T14b: curl blocked (child's own)" "1" "$([ $EXIT_C -ne 0 ] && echo 1 || echo 0)"
+
+# ============================================================
+# T15: merge_arrays=append for custom_rules
+# ============================================================
+echo ""
+echo "--- T15: merge_arrays=append custom_rules ---"
+T15BASE="$WORKDIR/t15_base"
+T15CHILD="$WORKDIR/t15_child"
+mkdir -p "$T15BASE" "$T15CHILD"
+
+cat > "$T15BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "custom_rules": [
+    { "name": "no-alpha", "pattern": "MARKER_ALPHA", "message": "Alpha blocked", "level": "hard" }
+  ]
+}
+EOF
+sign_gov "$T15BASE"
+
+cat > "$T15CHILD/govern.json" << 'EOF'
+{
+  "extends": "../t15_base/govern.json",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "meta": { "inheritance": { "merge_arrays": "append" } },
+  "custom_rules": [
+    { "name": "no-beta", "pattern": "MARKER_BETA", "message": "Beta blocked", "level": "hard" }
+  ]
+}
+EOF
+sign_gov "$T15CHILD"
+
+cat > "$T15CHILD/test_alpha.naab" << 'EOF'
+main {
+    let r = <<python
+print("MARKER_ALPHA")
+>>
+    print(r)
+}
+EOF
+cat > "$T15CHILD/test_beta.naab" << 'EOF'
+main {
+    let r = <<python
+print("MARKER_BETA")
+>>
+    print(r)
+}
+EOF
+
+OUTPUT_A=$(cd "$T15CHILD" && timeout 15s "$NAAB" run test_alpha.naab 2>&1); EXIT_A=$?
+OUTPUT_B=$(cd "$T15CHILD" && timeout 15s "$NAAB" run test_beta.naab 2>&1); EXIT_B=$?
+
+check "T15a: alpha blocked (appended from base)" "1" "$([ $EXIT_A -ne 0 ] && echo 1 || echo 0)"
+check "T15b: beta blocked (child's own)" "1" "$([ $EXIT_B -ne 0 ] && echo 1 || echo 0)"
+
+# ============================================================
+# T16: merge_arrays=replace (default) — child replaces parent
+# ============================================================
+echo ""
+echo "--- T16: merge_arrays=replace (default) ---"
+T16BASE="$WORKDIR/t16_base"
+T16CHILD="$WORKDIR/t16_child"
+mkdir -p "$T16BASE" "$T16CHILD"
+
+cat > "$T16BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "shell": { "enabled": true, "blocked_commands": ["wget"] }
+  }
+}
+EOF
+sign_gov "$T16BASE"
+
+# No merge_arrays specified — defaults to "replace", child's list wins
+cat > "$T16CHILD/govern.json" << 'EOF'
+{
+  "extends": "../t16_base/govern.json",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "shell": { "enabled": true, "blocked_commands": ["curl"] }
+  }
+}
+EOF
+sign_gov "$T16CHILD"
+
+# wget should NOT be blocked (parent's list replaced by child's)
+cat > "$T16CHILD/test_wget.naab" << 'EOF'
+main {
+    let r = <<sh
+echo "wget_ok"
+>>
+    print(r)
+}
+EOF
+
+# curl should be blocked (child's own list)
+cat > "$T16CHILD/test_curl.naab" << 'EOF'
+main {
+    let r = <<sh
+curl http://example.com 2>&1
+echo "curl_ran"
+>>
+    print(r)
+}
+EOF
+
+OUTPUT_W=$(cd "$T16CHILD" && timeout 15s "$NAAB" run test_wget.naab 2>&1); EXIT_W=$?
+OUTPUT_C=$(cd "$T16CHILD" && timeout 15s "$NAAB" run test_curl.naab 2>&1); EXIT_C=$?
+
+check "T16a: wget NOT blocked (replace mode, parent's list dropped)" "0" "$EXIT_W"
+check "T16b: curl blocked (child's own list)" "1" "$([ $EXIT_C -ne 0 ] && echo 1 || echo 0)"
+
+# ============================================================
+# T17: merge_arrays=append with duplicate dedup
+# ============================================================
+echo ""
+echo "--- T17: merge_arrays=append deduplication ---"
+T17BASE="$WORKDIR/t17_base"
+T17CHILD="$WORKDIR/t17_child"
+mkdir -p "$T17BASE" "$T17CHILD"
+
+cat > "$T17BASE/govern.json" << 'EOF'
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "shell": { "enabled": true, "blocked_commands": ["wget", "curl"] }
+  }
+}
+EOF
+sign_gov "$T17BASE"
+
+# Child also blocks wget — append should dedup, not double-add
+cat > "$T17CHILD/govern.json" << 'EOF'
+{
+  "extends": "../t17_base/govern.json",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "meta": { "inheritance": { "merge_arrays": "append" } },
+  "capabilities": {
+    "shell": { "enabled": true, "blocked_commands": ["wget", "rm"] }
+  }
+}
+EOF
+sign_gov "$T17CHILD"
+
+# All three should be blocked: wget (both), curl (base), rm (child)
+cat > "$T17CHILD/test_curl.naab" << 'EOF'
+main {
+    let r = <<sh
+curl http://example.com 2>&1
+echo "curl_ran"
+>>
+    print(r)
+}
+EOF
+cat > "$T17CHILD/test_rm.naab" << 'EOF'
+main {
+    let r = <<sh
+rm -rf /tmp/test 2>&1
+echo "rm_ran"
+>>
+    print(r)
+}
+EOF
+
+OUTPUT_C=$(cd "$T17CHILD" && timeout 15s "$NAAB" run test_curl.naab 2>&1); EXIT_C=$?
+OUTPUT_R=$(cd "$T17CHILD" && timeout 15s "$NAAB" run test_rm.naab 2>&1); EXIT_R=$?
+
+check "T17a: curl blocked (appended from base)" "1" "$([ $EXIT_C -ne 0 ] && echo 1 || echo 0)"
+check "T17b: rm blocked (child's own)" "1" "$([ $EXIT_R -ne 0 ] && echo 1 || echo 0)"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed out of $((PASS + FAIL))"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1
