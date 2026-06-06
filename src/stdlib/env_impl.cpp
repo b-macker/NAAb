@@ -6,6 +6,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
+#include "naab/governance.h"
 #include "naab/platform.h"
 #include "naab/utils/string_utils.h"
 #include <cstdlib>
@@ -76,6 +77,18 @@ static void checkEnvSandbox(const std::string& operation, const std::string& var
     }
 }
 
+// Governance policy checks for env var access
+static std::string checkEnvGovernanceRead(const std::string& var_name) {
+    auto* gov = governance::GovernanceEngine::getCurrent();
+    if (!gov || !gov->isActive()) return "";
+    return gov->checkEnvVarRead(var_name);
+}
+static std::string checkEnvGovernanceWrite(const std::string& var_name) {
+    auto* gov = governance::GovernanceEngine::getCurrent();
+    if (!gov || !gov->isActive()) return "";
+    return gov->checkEnvVarWrite(var_name);
+}
+
 // Forward declarations
 static std::string getString(const interpreter::NaabVal& val);
 static int getInt(const interpreter::NaabVal& val);
@@ -114,6 +127,10 @@ interpreter::NaabVal EnvModule::call(
             if (args.size() == 2) return args[1];
             return interpreter::NaabVal::makeNull();
         }
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -142,6 +159,10 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error(
                 "Security: env.set_var() denied — '" + key + "' can hijack polyglot sandbox");
         }
+        {
+            auto gov_err = checkEnvGovernanceWrite(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         std::string value = getString(args[1]);
 
         naab::platform::setenv(key, value, true);
@@ -156,6 +177,10 @@ interpreter::NaabVal EnvModule::call(
         std::string key = getString(args[0]);
         checkEnvSandbox("has", key);
         if (isBlockedEnvVar(key)) return makeBool(false);
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) return makeBool(false);  // stealth deny — prevents existence leak
+        }
         const char* value = std::getenv(key.c_str());
         return makeBool(value != nullptr);
     }
@@ -171,6 +196,10 @@ interpreter::NaabVal EnvModule::call(
         if (isBlockedEnvVar(key)) {
             throw std::runtime_error(
                 "Security: env.delete_var() denied — '" + key + "' is an internal NAAb variable");
+        }
+        {
+            auto gov_err = checkEnvGovernanceWrite(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         naab::platform::unsetenv(key);
         return makeNull();
@@ -214,6 +243,18 @@ interpreter::NaabVal EnvModule::call(
                 it = env_map.erase(it);
             else
                 ++it;
+        }
+        // Governance: filter out blocked-read vars
+        {
+            auto* gov = governance::GovernanceEngine::getCurrent();
+            if (gov && gov->isActive()) {
+                for (auto it = env_map.begin(); it != env_map.end(); ) {
+                    if (!gov->checkEnvVarRead(it->first).empty())
+                        it = env_map.erase(it);
+                    else
+                        ++it;
+                }
+            }
         }
         return makeMap(env_map);
     }
@@ -263,7 +304,15 @@ interpreter::NaabVal EnvModule::call(
                         it->first.c_str());
                 it = env_vars.erase(it);
             } else {
-                ++it;
+                // Governance: skip vars blocked by write policy
+                auto gov_err = checkEnvGovernanceWrite(it->first);
+                if (!gov_err.empty()) {
+                    fprintf(stderr, "[env] Warning: load_dotenv skipping policy-blocked variable: %s\n",
+                            it->first.c_str());
+                    it = env_vars.erase(it);
+                } else {
+                    ++it;
+                }
             }
         }
 
@@ -296,6 +345,10 @@ interpreter::NaabVal EnvModule::call(
             if (args.size() == 2) return args[1];
             return makeInt(0);
         }
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -322,6 +375,10 @@ interpreter::NaabVal EnvModule::call(
             if (args.size() == 2) return args[1];
             return makeDouble(0.0);
         }
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+        }
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -347,6 +404,10 @@ interpreter::NaabVal EnvModule::call(
         if (isBlockedEnvVar(key)) {
             if (args.size() == 2) return args[1];
             return makeBool(false);
+        }
+        {
+            auto gov_err = checkEnvGovernanceRead(key);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
         }
         const char* value = std::getenv(key.c_str());
 

@@ -2254,6 +2254,8 @@ public:
     std::string checkNetworkAllowed();
     std::string checkFilesystemAllowed(const std::string& mode);
     std::string checkShellAllowed();
+    std::string checkEnvVarRead(const std::string& var_name);
+    std::string checkEnvVarWrite(const std::string& var_name);
     std::string checkCallDepth(size_t current_depth);
     std::string checkArraySize(size_t size);
     std::string checkPolyglotOutput(const std::string& output);

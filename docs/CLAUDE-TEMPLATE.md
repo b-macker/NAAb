@@ -419,10 +419,15 @@ find_groups — returns **2D array**: `[[full_match, group1, group2, ...], ...]`
   — this crashes because `match` is `true`, not a string. Use `regex.find()` instead.
 
 ### env
-get, get_args, set_var (NOT set — the function is set_var), list
+get, get_args, set_var (NOT set — the function is set_var), has, delete_var, list, get_all, load_dotenv, parse_env_file, get_int, get_float, get_bool
 - `env.get_args()` — returns array of CLI arguments passed after the script name
 - Always check `len(args) > N` before indexing `args[N]` — out-of-bounds throws; the scanner flags unguarded access
 - Do NOT use `env.get("NAAB_ARGS")` or Python `sys.argv` — use `env.get_args()` for CLI args
+- **Governance enforcement**: govern.json `capabilities.env_vars` controls access:
+  - `blocked_read`: env.get() throws, env.has() returns false, env.list()/get_all() filters out blocked vars
+  - `allowed_read`: if non-empty, only listed vars are readable (SOFT enforcement)
+  - `blocked_write`/`allowed_write`: same semantics for env.set_var()/delete_var()/load_dotenv()
+  - All four arrays participate in `extends`/`merge_arrays` inheritance
 
 ### io
 write, read_line, write_error
@@ -477,24 +482,26 @@ get, post, put, delete, head, patch, call
 - `http.call(method, url, options)` — generic request
 
 ### agent (requires `use agent`)
-create, send, run, messages, usage, batch, fan_out, pipeline
+create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
 - `agent.create(config_name)` — create agent handle from govern.json `agents` config, returns handle dict
-- `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}
+- `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}. If the LLM returns tool_use and tools are enabled, executes a governed tool loop transparently.
 - `agent.run(config_name, prompt)` — one-shot: create + send + return content string
 - `agent.messages(handle)` — return conversation history array
-- `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}
+- `agent.usage(handle)` — return cumulative {input_tokens, output_tokens, total_tokens, turns}. Includes tool counters when tools were used: `tool_calls_total`, `tool_calls_blocked`, `tool_total_latency_ms`.
+- `agent.register_tool(name, function, schema)` — register a NAAb function as an LLM-callable tool. Schema dict must have `description` (string) and `parameters` (dict of param name to `{type, description}`). Tool must also appear in the agent's `tools` array in govern.json (dual-gate enforcement).
 - `agent.batch(handles, messages)` — parallel: send messages[i] to handles[i], returns array of response dicts
 - `agent.fan_out(handles, message)` — parallel: send same message to all handles, returns array of response dicts
 - `agent.pipeline(handles, initial_message)` — sequential chain: output of agent N becomes input to agent N+1, returns final response dict
 - `agent.check(config_name)` — pre-flight validation: returns `{valid: bool, error: string, provider, model, api_key_env}`. Checks config exists and API key env var is set. Does NOT make an API call.
+- `agent.key_health(config_name)` — key rotation status: returns `{available: int, active: [...], dead: [...]}`. Shows which API keys are live vs marked dead (401 responses) for the named agent config.
+- `agent.dispatch_status()` — run-level dispatch counters: returns `{calls_made, calls_remaining, tokens_used, tokens_remaining, agent_time_ms, time_remaining_ms, consecutive_failures, hard_stopped, stop_reason}`. Use to check budgets before making calls.
 - `agent.batch()` is resilient: if individual calls fail, returns `{success: false, error: "...", content: ""}` for that slot instead of crashing. Callers should check `resp.get("success") == false`.
 - `agent.batch()` note: handle dicts are copied by value for thread safety — caller's handle objects are NOT updated with turn counts/message history after batch. Use `agent.usage(handle)` for authoritative state.
 - `agent.pipeline()` throws if any non-final stage returns empty content — prevents silent message reuse across stages.
 - Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
 - Governance enforcement on responses: `checkSecrets()` (HARD blocks leaked API keys/tokens), `checkPii()` (respects configured level)
-- `tool_use`/`FUNCTION_CALL` responses are HARD blocked (agent tool execution not yet supported)
+- **Tool execution**: When `tools_enabled: true` in agent config, LLM tool_use/FUNCTION_CALL responses trigger a governed tool loop. Tool results are scanned for secrets/PII before re-injection to the LLM. Budget enforcement: `max_tool_calls_per_turn`, `max_tool_loop_turns`, `tool_result_max_chars`, `tool_result_max_total_chars`, `tool_timeout_seconds`. Response includes `tool_calls_made`, `tool_loop_turns`, `tool_results`, `tool_budget_remaining`, `tool_loop_exit_reason`.
 - Turn/token limits enforced server-side — handle dict mutation does not bypass governance
-- Per-agent `allowed_paths`/`shell_allowed` logged as advisory once per config name (enforced when tool execution loop lands)
 - Parallel dispatch config (optional in govern.json):
   ```json
   "agent_dispatch": { "max_concurrent": 6, "pool_size": 6, "pool_queue_max": 50 }
@@ -504,6 +511,23 @@ create, send, run, messages, usage, batch, fan_out, pipeline
   `"max_parallel": 4` — limit concurrent detection agents (0 = unlimited)
   `"fail_strategy": "fail_fast"` — abort on first error (`"continue"` = collect all results)
 - Output tokens estimated (~content.size()/4) when Gemini API omits `candidatesTokenCount` (common with Gemma models)
+- **Key rotation**: `api_key_env` accepts string or array of env var names. Keys are tried round-robin; 401 responses mark a key dead for the rest of the run.
+- **Model fallback**: `model` accepts string or array. On 404/503, the next model in the chain is tried.
+- **Retry with backoff**: Configure `retry` block per agent — `max_attempts`, `backoff_ms`, `backoff_multiplier`, `jitter`. Error classification: `retry_on` (429/503), `skip_key_on` (401), `fallback_model_on` (404/503), `never_retry` (400).
+- **Hard stop**: `agent_dispatch.hard_stop` sets run-level budgets — `max_calls_per_run`, `max_tokens_per_run`, `max_agent_time_ms`, `consecutive_failure_limit`. When exceeded, all agent calls are blocked for the rest of the run.
+- **Credential refresh**: `key_retry_after_seconds` in the `retry` block enables dead key revival. Dead keys (401 responses) are retried after the cooldown elapses. Set to 0 (default) to never revive dead keys.
+- **Separation of duties**: Per-agent `network_allowed` (bool) and `allowed_actions` (array: `"SHELL_EXEC"`, `"NET_CONNECT"`, `"FS_READ"`, `"FS_WRITE"`, `"AGENT_SEND"`, `"TOOL_EXEC"`) control fine-grained action permissions. Empty `allowed_actions` = all actions allowed. `TOOL_EXEC` controls tool execution in agent tool loops. Ratchet enforcement prevents mid-run loosening.
+- **Traceability**: `agent.send()` responses include a `trace` dict: `{model, provider, api_key_env, attempts, latency_ms, fallback_used, original_model, turn, handle_id}`. `agent.usage()` includes `retries`, `fallbacks`, `total_latency_ms`. Pipeline responses include `stage_traces`.
+- **Environment self-awareness**: `agent.environment(handle)` — returns current environment snapshot without making an API call. Includes config limits (`max_turns`, `max_tokens`, `max_total_tokens`, `timeout_seconds`, `risk_budget`), model chain, provider, temperature, response format, key pool size, retry config, permissions, and dynamic state (turns/tokens used/remaining, keys active/dead, coherence + velocity, contradictions, circular actions, repeated failures, scope creep, pipeline depth, inherited pressure, capabilities granted/exercised, risk budget remaining, governance level, dispatch proximity).
+- **Birth snapshot**: `agent.create()` handle includes an `environment` dict — point-in-time snapshot of config and initial state. Becomes stale after governance reload or sends; compare with current environment to detect mid-run changes.
+- **Live environment**: `agent.send()` response includes an updated `environment` dict — reflects state after the interaction (decremented turns/tokens, updated coherence, key health changes).
+- **Config change notices**: When governance reloads mid-run, per-agent config changes appear in `governance_notices` (e.g., `"agent.risk_assessor.max_tokens: 4096 -> 2048 (reduced)"`). Tightened limits produce notices; loosened limits or removed agents produce ratchet violations.
+- `agent.run()` returns content string only — does NOT include environment. Use `agent.create()` + `agent.send()` for environment awareness.
+- **Handle anti-forge**: Agent handles include a `__nonce` field (HMAC-SHA256). Do not modify or copy nonces between handles — tampered handles are rejected.
+- **Temporal trust decay**: When `context_drift.temporal_decay_enabled` is true, agent coherence decays over time when idle (configurable grace period and decay rate).
+- **Adaptive baselining**: When `context_drift.adaptive_baseline_enabled` is true, per-agent signal rates are observed for a baseline window before penalties are applied. Deviations beyond `mean + sensitivity * stddev` trigger penalties.
+- **Step-up challenges**: When `circuit_breaker.step_up_enabled` is true, agents at elevated governance levels receive a challenge prompt. Response is scored for word count and keyword overlap with the system prompt. Pass recovers coherence; fail blocks the send.
+- Agent environment includes `challenges_passed`/`challenges_failed` counters (from step-up challenges).
 
 ## Functions That Do NOT Exist (use alternatives)
 - `array.merge(a, b)` — use `a + b` (array concatenation with +)
@@ -554,7 +578,7 @@ will flag unused imports as violations. Common over-imports to avoid:
 | process | run, exit, kill, getpid | Blocked when shell disabled |
 | path | join, dirname, basename, extension | |
 | http | get, post, put, delete, call | Blocked when network disabled |
-| agent | create, send, run, batch, fan_out, pipeline | `use agent` required |
+| agent | create, send, run, register_tool, batch, fan_out, pipeline | `use agent` required |
 | dict | get, has, put, keys, values, merge | Built-in, no `use` needed |
 | debug | type, inspect, keys, values, log | Auto-imported, do NOT `use debug` |
 
@@ -1127,6 +1151,197 @@ See `govern-template.json` for all 127 checks with their options.
 
 ---
 
+## Agent Governance Depth
+
+Advanced govern.json sections for multi-agent governance. All default to disabled/off.
+Existing configs work unchanged — enable features selectively.
+
+### Behavioral Sequence Detection (BSD)
+```json
+"behavioral_sequences": {
+    "enabled": true,
+    "window_size": 100,
+    "patterns": [
+        {
+            "name": "credential_harvesting",
+            "sequence": ["ENV_READ:*KEY*", "NET_CONNECT"],
+            "max_gap": 5,
+            "level": "soft"
+        }
+    ]
+}
+```
+FSM-based multi-step attack pattern detection across runtime events. Default patterns
+(credential harvesting, sandbox probe, config tampering, progressive escalation, data
+staging) activate when no user patterns are defined. Taint events (`TAINT_VIOLATION`,
+`TAINT_SANITIZED`) and agent restriction violations (`CHECK_FAILED`) feed into BSD
+automatically.
+
+### Context Drift Detection (CDD)
+```json
+"context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.5,
+    "check_interval_turns": 3,
+    "fingerprint_window": 10,
+    "rate_normalized": false,
+    "coherence_recovery_amount": 0.2,
+    "coherence_natural_healing": 0.0,
+    "temporal_decay_enabled": false,
+    "temporal_decay_per_minute": 0.01,
+    "temporal_decay_grace_minutes": 1.0,
+    "adaptive_baseline_enabled": false,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.0,
+    "signals": {
+        "circular_actions": true,
+        "repeated_failures": true,
+        "scope_creep": true,
+        "intent_contradictions": true,
+        "coherence_velocity": true,
+        "vocabulary_contraction": true,
+        "capability_underutilization": false,
+        "semantic_stability": false
+    },
+    "weights": {
+        "circular": 0.15,
+        "scope_creep": 0.10,
+        "contradiction": 0.20,
+        "repeated_failure": 0.10,
+        "vocabulary_contraction": 0.10,
+        "capability_underutilization": 0.10,
+        "semantic_stability": 0.10
+    },
+    "reality_checkpoint": {
+        "enabled": true,
+        "pressure_threshold": 0.7,
+        "sustained_turns_required": 3,
+        "weights": {
+            "coherence_proximity": 0.35,
+            "risk_score_proximity": 0.20,
+            "signal_density": 0.25,
+            "conversation_depth": 0.10,
+            "bsd_partial_progress": 0.10,
+            "pipeline_inherited": 0.0,
+            "coherence_acceleration": 0.0
+        }
+    }
+}
+```
+
+Key CDD signals:
+- **coherence_velocity**: `d(coherence)/d(turn)` — fires when coherence drops faster than -0.15/turn
+- **vocabulary_contraction**: Shannon entropy of action distribution drops 40%+ from initial
+- **capability_underutilization**: granted capability unused for 10+ turns then suddenly exercised
+- **semantic_stability**: keyword overlap between consecutive responses drops below 0.3
+
+Key CDD options:
+- **rate_normalized**: scale penalties by `count/turns_analyzed` instead of flat weight
+- **coherence_recovery_amount**: coherence restored at pipeline stage transitions (0.2 default)
+- **coherence_natural_healing**: coherence recovered per turn when no signals fire (0.0 default)
+- **coherence_acceleration**: second-order derivative factor in reality checkpoint composite
+- **temporal_decay_enabled**: coherence erodes over time when idle (grace period + per-minute rate)
+- **adaptive_baseline_enabled**: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold)
+
+### Exposure Tracking
+```json
+"exposure_tracking": {
+    "enabled": true,
+    "max_autonomous_actions": 20,
+    "max_unique_agents": 5,
+    "coherence_floor": 0.3,
+    "max_pipeline_depth": 0,
+    "checkpoint_cooldown_turns": 0,
+    "min_capability_utilization": 0.0,
+    "utilization_check_after_turns": 10
+}
+```
+- **max_pipeline_depth**: limit nested `agent.pipeline()` depth (0 = unlimited)
+- **checkpoint_cooldown_turns**: mandatory pause after reality checkpoint fires (trading halt analog)
+- **min_capability_utilization**: minimum `|exercised|/|granted|` ratio after configured turns
+
+### Taint Tracking Extensions
+```json
+"taint_tracking": {
+    "gate_cross_block": false,
+    "cross_block_level": "soft"
+}
+```
+When `gate_cross_block` is true, cross-block unsanitized taint flows are enforced at
+the configured level instead of advisory-only audit.
+
+### Per-Agent Risk Budget
+```json
+"agents": {
+    "my_agent": {
+        "risk_budget": 15
+    }
+}
+```
+Finite risk budget consumed by governance events: BSD match (cost 3), CDD signal (cost 2).
+Agent admission denied when budget exhausted. 0 = unlimited. Cap-and-trade analog.
+
+### Circuit Breaker
+```json
+"circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "critical_coherence": 0.2,
+    "step_up_enabled": false,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Restate your current objective in one sentence.",
+    "step_up_min_words": 5,
+    "step_up_cooldown_turns": 3,
+    "step_up_keyword_threshold": 0.3
+}
+```
+System-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained
+composite pressure. Effects: ELEVATED = CDD check every turn, HIGH = ADVISORY escalates
+to SOFT, CRITICAL = all agent admission denied. Step-up challenges inject a verification
+prompt at configurable governance level — pass recovers coherence, fail blocks send.
+NYSE circuit breaker analog.
+
+### Governance Health
+```json
+"governance_health": {
+    "enabled": true,
+    "check_after_turns": 10,
+    "governance_entropy_warning": 0.5
+}
+```
+Verifies governance instrumentation is operational. Detects: BSD received 0 events,
+CDD analyzed 0 turns, perfect coherence after 10+ turns (suspicious). Low governance
+entropy (uniform check results) warns of possible detection bypass. Nuclear safety
+system exercising analog.
+
+### Pipeline Separation
+```json
+"pipeline_separation": {
+    "enabled": true,
+    "level": "soft"
+}
+```
+Adjacent `agent.pipeline()` stages must use different agent configs. Prevents an agent
+from reviewing its own output. SOX separation of duties analog.
+
+### Temporal Coupling
+```json
+"temporal_coupling": {
+    "enabled": true,
+    "max_correlation": 0.85,
+    "min_events": 10
+}
+```
+Detects suspicious timing correlation between agent event streams via pairwise
+lag-1 Pearson correlation. Front-running detection analog (financial regulation).
+
+---
+
 ## Project-Specific Template
 Copy everything above into your project's CLAUDE.md, then add sections like these below:
 
@@ -1140,6 +1355,11 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
 - Variable binding: [REQUIRED/optional]
 - Security restrictions: [banned functions, blocked paths, network policy]
 - Polyglot block limit: [number, if set]
+- Policy inheritance: `"extends": "./path/to/parent.json"` loads a parent config.
+  Child values override parent. Array fields (blocked_commands, custom_rules, taint
+  sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write)
+  use `meta.inheritance.merge_arrays`: `"replace"` (default) or `"append"` (dedup concat).
+  Parent must pass signature verification. Max depth: `meta.inheritance.max_depth` (default 5).
 - When configuring govern.json rules, include a `rationale` field explaining WHY the
   enforcement tier was chosen. This rationale appears in governance reports (JSON, SARIF,
   JUnit, CSV, HTML) and the audit trail. Example:

@@ -8,6 +8,7 @@
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
 
+  "_comment_extends": "Policy inheritance — load a parent govern.json and merge its settings. Child values override parent by default. Array fields (blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write) are controlled by meta.inheritance.merge_arrays. Parent can be absolute path or relative to this file. Circular references and depth > meta.inheritance.max_depth are rejected. Parent must pass signature verification.",
   "extends": "./base-govern.json",
 
   "languages": {
@@ -155,6 +156,7 @@
       "allow_backgrounding": false,
       "max_execution_time": 0
     },
+    "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays participate in extends/merge_arrays inheritance.",
     "env_vars": {
       "read": true,
       "write": false,
@@ -980,10 +982,25 @@
     }
   },
 
-  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking",
+  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking. Tamper evidence: HMAC-SHA256 hash chains detect retroactive modification. Forwarding: webhook_url sends events to external SIEM/observability (webhook_auth_env reads auth header from env var, e.g. 'Bearer token'). Batching and retry configurable.",
   "telemetry": {
     "enabled": false,
-    "output_file": "telemetry.jsonl"
+    "output_file": "telemetry.jsonl",
+    "tamper_evidence": {
+      "enabled": false,
+      "algorithm": "hmac-sha256",
+      "chain_genesis": "",
+      "hmac_key": "",
+      "hmac_key_env": "NAAB_TELEMETRY_HMAC_KEY"
+    },
+    "webhook_url": "",
+    "webhook_auth_header": "",
+    "webhook_auth_env": "",
+    "forward_batch_size": 10,
+    "forward_timeout_ms": 5000,
+    "forward_retry_count": 3,
+    "forward_buffer_max": 1000,
+    "forward_shutdown_drain_ms": 3000
   },
 
   "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND/TOOL_EXEC) restricts actions. Ratchet enforcement prevents mid-run loosening.",
@@ -1076,6 +1093,7 @@
       "verify_on_load": false,
       "block_on_mismatch": false
     },
+    "_comment_inheritance": "Controls how 'extends' merges parent and child configs. merge_arrays: 'replace' (default — child array replaces parent) or 'append' (parent + child arrays concatenated with dedup). Applies to: blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write. max_depth limits inheritance chain length. allow_circular is always rejected regardless of setting.",
     "inheritance": {
       "max_depth": 5,
       "merge_strategy": "child_wins",
@@ -1802,12 +1820,18 @@
     "strict_types": false
   },
 
-  "_comment_api": "REST API server settings (naab-lang api). CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'run', 'scan', 'health', 'config'). TLS: set tls_cert and tls_key for HTTPS. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
   "api": {
     "key": "",
+    "keys": [
+      { "key": "", "name": "ci-runner", "scopes": ["run", "health"] },
+      { "key": "", "name": "admin", "scopes": ["run", "scan", "health", "config"] }
+    ],
     "timeout": 10,
     "rate_limit": 0,
-    "max_body": 1048576
+    "max_body": 1048576,
+    "tls_cert": "",
+    "tls_key": ""
   },
 
   "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match.",

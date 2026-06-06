@@ -885,6 +885,133 @@ OUTPUT_R=$(cd "$T17CHILD" && timeout 15s "$NAAB" run test_rm.naab 2>&1); EXIT_R=
 check "T17a: curl blocked (appended from base)" "1" "$([ $EXIT_C -ne 0 ] && echo 1 || echo 0)"
 check "T17b: rm blocked (child's own)" "1" "$([ $EXIT_R -ne 0 ] && echo 1 || echo 0)"
 
+# ── T18: env_vars.blocked_read inheritance ──────────────────────────────
+echo "--- T18: env_vars.blocked_read inheritance ---"
+T18BASE="$WORKDIR/t18_base"
+T18CHILD="$WORKDIR/t18_child"
+mkdir -p "$T18BASE" "$T18CHILD"
+
+cat > "$T18BASE/govern.json" << 'EOF'
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "env_vars": {
+      "read": true,
+      "blocked_read": ["SECRET_A"]
+    }
+  }
+}
+EOF
+sign_gov "$T18BASE"
+
+cat > "$T18CHILD/govern.json" << EOF
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "extends": "$T18BASE/govern.json",
+  "meta": { "inheritance": { "merge_arrays": "append" } },
+  "capabilities": {
+    "env_vars": {
+      "read": true,
+      "blocked_read": ["SECRET_B"]
+    }
+  }
+}
+EOF
+sign_gov "$T18CHILD"
+
+export SECRET_A=val_a
+export SECRET_B=val_b
+export SAFE_VAR=val_safe
+
+# T18a: parent's blocked_read (SECRET_A) is enforced
+cat > "$T18CHILD/test_a.naab" << 'EOF'
+use env
+main {
+    let v = env.get("SECRET_A")
+    print(v)
+}
+EOF
+OUTPUT_A=$(cd "$T18CHILD" && timeout 15s "$NAAB" run test_a.naab 2>&1); EXIT_A=$?
+check "T18a: SECRET_A blocked (from parent)" "1" "$([ $EXIT_A -ne 0 ] && echo 1 || echo 0)"
+
+# T18b: child's blocked_read (SECRET_B) is enforced
+cat > "$T18CHILD/test_b.naab" << 'EOF'
+use env
+main {
+    let v = env.get("SECRET_B")
+    print(v)
+}
+EOF
+OUTPUT_B=$(cd "$T18CHILD" && timeout 15s "$NAAB" run test_b.naab 2>&1); EXIT_B=$?
+check "T18b: SECRET_B blocked (from child)" "1" "$([ $EXIT_B -ne 0 ] && echo 1 || echo 0)"
+
+# T18c: non-blocked var still works
+cat > "$T18CHILD/test_safe.naab" << 'EOF'
+use env
+main {
+    let v = env.get("SAFE_VAR")
+    print(v)
+}
+EOF
+OUTPUT_S=$(cd "$T18CHILD" && timeout 15s "$NAAB" run test_safe.naab 2>&1); EXIT_S=$?
+check "T18c: SAFE_VAR readable" "1" "$(echo "$OUTPUT_S" | grep -q 'val_safe' && echo 1 || echo 0)"
+
+# T18d: value not leaked in error output
+check "T18d: SECRET_A value not leaked" "1" "$(! echo "$OUTPUT_A" | grep -q 'val_a' && echo 1 || echo 0)"
+
+unset SECRET_A SECRET_B SAFE_VAR
+
+# ── T19: env_vars.allowed_read allowlist ────────────────────────────────
+echo "--- T19: env_vars.allowed_read allowlist ---"
+T19DIR="$WORKDIR/t19"
+mkdir -p "$T19DIR"
+
+cat > "$T19DIR/govern.json" << 'EOF'
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "env_vars": {
+      "read": true,
+      "allowed_read": ["ALLOWED_VAR"]
+    }
+  }
+}
+EOF
+sign_gov "$T19DIR"
+
+export ALLOWED_VAR=ok_value
+export NOT_ALLOWED=secret_value
+
+# T19a: allowed var works
+cat > "$T19DIR/test_ok.naab" << 'EOF'
+use env
+main {
+    let v = env.get("ALLOWED_VAR")
+    print(v)
+}
+EOF
+OUTPUT_OK=$(cd "$T19DIR" && timeout 15s "$NAAB" run test_ok.naab 2>&1); EXIT_OK=$?
+check "T19a: ALLOWED_VAR readable" "1" "$(echo "$OUTPUT_OK" | grep -q 'ok_value' && echo 1 || echo 0)"
+
+# T19b: non-allowed var blocked (SOFT enforcement)
+cat > "$T19DIR/test_deny.naab" << 'EOF'
+use env
+main {
+    let v = env.get("NOT_ALLOWED")
+    print(v)
+}
+EOF
+OUTPUT_D=$(cd "$T19DIR" && timeout 15s "$NAAB" run test_deny.naab 2>&1); EXIT_D=$?
+check "T19b: NOT_ALLOWED blocked (SOFT)" "1" "$([ $EXIT_D -ne 0 ] && echo 1 || echo 0)"
+
+unset ALLOWED_VAR NOT_ALLOWED
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed out of $((PASS + FAIL))"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1

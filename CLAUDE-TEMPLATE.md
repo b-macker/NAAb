@@ -419,10 +419,15 @@ find_groups — returns **2D array**: `[[full_match, group1, group2, ...], ...]`
   — this crashes because `match` is `true`, not a string. Use `regex.find()` instead.
 
 ### env
-get, get_args, set_var (NOT set — the function is set_var), list
+get, get_args, set_var (NOT set — the function is set_var), has, delete_var, list, get_all, load_dotenv, parse_env_file, get_int, get_float, get_bool
 - `env.get_args()` — returns array of CLI arguments passed after the script name
 - Always check `len(args) > N` before indexing `args[N]` — out-of-bounds throws; the scanner flags unguarded access
 - Do NOT use `env.get("NAAB_ARGS")` or Python `sys.argv` — use `env.get_args()` for CLI args
+- **Governance enforcement**: govern.json `capabilities.env_vars` controls access:
+  - `blocked_read`: env.get() throws, env.has() returns false, env.list()/get_all() filters out blocked vars
+  - `allowed_read`: if non-empty, only listed vars are readable (SOFT enforcement)
+  - `blocked_write`/`allowed_write`: same semantics for env.set_var()/delete_var()/load_dotenv()
+  - All four arrays participate in `extends`/`merge_arrays` inheritance
 
 ### io
 write, read_line, write_error
@@ -1350,6 +1355,11 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
 - Variable binding: [REQUIRED/optional]
 - Security restrictions: [banned functions, blocked paths, network policy]
 - Polyglot block limit: [number, if set]
+- Policy inheritance: `"extends": "./path/to/parent.json"` loads a parent config.
+  Child values override parent. Array fields (blocked_commands, custom_rules, taint
+  sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write)
+  use `meta.inheritance.merge_arrays`: `"replace"` (default) or `"append"` (dedup concat).
+  Parent must pass signature verification. Max depth: `meta.inheritance.max_depth` (default 5).
 - When configuring govern.json rules, include a `rationale` field explaining WHY the
   enforcement tier was chosen. This rationale appears in governance reports (JSON, SARIF,
   JUnit, CSV, HTML) and the audit trail. Example:

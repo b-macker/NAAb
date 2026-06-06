@@ -1713,6 +1713,124 @@ std::string GovernanceEngine::checkShellAllowed() {
     return "";
 }
 
+std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
+    clearTrace();
+    // Master switch: env_vars.read = false blocks all reads
+    if (!rules().capabilities.env_vars.read) {
+        return enforce("capabilities.env_vars.read", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Reading environment variables is disabled by policy",
+                "",
+                "capabilities.env_vars.read = false",
+                "Environment variable reads are disabled by governance policy.\n"
+                "Adjust your code to avoid reading environment variables.",
+                "env.get(\"MY_VAR\")",
+                "let value = config.get(\"my_var\")  // use config instead"));
+    }
+    // blocked_read: case-insensitive match
+    std::string upper_name = var_name;
+    std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
+    for (const auto& blocked : rules().capabilities.env_vars.blocked_read) {
+        std::string upper_blocked = blocked;
+        std::transform(upper_blocked.begin(), upper_blocked.end(), upper_blocked.begin(), ::toupper);
+        if (upper_name == upper_blocked) {
+            return enforce("capabilities.env_vars.blocked_read", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    "Reading environment variable '" + var_name + "' is blocked by policy",
+                    "",
+                    "capabilities.env_vars.blocked_read",
+                    "This environment variable is blocked from being read by governance policy.\n"
+                    "Remove this env.get() call or use an alternative configuration source.",
+                    "env.get(\"" + var_name + "\")",
+                    "let value = config.get(\"safe_key\")"));
+        }
+    }
+    // allowed_read: if list is non-empty, var must be in list (SOFT)
+    if (!rules().capabilities.env_vars.allowed_read.empty()) {
+        bool found = false;
+        for (const auto& allowed : rules().capabilities.env_vars.allowed_read) {
+            std::string upper_allowed = allowed;
+            std::transform(upper_allowed.begin(), upper_allowed.end(), upper_allowed.begin(), ::toupper);
+            if (upper_name == upper_allowed) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            return enforce("capabilities.env_vars.allowed_read", EnforcementLevel::SOFT,
+                formatError(EnforcementLevel::SOFT,
+                    "Environment variable '" + var_name + "' is not in the allowed read list",
+                    "",
+                    "capabilities.env_vars.allowed_read",
+                    "Only specific environment variables are allowed for reading.\n"
+                    "Use a variable from the allowed list or adjust your approach.",
+                    "env.get(\"" + var_name + "\")",
+                    "env.get(\"HOME\")  // use an allowed variable"));
+        }
+    }
+    recordPass("capabilities.env_vars.read", EnforcementLevel::HARD);
+    return "";
+}
+
+std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
+    clearTrace();
+    // Master switch: env_vars.write = false blocks all writes
+    if (!rules().capabilities.env_vars.write) {
+        return enforce("capabilities.env_vars.write", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                "Writing environment variables is disabled by policy",
+                "",
+                "capabilities.env_vars.write = false",
+                "Environment variable writes are disabled by governance policy.\n"
+                "Adjust your code to avoid modifying environment variables.",
+                "env.set_var(\"MY_VAR\", value)",
+                "config.set(\"my_var\", value)  // use config instead"));
+    }
+    // blocked_write: case-insensitive match
+    std::string upper_name = var_name;
+    std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
+    for (const auto& blocked : rules().capabilities.env_vars.blocked_write) {
+        std::string upper_blocked = blocked;
+        std::transform(upper_blocked.begin(), upper_blocked.end(), upper_blocked.begin(), ::toupper);
+        if (upper_name == upper_blocked) {
+            return enforce("capabilities.env_vars.blocked_write", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    "Writing environment variable '" + var_name + "' is blocked by policy",
+                    "",
+                    "capabilities.env_vars.blocked_write",
+                    "This environment variable is blocked from being written by governance policy.\n"
+                    "Remove this env.set_var() call or use an alternative configuration approach.",
+                    "env.set_var(\"" + var_name + "\", value)",
+                    "config.set(\"safe_key\", value)"));
+        }
+    }
+    // allowed_write: if list is non-empty, var must be in list (SOFT)
+    if (!rules().capabilities.env_vars.allowed_write.empty()) {
+        bool found = false;
+        for (const auto& allowed : rules().capabilities.env_vars.allowed_write) {
+            std::string upper_allowed = allowed;
+            std::transform(upper_allowed.begin(), upper_allowed.end(), upper_allowed.begin(), ::toupper);
+            if (upper_name == upper_allowed) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            return enforce("capabilities.env_vars.allowed_write", EnforcementLevel::SOFT,
+                formatError(EnforcementLevel::SOFT,
+                    "Environment variable '" + var_name + "' is not in the allowed write list",
+                    "",
+                    "capabilities.env_vars.allowed_write",
+                    "Only specific environment variables are allowed for writing.\n"
+                    "Use a variable from the allowed list or adjust your approach.",
+                    "env.set_var(\"" + var_name + "\", value)",
+                    "env.set_var(\"ALLOWED_VAR\", value)"));
+        }
+    }
+    recordPass("capabilities.env_vars.write", EnforcementLevel::HARD);
+    return "";
+}
+
 std::string GovernanceEngine::checkCallDepth(size_t current_depth) {
     clearTrace();
     if (rules().max_call_depth > 0 &&

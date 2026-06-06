@@ -650,6 +650,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& v : ev["allowed_read"]) ec.allowed_read.push_back(v.get<std::string>());
             if (ev.contains("blocked_read"))
                 for (auto& v : ev["blocked_read"]) ec.blocked_read.push_back(v.get<std::string>());
+            if (ev.contains("allowed_write"))
+                for (auto& v : ev["allowed_write"]) ec.allowed_write.push_back(v.get<std::string>());
+            if (ev.contains("blocked_write"))
+                for (auto& v : ev["blocked_write"]) ec.blocked_write.push_back(v.get<std::string>());
             // V-SC-006-ext: Polyglot subprocess environment scrubbing
             if (ev.contains("subprocess_scrub_mode"))
                 ec.subprocess_scrub_mode = ev["subprocess_scrub_mode"].get<std::string>();
@@ -3402,6 +3406,22 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
     } else if (cc.shell.blocked_commands.empty()) {
         cc.shell.blocked_commands = bc.shell.blocked_commands;
     }
+    // Env vars arrays: merge blocked_read, allowed_read, blocked_write, allowed_write
+    auto mergeStringVec = [&](std::vector<std::string>& dst, const std::vector<std::string>& src) {
+        if (cfg.merge_arrays == "append") {
+            for (const auto& s : src) {
+                if (std::find(dst.begin(), dst.end(), s) == dst.end()) {
+                    dst.push_back(s);
+                }
+            }
+        } else if (dst.empty()) {
+            dst = src;
+        }
+    };
+    mergeStringVec(cc.env_vars.blocked_read, bc.env_vars.blocked_read);
+    mergeStringVec(cc.env_vars.allowed_read, bc.env_vars.allowed_read);
+    mergeStringVec(cc.env_vars.blocked_write, bc.env_vars.blocked_write);
+    mergeStringVec(cc.env_vars.allowed_write, bc.env_vars.allowed_write);
 
     // --- Limits: child wins or parent wins, with gap-filling ---
     auto& cl = child.limits;
