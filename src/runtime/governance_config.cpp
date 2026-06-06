@@ -1526,6 +1526,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& inh = meta["inheritance"];
             if (inh.contains("max_depth")) rules_.meta.inheritance.max_depth = inh["max_depth"].get<int>();
             if (inh.contains("merge_strategy")) rules_.meta.inheritance.merge_strategy = inh["merge_strategy"].get<std::string>();
+            if (inh.contains("merge_arrays")) rules_.meta.inheritance.merge_arrays = inh["merge_arrays"].get<std::string>();
         }
         if (meta.contains("environment") && meta["environment"].is_object()) {
             auto& env = meta["environment"];
