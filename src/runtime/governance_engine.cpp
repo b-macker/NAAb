@@ -977,7 +977,7 @@ std::string GovernanceEngine::enforce(
 
         case EnforcementLevel::HARD:
             g_governance_hard_block = true;
-            return violation_message;
+            throw GovernanceHardError(violation_message);
 
         case EnforcementLevel::APPROVAL_REQUIRED: {
             std::string approver_id;
@@ -988,9 +988,9 @@ std::string GovernanceEngine::enforce(
                 return "";
             }
             g_governance_hard_block = true;
-            return violation_message +
+            throw GovernanceHardError(violation_message +
                 "\n\n  This rule requires explicit approval.\n"
-                "  The project owner can provide a signed token.\n";
+                "  The project owner can provide a signed token.\n");
         }
 
         case EnforcementLevel::SOFT:
@@ -998,7 +998,7 @@ std::string GovernanceEngine::enforce(
                 // Require reason if configured — block silently if missing
                 if (rules().require_override_reason && override_reason_.empty()) {
                     g_governance_hard_block = true;
-                    return violation_message;
+                    throw GovernanceHardError(violation_message);
                 }
                 // Log override with provenance
                 if (!override_reason_.empty()) {
@@ -1014,7 +1014,7 @@ std::string GovernanceEngine::enforce(
             }
             // naab-29 L-09: SOFT without override is a governance block (exit 3)
             g_governance_hard_block = true;
-            return violation_message;
+            throw GovernanceHardError(violation_message);
 
         case EnforcementLevel::ADVISORY: {
             // V-CONC-F7: mutex-guard emitted_advisories_ and score_yellow_warned_
@@ -1032,8 +1032,8 @@ std::string GovernanceEngine::enforce(
                 check_results_.back().escalated = true;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
                     rule_name.c_str(), occurrence, esc.soft_after);
-                return violation_message +
-                    "\n\n  This advisory was escalated after repeated occurrences.\n";
+                throw GovernanceHardError(violation_message +
+                    "\n\n  This advisory was escalated after repeated occurrences.\n");
             }
 
             if (occurrence == 1) {

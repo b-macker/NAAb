@@ -2528,6 +2528,13 @@ int main(int argc, char** argv) {
             fflush(stderr);
             _exit(0);
 
+        } catch (const naab::governance::GovernanceHardError& e) {
+            // Uncatchable governance violation — NAAb try/catch cannot swallow this
+            std::string msg = naab::error::ErrorSanitizer::sanitize(e.what());
+            fmt::print("Error: {}\n", msg);
+            fflush(stdout);
+            fflush(stderr);
+            _exit(3);
         } catch (const naab::limits::ExitException& e) {
             // V-DOS-014: process.exit() throws ExitException instead of std::exit()
             fflush(stdout);

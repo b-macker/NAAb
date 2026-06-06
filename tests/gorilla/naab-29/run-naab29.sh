@@ -386,7 +386,8 @@ for i in 01 02 03 04 05 06 07 08 09 10; do
     # L-06: substring behavior documentation → exit 0 or 3
     # L-10: advisory continues → exit 0
     case "$i" in
-        01|03|05|10) expected_exits="0" ;;  # L-01: catch is valid; bypass is L-02
+        01) expected_exits="3" ;;  # GovernanceHardError: try/catch cannot swallow HARD blocks
+        03|05|10) expected_exits="0" ;;
         06) expected_exits="0 3" ;;  # document actual behavior
         09) expected_exits="3" ;;  # soft without override = block
         *) expected_exits="3 4 1" ;;

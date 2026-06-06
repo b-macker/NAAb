@@ -2,6 +2,7 @@
 // Core interpreter implementation
 
 #include "naab/interpreter.h"
+#include "naab/governance.h"  // GovernanceHardError — uncatchable exception
 #include "naab/lexer.h"   // For string interpolation evaluation
 #include "naab/parser.h"  // For string interpolation evaluation
 #include "naab/limits.h"  // Week 1, Task 1.3: Call depth limits
@@ -1691,6 +1692,8 @@ void Interpreter::visit(ast::TryCatchExpr& node) {
     try {
         node.getTryExpr()->accept(*this);
         // result_ now holds try expression value
+    } catch (const governance::GovernanceHardError&) {
+        throw;  // uncatchable — propagate to main
     } catch (NaabError& e) {
         // Bind error to catch variable in new scope
         NaabVal error_val = e.getValue();
@@ -2550,6 +2553,8 @@ void Interpreter::visit(ast::TryStmt& node) {
     try {
         // Execute try block
         node.getTryBody()->accept(*this);
+    } catch (const governance::GovernanceHardError&) {
+        throw;  // uncatchable — propagate to main
     } catch (NaabError& e) {
         // Phase 4.1: Error propagation - exception caught
 
@@ -2590,6 +2595,10 @@ void Interpreter::visit(ast::TryStmt& node) {
         try {
             // Execute catch body - successfully handled if no exception
             catch_clause->body->accept(*this);
+        } catch (const governance::GovernanceHardError&) {
+            restore_catch_taint();
+            current_env_ = prev_env;
+            throw;  // uncatchable — propagate to main
         } catch (NaabError&) {
             // BUG-1: Restore taint before propagating exception
             restore_catch_taint();

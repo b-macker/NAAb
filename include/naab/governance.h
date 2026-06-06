@@ -2154,6 +2154,14 @@ struct RateLimiter {
 // Survives stack unwinding — set in enforce() when HARD violation fires
 extern std::atomic<bool> g_governance_hard_block;
 
+// Uncatchable governance exception — NAAb try/catch explicitly re-throws this.
+// Prevents LLM agents from swallowing HARD blocks via try/catch and continuing execution.
+class GovernanceHardError : public std::runtime_error {
+public:
+    explicit GovernanceHardError(const std::string& msg)
+        : std::runtime_error(msg) {}
+};
+
 class GovernanceEngine {
 public:
     // Calibration entry (public for getCalibrationData() return type)

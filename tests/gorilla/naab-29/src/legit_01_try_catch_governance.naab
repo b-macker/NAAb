@@ -1,7 +1,5 @@
 // L-01: try/catch wrapping governance violation
-// Expected: exit 0 — catching governance errors is valid; dangerous code was blocked,
-// execution continued with the catch path. The real bypass is L-02 (forcing exit 0).
-// g_governance_hard_block is set and will be enforced at process.exit() time.
+// Expected: exit 3 — GovernanceHardError is uncatchable; try/catch cannot swallow HARD blocks
 
 main {
     let caught = false

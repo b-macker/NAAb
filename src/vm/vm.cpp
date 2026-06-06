@@ -1985,6 +1985,8 @@ interpreter::NaabVal VM::run() {
                             stack_top_ -= (argc + 1);
                             syncTaintTop();
                             push(std::move(result));
+                        } catch (const governance::GovernanceHardError&) {
+                            throw;  // uncatchable — propagate to main
                         } catch (const std::exception& e) {
                             runtimeError("Persistent runtime '%s' error: %s",
                                 runtime_name.c_str(), e.what());
@@ -3031,6 +3033,8 @@ interpreter::NaabVal VM::run() {
                         rec.exit_code = executor->getLastExitCode();
                         governance_->addPolyglotExecution(rec);
                     }
+                } catch (const governance::GovernanceHardError&) {
+                    throw;  // uncatchable — propagate to main
                 } catch (const std::exception& e) {
                     runtimeError("Polyglot %s error: %s", language.c_str(), e.what());
                 }
@@ -3250,6 +3254,8 @@ interpreter::NaabVal VM::run() {
                         // Deep-copy result so main VM owns all handles
                         // (async VM's handles may be freed after it exits)
                         push(future_val->future.get().deepCopy());
+                    } catch (const governance::GovernanceHardError&) {
+                        throw;  // uncatchable — propagate to main
                     } catch (const std::exception& e) {
                         runtimeError("Await error: %s failed\n  Cause: %s",
                                      future_val->description.c_str(), e.what());
@@ -3311,6 +3317,8 @@ interpreter::NaabVal VM::run() {
 #ifndef USE_COMPUTED_GOTO
         }  // end switch
 #endif
+      } catch (const governance::GovernanceHardError&) {
+        throw;  // uncatchable — bypass NAAb exception handlers entirely
       } catch (const VMException& e) {
         // Route VM runtime errors through the exception handler system
         if (!exception_handlers_.empty()) {

@@ -1389,6 +1389,17 @@ else
     echo "  test_extends.sh: not found, skipping"
 fi
 
+UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
+if [ -f "$UNCATCHABLE_SCRIPT" ]; then
+    if bash "$UNCATCHABLE_SCRIPT" 2>&1; then
+        echo "  test_uncatchable.sh: ALL PASSED"
+    else
+        FAILED_TESTS+=("test_uncatchable.sh")
+    fi
+else
+    echo "  test_uncatchable.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"
