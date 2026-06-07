@@ -122,6 +122,7 @@ include/naab/       All headers
 - `src/runtime/language_registry.cpp` — executor registration
 - `<<python ... >>` syntax — `>>` must be at line start to close block
 - Executor base: `executeWithReturn()`/`callFunction()` use NaabVal
+- **Subprocess containment** (`src/runtime/subprocess_helpers.h/cpp`): `SubprocessContainment` struct applied to all polyglot child processes via `execute_subprocess_with_pipes()`. 5-layer defense: RLIMIT_NPROC=0 (blocks fork/subprocess), PATH restriction, env scrubbing, timeout (SIGKILL), allow_exec/allow_fork flags. `SubprocessContainment::fromCurrentSandbox()` reads current sandbox level: `standard` → fork+exec blocked, `elevated` → fork allowed, `unrestricted` → no restrictions. Pre-execution source scanning (governance checks) catches static patterns; containment catches runtime-constructed commands that evade static analysis.
 
 ### Stdlib Notable
 - `array.sort()` mutates in place, `array.sorted()` returns a new sorted array (non-mutating)

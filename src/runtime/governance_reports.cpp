@@ -173,6 +173,122 @@ void GovernanceEngine::emitAttestation(const std::string& action_type,
     logAuditEvent("execution_attestation", "agent." + action_type, att.dump(), "", 0);
 }
 
+void GovernanceEngine::emitRefusalAttestation(
+    const std::string& rule_name,
+    EnforcementLevel level,
+    const std::string& enforcement_path,
+    const std::string& violation_message) {
+
+    // Always increment refusal counter (even without provenance — visible in dashboard/health)
+    pulse_.refusal_count++;
+
+    // Gate: telemetry write requires provenance attestations enabled
+    if (!rules().telemetry_output.enabled ||
+        rules().telemetry_output.output_file.empty() ||
+        !rules().audit.provenance.enabled ||
+        !rules().audit.provenance.record_attestations) return;
+
+    // File open with flock (same RAII pattern as writeAgentTelemetry)
+    auto fp_deleter = [](FILE* f) {
+#ifndef _WIN32
+        ::flock(fileno(f), LOCK_UN);
+#endif
+        fclose(f);
+    };
+    std::unique_ptr<FILE, decltype(fp_deleter)> fp(
+        fopen(rules().telemetry_output.output_file.c_str(), "a"), fp_deleter);
+    if (!fp) return;
+#ifndef _WIN32
+    ::flock(fileno(fp.get()), LOCK_EX);
+#endif
+
+    // ISO timestamp
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char ts_buf[32];
+    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+
+    nlohmann::json ev;
+    ev["run_id"] = run_id_;
+    ev["agent_id"] = agent_id_;
+    ev["event_type"] = "RefusalAttestation";
+    ev["timestamp"] = std::string(ts_buf);
+    ev["rule_name"] = rule_name;
+    ev["level"] = levelToString(level);
+    ev["enforcement_path"] = enforcement_path;
+    ev["result"] = "refused";
+    ev["binding_status"] = "non-binding";
+    ev["execution_prevented"] = true;
+    ev["file"] = current_check_file_;
+    ev["line"] = current_check_line_;
+    ev["governance_epoch"] = governance_epoch_.load(std::memory_order_relaxed);
+    // Cap violation message to prevent telemetry bloat
+    ev["violation_message"] = violation_message.size() > 500
+        ? violation_message.substr(0, 500) + "..."
+        : violation_message;
+    // Include rationale and decision trace from the CheckResult just pushed
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        if (!check_results_.empty()) {
+            const auto& last = check_results_.back();
+            if (!last.rationale.empty()) ev["rationale"] = last.rationale;
+            if (!last.decision_trace.empty()) {
+                ev["decision_trace"] = nlohmann::json::array();
+                for (const auto& dt : last.decision_trace)
+                    ev["decision_trace"].push_back(dt);
+            }
+            if (last.escalated) ev["escalated"] = true;
+            if (!last.cwe_ids.empty()) {
+                ev["cwe"] = nlohmann::json::array();
+                for (const auto& c : last.cwe_ids) ev["cwe"].push_back(c);
+            }
+        }
+    }
+
+    // Ed25519 signature (if signing enabled + key available)
+    if (rules().audit.provenance.sign_records &&
+        !rules().audit.provenance.signing_key.empty()) {
+        try {
+            std::ifstream kf(rules().audit.provenance.signing_key);
+            if (kf.is_open()) {
+                std::string pem((std::istreambuf_iterator<char>(kf)),
+                                 std::istreambuf_iterator<char>());
+                ev["signature"] = security::CryptoUtils::ed25519Sign(ev.dump(), pem);
+                ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(pem);
+            }
+        } catch (...) {}
+    }
+
+    // Tamper-evident hash chain (shared with writeTelemetry/writeAgentTelemetry)
+    if (rules().telemetry_output.tamper_evidence.enabled) {
+        ev["prev_hash"] = last_telemetry_hash_.empty()
+            ? rules().telemetry_output.tamper_evidence.chain_genesis
+            : last_telemetry_hash_;
+        last_telemetry_hash_ = computeHash(ev.dump(),
+            rules().telemetry_output.tamper_evidence);
+        ev["hash"] = last_telemetry_hash_;
+    }
+
+    std::string line = ev.dump() + "\n";
+    fwrite(line.c_str(), 1, line.size(), fp.get());
+
+    // Forward to SIEM/webhook if configured
+    {
+        std::shared_ptr<TelemetryForwarder> fwd;
+        {
+            std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_);
+            fwd = telemetry_forwarder_;
+        }
+        if (fwd) fwd->enqueue(ev.dump());
+    }
+}
+
 // --- Hooks ---
 void GovernanceEngine::fireHook(const HookConfig& hook,
                                  const std::unordered_map<std::string, std::string>& vars) {

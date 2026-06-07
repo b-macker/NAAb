@@ -432,6 +432,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         if (pulse_verdict == governance::PulseVerdict::DEGRADED) pulse_str = "degraded";
         else if (pulse_verdict == governance::PulseVerdict::IMPAIRED) pulse_str = "impaired";
         state["governance_health"] = NaabVal::makeString(pulse_str);
+        state["refusal_count"] = NaabVal::makeInt(ge->getPulse().refusal_count);
 
         // Evidence epoch — monotonic counter for evidence freshness
         state["governance_epoch"] = NaabVal::makeInt(ge->getGovernanceEpoch());

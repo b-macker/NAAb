@@ -335,6 +335,7 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
     result["active"] = NaabVal::makeBool(true);
     result["total_checks"] = NaabVal::makeInt(pulse.total_checks);
     result["consecutive_passes"] = NaabVal::makeInt(pulse.consecutive_passes);
+    result["refusal_count"] = NaabVal::makeInt(pulse.refusal_count);
     // Full breakdown for scripts — operator context, not agent context
     result["bsd_connected"] = NaabVal::makeBool(pulse.bsd_connected);
     result["cdd_connected"] = NaabVal::makeBool(pulse.cdd_connected);

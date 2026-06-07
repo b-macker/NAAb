@@ -454,6 +454,7 @@ std::string BehavioralSequenceDetector::eventTypeToString(RuntimeEventType type)
         case RuntimeEventType::CODEGEN_BLOCKED: return "codegen_blocked";
         case RuntimeEventType::PULSE_DEGRADED:  return "pulse_degraded";
         case RuntimeEventType::PULSE_IMPAIRED:  return "pulse_impaired";
+        case RuntimeEventType::REFUSAL_ATTESTATION: return "refusal_attestation";
     }
     return "unknown";
 }
@@ -680,6 +681,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 case RuntimeEventType::ENCODE:      part = "EN"; break;
                 case RuntimeEventType::DECODE:      part = "DE"; break;
                 case RuntimeEventType::PROCESS_EXEC: part = "PX"; break;
+                case RuntimeEventType::REFUSAL_ATTESTATION: part = "RA"; break;
                 default: part = "XX"; break;
             }
             turn_types.insert(part);

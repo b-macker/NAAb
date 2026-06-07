@@ -1373,6 +1373,7 @@ struct GovernancePulse {
     int total_checks = 0;
     int consecutive_passes = 0;       // reset on any block/enforcement
     int advisory_count = 0;           // advisory findings emitted (did not block execution)
+    int refusal_count = 0;            // enforcement refusals attested (all blocking paths)
 
     // Per-subsystem health
     bool bsd_connected = true;
@@ -2619,6 +2620,11 @@ public:
     // Execution attestation: signed proof that governance checks passed for an action
     void emitAttestation(const std::string& action_type,
         const std::string& agent_config, int turn, double pressure);
+
+    // Refusal attestation: non-binding evidence that governance blocked an action
+    void emitRefusalAttestation(const std::string& rule_name,
+        EnforcementLevel level, const std::string& enforcement_path,
+        const std::string& violation_message);
 
     // FIX-DX-8: Scope pattern validation
     void validateScopePatterns(const std::vector<std::string>& function_names);

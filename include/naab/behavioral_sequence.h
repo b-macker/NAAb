@@ -42,7 +42,8 @@ enum class RuntimeEventType {
     CODEGEN_EXEC,       // codegen.run() dynamic code execution
     CODEGEN_BLOCKED,    // codegen.run() blocked by governance
     PULSE_DEGRADED,     // governance pulse entered DEGRADED state
-    PULSE_IMPAIRED      // governance pulse entered IMPAIRED state
+    PULSE_IMPAIRED,     // governance pulse entered IMPAIRED state
+    REFUSAL_ATTESTATION // governance enforcement refused an action
 };
 
 // --- Single Runtime Event ---
