@@ -12,6 +12,7 @@
 #include <sstream>
 #include <filesystem>
 #include <atomic>
+#include <unistd.h>   // _exit()
 #include <chrono>
 #include <mutex>
 #include <unordered_map>
@@ -153,6 +154,10 @@ public:
                     } else {
                         req_interpreter->execute(*program);
                     }
+                } catch (const governance::GovernanceHardError& e) {
+                    fprintf(stderr, "[governance] HARD block in REST /execute: %s\n", e.what());
+                    fflush(stderr);
+                    _exit(3);
                 } catch (const std::exception& e) {
                     // V-ERR-002: sanitize error messages before returning to caller
                     error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
@@ -179,6 +184,10 @@ public:
                     {"status", "error"}
                 };
                 res.set_content(error_response.dump(2), "application/json");
+            } catch (const governance::GovernanceHardError& e) {
+                fprintf(stderr, "[governance] HARD block in REST /execute: %s\n", e.what());
+                fflush(stderr);
+                _exit(3);
             } catch (const std::exception& e) {
                 res.status = 500;
                 json error_response = {
@@ -432,6 +441,10 @@ public:
                     {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
                     {"status", "error"}
                 }.dump(2), "application/json");
+            } catch (const governance::GovernanceHardError& e) {
+                fprintf(stderr, "[governance] HARD block in REST /check: %s\n", e.what());
+                fflush(stderr);
+                _exit(3);
             } catch (const std::exception& e) {
                 res.status = 500;
                 res.set_content(json{
