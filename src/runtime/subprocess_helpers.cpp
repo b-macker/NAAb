@@ -74,7 +74,9 @@ static bool shouldScrubEnvVar(const std::string& key) {
             "PATH", "HOME", "LANG", "TERM", "TMPDIR", "TMP", "TEMP",
             "USER", "LOGNAME", "SHELL", "LC_ALL", "LC_CTYPE",
             "XDG_RUNTIME_DIR", "ANDROID_ROOT", "ANDROID_DATA",
-            "PREFIX", "LD_LIBRARY_PATH"
+            "PREFIX"
+            // LD_LIBRARY_PATH intentionally excluded — loader hijack vector.
+            // Safe value set in apply_posix_containment() instead.
         };
         if (ESSENTIAL.count(key)) return false;
         for (const auto& allowed : policy.allowed_vars) {
@@ -139,6 +141,21 @@ static void apply_posix_containment(const SubprocessContainment& c) {
     // L1: PATH restriction — strip to interpreter dir only
     if (c.restrict_path && !c.interpreter_dir.empty()) {
         setenv("PATH", c.interpreter_dir.c_str(), 1);
+    }
+
+    // L6: LD_LIBRARY_PATH restriction — scrub inherited, set safe default on Termux
+    if (c.restrict_path) {
+#ifdef __ANDROID__
+        const char* prefix = getenv("PREFIX");
+        if (prefix) {
+            std::string safe_ldpath = std::string(prefix) + "/lib";
+            setenv("LD_LIBRARY_PATH", safe_ldpath.c_str(), 1);
+        } else {
+            unsetenv("LD_LIBRARY_PATH");
+        }
+#else
+        unsetenv("LD_LIBRARY_PATH");
+#endif
     }
 
     // L5: Network env stripping — remove proxy vars

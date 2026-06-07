@@ -180,7 +180,10 @@ void GovernanceEngine::emitRefusalAttestation(
     const std::string& violation_message) {
 
     // Always increment refusal counter (even without provenance — visible in dashboard/health)
-    pulse_.refusal_count++;
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        pulse_.refusal_count++;
+    }
 
     // Gate: telemetry write requires provenance attestations enabled
     if (!rules().telemetry_output.enabled ||
@@ -199,7 +202,9 @@ void GovernanceEngine::emitRefusalAttestation(
         fopen(rules().telemetry_output.output_file.c_str(), "a"), fp_deleter);
     if (!fp) return;
 #ifndef _WIN32
-    ::flock(fileno(fp.get()), LOCK_EX);
+    if (::flock(fileno(fp.get()), LOCK_EX) != 0) {
+        fprintf(stderr, "[governance] warning: telemetry file lock failed\n");
+    }
 #endif
 
     // ISO timestamp
@@ -267,6 +272,7 @@ void GovernanceEngine::emitRefusalAttestation(
 
     // Tamper-evident hash chain (shared with writeTelemetry/writeAgentTelemetry)
     if (rules().telemetry_output.tamper_evidence.enabled) {
+        std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
         ev["prev_hash"] = last_telemetry_hash_.empty()
             ? rules().telemetry_output.tamper_evidence.chain_genesis
             : last_telemetry_hash_;
@@ -809,7 +815,9 @@ void GovernanceEngine::writeTelemetry() const {
         return;
     }
 #ifndef _WIN32
-    ::flock(fileno(fp.get()), LOCK_EX);  // Blocking exclusive lock
+    if (::flock(fileno(fp.get()), LOCK_EX) != 0) {
+        fprintf(stderr, "[governance] warning: telemetry file lock failed\n");
+    }
 #endif
 
     // ISO timestamp
@@ -851,6 +859,7 @@ void GovernanceEngine::writeTelemetry() const {
         }
         // Tamper-evident hash chain for telemetry entries
         if (rules().telemetry_output.tamper_evidence.enabled) {
+            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
             ev["prev_hash"] = last_telemetry_hash_.empty()
                 ? rules().telemetry_output.tamper_evidence.chain_genesis
                 : last_telemetry_hash_;
@@ -896,7 +905,9 @@ void GovernanceEngine::writeAgentTelemetry(
         fopen(rules().telemetry_output.output_file.c_str(), "a"), fp_deleter);
     if (!fp) return;
 #ifndef _WIN32
-    ::flock(fileno(fp.get()), LOCK_EX);
+    if (::flock(fileno(fp.get()), LOCK_EX) != 0) {
+        fprintf(stderr, "[governance] warning: telemetry file lock failed\n");
+    }
 #endif
 
     // ISO timestamp
@@ -922,6 +933,7 @@ void GovernanceEngine::writeAgentTelemetry(
 
     // Tamper-evident hash chain
     if (rules().telemetry_output.tamper_evidence.enabled) {
+        std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
         ev["prev_hash"] = last_telemetry_hash_.empty()
             ? rules().telemetry_output.tamper_evidence.chain_genesis
             : last_telemetry_hash_;

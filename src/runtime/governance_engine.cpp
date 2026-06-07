@@ -923,11 +923,12 @@ std::string GovernanceEngine::enforce(
             }
             weight = std::max(0, weight);
             // Advisory Escalation: multiply weight on 2nd+ occurrence
+            // Note: emitted_advisories_ count reflects prior calls (increment is in ADVISORY switch below)
             if (rules().advisory_escalation.enabled) {
-                int occ = emitted_advisories_[rule_name];  // already incremented above
-                if (occ > 1) {
+                int occ = emitted_advisories_[rule_name];
+                if (occ > 0) {
                     weight = static_cast<int>(weight * rules().advisory_escalation.weight_multiplier);
-                    weight_source += " (escalated x" + std::to_string(occ) + ")";
+                    weight_source += " (escalated x" + std::to_string(occ + 1) + ")";
                 }
             }
             int prev_score = cumulative_score_;
@@ -2946,10 +2947,9 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
             weight = 1;  // supporting functions: reduced weight
         }
         weight = std::max(0, weight);
-        // Advisory Escalation: mirror enforce() weight multiplier (lines 886-891)
-        // enforce() reads emitted_advisories_ BEFORE incrementing (score at L887, increment at L983)
-        // so we must also check BEFORE incrementing
-        if (rules().advisory_escalation.enabled && occ_counts[r.rule_name] > 1) {
+        // Advisory Escalation: mirror enforce() weight multiplier
+        // enforce() reads emitted_advisories_ BEFORE incrementing, so occ > 0 = 2nd+ occurrence
+        if (rules().advisory_escalation.enabled && occ_counts[r.rule_name] > 0) {
             weight = static_cast<int>(weight * rules().advisory_escalation.weight_multiplier);
         }
         occ_counts[r.rule_name]++;

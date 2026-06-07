@@ -2874,6 +2874,7 @@ private:
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;
     mutable std::mutex telemetry_fwd_mutex_;  // guards pointer swap during reload/destruction
+    mutable std::mutex telemetry_hash_mutex_;  // guards last_telemetry_hash_ across concurrent writes
 
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;

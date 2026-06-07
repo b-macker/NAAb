@@ -1693,6 +1693,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 tool_success = false;
                             }
                         }
+                    } catch (const governance::GovernanceHardError&) {
+                        t_in_tool_execution_for_handle = prev_handle;
+                        throw;  // uncatchable — propagate to main
                     } catch (const std::exception& e) {
                         // Step 9: Exception sanitization (Gap M)
                         std::string err_msg = e.what();
@@ -1703,13 +1706,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         if (err_msg.size() > 256) err_msg = err_msg.substr(0, 256) + "...";
                         tool_result_str = "Error: " + err_msg;
                         tool_success = false;
-
-                        // Check if this is a HARD governance block — rethrow
-                        std::string err_full = e.what();
-                        if (err_full.find("[HARD") != std::string::npos) {
-                            t_in_tool_execution_for_handle = prev_handle;
-                            throw;  // Propagate HARD blocks
-                        }
 
                         if (gov_engine) {
                             gov_engine->emitEvent(governance::RuntimeEventType::TOOL_ERROR,
@@ -2716,6 +2712,8 @@ static NaabVal agentBatch(std::vector<NaabVal>& args) {
                     try {
                         std::vector<NaabVal> send_args = {handle, message};
                         return agentSend(send_args);
+                    } catch (const governance::GovernanceHardError&) {
+                        throw;  // uncatchable — propagate even from batch workers
                     } catch (const std::exception& e) {
                         // Return error dict instead of crashing the batch
                         std::unordered_map<std::string, NaabVal> err;

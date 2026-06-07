@@ -465,6 +465,7 @@ public:
     // Using a simple thread-local since cpp-httplib doesn't have per-request context.
     static thread_local std::vector<std::string> t_matched_scopes_;
     static thread_local bool t_has_scoped_key_;
+    static thread_local std::string t_matched_key_id_;
 
     // Scope required by endpoint path
     static std::string scopeForPath(const std::string& path) {
@@ -497,6 +498,7 @@ public:
                 // Reset thread-local scope state
                 t_matched_scopes_.clear();
                 t_has_scoped_key_ = false;
+                t_matched_key_id_.clear();
 
                 // Determine if we have any auth configured
                 bool has_legacy_key = !api_key.empty();
@@ -539,6 +541,9 @@ public:
                                 authenticated = true;
                                 t_matched_scopes_ = entry.scopes;
                                 t_has_scoped_key_ = !entry.scopes.empty();
+                                t_matched_key_id_ = entry.name.empty()
+                                    ? ("key_" + std::to_string(&entry - &api_keys_[0]))
+                                    : entry.name;
                                 break;
                             }
                         }
@@ -549,6 +554,7 @@ public:
                         if (naab::security::CryptoUtils::constantTimeCompare(
                                 presented_key, api_key)) {
                             authenticated = true;
+                            t_matched_key_id_ = "legacy";
                             // Legacy key has full access (no scopes)
                         }
                     }
@@ -589,8 +595,10 @@ public:
                     }
                 }
 
-                // V-DOS-008: rate limiting keyed by authenticated identity
-                std::string rate_key = auth_required ? "authenticated" : req.remote_addr;
+                // V-DOS-008: rate limiting keyed by per-key identity
+                std::string rate_key = auth_required
+                    ? (t_matched_key_id_.empty() ? "authenticated" : t_matched_key_id_)
+                    : req.remote_addr;
                 if (!checkRateLimit(rate_key)) {
                     res.status = 429;
                     res.set_header("Retry-After", "1");
@@ -608,6 +616,7 @@ public:
 // Thread-local scope state
 thread_local std::vector<std::string> RestApiServer::Impl::t_matched_scopes_;
 thread_local bool RestApiServer::Impl::t_has_scoped_key_ = false;
+thread_local std::string RestApiServer::Impl::t_matched_key_id_;
 
 // RestApiServer implementation
 RestApiServer::RestApiServer(int port, const std::string& host)
