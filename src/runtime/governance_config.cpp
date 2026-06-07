@@ -63,6 +63,7 @@ std::string GovernanceEngine::levelToString(EnforcementLevel level) {
         case EnforcementLevel::APPROVAL_REQUIRED: return "approval_required";
         case EnforcementLevel::SOFT:              return "soft";
         case EnforcementLevel::ADVISORY:          return "advisory";
+        case EnforcementLevel::DETECT:            return "detect";
     }
     return "unknown";
 }
@@ -74,6 +75,7 @@ std::string GovernanceEngine::levelToTag(EnforcementLevel level) {
         case EnforcementLevel::APPROVAL_REQUIRED: return "APPROVAL-REQUIRED";
         case EnforcementLevel::SOFT:              return "SOFT-MANDATORY";
         case EnforcementLevel::ADVISORY:          return "ADVISORY";
+        case EnforcementLevel::DETECT:            return "DETECT";
     }
     return "UNKNOWN";
 }
@@ -155,6 +157,7 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
         if (s == "approval_required") return {true, EnforcementLevel::APPROVAL_REQUIRED};
         if (s == "soft")              return {true, EnforcementLevel::SOFT};
         if (s == "advisory")          return {true, EnforcementLevel::ADVISORY};
+        if (s == "detect")            return {true, EnforcementLevel::DETECT};
     }
     if (value.is_object()) {
         bool enabled = value.value("enabled", true);
@@ -164,6 +167,7 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
             if (s == "approval_required") level = EnforcementLevel::APPROVAL_REQUIRED;
             else if (s == "soft") level = EnforcementLevel::SOFT;
             else if (s == "advisory") level = EnforcementLevel::ADVISORY;
+            else if (s == "detect") level = EnforcementLevel::DETECT;
         }
         return {enabled, level};
     }

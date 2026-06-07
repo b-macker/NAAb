@@ -15,7 +15,7 @@
     "code_quality": {
         "no_hallucinated_apis": {
             "enabled": true,
-            "level": "hard",
+            "level": "detect",
             "check_cross_language": true
         }
     },

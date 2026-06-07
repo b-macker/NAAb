@@ -42,7 +42,8 @@ enum class EnforcementLevel {
     HARD,              // Block execution. No override possible.
     APPROVAL_REQUIRED, // Block unless a signed approval token exists for this rule.
     SOFT,              // Block execution. Override with --governance-override.
-    ADVISORY           // Warn only. Execution continues.
+    ADVISORY,          // Warn only. Execution continues.
+    DETECT             // Block execution but catchable by NAAb try/catch. For testing.
 };
 
 enum class GovernanceMode {

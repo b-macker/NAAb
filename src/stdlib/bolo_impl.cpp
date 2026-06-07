@@ -62,6 +62,7 @@ static const std::unordered_map<std::string, std::string> BUILT_IN_PROFILES = {
 static std::string levelStr(EnforcementLevel level) {
     switch (level) {
         case EnforcementLevel::HARD: return "error";
+        case EnforcementLevel::DETECT: return "error";
         case EnforcementLevel::SOFT: return "warning";
         case EnforcementLevel::ADVISORY: return "info";
         default: return "unknown";

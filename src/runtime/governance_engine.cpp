@@ -979,6 +979,12 @@ std::string GovernanceEngine::enforce(
             g_governance_hard_block = true;
             throw GovernanceHardError(violation_message);
 
+        case EnforcementLevel::DETECT:
+            // Same detection as HARD, but throws catchable std::runtime_error.
+            // NAAb try/catch CAN catch this — used for governance tests that
+            // verify violation detection without being killed.
+            throw std::runtime_error(violation_message);
+
         case EnforcementLevel::APPROVAL_REQUIRED: {
             std::string approver_id;
             if (hasValidApproval(rule_name, approver_id)) {
@@ -1095,6 +1101,9 @@ std::string GovernanceEngine::generateExplanation(
             break;
         case EnforcementLevel::ADVISORY:
             action = "Warning";
+            break;
+        case EnforcementLevel::DETECT:
+            action = "Detected";
             break;
         default:
             return "";

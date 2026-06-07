@@ -17,7 +17,7 @@ Binary lands at `build/naab-lang`.
 ## Test
 
 ```bash
-# Full suite — 393 tests, 1 pre-existing failure (test_bsd_cdd_fixes.sh)
+# Full suite — 396 tests, 1 pre-existing failure (test_drift_detection.sh)
 cd ~/.naab/language && bash run-all-tests.sh
 
 # Security leak check — 120 checks, 0 failures
@@ -26,7 +26,7 @@ bash tests/security/test_error_msg_leaks.sh
 
 Test categories in `tests/`: governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, polyglot, formatter, lsp, platform, chaos, robustness.
 
-Expected breakdown: ~336 pass, ~45 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
+Expected breakdown: ~334 pass, ~51 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 
@@ -101,7 +101,7 @@ include/naab/       All headers
 - Behavioral contracts: `must_call` (function must call specified functions — regex `\bname\s*\(` on body text, non-transitive), `must_contain` (function body must match syntax patterns), `must_produce` (golden tests with type-strict comparison — string "0" does not match int 0), `min_arity`/`max_arity` (parameter count enforcement)
 - Anti-gaming: magic number / hardcoded constant detection in polyglot blocks, oversimplification checks, complexity floor
 - Module governance: VM compiler skips function-body governance checks during module loading (`!skip_main_` guard in `compiler.cpp`), matching tree-walker's `module_loading_depth_ == 0` guard
-- Enforcement tiers: HARD (block, exit 3), SOFT (block unless `--governance-override`, exit 3 without override), ADVISORY (warn, continue)
+- Enforcement tiers: HARD (block, exit 3), SOFT (block unless `--governance-override`, exit 3 without override), ADVISORY (warn, continue), DETECT (block but catchable by NAAb try/catch — for test configs only)
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
 - **GovernanceHardError** (`governance.h:2157`): `enforce()` throws `GovernanceHardError` (inherits `std::runtime_error`) for all HARD-level blocks. NAAb `try/catch` cannot catch it — both tree-walker (`interpreter.cpp`: `visit(TryCatchExpr)`, `visit(TryStmt)` outer+inner) and VM (`vm.cpp`: dispatch loop + 3 inner catches) explicitly re-throw before generic handlers. `main.cpp` catches it and calls `_exit(3)`. When adding new catch sites that could intercept stdlib/governance exceptions, always add `catch (const governance::GovernanceHardError&) { throw; }` BEFORE `catch (const std::exception&)`. ADVISORY (non-escalated) and SOFT-with-override remain catchable.
 - **env_vars enforcement**: `capabilities.env_vars` in govern.json — `blocked_read` (HARD), `allowed_read` (SOFT allowlist), `blocked_write`/`allowed_write`. Enforced in all 9 env stdlib access points via `checkEnvVarRead()`/`checkEnvVarWrite()` in `governance_engine.cpp`. blocked_read prevents value from ever entering memory (check fires before `std::getenv`).

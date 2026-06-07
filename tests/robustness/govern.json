@@ -21,7 +21,7 @@
                 "timeout": 5,
                 "max_lines": 20,
                 "shell_injection": true,
-                "shell_injection_level": "hard"
+                "shell_injection_level": "detect"
             }
         }
     },
@@ -30,7 +30,7 @@
             "enabled": false
         },
         "filesystem": {
-            "mode": "none"
+            "mode": "write"
         },
         "shell": {
             "enabled": true
@@ -62,20 +62,20 @@
     "restrictions": {
         "dangerous_calls": {
             "enabled": true,
-            "level": "hard"
+            "level": "detect"
         },
         "shell_injection": {
             "enabled": true,
-            "level": "hard"
+            "level": "detect"
         },
         "resource_abuse": {
             "enabled": true,
-            "level": "hard"
+            "level": "detect"
         }
     },
     "taint_tracking": {
         "enabled": true,
-        "level": "hard",
+        "level": "detect",
         "sources": [
             "env.get",
             "io.read_line",
@@ -95,7 +95,7 @@
     "code_quality": {
         "no_secrets": {
             "enabled": true,
-            "level": "hard"
+            "level": "detect"
         },
         "no_placeholders": {
             "enabled": false

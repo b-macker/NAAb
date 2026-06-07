@@ -9,7 +9,7 @@
     },
     "taint_tracking": {
         "enabled": true,
-        "level": "hard",
+        "level": "detect",
         "lineage": true,
         "sources": [
             "env.get",

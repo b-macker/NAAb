@@ -13,7 +13,7 @@
     },
     "taint_tracking": {
         "enabled": true,
-        "level": "hard",
+        "level": "detect",
         "sources": [
             "env.get",
             "polyglot_output"

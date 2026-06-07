@@ -15,7 +15,7 @@
     "code_quality": {
         "semantic_checks": {
             "enabled": true,
-            "level": "hard",
+            "level": "detect",
             "check_imports": true,
             "check_api_signatures": true,
             "check_shell_syntax": true,

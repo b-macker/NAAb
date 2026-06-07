@@ -5,7 +5,9 @@ set -e
 
 NAAB_BIN="./build/naab-lang"
 
-# V-SC-009: Back up and clear trust store so unsigned test govern.json files work
+# V-SC-009: Back up and clear trust store so unsigned test govern.json files work.
+# Test govern.json files are NOT signed — .sig files are gitignored.
+# Signature verification is tested by test_uncatchable.sh (dynamic config creation).
 REAL_TRUST="$HOME/.naab/trusted-keys"
 TRUST_BAK=""
 if [ -d "$REAL_TRUST" ]; then
@@ -113,6 +115,11 @@ EXPECTED_ERROR_TESTS["polyglot_showcase.naab"]=1          # array.len not a func
 EXPECTED_ERROR_TESTS["before_after_optimization.naab"]=1  # Julia executor failure on Termux
 EXPECTED_ERROR_TESTS["test_instruction_following.naab"]=1 # secret detection now catches AKIA key in NAAb string (BUG-2 fix)
 EXPECTED_ERROR_TESTS["test_sequence_detection.naab"]=1    # BSD: env.get→shell_exec triggers behavioral sequence governance block
+# GovernanceHardError: These tests try/catch hardcoded-HARD structural governance
+# blocks (language blocking, call depth limits) — NOT taint detection.
+EXPECTED_ERROR_TESTS["test_crash_regression.naab"]=1       # call depth limit (hardcoded HARD)
+EXPECTED_ERROR_TESTS["test_tool_safety.naab"]=1            # languages.blocked (hardcoded HARD)
+EXPECTED_ERROR_TESTS["test_persistent_runtime_gov.naab"]=1 # languages.blocked (hardcoded HARD)
 
 # Category 2: Tests that need compilers/executors not installed on this platform
 # NOTE: Termux has g++, nim, node, go, rustc, julia, csc/mono, ruby, php, python3.

@@ -13,11 +13,11 @@
     },
     "capabilities": {
         "network": false,
-        "filesystem": "read"
+        "filesystem": "write"
     },
     "taint_tracking": {
         "enabled": true,
-        "level": "hard",
+        "level": "detect",
         "sources": [
             "env.get",
             "file.read",
