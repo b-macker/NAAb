@@ -5,6 +5,7 @@
 #include "naab/interpreter.h"  // For Value definition
 #include "naab/sandbox.h"      // For security sandbox
 #include "naab/resource_limits.h"
+#include "naab/subprocess_helpers.h"  // For getEnvScrubPolicy(), shouldScrubEnvVar()
 #include <cstring>       // For strerror
 #include <cerrno>        // For errno
 #include <climits>       // For INT_MIN, INT_MAX
@@ -84,6 +85,25 @@ bool PersistentProcessExecutor::start() {
         unsetenv("NAAB_GOVERN_KEY");
         unsetenv("NAAB_LOCK_KEY");
         unsetenv("NAAB_SIGNING_KEY");
+
+        // V-SC-006-ext: Apply env scrub policy (blocked_subprocess_vars)
+        // Must collect keys first — unsetenv() compacts environ, invalidating iterators
+        {
+            std::vector<std::string> keys_to_scrub;
+            for (char** e = environ; *e != nullptr; ++e) {
+                std::string_view entry(*e);
+                auto eq = entry.find('=');
+                if (eq != std::string_view::npos) {
+                    std::string key(entry.substr(0, eq));
+                    if (shouldScrubEnvVar(key)) {
+                        keys_to_scrub.push_back(key);
+                    }
+                }
+            }
+            for (const auto& key : keys_to_scrub) {
+                unsetenv(key.c_str());
+            }
+        }
 
         // Close unused pipe ends
         close(stdin_pipe[1]);   // Parent's write end

@@ -1030,7 +1030,7 @@ std::string GovernanceEngine::enforce(
 
         case EnforcementLevel::ADVISORY: {
             // V-CONC-F7: mutex-guard emitted_advisories_ and score_yellow_warned_
-            std::lock_guard<std::mutex> adv_lock(results_mutex_);
+            std::unique_lock<std::mutex> adv_lock(results_mutex_);
             int& occurrence = emitted_advisories_[rule_name];
             occurrence++;
 
@@ -1038,16 +1038,17 @@ std::string GovernanceEngine::enforce(
             // 1st: warn. 2nd+: increase weight. N-th (soft_after): escalate to SOFT block
             const auto& esc = rules().advisory_escalation;
             if (esc.enabled && occurrence >= esc.soft_after) {
-                // Escalate to SOFT — release lock, recurse with SOFT level
-                // (can't call enforce recursively under same lock — set flag and return)
                 g_governance_hard_block = true;
                 check_results_.back().escalated = true;
-                // Direct increment — can't call emitRefusalAttestation under results_mutex_ (deadlock)
-                pulse_.refusal_count++;
+                std::string escalation_msg = violation_message +
+                    "\n\n  This advisory was escalated after repeated occurrences.\n";
+                int occ_copy = occurrence;
                 fprintf(stderr, "[governance] ESCALATED %s (occurrence %d >= %d)\n",
-                    rule_name.c_str(), occurrence, esc.soft_after);
-                throw GovernanceHardError(violation_message +
-                    "\n\n  This advisory was escalated after repeated occurrences.\n");
+                    rule_name.c_str(), occ_copy, esc.soft_after);
+                adv_lock.unlock();  // release before attestation (avoids deadlock)
+                emitRefusalAttestation(rule_name, EnforcementLevel::HARD,
+                    "advisory_escalation", escalation_msg);
+                throw GovernanceHardError(escalation_msg);
             }
 
             if (occurrence == 1) {
@@ -2809,6 +2810,7 @@ std::string GovernanceEngine::evaluateQualityGate() const {
 
     // Quality gate conditions (only when enabled)
     if (rules().quality_gate.enabled) {
+        std::lock_guard<std::mutex> lock(results_mutex_);
         int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
         for (const auto& r : check_results_) {
             if (r.passed) continue;

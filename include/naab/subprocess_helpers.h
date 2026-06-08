@@ -38,6 +38,10 @@ struct EnvScrubPolicy {
 void setEnvScrubPolicy(const EnvScrubPolicy& policy);
 const EnvScrubPolicy& getEnvScrubPolicy();
 
+// Check if an env var key should be scrubbed based on the active policy.
+// Used by both execute_subprocess_with_pipes() and PersistentProcessExecutor.
+bool shouldScrubEnvVar(const std::string& key);
+
 // --- OS-Level Subprocess Containment ---
 // Applied post-fork/pre-exec (POSIX) or via per-child Job Object (Windows).
 // Enforces 5 layers: PATH restriction, fork prevention, resource limits,

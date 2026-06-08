@@ -2920,7 +2920,6 @@ private:
     static std::string levelToTag(EnforcementLevel level);
 
     // --- Loading helpers ---
-    void loadInheritedConfig(const std::string& base_dir, int depth = 0);
     void applyScopes(const std::string& source_file);
     std::string substituteEnvVars(const std::string& value) const;
 

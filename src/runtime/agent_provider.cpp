@@ -267,10 +267,11 @@ static json callGemini(
     }
 
     std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                    + config.model + ":generateContent?key=" + api_key;
+                    + config.model + ":generateContent";
 
     return httpPost(url, request_body.dump(),
-        {"content-type: application/json", "User-Agent: NAAb/1.0"},
+        {"content-type: application/json", "User-Agent: NAAb/1.0",
+         "x-goog-api-key: " + api_key},
         static_cast<long>(config.timeout_seconds));
 }
 
@@ -506,9 +507,10 @@ ProviderResult callAgentWithStatus(
             }
 
             std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                            + config.model + ":generateContent?key=" + api_key;
+                            + config.model + ":generateContent";
             http_result = httpPostRaw(url, request_body.dump(),
-                {"content-type: application/json", "User-Agent: NAAb/1.0"},
+                {"content-type: application/json", "User-Agent: NAAb/1.0",
+                 "x-goog-api-key: " + api_key},
                 static_cast<long>(config.timeout_seconds));
         } else {
             // Anthropic format
@@ -684,9 +686,10 @@ ProviderResult callAgentWithTools(
             }
 
             std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                            + config.model + ":generateContent?key=" + api_key;
+                            + config.model + ":generateContent";
             http_result = httpPostRaw(url, request_body.dump(),
-                {"content-type: application/json", "User-Agent: NAAb/1.0"},
+                {"content-type: application/json", "User-Agent: NAAb/1.0",
+                 "x-goog-api-key: " + api_key},
                 static_cast<long>(config.timeout_seconds));
         } else {
             // Anthropic format

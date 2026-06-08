@@ -340,18 +340,7 @@ interpreter::NaabVal CodegenModule::call(
                 "  The current sandbox does not permit code execution.\n");
         }
 
-        // Step 8: Full polyglot governance checks (39+ checks)
         std::string synthetic_source = "<codegen:" + language + ">";
-        if (gov_engine && gov_engine->isActive()) {
-            std::string block_err = gov_engine->checkPolyglotBlock(
-                language, code, synthetic_source, 0, bindings.size());
-            if (!block_err.empty()) {
-                t_codegen_blocked_count++;
-                gov_engine->emitEvent(governance::RuntimeEventType::CODEGEN_BLOCKED,
-                    "codegen.run('" + language + "') blocked by governance", "", 0);
-                throw std::runtime_error(block_err);
-            }
-        }
 
         // Step 9: Shared rate limiter (Gap 8)
         if (gov_engine && gov_engine->isActive()) {
@@ -397,6 +386,23 @@ interpreter::NaabVal CodegenModule::call(
         if (!bindings.empty()) {
             std::string preamble;
             for (const auto& [name, val] : bindings) {
+                // Validate binding key is a safe identifier ([A-Za-z_][A-Za-z0-9_]*)
+                if (name.empty() || !(std::isalpha(static_cast<unsigned char>(name[0])) || name[0] == '_')) {
+                    throw std::runtime_error(
+                        "Codegen error: invalid binding name '" + name + "'\n\n"
+                        "  Help:\n"
+                        "  - Variable names must start with a letter or underscore\n"
+                        "  - And contain only letters, digits, and underscores\n");
+                }
+                for (size_t i = 1; i < name.size(); i++) {
+                    if (!std::isalnum(static_cast<unsigned char>(name[i])) && name[i] != '_') {
+                        throw std::runtime_error(
+                            "Codegen error: invalid binding name '" + name + "'\n\n"
+                            "  Help:\n"
+                            "  - Variable names must contain only letters, digits, and underscores\n");
+                    }
+                }
+
                 std::string serialized = val.toString();
                 // Quote strings for injection into code
                 if (val.isString()) {
@@ -435,7 +441,17 @@ interpreter::NaabVal CodegenModule::call(
                 } else if (language == "rust") {
                     preamble += "let " + name + " = " + serialized + ";\n";
                 } else if (language == "shell") {
-                    preamble += "export " + name + "=" + serialized + "\n";
+                    if (val.isString()) {
+                        // Single-quote string values — prevents $, `, ! expansion
+                        std::string shell_safe;
+                        for (char c : val.asString()) {
+                            if (c == '\'') shell_safe += "'\\''";
+                            else shell_safe += c;
+                        }
+                        preamble += "export " + name + "='" + shell_safe + "'\n";
+                    } else {
+                        preamble += "export " + name + "=" + serialized + "\n";
+                    }
                 } else if (language == "ruby") {
                     preamble += name + " = " + serialized + "\n";
                 } else {
@@ -443,6 +459,19 @@ interpreter::NaabVal CodegenModule::call(
                 }
             }
             final_code = preamble + final_code;
+        }
+
+        // Step 8: Full polyglot governance checks (39+ checks)
+        // Scans final_code (includes preamble) to catch injected binding content
+        if (gov_engine && gov_engine->isActive()) {
+            std::string block_err = gov_engine->checkPolyglotBlock(
+                language, final_code, synthetic_source, 0, bindings.size());
+            if (!block_err.empty()) {
+                t_codegen_blocked_count++;
+                gov_engine->emitEvent(governance::RuntimeEventType::CODEGEN_BLOCKED,
+                    "codegen.run('" + language + "') blocked by governance", "", 0);
+                throw std::runtime_error(block_err);
+            }
         }
 
         // Apply timeout

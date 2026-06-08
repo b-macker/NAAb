@@ -57,7 +57,7 @@ const EnvScrubPolicy& getEnvScrubPolicy() {
 
 // Check if an env var key should be scrubbed based on the active policy.
 // Always scrubs NAAb internals. When policy is active, applies additional filtering.
-static bool shouldScrubEnvVar(const std::string& key) {
+bool shouldScrubEnvVar(const std::string& key) {
     // Always scrub NAAb-internal secrets
     static const std::unordered_set<std::string> NAAB_SECRETS = {
         "NAAB_GOVERN_KEY", "NAAB_LOCK_KEY", "NAAB_SIGNING_KEY"
@@ -683,15 +683,20 @@ int execute_subprocess_with_pipes(
         // V-SC-006-ext: When env scrub policy is active but we fall through
         // to execvp (no custom envp), unset blocked vars in child process
         if (t_env_scrub_policy.active && !use_custom_env) {
+            // Collect keys first — unsetenv() compacts environ, invalidating iterators
+            std::vector<std::string> keys_to_scrub;
             for (char** e = environ; *e != nullptr; ++e) {
                 std::string_view entry(*e);
                 auto eq = entry.find('=');
                 if (eq != std::string_view::npos) {
                     std::string key(entry.substr(0, eq));
                     if (shouldScrubEnvVar(key)) {
-                        unsetenv(key.c_str());
+                        keys_to_scrub.push_back(key);
                     }
                 }
+            }
+            for (const auto& key : keys_to_scrub) {
+                unsetenv(key.c_str());
             }
         }
 

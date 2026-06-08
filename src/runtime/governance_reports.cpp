@@ -627,7 +627,9 @@ std::string GovernanceEngine::generateJunitReport() const {
     // Get current timestamp
     auto now = std::time(nullptr);
     char ts_buf[64];
-    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", std::localtime(&now));
+    struct tm tm_buf;
+    localtime_r(&now, &tm_buf);
+    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
 
     oss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     oss << "<testsuite name=\"NAAb Governance\" tests=\"" << total
@@ -1029,29 +1031,6 @@ std::string GovernanceEngine::substituteEnvVars(const std::string& value) const 
     } catch (...) { return value; }
 }
 
-// --- Config Inheritance ---
-void GovernanceEngine::loadInheritedConfig(const std::string& base_dir, int depth) {
-    if (rules().extends_path.empty()) return;
-    if (depth >= rules().meta.inheritance.max_depth) {
-        fprintf(stderr, "[governance] Warning: Max inheritance depth (%d) reached\n",
-                rules().meta.inheritance.max_depth);
-        return;
-    }
-    namespace fs = std::filesystem;
-    fs::path parent_path = fs::path(base_dir) / rules().extends_path;
-    if (!fs::exists(parent_path)) {
-        fprintf(stderr, "[governance] Warning: Extended config not found: %s\n",
-                parent_path.string().c_str());
-        return;
-    }
-    // Load parent first, then child overrides
-    GovernanceEngine parent_engine;
-    if (parent_engine.loadFromFile(parent_path.string())) {
-        parent_engine.loadInheritedConfig(parent_path.parent_path().string(), depth + 1);
-        // In child_wins strategy, child values already set — nothing to merge back
-        // The parent is loaded only for any values NOT set in child
-    }
-}
 
 // ============================================================================
 // Polyglot Optimization Checks
@@ -1171,7 +1150,10 @@ std::string GovernanceEngine::checkPolyglotOptimization(
                         result.improvement_percent > 30 ? "medium" : "low";
         check.line = line;
         check.file = current_check_file_;
-        check_results_.push_back(check);
+        {
+            std::lock_guard<std::mutex> lock(results_mutex_);
+            check_results_.push_back(check);
+        }
 
         // Only HARD blocks execution
         if (level == "hard") {

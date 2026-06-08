@@ -700,10 +700,9 @@ bool RestApiServer::start() {
 }
 
 void RestApiServer::stop() {
-    if (running_) {
+    if (running_.exchange(false)) {
         spdlog::info("Stopping REST API server");
         impl_->server.stop();
-        running_ = false;
     }
 }
 

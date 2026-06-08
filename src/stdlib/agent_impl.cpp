@@ -803,7 +803,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
         // Enforce token budget from tracker (not handle dict)
         int total_used = tracker.input_tokens + tracker.output_tokens;
-        if (total_used >= config->max_total_tokens) {
+        if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
             throw std::runtime_error(fmt::format(
                 "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
                 "  Help:\n"
@@ -1835,7 +1835,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     break;
                 }
                 int total_tokens_used = tracker.input_tokens + tracker.output_tokens;
-                if (total_tokens_used >= config->max_total_tokens) {
+                if (config->max_total_tokens > 0 && total_tokens_used >= config->max_total_tokens) {
                     tool_loop_exit_reason = "max_tokens";
                     break;
                 }

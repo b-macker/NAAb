@@ -1,0 +1,86 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-37 Phase 3: Advisory escalation + agent config for enforcement tests",
+
+  "languages": {
+    "allowed": ["python", "javascript", "shell"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_write", "allow_symlinks": false },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "dd", "kill"]
+    }
+  },
+
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "sources": ["polyglot_output", "file.read", "env.get"],
+    "sinks": ["file.write", "file.append"],
+    "sanitizers": ["validate_", "sanitize_"],
+    "propagation": {
+      "string_concat": true,
+      "function_returns": true,
+      "dict_array_access": true
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "shell_injection": { "level": "hard" },
+    "privilege_escalation": { "level": "hard" },
+    "code_injection": { "level": "hard" },
+    "resource_exhaustion": { "level": "hard" },
+    "information_disclosure": { "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" },
+    "no_hardcoded_results": { "level": "hard" },
+    "no_simulation_markers": { "level": "hard" },
+    "no_oversimplification": { "level": "hard" },
+    "no_debug_artifacts": { "enabled": true, "level": "advisory" }
+  },
+
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 10,
+    "red_threshold": 20,
+    "default_weight": 2
+  },
+
+  "limits": {
+    "timeout": { "global": 30, "per_block": 15, "total_polyglot": 60 },
+    "execution": { "loop_iterations": 10000, "call_depth": 50, "polyglot_blocks": 20 }
+  },
+
+  "advisory_escalation": {
+    "enabled": true,
+    "soft_after": 3,
+    "weight_multiplier": 2
+  },
+
+  "agents": {
+    "classifier": {
+      "provider": "gemini",
+      "model": "gemini-2.0-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "max_total_tokens": 0,
+      "max_turns": 3
+    }
+  },
+
+  "trust": {
+    "require_signature": true,
+    "max_signature_age_days": 1
+  }
+}

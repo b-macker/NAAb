@@ -15,9 +15,11 @@
 #ifndef _WIN32
 #include "naab/js_executor_adapter.h"
 #endif
+#include "naab/governance.h"
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
+#include <unistd.h>
 #include <climits>
 #include <unordered_set>
 
@@ -190,6 +192,11 @@ NaabVal Interpreter::callFunction(NaabVal fn,
                     taint_flag->store(true);
                 }
                 return result;
+            } catch (const governance::GovernanceHardError& e) {
+                fprintf(stderr, "[governance] HARD block in async fn %s: %s\n",
+                        func_name.c_str(), e.what());
+                fflush(stderr);
+                _exit(3);
             } catch (const std::exception& e) {
                 throw std::runtime_error("Error in async " + func_name + ": " + e.what());
             }

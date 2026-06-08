@@ -428,8 +428,8 @@ static std::string searchPatterns(const std::string& code,
         } catch (const std::regex_error& e) {
             fprintf(stderr, "[governance] Warning: invalid regex pattern skipped: %s\n", e.what());
         } catch (const std::bad_alloc&) {
-            // Memory exhausted during governance check — fail-safe: deny execution
-            throw std::runtime_error(
+            // Memory exhausted during governance check — fail-closed
+            throw GovernanceHardError(
                 "Governance: memory exhausted during security check — execution halted.\n"
                 "  This is a fail-safe: governance cannot verify safety under memory pressure.\n"
                 "  Increase available memory or reduce RLIMIT_AS if set.\n"

@@ -1839,6 +1839,8 @@ void Interpreter::visit(ast::AwaitExpr& node) {
         std::string awaited_func_name = future_val->func_name;
         try {
             result_ = future_val->future.get();
+        } catch (const governance::GovernanceHardError&) {
+            throw;  // uncatchable — propagate to main
         } catch (const std::exception& e) {
             throw std::runtime_error(
                 "Await error: " + future_val->description + " failed\n\n"
@@ -2659,6 +2661,10 @@ void Interpreter::visit(ast::TryStmt& node) {
         try {
             // Execute catch body
             catch_clause->body->accept(*this);
+        } catch (const governance::GovernanceHardError&) {
+            restore_catch_taint2();
+            current_env_ = prev_env;
+            throw;  // uncatchable — propagate to main
         } catch (NaabError&) {
             // BUG-1: Restore taint before propagating exception
             restore_catch_taint2();
