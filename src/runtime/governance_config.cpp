@@ -680,7 +680,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& lim = j["limits"];
         if (lim.contains("timeout") && lim["timeout"].is_object()) {
             auto& t = lim["timeout"];
-            if (t.contains("global")) { rules_.limits.timeout.global = t["global"].get<int>(); rules_.timeout_seconds = rules_.limits.timeout.global; rules_.explicitly_set.insert("limits.timeout.global"); rules_.explicitly_set.insert("timeout_seconds"); }
+            if (t.contains("global")) { rules_.limits.timeout.global = t["global"].get<int>(); rules_.timeout_seconds = rules_.limits.timeout.global; rules_.runtime.timeout = rules_.limits.timeout.global; rules_.explicitly_set.insert("limits.timeout.global"); rules_.explicitly_set.insert("timeout_seconds"); }
             if (t.contains("per_block")) rules_.limits.timeout.per_block = t["per_block"].get<int>();
             if (t.contains("total_polyglot")) { rules_.limits.timeout.total_polyglot = t["total_polyglot"].get<int>(); rules_.explicitly_set.insert("limits.timeout.total_polyglot"); }
         }
@@ -2107,7 +2107,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (tel.contains("output_file")) rules_.telemetry_output.output_file = tel["output_file"].get<std::string>();
         if (tel.contains("tamper_evidence") && tel["tamper_evidence"].is_object()) {
             auto& te = tel["tamper_evidence"];
-            if (te.contains("enabled")) rules_.telemetry_output.tamper_evidence.enabled = te["enabled"].get<bool>();
+            if (te.contains("enabled")) {
+                rules_.telemetry_output.tamper_evidence.enabled = te["enabled"].get<bool>();
+                rules_.explicitly_set.insert("telemetry.tamper_evidence.enabled");
+            }
             if (te.contains("algorithm")) rules_.telemetry_output.tamper_evidence.algorithm = te["algorithm"].get<std::string>();
             if (te.contains("chain_genesis")) rules_.telemetry_output.tamper_evidence.chain_genesis = te["chain_genesis"].get<std::string>();
             if (te.contains("hmac_key")) rules_.telemetry_output.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
@@ -2157,6 +2160,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             int v = tel["forward_shutdown_drain_ms"].get<int>();
             rules_.telemetry_output.forward_shutdown_drain_ms = v < 0 ? 0 : v;
         }
+    }
+
+    // Auto-enable tamper-evident hash chain when output_file is set
+    // but tamper_evidence.enabled was not explicitly configured.
+    // Matches pulse monitor expectation (DEGRADED when chain not advancing).
+    if (!rules_.telemetry_output.output_file.empty()
+            && !rules_.explicitly_set.count("telemetry.tamper_evidence.enabled")) {
+        rules_.telemetry_output.tamper_evidence.enabled = true;
     }
 
     // --- Agents (unified config: permissions + LLM) ---

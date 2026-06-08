@@ -2547,6 +2547,9 @@ public:
     bool isBlockedFlag(const std::string& flag) const;
     static std::string getKeyFingerprint();
 
+    // Read private key PEM from NAAB_SIGNING_KEY env var (for CLI key-signing operations).
+    static std::string readSigningKeyForCLI();
+
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);
 

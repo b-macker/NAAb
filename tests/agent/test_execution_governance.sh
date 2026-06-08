@@ -132,6 +132,7 @@ if [[ ! -f "$NAAB_SIGNING_KEY" ]]; then
     # Generate a temporary key for testing
     cd "$TEST_DIR"
     "$NAAB" --keygen test_key.pem 2>/dev/null
+    "$NAAB" --trust-key "$TEST_DIR/test_key.pem.pub" 2>/dev/null
     NAAB_SIGNING_KEY="$TEST_DIR/test_key.pem"
 fi
 

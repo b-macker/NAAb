@@ -130,19 +130,10 @@ mkdir -p "$KEYGEN_DIR"
 (cd "$KEYGEN_DIR" && "$NAAB" --keygen test-key.pem) >/dev/null 2>&1
 export NAAB_SIGNING_KEY="$KEYGEN_DIR/test-key.pem"
 
-# Backup existing trust store
-TRUST_STORE="$HOME/.naab/trusted-keys"
-TRUST_BACKUP="$TMPBASE/trusted-keys-backup"
-if [ -d "$TRUST_STORE" ]; then
-    cp -r "$TRUST_STORE" "$TRUST_BACKUP"
-fi
-
-restore_trust_store() {
-    if [ -d "$TRUST_BACKUP" ]; then
-        rm -rf "$TRUST_STORE"
-        cp -r "$TRUST_BACKUP" "$TRUST_STORE"
-    fi
-}
+# Isolate trust store so tests don't affect real keys
+export NAAB_TRUST_STORE_DIR="$TMPBASE/trust-store"
+mkdir -p "$NAAB_TRUST_STORE_DIR"
+"$NAAB" --trust-key "$KEYGEN_DIR/test-key.pem.pub" 2>/dev/null
 
 # ═══════════════════════════════════════════════════════════
 # CAT 1: EXECUTION (10 tests)
@@ -652,9 +643,8 @@ rm -rf "$TMPBASE"/eo*
 fi
 
 # ═══════════════════════════════════════════════════════════
-# Restore trust store and report
+# Report
 # ═══════════════════════════════════════════════════════════
-restore_trust_store
 
 echo ""
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════${NC}"

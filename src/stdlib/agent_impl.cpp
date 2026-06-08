@@ -90,6 +90,7 @@ struct AgentTracker {
     int lease_granted_turn = 0;    // turn when lease was last granted/renewed
     int lease_expires_turn = 0;    // turn after which agent must re-authorize (0 = no lease)
     std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
+    int key_offset = 0;  // round-robin position across agent.send() calls
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -924,6 +925,18 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Telemetry: prompt scan passed — proof that pre-send governance ran this turn
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->writeAgentTelemetry("PROMPT_SCAN", {
+            {"handle_id",      std::to_string(handle_id)},
+            {"config_name",    config_name},
+            {"turn",           std::to_string(current_turn)},
+            {"message_length", std::to_string(message.size())},
+            {"checks",         "no_secrets,no_pii,no_info_disclosure"},
+            {"result",         "pass"}
+        });
+    }
+
     // Pre-call admission check
     if (gov_engine && gov_engine->isActive()) {
         std::string admission = gov_engine->checkAdmission(config_name);
@@ -943,6 +956,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     "  - This agent's allowed_actions list does not permit sending messages\n"
                     "  - Add AGENT_SEND to the agent's allowed_actions configuration\n");
             }
+        }
+        // Telemetry: admission gate passed — exposes exposure tracking state for audit
+        {
+            const char* adm_level_names[] = {"normal", "elevated", "high", "critical"};
+            auto adm_lvl = static_cast<int>(gov_engine->getGovernanceLevel());
+            const char* adm_level_str = (adm_lvl >= 0 && adm_lvl <= 3)
+                ? adm_level_names[adm_lvl] : "unknown";
+            gov_engine->writeAgentTelemetry("ADMISSION_EVAL", {
+                {"handle_id",             std::to_string(handle_id)},
+                {"config_name",           config_name},
+                {"turn",                  std::to_string(current_turn)},
+                {"result",                "pass"},
+                {"risk_budget_remaining", std::to_string(gov_engine->getRemainingBudget(config_name))},
+                {"autonomous_actions",    std::to_string(gov_engine->getAutonomousActionCount())},
+                {"unique_agents",         std::to_string(gov_engine->getUniqueAgentCount())},
+                {"governance_level",      adm_level_str}
+            });
         }
     }
 
@@ -1091,6 +1121,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int max_attempts = config->retry.max_attempts;
     int model_idx = 0;
     int key_offset = 0;
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto koff_it = s_trackers.find(handle_id);
+        if (koff_it != s_trackers.end()) key_offset = koff_it->second.key_offset;
+    }
     int attempts_made = 0;
     std::string last_error;
     std::string messages_str = messages_json.dump();
@@ -1105,6 +1140,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string key_env;
         std::string api_key;
         bool found_key = false;
+        int key_offset_before = key_offset;  // save for empty-response restore
         for (size_t k = 0; k < keys.size(); k++) {
             size_t idx = (key_offset + k) % keys.size();
             {
@@ -1179,6 +1215,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
 
         if (result.response.success) {
+            // Treat zero-token empty responses as a soft failure — retry if budget allows.
+            // Free-tier providers occasionally return HTTP 200 with no content.
+            // Guard is BEFORE consecutive_failures reset to preserve real failure history.
+            if (result.response.output_tokens == 0 && result.response.content.empty()
+                    && attempt + 1 < max_attempts) {
+                last_error = "empty response (0 output tokens)";
+                s_dispatch.total_retries++;
+                key_offset = key_offset_before;  // don't rotate key for empty response
+                if (config->retry.backoff_ms > 0)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(config->retry.backoff_ms));
+                continue;
+            }
+
             // Success — reset consecutive failures, populate trace
             s_dispatch.consecutive_failures = 0;
             s_dispatch.total_tokens += result.response.input_tokens + result.response.output_tokens;
@@ -2093,6 +2142,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Telemetry: response scan passed — proof that post-receive governance ran this turn
+    if (gov_engine && gov_engine->isActive() && !content.empty()) {
+        gov_engine->writeAgentTelemetry("RESPONSE_SCAN", {
+            {"handle_id",      std::to_string(handle_id)},
+            {"config_name",    config_name},
+            {"turn",           std::to_string(current_turn)},
+            {"content_length", std::to_string(content.size())},
+            {"output_tokens",  std::to_string(resp_output_tokens)},
+            {"checks",         "no_secrets,no_pii,path_restrictions"},
+            {"result",         "pass"}
+        });
+    }
+
     // response_format: check JSON validity BEFORE CDD so parse failures feed coherence
     bool json_valid_result = true;
     std::string json_error_signal;
@@ -2131,6 +2193,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         tracker.retries += agent_resp.attempts - 1;
         if (agent_resp.fallback_used) tracker.fallbacks++;
         tracker.total_latency_ms += agent_resp.latency_ms;
+        tracker.key_offset = key_offset;
         handle["turns"] = NaabVal::makeInt(tracker.turns);
         handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
         handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
@@ -2145,8 +2208,56 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             std::to_string(resp_output_tokens) + ")", "", 0);
         // Context drift check — include json parse failures as coherence signals
         std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
+        // Read governance level before CDD (for change detection)
+        int level_before = static_cast<int>(gov_engine->getGovernanceLevel());
         std::string drift_err = gov_engine->checkContextDrift(
             handle_id, current_turn, cdd_error);
+        // CDD_TURN: emit BEFORE potential throw so it's always in the audit trail
+        {
+            auto drift_state = gov_engine->getDriftState(handle_id);
+            int level_after = static_cast<int>(gov_engine->getGovernanceLevel());
+            const char* level_names[] = {"normal", "elevated", "high", "critical"};
+            const char* level_str = (level_after >= 0 && level_after <= 3)
+                ? level_names[level_after] : "unknown";
+            if (drift_state) {
+                char coh[32], vel[32], acc[32], pres[32];
+                snprintf(coh,  sizeof(coh),  "%.4f", drift_state->coherence_score);
+                snprintf(vel,  sizeof(vel),  "%.4f", drift_state->coherence_velocity);
+                snprintf(acc,  sizeof(acc),  "%.4f", drift_state->coherence_acceleration);
+                snprintf(pres, sizeof(pres), "%.4f", drift_state->last_pressure_score);
+                gov_engine->writeAgentTelemetry("CDD_TURN", {
+                    {"handle_id",        std::to_string(handle_id)},
+                    {"turn",             std::to_string(current_turn)},
+                    {"coherence",        coh},
+                    {"velocity",         vel},
+                    {"acceleration",     acc},
+                    {"pressure",         pres},
+                    {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
+                    {"governance_level", level_str},
+                    {"drift_detected",   drift_err.empty() ? "false" : "true"}
+                });
+            } else {
+                // CDD ran but drift analyzer has no state yet (before first check_interval_turns)
+                gov_engine->writeAgentTelemetry("CDD_TURN", {
+                    {"handle_id",        std::to_string(handle_id)},
+                    {"turn",             std::to_string(current_turn)},
+                    {"governance_level", level_str},
+                    {"drift_detected",   "false"},
+                    {"state",            "no_data_yet"}
+                });
+            }
+            // GOVERNANCE_LEVEL_CHANGE: only when level transitions
+            if (level_after != level_before) {
+                const char* from_str = (level_before >= 0 && level_before <= 3)
+                    ? level_names[level_before] : "unknown";
+                gov_engine->writeAgentTelemetry("GOVERNANCE_LEVEL_CHANGE", {
+                    {"handle_id",  std::to_string(handle_id)},
+                    {"turn",       std::to_string(current_turn)},
+                    {"from_level", from_str},
+                    {"to_level",   level_str}
+                });
+            }
+        }
         if (!drift_err.empty()) {
             // Hard/soft enforcement: abort the agent call immediately
             // (advisory returns "" from enforce(), so only real blocks reach here)
@@ -2161,6 +2272,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (!health_warnings.empty()) {
             // Surface to operator via stderr (NOT to agent — verdict only)
             fprintf(stderr, "%s", health_warnings.c_str());
+            // Telemetry: health warning — subsystem degradation is now auditable
+            std::string w = health_warnings;
+            if (w.size() > 300) w = w.substr(0, 300) + "...";
+            gov_engine->writeAgentTelemetry("GOVERNANCE_HEALTH_WARNING", {
+                {"handle_id", std::to_string(handle_id)},
+                {"turn",      std::to_string(current_turn)},
+                {"warning",   w}
+            });
         }
     }
 

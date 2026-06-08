@@ -244,6 +244,29 @@ bool CryptoUtils::ed25519Verify(const std::string& data, const std::string& sign
     return ok;
 }
 
+std::string CryptoUtils::ed25519PublicFromPrivate(const std::string& private_pem) {
+    BIO* bio = BIO_new_mem_buf(private_pem.data(), static_cast<int>(private_pem.size()));
+    if (!bio) return "";
+    EVP_PKEY* pkey = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
+    BIO_free(bio);
+    if (!pkey) return "";
+
+    BIO* pub_bio = BIO_new(BIO_s_mem());
+    if (!pub_bio) { EVP_PKEY_free(pkey); return ""; }
+    if (PEM_write_bio_PUBKEY(pub_bio, pkey) <= 0) {
+        BIO_free(pub_bio);
+        EVP_PKEY_free(pkey);
+        return "";
+    }
+    EVP_PKEY_free(pkey);
+
+    char* buf = nullptr;
+    long len = BIO_get_mem_data(pub_bio, &buf);
+    std::string result(buf, static_cast<size_t>(len));
+    BIO_free(pub_bio);
+    return result;
+}
+
 std::string CryptoUtils::ed25519Fingerprint(const std::string& pem) {
     BIO* bio = BIO_new_mem_buf(pem.data(), static_cast<int>(pem.size()));
     if (!bio) return "";

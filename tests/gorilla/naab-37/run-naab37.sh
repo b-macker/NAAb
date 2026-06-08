@@ -120,6 +120,11 @@ mkdir -p "$KEYGEN_DIR"
 (cd "$KEYGEN_DIR" && "$NAAB" --keygen test-key.pem) >/dev/null 2>&1
 export NAAB_SIGNING_KEY="$KEYGEN_DIR/test-key.pem"
 
+# Isolate trust store so tests don't affect real keys
+export NAAB_TRUST_STORE_DIR="$TMPBASE/trust-store"
+mkdir -p "$NAAB_TRUST_STORE_DIR"
+"$NAAB" --trust-key "$KEYGEN_DIR/test-key.pem.pub" 2>/dev/null
+
 # ===================================================================
 # CAT 1: UNCATCHABLE (8 tests) -- GovernanceHardError bypasses
 # Fixes: 1a (catch body), 1b (async), 1c (await)

@@ -7,7 +7,6 @@ set -uo pipefail
 NAAB="$1"
 TMPBASE="$2"
 KEYGEN_DIR="$3"
-TRUST_STORE="$HOME/.naab/trusted-keys"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PHASE1="$SCRIPT_DIR/../phases/phase1-strict.json"
@@ -43,19 +42,10 @@ cp "$PHASE1" "$AU_DIR/govern.json"
 WRONG_KEY_DIR="$TMPBASE/au02_wrongkey"
 mkdir -p "$WRONG_KEY_DIR"
 (cd "$WRONG_KEY_DIR" && "$NAAB" --keygen wrong.pem) >/dev/null 2>&1
+"$NAAB" --trust-key "$WRONG_KEY_DIR/wrong.pem.pub" 2>/dev/null
 # Sign with the wrong key
 NAAB_SIGNING_KEY="$WRONG_KEY_DIR/wrong.pem" \
     "$NAAB" --sign-governance "$AU_DIR/govern.json" >/dev/null 2>&1
-# Remove the wrong key from trust store (keep only the test key)
-# The wrong key was auto-installed — remove it
-for f in "$TRUST_STORE"/*.pub; do
-    # Check if this is our test key's fingerprint
-    if [ -f "$f" ] && ! diff -q "$f" "$KEYGEN_DIR"/*.pub >/dev/null 2>&1; then
-        # It's a different key — but we need to be careful
-        # Just remove the latest added that isn't our test key
-        :
-    fi
-done
 echo "$SIMPLE" > "$AU_DIR/test.naab"
 (cd "$AU_DIR" && "$NAAB" test.naab) >/dev/null 2>&1
 rc=$?
@@ -171,21 +161,14 @@ fi
 # ── AU-09: Unsigned govern.json with NO trust store ──
 AU_DIR="$TMPBASE/au09"
 mkdir -p "$AU_DIR"
-# Temporarily remove trust store
-TRUST_BAK="$TMPBASE/trust_bak_au09"
-if [ -d "$TRUST_STORE" ]; then
-    mv "$TRUST_STORE" "$TRUST_BAK"
-fi
 # Use a minimal config without trust requirements
 echo '{"version":"5.0","mode":"enforce"}' > "$AU_DIR/govern.json"
-# No .sig file, no trust store
+# No .sig file, no trust store — use empty trust store dir
 echo "$SIMPLE" > "$AU_DIR/test.naab"
-(cd "$AU_DIR" && "$NAAB" test.naab) >/dev/null 2>&1
+EMPTY_TRUST="$TMPBASE/au09_empty_trust"
+mkdir -p "$EMPTY_TRUST"
+(cd "$AU_DIR" && NAAB_TRUST_STORE_DIR="$EMPTY_TRUST" "$NAAB" test.naab) >/dev/null 2>&1
 rc=$?
-# Restore trust store
-if [ -d "$TRUST_BAK" ]; then
-    mv "$TRUST_BAK" "$TRUST_STORE"
-fi
 if [ "$rc" -eq 0 ]; then
     pass "AU-09" "Unsigned + no trust store → backward compat (exit $rc)"
 else

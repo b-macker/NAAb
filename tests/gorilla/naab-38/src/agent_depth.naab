@@ -1,0 +1,312 @@
+use agent
+use json
+use string
+use array
+use crypto
+use time
+use file
+
+fn sanitize_string(input) {
+    if input == null { return "" }
+    let s = string.trim(string(input))
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+fn validate_json_response(text) {
+    if text == null { return false }
+    if string.trim(text) == "" { return false }
+    try {
+        let parsed = json.parse(text)
+        return true
+    } catch (e) {
+        return false
+    }
+}
+
+fn make_incident(id, event_type, severity, source, message) {
+    return {
+        "id": id,
+        "event_type": event_type,
+        "severity": severity,
+        "source": source,
+        "message": message,
+        "timestamp": time.now_millis()
+    }
+}
+
+main {
+    print("=== NAAb-38 Agent Depth Test ===")
+    print("  Multi-turn Gemma conversations with governance depth features")
+    print("  3 agents: analyzer (25 turns), summarizer (10 turns), validator (15 turns)")
+    print("")
+
+    let start_time = time.now_millis()
+
+    // --- Phase 1: Pre-flight checks ---
+    print("--- Phase 1: Pre-flight agent checks ---")
+
+    let analyzer_check = agent.check("analyzer")
+    print("  analyzer: " + if analyzer_check.get("valid") { "ready" } else { "error: " + string(analyzer_check.get("error")) })
+
+    let summarizer_check = agent.check("summarizer")
+    print("  summarizer: " + if summarizer_check.get("valid") { "ready" } else { "error: " + string(summarizer_check.get("error")) })
+
+    let validator_check = agent.check("validator")
+    print("  validator: " + if validator_check.get("valid") { "ready" } else { "error: " + string(validator_check.get("error")) })
+
+    // --- Phase 2: Generate incidents ---
+    print("")
+    print("--- Phase 2: Generate 15 security incidents ---")
+
+    let incidents = [
+        make_incident("INC-001", "brute_force", "high", "firewall", "500 failed SSH login attempts from 192.168.1.100 in 5 minutes"),
+        make_incident("INC-002", "port_scan", "medium", "ids", "Sequential port scan detected from 10.0.0.50 targeting ports 1-1024"),
+        make_incident("INC-003", "malware", "critical", "endpoint", "Trojan.GenericKD detected in /tmp/update.exe, process attempting outbound connection to C2 server"),
+        make_incident("INC-004", "sql_injection", "high", "waf", "SQL injection attempt: SELECT * FROM users WHERE id=1 OR 1=1 on /api/users"),
+        make_incident("INC-005", "data_exfil", "critical", "dlp", "Large data transfer 500MB to external IP 203.0.113.50 via encrypted channel"),
+        make_incident("INC-006", "privilege_escalation", "critical", "siem", "User john_doe escalated to root via sudo exploit CVE-2021-3156"),
+        make_incident("INC-007", "phishing", "medium", "email_gateway", "Phishing email with malicious attachment sent to 50 employees from spoofed CEO address"),
+        make_incident("INC-008", "dos", "high", "loadbalancer", "HTTP flood attack: 100K requests/sec targeting /api/login from botnet"),
+        make_incident("INC-009", "auth_failure", "low", "active_directory", "3 failed login attempts for user alice from normal workstation"),
+        make_incident("INC-010", "config_change", "medium", "cmdb", "Firewall rule modified: port 3389 opened to 0.0.0.0/0 by admin_temp account"),
+        make_incident("INC-011", "lateral_movement", "high", "edr", "PsExec usage detected: admin spreading to 5 hosts in DMZ subnet"),
+        make_incident("INC-012", "crypto_mining", "medium", "cloud", "EC2 instance i-0abc123 CPU at 100% running xmrig crypto miner"),
+        make_incident("INC-013", "insider_threat", "high", "ueba", "Employee accessing 200 files outside normal working hours from VPN"),
+        make_incident("INC-014", "zero_day", "critical", "threat_intel", "Unpatched Apache Struts CVE-2023-50164 exploit attempt targeting web servers"),
+        make_incident("INC-015", "ransomware", "critical", "endpoint", "File encryption detected across 3 file shares, ransom note dropped in each directory")
+    ]
+
+    print("  Generated " + string(len(incidents)) + " incidents")
+
+    // --- Phase 3: Sequential agent analysis (turns 1-15) ---
+    print("")
+    print("--- Phase 3: Sequential analysis (15 turns) ---")
+
+    let analyzer_handle = agent.create("analyzer")
+    let analyses = []
+    let turn_count = 0
+
+    for i in 0..len(incidents) {
+        let incident = incidents[i]
+        let prompt = "Analyze this security incident and respond in JSON:\n" +
+            json.stringify(incident)
+
+        let response = agent.send(analyzer_handle, prompt)
+        turn_count = turn_count + 1
+
+        let content = sanitize_string(response.get("content"))
+        let trace = response.get("trace")
+
+        let analysis = {
+            "incident_id": incident.get("id"),
+            "raw_response": content,
+            "model": if trace != null { trace.get("model") } else { "unknown" },
+            "latency_ms": if trace != null { trace.get("latency_ms") } else { 0 },
+            "turn": turn_count
+        }
+
+        // Try to parse JSON from response
+        try {
+            let parsed = json.parse(content)
+            analysis["severity"] = parsed.get("severity")
+            analysis["category"] = parsed.get("category")
+            analysis["confidence"] = parsed.get("confidence")
+        } catch (e) {
+            analysis["severity"] = "parse_error"
+            analysis["category"] = "unknown"
+        }
+
+        analyses.push(analysis)
+
+        if i % 5 == 4 {
+            let usage = agent.usage(analyzer_handle)
+            let dispatch = agent.dispatch_status()
+            print("  Turn " + string(turn_count) + ": " + incident.get("id") +
+                  " → " + string(analysis.get("severity")) +
+                  " (tokens: " + string(usage.get("total_tokens")) +
+                  ", calls: " + string(dispatch.get("calls_made")) + ")")
+        }
+    }
+
+    print("  Analyzer: " + string(turn_count) + " turns completed")
+
+    // Check key health after all analyzer calls
+    let key_health = agent.key_health("analyzer")
+    print("  Key health: " + string(key_health.get("available")) + " available, " +
+          string(len(key_health.get("dead"))) + " dead")
+
+    // --- Phase 4: Validation (cross-check with different agent) ---
+    print("")
+    print("--- Phase 4: Cross-validation (5 turns) ---")
+
+    let validator_handle = agent.create("validator")
+    let validation_results = []
+
+    // Validate top 5 critical/high incidents
+    let critical_indices = []
+    for i in 0..len(analyses) {
+        let sev = analyses[i].get("severity")
+        if sev == "critical" || sev == "high" {
+            critical_indices.push(i)
+        }
+    }
+
+    let validate_count = if len(critical_indices) > 5 { 5 } else { len(critical_indices) }
+    for j in 0..validate_count {
+        let idx = critical_indices[j]
+        let analysis = analyses[idx]
+        let incident = incidents[idx]
+
+        let val_prompt = "Validate this analysis against the incident:\nIncident: " +
+            json.stringify(incident) + "\nAnalysis severity: " +
+            string(analysis.get("severity")) + ", category: " +
+            string(analysis.get("category"))
+
+        let val_response = agent.send(validator_handle, val_prompt)
+        let val_content = sanitize_string(val_response.get("content"))
+
+        let result = {"incident_id": incident.get("id"), "validated": false}
+        try {
+            let parsed = json.parse(val_content)
+            result["validated"] = parsed.get("valid")
+            result["reason"] = parsed.get("reason")
+        } catch (e) {
+            result["reason"] = "parse_error"
+        }
+
+        validation_results.push(result)
+        print("  Validated " + incident.get("id") + ": " +
+              if result.get("validated") { "PASS" } else { "REVIEW" })
+    }
+
+    // --- Phase 5: Summarization ---
+    print("")
+    print("--- Phase 5: Executive summary ---")
+
+    let summarizer_handle = agent.create("summarizer")
+    let summary_prompt = "Summarize these security incident analyses into an executive report:\n"
+
+    let analyses_summary = []
+    for i in 0..len(analyses) {
+        let a = analyses[i]
+        analyses_summary.push({
+            "id": a.get("incident_id"),
+            "severity": a.get("severity"),
+            "category": a.get("category")
+        })
+    }
+    summary_prompt = summary_prompt + json.stringify(analyses_summary)
+
+    let sum_response = agent.send(summarizer_handle, summary_prompt)
+    let sum_content = sanitize_string(sum_response.get("content"))
+    print("  Summary generated (" + string(string.length(sum_content)) + " chars)")
+
+    // --- Phase 6: Pipeline test (analyzer → summarizer) ---
+    print("")
+    print("--- Phase 6: Pipeline test ---")
+
+    let pipe_analyzer = agent.create("analyzer")
+    let pipe_summarizer = agent.create("summarizer")
+
+    let pipe_result = agent.pipeline(
+        [pipe_analyzer, pipe_summarizer],
+        "Analyze this incident and provide a detailed assessment: " +
+        json.stringify(incidents[0])
+    )
+    let pipe_content = sanitize_string(pipe_result.get("content"))
+    print("  Pipeline result: " + string(string.length(pipe_content)) + " chars")
+    print("  Pipeline stages: 2 (analyzer → summarizer)")
+
+    // --- Phase 7: Batch test (fan-out) ---
+    print("")
+    print("--- Phase 7: Batch fan-out test ---")
+
+    let batch_handles = []
+    let batch_messages = []
+    for i in 0..3 {
+        batch_handles.push(agent.create("analyzer"))
+        batch_messages.push("Quick severity check for: " + json.stringify(incidents[i]))
+    }
+
+    let batch_results = agent.batch(batch_handles, batch_messages)
+    let batch_success = 0
+    for i in 0..len(batch_results) {
+        let br = batch_results[i]
+        if br.get("success") != false {
+            batch_success = batch_success + 1
+        }
+    }
+    print("  Batch results: " + string(batch_success) + "/" + string(len(batch_results)) + " succeeded")
+
+    // --- Phase 8: Build audit chain ---
+    print("")
+    print("--- Phase 8: Audit chain ---")
+
+    let chain_data = []
+    let prev_hash = "genesis"
+    for i in 0..len(analyses) {
+        let a = analyses[i]
+        let content = string(a.get("incident_id")) + ":" +
+                      string(a.get("severity")) + ":" +
+                      string(a.get("turn")) + ":" + prev_hash
+        let hash = crypto.sha256(content)
+        chain_data.push({"index": i, "hash": hash, "prev": prev_hash})
+        prev_hash = hash
+    }
+    print("  Chain length: " + string(len(chain_data)))
+    print("  Final hash: " + string(chain_data[len(chain_data) - 1].get("hash")))
+
+    // --- Phase 9: Dispatch status & environment ---
+    print("")
+    print("--- Phase 9: Governance state ---")
+
+    let dispatch = agent.dispatch_status()
+    print("  Total calls: " + string(dispatch.get("calls_made")))
+    print("  Tokens used: " + string(dispatch.get("tokens_used")))
+    print("  Agent time: " + string(dispatch.get("agent_time_ms")) + "ms")
+    print("  Consecutive failures: " + string(dispatch.get("consecutive_failures")))
+    print("  Hard stopped: " + string(dispatch.get("hard_stopped")))
+
+    let analyzer_usage = agent.usage(analyzer_handle)
+    print("  Analyzer turns: " + string(analyzer_usage.get("turns")))
+    print("  Analyzer tokens: " + string(analyzer_usage.get("total_tokens")))
+    if analyzer_usage.get("retries") != null {
+        print("  Analyzer retries: " + string(analyzer_usage.get("retries")))
+    }
+
+    // --- Phase 10: Write report ---
+    print("")
+    print("--- Phase 10: Final report ---")
+
+    let elapsed = time.now_millis() - start_time
+
+    let report = {
+        "test": "naab-38-agent-depth",
+        "timestamp": time.now_millis(),
+        "elapsed_ms": elapsed,
+        "incidents_total": len(incidents),
+        "analyses_total": len(analyses),
+        "validations_total": len(validation_results),
+        "chain_length": len(chain_data),
+        "chain_final_hash": chain_data[len(chain_data) - 1].get("hash"),
+        "dispatch": dispatch,
+        "key_health": key_health
+    }
+
+    let report_json = sanitize_string(json.stringify(report))
+    file.write("agent_depth_report.json", report_json)
+    print("  Report written: agent_depth_report.json")
+    print("  Total time: " + string(elapsed) + "ms")
+
+    // Cleanup
+    try { file.delete("agent_depth_report.json") } catch (e) {}
+
+    print("")
+    print("=== Agent Depth Test Complete ===")
+    print("  Phases: 10 (preflight, generate, analyze, validate, summarize, pipeline, batch, chain, status, report)")
+    print("  Agent turns: " + string(turn_count + validate_count + 1 + 1 + 3))
+    print("  Unique agents: 3 (analyzer, summarizer, validator)")
+    print("  Depth features: CDD, BSD, circuit breaker, risk budget, key rotation, retry, pipeline, batch")
+}

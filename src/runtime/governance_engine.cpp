@@ -27,6 +27,8 @@
 #include <ctime>
 #include <algorithm>
 #include <cmath>
+#include <mutex>            // std::once_flag, std::call_once (trust snapshot)
+#include <unordered_set>    // fingerprint snapshot
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -3580,15 +3582,26 @@ static bool hasTrustStoreKeys() {
     return security::TrustStore::hasKeys();
 }
 
+// Trust store fingerprint snapshot — captures exact key set at first access.
+// Used by both trustStoreTampered() (deletion detection) and verifySignatureImpl()
+// (rejects keys added after startup).
+static std::once_flag s_trust_init_flag;
+static std::unordered_set<std::string> s_initial_fingerprints;
+static bool s_initial_had_keys = false;
+
 // Tracks whether the trust store had keys on first check.
 // Returns true if keys existed initially but are now gone (tamper signal).
-// Thread-safe: agent worker threads may call governance checks concurrently.
+// Thread-safe: std::call_once is safe from concurrent threads.
 static bool trustStoreTampered() {
-    static std::atomic<int> first_state{-1};  // -1=unchecked, 0=empty, 1=populated
-    bool current = security::TrustStore::hasKeys();
-    int expected = -1;
-    first_state.compare_exchange_strong(expected, current ? 1 : 0);
-    return first_state.load(std::memory_order_acquire) == 1 && !current;
+    std::call_once(s_trust_init_flag, []() {
+        auto keys = security::TrustStore::loadKeys();
+        for (const auto& [fp, pem] : keys) {
+            s_initial_fingerprints.insert(fp);
+        }
+        s_initial_had_keys = !s_initial_fingerprints.empty();
+    });
+    bool current_has_keys = security::TrustStore::hasKeys();
+    return s_initial_had_keys && !current_has_keys;
 }
 
 // Does the process have any signing capability?
@@ -3624,11 +3637,19 @@ static std::string readSigningKey() {
     return pem;
 }
 
+std::string GovernanceEngine::readSigningKeyForCLI() {
+    return readSigningKey();
+}
+
 std::string GovernanceEngine::getKeyFingerprint() {
-    // Ed25519 mode: fingerprint from NAAB_SIGNING_KEY
+    // Ed25519 mode: derive public key fingerprint from NAAB_SIGNING_KEY (private key)
     std::string sk_pem = readSigningKey();
     if (!sk_pem.empty()) {
-        return security::CryptoUtils::ed25519Fingerprint(sk_pem);
+        std::string pub_pem = security::CryptoUtils::ed25519PublicFromPrivate(sk_pem);
+        if (!pub_pem.empty()) {
+            return security::CryptoUtils::ed25519Fingerprint(pub_pem);
+        }
+        return "";
     }
     // Legacy HMAC mode
     const char* key = std::getenv(GOVERN_KEY_ENV);
@@ -3775,6 +3796,14 @@ bool GovernanceEngine::verifySignatureImpl(
             }
             bool verified = false;
             for (const auto& [fingerprint, pem] : keys) {
+                // Reject keys added after startup (mid-execution injection)
+                if (!s_initial_fingerprints.empty() &&
+                    s_initial_fingerprints.count(fingerprint) == 0) {
+                    fprintf(stderr,
+                        "[governance] INTEGRITY BLOCK: key %s was not present at startup"
+                        " — rejecting.\n", fingerprint.c_str());
+                    return false;
+                }
                 if (security::CryptoUtils::ed25519Verify(content, b64_sig, pem)) {
                     verified = true;
                     break;
@@ -6145,6 +6174,24 @@ std::string GovernanceEngine::checkBehavioralSequence(const SequenceMatchResult&
         if (!current_agent_config_.empty()) consumeRiskBudget(current_agent_config_, 1);
     }
 
+    // Telemetry: BSD match — emit before enforce() so advisory matches are also recorded
+    // (ADVISORY enforce() returns "" to caller, making it invisible without this event)
+    {
+        std::string events_joined;
+        for (size_t i = 0; i < match.matched_events.size(); i++) {
+            if (i > 0) events_joined += ",";
+            events_joined += match.matched_events[i].detail;
+        }
+        if (events_joined.size() > 300) events_joined = events_joined.substr(0, 300);
+        writeAgentTelemetry("BSD_MATCH", {
+            {"handle_id",     std::to_string(current_agent_handle_.load(std::memory_order_relaxed))},
+            {"turn",          std::to_string(current_agent_turn_.load(std::memory_order_relaxed))},
+            {"pattern_name",  match.pattern_name},
+            {"level",         levelToString(match.pattern->level)},
+            {"steps_matched", std::to_string(match.matched_events.size())},
+            {"events",        events_joined}
+        });
+    }
     return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
         formatError(match.pattern->level,
             fmt::format("Behavioral sequence '{}' detected: {} steps completed "

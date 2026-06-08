@@ -1,0 +1,35 @@
+use time
+use json
+
+fn make_event(id, timestamp, source, event_type, severity, message) {
+  return {
+    "id": id,
+    "timestamp": timestamp,
+    "source": source,
+    "event_type": event_type,
+    "severity": severity,
+    "message": message
+  }
+}
+
+fn make_analysis(event_id, category, risk_score, indicators, recommendation) {
+  return {
+    "event_id": event_id,
+    "category": category,
+    "risk_score": risk_score,
+    "indicators": indicators,
+    "recommendation": recommendation,
+    "analyzed_at": time.now()
+  }
+}
+
+fn make_summary(total, by_category, by_severity, top_risks, chain_hash) {
+  return {
+    "total_events": total,
+    "by_category": by_category,
+    "by_severity": by_severity,
+    "top_risks": top_risks,
+    "audit_chain_hash": chain_hash,
+    "generated_at": time.now()
+  }
+}

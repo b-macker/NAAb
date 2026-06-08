@@ -17,21 +17,10 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/naab_intent_XXXXXX")"
 
-# Back up and clear trust store so tests run unsigned (no Ed25519 interference)
-REAL_TRUST="$HOME/.naab/trusted-keys"
-TRUST_BAK=""
-if [ -d "$REAL_TRUST" ]; then
-  TRUST_BAK=$(mktemp -d "${TMPDIR:-/tmp}/trust_bak_intent_XXXXXX")
-  mv "$REAL_TRUST" "$TRUST_BAK/trusted-keys"
-fi
-restore_trust_store() {
-  if [ -n "$TRUST_BAK" ] && [ -d "$TRUST_BAK/trusted-keys" ]; then
-    mv "$TRUST_BAK/trusted-keys" "$REAL_TRUST"
-    rm -rf "$TRUST_BAK"
-    TRUST_BAK=""
-  fi
-}
-trap 'rm -rf "$WORK"; restore_trust_store' EXIT
+# Isolate trust store so tests run unsigned (no Ed25519 interference)
+export NAAB_TRUST_STORE_DIR="$WORK/trust-store"
+mkdir -p "$NAAB_TRUST_STORE_DIR"
+trap 'rm -rf "$WORK"' EXIT
 
 # Helper: create govern.json with specific function_intents and level
 make_gov() {

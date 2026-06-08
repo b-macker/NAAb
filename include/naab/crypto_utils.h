@@ -43,7 +43,10 @@ public:
     static bool ed25519Verify(const std::string& data, const std::string& signature_b64,
                               const std::string& public_key_pem);
 
-    // SHA-256 fingerprint of Ed25519 public key (last 16 hex chars). Accepts public or private PEM.
+    // Derive public key PEM from Ed25519 private key PEM.
+    static std::string ed25519PublicFromPrivate(const std::string& private_pem);
+
+    // SHA-256 fingerprint of Ed25519 public key (last 16 hex chars).
     static std::string ed25519Fingerprint(const std::string& pem);
 
     // Base64 encode/decode (OpenSSL BIO-based, no newlines).

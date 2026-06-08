@@ -1,0 +1,263 @@
+import "models.naab" as models
+import "validators.naab" as validators
+import "engine.naab" as engine
+use array
+use json
+use file
+use time
+use codegen
+use string
+
+fn generate_events() {
+  let events = []
+  let event_types = [
+    "auth_failure",
+    "port_scan",
+    "malware_detect",
+    "sql_injection",
+    "brute_force",
+    "data_exfil",
+    "privilege_escalation",
+    "config_change",
+    "anomalous_login",
+    "ddos_attempt"
+  ]
+
+  let sources = [
+    "firewall_1",
+    "ids_monitor",
+    "endpoint_001",
+    "database_server",
+    "web_server_prod"
+  ]
+
+  let i = 0
+  while i < 30 {
+    let type_idx = i % 10
+    let source_idx = (i * 3) % 5
+    let severity = (i % 10) + 1
+    let timestamp = time.now() - (i * 60)
+
+    let event = models.make_event(
+      "event_" + i,
+      timestamp,
+      sources[source_idx],
+      event_types[type_idx],
+      severity,
+      "Security event detected: " + event_types[type_idx]
+    )
+
+    array.push(events, event)
+    i = i + 1
+  }
+
+  return events
+}
+
+fn build_category_summary(analyses) {
+  let summary_dict = {}
+  let i = 0
+  while i < analyses.length() {
+    let analysis = analyses[i]
+    let category = analysis.get("category")
+    let current = summary_dict.get(category) ?? 0
+    let new_val = current + 1
+    summary_dict[category] = new_val
+    i = i + 1
+  }
+  return summary_dict
+}
+
+fn build_severity_summary(events) {
+  let severity_dict = {}
+  let i = 0
+  while i < events.length() {
+    let event = events[i]
+    let sev = event.get("severity")
+    let sev_str = "level_" + sev
+    let current = severity_dict.get(sev_str) ?? 0
+    let new_val = current + 1
+    severity_dict[sev_str] = new_val
+    i = i + 1
+  }
+  return severity_dict
+}
+
+fn compute_statistics(events) {
+  let event_count = events.length()
+  let severity_count = 0
+  let i = 0
+  while i < events.length() {
+    let event = events[i]
+    let sev = event.get("severity") ?? 0
+    severity_count = severity_count + sev
+    i = i + 1
+  }
+
+  return {
+    "count": event_count,
+    "severity_sum": severity_count
+  }
+}
+
+fn get_top_risks(analyses) {
+  let risk_scores = []
+  let i = 0
+  while i < analyses.length() {
+    let analysis = analyses[i]
+    let risk_score = analysis.get("risk_score") ?? 0
+    array.push(risk_scores, risk_score)
+    i = i + 1
+  }
+
+  let avg_risk = codegen.run_with_args("python", "
+scores = {scores}
+try:
+    import statistics
+    avg = statistics.mean(scores) if scores else 0
+    int(avg)
+except:
+    0
+", {
+    "scores": risk_scores
+  })
+
+  let top_5 = []
+  i = 0
+  let max_idx = 5
+  if analyses.length() < 5 {
+    max_idx = analyses.length()
+  }
+
+  while i < max_idx {
+    let analysis = analyses[i]
+    let risk_score = analysis.get("risk_score") ?? 0
+    let event_id = analysis.get("event_id") ?? "unknown"
+    array.push(top_5, {
+      "event_id": event_id,
+      "risk_score": risk_score
+    })
+    i = i + 1
+  }
+
+  return top_5
+}
+
+fn get_shell_metrics() {
+  let uptime_raw = codegen.run_with_args("shell", "uptime | head -1", {})
+  let uptime_str = ""
+  if uptime_raw != null {
+    uptime_str = string.trim("" + uptime_raw)
+  }
+
+  let pid_raw = codegen.run_with_args("shell", "echo $$", {})
+  let pid_str = ""
+  if pid_raw != null {
+    pid_str = string.trim("" + pid_raw)
+  }
+
+  let timestamp_info = codegen.run_with_args("python", "
+import time
+int(time.time())
+", {})
+
+  return {
+    "uptime": validators.sanitize_output(uptime_str),
+    "pid": validators.sanitize_output(pid_str),
+    "timestamp": timestamp_info
+  }
+}
+
+main {
+  try {
+    io.write("Starting Multi-Stage Data Analysis Pipeline...\n")
+
+    io.write("Generating 30 security events...\n")
+    let events = generate_events()
+
+    if !validators.validate_all_events(events) {
+      throw "Event validation failed"
+    }
+
+    io.write("Classifying events...\n")
+    let i = 0
+    while i < events.length() {
+      let event = events[i]
+      let category = engine.classify_event(event)
+      i = i + 1
+    }
+
+    io.write("Analyzing batch (synchronous)...\n")
+    let analyses_sync = engine.analyze_batch(events)
+
+    io.write("Performing pattern analysis...\n")
+    let all_analyses = []
+    let j = 0
+    while j < analyses_sync.length() {
+      array.push(all_analyses, analyses_sync[j])
+      j = j + 1
+    }
+
+    io.write("Detecting patterns...\n")
+    let patterns = engine.detect_patterns(events)
+
+    io.write("Building audit hash chain...\n")
+    let chain_hash = engine.build_audit_chain(all_analyses)
+
+    io.write("Collecting metrics...\n")
+    let metrics = get_shell_metrics()
+
+    io.write("Computing statistics...\n")
+    let stats = compute_statistics(events)
+
+    io.write("Building summary...\n")
+    let categories = build_category_summary(analyses_sync)
+    let severities = build_severity_summary(events)
+    let top_risks = get_top_risks(analyses_sync)
+
+    let summary = models.make_summary(
+      events.length(),
+      categories,
+      severities,
+      top_risks,
+      chain_hash
+    )
+
+    let report_quality = codegen.run_with_args("javascript", "
+const result = {
+  is_comprehensive: true,
+  analysis_complete: true,
+  data_integrity_verified: true
+};
+result;
+", {})
+
+    let report = {
+      "summary": summary,
+      "patterns": patterns,
+      "metrics": metrics,
+      "statistics": stats,
+      "report_quality": report_quality,
+      "event_count": events.length(),
+      "analysis_count": all_analyses.length(),
+      "audit_hash": chain_hash
+    }
+
+    io.write("Sanitizing output for file writing...\n")
+    let json_str = json.stringify(report)
+    let safe_output = validators.sanitize_output(json_str)
+
+    io.write("Writing report to file...\n")
+    file.write("report.json", safe_output)
+
+    io.write("\n=== Analysis Complete ===\n")
+    io.write("Total events processed: " + events.length() + "\n")
+    io.write("Total analyses generated: " + all_analyses.length() + "\n")
+    io.write("Audit chain hash: " + chain_hash + "\n")
+    io.write("Report written to report.json\n")
+
+  } catch (e) {
+    io.write("Error during analysis: " + e + "\n")
+    throw e
+  }
+}

@@ -323,6 +323,55 @@ static BOOL WINAPI naabCtrlHandler(DWORD type) {
 }
 #endif
 
+// --- Key authorization helpers for --trust-key / --sign-key ---
+
+// Scan argv[from..argc-1] for "--flag value" pair, return value or "".
+static std::string findFlagValue(const std::string& flag,
+                                 int argc, char** argv, int from) {
+    for (int i = from; i + 1 < argc; ++i) {
+        if (flag == argv[i]) return argv[i + 1];
+    }
+    return "";
+}
+
+// Verify that pub_pem was signed by an existing trusted key.
+// sig_path is a file containing a base64 Ed25519 signature of pub_pem content.
+static bool verifyKeyAuthorization(const std::string& pub_pem,
+                                   const std::string& sig_path) {
+    // Read sig file (bounded: authorization sigs are ~88 bytes base64)
+    std::ifstream sf(sig_path);
+    if (!sf.is_open()) {
+        fprintf(stderr, "Error: Cannot read authorization signature: %s\n", sig_path.c_str());
+        return false;
+    }
+    // Cap at 4KB
+    std::string sig_b64;
+    sig_b64.resize(4096);
+    sf.read(&sig_b64[0], 4096);
+    auto n = sf.gcount();
+    sig_b64.resize(static_cast<size_t>(n));
+    sf.close();
+    // Trim whitespace
+    while (!sig_b64.empty() && (sig_b64.back() == '\n' || sig_b64.back() == '\r'
+                                || sig_b64.back() == ' '))
+        sig_b64.pop_back();
+
+    if (sig_b64.empty()) {
+        fprintf(stderr, "Error: Authorization signature file is empty\n");
+        return false;
+    }
+
+    // Verify against each trusted key
+    auto keys = naab::security::TrustStore::loadKeys();
+    for (const auto& [fingerprint, pem] : keys) {
+        if (naab::security::CryptoUtils::ed25519Verify(pub_pem, sig_b64, pem)) {
+            fprintf(stderr, "Key authorized by trusted key: %s\n", fingerprint.c_str());
+            return true;
+        }
+    }
+    return false;
+}
+
 int main(int argc, char** argv) {
     // Enable ANSI colours + UTF-8 console on Windows; no-op on POSIX.
     naab::platform::enableAnsiConsole();
@@ -499,7 +548,8 @@ int main(int argc, char** argv) {
             naab::platform::setenv("NAAB_SIGNING_KEY", argv[++command_arg_index], true);
             command_arg_index++;
         } else if (arg == "--keygen") {
-            // V-SC-009: Generate Ed25519 keypair and install public key to trust store
+            // V-SC-009: Generate Ed25519 keypair — does NOT auto-install to trust store.
+            // The operator must explicitly run --trust-key to authorize the public key.
             std::string private_pem, public_pem;
             if (!naab::security::CryptoUtils::ed25519Keygen(private_pem, public_pem)) {
                 fprintf(stderr, "Error: Ed25519 key generation failed\n");
@@ -510,32 +560,36 @@ int main(int argc, char** argv) {
             if (command_arg_index + 1 < argc && argv[command_arg_index + 1][0] != '-') {
                 priv_path = argv[++command_arg_index];
             }
+            std::string pub_path = priv_path + ".pub";
+
             // Write private key — born with 0600 permissions (no world-readable window)
             if (!naab::security::writeFileSecure(priv_path, private_pem, 0600)) {
                 fprintf(stderr, "Error: Failed to write private key to %s\n", priv_path.c_str());
                 return 1;
             }
-            // writeFileSecure() already creates with 0600 permissions
-
-            // Install public key to trust store
-            if (!naab::security::TrustStore::installKey(public_pem)) {
-                fprintf(stderr, "Error: Failed to install public key to trust store\n");
+            // Write public key to separate file
+            if (!naab::security::writeFileSecure(pub_path, public_pem, 0644)) {
+                fprintf(stderr, "Error: Failed to write public key to %s\n", pub_path.c_str());
                 return 1;
             }
+
             std::string fp = naab::security::CryptoUtils::ed25519Fingerprint(public_pem);
             fprintf(stderr, "Ed25519 keypair generated:\n"
                             "  Private key: %s (keep secret — never commit!)\n"
-                            "  Public key:  %s/%s.pub\n"
+                            "  Public key:  %s\n"
                             "  Fingerprint: %s\n\n"
-                            "To sign governance files:\n"
+                            "Key is NOT yet trusted. To install:\n"
+                            "  naab-lang --trust-key %s\n\n"
+                            "To sign governance files after installing:\n"
                             "  export NAAB_SIGNING_KEY=%s\n"
                             "  naab-lang --sign-governance\n",
-                    priv_path.c_str(),
-                    naab::security::TrustStore::getStorePath().c_str(),
-                    fp.c_str(), fp.c_str(), priv_path.c_str());
+                    priv_path.c_str(), pub_path.c_str(),
+                    fp.c_str(), pub_path.c_str(), priv_path.c_str());
             return 0;
         } else if (arg == "--trust-key" && command_arg_index + 1 < argc) {
-            // V-SC-009: Install a public key PEM into the trust store
+            // V-SC-009: Install a public key PEM into the trust store.
+            // When the trust store is non-empty (non-bootstrap), requires --authorized-by
+            // with a signature from an existing trusted key (countersigning).
             std::string pub_path = argv[++command_arg_index];
             std::ifstream pf(pub_path);
             if (!pf.is_open()) {
@@ -545,6 +599,28 @@ int main(int argc, char** argv) {
             std::string pub_pem((std::istreambuf_iterator<char>(pf)),
                                  std::istreambuf_iterator<char>());
             pf.close();
+
+            // Countersigning gate: non-empty trust store requires authorization
+            if (naab::security::TrustStore::hasKeys()) {
+                std::string sig_path = findFlagValue(
+                    "--authorized-by", argc, argv, command_arg_index + 1);
+                if (sig_path.empty()) {
+                    fprintf(stderr,
+                        "Error: Trust store is non-empty — new key requires authorization.\n"
+                        "  An existing key holder must authorize this key first.\n\n"
+                        "  Then install with:\n"
+                        "    naab-lang --trust-key %s --authorized-by <sig-file>\n",
+                        pub_path.c_str());
+                    return 1;
+                }
+                if (!verifyKeyAuthorization(pub_pem, sig_path)) {
+                    fprintf(stderr,
+                        "Error: Key authorization signature invalid or not from a trusted key.\n");
+                    return 1;
+                }
+            }
+
+            // Bootstrap (empty store) or verified — install
             if (!naab::security::TrustStore::installKey(pub_pem)) {
                 fprintf(stderr, "Error: Failed to install key (invalid PEM or I/O error)\n");
                 return 1;
@@ -552,6 +628,55 @@ int main(int argc, char** argv) {
             std::string fp = naab::security::CryptoUtils::ed25519Fingerprint(pub_pem);
             fprintf(stderr, "Trusted key installed: %s (fingerprint: %s)\n",
                     pub_path.c_str(), fp.c_str());
+            return 0;
+        } else if (arg == "--sign-key" && command_arg_index + 1 < argc) {
+            // Authorize a new public key by signing it with an existing trusted private key.
+            // Creates a .sig file that can be passed to --trust-key --authorized-by.
+            std::string pub_path = argv[++command_arg_index];
+            std::ifstream pkf(pub_path);
+            if (!pkf.is_open()) {
+                fprintf(stderr, "Error: Cannot read public key file: %s\n", pub_path.c_str());
+                return 1;
+            }
+            std::string pub_pem((std::istreambuf_iterator<char>(pkf)),
+                                 std::istreambuf_iterator<char>());
+            pkf.close();
+
+            // Read private key from NAAB_SIGNING_KEY
+            std::string private_pem =
+                naab::governance::GovernanceEngine::readSigningKeyForCLI();
+            if (private_pem.empty()) {
+                fprintf(stderr,
+                    "Error: No signing key configured.\n"
+                    "  Set NAAB_SIGNING_KEY to an existing trusted private key.\n");
+                return 1;
+            }
+
+            // Sign the public key content
+            std::string sig_b64 =
+                naab::security::CryptoUtils::ed25519Sign(pub_pem, private_pem);
+            if (sig_b64.empty()) {
+                fprintf(stderr, "Error: Failed to sign public key\n");
+                return 1;
+            }
+
+            // Write sig to pub_path + ".sig"
+            std::string sig_path = pub_path + ".sig";
+            if (!naab::security::writeFileSecure(sig_path, sig_b64 + "\n", 0644)) {
+                fprintf(stderr, "Error: Failed to write authorization signature to %s\n",
+                        sig_path.c_str());
+                return 1;
+            }
+
+            // Get signer fingerprint for display
+            std::string signer_fp =
+                naab::governance::GovernanceEngine::getKeyFingerprint();
+            fprintf(stderr, "Authorization signature written: %s\n"
+                            "  Signed by: %s\n\n"
+                            "  Install with:\n"
+                            "    naab-lang --trust-key %s --authorized-by %s\n",
+                    sig_path.c_str(), signer_fp.c_str(),
+                    pub_path.c_str(), sig_path.c_str());
             return 0;
         } else if (arg == "--list-keys") {
             // V-SC-009: List installed trusted keys
@@ -1512,6 +1637,7 @@ int main(int argc, char** argv) {
                         auto& r = gov->getMutableRules();
                         r.telemetry_output.enabled = true;
                         r.telemetry_output.output_file = governance_telemetry_path;
+                        r.telemetry_output.tamper_evidence.enabled = true;
                     }
                     gov->applyAgentRole();
                     // Feature 5: Apply environment overrides
@@ -1777,6 +1903,7 @@ int main(int argc, char** argv) {
                         auto& rules = vm_governance.getMutableRules();
                         rules.telemetry_output.enabled = true;
                         rules.telemetry_output.output_file = governance_telemetry_path;
+                        rules.telemetry_output.tamper_evidence.enabled = true;
                     }
                     vm_governance.applyAgentRole();
                     // Feature 5: Apply environment overrides

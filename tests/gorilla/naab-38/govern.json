@@ -1,0 +1,307 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-38: Sustained governance depth test \u2014 all depth features enabled",
+  "languages": {
+    "allowed": [
+      "python",
+      "javascript",
+      "shell"
+    ]
+  },
+  "capabilities": {
+    "network": {
+      "enabled": false
+    },
+    "filesystem": {
+      "mode": "read_write",
+      "allow_symlinks": false
+    },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": [
+        "rm",
+        "curl",
+        "wget",
+        "chmod",
+        "sudo",
+        "dd",
+        "kill"
+      ]
+    }
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  },
+  "taint_tracking": {
+    "enabled": true,
+    "level": "detect",
+    "sources": [
+      "polyglot_output",
+      "file.read",
+      "env.get"
+    ],
+    "sinks": [
+      "file.write",
+      "file.append"
+    ],
+    "sanitizers": [
+      "validate_",
+      "sanitize_"
+    ],
+    "propagation": {
+      "string_concat": true,
+      "function_returns": true,
+      "dict_array_access": true
+    },
+    "gate_cross_block": true,
+    "cross_block_level": "soft"
+  },
+  "restrictions": {
+    "dangerous_calls": {
+      "level": "hard"
+    },
+    "shell_injection": {
+      "level": "hard"
+    },
+    "privilege_escalation": {
+      "level": "hard"
+    },
+    "code_injection": {
+      "level": "hard"
+    }
+  },
+  "code_quality": {
+    "no_secrets": {
+      "level": "hard"
+    },
+    "no_placeholders": {
+      "level": "hard"
+    },
+    "no_hardcoded_results": {
+      "level": "hard"
+    },
+    "no_simulation_markers": {
+      "level": "hard"
+    },
+    "no_oversimplification": {
+      "level": "hard"
+    }
+  },
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 15,
+    "red_threshold": 30,
+    "default_weight": 2
+  },
+  "limits": {
+    "timeout": {
+      "global": 60,
+      "per_block": 15,
+      "total_polyglot": 120
+    },
+    "execution": {
+      "loop_iterations": 50000,
+      "call_depth": 50,
+      "polyglot_blocks": 500
+    }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [
+      "python",
+      "shell",
+      "javascript"
+    ]
+  },
+  "context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.15,
+    "check_interval_turns": 2,
+    "fingerprint_window": 15,
+    "rate_normalized": true,
+    "coherence_recovery_amount": 0.2,
+    "coherence_natural_healing": 0.05,
+    "temporal_decay_enabled": true,
+    "temporal_decay_per_minute": 0.005,
+    "temporal_decay_grace_minutes": 1.0,
+    "adaptive_baseline_enabled": true,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.5,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true,
+      "coherence_velocity": true,
+      "vocabulary_contraction": true,
+      "capability_underutilization": true,
+      "semantic_stability": true
+    },
+    "weights": {
+      "circular": 0.08,
+      "scope_creep": 0.05,
+      "contradiction": 0.1,
+      "repeated_failure": 0.05,
+      "vocabulary_contraction": 0.1,
+      "capability_underutilization": 0.1,
+      "semantic_stability": 0.1
+    },
+    "reality_checkpoint": {
+      "enabled": true,
+      "pressure_threshold": 0.5,
+      "sustained_turns_required": 3,
+      "weights": {
+        "coherence_proximity": 0.3,
+        "risk_score_proximity": 0.2,
+        "signal_density": 0.25,
+        "conversation_depth": 0.1,
+        "bsd_partial_progress": 0.1,
+        "pipeline_inherited": 0.0,
+        "coherence_acceleration": 0.05
+      }
+    }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "window_size": 200,
+    "patterns": [
+      {
+        "name": "repeated_agent_send",
+        "sequence": [
+          "AGENT_SEND",
+          "AGENT_SEND",
+          "AGENT_SEND"
+        ],
+        "max_gap": 2,
+        "level": "advisory"
+      },
+      {
+        "name": "agent_then_file_write",
+        "sequence": [
+          "AGENT_SEND",
+          "FILE_WRITE"
+        ],
+        "max_gap": 5,
+        "level": "advisory"
+      }
+    ]
+  },
+  "exposure_tracking": {
+    "enabled": true,
+    "max_autonomous_actions": 200,
+    "max_unique_agents": 5,
+    "coherence_floor": 0.2,
+    "max_pipeline_depth": 3,
+    "checkpoint_cooldown_turns": 2,
+    "min_capability_utilization": 0.0,
+    "utilization_check_after_turns": 10
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "critical_coherence": 0.15,
+    "step_up_enabled": false
+  },
+  "governance_health": {
+    "enabled": true,
+    "check_after_turns": 3,
+    "governance_entropy_warning": 0.3
+  },
+  "advisory_escalation": {
+    "enabled": true,
+    "soft_after": 15,
+    "weight_multiplier": 1.3
+  },
+  "trust": {
+    "require_signature": true,
+    "max_signature_age_days": 1
+  },
+  "agents": {
+    "analyzer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [
+        "GK1",
+        "GK2",
+        "GK3",
+        "GK4",
+        "GK5",
+        "GK6"
+      ],
+      "max_tokens": 512,
+      "max_turns": 25,
+      "max_total_tokens": 20000,
+      "temperature": 0.3,
+      "system_prompt": "You are a security incident analyzer. When given incident data, classify its severity (critical/high/medium/low), identify the attack category, and provide a brief recommendation. Respond in JSON format with keys: severity, category, recommendation, confidence.",
+      "response_format": "json",
+      "risk_budget": 30,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "key_retry_after_seconds": 60
+      }
+    },
+    "summarizer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [
+        "GK4",
+        "GK5",
+        "GK6",
+        "GK1",
+        "GK2",
+        "GK3"
+      ],
+      "max_tokens": 1024,
+      "max_turns": 10,
+      "max_total_tokens": 15000,
+      "temperature": 0.2,
+      "system_prompt": "You are a security report summarizer. Given a list of incident analyses, produce a concise executive summary covering: total incidents by severity, top attack categories, and overall risk assessment (low/moderate/high/critical). Respond in JSON with keys: severity_counts, top_categories, overall_risk, summary_text.",
+      "response_format": "json",
+      "risk_budget": 20
+    },
+    "validator": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [
+        "GK7",
+        "GK8",
+        "GK9"
+      ],
+      "max_tokens": 256,
+      "max_turns": 15,
+      "max_total_tokens": 10000,
+      "temperature": 0.1,
+      "system_prompt": "You validate security analysis results. Given an analysis, check if the severity rating matches the incident description. Respond with JSON: {valid: true/false, reason: string, adjusted_severity: string}.",
+      "response_format": "json",
+      "risk_budget": 15,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 500
+      }
+    }
+  },
+  "agent_dispatch": {
+    "max_concurrent": 3,
+    "pool_size": 3,
+    "pool_queue_max": 20,
+    "hard_stop": {
+      "max_calls_per_run": 60,
+      "max_tokens_per_run": 50000,
+      "max_agent_time_ms": 540000,
+      "consecutive_failure_limit": 5
+    }
+  },
+  "pipeline_separation": {
+    "enabled": true,
+    "level": "advisory"
+  }
+}

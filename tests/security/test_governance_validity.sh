@@ -20,16 +20,8 @@ skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 # Use /usr/tmp on Termux, /tmp elsewhere
 SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 WORKDIR=$(mktemp -d "${SYSTMP}/gov_validity_XXXXXX")
-TRUST_BACKUP=""
 
 cleanup() {
-    # Restore original trust store if we backed it up
-    if [ -n "$TRUST_BACKUP" ] && [ -d "$TRUST_BACKUP" ]; then
-        rm -rf "$HOME/.naab/trusted-keys"
-        if [ "$(ls -A "$TRUST_BACKUP" 2>/dev/null)" ]; then
-            mv "$TRUST_BACKUP" "$HOME/.naab/trusted-keys"
-        fi
-    fi
     rm -rf "$WORKDIR"
 }
 trap cleanup EXIT
@@ -41,15 +33,12 @@ echo ""
 # ---------------------------------------------------------------------------
 # Setup: isolate trust store so tests don't affect real keys
 # ---------------------------------------------------------------------------
-ORIG_TRUST="$HOME/.naab/trusted-keys"
-if [ -d "$ORIG_TRUST" ]; then
-    TRUST_BACKUP=$(mktemp -d "${SYSTMP}/trust_backup_XXXXXX")
-    cp -r "$ORIG_TRUST"/* "$TRUST_BACKUP/" 2>/dev/null || true
-    rm -rf "$ORIG_TRUST"
-fi
+export NAAB_TRUST_STORE_DIR="$WORKDIR/trust-store"
+mkdir -p "$NAAB_TRUST_STORE_DIR"
 
-# Generate a test keypair
+# Generate a test keypair and install to isolated trust store
 "$NAAB" --keygen "$WORKDIR/test-key.pem" 2>"$WORKDIR/keygen.out"
+"$NAAB" --trust-key "$WORKDIR/test-key.pem.pub" 2>/dev/null
 TEST_FP=$(grep 'Fingerprint:' "$WORKDIR/keygen.out" | awk '{print $NF}')
 
 if [ -z "$TEST_FP" ]; then
@@ -125,14 +114,15 @@ fi
 # T4: Un-revoke by reinstalling key (fresh metadata)
 echo "[T4] Reinstalling key after revocation restores trust"
 # Remove the revoked key's .meta.json and reinstall
-rm -f "$HOME/.naab/trusted-keys/$TEST_FP.meta.json"
-rm -f "$HOME/.naab/trusted-keys/$TEST_FP.pub"
-rm -f "$HOME/.naab/trusted-keys/default.pub"
+rm -f "$NAAB_TRUST_STORE_DIR/$TEST_FP.meta.json"
+rm -f "$NAAB_TRUST_STORE_DIR/$TEST_FP.pub"
+rm -f "$NAAB_TRUST_STORE_DIR/default.pub"
 
-# Extract public key from private key PEM and reinstall
-# Simpler: just re-run keygen with a new key
+# Generate a new key and install with countersigning
 "$NAAB" --keygen "$WORKDIR/test-key2.pem" 2>"$WORKDIR/keygen2.out"
 TEST_FP2=$(grep 'Fingerprint:' "$WORKDIR/keygen2.out" | awk '{print $NF}')
+# Trust store is now empty (key1 revoked+removed), so key2 can be installed directly
+"$NAAB" --trust-key "$WORKDIR/test-key2.pem.pub" 2>/dev/null
 
 # Re-sign with new key and verify it works
 TDIR4="$WORKDIR/t4"

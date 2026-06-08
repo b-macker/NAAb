@@ -1,0 +1,68 @@
+use string
+use regex
+
+fn sanitize_string(s) {
+  let safe = string.lower(s)
+  safe = regex.replace(safe, "[^a-z0-9_\\-\\s\\.\\/]", "")
+  safe = string.trim(safe)
+  return safe
+}
+
+fn validate_event(event) {
+  if event.get("id") == null {
+    return false
+  }
+  if event.get("timestamp") == null {
+    return false
+  }
+  if event.get("source") == null {
+    return false
+  }
+  if event.get("event_type") == null {
+    return false
+  }
+  if event.get("severity") == null {
+    return false
+  }
+  if event.get("message") == null {
+    return false
+  }
+  return true
+}
+
+fn sanitize_output(text) {
+  let result = string.trim(text)
+  result = regex.replace(result, "[\\x00-\\x1f\\x7f-\\x9f]", "")
+  result = regex.replace(result, "<[^>]*>", "")
+  return result
+}
+
+fn validate_analysis(analysis) {
+  if analysis.get("event_id") == null {
+    return false
+  }
+  if analysis.get("category") == null {
+    return false
+  }
+  if analysis.get("risk_score") == null {
+    return false
+  }
+  if analysis.get("indicators") == null {
+    return false
+  }
+  if analysis.get("recommendation") == null {
+    return false
+  }
+  return true
+}
+
+fn validate_all_events(events) {
+  let i = 0
+  while i < events.length() {
+    if !validate_event(events[i]) {
+      return false
+    }
+    i = i + 1
+  }
+  return true
+}

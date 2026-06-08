@@ -14,6 +14,10 @@ namespace naab {
 namespace security {
 
 std::string TrustStore::getStorePath() {
+    // Allow test isolation via explicit override (not in LLM-facing docs)
+    const char* override_dir = std::getenv("NAAB_TRUST_STORE_DIR");
+    if (override_dir && *override_dir) return std::string(override_dir);
+
     const char* home = std::getenv("HOME");
 #ifdef _WIN32
     if (!home || !*home) home = std::getenv("USERPROFILE");
