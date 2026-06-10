@@ -18,6 +18,7 @@ namespace stdlib {
 
 class OrchestraModule : public Module {
 public:
+    std::string getName() const override { return "orchestra"; }
     bool hasFunction(const std::string& name) const override;
     interpreter::NaabVal call(
         const std::string& function_name,
