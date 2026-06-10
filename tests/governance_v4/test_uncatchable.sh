@@ -7,13 +7,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
-SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
 TMPBASE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/test_uncatchable_$$"
 mkdir -p "$TMPBASE"
 
+# Set up ephemeral signing key + isolated trust store for CI compatibility
+source "$SCRIPT_DIR/../helpers/trust_setup.sh"
+setup_isolated_trust
+"$NAAB" --keygen "$TMPBASE/test-key.pem" 2>/dev/null
+"$NAAB" --trust-key "$TMPBASE/test-key.pem.pub" 2>/dev/null
+SIGNING_KEY="$TMPBASE/test-key.pem"
+
 PASS=0; FAIL=0; SKIP=0
 
-cleanup() { rm -rf "$TMPBASE"; }
+cleanup() { teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
 
 check() {
@@ -79,9 +85,7 @@ setup_test() {
   }
 }
 GOVEOF
-    if [ -f "$SIGNING_KEY" ]; then
-        (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
-    fi
+    (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
     echo "$dir"
 }
 

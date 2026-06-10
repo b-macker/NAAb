@@ -19,7 +19,9 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <climits>
 #include <unordered_set>
 

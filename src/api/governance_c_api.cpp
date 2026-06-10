@@ -146,6 +146,16 @@ char* naab_gov_scan(naab_gov_engine_t engine,
 
         engine->last_error.clear();
         return strdup(result.dump().c_str());
+    } catch (const naab::governance::GovernanceHardError& e) {
+        // HARD governance violations throw GovernanceHardError.
+        // The C API must still return a valid result with blocked=true
+        // rather than nullptr, so binding tests can check WasBlocked.
+        nlohmann::json result;
+        result["blocked"] = true;
+        result["error"] = std::string(e.what());
+        result["report"] = nlohmann::json::object();
+        engine->last_error.clear();
+        return strdup(result.dump().c_str());
     } catch (const std::exception& e) {
         engine->last_error = e.what();
         return nullptr;
@@ -257,6 +267,14 @@ char* naab_gov_check(naab_gov_engine_t engine,
         }
         result["results"] = std::move(results_arr);
 
+        engine->last_error.clear();
+        return strdup(result.dump().c_str());
+    } catch (const naab::governance::GovernanceHardError& e) {
+        nlohmann::json result;
+        result["check"] = check_name;
+        result["blocked"] = true;
+        result["error"] = std::string(e.what());
+        result["results"] = nlohmann::json::array();
         engine->last_error.clear();
         return strdup(result.dump().c_str());
     } catch (const std::exception& e) {

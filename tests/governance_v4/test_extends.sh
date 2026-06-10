@@ -10,7 +10,6 @@ LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
 TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 WORKDIR="$TMPDIR/naab_extends_$$"
-SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
 
 if [ ! -x "$NAAB" ]; then
     echo "SKIP: naab-lang not built"
@@ -19,11 +18,16 @@ fi
 
 mkdir -p "$WORKDIR"
 
+# Set up ephemeral signing key + isolated trust store for CI compatibility
+source "$(dirname "$0")/../helpers/trust_setup.sh"
+setup_isolated_trust
+"$NAAB" --keygen "$WORKDIR/test-key.pem" 2>/dev/null
+"$NAAB" --trust-key "$WORKDIR/test-key.pem.pub" 2>/dev/null
+SIGNING_KEY="$WORKDIR/test-key.pem"
+
 sign_gov() {
     local dir="$1"
-    if [ -f "$SIGNING_KEY" ]; then
-        (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
-    fi
+    (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
 }
 
 check() {
@@ -49,6 +53,7 @@ check_contains() {
 }
 
 cleanup() {
+    teardown_isolated_trust
     rm -rf "$WORKDIR"
 }
 trap cleanup EXIT
