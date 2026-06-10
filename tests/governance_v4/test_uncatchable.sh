@@ -7,7 +7,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
-TMPBASE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/test_uncatchable_$$"
+if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
+    _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+else
+    _SYSTMP="${TMPDIR:-/tmp}"
+fi
+TMPBASE="$_SYSTMP/test_uncatchable_$$"
 mkdir -p "$TMPBASE"
 
 # Set up ephemeral signing key + isolated trust store for CI compatibility

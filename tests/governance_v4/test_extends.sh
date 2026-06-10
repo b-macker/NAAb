@@ -8,7 +8,11 @@ PASS=0
 FAIL=0
 LANG_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="$LANG_DIR/build/naab-lang"
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
+    TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+else
+    TMPDIR="${TMPDIR:-/tmp}"
+fi
 WORKDIR="$TMPDIR/naab_extends_$$"
 
 if [ ! -x "$NAAB" ]; then

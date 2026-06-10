@@ -10,7 +10,11 @@
 #   "$NAAB" --trust-key "$WORKDIR/test-key.pem.pub" 2>/dev/null
 #   export NAAB_SIGNING_KEY="$WORKDIR/test-key.pem"
 
-_TRUST_SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
+    _TRUST_SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+else
+    _TRUST_SYSTMP="${TMPDIR:-/tmp}"
+fi
 
 setup_isolated_trust() {
     export NAAB_TRUST_STORE_DIR="$(mktemp -d "${_TRUST_SYSTMP}/trust-XXXXXX")"

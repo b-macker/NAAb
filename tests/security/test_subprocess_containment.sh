@@ -8,7 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
-TMPBASE="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/test_containment_$$"
+if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
+    _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+else
+    _SYSTMP="${TMPDIR:-/tmp}"
+fi
+TMPBASE="$_SYSTMP/test_containment_$$"
 mkdir -p "$TMPBASE"
 
 PASS=0; FAIL=0; SKIP=0
