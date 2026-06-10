@@ -42,8 +42,13 @@ public:
     // Get captured output
     std::string getCapturedOutput() override;
 
+    // Get last execution exit code
+    int getLastExitCode() const override;
+
 private:
     JsExecutor executor_;
+    int last_exit_code_ = 0;
+    std::string last_stderr_;
 };
 
 } // namespace runtime

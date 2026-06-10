@@ -27,12 +27,20 @@ bool JsExecutorAdapter::execute(const std::string& code, JsExecutionMode mode) {
 interpreter::NaabVal JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
     // Executing JavaScript code with return (silent)
+    // Reset exit code and stderr at start of each call
+    last_exit_code_ = 0;
+    last_stderr_ = "";
+
     try {
         auto result = executor_.evaluate(code);
         return result;
     } catch (const std::exception& e) {
         std::string error_msg = e.what();
         fmt::print("[JS Error] {}\n", error_msg);
+
+        // Set exit code to non-zero on error
+        last_exit_code_ = 1;
+        last_stderr_ = error_msg;
 
         // Helper hints for common JS-in-polyglot errors
         if (error_msg.find("is not defined") != std::string::npos) {
@@ -69,9 +77,13 @@ bool JsExecutorAdapter::isInitialized() const {
 }
 
 std::string JsExecutorAdapter::getCapturedOutput() {
-    // For now, JS executor doesn't capture output
-    // This will be improved in Phase 4
-    return "";
+    // Return captured error output from last execution
+    return last_stderr_;
+}
+
+int JsExecutorAdapter::getLastExitCode() const {
+    // Return the last exit code (0 for success, 1 for error)
+    return last_exit_code_;
 }
 
 } // namespace runtime

@@ -117,16 +117,16 @@
   "context_drift": {
     "enabled": true,
     "coherence_threshold": 0.15,
-    "check_interval_turns": 2,
+    "check_interval_turns": 1,
     "fingerprint_window": 15,
     "rate_normalized": true,
     "coherence_recovery_amount": 0.2,
-    "coherence_natural_healing": 0.05,
+    "coherence_natural_healing": 0.02,
     "temporal_decay_enabled": true,
     "temporal_decay_per_minute": 0.005,
     "temporal_decay_grace_minutes": 1.0,
     "adaptive_baseline_enabled": true,
-    "adaptive_baseline_window": 5,
+    "adaptive_baseline_window": 2,
     "adaptive_baseline_sensitivity": 2.5,
     "signals": {
       "circular_actions": true,
@@ -169,9 +169,9 @@
       {
         "name": "repeated_agent_send",
         "sequence": [
-          "AGENT_SEND",
-          "AGENT_SEND",
-          "AGENT_SEND"
+          "agent.send",
+          "agent.send",
+          "agent.send"
         ],
         "max_gap": 2,
         "level": "advisory"
@@ -179,8 +179,8 @@
       {
         "name": "agent_then_file_write",
         "sequence": [
-          "AGENT_SEND",
-          "FILE_WRITE"
+          "agent.send",
+          "file.write"
         ],
         "max_gap": 5,
         "level": "advisory"

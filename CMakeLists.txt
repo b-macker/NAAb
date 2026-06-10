@@ -720,6 +720,7 @@ add_library(naab_stdlib
     src/stdlib/agent_impl.cpp
     src/stdlib/codegen_impl.cpp
     src/stdlib/governance_impl.cpp
+    src/stdlib/orchestra_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp
     src/utils/string_utils.cpp

@@ -696,6 +696,104 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// agent.extract_code(response, lang) → extracted code string
+// ============================================================================
+
+static NaabVal agentExtractCode(std::vector<NaabVal>& args) {
+    if (args.size() < 1) {
+        throw std::runtime_error(
+            "Agent error: agent.extract_code requires a response string\n\n"
+            "  Expected: agent.extract_code(response, lang='')\n\n"
+            "  Example:\n"
+            "    let code = agent.extract_code(response, \"python\")\n");
+    }
+
+    if (!args[0].isString()) {
+        throw std::runtime_error(
+            "Agent error: agent.extract_code response must be a string\n\n"
+            "  Got: " + std::string(args[0].isNull() ? "null" : "non-string") + "\n\n"
+            "  Example:\n"
+            "    agent.extract_code(\"```python\\nprint('hi')\\n```\", \"python\")\n");
+    }
+
+    std::string response = args[0].asString();
+    std::string lang_hint = args.size() > 1 && args[1].isString() ? args[1].asString() : "";
+
+    if (response.empty()) {
+        return NaabVal::makeString("");
+    }
+
+    // Search for code fences (```language ... ```)
+    auto fence_start = response.find("```");
+    if (fence_start == std::string::npos) {
+        // No fence found — return response as-is
+        return NaabVal::makeString(response);
+    }
+
+    // Find the end of the opening fence line (language tag)
+    auto line_end = response.find('\n', fence_start);
+    if (line_end == std::string::npos || line_end <= fence_start + 3) {
+        // No newline after fence or invalid fence format
+        return NaabVal::makeString(response);
+    }
+
+    // Extract the language tag (if any)
+    std::string fence_line = response.substr(fence_start + 3, line_end - fence_start - 3);
+    // Trim whitespace from fence line to get language
+    while (!fence_line.empty() && (fence_line.back() == ' ' || fence_line.back() == '\t' ||
+           fence_line.back() == '\r' || fence_line.back() == '\n')) {
+        fence_line.pop_back();
+    }
+    while (!fence_line.empty() && (fence_line.front() == ' ' || fence_line.front() == '\t')) {
+        fence_line.erase(fence_line.begin());
+    }
+
+    // If lang_hint is provided and fence has a language, prefer matching
+    // If no lang_hint, use the fence's language (or empty for no language)
+    bool lang_matches = true;
+    if (!lang_hint.empty() && !fence_line.empty()) {
+        // Check if the fence language matches the hint (case-insensitive, substring)
+        std::string hint_lower = lang_hint;
+        std::string fence_lower = fence_line;
+        std::transform(hint_lower.begin(), hint_lower.end(), hint_lower.begin(), ::tolower);
+        std::transform(fence_lower.begin(), fence_lower.end(), fence_lower.begin(), ::tolower);
+        lang_matches = (fence_lower.find(hint_lower) != std::string::npos ||
+                        hint_lower.find(fence_lower) != std::string::npos);
+    }
+
+    if (!lang_matches && !lang_hint.empty()) {
+        // Fence language doesn't match hint — skip this fence and look for next
+        // This is a more sophisticated version that can handle multiple fences
+        // For now, fall back to returning the response as-is if lang doesn't match
+        return NaabVal::makeString(response);
+    }
+
+    // Find the closing fence
+    auto fence_end = response.find("```", line_end);
+    if (fence_end == std::string::npos || fence_end <= line_end) {
+        // No closing fence or malformed
+        return NaabVal::makeString(response);
+    }
+
+    // Extract code between opening and closing fence lines
+    std::string extracted = response.substr(line_end + 1, fence_end - line_end - 1);
+
+    // Strip trailing whitespace/newlines from extracted code
+    while (!extracted.empty() && (extracted.back() == '\n' || extracted.back() == '\r' ||
+           extracted.back() == ' ' || extracted.back() == '\t')) {
+        extracted.pop_back();
+    }
+
+    // Strip leading whitespace/newlines from extracted code
+    while (!extracted.empty() && (extracted.front() == '\n' || extracted.front() == '\r' ||
+           extracted.front() == ' ' || extracted.front() == '\t')) {
+        extracted.erase(extracted.begin());
+    }
+
+    return NaabVal::makeString(extracted);
+}
+
+// ============================================================================
 // agent.send(handle, message) → response dict
 // ============================================================================
 
@@ -2155,6 +2253,18 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         });
     }
 
+    // Telemetry: response suppressed — content was empty after all retries
+    if (gov_engine && gov_engine->isActive() && content.empty()) {
+        gov_engine->writeAgentTelemetry("RESPONSE_SUPPRESSED", {
+            {"handle_id",     std::to_string(handle_id)},
+            {"config_name",   config_name},
+            {"turn",          std::to_string(current_turn)},
+            {"output_tokens", std::to_string(resp_output_tokens)},
+            {"reason",        !agent_resp.error.empty() ? agent_resp.error : "empty response"},
+            {"retries_used",  std::to_string(agent_resp.attempts - 1)}
+        });
+    }
+
     // response_format: check JSON validity BEFORE CDD so parse failures feed coherence
     bool json_valid_result = true;
     std::string json_error_signal;
@@ -2167,6 +2277,94 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             fmt::print(stderr,
                 "[hint] agent '{}' has response_format: \"json\" but response is not valid JSON\n",
                 config_name);
+        }
+    }
+
+    // Output Contract checking (Phase 7) — validate response against schema
+    if (config && !content.empty() && !config->output_contract.format.empty()) {
+        std::string contract_error;
+
+        if (config->output_contract.format == "json") {
+            try {
+                auto parsed = nlohmann::json::parse(content);
+
+                // Check required fields
+                for (const auto& req_field : config->output_contract.required_fields) {
+                    if (!parsed.contains(req_field)) {
+                        contract_error = fmt::format("missing required field '{}'", req_field);
+                        break;
+                    }
+                }
+
+                // Check field types (if provided)
+                if (contract_error.empty()) {
+                    for (const auto& [field, expected_type] : config->output_contract.field_types) {
+                        if (!parsed.contains(field)) continue;  // type check only for present fields
+
+                        const auto& field_val = parsed[field];
+                        bool type_matches = false;
+
+                        if (expected_type == "string") type_matches = field_val.is_string();
+                        else if (expected_type == "number") type_matches = field_val.is_number();
+                        else if (expected_type == "boolean") type_matches = field_val.is_boolean();
+                        else if (expected_type == "array") type_matches = field_val.is_array();
+                        else if (expected_type == "object") type_matches = field_val.is_object();
+
+                        if (!type_matches) {
+                            contract_error = fmt::format(
+                                "field '{}' type mismatch (expected {}, got {})",
+                                field, expected_type, field_val.type_name());
+                            break;
+                        }
+                    }
+                }
+
+                // Check regex patterns (if provided)
+                if (contract_error.empty()) {
+                    for (const auto& [field, pattern_str] : config->output_contract.regex_checks) {
+                        if (!parsed.contains(field)) continue;
+                        if (!parsed[field].is_string()) continue;
+
+                        std::string field_str = parsed[field].get<std::string>();
+                        try {
+                            std::regex pattern(pattern_str);
+                            if (!std::regex_search(field_str, pattern)) {
+                                contract_error = fmt::format(
+                                    "field '{}' does not match pattern: {}", field, pattern_str);
+                                break;
+                            }
+                        } catch (const std::regex_error& e) {
+                            contract_error = fmt::format("invalid regex in contract: {}", e.what());
+                            break;
+                        }
+                    }
+                }
+
+            } catch (const nlohmann::json::exception& e) {
+                contract_error = fmt::format("JSON parse failed: {}", e.what());
+            }
+        }
+
+        // Emit CONTRACT_VIOLATION telemetry if contract failed
+        if (!contract_error.empty()) {
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->writeAgentTelemetry("CONTRACT_VIOLATION", {
+                    {"handle_id",     std::to_string(handle_id)},
+                    {"config_name",   config_name},
+                    {"turn",          std::to_string(current_turn)},
+                    {"format",        config->output_contract.format},
+                    {"violation",     contract_error},
+                    {"content_length", std::to_string(content.size())}
+                });
+            }
+            // Block the response by throwing an error
+            throw std::runtime_error(
+                fmt::format("Agent error: output contract violation\n\n"
+                    "  Agent: {}\n"
+                    "  Format: {}\n"
+                    "  Violation: {}\n\n"
+                    "  The LLM response does not match the expected output schema.\n",
+                    config_name, config->output_contract.format, contract_error));
         }
     }
 
@@ -3193,7 +3391,7 @@ bool AgentModule::hasFunction(const std::string& name) const {
         "create", "send", "run", "messages", "usage",
         "batch", "fan_out", "pipeline", "check",
         "key_health", "dispatch_status", "environment",
-        "register_tool"
+        "register_tool", "extract_code"
     };
     return functions.count(name) > 0;
 }
@@ -3215,6 +3413,7 @@ NaabVal AgentModule::call(
     if (function_name == "dispatch_status") return agentDispatchStatus(args);
     if (function_name == "environment") return agentEnvironment(args);
     if (function_name == "register_tool") return agentRegisterTool(args);
+    if (function_name == "extract_code") return agentExtractCode(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"

@@ -2333,6 +2333,27 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (rl.contains("delay_between_calls_ms"))
                         agent.rate_limit.delay_between_calls_ms = std::max(0, rl["delay_between_calls_ms"].get<int>());
                 }
+                // Output Contract — validation schema for LLM responses (Phase 7)
+                if (cfg_json.contains("output_contract") && cfg_json["output_contract"].is_object()) {
+                    auto& oc = cfg_json["output_contract"];
+                    if (oc.contains("format") && oc["format"].is_string())
+                        agent.output_contract.format = oc["format"].get<std::string>();
+                    if (oc.contains("required_fields") && oc["required_fields"].is_array()) {
+                        agent.output_contract.required_fields.clear();
+                        for (const auto& f : oc["required_fields"])
+                            if (f.is_string()) agent.output_contract.required_fields.push_back(f.get<std::string>());
+                    }
+                    if (oc.contains("field_types") && oc["field_types"].is_object()) {
+                        agent.output_contract.field_types.clear();
+                        for (auto& [field, type] : oc["field_types"].items())
+                            if (type.is_string()) agent.output_contract.field_types[field] = type.get<std::string>();
+                    }
+                    if (oc.contains("regex_checks") && oc["regex_checks"].is_object()) {
+                        agent.output_contract.regex_checks.clear();
+                        for (auto& [field, pattern] : oc["regex_checks"].items())
+                            if (pattern.is_string()) agent.output_contract.regex_checks[field] = pattern.get<std::string>();
+                    }
+                }
             }
 
             rules_.agents.push_back(agent);

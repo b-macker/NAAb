@@ -232,7 +232,6 @@ void GovernanceEngine::emitRefusalAttestation(
     ev["execution_prevented"] = true;
     ev["file"] = current_check_file_;
     ev["line"] = current_check_line_;
-    ev["governance_epoch"] = governance_epoch_.load(std::memory_order_relaxed);
     // Cap violation message to prevent telemetry bloat
     ev["violation_message"] = violation_message.size() > 500
         ? violation_message.substr(0, 500) + "..."

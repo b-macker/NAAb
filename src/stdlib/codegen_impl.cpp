@@ -91,7 +91,7 @@ static std::string sanitizeStderr(const std::string& stderr_str, int max_chars) 
 }
 
 bool CodegenModule::hasFunction(const std::string& name) const {
-    return name == "run" || name == "run_with_args" ||
+    return name == "run" || name == "run_with_args" || name == "run_strict" ||
            name == "supported_languages" || name == "is_enabled";
 }
 
@@ -141,17 +141,18 @@ interpreter::NaabVal CodegenModule::call(
         return interpreter::NaabVal::makeList(std::move(result));
     }
 
-    // ── codegen.run(language, code) / codegen.run_with_args(language, code, bindings) ──
-    if (function_name == "run" || function_name == "run_with_args") {
+    // ── codegen.run(language, code) / codegen.run_with_args(language, code, bindings) / codegen.run_strict(...) ──
+    if (function_name == "run" || function_name == "run_with_args" || function_name == "run_strict") {
 
         // Step 0: Argument validation
         if (args.size() < 2) {
             throw std::runtime_error(
                 "Codegen error: codegen." + function_name + "() requires at least 2 arguments\n\n"
                 "  Got: " + std::to_string(args.size()) + " argument(s)\n"
-                "  Expected: codegen." + function_name + "(language, code)\n\n"
+                "  Expected: codegen." + function_name + "(language, code [, args])\n\n"
                 "  Example:\n"
-                "    codegen.run(\"python\", \"print(42)\")\n");
+                "    codegen.run(\"python\", \"print(42)\")\n"
+                "    codegen.run_strict(\"python\", \"print(42)\")\n");
         }
         if (!args[0].isString()) {
             throw std::runtime_error(
@@ -169,17 +170,26 @@ interpreter::NaabVal CodegenModule::call(
         std::string language = normalizeLanguage(args[0].asString());
         std::string code = args[1].asString();
 
-        // Variable bindings for run_with_args
+        // Variable bindings for run_with_args and run_strict
         std::unordered_map<std::string, interpreter::NaabVal> bindings;
-        if (function_name == "run_with_args") {
-            if (args.size() < 3 || !args[2].isDict()) {
-                throw std::runtime_error(
-                    "Codegen error: codegen.run_with_args() requires a dict as third argument\n\n"
-                    "  Expected: codegen.run_with_args(language, code, {\"var\": value})\n");
+        if (function_name == "run_with_args" || function_name == "run_strict") {
+            if (args.size() >= 3) {
+                if (!args[2].isDict()) {
+                    throw std::runtime_error(
+                        "Codegen error: codegen." + function_name + "() third argument must be a dict (if provided)\n\n"
+                        "  Expected: codegen." + function_name + "(language, code, {\"var\": value})\n");
+                }
+                for (const auto& [k, v] : args[2].asDictConst()) {
+                    bindings[k] = v;
+                }
             }
-            for (const auto& [k, v] : args[2].asDictConst()) {
-                bindings[k] = v;
-            }
+        } else if (function_name == "run" && args.size() >= 3) {
+            throw std::runtime_error(
+                "Codegen error: codegen.run() takes exactly 2 arguments\n\n"
+                "  Got: " + std::to_string(args.size()) + " argument(s)\n"
+                "  Expected: codegen.run(language, code)\n\n"
+                "  For parameterized code, use codegen.run_with_args() or codegen.run_strict():\n"
+                "    codegen.run_with_args(language, code, {\"var\": value})\n");
         }
 
         // Gap 10: Reject null bytes in code string
@@ -557,12 +567,23 @@ interpreter::NaabVal CodegenModule::call(
             });
         }
 
+        // Step 17: run_strict variant — throw on non-zero exit
+        if (function_name == "run_strict" && exit_code != 0) {
+            std::string error_msg = stderr_output.empty() ? "non-zero exit" : stderr_output;
+            throw std::runtime_error(
+                "Codegen error: codegen.run_strict() execution failed\n\n"
+                "  Language: " + language + "\n"
+                "  Exit code: " + std::to_string(exit_code) + "\n\n"
+                "  Error output:\n"
+                "  " + error_msg + "\n");
+        }
+
         return interpreter::NaabVal::makeDict(std::move(result_dict));
     }
 
     throw std::runtime_error(
         "Codegen error: unknown function '" + function_name + "'\n\n"
-        "  Available functions: run, run_with_args, supported_languages, is_enabled\n");
+        "  Available functions: run, run_with_args, run_strict, supported_languages, is_enabled\n");
 }
 
 } // namespace stdlib

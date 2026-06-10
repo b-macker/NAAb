@@ -1794,6 +1794,15 @@ struct AgentConfig {
     // 0 = no lease (unlimited standing). Requires step_up_enabled in circuit_breaker.
     int standing_lease_turns = 0;
     int standing_lease_seconds = 0;  // 0 = no wall-clock lease
+
+    // Output Contract — validation schema for LLM responses (Phase 7)
+    struct OutputContract {
+        std::string format;  // "json", "text", etc. (empty = no format enforcement)
+        std::vector<std::string> required_fields;  // for JSON: list of keys that must be present
+        std::unordered_map<std::string, std::string> field_types;  // field → "string", "number", "boolean", etc.
+        std::unordered_map<std::string, std::string> regex_checks;  // field → regex pattern to match
+    };
+    OutputContract output_contract;  // empty = no contract enforcement
 };
 
 // ============================================================================

@@ -9,6 +9,22 @@ namespace naab {
 namespace governance {
 
 // ============================================================================
+// Helper functions
+// ============================================================================
+
+// Normalize event type names from UPPERCASE_UNDERSCORE to lowercase.dot format
+// Examples: "AGENT_SEND" → "agent.send", "FILE_WRITE" → "file.write"
+static std::string normalizeEventTypeName(const std::string& raw) {
+    if (raw.empty()) return raw;
+    std::string s = raw;
+    // Convert to lowercase
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    // Replace underscores with dots
+    std::replace(s.begin(), s.end(), '_', '.');
+    return s;
+}
+
+// ============================================================================
 // BehavioralSequenceDetector
 // ============================================================================
 
@@ -357,8 +373,8 @@ bool BehavioralSequenceDetector::matchesStep(const RuntimeEvent& event,
         } else if (event.detail.find(matcher) != std::string::npos) {
             type_match = true;
         }
-        // Check against type string directly
-        else if (type_str == matcher) {
+        // Check against type string directly (with normalization for UPPERCASE_UNDERSCORE format)
+        else if (type_str == matcher || type_str == normalizeEventTypeName(matcher)) {
             type_match = true;
         }
         // Special aliases

@@ -405,6 +405,7 @@ void StdLib::registerModules() {
     modules_["agent"]    = std::make_shared<AgentModule>();
     modules_["codegen"]  = std::make_shared<CodegenModule>();
     modules_["governance"] = std::make_shared<GovernanceModule>();
+    modules_["orchestra"] = std::make_shared<OrchestraModule>();
 }
 
 std::shared_ptr<Module> StdLib::getModule(const std::string& name) const {
