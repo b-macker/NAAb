@@ -2,6 +2,8 @@
 #include <curl/curl.h>
 #include <cstdio>
 #include <chrono>
+#include <vector>
+#include <string>
 
 namespace naab {
 

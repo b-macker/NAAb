@@ -627,7 +627,11 @@ std::string GovernanceEngine::generateJunitReport() const {
     auto now = std::time(nullptr);
     char ts_buf[64];
     struct tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &now);
+#else
     localtime_r(&now, &tm_buf);
+#endif
     std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
 
     oss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
