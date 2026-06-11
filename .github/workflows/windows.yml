@@ -89,7 +89,12 @@ jobs:
         shell: msys2 {0}
         run: |
           cat > jstest.naab << 'NAAB'
-          main { let r = <<javascript let x = 2 + 3; x; >> print(r) }
+          main {
+            let r = <<javascript
+            let x = 2 + 3; x;
+            >>
+            print(r)
+          }
           NAAB
           ./build/naab-lang.exe --no-governance jstest.naab
 
@@ -97,7 +102,12 @@ jobs:
         shell: msys2 {0}
         run: |
           cat > pytest.naab << 'NAAB'
-          main { let r = <<python print(2 + 3) >> print(r) }
+          main {
+            let r = <<python
+            print(2 + 3)
+            >>
+            print(r)
+          }
           NAAB
           ./build/naab-lang.exe --no-governance pytest.naab
 
