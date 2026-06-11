@@ -569,28 +569,27 @@ if(HAVE_PYBIND11)
 endif()
 
 # POSIX-only executor sources (use fork/execvp/mkdtemp/dlfcn — no Windows equivalent)
-# Both MSVC and MinGW lack these POSIX APIs natively
 if(WIN32)
     list(REMOVE_ITEM NAAB_RUNTIME_SOURCES
-        src/runtime/cpp_executor.cpp
-        src/runtime/cpp_executor_adapter.cpp
-        src/runtime/cpp_block_interface.cpp
-        src/runtime/csharp_executor.cpp
-        src/runtime/go_executor.cpp
-        src/runtime/julia_executor.cpp
-        src/runtime/nim_executor.cpp
-        src/runtime/rust_executor.cpp
-        src/runtime/rust_ffi_bridge.cpp
-        src/runtime/zig_executor.cpp
-        src/runtime/shell_executor.cpp
-        src/runtime/generic_subprocess_executor.cpp
-        src/runtime/persistent_process_executor.cpp
-        src/runtime/persistent_shell_executor.cpp
-        src/runtime/node_persistent_executor.cpp
-        src/runtime/persistent_ruby_executor.cpp
-        src/runtime/polyglot_async_executor.cpp
+        src/runtime/cpp_executor.cpp          # dlfcn.h, mkdtemp, chmod
+        src/runtime/cpp_executor_adapter.cpp   # depends on cpp_executor
+        src/runtime/cpp_block_interface.cpp    # POSIX FFI (dlfcn)
+        src/runtime/csharp_executor.cpp        # mkdtemp, chmod, unistd.h
+        src/runtime/go_executor.cpp            # mkdtemp, chmod, unistd.h
+        src/runtime/julia_executor.cpp         # mkdtemp, chmod, unistd.h
+        src/runtime/nim_executor.cpp           # mkdtemp, chmod, unistd.h
+        src/runtime/rust_executor.cpp          # dlfcn.h, mkdtemp, chmod
+        src/runtime/rust_ffi_bridge.cpp        # POSIX dynamic loader
+        src/runtime/zig_executor.cpp           # mkdtemp, chmod, unistd.h
+        src/runtime/shell_executor.cpp         # fork, execvp, pipe
+        src/runtime/persistent_process_executor.cpp  # fork, execvp, waitpid, poll
+        src/runtime/persistent_shell_executor.cpp    # depends on persistent_process_executor
+        src/runtime/node_persistent_executor.cpp     # depends on persistent_process_executor
+        src/runtime/persistent_ruby_executor.cpp     # depends on persistent_process_executor
+        src/runtime/polyglot_async_executor.cpp      # POSIX thread/process model
     )
     # Keep subprocess_helpers.cpp — it has a Windows CreateProcess implementation
+    # Keep generic_subprocess_executor.cpp — no POSIX deps, delegates to subprocess_helpers
 endif()
 
 # Platform implementation (POSIX vs Windows)

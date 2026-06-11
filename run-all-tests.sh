@@ -1339,9 +1339,7 @@ fi
 
 # Consequence-boundary proof harness
 CONSEQUENCE_SCRIPT="tests/governance_v4/consequence_boundary/test_consequence_proof.sh"
-if $IS_WINDOWS; then
-    echo "  test_consequence_proof.sh: skipped (NAAb polyglot executors not available on MSYS2)"
-elif [ -f "$CONSEQUENCE_SCRIPT" ]; then
+if [ -f "$CONSEQUENCE_SCRIPT" ]; then
     if bash "$CONSEQUENCE_SCRIPT" 2>&1; then
         echo "  test_consequence_proof.sh: ALL PASSED"
     else
@@ -1361,7 +1359,7 @@ echo ""
 
 POLYGLOT_RELOAD_SCRIPT="tests/governance_v4/test_polyglot_reload.sh"
 if $IS_WINDOWS; then
-    echo "  test_polyglot_reload.sh: skipped (NAAb polyglot executors not available on MSYS2)"
+    echo "  test_polyglot_reload.sh: skipped (requires shell executor — POSIX-only)"
 elif [ -f "$POLYGLOT_RELOAD_SCRIPT" ]; then
     if bash "$POLYGLOT_RELOAD_SCRIPT" 2>&1; then
         echo "  test_polyglot_reload.sh: ALL PASSED"
@@ -1375,7 +1373,7 @@ fi
 
 TEL_FORWARD_SCRIPT="tests/governance_v4/test_telemetry_forward.sh"
 if $IS_WINDOWS; then
-    echo "  test_telemetry_forward.sh: skipped (NAAb polyglot executors not available on MSYS2)"
+    echo "  test_telemetry_forward.sh: skipped (requires shell executor — POSIX-only)"
 elif [ -f "$TEL_FORWARD_SCRIPT" ]; then
     if bash "$TEL_FORWARD_SCRIPT" 2>&1; then
         echo "  test_telemetry_forward.sh: ALL PASSED"
@@ -1401,7 +1399,7 @@ fi
 
 EXTENDS_SCRIPT="tests/governance_v4/test_extends.sh"
 if $IS_WINDOWS; then
-    echo "  test_extends.sh: skipped (NAAb polyglot executors not available on MSYS2)"
+    echo "  test_extends.sh: skipped (requires shell executor — POSIX-only)"
 elif [ -f "$EXTENDS_SCRIPT" ]; then
     if bash "$EXTENDS_SCRIPT" 2>&1; then
         echo "  test_extends.sh: ALL PASSED"

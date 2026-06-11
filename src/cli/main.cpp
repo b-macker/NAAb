@@ -27,9 +27,15 @@
 #include "naab/block_registry.h"
 #include "naab/block_loader.h"
 #include "naab/composition_validator.h"
+// Cross-platform executor headers
+#ifdef HAVE_QUICKJS
+#include "naab/js_executor_adapter.h"
+#endif
+#include "naab/generic_subprocess_executor.h"
+
+// POSIX-only executor headers
 #ifndef _WIN32
 #include "naab/cpp_executor_adapter.h"
-#include "naab/js_executor_adapter.h"
 #ifdef HAVE_PYBIND11
 #include "naab/python_executor_adapter.h"
 #include "naab/python_interpreter_manager.h"
@@ -42,7 +48,6 @@
 #include "naab/zig_executor.h"
 #include "naab/julia_executor.h"
 #include "naab/shell_executor.h"
-#include "naab/generic_subprocess_executor.h"
 #include "naab/persistent_shell_executor.h"
 #include "naab/node_persistent_executor.h"
 #include "naab/persistent_ruby_executor.h"
@@ -151,39 +156,46 @@ static void syncGovernanceToSandbox(
 
 // Phase 7c: Initialize language registry with available executors
 void initialize_executors() {
-#ifndef _WIN32
     auto& registry = naab::runtime::LanguageRegistry::instance();
 
-    // Register C++ executor
+    // === Cross-platform executors (work on both POSIX and Windows/MinGW64) ===
+
+    // JavaScript via embedded QuickJS (compiled on MinGW64, skipped on MSVC)
+#ifdef HAVE_QUICKJS
+    registry.registerExecutor("javascript",
+        std::make_unique<naab::runtime::JsExecutorAdapter>());
+#endif
+
+    // Subprocess Python (when embedded Python/pybind11 not available)
+    // GenericSubprocessExecutor delegates to subprocess_helpers which has
+    // a Windows CreateProcess implementation — works on all platforms.
+#ifndef HAVE_PYBIND11
+    registry.registerExecutor("python",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("python", "python3 {}", ".py"));
+#endif
+
+    // === POSIX-only executors (use fork/execvp/mkdtemp/dlfcn) ===
+#ifndef _WIN32
+
+    // C++ executor (dlfcn.h, mkdtemp)
     registry.registerExecutor("cpp",
         std::make_unique<naab::runtime::CppExecutorAdapter>());
 
-    // Register JavaScript executor
-    registry.registerExecutor("javascript",
-        std::make_unique<naab::runtime::JsExecutorAdapter>());
-
-    // Register Python executor
-    #ifdef HAVE_PYBIND11
-    // Initialize Python interpreter before creating executor
+    // Embedded Python (pybind11 — uses POSIX resource limits for containment)
+#ifdef HAVE_PYBIND11
     naab::runtime::PythonInterpreterManager::initialize();
     registry.registerExecutor("python",
         std::make_unique<naab::runtime::PyExecutorAdapter>());
-
-    // Create thread pool for parallel polyglot execution
     naab::polyglot::initializePolyglotThreadPool();
-    #else
-    // Fallback: subprocess Python (when embedded Python/pybind11 not available)
-    registry.registerExecutor("python",
-        std::make_unique<naab::runtime::GenericSubprocessExecutor>("python", "python3 {}", ".py"));
-    #endif
+#endif
 
-    // Register Rust executor (Phase 3.1-3.3)
-    #ifdef HAVE_RUST
+    // Rust executor (Phase 3.1-3.3)
+#ifdef HAVE_RUST
     registry.registerExecutor("rust",
         std::make_unique<naab::runtime::RustExecutor>());
-    #endif
+#endif
 
-    // Task 18: Register persistent shell executor (state persists between blocks)
+    // Persistent shell executors (fork/pipe/execvp — state persists between blocks)
     registry.registerExecutor("shell",
         std::make_unique<naab::runtime::PersistentShellExecutor>());
     registry.registerExecutor("sh",
@@ -191,36 +203,26 @@ void initialize_executors() {
     registry.registerExecutor("bash",
         std::make_unique<naab::runtime::PersistentShellExecutor>());
 
-    // Task 18: Register persistent Ruby executor (state persists between blocks)
+    // Persistent Ruby executor
     registry.registerExecutor("ruby",
         std::make_unique<naab::runtime::PersistentRubyExecutor>());
 
-    // Task 18: Register persistent Node.js executor (separate from QuickJS "javascript")
+    // Persistent Node.js executor (separate from QuickJS "javascript")
     registry.registerExecutor("node",
         std::make_unique<naab::runtime::NodePersistentExecutor>());
 
-    // Issue #3: Register dedicated Go executor
+    // Go, Nim, Zig, Julia, C# (all use mkdtemp/chmod/unistd)
     registry.registerExecutor("go", std::make_unique<naab::runtime::GoExecutor>());
     registry.registerExecutor("golang", std::make_unique<naab::runtime::GoExecutor>());
-
-    // Register Nim executor
     registry.registerExecutor("nim", std::make_unique<naab::runtime::NimExecutor>());
-
-    // Register Zig executor
     registry.registerExecutor("zig", std::make_unique<naab::runtime::ZigExecutor>());
-
-    // Register Julia executor
     registry.registerExecutor("julia", std::make_unique<naab::runtime::JuliaExecutor>());
-
-    // Polyglot Phase 11: Register C# executor
     registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());
     registry.registerExecutor("cs", std::make_unique<naab::runtime::CSharpExecutor>());
 
-    // Register PHP executor (via GenericSubprocessExecutor)
+    // PHP, TypeScript (subprocess-based, command format assumes POSIX paths)
     registry.registerExecutor("php",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("php", "php {}", ".php"));
-
-    // Register TypeScript executor (via GenericSubprocessExecutor)
     registry.registerExecutor("typescript",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("typescript", "tsx {}", ".ts"));
     registry.registerExecutor("ts",
@@ -2295,11 +2297,14 @@ int main(int argc, char** argv) {
                         auto* executor = lang_registry.getExecutor(metadata.language);
                         if (executor) {
                             // Execute block code to define functions in executor context
-#ifndef _WIN32
+#ifdef HAVE_QUICKJS
                             if (metadata.language == "javascript") {
                                 auto* js_exec = dynamic_cast<naab::runtime::JsExecutorAdapter*>(executor);
                                 if (js_exec) js_exec->execute(code, naab::runtime::JsExecutionMode::BLOCK_LIBRARY);
-                            } else if (metadata.language == "cpp" || metadata.language == "c++") {
+                            } else
+#endif
+#ifndef _WIN32
+                            if (metadata.language == "cpp" || metadata.language == "c++") {
                                 auto* cpp_exec = dynamic_cast<naab::runtime::CppExecutorAdapter*>(executor);
                                 if (cpp_exec) cpp_exec->execute(code, naab::runtime::CppExecutionMode::BLOCK_LIBRARY);
                             } else

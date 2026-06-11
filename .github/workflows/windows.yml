@@ -85,6 +85,22 @@ jobs:
             fi
           }
 
+      - name: Smoke test — JavaScript polyglot
+        shell: msys2 {0}
+        run: |
+          cat > jstest.naab << 'NAAB'
+          main { let r = <<javascript let x = 2 + 3; x; >> print(r) }
+          NAAB
+          ./build/naab-lang.exe --no-governance jstest.naab
+
+      - name: Smoke test — Python polyglot (subprocess)
+        shell: msys2 {0}
+        run: |
+          cat > pytest.naab << 'NAAB'
+          main { let r = <<python print(2 + 3) >> print(r) }
+          NAAB
+          ./build/naab-lang.exe --no-governance pytest.naab
+
       - name: CLI tests
         shell: msys2 {0}
         run: bash run-all-tests.sh
