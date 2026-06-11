@@ -78,7 +78,7 @@ jobs:
           ./build/naab-lang.exe --no-governance envtest.naab || {
             EXIT=$?
             if [ $EXIT -gt 128 ]; then
-              echo "WARNING: env stdlib crashed with signal $((EXIT - 128)) — CI runner issue, not blocking"
+              echo "SKIP: env stdlib crashed with signal $((EXIT - 128)) — known MSYS2 environ issue"
             else
               echo "env stdlib test failed with exit $EXIT"
               exit $EXIT

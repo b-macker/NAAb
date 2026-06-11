@@ -75,7 +75,6 @@ EXIT_CODE=0
 if [ "$EXIT_CODE" -gt 128 ]; then
     SIG=$((EXIT_CODE - 128))
     echo "  SKIP: env.get under elevated crashed with signal $SIG (CI runner issue)"
-    PASS=$((PASS + 1))  # Count as pass — known CI runner environment issue
 else
     check "env.get permitted under elevated (exit 0)" '[ "$EXIT_CODE" = "0" ]'
 fi

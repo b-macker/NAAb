@@ -214,6 +214,7 @@ interpreter::NaabVal EnvModule::call(
 
         std::unordered_map<std::string, std::string> env_map;
 #ifndef _WIN32
+        if (environ == nullptr) return makeMap(env_map);
         for (char **ep = environ; *ep != nullptr; ep++) {
             std::string env_str(*ep);
             size_t pos = env_str.find('=');

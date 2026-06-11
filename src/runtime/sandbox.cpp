@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <thread>
+#include <cstdlib>
 #include <cstring>
 #ifndef _WIN32
 #  include <unistd.h>
@@ -65,6 +66,12 @@ SandboxConfig SandboxConfig::fromPermissionLevel(PermissionLevel level) {
             break;
 
         case PermissionLevel::ELEVATED:
+            // Force environ initialization — STANDARD level does this implicitly
+            // via naab::paths::home()/temp_dir(), but ELEVATED doesn't call those.
+            // Without this, environ may be uninitialized on newer glibc (Ubuntu 24.04+),
+            // causing SIGSEGV when env_impl.cpp iterates environ.
+            (void)std::getenv("PATH");
+
             // Network access, system interaction, controlled execution
             config.capabilities.insert(Capability::FS_READ);
             config.capabilities.insert(Capability::FS_WRITE);
