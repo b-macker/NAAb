@@ -20,7 +20,7 @@ Binary lands at `build/naab-lang`.
 # Full suite — 396 tests, 1 pre-existing failure (test_drift_detection.sh)
 cd ~/.naab/language && bash run-all-tests.sh
 
-# Security leak check — 120 checks, 0 failures
+# Security leak check — 738 checks, 0 failures
 bash tests/security/test_error_msg_leaks.sh
 ```
 
@@ -39,9 +39,9 @@ src/
 ├── interpreter/    Tree-walker — visitor pattern, call_dispatch, governance_taint
 ├── vm/             Bytecode VM — stack-based dispatch loop, compiler (AST→bytecode)
 ├── runtime/        Governance engine, polyglot executors, trust_store, crypto_utils
-├── stdlib/         20 modules (*_impl.cpp): array, string, math, file, json, csv,
+├── stdlib/         22 modules (*_impl.cpp): array, string, math, file, json, csv,
 │                   dict, path, env, time, regex, crypto, http, log, uuid, validate,
-│                   process, debug, bolo, agent
+│                   process, debug, bolo, agent, codegen, orchestra
 ├── cli/            main.cpp entry point — CLI flag parsing, subcommands
 ├── scanner/        C++ security scanner (SARIF output, 18 code quality checks)
 ├── libnaab-governance/  C API for external agent framework integration (Go, Rust, Java, C# bindings)
@@ -116,6 +116,21 @@ include/naab/       All headers
   - **Adaptive baselining**: per-agent baseline window observes normal signal rates before penalizing. Penalties only fire when signals exceed `mean + k*stddev`. Config: `context_drift.adaptive_baseline_enabled`, `adaptive_baseline_window`, `adaptive_baseline_sensitivity`. Default off.
   - **Step-up challenges**: at elevated governance levels, inject challenge prompt and score response (word count + keyword overlap with system_prompt). Pass recovers coherence, fail blocks send. Config: `circuit_breaker.step_up_enabled`, `step_up_at_level`, `step_up_challenge`, `step_up_min_words`, `step_up_cooldown_turns`, `step_up_keyword_threshold`. Challenge state tracked in AgentTracker (server-side).
   - **Separation of duties**: per-agent `network_allowed` (bool, same pattern as `shell_allowed`) and `allowed_actions` matrix (`["SHELL_EXEC", "NET_CONNECT", "FS_READ", "FS_WRITE", "AGENT_SEND", "TOOL_EXEC"]`). Enforced in `checkNetworkAllowed()`, `checkShellAllowed()`, `checkFilesystemAllowed()`, and `agentSend()`. `TOOL_EXEC` controls tool execution in agent tool loops. Ratchet enforcement prevents mid-run loosening of action matrix.
+- **Governance Pulse** (`src/runtime/governance_engine.cpp`): PulseVerdict (HEALTHY/DEGRADED/IMPAIRED) with hysteresis, two-phase mutex, stepped recovery, BSD emission on transitions, dashboard line. `governance.health()` stdlib returns `{verdict, coherence, governance_level, governance_epoch, bsd_events, cdd_turns_analyzed, ...}`. Config: `governance_health` section.
+- **Standing Lease**: TTL on agent authorization (Kerberos TGT analog). Per-agent `standing_lease_turns` and `standing_lease_seconds`. Expired lease forces step-up challenge. Renewed on pass. `lease_remaining` in agent environment.
+- **Advisory Escalation**: Repeated advisories harden (OSHA violation analog). 2nd+ occurrence: weight multiplied. N-th (`soft_after`): escalate to SOFT block. Config: `advisory_escalation.enabled`, `soft_after`, `weight_multiplier`.
+- **Evidence Epoch**: Monotonic counter incremented on pulse verdict change, governance level change, config reload. `governance_epoch` in agent environment + `governance.health()`. Prior-epoch evidence discounted via `consecutive_passes` reset.
+- **Consequence-boundary hardening**: `verifyScoreIntegrity()` escalation-aware, `wasBlocked()` sees escalated advisories, `governance_epoch_` atomic, advisory history decay on epoch boundary, BSD/CDD evidence preservation across `updateConfig()`.
+- **Non-binding refusal attestation**: tamper-evident proof of governance blocks. Signed attestation recorded when HARD block prevents execution.
+- **Agent Output Contracts**: per-agent `output_contract` in govern.json agents block — `format`, `required_fields`, `field_types`, `regex_checks`. Validated after RESPONSE_SCAN. `CONTRACT_VIOLATION` telemetry event on failure. Config: `OutputContract` struct in `governance_config.h`.
+- **RESPONSE_SUPPRESSED telemetry**: emitted when `content.empty()` after all retries — records handle_id, config_name, turn, reason, retries_used. Fills observability gap where empty responses looked like they never reached post-receive governance.
+- **BSD pattern normalization**: `matchesStep()` normalizes UPPERCASE_UNDERSCORE pattern names (e.g., `"AGENT_SEND"`) to lowercase dot-notation (`"agent.send"`) for matching against `eventTypeToString()` output. Both formats accepted in govern.json patterns.
+
+### Enterprise Readiness
+- **Polyglot reload**: govern.json capability changes hot-reload polyglot executor configs mid-run.
+- **Telemetry forwarding**: webhook and SIEM forwarding of JSONL telemetry events. Config: `telemetry.forwarding` with `webhook_url`, `siem_url`, `batch_size`, `flush_interval_ms`.
+- **REST API multi-key auth**: `api.auth` section with `keys` array, each key has `id`, `key` (or `key_env`), `permissions` (array of `"read"`, `"write"`, `"admin"`). Scoped access control for the REST governance API.
+- **govern.json extends/inheritance**: `"extends": "./path/to/parent.json"` loads parent config. Child overrides parent. Array fields use `meta.inheritance.merge_arrays`: `"replace"` (default) or `"append"` (dedup concat). Max depth: `meta.inheritance.max_depth` (default 5). Parent must pass signature verification.
 
 ### Polyglot Execution
 - `src/runtime/*_executor.cpp` — 12 language executors (Python, JS, Go, Rust, C++, C#, Nim, Shell, Ruby, PHP, Julia, Zig)
@@ -147,6 +162,13 @@ include/naab/       All headers
 - BSD event types: `TOOL_CALL`, `TOOL_RESULT`, `TOOL_ERROR`, `TOOL_BLOCKED`. Default patterns include `tool_data_exfil`, `tool_env_harvest`, `tool_shell_escape`, `tool_rapid_fire`
 - Dashboard: `Tools: N calls (N blocked, Nms)` when tool execution occurred
 - Tool config fields are ratchet-enforced (can only tighten mid-run, never loosen)
+- **`agent.extract_code(response, lang)`** — extract code from markdown fences. Searches for `` ```lang `` or `` ``` `` fences, prefers matching `lang` hint, returns longest block if multiple found. Strips surrounding conversational text. Returns input unchanged if no fence found. More powerful than the auto-strip applied by `agent.send()`.
+- **Codegen module** (`src/stdlib/codegen_impl.cpp`): `codegen.run(lang, code)` — governed dynamic code execution. Routes runtime-generated code through the same 39+ governance checks as static polyglot blocks. `codegen.run_with_args(lang, code, args)` — same with variable bindings. `codegen.run_strict(lang, code, args)` — throws `std::runtime_error` on non-zero exit code (catchable by NAAb `try/catch`). `codegen.supported_languages()` — list available languages. `codegen.is_enabled()` — check if codegen is enabled in govern.json. Config: `codegen` section in govern.json with per-call limits, cumulative limits, taint policy, nesting prevention.
+- **Orchestra module** (`src/stdlib/orchestra_impl.cpp`): multi-agent lifecycle patterns.
+  - `orchestra.sequential_refinement(handles, prompt, iterations)` — sends prompt through agent chain for N cycles, each agent refines previous output
+  - `orchestra.consensus_vote(handles, artifact)` — fan-out to all handles, collect APPROVED/REVIEW/REJECTED verdicts, return majority result
+  - `orchestra.enforce_convergence(handle, spec, max_attempts)` — retry loop: send, extract code via `agent.extract_code()`, validate against spec, send correction on fail. Returns on first pass, throws after max_attempts.
+- **Governance module** (`src/stdlib/governance_impl.cpp`): `governance.health()` — returns pulse verdict and instrumentation status without API call.
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
 - Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)
@@ -158,6 +180,9 @@ include/naab/       All headers
 ### Telemetry
 - `GovernanceEngine::writeTelemetry()` in `governance_reports.cpp` writes JSONL events
 - Each event includes `run_id` (timestamp-pid, generated once in `loadFromFile()`) for separating runs in shared output files
+- Agent telemetry event types: `AGENT_CREATE`, `AGENT_SEND`, `AGENT_RESPONSE`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `CDD_TURN`, `BSD_MATCH`, `BSD_TRANSITION`, `CONTRACT_VIOLATION`, `TOOL_EXEC`, `TOOL_BLOCKED`, `AGENT_KEY_REVIVED`, `PULSE_VERDICT`
+- Telemetry forwarding: `telemetry.forwarding` config enables webhook/SIEM push of events
+- Tamper-evident hash chain: each telemetry event includes `prev_hash` linking to previous event, creating an immutable audit trail
 
 ## Conventions
 

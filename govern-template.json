@@ -1035,6 +1035,7 @@
       "risk_budget": 0,
       "standing_lease_turns": 0,
       "standing_lease_seconds": 0,
+      "output_contract": {},
       "retry": {
         "max_attempts": 1,
         "backoff_ms": 1000,
@@ -1921,6 +1922,19 @@
     "max_stderr_chars": 2048,
     "rationale": "Governed dynamic code execution for LLM agents"
   },
+
+  "_comment_orchestra": "Multi-Agent Orchestration — orchestra module provides high-level agent lifecycle patterns. sequential_refinement(handles, prompt, iterations) chains agents for iterative refinement. consensus_vote(handles, artifact) collects APPROVED/REVIEW/REJECTED verdicts with configurable majority. enforce_convergence(handle, spec, max_attempts) retries with correction until output matches spec. Requires 'use orchestra' in NAAb scripts.",
+  "orchestra": {
+    "enabled": true,
+    "default_iterations": 3,
+    "default_max_attempts": 5,
+    "consensus_majority": "simple",
+    "rationale": "Multi-agent orchestration patterns for complex workflows"
+  },
+
+  "_comment_output_contract": "Agent Output Contracts — per-agent response validation. Add 'output_contract' to individual agent configs in the 'agents' section. Fields: format ('json'), required_fields (array of key names), field_types (dict of key→type: 'string'|'number'|'boolean'|'array'|'object'), regex_checks (dict of key→regex pattern). Violation emits CONTRACT_VIOLATION telemetry and throws. Example: {\"format\": \"json\", \"required_fields\": [\"severity\"], \"regex_checks\": {\"severity\": \"^(low|medium|high|critical)$\"}}",
+
+  "_comment_telemetry_events": "Agent Telemetry Event Types: AGENT_CREATE, AGENT_SEND, AGENT_RESPONSE, PROMPT_SCAN, RESPONSE_SCAN, RESPONSE_SUPPRESSED (empty response after retries), CDD_TURN, BSD_MATCH, BSD_TRANSITION, CONTRACT_VIOLATION, TOOL_EXEC, TOOL_BLOCKED, AGENT_KEY_REVIVED, PULSE_VERDICT. All events include run_id and prev_hash (tamper-evident hash chain).",
 
   "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }

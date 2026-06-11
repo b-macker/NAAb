@@ -221,7 +221,14 @@ To enable agents to call NAAb functions as tools, add tool configuration to your
       "max_tool_loop_turns": 10,
       "tool_result_max_chars": 4096,
       "tool_timeout_seconds": 10,
-      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"]
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "standing_lease_turns": 10,
+      "risk_budget": 20,
+      "output_contract": {
+        "format": "json",
+        "required_fields": ["answer", "confidence"],
+        "field_types": { "confidence": "number" }
+      }
     }
   }
 }
@@ -252,6 +259,84 @@ main {
 ```
 
 **Dual-gate enforcement**: A tool only executes if it appears in BOTH the govern.json `tools` array AND is registered via `agent.register_tool()`. Tool config fields are ratchet-enforced — they can be tightened mid-run but never loosened.
+
+### Agent Governance Features
+
+Add these sections to govern.json for advanced agent governance:
+
+```json
+{
+  "advisory_escalation": {
+    "enabled": true,
+    "soft_after": 3,
+    "weight_multiplier": 2.0
+  },
+  "governance_health": {
+    "enabled": true,
+    "check_after_turns": 10,
+    "governance_entropy_warning": 0.5
+  }
+}
+```
+
+- **Standing Lease** (`standing_lease_turns`/`standing_lease_seconds`): TTL on agent authorization. 0 = unlimited.
+- **Output Contracts** (`output_contract` in agent config): validate LLM response structure against a schema.
+- **Advisory Escalation**: repeated advisories escalate — 2nd+ occurrence gets weight multiplied, N-th becomes SOFT block.
+- **Governance Pulse**: `governance.health()` (requires `use governance`) returns health verdict and instrumentation status.
+- **Evidence Epoch**: monotonic counter incremented on governance state changes. Prior-epoch evidence discounted.
+
+### Policy Inheritance
+
+govern.json supports inheritance for policy distribution across teams:
+
+```json
+{
+  "extends": "./policies/base-security.json",
+  "meta": {
+    "inheritance": {
+      "merge_arrays": "append",
+      "max_depth": 5
+    }
+  }
+}
+```
+
+Child overrides parent. Array fields (blocked_commands, custom_rules, taint sources/sinks/sanitizers, env_vars lists) merge via `merge_arrays` mode. Parent must pass signature verification.
+
+### Dynamic Code Execution
+
+Enable governed runtime code generation:
+
+```json
+{
+  "codegen": {
+    "enabled": true,
+    "max_lines_per_call": 100,
+    "max_calls_per_run": 50,
+    "allow_tainted_code": false
+  }
+}
+```
+
+Use `codegen.run(lang, code)` or `codegen.run_strict(lang, code)` in NAAb scripts. Same 39+ governance checks as static polyglot blocks.
+
+### Telemetry Forwarding
+
+Forward JSONL telemetry events to external systems:
+
+```json
+{
+  "telemetry": {
+    "enabled": true,
+    "output_file": "telemetry.jsonl",
+    "forwarding": {
+      "webhook_url": "https://your-siem.example.com/ingest",
+      "batch_size": 10,
+      "flush_interval_ms": 5000
+    }
+  }
+}
+```
 
 ### Taint Tracking
 

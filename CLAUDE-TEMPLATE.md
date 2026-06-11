@@ -481,8 +481,23 @@ get, post, put, delete, head, patch, call
 - `http.post(url, body)` — POST request
 - `http.call(method, url, options)` — generic request
 
+### codegen (requires `use codegen`)
+run, run_with_args, run_strict, supported_languages, is_enabled
+- `codegen.run(lang, code)` — execute runtime-generated code through governed polyglot pipeline, returns dict {stdout, stderr, exit_code}
+- `codegen.run_with_args(lang, code, args)` — same with variable bindings dict
+- `codegen.run_strict(lang, code, args)` — throws on non-zero exit code (catchable by NAAb `try/catch`). Use when failure should abort execution.
+- `codegen.supported_languages()` — returns array of available language names
+- `codegen.is_enabled()` — returns bool (governed by `codegen` section in govern.json)
+- **Governance**: same 39+ checks as static polyglot blocks. Per-call limits, cumulative limits, taint policy. Disabled by default — requires `codegen.enabled: true` in govern.json.
+
+### orchestra (requires `use orchestra`)
+sequential_refinement, consensus_vote, enforce_convergence
+- `orchestra.sequential_refinement(handles, prompt, iterations)` — sends prompt through agent chain for N cycles, each agent refines the previous output. Returns final response dict.
+- `orchestra.consensus_vote(handles, artifact)` — fan-out artifact to all handles, collect APPROVED/REVIEW/REJECTED verdicts. Returns `{verdict, votes, majority}`. Configurable majority threshold (default: simple majority).
+- `orchestra.enforce_convergence(handle, spec, max_attempts)` — retry loop: send request, extract code via `agent.extract_code()`, validate against spec (regex or JSON contract). Sends correction prompt with specific error on failure. Returns on first pass, throws after max_attempts.
+
 ### agent (requires `use agent`)
-create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
+create, send, run, messages, usage, register_tool, batch, fan_out, pipeline, extract_code, check, key_health, dispatch_status, environment
 - `agent.create(config_name)` — create agent handle from govern.json `agents` config, returns handle dict
 - `agent.send(handle, message)` — send message to agent, returns response dict {content, stop_reason, usage}. If the LLM returns tool_use and tools are enabled, executes a governed tool loop transparently.
 - `agent.run(config_name, prompt)` — one-shot: create + send + return content string
@@ -496,6 +511,7 @@ create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
 - `agent.key_health(config_name)` — key rotation status: returns `{available: int, active: [...], dead: [...]}`. Shows which API keys are live vs marked dead (401 responses) for the named agent config.
 - `agent.dispatch_status()` — run-level dispatch counters: returns `{calls_made, calls_remaining, tokens_used, tokens_remaining, agent_time_ms, time_remaining_ms, consecutive_failures, hard_stopped, stop_reason}`. Use to check budgets before making calls.
 - `agent.batch()` is resilient: if individual calls fail, returns `{success: false, error: "...", content: ""}` for that slot instead of crashing. Callers should check `resp.get("success") == false`.
+- `agent.extract_code(response, lang)` — extract code from markdown fences in an LLM response string. Searches for `` ```lang `` or `` ``` `` fences, prefers matching `lang` hint, returns longest block if multiple found. Strips surrounding conversational text. Returns input unchanged if no fence found. More powerful than the automatic fence stripping done by `agent.send()`.
 - `agent.batch()` note: handle dicts are copied by value for thread safety — caller's handle objects are NOT updated with turn counts/message history after batch. Use `agent.usage(handle)` for authoritative state.
 - `agent.pipeline()` throws if any non-final stage returns empty content — prevents silent message reuse across stages.
 - Providers: `"anthropic"` (default, uses `ANTHROPIC_API_KEY`) or `"gemini"`/`"google"` (uses `GEMINI_API_KEY` or custom `api_key_env`)
@@ -523,6 +539,11 @@ create, send, run, messages, usage, register_tool, batch, fan_out, pipeline
 - **Live environment**: `agent.send()` response includes an updated `environment` dict — reflects state after the interaction (decremented turns/tokens, updated coherence, key health changes).
 - **Config change notices**: When governance reloads mid-run, per-agent config changes appear in `governance_notices` (e.g., `"agent.risk_assessor.max_tokens: 4096 -> 2048 (reduced)"`). Tightened limits produce notices; loosened limits or removed agents produce ratchet violations.
 - `agent.run()` returns content string only — does NOT include environment. Use `agent.create()` + `agent.send()` for environment awareness.
+- **Standing Lease**: Per-agent TTL on authorization. Config: `standing_lease_turns` (0 = unlimited) and `standing_lease_seconds` (0 = unlimited). Expired lease forces step-up challenge. Renewed on pass. `lease_remaining` in agent environment.
+- **Advisory Escalation**: Repeated advisory findings harden over time. 2nd+ occurrence: weight multiplied. N-th (`soft_after`): escalated to SOFT block. Config: `advisory_escalation` section — `enabled`, `soft_after`, `weight_multiplier`.
+- **Governance Pulse**: Real-time governance health assessment. `governance.health()` (requires `use governance`) returns `{verdict, coherence, governance_level, governance_epoch, bsd_events, cdd_turns_analyzed}`. Verdicts: HEALTHY/DEGRADED/IMPAIRED with hysteresis.
+- **Evidence Epoch**: `governance_epoch` monotonic counter in agent environment + `governance.health()`. Incremented on pulse verdict change, governance level change, or config reload. Prior-epoch evidence is discounted.
+- **Output Contracts**: Per-agent `output_contract` in govern.json validates LLM response structure — `format` ("json"), `required_fields`, `field_types`, `regex_checks`. Violation emits `CONTRACT_VIOLATION` telemetry and throws.
 - **Handle anti-forge**: Agent handles include a `__nonce` field (HMAC-SHA256). Do not modify or copy nonces between handles — tampered handles are rejected.
 - **Temporal trust decay**: When `context_drift.temporal_decay_enabled` is true, agent coherence decays over time when idle (configurable grace period and decay rate).
 - **Adaptive baselining**: When `context_drift.adaptive_baseline_enabled` is true, per-agent signal rates are observed for a baseline window before penalties are applied. Deviations beyond `mean + sensitivity * stddev` trigger penalties.
@@ -578,7 +599,10 @@ will flag unused imports as violations. Common over-imports to avoid:
 | process | run, exit, kill, getpid | Blocked when shell disabled |
 | path | join, dirname, basename, extension | |
 | http | get, post, put, delete, call | Blocked when network disabled |
-| agent | create, send, run, register_tool, batch, fan_out, pipeline | `use agent` required |
+| agent | create, send, run, extract_code, register_tool, batch, fan_out, pipeline | `use agent` required |
+| codegen | run, run_with_args, run_strict, supported_languages, is_enabled | `use codegen` required |
+| orchestra | sequential_refinement, consensus_vote, enforce_convergence | `use orchestra` required |
+| governance | health | `use governance` required |
 | dict | get, has, put, keys, values, merge | Built-in, no `use` needed |
 | debug | type, inspect, keys, values, log | Auto-imported, do NOT `use debug` |
 

@@ -118,19 +118,24 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 
 | Capability | Details |
 |---|---|
-| **Governance Engine** | 50+ checks, 3-tier policy engine (hard / soft / advisory), `govern.json` config |
+| **Governance Engine** | 50+ checks, 4-tier policy engine (hard / soft / advisory / detect), `govern.json` config |
 | **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
 | **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
-| **Standard Library** | 21 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, log, uuid, validate, process, io, bolo, agent, governance |
+| **Standard Library** | 24 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, log, uuid, validate, process, io, bolo, agent, governance, codegen, orchestra |
 | **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline, destructuring |
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
 | **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
 | **Developer Tools** | Interactive REPL, URL imports, LLM-friendly syntax (keyword aliases, optional semicolons), 204 error messages |
 | **Bytecode VM** | Stack-based compiler + VM (default engine, ~8x faster than tree-walking), computed goto dispatch, NaN-boxing fast paths, constant folding |
-| **Runtime Security** | Behavioral Sequence Detection (BSD), Context Drift Detection (CDD), VM taint lineage tracking |
+| **Runtime Security** | Behavioral Sequence Detection (BSD), Context Drift Detection (CDD), VM taint lineage tracking, polyglot subprocess containment |
 | **Ed25519 Signing** | Trust-anchored governance — `--keygen`, `--sign-governance`, `--trust-key`, one-way ratchet |
 | **Cumulative Scoring** | Advisory findings accumulate weighted scores — green/yellow/red zones with configurable thresholds |
-| **Agent Governance** | Multi-agent role enforcement via `--agent-id`, per-agent path/language restrictions, telemetry JSONL, `--governance-dashboard` |
+| **Agent Governance** | Multi-agent role enforcement, per-agent permissions, standing lease TTL, advisory escalation, output contracts, telemetry JSONL |
+| **Governance Pulse** | Real-time health monitoring (HEALTHY/DEGRADED/IMPAIRED), evidence epochs, governance entropy detection |
+| **Multi-Agent Orchestration** | `orchestra` module — sequential refinement, consensus voting, convergence enforcement |
+| **Dynamic Code Execution** | `codegen.run()` — governed runtime code generation with same 39+ checks as static polyglot blocks |
+| **Enterprise Features** | Policy inheritance (`extends`), telemetry forwarding (webhook/SIEM), REST API multi-key auth, polyglot hot-reload |
+| **Subprocess Containment** | OS-level restrictions on polyglot child processes — RLIMIT_NPROC, PATH restriction, env scrubbing, timeout |
 
 ---
 
@@ -178,11 +183,12 @@ NAAb's governance engine is what sets it apart. Drop a `govern.json` in your pro
 | **Taint Tracking** | Untrusted data (`env.get`, polyglot output) reaching sinks (shell, env) | Source/sink/sanitizer with prefix matching |
 | **PII Exposure** | SSN patterns, credit card numbers, API keys in strings | Regex + entropy |
 
-### Three Policy Levels
+### Four Policy Levels
 
-- **HARD** — Block execution. Code does not run. No override.
+- **HARD** — Block execution. Code does not run. No override. Throws uncatchable `GovernanceHardError` (NAAb `try/catch` cannot intercept it). Process exits with code 3.
 - **SOFT** — Block execution. Code does not run unless `--governance-override` is passed.
-- **ADVISORY** — Warn and continue. Logged in audit trail.
+- **ADVISORY** — Warn and continue. Logged in audit trail. Repeated advisories escalate to SOFT via advisory escalation.
+- **DETECT** — Same detection as HARD but throws catchable exception. Used in test configurations where scripts verify violations via `try/catch`.
 
 ### govern.json Example
 
@@ -262,15 +268,27 @@ naab app.naab --governance-report json > results.json
 
 ### Agent Governance
 
-NAAb supports multi-agent environments where different AI agents have different permissions. Define per-agent roles in `govern.json`:
+NAAb supports multi-agent environments where different AI agents have different permissions. Define per-agent configs in `govern.json`:
 
 ```json
 {
-  "agent_roles": {
-    "code-bot": {
+  "agents": {
+    "analyzer": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_key_env": "GEMINI_API_KEY",
+      "system_prompt": "You are a code analyzer.",
+      "max_turns": 20,
+      "max_tokens": 4096,
       "allowed_languages": ["python", "javascript"],
-      "allowed_paths": ["./src", "./tests"],
-      "blocked_paths": ["./secrets", "./.env"]
+      "allowed_actions": ["AGENT_SEND", "FS_READ"],
+      "standing_lease_turns": 10,
+      "risk_budget": 15,
+      "output_contract": {
+        "format": "json",
+        "required_fields": ["severity", "category"],
+        "regex_checks": { "severity": "^(low|medium|high|critical)$" }
+      }
     }
   }
 }
@@ -278,19 +296,31 @@ NAAb supports multi-agent environments where different AI agents have different 
 
 ```bash
 # Run with agent identity
-naab --agent-id code-bot app.naab
+naab --agent-id analyzer app.naab
 
 # View governance dashboard
-naab --agent-id code-bot --governance-dashboard app.naab
+naab --agent-id analyzer --governance-dashboard app.naab
 ```
 
-### Runtime Security: BSD & CDD
+**Agent features:**
+- **Standing Lease** — TTL on agent authorization. Expired lease forces step-up challenge.
+- **Output Contracts** — validate LLM response structure against a schema (required fields, types, regex).
+- **Risk Budget** — finite risk budget consumed by BSD matches and CDD signals. Agent blocked when exhausted.
+- **Key Rotation** — `api_key_env` accepts string or array. Dead keys (401) marked and rotated. `key_retry_after_seconds` enables revival.
+- **Model Fallback** — `model` accepts string or array. On 404/503, next model in chain is tried.
+- **Tool Execution** — `agent.register_tool()` + governed tool loop with 7 defense layers.
+- **Code Extraction** — `agent.extract_code(response, lang)` extracts code from markdown fences.
+- **Environment Awareness** — `agent.environment(handle)` returns real-time config, state, and health.
+
+### Runtime Security: BSD, CDD & Subprocess Containment
 
 Beyond static checks, NAAb monitors runtime behavior patterns:
 
-- **Behavioral Sequence Detection (BSD)** — catches multi-step attack patterns like "read secrets → encode → exfiltrate". Patterns are fully configurable in govern.json — no hardcoded rules. Dangerous sequences are blocked *before* the final step executes.
-- **Context Drift Detection (CDD)** — monitors LLM agent conversations for coherence drift: repeated failures, circular actions, scope creep, contradictions. Configurable thresholds and per-signal weights.
+- **Behavioral Sequence Detection (BSD)** — catches multi-step attack patterns like "read secrets → encode → exfiltrate". Patterns are fully configurable in govern.json — no hardcoded rules. Dangerous sequences are blocked *before* the final step executes. Pattern names accept both UPPERCASE_UNDERSCORE and lowercase.dot notation.
+- **Context Drift Detection (CDD)** — monitors LLM agent conversations for coherence drift: repeated failures, circular actions, scope creep, contradictions. Configurable thresholds and per-signal weights. 8 signals including coherence velocity, vocabulary contraction, capability underutilization, and semantic stability.
 - **VM Taint Lineage** — every tainted value carries a full chain showing where it was tainted and why, making governance violations actionable.
+- **Governance Pulse** — real-time self-assessment (HEALTHY/DEGRADED/IMPAIRED) with hysteresis and evidence epochs. `governance.health()` returns instrumentation status.
+- **Polyglot Subprocess Containment** — OS-level restrictions on child processes: RLIMIT_NPROC=0 (blocks fork), PATH restriction, environment scrubbing, timeout with SIGKILL. Catches runtime-constructed commands that evade static source scanning.
 
 ### Ed25519 Governance Signing
 
@@ -528,7 +558,7 @@ main {
 
 ## Standard Library
 
-21 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
+24 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
 
 ```naab
 main {
@@ -567,6 +597,10 @@ main {
 | `csv` | parse, stringify |
 | `regex` | search, matches, find, find_all, replace, replace_first, split, groups, find_groups, escape, is_valid |
 | `crypto` | hash, sha256, sha512, md5, sha1, random_bytes, random_string, random_int, base64_encode, base64_decode, hex_encode, hex_decode, compare_digest, generate_token, hash_password |
+| `agent` | create, send, run, extract_code, register_tool, batch, fan_out, pipeline, check, key_health, dispatch_status, environment |
+| `codegen` | run, run_with_args, run_strict, supported_languages, is_enabled |
+| `orchestra` | sequential_refinement, consensus_vote, enforce_convergence |
+| `governance` | health |
 | `bolo` | scan, report (governance integration) |
 
 ---
@@ -694,9 +728,9 @@ Source Code (.naab)
   └── Shell executor (subprocess)
 ```
 
-- **116,000+** lines of C++17
-- **391** regression tests, **331** mono test assertions
-- **21** standard library modules with **204** error messages
+- **120,000+** lines of C++17
+- **396** regression tests, **331** mono test assertions
+- **24** standard library modules with **204** error messages
 - Bytecode VM default (~8x faster), tree-walker via `--tree-walk`
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 
