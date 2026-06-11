@@ -12,7 +12,11 @@
 #include <sstream>
 #include <filesystem>
 #include <atomic>
+#ifndef _WIN32
 #include <unistd.h>   // _exit()
+#else
+#include <process.h>  // _exit() on MSVC
+#endif
 #include <chrono>
 #include <mutex>
 #include <unordered_map>
