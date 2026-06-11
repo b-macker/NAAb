@@ -91,7 +91,7 @@ jobs:
           cat > jstest.naab << 'NAAB'
           main {
             let r = <<javascript
-            let x = 2 + 3; x;
+            2 + 3
             >>
             print(r)
           }

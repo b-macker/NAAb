@@ -825,6 +825,9 @@ target_link_libraries(naab-lang
     fmt::fmt
     spdlog::spdlog
 )
+if(HAVE_QUICKJS)
+    target_compile_definitions(naab-lang PRIVATE HAVE_QUICKJS=1)
+endif()
 if(HAVE_PYBIND11)
     target_compile_definitions(naab-lang PRIVATE HAVE_PYBIND11=1)
 endif()
