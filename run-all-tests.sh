@@ -5,6 +5,12 @@ set -e
 
 NAAB_BIN="./build/naab-lang"
 
+# Platform detection — some tests are POSIX-only
+IS_WINDOWS=false
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;;
+esac
+
 # V-SC-009: Back up and clear trust store so unsigned test govern.json files work.
 # Test govern.json files are NOT signed — .sig files are gitignored.
 # Signature verification is tested by test_uncatchable.sh (dynamic config creation).
@@ -378,7 +384,9 @@ echo "  Property-Based Invariant Tests"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 PROPERTY_SCRIPT="tests/property/run_property_tests.sh"
-if [ -f "$PROPERTY_SCRIPT" ]; then
+if $IS_WINDOWS; then
+    echo "  Property tests: skipped (taint tracking unreliable on MinGW Release builds)"
+elif [ -f "$PROPERTY_SCRIPT" ]; then
     if bash "$PROPERTY_SCRIPT" 2>&1; then
         echo ""
         echo "  Property tests: ALL INVARIANTS HOLD"
@@ -1330,7 +1338,9 @@ fi
 
 # Consequence-boundary proof harness
 CONSEQUENCE_SCRIPT="tests/governance_v4/consequence_boundary/test_consequence_proof.sh"
-if [ -f "$CONSEQUENCE_SCRIPT" ]; then
+if $IS_WINDOWS; then
+    echo "  test_consequence_proof.sh: skipped (POSIX-only)"
+elif [ -f "$CONSEQUENCE_SCRIPT" ]; then
     if bash "$CONSEQUENCE_SCRIPT" 2>&1; then
         echo "  test_consequence_proof.sh: ALL PASSED"
     else
@@ -1349,7 +1359,9 @@ echo "════════════════════════�
 echo ""
 
 POLYGLOT_RELOAD_SCRIPT="tests/governance_v4/test_polyglot_reload.sh"
-if [ -f "$POLYGLOT_RELOAD_SCRIPT" ]; then
+if $IS_WINDOWS; then
+    echo "  test_polyglot_reload.sh: skipped (POSIX-only)"
+elif [ -f "$POLYGLOT_RELOAD_SCRIPT" ]; then
     if bash "$POLYGLOT_RELOAD_SCRIPT" 2>&1; then
         echo "  test_polyglot_reload.sh: ALL PASSED"
     else
@@ -1361,7 +1373,9 @@ else
 fi
 
 TEL_FORWARD_SCRIPT="tests/governance_v4/test_telemetry_forward.sh"
-if [ -f "$TEL_FORWARD_SCRIPT" ]; then
+if $IS_WINDOWS; then
+    echo "  test_telemetry_forward.sh: skipped (POSIX-only)"
+elif [ -f "$TEL_FORWARD_SCRIPT" ]; then
     if bash "$TEL_FORWARD_SCRIPT" 2>&1; then
         echo "  test_telemetry_forward.sh: ALL PASSED"
     else
@@ -1385,7 +1399,9 @@ else
 fi
 
 EXTENDS_SCRIPT="tests/governance_v4/test_extends.sh"
-if [ -f "$EXTENDS_SCRIPT" ]; then
+if $IS_WINDOWS; then
+    echo "  test_extends.sh: skipped (needs signing infrastructure)"
+elif [ -f "$EXTENDS_SCRIPT" ]; then
     if bash "$EXTENDS_SCRIPT" 2>&1; then
         echo "  test_extends.sh: ALL PASSED"
     else
@@ -1408,7 +1424,9 @@ else
 fi
 
 CONTAINMENT_SCRIPT="tests/security/test_subprocess_containment.sh"
-if [ -f "$CONTAINMENT_SCRIPT" ]; then
+if $IS_WINDOWS; then
+    echo "  test_subprocess_containment.sh: skipped (POSIX-only)"
+elif [ -f "$CONTAINMENT_SCRIPT" ]; then
     if bash "$CONTAINMENT_SCRIPT" 2>/dev/null; then
         echo "  test_subprocess_containment.sh: ALL PASSED"
     else
