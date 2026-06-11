@@ -492,9 +492,9 @@ run, run_with_args, run_strict, supported_languages, is_enabled
 
 ### orchestra (requires `use orchestra`)
 sequential_refinement, consensus_vote, enforce_convergence
-- `orchestra.sequential_refinement(handles, prompt, iterations)` — sends prompt through agent chain for N cycles, each agent refines the previous output. Returns final response dict.
-- `orchestra.consensus_vote(handles, artifact)` — fan-out artifact to all handles, collect APPROVED/REVIEW/REJECTED verdicts. Returns `{verdict, votes, majority}`. Configurable majority threshold (default: simple majority).
-- `orchestra.enforce_convergence(handle, spec, max_attempts)` — retry loop: send request, extract code via `agent.extract_code()`, validate against spec (regex or JSON contract). Sends correction prompt with specific error on failure. Returns on first pass, throws after max_attempts.
+- `orchestra.sequential_refinement(handles, prompt [, iterations])` — returns a plan dict `{pattern, handles, prompt, iterations, description}` for sequential refinement. NAAb code uses the plan to drive `agent.send()` loops.
+- `orchestra.consensus_vote(votes_dict)` — takes `{votes: ["APPROVED", "REJECTED", ...]}`, tallies verdict strings, returns `{verdict, majority, approved, rejected, review, total}`.
+- `orchestra.enforce_convergence(response, spec)` — validates response string against spec dict (regex `pattern` or `required_fields` for JSON contract). Returns `{valid, error_message}`. No retry loop — caller implements retries.
 
 ### agent (requires `use agent`)
 create, send, run, messages, usage, register_tool, batch, fan_out, pipeline, extract_code, check, key_health, dispatch_status, environment

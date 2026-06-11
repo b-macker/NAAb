@@ -164,10 +164,10 @@ include/naab/       All headers
 - Tool config fields are ratchet-enforced (can only tighten mid-run, never loosen)
 - **`agent.extract_code(response, lang)`** — extract code from markdown fences. Searches for `` ```lang `` or `` ``` `` fences, prefers matching `lang` hint, returns longest block if multiple found. Strips surrounding conversational text. Returns input unchanged if no fence found. More powerful than the auto-strip applied by `agent.send()`.
 - **Codegen module** (`src/stdlib/codegen_impl.cpp`): `codegen.run(lang, code)` — governed dynamic code execution. Routes runtime-generated code through the same 39+ governance checks as static polyglot blocks. `codegen.run_with_args(lang, code, args)` — same with variable bindings. `codegen.run_strict(lang, code, args)` — throws `std::runtime_error` on non-zero exit code (catchable by NAAb `try/catch`). `codegen.supported_languages()` — list available languages. `codegen.is_enabled()` — check if codegen is enabled in govern.json. Config: `codegen` section in govern.json with per-call limits, cumulative limits, taint policy, nesting prevention.
-- **Orchestra module** (`src/stdlib/orchestra_impl.cpp`): multi-agent lifecycle patterns.
-  - `orchestra.sequential_refinement(handles, prompt, iterations)` — sends prompt through agent chain for N cycles, each agent refines previous output
-  - `orchestra.consensus_vote(handles, artifact)` — fan-out to all handles, collect APPROVED/REVIEW/REJECTED verdicts, return majority result
-  - `orchestra.enforce_convergence(handle, spec, max_attempts)` — retry loop: send, extract code via `agent.extract_code()`, validate against spec, send correction on fail. Returns on first pass, throws after max_attempts.
+- **Orchestra module** (`src/stdlib/orchestra_impl.cpp`): multi-agent workflow building blocks.
+  - `orchestra.sequential_refinement(handles, prompt [, iterations])` — returns a plan dict `{pattern, handles, prompt, iterations, description}`. NAAb code uses the plan to drive `agent.send()` loops.
+  - `orchestra.consensus_vote(votes_dict)` — takes `{votes: ["APPROVED", ...]}`, tallies verdicts, returns `{verdict, majority, approved, rejected, review, total}`.
+  - `orchestra.enforce_convergence(response, spec)` — validates response against spec (regex `pattern` or `required_fields`). Returns `{valid, error_message}`. No retry loop — caller implements retries.
 - **Governance module** (`src/stdlib/governance_impl.cpp`): `governance.health()` — returns pulse verdict and instrumentation status without API call.
 
 ### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
@@ -180,7 +180,7 @@ include/naab/       All headers
 ### Telemetry
 - `GovernanceEngine::writeTelemetry()` in `governance_reports.cpp` writes JSONL events
 - Each event includes `run_id` (timestamp-pid, generated once in `loadFromFile()`) for separating runs in shared output files
-- Agent telemetry event types: `AGENT_CREATE`, `AGENT_SEND`, `AGENT_RESPONSE`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `CDD_TURN`, `BSD_MATCH`, `BSD_TRANSITION`, `CONTRACT_VIOLATION`, `TOOL_EXEC`, `TOOL_BLOCKED`, `AGENT_KEY_REVIVED`, `PULSE_VERDICT`
+- Agent telemetry event types (25): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`
 - Telemetry forwarding: `telemetry.forwarding` config enables webhook/SIEM push of events
 - Tamper-evident hash chain: each telemetry event includes `prev_hash` linking to previous event, creating an immutable audit trail
 
