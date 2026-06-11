@@ -1,0 +1,92 @@
+// Demo 05: Multi-Agent Consensus Voting
+// Shows: agent.batch() (different prompts, parallel), orchestra.consensus_vote(),
+//        orchestra.enforce_convergence(), governance.health()
+//
+// Run: ./build/naab-lang demos/agent-orchestration/05-consensus-gate.naab
+
+use agent
+use orchestra
+use json
+use string
+
+fn build_vote_prompt(proposal, role) {
+    return "As a " + role + ", review this API proposal:\n\n" +
+        proposal + "\n\n" +
+        "Provide a brief assessment (3-5 sentences), then end with exactly one of:\n" +
+        "VERDICT: APPROVED\n" +
+        "VERDICT: REVIEW\n" +
+        "VERDICT: REJECTED"
+}
+
+fn extract_verdict(content) {
+    if string.contains(content, "VERDICT: APPROVED") {
+        return "APPROVED"
+    }
+    if string.contains(content, "VERDICT: REJECTED") {
+        return "REJECTED"
+    }
+    return "REVIEW"
+}
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+main {
+    let proposal = "API: POST /users\n" +
+        "Fields: name (string, required), email (string, required), role (enum: admin|user)\n" +
+        "Auth: Bearer token (JWT)\n" +
+        "Rate limit: 100 req/min per API key\n" +
+        "Response: 201 Created with user object, 400 on validation error"
+
+    print_section("Proposal Under Review")
+    print(proposal)
+
+    // Create 3 judges — each gets a different review angle
+    let j1 = agent.create("judge")
+    let j2 = agent.create("judge")
+    let j3 = agent.create("judge")
+
+    let roles = ["security reviewer", "API design reviewer", "operations reviewer"]
+    let prompts = []
+    for role in roles {
+        prompts.push(build_vote_prompt(proposal, role))
+    }
+
+    // Batch: different prompt to each judge, all in parallel
+    print_section("Sending to 3 reviewers in parallel...")
+    let responses = agent.batch([j1, j2, j3], prompts)
+
+    // Show each review and extract verdict
+    let vote_list = []
+    for i in 0..len(responses) {
+        print_section(roles[i])
+        print(responses[i].get("content"))
+        let v = extract_verdict(responses[i].get("content"))
+        vote_list.push(v)
+    }
+
+    // Tally votes with orchestra
+    print_section("Vote Tally")
+    let tally = orchestra.consensus_vote({votes: vote_list})
+    print("Approved: " + json.stringify(tally.get("approved")))
+    print("Rejected: " + json.stringify(tally.get("rejected")))
+    print("Review:   " + json.stringify(tally.get("review")))
+    print("Majority: " + json.stringify(tally.get("majority")) + " needed")
+    print("Verdict:  " + tally.get("verdict"))
+
+    // Validate verdict format with enforce_convergence
+    let check = orchestra.enforce_convergence(
+        tally.get("verdict"),
+        {pattern: "^(APPROVED|REJECTED|REVIEW)$"})
+    print("")
+    print("Verdict valid: " + json.stringify(check.get("valid")))
+
+    // Final accounting
+    print_section("Accounting")
+    let ds = agent.dispatch_status()
+    print("API calls:    " + json.stringify(ds.get("calls_made")))
+    print("Total tokens: " + json.stringify(ds.get("tokens_used")))
+    print("Time:         " + json.stringify(ds.get("agent_time_ms")) + "ms")
+}

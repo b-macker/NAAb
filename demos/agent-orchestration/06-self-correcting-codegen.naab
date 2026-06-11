@@ -1,0 +1,99 @@
+// Demo 06: Self-Correcting Codegen — Governance Catches Bad Code
+// Shows: agent.send(), agent.extract_code(), codegen.run_strict(),
+//        governance blocking + agent self-correction loop
+//
+// This demo intentionally asks for code that may trigger governance.
+// When blocked, the orchestrator feeds the error back to the agent,
+// which fixes the code. This is the "governance with teeth" demo.
+//
+// Run: ./build/naab-lang demos/agent-orchestration/06-self-correcting-codegen.naab
+
+use agent
+use codegen
+use json
+use string
+use governance
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+main {
+    let max_attempts = 3
+
+    print_section("Self-Correcting Codegen")
+    print("Agent generates Python code. Governance validates it.")
+    print("If blocked, the error feeds back and the agent self-corrects.")
+    print("")
+
+    let handle = agent.create("summarizer")
+
+    let prompt = "Write a short Python program that:\n" +
+        "1. Defines a list of 5 numbers\n" +
+        "2. Calculates the mean and standard deviation\n" +
+        "3. Prints: 'Mean: X, StdDev: Y'\n" +
+        "Use only math module. No imports beyond math. Output ONLY the code in a ```python block."
+
+    let passed = false
+    let final_output = ""
+
+    for attempt in 0..max_attempts {
+        let attempt_num = attempt + 1
+        print("── Attempt " + json.stringify(attempt_num) + " of " + json.stringify(max_attempts) + " ──")
+
+        let response = agent.send(handle, prompt)
+        let raw = response.get("content")
+
+        // Extract code from markdown fences
+        let code = agent.extract_code(raw, "python")
+        print("Extracted " + json.stringify(len(code)) + " chars of Python")
+
+        // Run under governance
+        try {
+            let result = codegen.run_strict("python", code)
+            let output = "" + result
+            print("Output: " + string.trim(output))
+            passed = true
+            final_output = string.trim(output)
+            break
+        } catch (e) {
+            let error = ""
+            if e.has("message") {
+                error = e.get("message")
+            } else {
+                error = json.stringify(e)
+            }
+            print("BLOCKED: " + error)
+            print("")
+
+            // Feed error back for self-correction
+            prompt = "The Python code you wrote failed with this error:\n\n" +
+                error + "\n\n" +
+                "Fix the code. Use only the math module. " +
+                "Output ONLY the corrected Python in a ```python block."
+        }
+    }
+
+    print_section("Result")
+    if passed {
+        print("PASS — Governance-compliant code produced")
+        print("Output: " + final_output)
+    } else {
+        print("FAIL — Could not produce compliant code in " +
+            json.stringify(max_attempts) + " attempts")
+    }
+
+    // Governance state after the loop
+    print_section("Governance State")
+    let pulse = governance.health()
+    print("Pulse:     " + pulse.get("verdict"))
+    print("Coherence: " + json.stringify(pulse.get("coherence")))
+
+    let ds = agent.dispatch_status()
+    print("API calls: " + json.stringify(ds.get("calls_made")))
+    print("Tokens:    " + json.stringify(ds.get("tokens_used")))
+
+    let u = agent.usage(handle)
+    print("Turns:     " + json.stringify(u.get("turns")))
+}

@@ -1,0 +1,80 @@
+// Demo 03: Parallel Fan-Out Code Review
+// Shows: agent.fan_out(), per-agent governance, independent analysis,
+//        agent.usage() per agent, agent.dispatch_status() aggregate
+//
+// Run: ./build/naab-lang demos/agent-orchestration/03-parallel-review.naab
+
+use agent
+use json
+use string
+
+fn extract_verdict(content) {
+    if string.contains(content, "VERDICT: APPROVED") {
+        return "APPROVED"
+    }
+    if string.contains(content, "VERDICT: NEEDS_WORK") {
+        return "NEEDS_WORK"
+    }
+    return "UNCLEAR"
+}
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+fn print_review(label, resp) {
+    print_section(label)
+    print(resp.get("content"))
+    let t = resp.get("trace")
+    if t != null {
+        print("")
+        print("  model: " + t.get("model") + " | latency: " + json.stringify(t.get("latency_ms")) + "ms")
+    }
+}
+
+main {
+    let code = "fn fibonacci(n) {\n" +
+        "    if n <= 1 { return n }\n" +
+        "    return fibonacci(n - 1) + fibonacci(n - 2)\n" +
+        "}"
+
+    print_section("Code Under Review")
+    print(code)
+
+    let ra = agent.create("reviewer_a")
+    let rb = agent.create("reviewer_b")
+
+    // Fan-out: same prompt to both reviewers, executed in parallel
+    print_section("Sending to 2 reviewers in parallel...")
+    let prompt = "Review this NAAb function for issues:\n\n" + code +
+        "\n\nProvide specific findings, then end with: VERDICT: APPROVED or VERDICT: NEEDS_WORK"
+    let responses = agent.fan_out([ra, rb], prompt)
+
+    print_review("Security Review (Reviewer A)", responses[0])
+    print_review("Performance Review (Reviewer B)", responses[1])
+
+    // Compare verdicts
+    let va = extract_verdict(responses[0].get("content"))
+    let vb = extract_verdict(responses[1].get("content"))
+    print_section("Verdict Comparison")
+    print("Security:    " + va)
+    print("Performance: " + vb)
+    if va == vb {
+        print("Consensus:   " + va)
+    } else {
+        print("Disagreement — would need tie-breaking review")
+    }
+
+    // Per-agent usage
+    print_section("Per-Agent Usage")
+    let ua = agent.usage(ra)
+    let ub = agent.usage(rb)
+    print("Reviewer A: " + json.stringify(ua.get("total_tokens")) + " tokens")
+    print("Reviewer B: " + json.stringify(ub.get("total_tokens")) + " tokens")
+
+    // Aggregate
+    let ds = agent.dispatch_status()
+    print("Total API calls: " + json.stringify(ds.get("calls_made")))
+    print("Total tokens:    " + json.stringify(ds.get("tokens_used")))
+}

@@ -1,0 +1,83 @@
+// Demo 04: Sequential Pipeline with Upstream Provenance
+// Shows: agent.pipeline(), stage_traces, upstream_provenance (trust signals),
+//        governance.health() pulse, pipeline separation-of-duties
+//
+// Run: ./build/naab-lang demos/agent-orchestration/04-pipeline-refine.naab
+
+use agent
+use json
+use governance
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+main {
+    // drafter and editor MUST be different agent configs
+    // (pipeline separation-of-duties is governance-enforced)
+    let drafter = agent.create("drafter")
+    let editor = agent.create("editor")
+
+    print_section("Pipeline: Drafter → Editor")
+    print("Stage 1: Drafter writes initial explanation")
+    print("Stage 2: Editor refines for clarity and conciseness")
+    print("Each stage is independently governed")
+    print("")
+
+    let result = agent.pipeline([drafter, editor],
+        "Write a 2-paragraph technical explanation of how hash chains " +
+        "create tamper-evident audit trails. Include a concrete example.")
+
+    // Final output is the editor's refined version
+    print_section("Final Output (Editor's Refinement)")
+    print(result.get("content"))
+
+    // Stage traces — model and latency per stage
+    print_section("Stage Traces")
+    let traces = result.get("stage_traces")
+    if traces != null {
+        for i in 0..len(traces) {
+            let t = traces[i]
+            print("Stage " + json.stringify(i) + ": model=" + t.get("model") +
+                " | latency=" + json.stringify(t.get("latency_ms")) + "ms" +
+                " | attempts=" + json.stringify(t.get("attempts")))
+        }
+    }
+
+    // Upstream provenance — the editor's environment carries trust signals
+    // from the drafter: was it a fallback model? how many retries? coherence?
+    print_section("Upstream Provenance (Trust Signals)")
+    let env = result.get("environment")
+    if env != null {
+        let state = env.get("state")
+        if state != null {
+            let prov = state.get("upstream_provenance")
+            if prov != null {
+                print("Drafter's model:     " + prov.get("model_used"))
+                print("Was fallback:        " + json.stringify(prov.get("was_fallback")))
+                print("Retries needed:      " + json.stringify(prov.get("retries")))
+                print("Drafter's coherence: " + json.stringify(prov.get("coherence_at_output")))
+                print("Drafter's latency:   " + json.stringify(prov.get("latency_ms")) + "ms")
+                print("")
+                print("These signals let downstream stages calibrate trust")
+                print("in upstream output — automatic, no extra code needed")
+            } else {
+                print("(upstream_provenance not available — may need CDD enabled)")
+            }
+        }
+    }
+
+    // Governance health after the full pipeline
+    print_section("Governance Pulse (Post-Pipeline)")
+    let pulse = governance.health()
+    print("Verdict:     " + pulse.get("verdict"))
+    let coherence = pulse.get("coherence")
+    if coherence != null {
+        print("Coherence:   " + json.stringify(coherence))
+    }
+    let epoch = pulse.get("governance_epoch")
+    if epoch != null {
+        print("Epoch:       " + json.stringify(epoch))
+    }
+}

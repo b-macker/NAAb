@@ -1,0 +1,171 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "agents": {
+        "summarizer": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 1024,
+            "max_turns": 10,
+            "max_total_tokens": 50000,
+            "temperature": 0.3,
+            "timeout_seconds": 300,
+            "retry": {"max_attempts": 2, "backoff_ms": 2000, "backoff_multiplier": 2},
+            "system_prompt": "You are a concise technical writer. Provide clear, structured answers. Keep responses under 200 words unless asked otherwise."
+        },
+        "assistant": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 1024,
+            "max_turns": 10,
+            "max_total_tokens": 50000,
+            "temperature": 0.3,
+            "timeout_seconds": 300,
+            "system_prompt": "You are a helpful assistant. When you have tools available, use them to answer questions accurately. Always show your work.",
+            "tools_enabled": true,
+            "tools": ["word_count"]
+        },
+        "reviewer_a": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 1024,
+            "max_turns": 5,
+            "max_total_tokens": 30000,
+            "temperature": 0.2,
+            "timeout_seconds": 300,
+            "system_prompt": "You are a security-focused code reviewer. Look for vulnerabilities, injection risks, unsafe recursion, and resource exhaustion. End your review with exactly: VERDICT: APPROVED or VERDICT: NEEDS_WORK"
+        },
+        "reviewer_b": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 1024,
+            "max_turns": 5,
+            "max_total_tokens": 30000,
+            "temperature": 0.2,
+            "timeout_seconds": 300,
+            "system_prompt": "You are a performance-focused code reviewer. Look for algorithmic inefficiency, unnecessary allocations, O(n^2) patterns, and missing memoization. End your review with exactly: VERDICT: APPROVED or VERDICT: NEEDS_WORK"
+        },
+        "drafter": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 1024,
+            "max_turns": 5,
+            "max_total_tokens": 30000,
+            "temperature": 0.5,
+            "timeout_seconds": 300,
+            "retry": {"max_attempts": 2, "backoff_ms": 2000, "backoff_multiplier": 2},
+            "system_prompt": "You are a technical writer. Write clearly and concisely. Keep responses under 150 words."
+        },
+        "editor": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 1024,
+            "max_turns": 5,
+            "max_total_tokens": 30000,
+            "temperature": 0.2,
+            "timeout_seconds": 300,
+            "retry": {"max_attempts": 2, "backoff_ms": 2000, "backoff_multiplier": 2},
+            "system_prompt": "You are a technical editor. Refine the draft for clarity and conciseness. Keep it under 150 words."
+        },
+        "judge": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK6",
+            "max_tokens": 512,
+            "max_turns": 3,
+            "max_total_tokens": 20000,
+            "temperature": 0.1,
+            "timeout_seconds": 300,
+            "system_prompt": "You are an API design reviewer. Evaluate proposals for security, usability, and operational readiness. End your review with exactly one of: VERDICT: APPROVED, VERDICT: REVIEW, or VERDICT: REJECTED"
+        }
+    },
+    "agent_dispatch": {
+        "max_concurrent": 6,
+        "pool_size": 6,
+        "max_calls_per_run": 50,
+        "max_tokens_per_run": 200000,
+        "hard_stop": {
+            "max_calls": 50,
+            "max_tokens": 200000,
+            "max_time_seconds": 600,
+            "max_consecutive_failures": 5
+        }
+    },
+    "security": {
+        "sandbox_level": "elevated",
+        "rationale": "Demos need filesystem access for telemetry and report output"
+    },
+    "capabilities": {
+        "filesystem": {
+            "mode": "write",
+            "allow_absolute_paths": true,
+            "rationale": "Demos write telemetry and governance reports to the demo directory"
+        },
+        "network": {
+            "enabled": true,
+            "rationale": "Agent API calls require outbound network access"
+        },
+        "shell": {
+            "enabled": true,
+            "rationale": "Demo 06 uses codegen.run_strict() which requires subprocess execution"
+        }
+    },
+    "codegen": {
+        "enabled": true,
+        "allowed_languages": ["python", "javascript"],
+        "rationale": "Demo 06 uses codegen.run_strict() for agent-generated code execution"
+    },
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "code_quality": {
+            "god_functions": {
+                "enabled": true,
+                "level": "soft",
+                "max_lines": 40,
+                "rationale": "Demo functions should be concise"
+            },
+            "deep_nesting": {
+                "enabled": true,
+                "level": "soft",
+                "max_depth": 4,
+                "rationale": "Avoid deeply nested logic in demos"
+            },
+            "empty_catch": {
+                "enabled": true,
+                "level": "hard",
+                "rationale": "Errors must not be silently swallowed"
+            }
+        }
+    },
+    "scoring": {
+        "enabled": true,
+        "yellow_threshold": 10,
+        "red_threshold": 30,
+        "rationale": "Show risk scoring in dashboard output"
+    },
+    "dashboard": true,
+    "telemetry": {
+        "enabled": true,
+        "output_file": "demos/agent-orchestration/telemetry.jsonl"
+    },
+    "governance_health": {
+        "enabled": true
+    },
+    "context_drift": {
+        "enabled": true,
+        "rationale": "Enable CDD coherence tracking for pipeline and multi-turn demos"
+    },
+    "limits": {
+        "execution": {
+            "timeout_seconds": 600,
+            "rationale": "Multi-agent demos with API calls need generous timeouts"
+        }
+    }
+}

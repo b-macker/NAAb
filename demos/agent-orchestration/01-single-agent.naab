@@ -1,0 +1,35 @@
+// Demo 01: Single Agent — Simplest possible agent call
+// Shows: agent.run(), agent.check(), agent.key_health(), agent.dispatch_status()
+//
+// Run: ./build/naab-lang demos/agent-orchestration/01-single-agent.naab
+
+use agent
+use json
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+main {
+    print_section("Pre-flight Check")
+    let check = agent.check("summarizer")
+    print("Config valid: " + json.stringify(check.get("valid")))
+    print("Provider:     " + check.get("provider"))
+    print("Model:        " + check.get("model"))
+
+    let health = agent.key_health("summarizer")
+    print("Keys active:  " + json.stringify(len(health.get("active"))))
+    print("Keys dead:    " + json.stringify(len(health.get("dead"))))
+
+    print_section("Agent Run")
+    let answer = agent.run("summarizer",
+        "In 3 bullet points, explain why governance matters for autonomous AI agents in production.")
+    print(answer)
+
+    print_section("Run Accounting")
+    let ds = agent.dispatch_status()
+    print("API calls made:  " + json.stringify(ds.get("calls_made")))
+    print("Tokens used:     " + json.stringify(ds.get("tokens_used")))
+    print("Agent time:      " + json.stringify(ds.get("agent_time_ms")) + "ms")
+}

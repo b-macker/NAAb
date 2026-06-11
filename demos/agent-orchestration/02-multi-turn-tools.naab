@@ -1,0 +1,79 @@
+// Demo 02: Multi-Turn Conversation with Tool Governance
+// Shows: agent.create(), agent.register_tool(), agent.send(), agent.messages(),
+//        agent.usage(), agent.environment() — tool dual-gate enforcement
+//
+// Run: ./build/naab-lang demos/agent-orchestration/02-multi-turn-tools.naab
+
+use agent
+use string
+use json
+
+fn word_count(args) {
+    // args may be a dict {text: "..."} or a raw string depending on model
+    let text = ""
+    try {
+        text = args.get("text")
+    } catch (e) {
+        text = "" + args
+    }
+    let words = string.split(text, " ")
+    let count = len(words)
+    return json.stringify(count)
+}
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+main {
+    let handle = agent.create("assistant")
+
+    // Register tool — must also be in govern.json tools[] (dual gate)
+    let schema = {
+        description: "Count the number of words in a text string",
+        parameters: {
+            text: {type: "string", description: "The text to count words in"}
+        }
+    }
+    agent.register_tool("word_count", word_count, schema)
+
+    // Turn 1: triggers tool use
+    print_section("Turn 1 — Tool Use")
+    let r1 = agent.send(handle,
+        "Count the words in this sentence: 'The quick brown fox jumps over the lazy dog'")
+    print(r1.get("content"))
+    print("Tool calls made: " + json.stringify(r1.get("tool_calls_made")))
+    if r1.get("tool_calls_made") > 0 {
+        let results = r1.get("tool_results")
+        for i in 0..len(results) {
+            let tr = results[i]
+            print("  Tool: " + tr.get("name") + " | success: " + json.stringify(tr.get("success")))
+        }
+    }
+
+    // Turn 2: conversation context preserved
+    print_section("Turn 2 — Follow-up")
+    let r2 = agent.send(handle, "What was the word count you found? And what was the sentence about?")
+    print(r2.get("content"))
+
+    // Turn 3: no tool needed
+    print_section("Turn 3 — Summary")
+    let r3 = agent.send(handle, "Summarize our conversation in one sentence.")
+    print(r3.get("content"))
+
+    // Introspection
+    print_section("Conversation State")
+    let msgs = agent.messages(handle)
+    print("Messages in history: " + json.stringify(len(msgs)))
+
+    let u = agent.usage(handle)
+    print("Total tokens:      " + json.stringify(u.get("total_tokens")))
+    print("Tool calls total:  " + json.stringify(u.get("tool_calls_total")))
+    print("Turns:             " + json.stringify(u.get("turns")))
+
+    let env = agent.environment(handle)
+    let perms = env.get("permissions")
+    print("Tools enabled:     " + json.stringify(perms.get("tools_enabled")))
+    print("Tools registered:  " + json.stringify(perms.get("tools_registered")))
+}

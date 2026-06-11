@@ -1,0 +1,112 @@
+// Demo 07: Adaptive Orchestration — Governance Health Drives Decisions
+// Shows: governance.health() as orchestration signal, agent.environment()
+//        for budget awareness, adaptive prompt strategy based on system state
+//
+// The orchestrator checks governance health BEFORE each send and adapts:
+//   HEALTHY   → standard prompt (detailed, exploratory)
+//   DEGRADED  → conservative prompt (shorter, more constrained)
+//   IMPAIRED  → skip and report
+//
+// Run: ./build/naab-lang demos/agent-orchestration/07-adaptive-orchestration.naab
+
+use agent
+use json
+use string
+use governance
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+fn standard_prompt(topic) {
+    return "Explain " + topic + " in detail. Include: definition, " +
+        "how it works, a real-world example, and why it matters for AI systems. " +
+        "Keep it under 150 words."
+}
+
+fn conservative_prompt(topic) {
+    return "Define " + topic + " in 2 sentences."
+}
+
+main {
+    let handle = agent.create("summarizer")
+    let topics = ["hash chains", "governance in AI", "zero trust architecture"]
+
+    print_section("Adaptive Orchestration")
+    print("Each topic checks governance health before sending.")
+    print("Strategy adapts: HEALTHY=detailed, DEGRADED=conservative, IMPAIRED=skip")
+    print("")
+
+    for topic in topics {
+        print_section("Topic: " + topic)
+
+        // Check governance health BEFORE sending
+        let pulse = governance.health()
+        let verdict = pulse.get("verdict")
+        print("Pulse: " + verdict + " | Coherence: " + json.stringify(pulse.get("coherence")))
+
+        // Check agent environment for remaining budget
+        let env = agent.environment(handle)
+        let state = env.get("state")
+        let tokens_used = state.get("tokens_used")
+        let turns_used = state.get("turns_used")
+        print("Used: " + json.stringify(tokens_used) + " tokens, " +
+            json.stringify(turns_used) + " turns")
+
+        // Adapt strategy based on governance state
+        let prompt = ""
+        let strategy = ""
+        if verdict == "impaired" {
+            print("SKIP — governance impaired, not sending")
+            continue
+        }
+        if verdict == "healthy" {
+            prompt = standard_prompt(topic)
+            strategy = "standard"
+        } else {
+            prompt = conservative_prompt(topic)
+            strategy = "conservative"
+        }
+        print("Strategy: " + strategy)
+
+        let response = agent.send(handle, prompt)
+        let content = response.get("content")
+        if len(content) > 200 {
+            print(string.substring(content, 0, 200) + "...")
+        } else {
+            print(content)
+        }
+
+        // Show trace — did anything unusual happen?
+        let trace = response.get("trace")
+        let notes = []
+        if trace.get("attempts") > 1 {
+            notes.push("retries: " + json.stringify(trace.get("attempts")))
+        }
+        if trace.get("fallback_used") {
+            notes.push("fallback model: " + trace.get("model"))
+        }
+        if len(notes) > 0 {
+            print("Notes: " + string.join(notes, ", "))
+        }
+    }
+
+    // Final state
+    print_section("Final State")
+    let final_pulse = governance.health()
+    print("Verdict:   " + final_pulse.get("verdict"))
+    print("Coherence: " + json.stringify(final_pulse.get("coherence")))
+    print("Epoch:     " + json.stringify(final_pulse.get("governance_epoch")))
+    print("CDD:       " + json.stringify(final_pulse.get("cdd_connected")))
+
+    let ds = agent.dispatch_status()
+    print("Total: " + json.stringify(ds.get("calls_made")) + " calls, " +
+        json.stringify(ds.get("tokens_used")) + " tokens, " +
+        json.stringify(ds.get("agent_time_ms")) + "ms")
+
+    let u = agent.usage(handle)
+    print("Agent: " + json.stringify(u.get("input_tokens")) + " in, " +
+        json.stringify(u.get("output_tokens")) + " out, " +
+        json.stringify(u.get("turns")) + " turns")
+}

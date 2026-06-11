@@ -1,0 +1,181 @@
+// Demo 08: Full Decision Chain Proof
+// Shows: governance decision trace (what was checked, what passed, what was
+//        blocked and WHY), tamper-evident telemetry hash chain, governance
+//        pulse health, per-response traceability, run-level accounting
+//
+// Run with governance report:
+//   ./build/naab-lang run --governance-report demos/agent-orchestration/report.json \
+//     demos/agent-orchestration/08-traceability-proof.naab
+//
+// Then verify the hash chain:
+//   bash demos/agent-orchestration/verify-chain.sh
+
+use agent
+use file
+use json
+use string
+use governance
+
+fn print_section(title) {
+    print("")
+    print("═══ " + title + " ═══")
+}
+
+main {
+    let report_file = "demos/agent-orchestration/report.json"
+    let telemetry_file = "demos/agent-orchestration/telemetry.jsonl"
+
+    // ── 1. Agent conversation (governance runs on every send) ──
+    print_section("1. Agent Conversation")
+    print("Every agent.send() triggers: PROMPT_SCAN → ADMISSION_EVAL → API call → RESPONSE_SCAN")
+    print("")
+
+    let handle = agent.create("summarizer")
+    let r1 = agent.send(handle,
+        "What is a hash chain and why does it matter for audit trails?")
+    let c1 = r1.get("content")
+    if len(c1) > 120 {
+        print("Turn 1: " + string.substring(c1, 0, 120) + "...")
+    } else {
+        print("Turn 1: " + c1)
+    }
+
+    let r2 = agent.send(handle,
+        "How would you detect if someone deleted an event from the middle of the chain?")
+    let c2 = r2.get("content")
+    if len(c2) > 120 {
+        print("Turn 2: " + string.substring(c2, 0, 120) + "...")
+    } else {
+        print("Turn 2: " + c2)
+    }
+
+    // ── 2. Per-response traceability ──
+    print_section("2. Response Traceability")
+    print("Each response carries a trace dict — cryptographic proof of what happened")
+    print("")
+    let t1 = r1.get("trace")
+    let t2 = r2.get("trace")
+    print("Turn 1: model=" + t1.get("model") +
+        " | attempts=" + json.stringify(t1.get("attempts")) +
+        " | latency=" + json.stringify(t1.get("latency_ms")) + "ms")
+    print("Turn 2: model=" + t2.get("model") +
+        " | fallback=" + json.stringify(t2.get("fallback_used")) +
+        " | latency=" + json.stringify(t2.get("latency_ms")) + "ms")
+
+    // ── 3. Governance decision report ──
+    print_section("3. Governance Decision Chain")
+    try {
+        let raw = file.read(report_file)
+        let report = json.parse(raw)
+        let summary = report.get("summary")
+
+        print("Total checks:    " + json.stringify(summary.get("total")))
+        print("Passed:          " + json.stringify(summary.get("passed")))
+        print("Blocked (HARD):  " + json.stringify(summary.get("failed_hard")))
+        print("Blocked (SOFT):  " + json.stringify(summary.get("failed_soft")))
+        print("Advisories:      " + json.stringify(summary.get("advisories")))
+
+        if summary.has("cumulative_risk_score") {
+            print("Risk score:      " + json.stringify(summary.get("cumulative_risk_score")) +
+                " (" + summary.get("risk_zone") + ")")
+        }
+
+        // Show decision traces for non-passing checks
+        let results = report.get("results")
+        let blocked_count = 0
+        for i in 0..len(results) {
+            let r = results[i]
+            if !r.get("passed") {
+                blocked_count = blocked_count + 1
+                print("")
+                print("BLOCKED: " + r.get("rule") + " [" + r.get("level") + "]")
+                if r.has("message") {
+                    print("  Message:   " + r.get("message"))
+                }
+                if r.has("rationale") {
+                    print("  Rationale: " + r.get("rationale"))
+                }
+                if r.has("decision_trace") {
+                    let dt = r.get("decision_trace")
+                    for j in 0..len(dt) {
+                        print("  Step " + json.stringify(j) + ":    " + dt[j])
+                    }
+                }
+            }
+        }
+        if blocked_count == 0 {
+            print("\nAll checks passed — no blocks to show")
+        }
+    } catch (e) {
+        print("(Run with --governance-report " + report_file + " to see decision chain)")
+    }
+
+    // ── 4. Governance pulse ──
+    print_section("4. Governance Pulse (System Health)")
+    let pulse = governance.health()
+    print("Verdict:    " + pulse.get("verdict"))
+    print("Coherence:  " + json.stringify(pulse.get("coherence")))
+    print("Epoch:      " + json.stringify(pulse.get("governance_epoch")))
+    print("CDD:        " + json.stringify(pulse.get("cdd_connected")))
+
+    // ── 5. Run-level accounting ──
+    print_section("5. Run-Level Accounting")
+    let ds = agent.dispatch_status()
+    print("API calls:  " + json.stringify(ds.get("calls_made")))
+    print("Tokens:     " + json.stringify(ds.get("tokens_used")))
+    print("Time:       " + json.stringify(ds.get("agent_time_ms")) + "ms")
+
+    let u = agent.usage(handle)
+    print("This agent: " + json.stringify(u.get("input_tokens")) + " in, " +
+        json.stringify(u.get("output_tokens")) + " out, " +
+        json.stringify(u.get("turns")) + " turns")
+
+    // ── 6. Telemetry hash chain ──
+    print_section("6. Tamper-Evident Hash Chain")
+    print("Each telemetry event links to the previous via cryptographic hash.")
+    print("Delete or modify any event and the chain breaks.")
+    print("")
+
+    try {
+        let raw = file.read(telemetry_file)
+        let lines = string.split(raw, "\n")
+        let event_count = 0
+        let prev = "NAAB-GOVERNANCE-GENESIS"
+        let chain_ok = true
+
+        for line in lines {
+            if len(string.trim(line)) == 0 {
+                continue
+            }
+            let ev = json.parse(line)
+            let ev_type = ev.get("event_type")
+            let hash = ev.get("hash")
+            let ev_prev = ev.get("prev_hash")
+            let status = "ok"
+            if ev_prev != prev {
+                if ev_prev != "NAAB-GOVERNANCE-GENESIS" {
+                    status = "BREAK"
+                    chain_ok = false
+                }
+            }
+            print("  [" + status + "] " + ev_type +
+                " (hash: " + string.substring(hash, 0, 16) + "...)")
+            prev = hash
+            event_count = event_count + 1
+        }
+
+        print("")
+        print("Events: " + json.stringify(event_count))
+        if chain_ok {
+            print("Chain:  INTACT — no tampering detected")
+        } else {
+            print("Chain:  BROKEN — events may have been modified or deleted")
+        }
+    } catch (e) {
+        print("Telemetry file not found. Will be created on next governed run.")
+    }
+
+    print("")
+    print("The governance dashboard (stderr) shows the full summary above.")
+    print("Run: bash demos/agent-orchestration/verify-chain.sh")
+}
