@@ -2559,6 +2559,19 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("adaptive_baseline_enabled")) cfg.adaptive_baseline_enabled = cd["adaptive_baseline_enabled"].get<bool>();
         if (cd.contains("adaptive_baseline_window")) cfg.adaptive_baseline_window = std::max(1, cd["adaptive_baseline_window"].get<int>());
         if (cd.contains("adaptive_baseline_sensitivity")) cfg.adaptive_baseline_sensitivity = std::max(0.0, cd["adaptive_baseline_sensitivity"].get<double>());
+        if (cd.contains("thresholds") && cd["thresholds"].is_object()) {
+            auto& th = cd["thresholds"];
+            if (th.contains("velocity_drop")) cfg.thresholds.velocity_drop = th["velocity_drop"].get<double>();
+            if (th.contains("circular_lookback")) cfg.thresholds.circular_lookback = std::max(1, th["circular_lookback"].get<int>());
+            if (th.contains("underutilization_delay")) cfg.thresholds.underutilization_delay = std::max(0, th["underutilization_delay"].get<int>());
+            if (th.contains("scope_creep_min_history")) cfg.thresholds.scope_creep_min_history = std::max(1, th["scope_creep_min_history"].get<int>());
+            if (th.contains("scope_creep_min_new_types")) cfg.thresholds.scope_creep_min_new_types = std::max(1, th["scope_creep_min_new_types"].get<int>());
+            if (th.contains("repeated_failure_count")) cfg.thresholds.repeated_failure_count = std::max(1, th["repeated_failure_count"].get<int>());
+            if (th.contains("vocab_contraction_window")) cfg.thresholds.vocab_contraction_window = std::max(2, th["vocab_contraction_window"].get<int>());
+            if (th.contains("entropy_min_initial")) cfg.thresholds.entropy_min_initial = std::max(0.0, th["entropy_min_initial"].get<double>());
+            if (th.contains("entropy_contraction_ratio")) cfg.thresholds.entropy_contraction_ratio = std::max(0.0, std::min(1.0, th["entropy_contraction_ratio"].get<double>()));
+            if (th.contains("coherence_history_size")) cfg.thresholds.coherence_history_size = std::max(2, th["coherence_history_size"].get<int>());
+        }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
             auto& sig = cd["signals"];
@@ -2607,6 +2620,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (rw.contains("codegen_pressure")) rccfg.weights.codegen_pressure = rw["codegen_pressure"].get<double>();
                 if (rw.contains("bsd_eviction_pressure")) rccfg.weights.bsd_eviction_pressure = rw["bsd_eviction_pressure"].get<double>();
             }
+            if (rc.contains("signal_density_divisor")) rccfg.signal_density_divisor = std::max(0.1, rc["signal_density_divisor"].get<double>());
+            if (rc.contains("acceleration_multiplier")) rccfg.acceleration_multiplier = std::max(0.1, rc["acceleration_multiplier"].get<double>());
         }
     }
 
@@ -2685,6 +2700,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (gh.contains("enabled")) cfg.enabled = gh["enabled"].get<bool>();
         if (gh.contains("check_after_turns")) cfg.check_after_turns = gh["check_after_turns"].get<int>();
         if (gh.contains("governance_entropy_warning")) cfg.governance_entropy_warning = gh["governance_entropy_warning"].get<double>();
+        if (gh.contains("consecutive_passes_suspicion")) cfg.consecutive_passes_suspicion = std::max(1, gh["consecutive_passes_suspicion"].get<int>());
+        if (gh.contains("impaired_degraded_turns")) cfg.impaired_degraded_turns = std::max(1, gh["impaired_degraded_turns"].get<int>());
+        if (gh.contains("impaired_signal_count")) cfg.impaired_signal_count = std::max(1, gh["impaired_signal_count"].get<int>());
+        if (gh.contains("pulse_cooldown_turns")) cfg.pulse_cooldown_turns = std::max(0, gh["pulse_cooldown_turns"].get<int>());
         parseRationale(gh, cfg.rationale);
     }
 

@@ -670,7 +670,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         for (const auto& e : state.recent_errors) {
             if (e == error_if_any) same_count++;
         }
-        if (same_count >= 3) {
+        if (same_count >= config_->thresholds.repeated_failure_count) {
             state.repeated_failures++;
             turn_failures++;
             if (!in_baseline) {
@@ -714,7 +714,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
 
         // Only fire after enough history and multiple new types at once
-        if (state.turn_fingerprints.size() >= 3 && new_types >= 2) {
+        if (static_cast<int>(state.turn_fingerprints.size()) >= config_->thresholds.scope_creep_min_history && new_types >= config_->thresholds.scope_creep_min_new_types) {
             state.scope_creep_count++;
             turn_scope_creep++;
             if (!in_baseline) {
@@ -738,7 +738,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
         // Need enough history to compare early vs recent
         int window = static_cast<int>(state.per_turn_types.size());
-        if (window >= 6) {
+        if (window >= config_->thresholds.vocab_contraction_window) {
             int half = window / 2;
 
             // Compute Shannon entropy of action type distribution in a window half
@@ -774,7 +774,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
             // Contraction: recent entropy dropped by 40%+ from initial baseline
             // Also fires on cardinality drop as fallback (early had 3+ types, recent lost 2+)
-            if (state.initial_entropy > 0.5 && recent_entropy < state.initial_entropy * 0.6) {
+            if (state.initial_entropy > config_->thresholds.entropy_min_initial && recent_entropy < state.initial_entropy * config_->thresholds.entropy_contraction_ratio) {
                 state.vocabulary_contraction_count++;
                 if (!in_baseline) {
                     state.coherence_score -= penalty(config_->weights.vocabulary_contraction, state.vocabulary_contraction_count);
@@ -850,7 +850,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.coherence_velocity = state.coherence_score - state.coherence_history[n - 1];
         state.coherence_acceleration = state.coherence_velocity - prev_velocity;
 
-        if (state.coherence_velocity < -0.15) {
+        if (state.coherence_velocity < config_->thresholds.velocity_drop) {
             if (!in_baseline) {
                 state.coherence_score -= penalty(config_->weights.coherence_velocity, 1);
             }
@@ -879,7 +879,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 bool was_new = state.exercised_capabilities.insert(cap).second;
                 // Late first use (10+ turns after start) of a granted capability = suspicious
                 if (was_new && state.granted_capabilities.count(cap) &&
-                    turn_number - state.first_event_turn >= 10) {
+                    turn_number - state.first_event_turn >= config_->thresholds.underutilization_delay) {
                     if (!in_baseline) {
                         state.coherence_score -= penalty(config_->weights.capability_underutilization, 1);
                     }
@@ -931,7 +931,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Track coherence history for velocity/acceleration computation
     state.coherence_history.push_back(state.coherence_score);
-    if (state.coherence_history.size() > 10) {
+    if (static_cast<int>(state.coherence_history.size()) > config_->thresholds.coherence_history_size) {
         state.coherence_history.pop_front();
     }
 
@@ -986,7 +986,7 @@ bool ContextDriftAnalyzer::isCircular(const DriftState& state,
     if (state.turn_fingerprints.size() < 2) return false;
     // Check if same fingerprint appeared in last 3 turns
     int matches = 0;
-    size_t check_count = std::min(state.turn_fingerprints.size(), size_t(3));
+    size_t check_count = std::min(state.turn_fingerprints.size(), static_cast<size_t>(config_->thresholds.circular_lookback));
     for (size_t i = state.turn_fingerprints.size() - check_count;
          i < state.turn_fingerprints.size(); i++) {
         if (state.turn_fingerprints[i] == fingerprint) {

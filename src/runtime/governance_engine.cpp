@@ -6038,7 +6038,8 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     pulse_.entropy = ent;
 
     // Consecutive passes check (suspiciously uniform — all governance checks passing)
-    if (pulse_.consecutive_passes > 50) degradation_signals++;
+    const auto& ghcfg = rules().governance_health;
+    if (pulse_.consecutive_passes > ghcfg.consecutive_passes_suspicion) degradation_signals++;
 
     // Hysteresis: sustained degradation required (mirror circuit breaker pattern)
     if (degradation_signals >= 1) {
@@ -6048,12 +6049,12 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     }
 
     // Transition thresholds (with cooldown)
-    int cooldown = 3;
+    int cooldown = ghcfg.pulse_cooldown_turns;
     bool can_transition = (turn - pulse_.last_transition_turn) >= cooldown;
 
     PulseVerdict new_verdict = pulse_.verdict;
     if (can_transition) {
-        if (pulse_.consecutive_degraded >= 3 && degradation_signals >= 3) {
+        if (pulse_.consecutive_degraded >= ghcfg.impaired_degraded_turns && degradation_signals >= ghcfg.impaired_signal_count) {
             new_verdict = PulseVerdict::IMPAIRED;
         } else if (pulse_.consecutive_degraded >= 2 && degradation_signals >= 1) {
             new_verdict = PulseVerdict::DEGRADED;
@@ -6249,7 +6250,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // Factor 3: Signal density (how many CDD signals fired this turn)
             double signal_dens = std::max(0.0, std::min(1.0,
-                state->signals_fired_this_turn / 4.0));
+                state->signals_fired_this_turn / rccfg.signal_density_divisor));
 
             // Factor 4: Conversation depth
             double depth = std::max(0.0, std::min(1.0,
@@ -6263,7 +6264,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // Factor 7: Coherence acceleration (opt-in, captures accelerating decay)
             double accel_factor = std::max(0.0, std::min(1.0,
-                std::abs(state->coherence_acceleration) * 5.0));
+                std::abs(state->coherence_acceleration) * rccfg.acceleration_multiplier));
 
             // Factor 8: Codegen pressure (ratio of blocked to total codegen calls)
             double codegen_pres = 0.0;

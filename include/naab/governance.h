@@ -1278,6 +1278,20 @@ struct ContextDriftConfig {
         double semantic_stability = 0.1;       // F19
     } weights;
 
+    // Signal detection thresholds (previously hardcoded in behavioral_sequence.cpp)
+    struct Thresholds {
+        double velocity_drop = -0.15;             // L3-1: coherence velocity drop threshold
+        int circular_lookback = 3;                // L3-4: turns to look back for circular actions
+        int underutilization_delay = 10;          // L3-5: turns before late capability use is flagged
+        int scope_creep_min_history = 3;          // L3-6: min fingerprint history for scope creep
+        int scope_creep_min_new_types = 2;        // L3-6: min new event types for scope creep
+        int repeated_failure_count = 3;           // L3-7: same error count to trigger signal
+        int vocab_contraction_window = 6;         // L3-8: min turns for vocab contraction analysis
+        double entropy_min_initial = 0.5;         // L3-9: min initial entropy to detect contraction
+        double entropy_contraction_ratio = 0.6;   // L3-9: recent/initial ratio triggering contraction
+        int coherence_history_size = 10;          // L3-10: coherence history buffer entries
+    } thresholds;
+
     // Reality Checkpoint: composite operational pressure detection
     struct RealityCheckpoint {
         bool enabled = false;
@@ -1298,6 +1312,9 @@ struct ContextDriftConfig {
             double codegen_pressure = 0.0;  // ratio of blocked to total codegen calls (opt-in)
             double bsd_eviction_pressure = 0.0;  // ratio of evicted to total BSD events (opt-in)
         } weights;
+        // Scaling factors for pressure normalization (previously hardcoded)
+        double signal_density_divisor = 4.0;      // L3-2: normalize signals_fired / N
+        double acceleration_multiplier = 5.0;     // L3-3: scale coherence acceleration to [0,1]
     } reality_checkpoint;
 };
 
@@ -1360,6 +1377,11 @@ struct GovernanceHealthConfig {
     std::string rationale;
     int check_after_turns = 10;           // begin checking after N agent turns
     double governance_entropy_warning = 0.5;  // F16: low entropy in check results = suspicious
+    // Pulse verdict thresholds (previously hardcoded in computePulseVerdict)
+    int consecutive_passes_suspicion = 50; // L3-11: flag if all checks pass this many times
+    int impaired_degraded_turns = 3;       // L3-12: consecutive degraded turns for IMPAIRED
+    int impaired_signal_count = 3;         // L3-12: degradation signals for IMPAIRED
+    int pulse_cooldown_turns = 3;          // L3-13: min turns between pulse transitions
 };
 
 // Governance Pulse — real-time self-assessment of governance health
