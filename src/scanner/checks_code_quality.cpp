@@ -810,7 +810,27 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
             // Also collect loop variable names to exclude
             std::unordered_set<std::string> loop_vars;
 
+            // Track nested function regions to skip their declarations
+            std::vector<std::pair<size_t, size_t>> nested_funcs;
             for (size_t j = i + 1; j < func_end; ++j) {
+                std::smatch nfm;
+                if (std::regex_search(lines[j], nfm, func_pat)) {
+                    int nind = static_cast<int>(nfm[1].length());
+                    if (nind > base_ind) {
+                        size_t nend = findFuncEnd(lines, j, nind, language);
+                        nested_funcs.push_back({j, nend});
+                    }
+                }
+            }
+
+            auto inNestedFunc = [&](size_t line) {
+                for (auto& [start, end] : nested_funcs)
+                    if (line >= start && line < end) return true;
+                return false;
+            };
+
+            for (size_t j = i + 1; j < func_end; ++j) {
+                if (inNestedFunc(j)) continue;
                 std::string s = cq_trim(lines[j]);
                 if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
 
@@ -833,6 +853,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 bool read = false;
                 std::regex var_ref("\\b" + d.name + "\\b");
                 for (size_t j = d.line + 1; j < func_end; ++j) {
+                    if (inNestedFunc(j)) continue;
                     std::string s = cq_trim(lines[j]);
                     if (s.empty() || cq_startsWith(s, "//") || cq_startsWith(s, "#")) continue;
 

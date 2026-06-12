@@ -78,6 +78,8 @@ static void ensureEngine() {
     if (!g_engine) {
         g_engine = std::make_unique<GovernanceEngine>();
     }
+    // bolo.scan() always runs in AUDIT mode — it reports findings without blocking.
+    // This is a standalone scanner engine, separate from the main governance engine.
     g_engine->getMutableRules().mode = GovernanceMode::AUDIT;
 }
 

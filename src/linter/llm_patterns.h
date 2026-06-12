@@ -62,19 +62,15 @@ public:
     void disablePattern(const std::string& pattern_name);
 
 private:
-    // Pattern detectors - each returns diagnostics
+    // Pattern detectors — working
+    std::vector<Diagnostic> detectIncorrectMainFunction(const ast::Program& program);
+    std::vector<Diagnostic> detectAsyncWithoutImplementation(const ast::Program& program);
+    // Pattern detectors — stubs (NAAb-specific, not superseded by scanner)
     std::vector<Diagnostic> detectUnnecessaryTypeAnnotations(const ast::Program& program);
-    std::vector<Diagnostic> detectRedundantNullChecks(const ast::Program& program);
-    std::vector<Diagnostic> detectOveruseOfAny(const ast::Program& program);
-    std::vector<Diagnostic> detectIncorrectErrorHandling(const ast::Program& program);
     std::vector<Diagnostic> detectPolyglotBlockMisuse(const ast::Program& program);
     std::vector<Diagnostic> detectModuleImportIssues(const ast::Program& program);
-    std::vector<Diagnostic> detectAsyncWithoutImplementation(const ast::Program& program);
-    std::vector<Diagnostic> detectIncorrectMainFunction(const ast::Program& program);
-    std::vector<Diagnostic> detectUnquotedDictKeys(const ast::Program& program);
     std::vector<Diagnostic> detectJavaScriptIdioms(const ast::Program& program);
     std::vector<Diagnostic> detectPythonIdioms(const ast::Program& program);
-    std::vector<Diagnostic> detectUnnecessaryComplexity(const ast::Program& program);
 
     // Helper functions
     bool hasTypeAnnotation(const ast::VarDeclStmt& var_decl) const;

@@ -337,7 +337,7 @@ add_library(naab_analyzer
     src/analyzer/language_mismatch_detector.cpp
     src/analyzer/language_scorer.cpp
     src/analyzer/task_pattern_detector.cpp
-    src/analyzer/performance_optimizer.cpp
+    # src/analyzer/performance_optimizer.cpp  # Dead code: 0 external references (audit round 2)
 )
 target_link_libraries(naab_analyzer
     fmt::fmt
@@ -518,7 +518,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/shell_executor.cpp  # Polyglot: Shell executor
     src/runtime/generic_subprocess_executor.cpp  # Polyglot: Generic subprocess executor
     src/runtime/subprocess_helpers.cpp  # Polyglot: Subprocess utility functions
-    src/runtime/cross_language_bridge.cpp
+    # src/runtime/cross_language_bridge.cpp  # Dead code: 0 external references (audit round 2)
     src/runtime/module_resolver.cpp  # Phase 3.1: Module system
     src/runtime/module_system.cpp    # Phase 4.0: Module system (Rust-style)
     src/runtime/struct_registry.cpp  # Struct support
@@ -555,7 +555,7 @@ if(NOT HAVE_QUICKJS)
     list(REMOVE_ITEM NAAB_RUNTIME_SOURCES
         src/runtime/js_executor.cpp
         src/runtime/js_executor_adapter.cpp
-        src/runtime/cross_language_bridge.cpp
+        # src/runtime/cross_language_bridge.cpp  # Dead code (audit round 2)
     )
 endif()
 

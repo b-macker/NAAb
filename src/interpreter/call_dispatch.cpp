@@ -1234,8 +1234,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
             } else {
                 PyErr_Print();
-                fmt::print("[ERROR] Python method call failed\n");
-                result_ = NaabVal::makeNull();
+                throw std::runtime_error(
+                    "Python method call failed\n\n"
+                    "  Help:\n"
+                    "  - The Python method raised an exception (see traceback above)\n"
+                    "  - Check that the method exists and arguments are correct\n");
             }
 #else
             throw std::runtime_error("Python support required for method calls");
@@ -2111,14 +2114,6 @@ void Interpreter::visit(ast::CallExpr& node) {
                 result_ = NaabVal::makeString(rev);
                 return;
             }
-            if (method_name == "repeat") {
-                if (args.empty()) throw std::runtime_error("string.repeat() requires 1 argument (count)");
-                int count = args[0].toInt();
-                std::string repeated;
-                for (int ri = 0; ri < count; ri++) repeated += str;
-                result_ = NaabVal::makeString(repeated);
-                return;
-            }
             if (method_name == "pad_right") {
                 if (args.empty() || args.size() > 2) throw std::runtime_error("pad_right() takes 1-2 arguments (width[, fill_char])");
                 int width = args[0].toInt();
@@ -2663,8 +2658,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                         }
                     } else {
                         PyErr_Print();
-                        fmt::print("[ERROR] Member call failed\n");
-                        result_ = NaabVal::makeNull();
+                        throw std::runtime_error(
+                            "Python block member call failed\n\n"
+                            "  Help:\n"
+                            "  - The Python function raised an exception (see traceback above)\n"
+                            "  - Check that the function exists in the block and arguments are correct\n");
                     }
 
                     return;
@@ -2710,8 +2708,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                     LOG_DEBUG("[SUCCESS] Python block executed successfully\n");
                     result_ = NaabVal::makeNull();  // Return null for definition blocks
                 } else {
-                    fmt::print("[ERROR] Python block execution failed\n");
-                    result_ = NaabVal::makeNull();
+                    throw std::runtime_error(
+                        "Python block execution failed\n\n"
+                        "  Help:\n"
+                        "  - The Python code raised an exception (see traceback above)\n"
+                        "  - Check syntax and runtime errors in the block code\n");
                 }
 #else
                 fmt::print("[WARN] Python execution not available\n");

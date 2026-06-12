@@ -49,19 +49,16 @@ std::string Diagnostic::formatWithSeverity() const {
 
 LLMPatternDetector::LLMPatternDetector() {
     // Enable all patterns by default
+    // Removed: redundant_null_checks, overuse_of_any, incorrect_error_handling,
+    //          unquoted_dict_keys, unnecessary_complexity — superseded by scanner or dead
     enabled_patterns_ = {
+        "incorrect_main_function",
+        "async_without_implementation",
         "unnecessary_type_annotations",
-        "redundant_null_checks",
-        "overuse_of_any",
-        "incorrect_error_handling",
         "polyglot_block_misuse",
         "module_import_issues",
-        "async_without_implementation",
-        "incorrect_main_function",
-        "unquoted_dict_keys",
         "javascript_idioms",
         "python_idioms",
-        "unnecessary_complexity",
     };
 }
 
@@ -89,10 +86,12 @@ std::vector<Diagnostic> LLMPatternDetector::detectPatterns(const ast::Program& p
         }
     };
 
+    check_pattern("incorrect_main_function", [this](const auto& p) { return detectIncorrectMainFunction(p); });
+    check_pattern("async_without_implementation", [this](const auto& p) { return detectAsyncWithoutImplementation(p); });
+    // STUB detectors — NAAb-specific checks that need AST traversal (not superseded by scanner)
     check_pattern("unnecessary_type_annotations", [this](const auto& p) { return detectUnnecessaryTypeAnnotations(p); });
     check_pattern("polyglot_block_misuse", [this](const auto& p) { return detectPolyglotBlockMisuse(p); });
     check_pattern("module_import_issues", [this](const auto& p) { return detectModuleImportIssues(p); });
-    check_pattern("async_without_implementation", [this](const auto& p) { return detectAsyncWithoutImplementation(p); });
     check_pattern("javascript_idioms", [this](const auto& p) { return detectJavaScriptIdioms(p); });
 
     return diagnostics;
@@ -103,99 +102,29 @@ std::vector<Diagnostic> LLMPatternDetector::detectPatterns(const ast::Program& p
 // ============================================================================
 
 std::vector<Diagnostic> LLMPatternDetector::detectUnnecessaryTypeAnnotations(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
+    // STUB: not implemented — requires AST traversal of VarDeclStmt type annotations
+    (void)program;
     std::vector<Diagnostic> diagnostics;
-
-    // Check all variable declarations
-    // In a full implementation, we would traverse the AST and check each VarDeclStmt
-    // For now, return empty diagnostics (placeholder)
-
-    // Example diagnostic (commented out - needs AST traversal):
-    // diagnostics.push_back(Diagnostic(
-    //     DiagnosticSeverity::Hint,
-    //     "Unnecessary type annotation - type can be inferred",
-    //     "Remove ': int' - the type is clear from the initializer",
-    //     "file.naab",
-    //     10,
-    //     5
-    // ));
-
     return diagnostics;
 }
 
-std::vector<Diagnostic> LLMPatternDetector::detectRedundantNullChecks(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
-    std::vector<Diagnostic> diagnostics;
-
-    // Check for patterns like:
-    // if x != null {
-    //     if x != null {  // Redundant!
-    //         ...
-    //     }
-    // }
-
-    return diagnostics;
-}
-
-std::vector<Diagnostic> LLMPatternDetector::detectOveruseOfAny(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
-    std::vector<Diagnostic> diagnostics;
-
-    // Check for excessive use of 'any' type
-    // This often indicates LLMs being too generic
-
-    return diagnostics;
-}
-
-std::vector<Diagnostic> LLMPatternDetector::detectIncorrectErrorHandling(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
-    std::vector<Diagnostic> diagnostics;
-
-    // Check for:
-    // - Empty catch blocks
-    // - Catch-all error handling without logging
-    // - Swallowing exceptions
-
-    return diagnostics;
-}
+// Removed: detectRedundantNullChecks, detectOveruseOfAny, detectIncorrectErrorHandling
+// — superseded by scanner checks (empty_catch, catch_and_ignore) or never dispatched
 
 std::vector<Diagnostic> LLMPatternDetector::detectPolyglotBlockMisuse(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
-    std::vector<Diagnostic> diagnostics;
-
-    // Common mistakes:
-    // 1. Missing variable list: <<python data.mean() >>
-    //    Should be: <<python[data] data.mean() >>
-    //
+    // STUB: not implemented — requires AST traversal to detect:
+    // 1. Missing variable list: <<python data.mean() >> → <<python[data] data.mean() >>
     // 2. Wrong variable list syntax
-    //
     // 3. Trying to use async in polyglot blocks
-
-    // Example diagnostic:
-    diagnostics.push_back(Diagnostic(
-        DiagnosticSeverity::Warning,
-        "Polyglot block missing variable list",
-        "Add variables in brackets: <<python[data] ...>>",
-        "",
-        0,
-        0
-    ));
-
+    (void)program;
+    std::vector<Diagnostic> diagnostics;
     return diagnostics;
 }
 
 std::vector<Diagnostic> LLMPatternDetector::detectModuleImportIssues(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
+    // STUB: not implemented — requires AST traversal for JS/Python import syntax
+    (void)program;
     std::vector<Diagnostic> diagnostics;
-
-    // Check for:
-    // - Using 'import' instead of 'use'
-    // - Incorrect import syntax from JavaScript/Python
-
-    // Example:
-    // import io from "std"  // ❌ Wrong
-    // use io                // ✅ Correct
-
     return diagnostics;
 }
 
@@ -245,58 +174,23 @@ std::vector<Diagnostic> LLMPatternDetector::detectIncorrectMainFunction(const as
     return diagnostics;
 }
 
-std::vector<Diagnostic> LLMPatternDetector::detectUnquotedDictKeys(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
-    std::vector<Diagnostic> diagnostics;
-
-    // Check for unquoted dictionary keys
-    // This is common in JavaScript/Python code generation
-
-    // Example:
-    // {name: "Alice"}     // ❌ Wrong
-    // {"name": "Alice"}   // ✅ Correct
-
-    return diagnostics;
-}
+// Removed: detectUnquotedDictKeys — NAAb supports bare dict keys by design, not a bug
 
 std::vector<Diagnostic> LLMPatternDetector::detectJavaScriptIdioms(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
+    // STUB: not implemented — requires AST traversal for const/var/===/ undefined patterns
+    (void)program;
     std::vector<Diagnostic> diagnostics;
-
-    // Check for common JavaScript patterns that don't work in NAAb:
-    // - const instead of let
-    // - var instead of let
-    // - import/export syntax
-    // - === instead of ==
-    // - undefined instead of null
-
     return diagnostics;
 }
 
 std::vector<Diagnostic> LLMPatternDetector::detectPythonIdioms(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
+    // STUB: not implemented — requires AST traversal for def/None/: type annotation patterns
+    (void)program;
     std::vector<Diagnostic> diagnostics;
-
-    // Check for common Python patterns:
-    // - Using 'def' instead of 'fn'
-    // - Using 'None' instead of 'null'
-    // - Using ':' for type annotations in wrong places
-
     return diagnostics;
 }
 
-std::vector<Diagnostic> LLMPatternDetector::detectUnnecessaryComplexity(const ast::Program& program) {
-    (void)program;  // Full implementation requires AST traversal
-    std::vector<Diagnostic> diagnostics;
-
-    // Check for:
-    // - Overly long functions (>50 lines)
-    // - Deeply nested conditionals (>4 levels)
-    // - Unused variables
-    // - Redundant conditionals
-
-    return diagnostics;
-}
+// Removed: detectUnnecessaryComplexity — superseded by scanner (god_functions + deep_nesting)
 
 // ============================================================================
 // Helper Functions

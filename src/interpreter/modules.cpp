@@ -72,8 +72,8 @@ void Interpreter::visit(ast::UseStatement& node) {
             LOG_DEBUG("[INFO] Loaded block {} from database as {} ({}, {} tokens)\n",
                        node.getBlockId(), alias, metadata.language, metadata.token_count);
         } catch (const std::exception& e) {
-            fmt::print("[ERROR] Failed to load block {}: {}\n", node.getBlockId(), e.what());
-            return;
+            throw std::runtime_error(fmt::format(
+                "Failed to load block '{}': {}", node.getBlockId(), e.what()));
         }
     } else {
         std::string error_msg = fmt::format("Module not found: {}", node.getBlockId());
@@ -130,8 +130,8 @@ void Interpreter::visit(ast::UseStatement& node) {
             LOG_DEBUG("[INFO] Creating dedicated C++ executor for block...\n");
             auto cpp_exec = std::make_unique<runtime::CppExecutorAdapter>();
             if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
-                fmt::print("[ERROR] Failed to compile/execute C++ block code\n");
-                return;
+                throw std::runtime_error(fmt::format(
+                    "Failed to compile/execute C++ block '{}'", node.getBlockId()));
             }
             block_value = std::make_shared<BlockValue>(metadata, code, std::move(cpp_exec));
         } else
@@ -143,15 +143,16 @@ void Interpreter::visit(ast::UseStatement& node) {
             auto* executor = registry.getExecutor(metadata.language);
 
             if (!executor) {
-                fmt::print("[ERROR] No executor found for language: {}\n", metadata.language);
                 auto langs = registry.supportedLanguages();
                 std::string langs_str;
                 for (size_t i = 0; i < langs.size(); i++) {
                     if (i > 0) langs_str += ", ";
                     langs_str += langs[i];
                 }
-                fmt::print("       Supported languages: {}\n", langs_str);
-                return;
+                throw std::runtime_error(fmt::format(
+                    "No executor found for language: {}\n\n"
+                    "  Supported languages: {}\n",
+                    metadata.language, langs_str));
             }
 
             LOG_DEBUG("[INFO] Executing block with shared {} executor...\n", metadata.language);
@@ -159,33 +160,31 @@ void Interpreter::visit(ast::UseStatement& node) {
 #ifndef _WIN32
             if (metadata.language == "javascript") {
                 auto* js_exec = dynamic_cast<runtime::JsExecutorAdapter*>(executor);
-                if (js_exec) {
-                    if (!js_exec->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY)) {
-                        fmt::print("[ERROR] Failed to execute JavaScript block code\n");
-                        return;
-                    }
-                } else {
-                    fmt::print("[ERROR] Executor is not a JsExecutorAdapter\n");
-                    return;
+                if (!js_exec) {
+                    throw std::runtime_error(fmt::format(
+                        "Internal error: executor for '{}' is not a JsExecutorAdapter", node.getBlockId()));
+                }
+                if (!js_exec->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY)) {
+                    throw std::runtime_error(fmt::format(
+                        "Failed to execute JavaScript block '{}'", node.getBlockId()));
                 }
             } else if (metadata.language == "cpp" || metadata.language == "c++") {
                 auto* cpp_exec = dynamic_cast<runtime::CppExecutorAdapter*>(executor);
-                if (cpp_exec) {
-                    if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
-                        fmt::print("[ERROR] Failed to compile/execute C++ block code\n");
-                        return;
-                    }
-                } else {
-                    fmt::print("[ERROR] Executor is not a CppExecutorAdapter\n");
-                    return;
+                if (!cpp_exec) {
+                    throw std::runtime_error(fmt::format(
+                        "Internal error: executor for '{}' is not a CppExecutorAdapter", node.getBlockId()));
+                }
+                if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
+                    throw std::runtime_error(fmt::format(
+                        "Failed to compile/execute C++ block '{}'", node.getBlockId()));
                 }
             } else
 #endif
             {
                 // Other languages use default execute()
                 if (!executor->execute(code)) {
-                    fmt::print("[ERROR] Failed to execute block code\n");
-                    return;
+                    throw std::runtime_error(fmt::format(
+                        "Failed to execute {} block '{}'", metadata.language, node.getBlockId()));
                 }
             }
 
