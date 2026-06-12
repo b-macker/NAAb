@@ -74,11 +74,11 @@ jobs:
             echo "=== Checking: $f ==="
             CHECKED=$((CHECKED + 1))
 
-            if ! ./build/naab-lang \
+            if ! ./build/naab-lang run "$f" \
               --governance-sarif ".governance-reports/sarif-${CHECKED}.json" \
               --governance-junit ".governance-reports/junit-${CHECKED}.xml" \
               --governance-report ".governance-reports/report-${CHECKED}.json" \
-              "$f" 2>&1; then
+              2>&1; then
               FAILED=$((FAILED + 1))
               EXIT=1
             fi
