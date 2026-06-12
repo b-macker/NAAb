@@ -61,7 +61,14 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         return step;
     };
 
+    // BSD max_gap rationale: gap = max intervening events between consecutive steps.
+    // Tight gaps (2-5) for direct cause-effect patterns where the steps should occur
+    // close together (exfiltration, escape). Wider gaps (10-20) for multi-phase attack
+    // patterns where an attacker may interleave benign actions between steps.
+    // Overridable per-pattern via govern.json "behavioral_sequences.patterns".
+
     // 1. Credential harvesting: ENV_READ(secret/key/token) → NET_CONNECT
+    //    gap=5: direct exfil — secret read should be followed closely by network send
     {
         SequencePattern p;
         p.name = "credential_harvesting";
@@ -73,6 +80,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 2. Sandbox probe-and-escape: FILE_READ(system file) → SHELL_EXEC
+    //    gap=10: probe then exploit — attacker may inspect output before acting
     {
         SequencePattern p;
         p.name = "sandbox_probe_escape";
@@ -84,6 +92,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 3. Config tampering: FILE_READ(govern.json) → FILE_WRITE(govern.json)
+    //    gap=5: tight — read-modify-write on the same file is typically immediate
     {
         SequencePattern p;
         p.name = "config_tampering";
@@ -95,6 +104,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 4. Progressive escalation: 3 governance blocks then shell exec
+    //    gap=15: wide — attacker may try many approaches between blocks
     {
         SequencePattern p;
         p.name = "progressive_escalation";
@@ -108,6 +118,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 5. Data staging: multiple FILE_READs → FILE_WRITE(/tmp) → NET_CONNECT
+    //    gap=20: widest — multi-phase exfil with data collection, staging, and send
     {
         SequencePattern p;
         p.name = "data_staging";
@@ -121,6 +132,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 6. Taint bypass via agent: repeated taint violations then agent send (data laundering)
+    //    gap=10: moderate — violations may accumulate over several turns before send
     {
         SequencePattern p;
         p.name = "taint_bypass_via_agent";
@@ -133,6 +145,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 7. Repeated taint violations: sustained taint hygiene failure
+    //    gap=15: wide — pattern tracks persistent issues across multiple turns
     {
         SequencePattern p;
         p.name = "repeated_taint_violations";
@@ -145,6 +158,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 8. Tool data exfiltration: tool reads data → network connect
+    //    gap=5: tight — direct read-to-send pipeline
     {
         SequencePattern p;
         p.name = "tool_data_exfil";
@@ -156,6 +170,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 9. Tool env harvest: env read → tool result → network
+    //    gap=10: moderate — three-stage pattern with processing between stages
     {
         SequencePattern p;
         p.name = "tool_env_harvest";
@@ -168,6 +183,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 10. Tool shell escape: tool execution leads to shell command
+    //     gap=3: very tight — tool-to-shell should be nearly immediate
     {
         SequencePattern p;
         p.name = "tool_shell_escape";
@@ -179,6 +195,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 11. Tool rapid fire: burst of tool calls (possible enumeration)
+    //     gap=3: very tight — burst detection requires consecutive calls
     {
         SequencePattern p;
         p.name = "tool_rapid_fire";
@@ -192,7 +209,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         default_patterns_.push_back(std::move(p));
     }
 
-    // 12. Codegen exfiltration: env read → codegen exec (Gap pattern: exfil via dynamic code)
+    // 12. Codegen exfiltration: env read → codegen exec (exfil via dynamic code)
+    //     gap=5: tight — env read feeding into dynamic execution
     {
         SequencePattern p;
         p.name = "codegen_exfil";
@@ -204,6 +222,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 13. Codegen rapid fire: burst of dynamic code executions (enumeration/probing)
+    //     gap=2: tightest — consecutive codegen calls with minimal intervening events
     {
         SequencePattern p;
         p.name = "codegen_rapid_fire";
@@ -216,6 +235,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     }
 
     // 14. Tool result → codegen: tool output flows into generated code
+    //     gap=3: tight — tool result should feed directly into codegen
     {
         SequencePattern p;
         p.name = "codegen_after_tool";
