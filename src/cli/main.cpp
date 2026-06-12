@@ -4030,11 +4030,11 @@ int main(int argc, char** argv) {
 
                     std::string bench_name = bench_entry.path().stem().string();
 
-                    // Reject filenames with shell metacharacters (defensive)
+                    // Reject filenames with non-safe characters (whitelist approach)
                     bool unsafe = false;
                     for (char c : bench_file) {
-                        if (c == ';' || c == '|' || c == '&' || c == '`' ||
-                            c == '$' || c == '(' || c == ')') {
+                        if (!std::isalnum(static_cast<unsigned char>(c)) &&
+                            c != '.' && c != '-' && c != '_' && c != '/') {
                             unsafe = true;
                             break;
                         }
@@ -4044,24 +4044,27 @@ int main(int argc, char** argv) {
                         continue;
                     }
 
+                    // Shell-quote the filename for use in popen() commands
+                    std::string quoted = "'" + bench_file + "'";
+
                     std::vector<int64_t> times;
                     for (int iter = 0; iter < iterations; ++iter) {
                         std::string cmd;
                         std::string tmp_bin;
 
                         if (!lang.runner.empty()) {
-                            cmd = lang.runner + " " + bench_file + " 2>/dev/null";
+                            cmd = lang.runner + " " + quoted + " 2>/dev/null";
                         } else if (lang.name == "go") {
-                            cmd = "go run " + bench_file + " 2>/dev/null";
+                            cmd = "go run " + quoted + " 2>/dev/null";
                         } else if (lang.name == "rust") {
                             tmp_bin = "/data/data/com.termux/files/usr/tmp/naab_bench_" +
                                       std::to_string(getpid());
-                            cmd = "rustc -o " + tmp_bin + " " + bench_file +
+                            cmd = "rustc -o " + tmp_bin + " " + quoted +
                                   " 2>/dev/null && " + tmp_bin;
                         } else if (lang.name == "nim") {
                             tmp_bin = "/data/data/com.termux/files/usr/tmp/naab_bench_" +
                                       std::to_string(getpid());
-                            cmd = "nim c --hints:off -o:" + tmp_bin + " " + bench_file +
+                            cmd = "nim c --hints:off -o:" + tmp_bin + " " + quoted +
                                   " 2>/dev/null && " + tmp_bin;
                         }
 

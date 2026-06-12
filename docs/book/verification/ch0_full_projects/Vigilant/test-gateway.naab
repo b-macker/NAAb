@@ -7,7 +7,7 @@ use modules.gateway
 main {
     io.write("Testing gateway...\n")
     let profile = {"mode": "TEST"}
-    let workers = synthesizer.synthesize_absolute(json.stringify(profile))
+    let workers = synthesizer.synthesize_vessel("rust", "fn main() {}", "test_worker")
     io.write("Synthesizer result: ", json.stringify(workers), "\n")
 
     io.write("Starting gateway...\n")

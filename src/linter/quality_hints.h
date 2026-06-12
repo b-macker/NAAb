@@ -44,41 +44,18 @@ public:
     void disableCategory(HintCategory category);
 
 private:
-    // Performance hints
+    // Category dispatchers (Performance/BestPractice/Security/Maintainability
+    // return empty — superseded by scanner checks)
     std::vector<Diagnostic> detectPerformanceIssues(const ast::Program& program);
-    std::vector<Diagnostic> detectInefficientLoops(const ast::Program& program);
-    std::vector<Diagnostic> detectRedundantOperations(const ast::Program& program);
-    std::vector<Diagnostic> detectStringConcatenationInLoop(const ast::Program& program);
-
-    // Best practice hints
     std::vector<Diagnostic> detectBestPracticeIssues(const ast::Program& program);
-    std::vector<Diagnostic> detectLongFunctions(const ast::Program& program);
-    std::vector<Diagnostic> detectDeepNesting(const ast::Program& program);
-    std::vector<Diagnostic> detectMagicNumbers(const ast::Program& program);
-    std::vector<Diagnostic> detectUnusedVariables(const ast::Program& program);
-
-    // Security hints
     std::vector<Diagnostic> detectSecurityIssues(const ast::Program& program);
-    std::vector<Diagnostic> detectPotentialSQLInjection(const ast::Program& program);
-    std::vector<Diagnostic> detectUnsafePolyglotUsage(const ast::Program& program);
-    std::vector<Diagnostic> detectHardcodedSecrets(const ast::Program& program);
-
-    // Maintainability hints
     std::vector<Diagnostic> detectMaintainabilityIssues(const ast::Program& program);
-    std::vector<Diagnostic> detectComplexConditions(const ast::Program& program);
-    std::vector<Diagnostic> detectDuplicateCode(const ast::Program& program);
 
-    // Readability hints
+    // Readability — working
     std::vector<Diagnostic> detectReadabilityIssues(const ast::Program& program);
     std::vector<Diagnostic> detectPoorNaming(const ast::Program& program);
-    std::vector<Diagnostic> detectMissingComments(const ast::Program& program);
 
     // Helper functions
-    size_t getFunctionLineCount(const ast::FunctionDecl& func) const;
-    size_t getNestingDepth(const ast::Node& node) const;
-    bool isMagicNumber(const std::string& value) const;
-    bool looksLikeSQLQuery(const std::string& str) const;
-    bool looksLikeSecret(const std::string& str) const;
     bool hasGoodVariableName(const std::string& name) const;
 
     // Enabled categories

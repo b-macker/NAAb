@@ -67,8 +67,8 @@ while True:
                     res = a / b
                     with open("/data/data/com.termux/files/usr/tmp/synod_shm_PY", "w") as out:
                         out.write(f"{res:.18f}")
-    except:
-        pass
+    except Exception as e:
+        import sys; print(f"Worker error: {e}", file=sys.stderr)
     time.sleep(0.01)
 ' > /dev/null 2>&1 &
 >>

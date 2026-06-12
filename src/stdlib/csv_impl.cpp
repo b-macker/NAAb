@@ -295,7 +295,13 @@ static std::vector<std::string> parseCSVLine(const std::string& line, const std:
             char c = line[i];
 
             if (c == '"') {
-                in_quotes = !in_quotes;
+                if (in_quotes && i + 1 < line.size() && line[i + 1] == '"') {
+                    // RFC 4180: escaped quote ("") → literal "
+                    field += '"';
+                    ++i;  // skip the second quote
+                } else {
+                    in_quotes = !in_quotes;
+                }
             } else if (!in_quotes && line.substr(i, delimiter.size()) == delimiter) {
                 fields.push_back(field);
                 field.clear();

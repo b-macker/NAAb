@@ -129,10 +129,16 @@ int LanguageScorer::calculateCompositeScore(
     std::string task_category = taskIntentToCategory(semantic.primary_intent);
     int base_score = scoreLanguageForTask(language, task_category).score;
 
-    // Adjust based on computational profile
+    // Adjust based on computational profile.
+    // Adjustment magnitudes are proportional to the base score range (0-100):
+    //   ±10: strong signal (10x performance difference, e.g., compiled vs interpreted CPU work)
+    //   ±8:  significant (startup latency: Go ~5ms vs Julia ~1s JIT warmup)
+    //   ±5:  moderate (memory model advantage or I/O ecosystem maturity)
+    //   ±3:  weak tiebreaker (syntax readability preference)
+    // These are heuristic starting points; override via govern.json complexity_floor.weights.
     double adjustment = 0.0;
 
-    // CPU-intensive tasks favor compiled languages
+    // CPU-intensive: compiled languages are typically 10-100x faster than interpreted
     if (semantic.computational_profile.is_cpu_intensive) {
         if (language == "julia" || language == "nim" || language == "rust" ||
             language == "zig" || language == "cpp" || language == "go") {
@@ -142,7 +148,7 @@ int LanguageScorer::calculateCompositeScore(
         }
     }
 
-    // Memory-intensive tasks favor languages with manual control
+    // Memory-intensive: manual memory control avoids GC pressure spikes
     if (semantic.computational_profile.is_memory_intensive) {
         if (language == "zig" || language == "rust" || language == "cpp") {
             adjustment += 5.0;
@@ -151,23 +157,23 @@ int LanguageScorer::calculateCompositeScore(
         }
     }
 
-    // I/O-intensive tasks favor high-level languages
+    // I/O-intensive: ecosystem maturity for async I/O (stdlib, package availability)
     if (semantic.computational_profile.is_io_intensive) {
         if (language == "python" || language == "javascript" || language == "go") {
             adjustment += 5.0;
         }
     }
 
-    // Latency-sensitive tasks favor compiled languages with fast startup
+    // Latency-sensitive: cold-start time matters (Go/Rust/Zig: <10ms, Julia: ~1s JIT)
     if (semantic.computational_profile.is_latency_sensitive) {
         if (language == "go" || language == "rust" || language == "zig") {
             adjustment += 8.0;
         } else if (language == "julia") {
-            adjustment -= 5.0; // JIT warmup
+            adjustment -= 5.0;
         }
     }
 
-    // Complex code prefers readable languages
+    // High complexity: readable syntax reduces maintenance burden (tiebreaker only)
     if (syntactic.complexity_score > 70) {
         if (language == "python" || language == "ruby" || language == "nim") {
             adjustment += 5.0;

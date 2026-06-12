@@ -58,7 +58,7 @@ interpreter::NaabVal ValidateModule::call(
             return interpreter::NaabVal::makeBool(false);
         }
         static const std::regex email_re(
-            R"(^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$)"
+            R"(^[a-zA-Z0-9_%+\-]+([.][a-zA-Z0-9_%+\-]+)*@[a-zA-Z0-9\-]+([.][a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$)"
         );
         return interpreter::NaabVal::makeBool(
             std::regex_match(args[0].asString(), email_re));
@@ -99,11 +99,22 @@ interpreter::NaabVal ValidateModule::call(
         if (!args[0].isString()) {
             return interpreter::NaabVal::makeBool(false);
         }
-        static const std::regex ipv6_re(
-            R"(^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$)"
-        );
-        return interpreter::NaabVal::makeBool(
-            std::regex_match(args[0].asString(), ipv6_re));
+        // Validate IPv6: 8 groups of hex or :: compression (at most once)
+        const std::string& ip = args[0].asString();
+        auto count_colons = [](const std::string& s) {
+            size_t n = 0;
+            for (size_t i = 0; i + 1 < s.size(); ++i)
+                if (s[i] == ':' && s[i+1] == ':') ++n;
+            return n;
+        };
+        if (count_colons(ip) > 1) return interpreter::NaabVal::makeBool(false);
+        // Full form: 8 groups; compressed: fewer groups with ::
+        static const std::regex ipv6_full(
+            R"(^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$)");
+        static const std::regex ipv6_compressed(
+            R"(^(([0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{0,4})?::([0-9a-fA-F]{1,4}(:([0-9a-fA-F]{1,4}))*)?$)");
+        bool valid = std::regex_match(ip, ipv6_full) || std::regex_match(ip, ipv6_compressed);
+        return interpreter::NaabVal::makeBool(valid);
     }
 
     if (function_name == "int_range") {

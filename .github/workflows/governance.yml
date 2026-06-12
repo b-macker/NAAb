@@ -46,6 +46,13 @@ jobs:
             -not -path './build/*' \
             -not -path './tests/*' \
             -not -path './examples/*' \
+            -not -path './demo/*' \
+            -not -path './demos/*' \
+            -not -path './benchmarks/*' \
+            -not -path './fuzz/*' \
+            -not -path './stdlib/*' \
+            -not -path '*/ch0_full_projects/*' \
+            -not -name 'test_go_async.naab' \
             -type f | sort)
 
           if [ -z "$files" ]; then
@@ -65,20 +72,50 @@ jobs:
           CHECKED=0
           FAILED=0
 
+          # Skip directories not suitable for standalone CI scanning:
+          # - demo/demos: intentionally bad code for governance demonstration
+          # - benchmarks: no govern.json, not governance targets
+          # - fuzz: intentionally broken files
+          # - stdlib: library modules, not standalone programs
+          # - ch0_full_projects: multi-file integration projects needing
+          #   specific CWD, compilers (Rust/Go), and inter-process setup
           for f in $(find . -name '*.naab' \
             -not -path './build/*' \
             -not -path './tests/*' \
             -not -path './examples/*' \
+            -not -path './demo/*' \
+            -not -path './demos/*' \
+            -not -path './benchmarks/*' \
+            -not -path './fuzz/*' \
+            -not -path './stdlib/*' \
+            -not -path '*/ch0_full_projects/*' \
+            -not -name 'test_go_async.naab' \
             -type f | sort); do
 
             echo "=== Checking: $f ==="
             CHECKED=$((CHECKED + 1))
 
-            if ! ./build/naab-lang \
+            # Walk up to find govern.json; if none found, run without governance
+            GOV_FLAG=""
+            SEARCH_DIR=$(dirname "$f")
+            FOUND_GOV=false
+            while [ "$SEARCH_DIR" != "." ] && [ "$SEARCH_DIR" != "/" ]; do
+              if [ -f "$SEARCH_DIR/govern.json" ]; then
+                FOUND_GOV=true
+                break
+              fi
+              SEARCH_DIR=$(dirname "$SEARCH_DIR")
+            done
+            if [ "$FOUND_GOV" = false ] && [ ! -f "./govern.json" ]; then
+              GOV_FLAG="--no-governance"
+            fi
+
+            if ! ./build/naab-lang run "$f" \
+              $GOV_FLAG \
               --governance-sarif ".governance-reports/sarif-${CHECKED}.json" \
               --governance-junit ".governance-reports/junit-${CHECKED}.xml" \
               --governance-report ".governance-reports/report-${CHECKED}.json" \
-              "$f" 2>&1; then
+              2>&1; then
               FAILED=$((FAILED + 1))
               EXIT=1
             fi

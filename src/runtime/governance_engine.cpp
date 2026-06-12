@@ -1435,6 +1435,7 @@ std::string GovernanceEngine::checkNetworkImports(
         return "";
     }
     // Scan polyglot code for network library usage patterns
+    bool any_pattern_failed = false;
     for (const auto& pat : NETWORK_IMPORT_PATTERNS) {
         if (pat.language != language && pat.language != "any") continue;
         try {
@@ -1452,7 +1453,15 @@ std::string GovernanceEngine::checkNetworkImports(
                         fmt::format("{} in <<{}>> block", pat.description, language),
                         "let data = json.parse(file.read(\"data/cached.json\"))"));
             }
-        } catch (...) {}
+        } catch (const std::regex_error&) {
+            // Fail-closed: a broken pattern means the check could not run
+            any_pattern_failed = true;
+        }
+    }
+    if (any_pattern_failed) {
+        return enforce("capabilities.network", EnforcementLevel::HARD,
+            "Network capability check failed: one or more scan patterns could not compile. "
+            "Blocking as a precaution.");
     }
     recordPass("capabilities.network", EnforcementLevel::HARD);
     return "";
@@ -3022,7 +3031,10 @@ std::string GovernanceEngine::checkGovernanceBaseline() const {
 
     nlohmann::json prev;
     try { prev = nlohmann::json::parse(ifs); }
-    catch (...) { return ""; }
+    catch (...) {
+        return "[governance] Governance baseline is corrupt or unreadable: " +
+               rules().governance_baseline.path + "\n";
+    }
 
     int hard = 0, soft = 0, advisory = 0, security = 0;
     for (const auto& r : check_results_) {
@@ -3969,7 +3981,11 @@ std::string GovernanceEngine::checkDriftDetection(
     // Parse the SAME content (no re-read — eliminates TOCTOU window)
     nlohmann::json baseline;
     try { baseline = nlohmann::json::parse(baseline_content); }
-    catch (...) { return ""; }
+    catch (...) {
+        std::string msg = "Drift baseline is corrupt (passed signature but failed JSON parse)";
+        enforce("drift_detection.integrity", cfg.level, msg);
+        return "[governance] Drift detection FAILED:\n  " + msg + "\n";
+    }
 
     // Gap 10: Self-referential trust fix — baseline is the trust anchor, not govern.json
     // If baseline records that signing was configured or signatures were present,

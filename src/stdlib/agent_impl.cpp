@@ -2166,7 +2166,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             "  - Configure capabilities.shell.enabled or agent shell_allowed in govern.json\n",
                             config_name));
                     }
-                } catch (const std::regex_error&) {}
+                } catch (const std::regex_error&) {
+                    // Fail-closed: broken pattern → block as if matched
+                    gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
+                        "agent_restriction:shell_pattern_error(" + config_name + ")", "", 0);
+                    throw std::runtime_error(fmt::format(
+                        "Agent error: Shell command scan failed for '{}' (pattern compilation error)\n\n"
+                        "  Help:\n"
+                        "  - An internal shell detection pattern could not compile\n"
+                        "  - Response blocked as a precaution\n",
+                        config_name));
+                }
             }
         }
 
@@ -2195,7 +2205,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 "  - Configure agent blocked_paths in govern.json\n",
                                 config_name, blocked));
                         }
-                    } catch (const std::regex_error&) {}
+                    } catch (const std::regex_error&) {
+                        // Fail-closed: broken glob pattern → block as if matched
+                        gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
+                            "agent_restriction:blocked_path_pattern_error(" + config_name + ":" + blocked + ")", "", 0);
+                        throw std::runtime_error(fmt::format(
+                            "Agent error: Blocked path pattern '{}' could not compile for '{}'\n\n"
+                            "  Help:\n"
+                            "  - The glob pattern could not be converted to a valid regex\n"
+                            "  - Response blocked as a precaution\n",
+                            blocked, config_name));
+                    }
                 } else {
                     // Exact substring match
                     if (content.find(blocked) != std::string::npos) {

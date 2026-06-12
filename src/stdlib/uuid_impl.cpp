@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include <fmt/core.h>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
@@ -119,8 +120,14 @@ interpreter::NaabVal UuidModule::call(
         }
         uint8_t ns_bytes[16];
         for (int i = 0; i < 16; ++i) {
-            ns_bytes[i] = static_cast<uint8_t>(
-                std::stoul(ns_clean.substr(i * 2, 2), nullptr, 16));
+            try {
+                ns_bytes[i] = static_cast<uint8_t>(
+                    std::stoul(ns_clean.substr(i * 2, 2), nullptr, 16));
+            } catch (...) {
+                throw std::runtime_error(fmt::format(
+                    "uuid.v5(): invalid hex in namespace UUID at position {}: '{}'",
+                    i * 2, ns_clean.substr(i * 2, 2)));
+            }
         }
 
         // SHA-1 of namespace bytes + name
