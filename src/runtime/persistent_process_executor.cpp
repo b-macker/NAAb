@@ -16,6 +16,12 @@
 #include <fcntl.h>       // For fcntl, F_SETFL, O_NONBLOCK
 #include <poll.h>        // For poll
 #include <sys/wait.h>    // For waitpid
+#ifdef __APPLE__
+#include <crt_externs.h> // For _NSGetEnviron on macOS
+#define environ (*_NSGetEnviron())
+#else
+extern "C" { extern char **environ; }
+#endif
 #endif
 
 namespace naab {
