@@ -909,8 +909,11 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 state.baseline.mean_contradictions = state.baseline.sum_contradictions / n;
 
                 // Compute stddev for failures (used as primary threshold signal)
-                double variance = (state.baseline.sum_sq_failures / n) -
-                    (state.baseline.mean_failures * state.baseline.mean_failures);
+                // Bessel's correction (n-1): unbiased sample variance for small samples
+                double variance = (n > 1.0)
+                    ? ((state.baseline.sum_sq_failures / n) -
+                       (state.baseline.mean_failures * state.baseline.mean_failures)) * (n / (n - 1.0))
+                    : 0.0;
                 state.baseline.stddev_failures = (variance > 0.0) ? std::sqrt(variance) : 0.0;
 
                 state.baseline_complete = true;

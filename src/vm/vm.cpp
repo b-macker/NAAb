@@ -647,7 +647,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_TRY_BEGIN, &&vm_OP_TRY_END, &&vm_OP_THROW,               // 59-61
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,                      // 62-64 (CATCH/FINALLY — compiler inlines)
         &&vm_OP_POLYGLOT,                                                  // 65
-        &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_MARK, &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_CHECK_ASSIGN, // 66-69: GOV_CHECK_FUNC(stub/TODO), TAINT_MARK, TAINT_CLEAR(stub), TAINT_CHECK_ASSIGN
+        &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_MARK, &&vm_OP_GOV_TAINT_CLEAR, &&vm_OP_GOV_TAINT_CHECK_ASSIGN, // 66-69: GOV_CHECK_FUNC(stub/TODO), TAINT_MARK, TAINT_CLEAR, TAINT_CHECK_ASSIGN
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 70-73 (GOV — handled at AST level)
         &&vm_OP_YIELD, &&vm_OP_AWAIT,                                     // 74-75
         &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
@@ -3285,6 +3285,13 @@ interpreter::NaabVal VM::run() {
             {
                 // Mark TOS as tainted on the shadow taint stack
                 if (governance_) peekTaint(0) = true;
+            }
+                VM_NEXT();
+
+            // Clear taint on TOS after sanitizer call — mirrors tree-walker's clearTaint()
+            vm_OP_GOV_TAINT_CLEAR:
+            {
+                if (governance_) peekTaint(0) = false;
             }
                 VM_NEXT();
 

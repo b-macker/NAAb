@@ -447,6 +447,7 @@ void Compiler::visit(ast::ReturnStmt& node) {
 void Compiler::visit(ast::VarDeclStmt& node) {
     int line = node.getLocation().line;
     bool rhs_tainted = false;
+    bool rhs_is_sanitizer = false;
     if (node.getInit()) {
         // Pre-flight: check if RHS expression is statically tainted BEFORE compiling
         // (we need the AST, which is lost after accept())
@@ -456,14 +457,20 @@ void Compiler::visit(ast::VarDeclStmt& node) {
             if (rhs_tainted) {
                 if (auto* call = dynamic_cast<ast::CallExpr*>(node.getInit())) {
                     if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-                        if (governance_->isSanitizer(id->getName())) rhs_tainted = false;
+                        if (governance_->isSanitizer(id->getName())) {
+                            rhs_tainted = false;
+                            rhs_is_sanitizer = true;
+                        }
                     }
                     if (auto* mem = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
                         std::string full;
                         if (auto* oid = dynamic_cast<ast::IdentifierExpr*>(mem->getObject()))
                             full = oid->getName() + ".";
                         full += mem->getMember();
-                        if (governance_->isSanitizer(full)) rhs_tainted = false;
+                        if (governance_->isSanitizer(full)) {
+                            rhs_tainted = false;
+                            rhs_is_sanitizer = true;
+                        }
                     }
                 }
             }
@@ -483,6 +490,11 @@ void Compiler::visit(ast::VarDeclStmt& node) {
         emitWide(OpCode::OP_GOV_TAINT_CHECK_ASSIGN, static_cast<uint32_t>(tca_idx), line);
         markVarTainted(node.getName());
     } else if (governance_ && governance_->isActive()) {
+        // Emit OP_GOV_TAINT_CLEAR to clear runtime taint on TOS when RHS is a
+        // sanitizer call. This mirrors the tree-walker's clearTaint() behavior.
+        if (rhs_is_sanitizer) {
+            emitOp(OpCode::OP_GOV_TAINT_CLEAR, line);
+        }
         clearVarTaint(node.getName());
     }
 
@@ -694,8 +706,30 @@ void Compiler::visit(ast::BinaryExpr& node) {
     if (node.getOp() == ast::BinaryOp::Assign) {
         // Pre-flight taint analysis on RHS
         bool assign_tainted = false;
+        bool assign_sanitizer = false;
         if (governance_ && governance_->isActive()) {
             assign_tainted = exprContainsTaint(node.getRight());
+            // Check if RHS is a sanitizer call (clears taint)
+            if (assign_tainted) {
+                if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                        if (governance_->isSanitizer(id->getName())) {
+                            assign_tainted = false;
+                            assign_sanitizer = true;
+                        }
+                    }
+                    if (auto* mem = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                        std::string full;
+                        if (auto* oid = dynamic_cast<ast::IdentifierExpr*>(mem->getObject()))
+                            full = oid->getName() + ".";
+                        full += mem->getMember();
+                        if (governance_->isSanitizer(full)) {
+                            assign_tainted = false;
+                            assign_sanitizer = true;
+                        }
+                    }
+                }
+            }
         }
         node.getRight()->accept(*this);
         if (assign_tainted) {
@@ -708,7 +742,10 @@ void Compiler::visit(ast::BinaryExpr& node) {
                 int tca_idx = identifierConstant(ident->getName());
                 emitWide(OpCode::OP_GOV_TAINT_CHECK_ASSIGN, static_cast<uint32_t>(tca_idx), line);
                 markVarTainted(ident->getName());
-            } else if (governance_ && governance_->isActive()) clearVarTaint(ident->getName());
+            } else if (governance_ && governance_->isActive()) {
+                if (assign_sanitizer) emitOp(OpCode::OP_GOV_TAINT_CLEAR, line);
+                clearVarTaint(ident->getName());
+            }
             emitSetVariable(ident->getName(), line);
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             member->getObject()->accept(*this);
