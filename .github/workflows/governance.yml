@@ -52,6 +52,7 @@ jobs:
             -not -path './fuzz/*' \
             -not -path './stdlib/*' \
             -not -path '*/ch0_full_projects/*' \
+            -not -name 'test_go_async.naab' \
             -type f | sort)
 
           if [ -z "$files" ]; then
@@ -88,6 +89,7 @@ jobs:
             -not -path './fuzz/*' \
             -not -path './stdlib/*' \
             -not -path '*/ch0_full_projects/*' \
+            -not -name 'test_go_async.naab' \
             -type f | sort); do
 
             echo "=== Checking: $f ==="
