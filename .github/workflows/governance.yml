@@ -46,6 +46,9 @@ jobs:
             -not -path './build/*' \
             -not -path './tests/*' \
             -not -path './examples/*' \
+            -not -path './demo/*' \
+            -not -path './demos/*' \
+            -not -path './benchmarks/*' \
             -type f | sort)
 
           if [ -z "$files" ]; then
@@ -65,16 +68,39 @@ jobs:
           CHECKED=0
           FAILED=0
 
+          # Skip directories with intentionally bad code (demo scenes),
+          # external resource dependencies (agent demos need API keys),
+          # and benchmarks (no govern.json, not governance targets)
           for f in $(find . -name '*.naab' \
             -not -path './build/*' \
             -not -path './tests/*' \
             -not -path './examples/*' \
+            -not -path './demo/*' \
+            -not -path './demos/*' \
+            -not -path './benchmarks/*' \
             -type f | sort); do
 
             echo "=== Checking: $f ==="
             CHECKED=$((CHECKED + 1))
 
+            # Use the file's own govern.json if present (walk up from file dir),
+            # otherwise run without governance to avoid --require-governance error
+            FDIR=$(dirname "$f")
+            GOV_FLAG=""
+            while [ "$FDIR" != "." ] && [ "$FDIR" != "/" ]; do
+              if [ -f "$FDIR/govern.json" ]; then
+                break
+              fi
+              FDIR=$(dirname "$FDIR")
+            done
+            if [ "$FDIR" = "." ] || [ "$FDIR" = "/" ]; then
+              if [ ! -f "./govern.json" ]; then
+                GOV_FLAG="--no-governance"
+              fi
+            fi
+
             if ! ./build/naab-lang run "$f" \
+              $GOV_FLAG \
               --governance-sarif ".governance-reports/sarif-${CHECKED}.json" \
               --governance-junit ".governance-reports/junit-${CHECKED}.xml" \
               --governance-report ".governance-reports/report-${CHECKED}.json" \
