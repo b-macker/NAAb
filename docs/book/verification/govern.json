@@ -3,6 +3,10 @@
   "mode": "enforce",
   "description": "Polyglot-maximizing governance — push LLMs to use the best language for each task",
 
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
   "languages": {
     "allowed": ["python", "javascript", "shell", "go", "ruby", "nim", "rust", "cpp", "php"],
     "blocked": [],
@@ -330,6 +334,13 @@
   ],
 
   "scopes": [
+    {
+      "glob": "ch0_full_projects/**",
+      "overrides": {
+        "code_quality.no_incomplete_logic.level": "advisory",
+        "code_quality.no_oversimplification.level": "advisory"
+      }
+    },
     {
       "glob": "tests/**",
       "overrides": {

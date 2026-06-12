@@ -6,6 +6,6 @@ use modules.synthesizer
 main {
     io.write("Testing synthesizer...\n")
     let profile = {"mode": "TEST"}
-    let result = synthesizer.synthesize_absolute(json.stringify(profile))
+    let result = synthesizer.synthesize_vessel("rust", "fn main() { println!(\"test\"); }", "test_synth")
     io.write("Result: ", json.stringify(result), "\n")
 }

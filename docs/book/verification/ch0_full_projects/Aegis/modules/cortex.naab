@@ -29,7 +29,8 @@ export fn race_variants(binaries, traffic_file) {
                 best_time = time
                 best_bin = bin
             end
-        rescue
+        rescue => e
+            STDERR.puts "Benchmark error for #{bin}: #{e.message}"
         end
     end
 

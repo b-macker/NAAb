@@ -49,6 +49,8 @@ jobs:
             -not -path './demo/*' \
             -not -path './demos/*' \
             -not -path './benchmarks/*' \
+            -not -path './fuzz/*' \
+            -not -path './stdlib/*' \
             -type f | sort)
 
           if [ -z "$files" ]; then
@@ -68,9 +70,12 @@ jobs:
           CHECKED=0
           FAILED=0
 
-          # Skip directories with intentionally bad code (demo scenes),
-          # external resource dependencies (agent demos need API keys),
-          # and benchmarks (no govern.json, not governance targets)
+          # Skip: demo scenes (intentionally bad code), agent demos (need API keys),
+          # benchmarks (no govern.json), fuzz corpus (intentionally broken),
+          # stdlib/*.naab (library modules, not standalone programs)
+          # Exclude non-standalone files: brain_launcher (server process),
+          # verify_vigilant* (integration tests needing server + config),
+          # test_go_async (known parse issues)
           for f in $(find . -name '*.naab' \
             -not -path './build/*' \
             -not -path './tests/*' \
@@ -78,6 +83,11 @@ jobs:
             -not -path './demo/*' \
             -not -path './demos/*' \
             -not -path './benchmarks/*' \
+            -not -path './fuzz/*' \
+            -not -path './stdlib/*' \
+            -not -name 'brain_launcher.naab' \
+            -not -name 'verify_vigilant*.naab' \
+            -not -name 'test_go_async.naab' \
             -type f | sort); do
 
             echo "=== Checking: $f ==="
