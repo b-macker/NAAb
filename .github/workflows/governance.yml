@@ -51,6 +51,7 @@ jobs:
             -not -path './benchmarks/*' \
             -not -path './fuzz/*' \
             -not -path './stdlib/*' \
+            -not -path '*/ch0_full_projects/*' \
             -type f | sort)
 
           if [ -z "$files" ]; then
@@ -70,12 +71,13 @@ jobs:
           CHECKED=0
           FAILED=0
 
-          # Skip: demo scenes (intentionally bad code), agent demos (need API keys),
-          # benchmarks (no govern.json), fuzz corpus (intentionally broken),
-          # stdlib/*.naab (library modules, not standalone programs)
-          # Exclude non-standalone files: brain_launcher (server process),
-          # verify_vigilant* (integration tests needing server + config),
-          # test_go_async (known parse issues)
+          # Skip directories not suitable for standalone CI scanning:
+          # - demo/demos: intentionally bad code for governance demonstration
+          # - benchmarks: no govern.json, not governance targets
+          # - fuzz: intentionally broken files
+          # - stdlib: library modules, not standalone programs
+          # - ch0_full_projects: multi-file integration projects needing
+          #   specific CWD, compilers (Rust/Go), and inter-process setup
           for f in $(find . -name '*.naab' \
             -not -path './build/*' \
             -not -path './tests/*' \
@@ -85,28 +87,25 @@ jobs:
             -not -path './benchmarks/*' \
             -not -path './fuzz/*' \
             -not -path './stdlib/*' \
-            -not -name 'brain_launcher.naab' \
-            -not -name 'verify_vigilant*.naab' \
-            -not -name 'test_go_async.naab' \
+            -not -path '*/ch0_full_projects/*' \
             -type f | sort); do
 
             echo "=== Checking: $f ==="
             CHECKED=$((CHECKED + 1))
 
-            # Use the file's own govern.json if present (walk up from file dir),
-            # otherwise run without governance to avoid --require-governance error
-            FDIR=$(dirname "$f")
+            # Walk up to find govern.json; if none found, run without governance
             GOV_FLAG=""
-            while [ "$FDIR" != "." ] && [ "$FDIR" != "/" ]; do
-              if [ -f "$FDIR/govern.json" ]; then
+            SEARCH_DIR=$(dirname "$f")
+            FOUND_GOV=false
+            while [ "$SEARCH_DIR" != "." ] && [ "$SEARCH_DIR" != "/" ]; do
+              if [ -f "$SEARCH_DIR/govern.json" ]; then
+                FOUND_GOV=true
                 break
               fi
-              FDIR=$(dirname "$FDIR")
+              SEARCH_DIR=$(dirname "$SEARCH_DIR")
             done
-            if [ "$FDIR" = "." ] || [ "$FDIR" = "/" ]; then
-              if [ ! -f "./govern.json" ]; then
-                GOV_FLAG="--no-governance"
-              fi
+            if [ "$FOUND_GOV" = false ] && [ ! -f "./govern.json" ]; then
+              GOV_FLAG="--no-governance"
             fi
 
             if ! ./build/naab-lang run "$f" \

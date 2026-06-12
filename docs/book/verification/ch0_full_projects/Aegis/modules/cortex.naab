@@ -40,7 +40,7 @@ export fn race_variants(binaries, traffic_file) {
     file.write(runner_script, ruby_src)
 
     let raw_json = <<shell[runner_script]
-    ruby "$runner_script"
+    ruby $runner_script
 >>
 
     file.delete(runner_script)

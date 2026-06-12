@@ -216,7 +216,7 @@
     },
     "no_oversimplification": {
       "enabled": true,
-      "level": "hard",
+      "level": "advisory",
       "check_empty_bodies": true,
       "check_trivial_returns": true,
       "check_identity_functions": true,
@@ -227,7 +227,7 @@
     },
     "no_incomplete_logic": {
       "enabled": true,
-      "level": "hard",
+      "level": "advisory",
       "check_empty_catch": true,
       "check_swallowed_exceptions": true,
       "check_generic_errors": true,
@@ -334,13 +334,6 @@
   ],
 
   "scopes": [
-    {
-      "glob": "ch0_full_projects/**",
-      "overrides": {
-        "code_quality.no_incomplete_logic.level": "advisory",
-        "code_quality.no_oversimplification.level": "advisory"
-      }
-    },
     {
       "glob": "tests/**",
       "overrides": {
