@@ -585,7 +585,27 @@
           "min_score": 3,
           "require_branching_or_loops": false
         }
-      ]
+      ],
+      "_comment_weights": "Complexity scoring weights — control how structural features map to a 0-100 score. Presence of this section enables custom scoring (overrides SyntacticAnalyzer defaults). Omit to use defaults.",
+      "weights": {
+        "loop": 5,
+        "padding_loop": 1,
+        "nested_loops": 15,
+        "large_iterations": 20,
+        "function": 3,
+        "recursion": 10,
+        "array_ops": 5,
+        "pipeline": 3,
+        "pipeline_cap": 15,
+        "comprehension": 5,
+        "memory_alloc": 10,
+        "lifetime": 10,
+        "pointers": 15,
+        "try_catch": 5,
+        "error_propagation": 5,
+        "import": 2,
+        "external_call": 1
+      }
     },
     "intent_validation": {
       "enabled": false,

@@ -756,6 +756,30 @@ struct ComplexityFloorConfig {
     bool check_naab = true;
     bool skip_if_has_polyglot_block = true;
     std::vector<ComplexityFloorRule> rules; // Name-specific rules
+    // Complexity scoring weights — control how structural features map to score.
+    // Score = sum of (feature × weight), capped at 100. When custom_weights is true,
+    // checkComplexityFloor re-scores the profile using these values instead of the
+    // SyntacticAnalyzer defaults. Rationale for defaults documented in syntactic_analyzer.cpp.
+    struct ComplexityWeights {
+        bool custom = false;               // false = use SyntacticAnalyzer defaults
+        int loop = 5;                      // per real loop (excl. padding)
+        int padding_loop = 1;              // per padding loop (small-range, minimal credit)
+        int nested_loops = 15;             // bonus if nested loops detected
+        int large_iterations = 20;         // bonus for 1M+ iteration range
+        int function = 3;                  // per function definition
+        int recursion = 10;                // bonus for recursive calls
+        int array_ops = 5;                 // map/filter/reduce operations
+        int pipeline = 3;                  // per |> stage (capped at 5 stages = 15)
+        int pipeline_cap = 15;             // max pipeline contribution
+        int comprehension = 5;             // list/dict comprehension
+        int memory_alloc = 10;             // new/malloc
+        int lifetime = 10;                 // delete/free
+        int pointers = 15;                 // raw pointer usage
+        int try_catch = 5;                 // try/catch block
+        int error_propagation = 5;         // ? operator, Result types
+        int import = 2;                    // per imported module
+        int external_call = 1;             // per external function call
+    } weights;
 };
 
 struct DuplicateCallsConfig {

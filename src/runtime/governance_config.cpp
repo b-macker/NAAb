@@ -1243,6 +1243,27 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     prefix_rule.require_branching_or_loops = false;
                     cf.rules.push_back(std::move(prefix_rule));
                 }
+                if (val.contains("weights") && val["weights"].is_object()) {
+                    auto& w = val["weights"];
+                    cf.weights.custom = true;
+                    if (w.contains("loop")) cf.weights.loop = std::max(0, w["loop"].get<int>());
+                    if (w.contains("padding_loop")) cf.weights.padding_loop = std::max(0, w["padding_loop"].get<int>());
+                    if (w.contains("nested_loops")) cf.weights.nested_loops = std::max(0, w["nested_loops"].get<int>());
+                    if (w.contains("large_iterations")) cf.weights.large_iterations = std::max(0, w["large_iterations"].get<int>());
+                    if (w.contains("function")) cf.weights.function = std::max(0, w["function"].get<int>());
+                    if (w.contains("recursion")) cf.weights.recursion = std::max(0, w["recursion"].get<int>());
+                    if (w.contains("array_ops")) cf.weights.array_ops = std::max(0, w["array_ops"].get<int>());
+                    if (w.contains("pipeline")) cf.weights.pipeline = std::max(0, w["pipeline"].get<int>());
+                    if (w.contains("pipeline_cap")) cf.weights.pipeline_cap = std::max(0, w["pipeline_cap"].get<int>());
+                    if (w.contains("comprehension")) cf.weights.comprehension = std::max(0, w["comprehension"].get<int>());
+                    if (w.contains("memory_alloc")) cf.weights.memory_alloc = std::max(0, w["memory_alloc"].get<int>());
+                    if (w.contains("lifetime")) cf.weights.lifetime = std::max(0, w["lifetime"].get<int>());
+                    if (w.contains("pointers")) cf.weights.pointers = std::max(0, w["pointers"].get<int>());
+                    if (w.contains("try_catch")) cf.weights.try_catch = std::max(0, w["try_catch"].get<int>());
+                    if (w.contains("error_propagation")) cf.weights.error_propagation = std::max(0, w["error_propagation"].get<int>());
+                    if (w.contains("import")) cf.weights.import = std::max(0, w["import"].get<int>());
+                    if (w.contains("external_call")) cf.weights.external_call = std::max(0, w["external_call"].get<int>());
+                }
                 parseRationale(val, cf.rationale);
             }
         }

@@ -3163,6 +3163,30 @@ std::string GovernanceEngine::checkComplexityFloor(
         return "";  // Can't analyze — skip floor check
     }
 
+    // Re-score with custom weights if configured (overrides SyntacticAnalyzer defaults)
+    if (cfg.weights.custom) {
+        const auto& w = cfg.weights;
+        int score = 0;
+        int real_loops = profile.loop_count - profile.padding_loop_count;
+        score += real_loops * w.loop;
+        score += profile.padding_loop_count * w.padding_loop;
+        if (profile.has_nested_loops) score += w.nested_loops;
+        if (profile.has_large_iterations) score += w.large_iterations;
+        score += profile.function_count * w.function;
+        if (profile.has_recursion) score += w.recursion;
+        if (profile.has_array_operations) score += w.array_ops;
+        score += std::min(profile.pipeline_count * w.pipeline, w.pipeline_cap);
+        if (profile.has_comprehension) score += w.comprehension;
+        if (profile.allocates_memory) score += w.memory_alloc;
+        if (profile.manages_lifetime) score += w.lifetime;
+        if (profile.uses_pointers) score += w.pointers;
+        if (profile.has_try_catch) score += w.try_catch;
+        if (profile.propagates_errors) score += w.error_propagation;
+        score += static_cast<int>(profile.imported_modules.size()) * w.import;
+        score += profile.external_call_count * w.external_call;
+        profile.complexity_score = std::min(score, 100);
+    }
+
     // Determine which rule applies (if any)
     int required_score = cfg.min_score;
     bool require_branching = false;
