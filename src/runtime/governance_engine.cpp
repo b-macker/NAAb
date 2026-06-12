@@ -3674,16 +3674,19 @@ bool GovernanceEngine::signFile(const std::string& file_path) {
     // Try Ed25519 first (NAAB_SIGNING_KEY)
     std::string sk_pem = readSigningKey();
     if (!sk_pem.empty()) {
-        std::string b64_sig = security::CryptoUtils::ed25519Sign(content, sk_pem);
+        // Authority Decay: timestamp is included in signed content to prevent forgery.
+        // The signature covers content + ":" + timestamp, so the timestamp cannot be
+        // modified without invalidating the signature.
+        std::string timestamp_str = std::to_string(static_cast<int64_t>(std::time(nullptr)));
+        std::string signed_payload = content + ":" + timestamp_str;
+        std::string b64_sig = security::CryptoUtils::ed25519Sign(signed_payload, sk_pem);
         if (b64_sig.empty()) {
             fprintf(stderr, "[governance] Error: Ed25519 signing failed for %s\n"
                             "  Check that the signing key is a valid Ed25519 private key PEM.\n",
                     file_path.c_str());
             return false;
         }
-        // Authority Decay: append unix timestamp as metadata (not signed content)
-        sig_content = std::string(SIG_PREFIX_ED25519) + b64_sig + ":"
-                      + std::to_string(static_cast<int64_t>(std::time(nullptr)));
+        sig_content = std::string(SIG_PREFIX_ED25519) + b64_sig + ":" + timestamp_str;
     } else {
         // Legacy HMAC fallback
         const char* key = std::getenv(GOVERN_KEY_ENV);
@@ -3795,6 +3798,11 @@ bool GovernanceEngine::verifySignatureImpl(
                 return false;
             }
             bool verified = false;
+            // When timestamp is present, verify against content+timestamp (prevents forgery).
+            // Fall back to content-only verification for legacy signatures without timestamps.
+            std::string verify_payload = (signed_at > 0)
+                ? content + ":" + std::to_string(signed_at)
+                : content;
             for (const auto& [fingerprint, pem] : keys) {
                 // Reject keys added after startup (mid-execution injection)
                 if (!s_initial_fingerprints.empty() &&
@@ -3804,7 +3812,7 @@ bool GovernanceEngine::verifySignatureImpl(
                         " — rejecting.\n", fingerprint.c_str());
                     return false;
                 }
-                if (security::CryptoUtils::ed25519Verify(content, b64_sig, pem)) {
+                if (security::CryptoUtils::ed25519Verify(verify_payload, b64_sig, pem)) {
                     verified = true;
                     break;
                 }
@@ -6030,7 +6038,8 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     pulse_.entropy = ent;
 
     // Consecutive passes check (suspiciously uniform — all governance checks passing)
-    if (pulse_.consecutive_passes > 50) degradation_signals++;
+    const auto& ghcfg = rules().governance_health;
+    if (pulse_.consecutive_passes > ghcfg.consecutive_passes_suspicion) degradation_signals++;
 
     // Hysteresis: sustained degradation required (mirror circuit breaker pattern)
     if (degradation_signals >= 1) {
@@ -6040,12 +6049,12 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     }
 
     // Transition thresholds (with cooldown)
-    int cooldown = 3;
+    int cooldown = ghcfg.pulse_cooldown_turns;
     bool can_transition = (turn - pulse_.last_transition_turn) >= cooldown;
 
     PulseVerdict new_verdict = pulse_.verdict;
     if (can_transition) {
-        if (pulse_.consecutive_degraded >= 3 && degradation_signals >= 3) {
+        if (pulse_.consecutive_degraded >= ghcfg.impaired_degraded_turns && degradation_signals >= ghcfg.impaired_signal_count) {
             new_verdict = PulseVerdict::IMPAIRED;
         } else if (pulse_.consecutive_degraded >= 2 && degradation_signals >= 1) {
             new_verdict = PulseVerdict::DEGRADED;
@@ -6103,22 +6112,26 @@ void GovernanceEngine::decayAdvisoryHistory() {
 }
 
 double GovernanceEngine::computeGovernanceEntropy() const {
-    // Analyze recent check results stored in telemetry
-    // Simplified: count pass vs block outcomes from recent governance state
+    // Compute Shannon entropy over recent check result distribution.
+    // Uses the windowed check_results_ buffer (up to MAX_CHECK_RESULTS entries)
+    // instead of cumulative counters, so entropy reflects current governance
+    // health rather than approaching zero over time.
     int pass_count = 0;
     int block_count = 0;
     int advisory_count = 0;
 
-    // Use BSD + CDD state as proxy for check result distribution
-    size_t bsd_matches = sequence_detector_.totalPatternsMatched();
-    size_t bsd_events = sequence_detector_.totalEventsProcessed();
-    size_t cdd_turns = drift_analyzer_.totalTurnsAnalyzed();
-
-    if (bsd_events + cdd_turns == 0) return -1.0;  // not enough data
-
-    pass_count = static_cast<int>(bsd_events - bsd_matches + cdd_turns);
-    block_count = static_cast<int>(bsd_matches);
-    advisory_count = autonomous_actions_.load(std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        for (const auto& cr : check_results_) {
+            if (cr.passed) {
+                pass_count++;
+            } else if (cr.level == EnforcementLevel::ADVISORY && !cr.escalated) {
+                advisory_count++;
+            } else {
+                block_count++;
+            }
+        }
+    }
 
     int total = pass_count + block_count + advisory_count;
     if (total == 0) return -1.0;
@@ -6237,7 +6250,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // Factor 3: Signal density (how many CDD signals fired this turn)
             double signal_dens = std::max(0.0, std::min(1.0,
-                state->signals_fired_this_turn / 4.0));
+                state->signals_fired_this_turn / rccfg.signal_density_divisor));
 
             // Factor 4: Conversation depth
             double depth = std::max(0.0, std::min(1.0,
@@ -6251,7 +6264,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // Factor 7: Coherence acceleration (opt-in, captures accelerating decay)
             double accel_factor = std::max(0.0, std::min(1.0,
-                std::abs(state->coherence_acceleration) * 5.0));
+                std::abs(state->coherence_acceleration) * rccfg.acceleration_multiplier));
 
             // Factor 8: Codegen pressure (ratio of blocked to total codegen calls)
             double codegen_pres = 0.0;

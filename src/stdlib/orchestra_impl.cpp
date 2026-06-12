@@ -136,10 +136,12 @@ interpreter::NaabVal orchestraConsensusVote(std::vector<interpreter::NaabVal>& a
         std::transform(upper_vote.begin(), upper_vote.end(),
                       upper_vote.begin(), ::toupper);
 
-        if (upper_vote.find("APPROVED") != std::string::npos) {
+        if (upper_vote == "APPROVED") {
             approved_count++;
-        } else if (upper_vote.find("REJECTED") != std::string::npos) {
+        } else if (upper_vote == "REJECTED") {
             rejected_count++;
+        } else if (upper_vote == "REVIEW" || upper_vote == "NEEDS_WORK") {
+            review_count++;
         } else {
             review_count++;
         }

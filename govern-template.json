@@ -585,7 +585,27 @@
           "min_score": 3,
           "require_branching_or_loops": false
         }
-      ]
+      ],
+      "_comment_weights": "Complexity scoring weights — control how structural features map to a 0-100 score. Presence of this section enables custom scoring (overrides SyntacticAnalyzer defaults). Omit to use defaults.",
+      "weights": {
+        "loop": 5,
+        "padding_loop": 1,
+        "nested_loops": 15,
+        "large_iterations": 20,
+        "function": 3,
+        "recursion": 10,
+        "array_ops": 5,
+        "pipeline": 3,
+        "pipeline_cap": 15,
+        "comprehension": 5,
+        "memory_alloc": 10,
+        "lifetime": 10,
+        "pointers": 15,
+        "try_catch": 5,
+        "error_propagation": 5,
+        "import": 2,
+        "external_call": 1
+      }
     },
     "intent_validation": {
       "enabled": false,
@@ -1659,7 +1679,7 @@
     ]
   },
 
-  "_comment_context_drift": "Context Drift Detection (CDD) — monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems. Temporal trust decay: coherence erodes over time when idle (grace period configurable). Adaptive baselining: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold).",
+  "_comment_context_drift": "Context Drift Detection (CDD) — monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems. Temporal trust decay: coherence erodes over time when idle (grace period configurable). Adaptive baselining: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold). Thresholds sub-object: tunes signal detection sensitivity (velocity_drop, circular_lookback, repeated_failure_count, etc.). Reality checkpoint scaling: signal_density_divisor normalizes signals/turn, acceleration_multiplier scales coherence acceleration to [0,1].",
   "context_drift": {
     "enabled": false,
     "rationale": "Detect when agents lose alignment with their task through behavioral drift.",
@@ -1696,6 +1716,18 @@
       "capability_underutilization": 0.10,
       "semantic_stability": 0.10
     },
+    "thresholds": {
+      "velocity_drop": -0.15,
+      "circular_lookback": 3,
+      "underutilization_delay": 10,
+      "scope_creep_min_history": 3,
+      "scope_creep_min_new_types": 2,
+      "repeated_failure_count": 3,
+      "vocab_contraction_window": 6,
+      "entropy_min_initial": 0.5,
+      "entropy_contraction_ratio": 0.6,
+      "coherence_history_size": 10
+    },
     "reality_checkpoint": {
       "enabled": false,
       "rationale": "Detect sustained multi-signal pressure before any single signal crosses threshold. Composite score from coherence proximity, cumulative risk, signal density, conversation depth, and BSD partial progress.",
@@ -1704,6 +1736,8 @@
       "sustained_turns_required": 3,
       "min_turns_between_checkpoints": 5,
       "expected_conversation_depth": 20,
+      "signal_density_divisor": 4.0,
+      "acceleration_multiplier": 5.0,
       "weights": {
         "coherence_proximity": 0.35,
         "risk_score_proximity": 0.20,
@@ -1881,11 +1915,15 @@
     "rationale": "Repeated advisories harden — persistent issues must be addressed"
   },
 
-  "_comment_governance_health": "Governance Health Monitoring — verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Nuclear safety system exercising analog.",
+  "_comment_governance_health": "Governance Health Monitoring — verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Pulse thresholds: consecutive_passes_suspicion (flag if all checks pass N+ times), impaired_degraded_turns/impaired_signal_count (IMPAIRED verdict conditions), pulse_cooldown_turns (min turns between verdict transitions). Nuclear safety system exercising analog.",
   "governance_health": {
     "enabled": false,
     "check_after_turns": 10,
     "governance_entropy_warning": 0.5,
+    "consecutive_passes_suspicion": 50,
+    "impaired_degraded_turns": 3,
+    "impaired_signal_count": 3,
+    "pulse_cooldown_turns": 3,
     "rationale": "Verify governance instrumentation is operational"
   },
 

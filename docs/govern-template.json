@@ -8,6 +8,7 @@
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
 
+  "_comment_extends": "Policy inheritance — load a parent govern.json and merge its settings. Child values override parent by default. Array fields (blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write) are controlled by meta.inheritance.merge_arrays. Parent can be absolute path or relative to this file. Circular references and depth > meta.inheritance.max_depth are rejected. Parent must pass signature verification.",
   "extends": "./base-govern.json",
 
   "languages": {
@@ -120,6 +121,7 @@
     "network": {
       "enabled": true,
       "rationale": "Network access enabled for API integrations; blocked_hosts restricts cloud metadata endpoints (SSRF prevention)",
+      "_comment_reserved_network": "http_allowed, max_request_size, max_response_size are RESERVED — not yet enforced. Use allowed_hosts/blocked_hosts for access control.",
       "http_allowed": true,
       "https_only": false,
       "allowed_hosts": [],
@@ -135,6 +137,7 @@
       "allowed_paths": [],
       "blocked_paths": ["/etc/shadow", "/etc/passwd"],
       "allowed_extensions": [],
+      "_comment_blocked_extensions": "RESERVED: blocked_extensions is not yet enforced. Use blocked_paths for path-based blocking.",
       "blocked_extensions": [".exe", ".dll", ".so"],
       "max_file_size": 0,
       "max_files": 0,
@@ -149,9 +152,11 @@
       "blocked_commands": ["sudo", "su", "chmod +s"],
       "allow_pipes": true,
       "allow_redirects": true,
+      "_comment_allow_backgrounding": "RESERVED: allow_backgrounding is not yet enforced.",
       "allow_backgrounding": false,
       "max_execution_time": 0
     },
+    "_comment_env_vars": "Environment variable access control — enforced at runtime in all env.get/set/has/list functions. read=false blocks all reads (HARD). blocked_read: case-insensitive blocklist (HARD — env.get() throws, env.has() returns false, env.list()/get_all() filters). allowed_read: if non-empty, only listed vars are readable (SOFT). write=false blocks all writes (HARD). blocked_write/allowed_write: same semantics for env.set_var()/delete_var()/load_dotenv(). All four arrays participate in extends/merge_arrays inheritance.",
     "env_vars": {
       "read": true,
       "write": false,
@@ -160,23 +165,32 @@
       "allowed_write": [],
       "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
     },
+    "_comment_process": "RESERVED: process sub-keys are parsed for rationale only. Actual process control uses limits.execution and security.sandbox_level.",
     "process": {
       "spawn": true,
       "signals": false,
       "max_processes": 5,
       "allow_daemon": false
     },
+    "_comment_time": "RESERVED: time sub-keys are not yet enforced. Sleep limits use limits.timeout.per_block instead.",
     "time": {
       "allow_sleep": true,
       "max_sleep_seconds": 10,
       "allow_timers": true
     },
+    "_comment_memory": "RESERVED: memory sub-keys are not yet enforced. Memory limits use limits.memory.per_block_mb and limits.memory.total_mb instead.",
     "memory": {
       "max_allocation_mb": 512,
       "allow_mmap": false,
       "allow_shared_memory": false
     }
   },
+
+  "_comment_subprocess_env": "Subprocess Environment Scrubbing (V-SC-006-ext) — control which env vars are inherited by polyglot subprocess execution. allowlist mode: only listed vars passed. blocklist mode: all vars passed except blocked ones.",
+  "subprocess_scrub_mode": "blocklist",
+  "allowed_subprocess_vars": [],
+  "blocked_subprocess_vars": [],
+  "blocked_subprocess_prefixes": ["AWS_", "GITHUB_", "NAAB_SIGNING"],
 
   "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
   "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
@@ -193,7 +207,9 @@
       "function_returns": true,
       "for_loop_iterators": true,
       "dict_array_access": true
-    }
+    },
+    "gate_cross_block": false,
+    "cross_block_level": "soft"
   },
 
   "limits": {
@@ -326,7 +342,18 @@
       "block_base64_encode_secrets": true,
       "block_hex_encode_secrets": true,
       "block_url_encode_secrets": true,
+      "block_encoding_chains": true,
+      "block_network_exfil": true,
+      "block_socket_exfil": true,
       "max_encoded_output_length": 0
+    },
+    "vcs_secret_extraction": {
+      "enabled": false,
+      "level": "hard"
+    },
+    "obfuscation": {
+      "enabled": false,
+      "level": "hard"
     },
     "resource_abuse": {
       "enabled": true,
@@ -558,8 +585,35 @@
           "min_score": 3,
           "require_branching_or_loops": false
         }
-      ]
+      ],
+      "_comment_weights": "Complexity scoring weights — control how structural features map to a 0-100 score. Presence of this section enables custom scoring (overrides SyntacticAnalyzer defaults). Omit to use defaults.",
+      "weights": {
+        "loop": 5,
+        "padding_loop": 1,
+        "nested_loops": 15,
+        "large_iterations": 20,
+        "function": 3,
+        "recursion": 10,
+        "array_ops": 5,
+        "pipeline": 3,
+        "pipeline_cap": 15,
+        "comprehension": 5,
+        "memory_alloc": 10,
+        "lifetime": 10,
+        "pointers": 15,
+        "try_catch": 5,
+        "error_propagation": 5,
+        "import": 2,
+        "external_call": 1
+      }
     },
+    "intent_validation": {
+      "enabled": false,
+      "level": "soft",
+      "min_overlap": 0.3
+    },
+    "project_intent": "",
+    "function_intents": {},
     "encoding": {
       "enabled": true,
       "level": "advisory",
@@ -639,7 +693,23 @@
       "require_baseline": false,
       "check_body_hash": true,
       "check_param_utilization": true,
-      "min_param_utilization": 0.5
+      "min_param_utilization": 0.5,
+      "check_new_functions": false,
+      "max_function_gain": 0,
+      "check_polyglot_content": false,
+      "max_polyglot_shrink": 0.5,
+      "check_script_location": false,
+      "check_signature_presence": false,
+      "check_config_presence": false,
+      "max_comment_only_ratio": 0.8,
+      "min_complexity_baseline": 0,
+      "min_hollow_export_complexity": 3,
+      "min_lines_for_check": 3,
+      "semantic_checks": {
+        "check_api_signatures": false,
+        "check_dangerous_eval": false,
+        "check_shell_syntax": false
+      }
     }
   },
 
@@ -760,6 +830,34 @@
         "must_satisfy_args": [
           [{"severity": "high"}, {"severity": "low"}]
         ]
+      },
+
+      "_comment_v7": "v7: Arity and return value constraints",
+      "validate_input": {
+        "description": "Arity enforcement: min/max parameter count",
+        "min_arity": 1,
+        "max_arity": 3,
+        "return_type": "bool"
+      },
+      "fetch_data": {
+        "description": "Extended return constraints",
+        "return_type": "dict",
+        "return_keys": ["data", "status"],
+        "return_not_null": true,
+        "return_keys_non_null": true,
+        "return_keys_non_empty": true
+      },
+      "format_output": {
+        "description": "Length and pattern constraints on return value",
+        "return_type": "string",
+        "return_length_min": 1,
+        "return_length_max": 1000,
+        "return_matches": "^[A-Z].*\\.$"
+      },
+      "compute_bounded": {
+        "description": "Range constraint on numeric return",
+        "return_type": "float",
+        "return_range": [0.0, 100.0]
       }
     }
   },
@@ -823,6 +921,7 @@
   ],
 
   "output": {
+    "_comment_summary_reserved": "show_skipped and sort_by are RESERVED — not yet enforced.",
     "summary": {
       "enabled": true,
       "format": "detailed",
@@ -831,6 +930,7 @@
       "group_by": "category",
       "sort_by": "severity"
     },
+    "_comment_errors_reserved": "show_line_preview, show_rule_path, show_fix_suggestions, truncate_long_lines are RESERVED — not yet enforced.",
     "errors": {
       "verbose": true,
       "show_line_preview": true,
@@ -843,12 +943,14 @@
       "max_total_errors": 50,
       "truncate_long_lines": 120
     },
+    "_comment_formatting_reserved": "indent is RESERVED — not yet enforced. color, unicode_symbols, width are active.",
     "formatting": {
       "color": true,
       "unicode_symbols": true,
       "width": 80,
       "indent": 2
     },
+    "_comment_file_output_reserved": "report_csv and report_html are RESERVED — not yet implemented. Use report_json, report_sarif, or report_junit.",
     "file_output": {
       "report_json": "",
       "report_sarif": "",
@@ -900,40 +1002,103 @@
     }
   },
 
-  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking",
+  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking. Tamper evidence: HMAC-SHA256 hash chains detect retroactive modification. Forwarding: webhook_url sends events to external SIEM/observability (webhook_auth_env reads auth header from env var, e.g. 'Bearer token'). Batching and retry configurable.",
   "telemetry": {
     "enabled": false,
-    "output_file": "telemetry.jsonl"
+    "output_file": "telemetry.jsonl",
+    "tamper_evidence": {
+      "enabled": false,
+      "algorithm": "hmac-sha256",
+      "chain_genesis": "",
+      "hmac_key": "",
+      "hmac_key_env": "NAAB_TELEMETRY_HMAC_KEY"
+    },
+    "webhook_url": "",
+    "webhook_auth_header": "",
+    "webhook_auth_env": "",
+    "forward_batch_size": 10,
+    "forward_timeout_ms": 5000,
+    "forward_retry_count": 3,
+    "forward_buffer_max": 1000,
+    "forward_shutdown_drain_ms": 3000
   },
 
-  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations",
-  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). tool_use responses are blocked. Turn/token limits enforced server-side.",
+  "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND/TOOL_EXEC) restricts actions. Ratchet enforcement prevents mid-run loosening.",
+  "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). Turn/token limits enforced server-side.",
+  "_comment_agents_tools": "Tool Execution — tools_enabled (bool, default false) is the master switch. tools (string array) is the allowlist — must match agent.register_tool() names. max_tool_calls_per_turn caps invocations per agentSend(). max_tool_loop_turns caps LLM round-trips. tool_result_max_chars truncates individual results. tool_result_max_total_chars caps cumulative results. tool_timeout_seconds is per-call timeout. All tool config fields are ratchet-enforced (can tighten mid-run, cannot loosen).",
+  "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. key_retry_after_seconds enables dead key revival after cooldown (0 = never revive). rate_limit adds client-side throttling.",
   "agents": {
     "researcher": {
       "provider": "anthropic",
       "model": "claude-sonnet-4-20250514",
+      "api_key_env": "ANTHROPIC_API_KEY",
       "max_tokens": 4096,
       "system_prompt": "You are a research assistant.",
       "max_turns": 20,
       "max_total_tokens": 50000,
       "temperature": 1.0,
+      "response_format": "json",
       "tools": ["search", "read_file"],
+      "tools_enabled": false,
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 10,
+      "tool_result_max_chars": 4096,
+      "tool_result_max_total_chars": 32768,
+      "tool_timeout_seconds": 10,
       "allowed_languages": ["python"],
+      "blocked_languages": [],
       "allowed_paths": ["./src", "./data"],
       "blocked_paths": ["./secrets", "./.env"],
-      "shell_allowed": false
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": [],
+      "risk_budget": 0,
+      "standing_lease_turns": 0,
+      "standing_lease_seconds": 0,
+      "output_contract": {},
+      "retry": {
+        "max_attempts": 1,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [429, 503],
+        "skip_key_on": [401],
+        "fallback_model_on": [404, 503],
+        "never_retry": [400],
+        "key_retry_after_seconds": 0
+      },
+      "rate_limit": {
+        "requests_per_minute": 0,
+        "delay_between_calls_ms": 0
+      }
     },
     "coder": {
       "provider": "gemini",
-      "model": "gemma-3-4b-it",
-      "api_key_env": "GEMINI_API_KEY",
+      "model": ["gemma-3-4b-it", "gemini-2.5-flash"],
+      "api_key_env": ["GEMINI_API_KEY"],
       "max_tokens": 8192,
       "system_prompt": "You are a coding assistant.",
       "max_turns": 50,
       "max_total_tokens": 200000,
       "allowed_languages": ["python", "shell"],
       "allowed_paths": ["./src", "./tests"],
-      "shell_allowed": true
+      "shell_allowed": true,
+      "network_allowed": true,
+      "allowed_actions": [],
+      "risk_budget": 0,
+      "standing_lease_turns": 0,
+      "standing_lease_seconds": 0,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [429, 503],
+        "skip_key_on": [401],
+        "fallback_model_on": [404, 503],
+        "never_retry": [400],
+        "key_retry_after_seconds": 0
+      }
     }
   },
   "_comment_agents_legacy": "Legacy 'agent_roles' key is still accepted for backward compat (permissions only, no LLM config)",
@@ -949,6 +1114,7 @@
       "verify_on_load": false,
       "block_on_mismatch": false
     },
+    "_comment_inheritance": "Controls how 'extends' merges parent and child configs. merge_arrays: 'replace' (default — child array replaces parent) or 'append' (parent + child arrays concatenated with dedup). Applies to: blocked_commands, custom_rules, taint sources/sinks/sanitizers, agents, env_vars blocked_read/allowed_read/blocked_write/allowed_write. max_depth limits inheritance chain length. allow_circular is always rejected regardless of setting.",
     "inheritance": {
       "max_depth": 5,
       "merge_strategy": "child_wins",
@@ -1475,6 +1641,117 @@
     "red_threshold": 25
   },
 
+  "_comment_scorers": "Named Scorers — reusable scoring configurations for governance.scorer() introspection. Each scorer defines weights and thresholds for programmatic evaluation.",
+  "scorers": {
+    "security_review": {
+      "name": "security_review",
+      "description": "Security review scorer for governance introspection",
+      "weights": {
+        "vulnerability_count": 0.3,
+        "cvss_severity": 0.4,
+        "exploit_availability": 0.2,
+        "patch_availability": 0.1
+      },
+      "thresholds": {
+        "pass": 0.7,
+        "warn": 0.5
+      }
+    }
+  },
+
+  "_comment_governance_plugins": "Governance Plugins — custom NAAb-based governance checks loaded at runtime. Each plugin specifies a .naab file containing check functions.",
+  "governance_plugins": [],
+
+  "_comment_behavioral_sequences": "Behavioral Sequence Detection (BSD) — FSM-based multi-step attack pattern matching. Records runtime events (env reads, file I/O, network, shell exec, encoding, tool calls) into a ring buffer and advances per-pattern state machines. When all steps of a pattern match within the window, enforcement fires. wouldMatch() enables pre-execution blocking. Event types: ENV_READ, ENV_WRITE, FILE_READ, FILE_WRITE, NET_CONNECT, SHELL_EXEC, AGENT_SEND, AGENT_RESPONSE, TAINT_VIOLATION, TAINT_SANITIZED, ENCODE, DECODE, PROCESS_EXEC, CONFIG_RELOAD, CHECK_FAILED, TOOL_CALL, TOOL_RESULT, TOOL_ERROR, TOOL_BLOCKED. Default patterns (credential harvesting, sandbox probe, config tampering, progressive escalation, data staging, taint bypass, tool data exfil, tool env harvest, tool shell escape, tool rapid fire) activate when no user patterns are defined.",
+  "behavioral_sequences": {
+    "enabled": false,
+    "rationale": "Detect multi-step attack patterns that span individual governance checks.",
+    "window_size": 100,
+    "cross_agent": false,
+    "patterns": [
+      {
+        "name": "credential_harvesting",
+        "sequence": ["ENV_READ:*KEY*|*SECRET*|*TOKEN*", "NET_CONNECT"],
+        "max_gap": 5,
+        "level": "soft",
+        "rationale": "Reading credential env vars then exfiltrating over network."
+      }
+    ]
+  },
+
+  "_comment_context_drift": "Context Drift Detection (CDD) — monitors agent behavioral coherence across turns. Four signals: circular actions (same fingerprint repeats), repeated failures (same error 3+ times), scope creep (2+ new event types after warmup), intent contradictions (retrying blocked capabilities via alternative paths). Coherence score decays from 1.0; crossing threshold fires enforcement. Reality Checkpoint adds Signal 5: composite pressure from all governance subsystems. Temporal trust decay: coherence erodes over time when idle (grace period configurable). Adaptive baselining: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold). Thresholds sub-object: tunes signal detection sensitivity (velocity_drop, circular_lookback, repeated_failure_count, etc.). Reality checkpoint scaling: signal_density_divisor normalizes signals/turn, acceleration_multiplier scales coherence acceleration to [0,1].",
+  "context_drift": {
+    "enabled": false,
+    "rationale": "Detect when agents lose alignment with their task through behavioral drift.",
+    "level": "advisory",
+    "coherence_threshold": 0.5,
+    "max_contradictions": 5,
+    "check_interval_turns": 3,
+    "fingerprint_window": 10,
+    "rate_normalized": false,
+    "coherence_recovery_amount": 0.2,
+    "coherence_natural_healing": 0.0,
+    "temporal_decay_enabled": false,
+    "temporal_decay_per_minute": 0.01,
+    "temporal_decay_grace_minutes": 1.0,
+    "adaptive_baseline_enabled": false,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.0,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true,
+      "coherence_velocity": true,
+      "vocabulary_contraction": true,
+      "capability_underutilization": false,
+      "semantic_stability": false
+    },
+    "weights": {
+      "circular": 0.15,
+      "scope_creep": 0.10,
+      "contradiction": 0.20,
+      "repeated_failure": 0.10,
+      "vocabulary_contraction": 0.10,
+      "capability_underutilization": 0.10,
+      "semantic_stability": 0.10
+    },
+    "thresholds": {
+      "velocity_drop": -0.15,
+      "circular_lookback": 3,
+      "underutilization_delay": 10,
+      "scope_creep_min_history": 3,
+      "scope_creep_min_new_types": 2,
+      "repeated_failure_count": 3,
+      "vocab_contraction_window": 6,
+      "entropy_min_initial": 0.5,
+      "entropy_contraction_ratio": 0.6,
+      "coherence_history_size": 10
+    },
+    "reality_checkpoint": {
+      "enabled": false,
+      "rationale": "Detect sustained multi-signal pressure before any single signal crosses threshold. Composite score from coherence proximity, cumulative risk, signal density, conversation depth, and BSD partial progress.",
+      "level": "soft",
+      "pressure_threshold": 0.7,
+      "sustained_turns_required": 3,
+      "min_turns_between_checkpoints": 5,
+      "expected_conversation_depth": 20,
+      "signal_density_divisor": 4.0,
+      "acceleration_multiplier": 5.0,
+      "weights": {
+        "coherence_proximity": 0.35,
+        "risk_score_proximity": 0.20,
+        "signal_density": 0.25,
+        "conversation_depth": 0.10,
+        "bsd_partial_progress": 0.10,
+        "pipeline_inherited": 0.0,
+        "coherence_acceleration": 0.0,
+        "codegen_pressure": 0.0,
+        "bsd_eviction_pressure": 0.0
+      }
+    }
+  },
+
   "_comment_agent_review": "Agent Review — LLM-based governance phase. Detection agents analyze script source, validation agent filters false positives, voice agent synthesizes findings into one actionable remediation guide. Scored findings enforce at advisory/soft/hard tiers. Disabled by default. Cache uses SHA-256 of script source.",
   "agent_review": {
     "enabled": false,
@@ -1493,11 +1770,18 @@
     "fail_strategy": "fail_fast"
   },
 
-  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size and concurrency limits for I/O-bound LLM API calls.",
+  "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
   "agent_dispatch": {
     "max_concurrent": 6,
     "pool_size": 6,
-    "pool_queue_max": 50
+    "pool_queue_max": 50,
+    "hard_stop": {
+      "max_calls_per_run": 0,
+      "max_tokens_per_run": 0,
+      "max_agent_time_ms": 0,
+      "consecutive_failure_limit": 0,
+      "action": "block"
+    }
   },
 
   "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",
@@ -1571,12 +1855,18 @@
     "strict_types": false
   },
 
-  "_comment_api": "REST API server settings (naab-lang api). CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
+  "_comment_api": "REST API server settings (naab-lang api). Single key via 'key' or multi-key via 'keys' array with scoped permissions (scopes: 'run', 'scan', 'health', 'config'). TLS: set tls_cert and tls_key for HTTPS. CLI flags (--api-key, --api-timeout, --api-rate-limit, --max-body) override when present.",
   "api": {
     "key": "",
+    "keys": [
+      { "key": "", "name": "ci-runner", "scopes": ["run", "health"] },
+      { "key": "", "name": "admin", "scopes": ["run", "scan", "health", "config"] }
+    ],
     "timeout": 10,
     "rate_limit": 0,
-    "max_body": 1048576
+    "max_body": 1048576,
+    "tls_cert": "",
+    "tls_key": ""
   },
 
   "_comment_runtime_versions": "Runtime version pinning — advisory/soft/hard when version doesn't match.",
@@ -1584,6 +1874,105 @@
     { "language": "python", "required": "3.10", "level": "advisory" },
     { "language": "javascript", "required": "18", "level": "advisory" }
   ],
+
+  "_comment_exposure_tracking": "Exposure Tracking — aggregate autonomous agent action volume monitoring. max_pipeline_depth limits nested agent.pipeline() depth (0 = unlimited). checkpoint_cooldown_turns enforces mandatory pause after reality checkpoint fires (trading halt analog). min_capability_utilization requires minimum ratio of exercised/granted capabilities after utilization_check_after_turns turns.",
+  "exposure_tracking": {
+    "enabled": false,
+    "max_autonomous_actions": 50,
+    "max_unique_agents": 10,
+    "coherence_floor": 0.3,
+    "level": "advisory",
+    "max_pipeline_depth": 0,
+    "checkpoint_cooldown_turns": 0,
+    "min_capability_utilization": 0.0,
+    "utilization_check_after_turns": 10
+  },
+
+  "_comment_circuit_breaker": "Graduated Circuit Breakers — system-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained composite pressure. NYSE circuit breaker analog. ELEVATED: CDD check_interval → 1. HIGH: all ADVISORY escalate to SOFT. CRITICAL: admission denied for all agents. Step-up challenges: at configurable governance level, inject challenge prompt and score response (word count + keyword overlap). Pass recovers coherence, fail blocks send.",
+  "circuit_breaker": {
+    "enabled": false,
+    "elevated_threshold": 0.4,
+    "high_threshold": 0.6,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "critical_coherence": 0.2,
+    "step_up_enabled": false,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Before responding, restate your current objective in one sentence, then proceed.",
+    "step_up_min_words": 5,
+    "step_up_cooldown_turns": 3,
+    "step_up_keyword_threshold": 0.3,
+    "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
+  },
+
+  "_comment_advisory_escalation": "Advisory Escalation — repeated advisory findings harden over time. 1st occurrence: warn. 2nd+: increase scoring weight by multiplier. N-th (soft_after): escalate to SOFT block. OSHA violation escalation analog: informal warning → formal → citation.",
+  "advisory_escalation": {
+    "enabled": false,
+    "soft_after": 3,
+    "weight_multiplier": 1.5,
+    "rationale": "Repeated advisories harden — persistent issues must be addressed"
+  },
+
+  "_comment_governance_health": "Governance Health Monitoring — verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Pulse thresholds: consecutive_passes_suspicion (flag if all checks pass N+ times), impaired_degraded_turns/impaired_signal_count (IMPAIRED verdict conditions), pulse_cooldown_turns (min turns between verdict transitions). Nuclear safety system exercising analog.",
+  "governance_health": {
+    "enabled": false,
+    "check_after_turns": 10,
+    "governance_entropy_warning": 0.5,
+    "consecutive_passes_suspicion": 50,
+    "impaired_degraded_turns": 3,
+    "impaired_signal_count": 3,
+    "pulse_cooldown_turns": 3,
+    "rationale": "Verify governance instrumentation is operational"
+  },
+
+  "_comment_pipeline_separation": "Pipeline Separation of Duties — adjacent pipeline stages must use different agent configs. SOX separation of duties analog.",
+  "pipeline_separation": {
+    "enabled": false,
+    "level": "soft",
+    "rationale": "Adjacent pipeline stages must use different agent configs"
+  },
+
+  "_comment_temporal_coupling": "Temporal Coupling Detection — pairwise lag correlation between agent event streams. Flags when two agents show suspiciously correlated timing patterns. Front-running detection analog (financial regulation).",
+  "temporal_coupling": {
+    "enabled": false,
+    "max_correlation": 0.85,
+    "min_events": 10,
+    "rationale": "Detect suspicious inter-agent timing correlation"
+  },
+
+  "_comment_codegen": "Dynamic Code Execution — codegen.run(language, code_string) routes runtime-generated code through the same 39+ governance checks as static <<language ... >> blocks. Disabled by default. Per-call limits (size, lines, timeout), cumulative limits (calls, bytes, per-agent calls), taint policy (allow_tainted_code = false blocks LLM-generated code by default), nesting prevention, language restrictions, and stderr sanitization. Shares polyglot rate limiter and block counter with static blocks. Requires CODEGEN_EXEC in agent allowed_actions if action matrix is set.",
+  "codegen": {
+    "enabled": false,
+    "level": "hard",
+    "max_code_size_bytes": 65536,
+    "max_code_lines": 500,
+    "timeout_seconds": 15,
+    "max_cumulative_code_bytes": 524288,
+    "max_cumulative_calls": 100,
+    "max_cumulative_calls_per_agent": 20,
+    "allow_tainted_code": false,
+    "max_nesting_depth": 0,
+    "allowed_languages": [],
+    "blocked_languages": [],
+    "sanitize_stderr": true,
+    "max_stderr_chars": 2048,
+    "rationale": "Governed dynamic code execution for LLM agents"
+  },
+
+  "_comment_orchestra": "Multi-Agent Orchestration — orchestra module provides high-level agent lifecycle patterns. sequential_refinement(handles, prompt, iterations) chains agents for iterative refinement. consensus_vote(handles, artifact) collects APPROVED/REVIEW/REJECTED verdicts with configurable majority. enforce_convergence(handle, spec, max_attempts) retries with correction until output matches spec. Requires 'use orchestra' in NAAb scripts.",
+  "orchestra": {
+    "enabled": true,
+    "default_iterations": 3,
+    "default_max_attempts": 5,
+    "consensus_majority": "simple",
+    "rationale": "Multi-agent orchestration patterns for complex workflows"
+  },
+
+  "_comment_output_contract": "Agent Output Contracts — per-agent response validation. Add 'output_contract' to individual agent configs in the 'agents' section. Fields: format ('json'), required_fields (array of key names), field_types (dict of key→type: 'string'|'number'|'boolean'|'array'|'object'), regex_checks (dict of key→regex pattern). Violation emits CONTRACT_VIOLATION telemetry and throws. Example: {\"format\": \"json\", \"required_fields\": [\"severity\"], \"regex_checks\": {\"severity\": \"^(low|medium|high|critical)$\"}}",
+
+  "_comment_telemetry_events": "Agent Telemetry Event Types: AGENT_CREATE, AGENT_SEND, AGENT_RESPONSE, PROMPT_SCAN, RESPONSE_SCAN, RESPONSE_SUPPRESSED (empty response after retries), CDD_TURN, BSD_MATCH, BSD_TRANSITION, CONTRACT_VIOLATION, TOOL_EXEC, TOOL_BLOCKED, AGENT_KEY_REVIVED, PULSE_VERDICT. All events include run_id and prev_hash (tamper-evident hash chain).",
 
   "_comment_pass2": "Post-execution audit (Pass 2): runs automatically after execution. Checks polyglot output for secrets/PII, taint flow summaries, determinism analysis, cross-block data flow, and coverage. Compact one-line summary when clean; detailed report when findings exist. No configuration needed — controlled by governance being active."
 }

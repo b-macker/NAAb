@@ -756,6 +756,30 @@ struct ComplexityFloorConfig {
     bool check_naab = true;
     bool skip_if_has_polyglot_block = true;
     std::vector<ComplexityFloorRule> rules; // Name-specific rules
+    // Complexity scoring weights — control how structural features map to score.
+    // Score = sum of (feature × weight), capped at 100. When custom_weights is true,
+    // checkComplexityFloor re-scores the profile using these values instead of the
+    // SyntacticAnalyzer defaults. Rationale for defaults documented in syntactic_analyzer.cpp.
+    struct ComplexityWeights {
+        bool custom = false;               // false = use SyntacticAnalyzer defaults
+        int loop = 5;                      // per real loop (excl. padding)
+        int padding_loop = 1;              // per padding loop (small-range, minimal credit)
+        int nested_loops = 15;             // bonus if nested loops detected
+        int large_iterations = 20;         // bonus for 1M+ iteration range
+        int function = 3;                  // per function definition
+        int recursion = 10;                // bonus for recursive calls
+        int array_ops = 5;                 // map/filter/reduce operations
+        int pipeline = 3;                  // per |> stage (capped at 5 stages = 15)
+        int pipeline_cap = 15;             // max pipeline contribution
+        int comprehension = 5;             // list/dict comprehension
+        int memory_alloc = 10;             // new/malloc
+        int lifetime = 10;                 // delete/free
+        int pointers = 15;                 // raw pointer usage
+        int try_catch = 5;                 // try/catch block
+        int error_propagation = 5;         // ? operator, Result types
+        int import = 2;                    // per imported module
+        int external_call = 1;             // per external function call
+    } weights;
 };
 
 struct DuplicateCallsConfig {
@@ -1242,17 +1266,26 @@ struct ContextDriftConfig {
     bool enabled = false;
     std::string rationale;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
+    // Rationale: 0.5 = midpoint of [0,1] range — agent starts with benefit of the doubt (1.0)
+    // and must lose half its coherence before enforcement fires. Empirically, well-behaved agents
+    // rarely drop below 0.7; adversarial agents cross 0.5 within 5-8 turns.
     double coherence_threshold = 0.5;
     int max_contradictions = 5;
     int check_interval_turns = 3;
     int fingerprint_window = 20;
     bool rate_normalized = false;  // F5: scale penalties by rate (count/turns) instead of flat weight
-    double coherence_recovery_amount = 0.2;  // F15: recovery when recoverCoherence() is called
+    // Rationale: 0.2 = partial recovery (20% of full coherence). Prevents full reset after a single
+    // correct action, requiring sustained good behavior to fully recover. Analogous to credit
+    // restoration: recent good conduct helps but doesn't erase history immediately.
+    double coherence_recovery_amount = 0.2;
     double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
     // Temporal trust decay — coherence erodes over time even when idle
     bool temporal_decay_enabled = false;
-    double temporal_decay_per_minute = 0.01;    // coherence loss per minute idle
-    double temporal_decay_grace_minutes = 1.0;  // no decay within grace period
+    // Rationale: 0.01/min = 100 minutes from full coherence (1.0) to zero if completely idle.
+    // Slow enough that brief pauses don't trigger, fast enough that abandoned sessions decay
+    // within a reasonable window. Grace period prevents penalizing normal inter-turn latency.
+    double temporal_decay_per_minute = 0.01;
+    double temporal_decay_grace_minutes = 1.0;
     // Adaptive baselining — observe normal behavior before penalizing deviations
     bool adaptive_baseline_enabled = false;
     int adaptive_baseline_window = 5;           // turns to observe before penalizing
@@ -1267,16 +1300,60 @@ struct ContextDriftConfig {
         bool capability_underutilization = false; // F9: fire on sudden late capability use
         bool semantic_stability = false;       // F19: fire on content topic shift (expensive)
     } signals;
+    // Weights control how much each signal reduces coherence per occurrence.
+    // Rationale: ordered by threat severity. contradiction (0.2) is heaviest because
+    // retrying a blocked action via different paths is the strongest drift indicator.
+    // scope_creep and vocabulary_contraction (0.15) are moderate — behavioral shifts that
+    // may be legitimate exploration. circular (0.1) is lower because simple retries are
+    // common in normal operation. repeated_failure (0.05) is lightest because the same
+    // error recurring often reflects a stuck state, not malice. Sum ≈ 1.0 ensures a
+    // single turn firing all signals would roughly halve coherence from 1.0.
     struct Weights {
         double circular = 0.1;
         double scope_creep = 0.15;
         double contradiction = 0.2;
         double repeated_failure = 0.05;
         double vocabulary_contraction = 0.15;
-        double coherence_velocity = 0.12;     // F1: penalty for rapid coherence decay
-        double capability_underutilization = 0.1; // F9
-        double semantic_stability = 0.1;       // F19
+        double coherence_velocity = 0.12;     // F1: moderate — velocity drop is a derivative signal
+        double capability_underutilization = 0.1; // F9: low — may be legitimate deferred usage
+        double semantic_stability = 0.1;       // F19: low — topic shifts are common in exploration
     } weights;
+
+    // Signal detection thresholds — tune sensitivity of individual CDD signals.
+    // Rationale for each default documented inline.
+    struct Thresholds {
+        // -0.15: a 15% coherence drop in one turn. Normal turns show ≤5% variation;
+        // -0.15 is 3x normal noise, filtering jitter while catching real drops.
+        double velocity_drop = -0.15;
+        // 3 turns: same fingerprint appearing in 3 consecutive turns is a strong repeat
+        // signal. 2 would be too noisy (legitimate retry); 4+ misses fast loops.
+        int circular_lookback = 3;
+        // 10 turns: a capability unused for 10+ turns after grant suggests the agent
+        // didn't need it — possible capability hoarding. Matches the adaptive baseline
+        // window default (5 turns × 2 for margin).
+        int underutilization_delay = 10;
+        // 3 history + 2 new types: requires enough history to distinguish warmup from
+        // drift (3 turns), and multiple simultaneous new event types (2+) to avoid
+        // false-firing on normal single-capability exploration.
+        int scope_creep_min_history = 3;
+        int scope_creep_min_new_types = 2;
+        // 3 same errors: one error is normal, two could be a retry. Three identical
+        // errors indicates a stuck loop. Matches the "three strikes" heuristic used
+        // in circuit breaker patterns.
+        int repeated_failure_count = 3;
+        // 6 turns: need at least 3 turns per half-window (early vs recent) to compute
+        // meaningful Shannon entropy. Fewer turns produce unstable entropy estimates.
+        int vocab_contraction_window = 6;
+        // 0.5 initial entropy: below this the agent's vocabulary was already narrow,
+        // so further contraction is meaningless. 0.5 bits ≈ 2 roughly-equal event types.
+        // 0.6 ratio: recent entropy dropped to 60% of initial = 40% contraction, a
+        // substantial narrowing that filters normal turn-to-turn variation.
+        double entropy_min_initial = 0.5;
+        double entropy_contraction_ratio = 0.6;
+        // 10 entries: enough for velocity/acceleration smoothing over recent history
+        // without excessive memory. Matches underutilization_delay for consistency.
+        int coherence_history_size = 10;
+    } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
     struct RealityCheckpoint {
@@ -1287,17 +1364,30 @@ struct ContextDriftConfig {
         int sustained_turns_required = 3;
         int min_turns_between_checkpoints = 5;
         int expected_conversation_depth = 20;
+        // Pressure weights: 5 active factors sum to 1.0 by default. Ranked by
+        // information value: coherence_proximity (0.35) is the single best predictor
+        // of drift; signal_density (0.25) captures multi-signal convergence;
+        // risk_score (0.20) incorporates cumulative scoring; conversation_depth (0.10)
+        // and bsd_partial_progress (0.10) are weaker contextual signals.
+        // Opt-in factors (default 0.0) are domain-specific and need explicit tuning.
         struct PressureWeights {
-            double coherence_proximity = 0.35;
-            double risk_score_proximity = 0.20;
-            double signal_density = 0.25;
-            double conversation_depth = 0.10;
-            double bsd_partial_progress = 0.10;
-            double pipeline_inherited = 0.0;  // weight for inherited pressure (0 when not in pipeline)
-            double coherence_acceleration = 0.0;  // F1: weight for coherence acceleration (opt-in, Factor 7)
-            double codegen_pressure = 0.0;  // ratio of blocked to total codegen calls (opt-in)
-            double bsd_eviction_pressure = 0.0;  // ratio of evicted to total BSD events (opt-in)
+            double coherence_proximity = 0.35;   // strongest: direct coherence measurement
+            double risk_score_proximity = 0.20;  // cumulative violation weight
+            double signal_density = 0.25;        // multi-signal convergence in single turn
+            double conversation_depth = 0.10;    // longer conversations correlate with drift
+            double bsd_partial_progress = 0.10;  // behavioral sequence progress toward match
+            double pipeline_inherited = 0.0;     // opt-in: upstream pipeline stage pressure
+            double coherence_acceleration = 0.0; // opt-in: second derivative of coherence
+            double codegen_pressure = 0.0;       // opt-in: blocked/total codegen ratio
+            double bsd_eviction_pressure = 0.0;  // opt-in: evicted/total BSD event ratio
         } weights;
+        // Scaling factors for pressure normalization.
+        // 4.0: maps 4 signals/turn to pressure=1.0. Most turns fire 0-2 signals;
+        // 4+ simultaneous signals is a strong anomaly worth full pressure.
+        double signal_density_divisor = 4.0;
+        // 5.0: maps acceleration of 0.2/turn to pressure=1.0. Normal acceleration
+        // is <0.05; 0.2 = rapid coherence change worth maximum pressure.
+        double acceleration_multiplier = 5.0;
     } reality_checkpoint;
 };
 
@@ -1329,19 +1419,33 @@ enum class GovernanceLevel { NORMAL = 0, ELEVATED = 1, HIGH = 2, CRITICAL = 3 };
 struct CircuitBreakerConfig {
     bool enabled = false;
     std::string rationale;
-    double elevated_threshold = 0.4;   // composite pressure threshold for ELEVATED
-    double high_threshold = 0.6;       // for HIGH
-    double critical_threshold = 0.8;   // for CRITICAL
-    int elevated_sustained = 2;        // sustained turns for ELEVATED
-    int high_sustained = 3;            // for HIGH
-    int critical_sustained = 4;        // for CRITICAL
+    // Thresholds divide the [0,1] pressure range into 4 zones: NORMAL [0,0.4),
+    // ELEVATED [0.4,0.6), HIGH [0.6,0.8), CRITICAL [0.8,1.0]. Roughly equal-width
+    // bands above 0.4, with NORMAL getting a wider "safe" zone to reduce chatter.
+    double elevated_threshold = 0.4;
+    double high_threshold = 0.6;
+    double critical_threshold = 0.8;
+    // Sustained turns required increase with severity: 2→3→4. Higher levels need
+    // more evidence before escalating — reducing false positives at the cost of
+    // slightly slower response to genuine threats. Mirrors hysteresis in physical
+    // circuit breakers (higher current requires longer sustained duration to trip).
+    int elevated_sustained = 2;
+    int high_sustained = 3;
+    int critical_sustained = 4;
     // Step-up challenge at elevated governance levels
     bool step_up_enabled = false;
-    std::string step_up_at_level = "elevated"; // "elevated" or "high"
+    std::string step_up_at_level = "elevated";
     std::string step_up_challenge = "Before responding, restate your current objective in one sentence, then proceed.";
+    // 5 words: minimum response length to ensure the agent actually restates its
+    // objective rather than giving a trivial "OK" response.
     int step_up_min_words = 5;
+    // 3 turns cooldown: prevents challenge fatigue — too frequent challenges degrade
+    // agent performance. Matches pulse cooldown for consistency.
     int step_up_cooldown_turns = 3;
-    double step_up_keyword_threshold = 0.3; // min fraction of system_prompt keywords in response
+    // 0.3 = 30% keyword overlap: the agent's challenge response must contain at least
+    // 30% of the system_prompt's key terms. Low enough to allow paraphrasing, high
+    // enough to catch completely unrelated responses.
+    double step_up_keyword_threshold = 0.3;
 };
 
 // Advisory Escalation — repeated advisories harden over time
@@ -1350,8 +1454,14 @@ struct CircuitBreakerConfig {
 struct AdvisoryEscalationConfig {
     bool enabled = false;
     std::string rationale;
-    int soft_after = 3;                   // escalate to SOFT after N occurrences of same rule
-    double weight_multiplier = 1.5;       // multiply scoring weight on 2nd+ occurrence
+    // 3 occurrences: mirrors "three strikes" enforcement pattern (OSHA progressive
+    // discipline). First advisory is informational, second shows persistence, third
+    // demonstrates the agent is ignoring warnings — warranting escalation to SOFT block.
+    int soft_after = 3;
+    // 1.5x multiplier: moderate weight increase on repeated advisories. Additive with
+    // each occurrence (2nd = 1.5x, 3rd = 1.5x again before SOFT escalation). Increases
+    // cumulative risk score pressure without immediately blocking.
+    double weight_multiplier = 1.5;
 };
 
 // F4: Governance Health — verify governance instrumentation is operational
@@ -1360,6 +1470,20 @@ struct GovernanceHealthConfig {
     std::string rationale;
     int check_after_turns = 10;           // begin checking after N agent turns
     double governance_entropy_warning = 0.5;  // F16: low entropy in check results = suspicious
+    // Pulse verdict thresholds — control when governance self-health transitions.
+    // 50 consecutive passes: a well-functioning governance system should occasionally
+    // fire advisories. 50+ consecutive passes with zero findings suggests governance
+    // is being bypassed or not instrumenting correctly. Conservative threshold to
+    // avoid false alarms during short, well-behaved conversations.
+    int consecutive_passes_suspicion = 50;
+    // 3 degraded turns + 3 signals: IMPAIRED requires sustained multi-signal
+    // degradation, not a single bad turn. Mirrors circuit breaker hysteresis —
+    // the system must be consistently unhealthy, not just momentarily stressed.
+    int impaired_degraded_turns = 3;
+    int impaired_signal_count = 3;
+    // 3 turns cooldown: prevents rapid oscillation between verdict levels.
+    // Matches circuit breaker cooldown for behavioral consistency.
+    int pulse_cooldown_turns = 3;
 };
 
 // Governance Pulse — real-time self-assessment of governance health
