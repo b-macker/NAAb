@@ -1166,8 +1166,25 @@ std::shared_ptr<Type> TypeChecker::parseTypeAnnotation(const std::string& annota
     if (annotation == "string") return Type::makeString();
     if (annotation == "void") return Type::makeVoid();
 
-    // TODO: Parse list<T>, dict<K,V>, function types
-    // For now, treat unknown types as Any
+    // Basic generic type parsing for list<T> and dict<K,V>
+    if (annotation.size() > 5 && annotation.substr(0, 5) == "list<" && annotation.back() == '>') {
+        auto inner = annotation.substr(5, annotation.size() - 6);
+        return Type::makeList(parseTypeAnnotation(inner));
+    }
+    if (annotation.size() > 5 && annotation.substr(0, 5) == "dict<" && annotation.back() == '>') {
+        auto inner = annotation.substr(5, annotation.size() - 6);
+        auto comma = inner.find(',');
+        if (comma != std::string::npos) {
+            auto key_str = inner.substr(0, comma);
+            auto val_str = inner.substr(comma + 1);
+            // Trim whitespace
+            while (!key_str.empty() && key_str.back() == ' ') key_str.pop_back();
+            while (!val_str.empty() && val_str.front() == ' ') val_str.erase(val_str.begin());
+            return Type::makeDict(parseTypeAnnotation(key_str), parseTypeAnnotation(val_str));
+        }
+    }
+
+    // Unknown types fall back to Any
     return Type::makeAny();
 }
 

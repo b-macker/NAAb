@@ -210,7 +210,7 @@ std::optional<std::string> ComprehensiveTaskDetector::generateSuggestedCode(
     const std::string& to_lang,
     TaskIntent task
 ) const {
-    // Generate simple transformation examples
+    // Generate idiomatic starter templates per task intent — not transpilation
     std::ostringstream suggestion;
 
     suggestion << "// Suggested " << to_lang << " equivalent:\n";

@@ -137,7 +137,7 @@ std::vector<TaskIntent> SemanticAnalyzer::inferSecondaryIntents(
         }
     }
 
-    // Sort by token count (descending)
+    // Sort by enum ordinal (for dedup via std::unique)
     std::sort(intents.begin(), intents.end());
 
     // Remove duplicates

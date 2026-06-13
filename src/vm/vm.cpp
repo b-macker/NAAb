@@ -3303,7 +3303,7 @@ interpreter::NaabVal VM::run() {
                     int gov_line = CURRENT_CHUNK().getLine(
                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                     std::string terr = governance_->checkTaintedSink(
-                        var_name, "assignment", current_file_, gov_line);
+                        var_name, "variable.assign", current_file_, gov_line);
                     if (!terr.empty()) runtimeError("%s", terr.c_str());
                 }
             }

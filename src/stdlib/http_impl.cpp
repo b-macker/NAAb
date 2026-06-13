@@ -9,6 +9,8 @@
 #include <fmt/core.h>
 #include <stdexcept>
 #include <sstream>
+#include <arpa/inet.h>
+#include <cstring>
 
 namespace naab {
 namespace stdlib {
@@ -16,6 +18,62 @@ namespace stdlib {
 // ============================================================================
 // HTTP Module Implementation using libcurl
 // ============================================================================
+
+// M-13: SSRF protection — block requests to private/reserved IP ranges
+static bool isPrivateHost(const std::string& host) {
+    // Check common private hostnames
+    if (host == "localhost" || host == "localhost.localdomain") return true;
+
+    // Try parsing as IPv4
+    struct in_addr addr4;
+    if (inet_pton(AF_INET, host.c_str(), &addr4) == 1) {
+        uint32_t ip = ntohl(addr4.s_addr);
+        // 127.0.0.0/8 — loopback
+        if ((ip >> 24) == 127) return true;
+        // 10.0.0.0/8 — RFC1918
+        if ((ip >> 24) == 10) return true;
+        // 172.16.0.0/12 — RFC1918
+        if ((ip >> 20) == (172 << 4 | 1)) return true;
+        // 192.168.0.0/16 — RFC1918
+        if ((ip >> 16) == (192 << 8 | 168)) return true;
+        // 169.254.0.0/16 — link-local (cloud metadata)
+        if ((ip >> 16) == (169 << 8 | 254)) return true;
+        // 0.0.0.0/8 — "this" network
+        if ((ip >> 24) == 0) return true;
+        return false;
+    }
+
+    // Try parsing as IPv6
+    struct in6_addr addr6;
+    if (inet_pton(AF_INET6, host.c_str(), &addr6) == 1) {
+        // ::1 — loopback
+        static const uint8_t loopback[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+        if (std::memcmp(&addr6, loopback, 16) == 0) return true;
+        // :: — unspecified
+        static const uint8_t unspec[16] = {0};
+        if (std::memcmp(&addr6, unspec, 16) == 0) return true;
+        // fe80::/10 — link-local
+        if (addr6.s6_addr[0] == 0xfe && (addr6.s6_addr[1] & 0xc0) == 0x80) return true;
+        // fc00::/7 — unique local
+        if ((addr6.s6_addr[0] & 0xfe) == 0xfc) return true;
+        // ::ffff:0:0/96 — IPv4-mapped (check the embedded IPv4)
+        static const uint8_t v4mapped_prefix[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
+        if (std::memcmp(&addr6, v4mapped_prefix, 12) == 0) {
+            uint32_t ip = (static_cast<uint32_t>(addr6.s6_addr[12]) << 24) |
+                          (static_cast<uint32_t>(addr6.s6_addr[13]) << 16) |
+                          (static_cast<uint32_t>(addr6.s6_addr[14]) << 8) |
+                           static_cast<uint32_t>(addr6.s6_addr[15]);
+            if ((ip >> 24) == 127 || (ip >> 24) == 10 ||
+                (ip >> 20) == (172 << 4 | 1) ||
+                (ip >> 16) == (192 << 8 | 168) ||
+                (ip >> 16) == (169 << 8 | 254) ||
+                (ip >> 24) == 0) return true;
+        }
+        return false;
+    }
+
+    return false;
+}
 
 // V-DOS-010: Maximum HTTP response size (25 MB)
 static constexpr size_t MAX_HTTP_RESPONSE_BYTES = 25 * 1024 * 1024;
@@ -108,6 +166,18 @@ interpreter::NaabVal performRequest(
             } else {
                 port = (url.substr(0, 5) == "https") ? 443 : 80;
             }
+        }
+
+        // M-13: SSRF defense-in-depth — block private/reserved IPs
+        if (!host.empty() && isPrivateHost(host)) {
+            sandbox->logViolation("http." + method, url, "SSRF: private/reserved IP blocked");
+            throw std::runtime_error(
+                "Security: HTTP request to private network denied\n\n"
+                "  URL: " + url + "\n"
+                "  Host: " + host + "\n\n"
+                "  Requests to private, loopback, and link-local addresses are blocked\n"
+                "  to prevent server-side request forgery (SSRF).\n"
+            );
         }
 
         if (!host.empty() && !sandbox->canConnect(host, port)) {

@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <random>
 #include <algorithm>
 #include <memory>
 #include <vector>
@@ -185,23 +186,21 @@ interpreter::NaabVal MathModule::call(
         // math.random() — returns a random float in [0.0, 1.0)
         // math.random(max) — returns a random int in [0, max)
         // math.random(min, max) — returns a random int in [min, max)
-        static bool seeded = false;
-        if (!seeded) {
-            srand(static_cast<unsigned>(time(nullptr)));
-            seeded = true;
-        }
+        static thread_local std::mt19937 rng(std::random_device{}());
         if (args.empty()) {
-            return interpreter::NaabVal::makeDouble(
-                static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1.0));
+            std::uniform_real_distribution<double> dist(0.0, 1.0);
+            return interpreter::NaabVal::makeDouble(dist(rng));
         } else if (args.size() == 1) {
             int max_val = static_cast<int>(getDouble(args[0]));
             if (max_val <= 0) return interpreter::NaabVal::makeInt(0);
-            return interpreter::NaabVal::makeInt(rand() % max_val);
+            std::uniform_int_distribution<int> dist(0, max_val - 1);
+            return interpreter::NaabVal::makeInt(dist(rng));
         } else {
             int min_val = static_cast<int>(getDouble(args[0]));
             int max_val = static_cast<int>(getDouble(args[1]));
             if (max_val <= min_val) return interpreter::NaabVal::makeInt(min_val);
-            return interpreter::NaabVal::makeInt(min_val + (rand() % (max_val - min_val)));
+            std::uniform_int_distribution<int> dist(min_val, max_val - 1);
+            return interpreter::NaabVal::makeInt(dist(rng));
         }
     }
     if (function_name == "sum" || function_name == "avg" || function_name == "average" || function_name == "mean") {

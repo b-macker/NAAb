@@ -215,17 +215,6 @@ void NaabVal::release() {
     }
 }
 
-void NaabVal::enterAsyncVM() {
-    // No-op: thread-local allocators eliminate cross-thread handle reuse
-}
-
-void NaabVal::exitAsyncVM() {
-    // No-op: thread-local allocators eliminate cross-thread handle reuse
-}
-
-void NaabVal::flushDeferredFrees() {
-    // No-op: thread-local allocators handle recycling per-thread
-}
 
 // ============================================================================
 // Heap type factories

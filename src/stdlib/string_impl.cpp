@@ -43,7 +43,7 @@ interpreter::NaabVal StringModule::call(
     const std::string& function_name,
     std::vector<interpreter::NaabVal>& args) {
 
-    // Function 1: length
+    // Function 1: length (returns byte count, not Unicode codepoint count)
     if (function_name == "length") {
         if (args.size() != 1) {
             throw std::runtime_error("length() takes exactly 1 argument");

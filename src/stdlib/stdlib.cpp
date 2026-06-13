@@ -339,9 +339,10 @@ interpreter::NaabVal CollectionsModule::set_add(
     }
     const auto& vec = set_value.asListConst();
 
-    // Check if value already exists (ensure uniqueness)
+    // Check if value already exists (type-aware uniqueness: int 1 != string "1")
+    std::string new_key = new_value.getTypeName() + ":" + new_value.toString();
     for (const auto& item : vec) {
-        if (item.toString() == new_value.toString()) {
+        if (item.getTypeName() + ":" + item.toString() == new_key) {
             return set_value;
         }
     }
@@ -367,9 +368,9 @@ interpreter::NaabVal CollectionsModule::set_contains(
         throw std::runtime_error("set_contains: first argument must be a set");
     }
 
-    std::string search_str = search_value.toString();
+    std::string search_key = search_value.getTypeName() + ":" + search_value.toString();
     for (const auto& item : set_value.asListConst()) {
-        if (item.toString() == search_str) {
+        if (item.getTypeName() + ":" + item.toString() == search_key) {
             return interpreter::NaabVal::makeBool(true);
         }
     }
@@ -392,10 +393,10 @@ interpreter::NaabVal CollectionsModule::set_remove(
     }
 
     std::vector<interpreter::NaabVal> new_set;
-    std::string remove_str = remove_value.toString();
+    std::string remove_key = remove_value.getTypeName() + ":" + remove_value.toString();
 
     for (const auto& item : set_value.asListConst()) {
-        if (item.toString() != remove_str) {
+        if (item.getTypeName() + ":" + item.toString() != remove_key) {
             new_set.push_back(item);
         }
     }
