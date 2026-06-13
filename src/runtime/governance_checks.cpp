@@ -205,6 +205,11 @@ static std::string normalizeUnicode(const std::string& code) {
             // U+00AD SOFT HYPHEN
             if (cp == 0x00AD) { i += 1; continue; }
 
+            // Superscript digits in Latin-1 Supplement
+            if (cp == 0x00B2) { result += '2'; i += 1; continue; } // ²
+            if (cp == 0x00B3) { result += '3'; i += 1; continue; } // ³
+            if (cp == 0x00B9) { result += '1'; i += 1; continue; } // ¹
+
             // Cyrillic confusables (U+0400-U+04FF)
             char replacement = 0;
             switch (cp) {
@@ -268,6 +273,46 @@ static std::string normalizeUnicode(const std::string& code) {
                 cp == 0x2060 || cp == 0xFEFF) {                 // Word Joiner, BOM
                 i += 2;
                 continue;
+            }
+
+            // Superscript letters/digits (U+2070-U+207F)
+            // U+2070=⁰, U+00B9=¹ (2-byte), U+00B2=² (2-byte), U+00B3=³ (2-byte)
+            // U+2074=⁴, U+2075=⁵, U+2076=⁶, U+2077=⁷, U+2078=⁸, U+2079=⁹
+            // U+207F=ⁿ
+            if (cp >= 0x2074 && cp <= 0x2079) {
+                result += static_cast<char>('0' + (cp - 0x2070));
+                i += 2; continue;
+            }
+            if (cp == 0x2070) { result += '0'; i += 2; continue; }
+            if (cp == 0x207F) { result += 'n'; i += 2; continue; }
+
+            // Subscript letters/digits (U+2080-U+209C)
+            // U+2080=₀..U+2089=₉, U+2090=ₐ, U+2091=ₑ, U+2092=ₒ,
+            // U+2093=ₓ, U+2094=ₔ, U+2095=ₕ, U+2096=ₖ, U+2097=ₗ,
+            // U+2098=ₘ, U+2099=ₙ, U+209A=ₚ, U+209B=ₛ, U+209C=ₜ
+            if (cp >= 0x2080 && cp <= 0x2089) {
+                result += static_cast<char>('0' + (cp - 0x2080));
+                i += 2; continue;
+            }
+            {
+                char sub_rep = 0;
+                switch (cp) {
+                    case 0x2090: sub_rep = 'a'; break; // ₐ
+                    case 0x2091: sub_rep = 'e'; break; // ₑ
+                    case 0x2092: sub_rep = 'o'; break; // ₒ
+                    case 0x2093: sub_rep = 'x'; break; // ₓ
+                    case 0x2094: sub_rep = 'e'; break; // ₔ (schwa → e)
+                    case 0x2095: sub_rep = 'h'; break; // ₕ
+                    case 0x2096: sub_rep = 'k'; break; // ₖ
+                    case 0x2097: sub_rep = 'l'; break; // ₗ
+                    case 0x2098: sub_rep = 'm'; break; // ₘ
+                    case 0x2099: sub_rep = 'n'; break; // ₙ
+                    case 0x209A: sub_rep = 'p'; break; // ₚ
+                    case 0x209B: sub_rep = 's'; break; // ₛ
+                    case 0x209C: sub_rep = 't'; break; // ₜ
+                    default: break;
+                }
+                if (sub_rep) { result += sub_rep; i += 2; continue; }
             }
 
             // Fullwidth Latin letters (U+FF21-FF3A = A-Z, U+FF41-FF5A = a-z)
@@ -5276,6 +5321,9 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
             pats.push_back("os\\.system\\s*\\(");
             pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call)\\s*\\(");
             pats.push_back("ctypes\\.(?:CDLL|cdll)\\s*\\(");
+            // Block dangerous imports (bare import grants access to system calls)
+            pats.push_back("\\bimport\\s+(?:os|subprocess|shutil|ctypes|pty|commands)\\b");
+            pats.push_back("\\bfrom\\s+(?:os|subprocess|shutil|ctypes|pty|commands)\\b");
         } else if (language == "go" || language == "golang") {
             pats.push_back("exec\\.Command\\s*\\(");
         } else if (language == "rust") {

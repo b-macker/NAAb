@@ -499,17 +499,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     }
 
     // --- V3.0 Expanded Sections ---
-    if (j.contains("version"))
+    if (j.contains("version") && j["version"].is_string())
         rules_.version = j["version"].get<std::string>();
-    if (j.contains("extends"))
+    if (j.contains("extends") && j["extends"].is_string())
         rules_.extends_path = j["extends"].get<std::string>();
-    if (j.contains("description"))
+    if (j.contains("description") && j["description"].is_string())
         rules_.description = j["description"].get<std::string>();
 
     // V3 Languages: per_language configs
     if (j.contains("languages") && j["languages"].is_object()) {
         auto& lang = j["languages"];
-        if (lang.contains("require_explicit")) {
+        if (lang.contains("require_explicit") && lang["require_explicit"].is_boolean()) {
             rules_.languages.require_explicit = lang["require_explicit"].get<bool>(); rules_.explicitly_set.insert("languages.require_explicit"); }
 
         // Sync to new struct too
@@ -519,10 +519,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (lang.contains("per_language") && lang["per_language"].is_object()) {
             for (auto& [lang_name, cfg] : lang["per_language"].items()) {
                 LanguageConfig lc;
-                if (cfg.contains("timeout")) lc.timeout = cfg["timeout"].get<int>();
-                if (cfg.contains("max_lines")) lc.max_lines = cfg["max_lines"].get<int>();
-                if (cfg.contains("max_output_size")) lc.max_output_size = cfg["max_output_size"].get<int>();
-                if (cfg.contains("version_hint")) lc.version_hint = cfg["version_hint"].get<std::string>();
+                if (cfg.contains("timeout") && cfg["timeout"].is_number_integer()) lc.timeout = cfg["timeout"].get<int>();
+                if (cfg.contains("max_lines") && cfg["max_lines"].is_number_integer()) lc.max_lines = cfg["max_lines"].get<int>();
+                if (cfg.contains("max_output_size") && cfg["max_output_size"].is_number_integer()) lc.max_output_size = cfg["max_output_size"].get<int>();
+                if (cfg.contains("version_hint") && cfg["version_hint"].is_string()) lc.version_hint = cfg["version_hint"].get<std::string>();
 
                 if (cfg.contains("dangerous_calls")) {
                     auto [en, lv] = parseEnforcementLevel(cfg["dangerous_calls"]);
@@ -555,7 +555,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
                 if (cfg.contains("imports") && cfg["imports"].is_object()) {
                     auto& imp = cfg["imports"];
-                    if (imp.contains("mode")) lc.imports.mode = imp["mode"].get<std::string>();
+                    if (imp.contains("mode") && imp["mode"].is_string()) lc.imports.mode = imp["mode"].get<std::string>();
                     if (imp.contains("blocked"))
                         for (auto& b : imp["blocked"]) lc.imports.blocked.push_back(b.get<std::string>());
                     if (imp.contains("allowed"))
