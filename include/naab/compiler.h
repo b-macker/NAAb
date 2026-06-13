@@ -40,6 +40,10 @@ public:
     // If non-empty, importModule() should only expose these names.
     const std::unordered_set<std::string>& getExportedNames() const { return exported_names_; }
 
+    // Names created by `import "..." as name` or `use name` — module import bindings
+    // that exported functions may reference. Must pass through the export filter.
+    const std::unordered_set<std::string>& getModuleImportBindings() const { return module_import_bindings_; }
+
 private:
     // Nested compiler state (one per function scope)
     struct CompilerState {
@@ -79,6 +83,9 @@ private:
 
     // Names explicitly exported by the module (populated during visit(ExportStmt))
     std::unordered_set<std::string> exported_names_;
+
+    // Module import bindings (populated during visit(ImportStmt) / visit(ModuleUseStmt))
+    std::unordered_set<std::string> module_import_bindings_;
 
     // Pre-flight taint analysis: track statically-tainted variables at compile time
     // Mirrors tree-walker's expressionContainsTaint() for static analysis

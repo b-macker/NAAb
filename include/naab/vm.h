@@ -394,8 +394,10 @@ private:
     // Globals
     std::unordered_map<std::string, interpreter::NaabVal> globals_;
 
-    // Module cache
+    // Module cache: all user-defined globals (for merging into caller scope)
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_cache_;
+    // Public API cache: only exported names (for module dict access via mod.func())
+    std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_public_api_;
     // naab-29 D-03: Circular import detection — shared between parent/child VMs
     std::shared_ptr<std::unordered_set<std::string>> modules_executing_ = std::make_shared<std::unordered_set<std::string>>();
     // Keep compiled functions alive so VMClosure pointers remain valid after module compilation

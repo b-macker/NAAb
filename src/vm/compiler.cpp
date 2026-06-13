@@ -1448,6 +1448,7 @@ void Compiler::visit(ast::ImportStmt& node) {
     if (node.isWildcard()) {
         // import * from "module" — import all names
         if (!node.getWildcardAlias().empty()) {
+            module_import_bindings_.insert(node.getWildcardAlias());
             int alias_idx = identifierConstant(node.getWildcardAlias());
             emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(alias_idx), line);
         } else {
@@ -1598,6 +1599,7 @@ void Compiler::visit(ast::ModuleUseStmt& node) {
         for (auto& c : file_path) {
             if (c == '.') c = '/';
         }
+        module_import_bindings_.insert(bind_name);
         int path_idx = makeConstant(interpreter::NaabVal::makeString(file_path));
         emitWide(OpCode::OP_IMPORT, static_cast<uint32_t>(path_idx), line);
         // Define the module dict as a global with the bind name
