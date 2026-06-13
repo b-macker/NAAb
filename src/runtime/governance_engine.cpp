@@ -4090,6 +4090,15 @@ std::string GovernanceEngine::checkDriftDetection(
     auto& prev = baseline["files"][key];
     std::vector<std::string> violations;
 
+    // Deferred Gate 0 enforcement — collect all basic metric violations
+    // before calling enforce(), so informational messages (specific deleted
+    // function/export names) print before the first GovernanceHardError.
+    struct DeferredEnforce {
+        std::string rule_name;
+        std::string message;
+    };
+    std::vector<DeferredEnforce> deferred_gate0;
+
     // Helper: check metric loss
     auto checkLoss = [&](const char* name, int current_val, const char* json_key,
                          double max_loss) {
@@ -4105,7 +4114,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 "  Only the project owner (with signing key) can re-baseline after authorized changes.",
                 name, loss * 100.0, baseline_val, current_val, max_loss * 100.0, name);
             violations.push_back(msg);
-            enforce(std::string("drift_detection.") + name, cfg.level, msg);
+            deferred_gate0.push_back({std::string("drift_detection.") + name, msg});
         } else {
             recordPass(std::string("drift_detection.") + name, cfg.level);
         }
@@ -4132,7 +4141,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 name, gain * 100.0, baseline_val, current_val, max_gain * 100.0,
                 baseline_val, name);
             violations.push_back(msg);
-            enforce("drift_detection.function_gain", cfg.level, msg);
+            deferred_gate0.push_back({"drift_detection.function_gain", msg});
         }
     };
     checkGain("functions", current.functions, "functions", cfg.max_function_gain);
@@ -4161,6 +4170,21 @@ std::string GovernanceEngine::checkDriftDetection(
                 fprintf(stderr, "[governance] %s\n", msg.c_str());
             }
         }
+    }
+
+    // Print all Gate 0 violation summaries before enforcing, so the user
+    // sees every metric that regressed (not just the first one that kills
+    // the process via GovernanceHardError).
+    if (deferred_gate0.size() > 1) {
+        for (const auto& d : deferred_gate0) {
+            std::string first_line = d.message.substr(0, d.message.find('\n'));
+            fprintf(stderr, "[governance] %s\n", first_line.c_str());
+        }
+    }
+
+    // Now fire enforcement — the first HARD-level violation will throw.
+    for (const auto& d : deferred_gate0) {
+        enforce(d.rule_name, cfg.level, d.message);
     }
 
     // Gate 1: Signature stability — param count per function

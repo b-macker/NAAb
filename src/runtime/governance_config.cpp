@@ -217,53 +217,53 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Governance behavior settings (govern.json alternative to CLI flags)
     if (j.contains("governance") && j["governance"].is_object()) {
         auto& gov = j["governance"];
-        if (gov.contains("verbose")) rules_.verbose = gov["verbose"].get<bool>();
-        if (gov.contains("dashboard")) rules_.dashboard = gov["dashboard"].get<bool>();
-        if (gov.contains("baseline_save")) rules_.baseline_save = gov["baseline_save"].get<bool>();
-        if (gov.contains("override")) rules_.allow_override = gov["override"].get<bool>();
-        if (gov.contains("lint_only")) rules_.lint_only_config = gov["lint_only"].get<bool>();
-        if (gov.contains("record_baselines")) rules_.record_baselines = gov["record_baselines"].get<bool>();
-        if (gov.contains("check_baselines")) rules_.check_baselines = gov["check_baselines"].get<bool>();
-        if (gov.contains("quiet")) rules_.quiet_config = gov["quiet"].get<bool>();
-        if (gov.contains("no_color")) rules_.no_color_config = gov["no_color"].get<bool>();
+        if (gov.contains("verbose") && gov["verbose"].is_boolean()) rules_.verbose = gov["verbose"].get<bool>();
+        if (gov.contains("dashboard") && gov["dashboard"].is_boolean()) rules_.dashboard = gov["dashboard"].get<bool>();
+        if (gov.contains("baseline_save") && gov["baseline_save"].is_boolean()) rules_.baseline_save = gov["baseline_save"].get<bool>();
+        if (gov.contains("override") && gov["override"].is_boolean()) rules_.allow_override = gov["override"].get<bool>();
+        if (gov.contains("lint_only") && gov["lint_only"].is_boolean()) rules_.lint_only_config = gov["lint_only"].get<bool>();
+        if (gov.contains("record_baselines") && gov["record_baselines"].is_boolean()) rules_.record_baselines = gov["record_baselines"].get<bool>();
+        if (gov.contains("check_baselines") && gov["check_baselines"].is_boolean()) rules_.check_baselines = gov["check_baselines"].get<bool>();
+        if (gov.contains("quiet") && gov["quiet"].is_boolean()) rules_.quiet_config = gov["quiet"].get<bool>();
+        if (gov.contains("no_color") && gov["no_color"].is_boolean()) rules_.no_color_config = gov["no_color"].get<bool>();
         if (gov.contains("report_json")) rules_.report_json = gov["report_json"].get<std::string>();
         if (gov.contains("report_sarif")) rules_.report_sarif = gov["report_sarif"].get<std::string>();
         if (gov.contains("report_junit")) rules_.report_junit = gov["report_junit"].get<std::string>();
         if (gov.contains("telemetry")) rules_.telemetry_path = gov["telemetry"].get<std::string>();
         if (gov.contains("agent_id")) rules_.agent_id_config = gov["agent_id"].get<std::string>();
         if (gov.contains("default_env")) rules_.default_env = gov["default_env"].get<std::string>();
-        if (gov.contains("strict_types")) rules_.strict_types_config = gov["strict_types"].get<bool>();
-        if (gov.contains("gc_threshold")) rules_.runtime.gc_threshold = gov["gc_threshold"].get<size_t>();
-        if (gov.contains("gc_stats")) rules_.runtime.gc_stats = gov["gc_stats"].get<bool>();
+        if (gov.contains("strict_types") && gov["strict_types"].is_boolean()) rules_.strict_types_config = gov["strict_types"].get<bool>();
+        if (gov.contains("gc_threshold") && gov["gc_threshold"].is_number_unsigned()) rules_.runtime.gc_threshold = gov["gc_threshold"].get<size_t>();
+        if (gov.contains("gc_stats") && gov["gc_stats"].is_boolean()) rules_.runtime.gc_stats = gov["gc_stats"].get<bool>();
         if (gov.contains("sandbox_level")) rules_.sandbox_level_config = gov["sandbox_level"].get<std::string>();
-        if (gov.contains("explanations")) rules_.explanations_enabled = gov["explanations"].get<bool>();
-        if (gov.contains("require_override_reason")) rules_.require_override_reason = gov["require_override_reason"].get<bool>();
+        if (gov.contains("explanations") && gov["explanations"].is_boolean()) rules_.explanations_enabled = gov["explanations"].get<bool>();
+        if (gov.contains("require_override_reason") && gov["require_override_reason"].is_boolean()) rules_.require_override_reason = gov["require_override_reason"].get<bool>();
     }
 
     // Runtime limits section
     if (j.contains("runtime") && j["runtime"].is_object()) {
         auto& rt = j["runtime"];
-        if (rt.contains("timeout")) rules_.runtime.timeout = rt["timeout"].get<int>();
-        if (rt.contains("memory_limit")) rules_.runtime.memory_limit = rt["memory_limit"].get<size_t>();
-        if (rt.contains("gc_threshold")) rules_.runtime.gc_threshold = rt["gc_threshold"].get<size_t>();
-        if (rt.contains("gc_stats")) rules_.runtime.gc_stats = rt["gc_stats"].get<bool>();
+        if (rt.contains("timeout") && rt["timeout"].is_number_integer()) rules_.runtime.timeout = rt["timeout"].get<int>();
+        if (rt.contains("memory_limit") && rt["memory_limit"].is_number_unsigned()) rules_.runtime.memory_limit = rt["memory_limit"].get<size_t>();
+        if (rt.contains("gc_threshold") && rt["gc_threshold"].is_number_unsigned()) rules_.runtime.gc_threshold = rt["gc_threshold"].get<size_t>();
+        if (rt.contains("gc_stats") && rt["gc_stats"].is_boolean()) rules_.runtime.gc_stats = rt["gc_stats"].get<bool>();
     }
 
     // Security section
     if (j.contains("security") && j["security"].is_object()) {
         auto& sec = j["security"];
         if (sec.contains("sandbox_level")) rules_.sandbox_level_config = sec["sandbox_level"].get<std::string>();
-        if (sec.contains("allow_network")) rules_.allow_network_config = sec["allow_network"].get<bool>();
-        if (sec.contains("strict_types")) rules_.strict_types_config = sec["strict_types"].get<bool>();
+        if (sec.contains("allow_network") && sec["allow_network"].is_boolean()) rules_.allow_network_config = sec["allow_network"].get<bool>();
+        if (sec.contains("strict_types") && sec["strict_types"].is_boolean()) rules_.strict_types_config = sec["strict_types"].get<bool>();
     }
 
     // API section
     if (j.contains("api") && j["api"].is_object()) {
         auto& api = j["api"];
         if (api.contains("key")) rules_.api.key = api["key"].get<std::string>();
-        if (api.contains("timeout")) rules_.api.timeout = api["timeout"].get<int>();
-        if (api.contains("rate_limit")) rules_.api.rate_limit = api["rate_limit"].get<int>();
-        if (api.contains("max_body")) rules_.api.max_body = api["max_body"].get<size_t>();
+        if (api.contains("timeout") && api["timeout"].is_number_integer()) rules_.api.timeout = api["timeout"].get<int>();
+        if (api.contains("rate_limit") && api["rate_limit"].is_number_integer()) rules_.api.rate_limit = api["rate_limit"].get<int>();
+        if (api.contains("max_body") && api["max_body"].is_number_unsigned()) rules_.api.max_body = api["max_body"].get<size_t>();
         if (api.contains("tls_cert")) rules_.api.tls_cert_path = api["tls_cert"].get<std::string>();
         if (api.contains("tls_key")) rules_.api.tls_key_path = api["tls_key"].get<std::string>();
         if (api.contains("keys") && api["keys"].is_array()) {
@@ -304,10 +304,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Capabilities (supports both legacy flat and v3.0 object formats)
     if (j.contains("capabilities")) {
         auto& cap = j["capabilities"];
-        if (cap.contains("network")) {
+        if (cap.contains("network") && cap["network"].is_boolean()) {
             if (cap["network"].is_boolean())
                 rules_.network_allowed = cap["network"].get<bool>();
-            else if (cap["network"].is_object() && cap["network"].contains("enabled"))
+            else if (cap["network"].is_object() && cap["network"].contains("enabled") && cap["network"]["enabled"].is_boolean())
                 rules_.network_allowed = cap["network"]["enabled"].get<bool>();
         }
         if (cap.contains("filesystem")) {
@@ -316,10 +316,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             else if (cap["filesystem"].is_object() && cap["filesystem"].contains("mode"))
                 rules_.filesystem_mode = cap["filesystem"]["mode"].get<std::string>();
         }
-        if (cap.contains("shell")) {
+        if (cap.contains("shell") && cap["shell"].is_boolean()) {
             if (cap["shell"].is_boolean())
                 rules_.shell_allowed = cap["shell"].get<bool>();
-            else if (cap["shell"].is_object() && cap["shell"].contains("enabled"))
+            else if (cap["shell"].is_object() && cap["shell"].contains("enabled") && cap["shell"]["enabled"].is_boolean())
                 rules_.shell_allowed = cap["shell"]["enabled"].get<bool>();
         }
     }
@@ -327,47 +327,47 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Limits (supports both legacy flat and v3.0 nested formats)
     if (j.contains("limits")) {
         auto& lim = j["limits"];
-        if (lim.contains("timeout")) {
+        if (lim.contains("timeout") && lim["timeout"].is_number_integer()) {
             if (lim["timeout"].is_number()) {
                 rules_.timeout_seconds = lim["timeout"].get<int>();
                 rules_.explicitly_set.insert("timeout_seconds");
             } else if (lim["timeout"].is_object()) {
-                if (lim["timeout"].contains("global")) {
+                if (lim["timeout"].contains("global") && lim["timeout"]["global"].is_number_integer()) {
                     rules_.timeout_seconds = lim["timeout"]["global"].get<int>();
                     rules_.explicitly_set.insert("timeout_seconds");
                     rules_.explicitly_set.insert("limits.timeout.global");
                 }
             }
         }
-        if (lim.contains("memory")) {
+        if (lim.contains("memory") && lim["memory"].is_number_integer()) {
             if (lim["memory"].is_number()) {
                 rules_.memory_limit_mb = lim["memory"].get<int>();
                 rules_.explicitly_set.insert("memory_limit_mb");
             } else if (lim["memory"].is_object()) {
-                if (lim["memory"].contains("total_mb")) {
+                if (lim["memory"].contains("total_mb") && lim["memory"]["total_mb"].is_number_integer()) {
                     rules_.memory_limit_mb = lim["memory"]["total_mb"].get<int>();
                     rules_.explicitly_set.insert("memory_limit_mb");
                     rules_.explicitly_set.insert("limits.memory.total_mb");
                 }
             }
         }
-        if (lim.contains("call_depth")) {
+        if (lim.contains("call_depth") && lim["call_depth"].is_number_integer()) {
             rules_.max_call_depth = lim["call_depth"].get<int>();
             rules_.explicitly_set.insert("max_call_depth");
         }
-        if (lim.contains("array_size")) {
+        if (lim.contains("array_size") && lim["array_size"].is_number_integer()) {
             rules_.max_array_size = lim["array_size"].get<int>();
             rules_.explicitly_set.insert("max_array_size");
         }
         // V3.0 nested paths
         if (lim.contains("execution") && lim["execution"].is_object()) {
             auto& exec = lim["execution"];
-            if (exec.contains("call_depth"))
+            if (exec.contains("call_depth") && exec["call_depth"].is_number_integer())
                 rules_.max_call_depth = exec["call_depth"].get<int>();
         }
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& data = lim["data"];
-            if (data.contains("array_size"))
+            if (data.contains("array_size") && data["array_size"].is_number_integer())
                 rules_.max_array_size = data["array_size"].get<int>();
         }
     }
@@ -491,7 +491,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (aud.is_object()) {
             if (aud.contains("level"))
                 rules_.audit_level = aud["level"].get<std::string>();
-            if (aud.contains("tamper_evidence")) {
+            if (aud.contains("tamper_evidence") && aud["tamper_evidence"].is_boolean()) {
                 if (aud["tamper_evidence"].is_boolean())
                     rules_.tamper_evidence = aud["tamper_evidence"].get<bool>();
             }
@@ -588,7 +588,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     lc.no_console_log = en; lc.no_console_log_level = lv;
                 }
                 // Go-specific
-                if (cfg.contains("require_package_main"))
+                if (cfg.contains("require_package_main") && cfg["require_package_main"].is_boolean())
                     lc.require_package_main = cfg["require_package_main"].get<bool>();
 
                 rules_.languages.per_language[lang_name] = std::move(lc);
@@ -603,16 +603,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cap.contains("network") && cap["network"].is_object()) {
             auto& net = cap["network"];
             auto& nc = rules_.capabilities.network;
-            if (net.contains("enabled")) { nc.enabled = net["enabled"].get<bool>(); rules_.network_allowed = nc.enabled; rules_.explicitly_set.insert("capabilities.network.enabled"); }
-            if (net.contains("https_only")) nc.https_only = net["https_only"].get<bool>();
+            if (net.contains("enabled") && net["enabled"].is_boolean()) { nc.enabled = net["enabled"].get<bool>(); rules_.network_allowed = nc.enabled; rules_.explicitly_set.insert("capabilities.network.enabled"); }
+            if (net.contains("https_only") && net["https_only"].is_boolean()) nc.https_only = net["https_only"].get<bool>();
             if (net.contains("allowed_hosts"))
                 for (auto& h : net["allowed_hosts"]) nc.allowed_hosts.push_back(h.get<std::string>());
             if (net.contains("blocked_hosts"))
                 for (auto& h : net["blocked_hosts"]) nc.blocked_hosts.push_back(h.get<std::string>());
             if (net.contains("allowed_ports"))
-                for (auto& p : net["allowed_ports"]) nc.allowed_ports.push_back(p.get<int>());
-            if (net.contains("allow_websockets")) nc.allow_websockets = net["allow_websockets"].get<bool>();
-            if (net.contains("allow_raw_sockets")) nc.allow_raw_sockets = net["allow_raw_sockets"].get<bool>();
+                for (auto& p : net["allowed_ports"]) { if (p.is_number_integer()) nc.allowed_ports.push_back(p.get<int>()); }
+            if (net.contains("allow_websockets") && net["allow_websockets"].is_boolean()) nc.allow_websockets = net["allow_websockets"].get<bool>();
+            if (net.contains("allow_raw_sockets") && net["allow_raw_sockets"].is_boolean()) nc.allow_raw_sockets = net["allow_raw_sockets"].get<bool>();
             parseRationale(net, nc.rationale);
         }
         if (cap.contains("filesystem") && cap["filesystem"].is_object()) {
@@ -625,31 +625,31 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& p : fs["blocked_paths"]) fc.blocked_paths.push_back(p.get<std::string>());
             if (fs.contains("allowed_extensions"))
                 for (auto& e : fs["allowed_extensions"]) fc.allowed_extensions.push_back(e.get<std::string>());
-            if (fs.contains("max_file_size")) fc.max_file_size = fs["max_file_size"].get<int>();
-            if (fs.contains("max_files")) fc.max_files = fs["max_files"].get<int>();
-            if (fs.contains("allow_symlinks")) fc.allow_symlinks = fs["allow_symlinks"].get<bool>();
-            if (fs.contains("allow_hidden_files")) fc.allow_hidden_files = fs["allow_hidden_files"].get<bool>();
-            if (fs.contains("allow_absolute_paths")) fc.allow_absolute_paths = fs["allow_absolute_paths"].get<bool>();
+            if (fs.contains("max_file_size") && fs["max_file_size"].is_number_integer()) fc.max_file_size = fs["max_file_size"].get<int>();
+            if (fs.contains("max_files") && fs["max_files"].is_number_integer()) fc.max_files = fs["max_files"].get<int>();
+            if (fs.contains("allow_symlinks") && fs["allow_symlinks"].is_boolean()) fc.allow_symlinks = fs["allow_symlinks"].get<bool>();
+            if (fs.contains("allow_hidden_files") && fs["allow_hidden_files"].is_boolean()) fc.allow_hidden_files = fs["allow_hidden_files"].get<bool>();
+            if (fs.contains("allow_absolute_paths") && fs["allow_absolute_paths"].is_boolean()) fc.allow_absolute_paths = fs["allow_absolute_paths"].get<bool>();
             parseRationale(fs, fc.rationale);
         }
         if (cap.contains("shell") && cap["shell"].is_object()) {
             auto& sh = cap["shell"];
             auto& sc = rules_.capabilities.shell;
-            if (sh.contains("enabled")) { sc.enabled = sh["enabled"].get<bool>(); rules_.shell_allowed = sc.enabled; rules_.explicitly_set.insert("capabilities.shell.enabled"); }
+            if (sh.contains("enabled") && sh["enabled"].is_boolean()) { sc.enabled = sh["enabled"].get<bool>(); rules_.shell_allowed = sc.enabled; rules_.explicitly_set.insert("capabilities.shell.enabled"); }
             if (sh.contains("allowed_commands"))
                 for (auto& c : sh["allowed_commands"]) sc.allowed_commands.push_back(c.get<std::string>());
             if (sh.contains("blocked_commands"))
                 for (auto& c : sh["blocked_commands"]) sc.blocked_commands.push_back(c.get<std::string>());
-            if (sh.contains("allow_pipes")) sc.allow_pipes = sh["allow_pipes"].get<bool>();
-            if (sh.contains("allow_redirects")) sc.allow_redirects = sh["allow_redirects"].get<bool>();
-            if (sh.contains("max_execution_time")) sc.max_execution_time = sh["max_execution_time"].get<int>();
+            if (sh.contains("allow_pipes") && sh["allow_pipes"].is_boolean()) sc.allow_pipes = sh["allow_pipes"].get<bool>();
+            if (sh.contains("allow_redirects") && sh["allow_redirects"].is_boolean()) sc.allow_redirects = sh["allow_redirects"].get<bool>();
+            if (sh.contains("max_execution_time") && sh["max_execution_time"].is_number_integer()) sc.max_execution_time = sh["max_execution_time"].get<int>();
             parseRationale(sh, sc.rationale);
         }
         if (cap.contains("env_vars") && cap["env_vars"].is_object()) {
             auto& ev = cap["env_vars"];
             auto& ec = rules_.capabilities.env_vars;
-            if (ev.contains("read")) ec.read = ev["read"].get<bool>();
-            if (ev.contains("write")) ec.write = ev["write"].get<bool>();
+            if (ev.contains("read") && ev["read"].is_boolean()) ec.read = ev["read"].get<bool>();
+            if (ev.contains("write") && ev["write"].is_boolean()) ec.write = ev["write"].get<bool>();
             if (ev.contains("allowed_read"))
                 for (auto& v : ev["allowed_read"]) ec.allowed_read.push_back(v.get<std::string>());
             if (ev.contains("blocked_read"))
@@ -680,54 +680,54 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& lim = j["limits"];
         if (lim.contains("timeout") && lim["timeout"].is_object()) {
             auto& t = lim["timeout"];
-            if (t.contains("global")) { rules_.limits.timeout.global = t["global"].get<int>(); rules_.timeout_seconds = rules_.limits.timeout.global; rules_.runtime.timeout = rules_.limits.timeout.global; rules_.explicitly_set.insert("limits.timeout.global"); rules_.explicitly_set.insert("timeout_seconds"); }
-            if (t.contains("per_block")) rules_.limits.timeout.per_block = t["per_block"].get<int>();
-            if (t.contains("total_polyglot")) { rules_.limits.timeout.total_polyglot = t["total_polyglot"].get<int>(); rules_.explicitly_set.insert("limits.timeout.total_polyglot"); }
+            if (t.contains("global") && t["global"].is_number_integer()) { rules_.limits.timeout.global = t["global"].get<int>(); rules_.timeout_seconds = rules_.limits.timeout.global; rules_.runtime.timeout = rules_.limits.timeout.global; rules_.explicitly_set.insert("limits.timeout.global"); rules_.explicitly_set.insert("timeout_seconds"); }
+            if (t.contains("per_block") && t["per_block"].is_number_integer()) rules_.limits.timeout.per_block = t["per_block"].get<int>();
+            if (t.contains("total_polyglot") && t["total_polyglot"].is_number_integer()) { rules_.limits.timeout.total_polyglot = t["total_polyglot"].get<int>(); rules_.explicitly_set.insert("limits.timeout.total_polyglot"); }
         }
         if (lim.contains("memory") && lim["memory"].is_object()) {
             auto& m = lim["memory"];
-            if (m.contains("per_block_mb")) { rules_.limits.memory.per_block_mb = m["per_block_mb"].get<int>(); rules_.explicitly_set.insert("limits.memory.per_block_mb"); }
-            if (m.contains("total_mb")) { rules_.limits.memory.total_mb = m["total_mb"].get<int>(); rules_.memory_limit_mb = rules_.limits.memory.total_mb; rules_.explicitly_set.insert("limits.memory.total_mb"); rules_.explicitly_set.insert("memory_limit_mb"); }
+            if (m.contains("per_block_mb") && m["per_block_mb"].is_number_integer()) { rules_.limits.memory.per_block_mb = m["per_block_mb"].get<int>(); rules_.explicitly_set.insert("limits.memory.per_block_mb"); }
+            if (m.contains("total_mb") && m["total_mb"].is_number_integer()) { rules_.limits.memory.total_mb = m["total_mb"].get<int>(); rules_.memory_limit_mb = rules_.limits.memory.total_mb; rules_.explicitly_set.insert("limits.memory.total_mb"); rules_.explicitly_set.insert("memory_limit_mb"); }
         }
         if (lim.contains("execution") && lim["execution"].is_object()) {
             auto& e = lim["execution"];
-            if (e.contains("call_depth")) { rules_.limits.execution.call_depth = e["call_depth"].get<int>(); rules_.max_call_depth = rules_.limits.execution.call_depth; rules_.explicitly_set.insert("limits.execution.call_depth"); rules_.explicitly_set.insert("max_call_depth"); }
-            if (e.contains("loop_iterations")) { rules_.limits.execution.loop_iterations = e["loop_iterations"].get<int>(); rules_.explicitly_set.insert("limits.execution.loop_iterations"); }
-            if (e.contains("polyglot_blocks")) { rules_.limits.execution.polyglot_blocks = e["polyglot_blocks"].get<int>(); rules_.explicitly_set.insert("limits.execution.polyglot_blocks"); }
-            if (e.contains("parallel_blocks")) rules_.limits.execution.parallel_blocks = e["parallel_blocks"].get<int>();
-            if (e.contains("total_executions")) rules_.limits.execution.total_executions = e["total_executions"].get<int>();
+            if (e.contains("call_depth") && e["call_depth"].is_number_integer()) { rules_.limits.execution.call_depth = e["call_depth"].get<int>(); rules_.max_call_depth = rules_.limits.execution.call_depth; rules_.explicitly_set.insert("limits.execution.call_depth"); rules_.explicitly_set.insert("max_call_depth"); }
+            if (e.contains("loop_iterations") && e["loop_iterations"].is_number_integer()) { rules_.limits.execution.loop_iterations = e["loop_iterations"].get<int>(); rules_.explicitly_set.insert("limits.execution.loop_iterations"); }
+            if (e.contains("polyglot_blocks") && e["polyglot_blocks"].is_number_integer()) { rules_.limits.execution.polyglot_blocks = e["polyglot_blocks"].get<int>(); rules_.explicitly_set.insert("limits.execution.polyglot_blocks"); }
+            if (e.contains("parallel_blocks") && e["parallel_blocks"].is_number_integer()) rules_.limits.execution.parallel_blocks = e["parallel_blocks"].get<int>();
+            if (e.contains("total_executions") && e["total_executions"].is_number_integer()) rules_.limits.execution.total_executions = e["total_executions"].get<int>();
             // limits.execution.timeout_seconds is the canonical key for overall script timeout.
             // Wire it to runtime.timeout so main.cpp enforcement picks it up.
-            if (e.contains("timeout_seconds")) { rules_.runtime.timeout = e["timeout_seconds"].get<int>(); }
+            if (e.contains("timeout_seconds") && e["timeout_seconds"].is_number_integer()) { rules_.runtime.timeout = e["timeout_seconds"].get<int>(); }
         }
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& d = lim["data"];
-            if (d.contains("array_size")) { rules_.limits.data.array_size = d["array_size"].get<int>(); rules_.max_array_size = rules_.limits.data.array_size; rules_.explicitly_set.insert("limits.data.array_size"); rules_.explicitly_set.insert("max_array_size"); }
-            if (d.contains("dict_size")) { rules_.limits.data.dict_size = d["dict_size"].get<int>(); rules_.explicitly_set.insert("limits.data.dict_size"); }
-            if (d.contains("string_length")) { rules_.limits.data.string_length = d["string_length"].get<int>(); rules_.explicitly_set.insert("limits.data.string_length"); }
-            if (d.contains("nesting_depth")) { rules_.limits.data.nesting_depth = d["nesting_depth"].get<int>(); rules_.explicitly_set.insert("limits.data.nesting_depth"); }
-            if (d.contains("max_json_depth")) {
+            if (d.contains("array_size") && d["array_size"].is_number_integer()) { rules_.limits.data.array_size = d["array_size"].get<int>(); rules_.max_array_size = rules_.limits.data.array_size; rules_.explicitly_set.insert("limits.data.array_size"); rules_.explicitly_set.insert("max_array_size"); }
+            if (d.contains("dict_size") && d["dict_size"].is_number_integer()) { rules_.limits.data.dict_size = d["dict_size"].get<int>(); rules_.explicitly_set.insert("limits.data.dict_size"); }
+            if (d.contains("string_length") && d["string_length"].is_number_integer()) { rules_.limits.data.string_length = d["string_length"].get<int>(); rules_.explicitly_set.insert("limits.data.string_length"); }
+            if (d.contains("nesting_depth") && d["nesting_depth"].is_number_integer()) { rules_.limits.data.nesting_depth = d["nesting_depth"].get<int>(); rules_.explicitly_set.insert("limits.data.nesting_depth"); }
+            if (d.contains("max_json_depth") && d["max_json_depth"].is_number_integer()) {
                 int jd = d["max_json_depth"].get<int>();
                 rules_.limits.data.nesting_depth = jd;  // alias: max_json_depth -> nesting_depth
                 naab::limits::setMaxJsonDepth(jd);
             }
-            if (d.contains("output_size")) { rules_.limits.data.output_size = d["output_size"].get<int>(); rules_.explicitly_set.insert("limits.data.output_size"); }
-            if (d.contains("input_size")) { rules_.limits.data.input_size = d["input_size"].get<int>(); rules_.explicitly_set.insert("limits.data.input_size"); }
+            if (d.contains("output_size") && d["output_size"].is_number_integer()) { rules_.limits.data.output_size = d["output_size"].get<int>(); rules_.explicitly_set.insert("limits.data.output_size"); }
+            if (d.contains("input_size") && d["input_size"].is_number_integer()) { rules_.limits.data.input_size = d["input_size"].get<int>(); rules_.explicitly_set.insert("limits.data.input_size"); }
         }
         if (lim.contains("code") && lim["code"].is_object()) {
             auto& c = lim["code"];
-            if (c.contains("max_lines_per_block")) { rules_.limits.code.max_lines_per_block = c["max_lines_per_block"].get<int>(); rules_.explicitly_set.insert("limits.code.max_lines_per_block"); }
-            if (c.contains("max_total_polyglot_lines")) { rules_.limits.code.max_total_polyglot_lines = c["max_total_polyglot_lines"].get<int>(); rules_.explicitly_set.insert("limits.code.max_total_polyglot_lines"); }
-            if (c.contains("max_nesting_depth")) { rules_.limits.code.max_nesting_depth = c["max_nesting_depth"].get<int>(); rules_.explicitly_set.insert("limits.code.max_nesting_depth"); }
-            if (c.contains("max_functions")) { rules_.limits.code.max_functions = c["max_functions"].get<int>(); rules_.explicitly_set.insert("limits.code.max_functions"); }
-            if (c.contains("max_variables")) { rules_.limits.code.max_variables = c["max_variables"].get<int>(); rules_.explicitly_set.insert("limits.code.max_variables"); }
+            if (c.contains("max_lines_per_block") && c["max_lines_per_block"].is_number_integer()) { rules_.limits.code.max_lines_per_block = c["max_lines_per_block"].get<int>(); rules_.explicitly_set.insert("limits.code.max_lines_per_block"); }
+            if (c.contains("max_total_polyglot_lines") && c["max_total_polyglot_lines"].is_number_integer()) { rules_.limits.code.max_total_polyglot_lines = c["max_total_polyglot_lines"].get<int>(); rules_.explicitly_set.insert("limits.code.max_total_polyglot_lines"); }
+            if (c.contains("max_nesting_depth") && c["max_nesting_depth"].is_number_integer()) { rules_.limits.code.max_nesting_depth = c["max_nesting_depth"].get<int>(); rules_.explicitly_set.insert("limits.code.max_nesting_depth"); }
+            if (c.contains("max_functions") && c["max_functions"].is_number_integer()) { rules_.limits.code.max_functions = c["max_functions"].get<int>(); rules_.explicitly_set.insert("limits.code.max_functions"); }
+            if (c.contains("max_variables") && c["max_variables"].is_number_integer()) { rules_.limits.code.max_variables = c["max_variables"].get<int>(); rules_.explicitly_set.insert("limits.code.max_variables"); }
         }
         if (lim.contains("rate") && lim["rate"].is_object()) {
             auto& r = lim["rate"];
-            if (r.contains("max_polyglot_per_second")) { rules_.limits.rate.max_polyglot_per_second = r["max_polyglot_per_second"].get<int>(); rules_.explicitly_set.insert("limits.rate.max_polyglot_per_second"); }
-            if (r.contains("max_stdlib_calls_per_second")) { rules_.limits.rate.max_stdlib_calls_per_second = r["max_stdlib_calls_per_second"].get<int>(); rules_.explicitly_set.insert("limits.rate.max_stdlib_calls_per_second"); }
-            if (r.contains("max_file_ops_per_second")) { rules_.limits.rate.max_file_ops_per_second = r["max_file_ops_per_second"].get<int>(); rules_.explicitly_set.insert("limits.rate.max_file_ops_per_second"); }
-            if (r.contains("cooldown_on_limit_ms")) { rules_.limits.rate.cooldown_on_limit_ms = r["cooldown_on_limit_ms"].get<int>(); rules_.explicitly_set.insert("limits.rate.cooldown_on_limit_ms"); }
+            if (r.contains("max_polyglot_per_second") && r["max_polyglot_per_second"].is_number_integer()) { rules_.limits.rate.max_polyglot_per_second = r["max_polyglot_per_second"].get<int>(); rules_.explicitly_set.insert("limits.rate.max_polyglot_per_second"); }
+            if (r.contains("max_stdlib_calls_per_second") && r["max_stdlib_calls_per_second"].is_number_integer()) { rules_.limits.rate.max_stdlib_calls_per_second = r["max_stdlib_calls_per_second"].get<int>(); rules_.explicitly_set.insert("limits.rate.max_stdlib_calls_per_second"); }
+            if (r.contains("max_file_ops_per_second") && r["max_file_ops_per_second"].is_number_integer()) { rules_.limits.rate.max_file_ops_per_second = r["max_file_ops_per_second"].get<int>(); rules_.explicitly_set.insert("limits.rate.max_file_ops_per_second"); }
+            if (r.contains("cooldown_on_limit_ms") && r["cooldown_on_limit_ms"].is_number_integer()) { rules_.limits.rate.cooldown_on_limit_ms = r["cooldown_on_limit_ms"].get<int>(); rules_.explicitly_set.insert("limits.rate.cooldown_on_limit_ms"); }
         }
     }
 
@@ -788,8 +788,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.require_error_handling = true;
                 rules_.error_handling_level = lv;
             }
-            if (eh.contains("require_try_catch")) rules_.requirements.error_handling.require_try_catch = eh["require_try_catch"].get<bool>();
-            if (eh.contains("require_catch_body")) rules_.requirements.error_handling.require_catch_body = eh["require_catch_body"].get<bool>();
+            if (eh.contains("require_try_catch") && eh["require_try_catch"].is_boolean()) rules_.requirements.error_handling.require_try_catch = eh["require_try_catch"].get<bool>();
+            if (eh.contains("require_catch_body") && eh["require_catch_body"].is_boolean()) rules_.requirements.error_handling.require_catch_body = eh["require_catch_body"].get<bool>();
             parseRationale(eh, rules_.requirements.error_handling.rationale);
         }
         if (req.contains("naming_conventions") && req["naming_conventions"].is_object()) {
@@ -799,8 +799,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (nc.contains("level")) { auto [en, lv] = parseEnforcementLevel(nc["level"]); rules_.requirements.naming_conventions.level = lv; }
             if (nc.contains("variables")) rules_.requirements.naming_conventions.variables = nc["variables"].get<std::string>();
             if (nc.contains("functions")) rules_.requirements.naming_conventions.functions = nc["functions"].get<std::string>();
-            if (nc.contains("check_naab_code")) rules_.requirements.naming_conventions.check_naab_code = nc["check_naab_code"].get<bool>();
-            if (nc.contains("check_polyglot_code")) rules_.requirements.naming_conventions.check_polyglot_code = nc["check_polyglot_code"].get<bool>();
+            if (nc.contains("check_naab_code") && nc["check_naab_code"].is_boolean()) rules_.requirements.naming_conventions.check_naab_code = nc["check_naab_code"].get<bool>();
+            if (nc.contains("check_polyglot_code") && nc["check_polyglot_code"].is_boolean()) rules_.requirements.naming_conventions.check_polyglot_code = nc["check_polyglot_code"].get<bool>();
         }
     }
 
@@ -811,9 +811,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (res.contains("polyglot_output") && res["polyglot_output"].is_object()) {
             auto& po = res["polyglot_output"];
             if (po.contains("format")) { rules_.restrictions.polyglot_output.format = po["format"].get<std::string>(); rules_.polyglot_output = rules_.restrictions.polyglot_output.format; rules_.explicitly_set.insert("restrictions.polyglot_output.format"); }
-            if (po.contains("max_size")) { rules_.restrictions.polyglot_output.max_size = po["max_size"].get<int>(); rules_.explicitly_set.insert("restrictions.polyglot_output.max_size"); }
-            if (po.contains("validate_json")) { rules_.restrictions.polyglot_output.validate_json = po["validate_json"].get<bool>(); rules_.explicitly_set.insert("restrictions.polyglot_output.validate_json"); }
-            if (po.contains("require_structured")) { rules_.restrictions.polyglot_output.require_structured = po["require_structured"].get<bool>(); rules_.explicitly_set.insert("restrictions.polyglot_output.require_structured"); }
+            if (po.contains("max_size") && po["max_size"].is_number_integer()) { rules_.restrictions.polyglot_output.max_size = po["max_size"].get<int>(); rules_.explicitly_set.insert("restrictions.polyglot_output.max_size"); }
+            if (po.contains("validate_json") && po["validate_json"].is_boolean()) { rules_.restrictions.polyglot_output.validate_json = po["validate_json"].get<bool>(); rules_.explicitly_set.insert("restrictions.polyglot_output.validate_json"); }
+            if (po.contains("require_structured") && po["require_structured"].is_boolean()) { rules_.restrictions.polyglot_output.require_structured = po["require_structured"].get<bool>(); rules_.explicitly_set.insert("restrictions.polyglot_output.require_structured"); }
         }
         if (res.contains("dangerous_calls") && res["dangerous_calls"].is_object()) {
             auto& dc = res["dangerous_calls"];
@@ -838,8 +838,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.restrictions.privilege_escalation.enabled = true;
             rules_.explicitly_set.insert("restrictions.privilege_escalation");
             if (pe.contains("level")) { auto [en, lv] = parseEnforcementLevel(pe["level"]); rules_.restrictions.privilege_escalation.level = lv; }
-            if (pe.contains("block_sudo")) rules_.restrictions.privilege_escalation.block_sudo = pe["block_sudo"].get<bool>();
-            if (pe.contains("block_su")) rules_.restrictions.privilege_escalation.block_su = pe["block_su"].get<bool>();
+            if (pe.contains("block_sudo") && pe["block_sudo"].is_boolean()) rules_.restrictions.privilege_escalation.block_sudo = pe["block_sudo"].get<bool>();
+            if (pe.contains("block_su") && pe["block_su"].is_boolean()) rules_.restrictions.privilege_escalation.block_su = pe["block_su"].get<bool>();
             parseRationale(pe, rules_.restrictions.privilege_escalation.rationale);
         }
         if (res.contains("code_injection") && res["code_injection"].is_object()) {
@@ -847,8 +847,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.restrictions.code_injection.enabled = true;
             rules_.explicitly_set.insert("restrictions.code_injection");
             if (ci.contains("level")) { auto [en, lv] = parseEnforcementLevel(ci["level"]); rules_.restrictions.code_injection.level = lv; }
-            if (ci.contains("block_dynamic_code_gen")) rules_.restrictions.code_injection.block_dynamic_code_gen = ci["block_dynamic_code_gen"].get<bool>();
-            if (ci.contains("block_sql_injection_patterns")) rules_.restrictions.code_injection.block_sql_injection_patterns = ci["block_sql_injection_patterns"].get<bool>();
+            if (ci.contains("block_dynamic_code_gen") && ci["block_dynamic_code_gen"].is_boolean()) rules_.restrictions.code_injection.block_dynamic_code_gen = ci["block_dynamic_code_gen"].get<bool>();
+            if (ci.contains("block_sql_injection_patterns") && ci["block_sql_injection_patterns"].is_boolean()) rules_.restrictions.code_injection.block_sql_injection_patterns = ci["block_sql_injection_patterns"].get<bool>();
             parseRationale(ci, rules_.restrictions.code_injection.rationale);
         }
         if (res.contains("crypto") && res["crypto"].is_object()) {
@@ -863,14 +863,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (res.contains("vcs_secret_extraction") && res["vcs_secret_extraction"].is_object()) {
             auto& vs = res["vcs_secret_extraction"];
             rules_.explicitly_set.insert("restrictions.vcs_secret_extraction");
-            if (vs.contains("enabled")) rules_.restrictions.vcs_secret_extraction.enabled = vs["enabled"].get<bool>();
+            if (vs.contains("enabled") && vs["enabled"].is_boolean()) rules_.restrictions.vcs_secret_extraction.enabled = vs["enabled"].get<bool>();
             if (vs.contains("level")) { auto [en, lv] = parseEnforcementLevel(vs["level"]); rules_.restrictions.vcs_secret_extraction.level = lv; }
             parseRationale(vs, rules_.restrictions.vcs_secret_extraction.rationale);
         }
         if (res.contains("obfuscation") && res["obfuscation"].is_object()) {
             auto& ob = res["obfuscation"];
             rules_.explicitly_set.insert("restrictions.obfuscation");
-            if (ob.contains("enabled")) rules_.restrictions.obfuscation.enabled = ob["enabled"].get<bool>();
+            if (ob.contains("enabled") && ob["enabled"].is_boolean()) rules_.restrictions.obfuscation.enabled = ob["enabled"].get<bool>();
             if (ob.contains("level")) { auto [en, lv] = parseEnforcementLevel(ob["level"]); rules_.restrictions.obfuscation.level = lv; }
             parseRationale(ob, rules_.restrictions.obfuscation.rationale);
         }
@@ -891,13 +891,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (res.contains("data_exfiltration") && res["data_exfiltration"].is_object()) {
             auto& de = res["data_exfiltration"];
             rules_.explicitly_set.insert("restrictions.data_exfiltration");
-            if (de.contains("enabled")) rules_.restrictions.data_exfiltration.enabled = de["enabled"].get<bool>();
+            if (de.contains("enabled") && de["enabled"].is_boolean()) rules_.restrictions.data_exfiltration.enabled = de["enabled"].get<bool>();
             if (de.contains("level")) { auto [en, lv] = parseEnforcementLevel(de["level"]); rules_.restrictions.data_exfiltration.level = lv; }
-            if (de.contains("block_base64_encode_secrets")) rules_.restrictions.data_exfiltration.block_base64_encode_secrets = de["block_base64_encode_secrets"].get<bool>();
-            if (de.contains("block_hex_encode_secrets")) rules_.restrictions.data_exfiltration.block_hex_encode_secrets = de["block_hex_encode_secrets"].get<bool>();
-            if (de.contains("block_network_exfil")) rules_.restrictions.data_exfiltration.block_network_exfil = de["block_network_exfil"].get<bool>();
-            if (de.contains("block_socket_exfil")) rules_.restrictions.data_exfiltration.block_socket_exfil = de["block_socket_exfil"].get<bool>();
-            if (de.contains("block_encoding_chains")) rules_.restrictions.data_exfiltration.block_encoding_chains = de["block_encoding_chains"].get<bool>();
+            if (de.contains("block_base64_encode_secrets") && de["block_base64_encode_secrets"].is_boolean()) rules_.restrictions.data_exfiltration.block_base64_encode_secrets = de["block_base64_encode_secrets"].get<bool>();
+            if (de.contains("block_hex_encode_secrets") && de["block_hex_encode_secrets"].is_boolean()) rules_.restrictions.data_exfiltration.block_hex_encode_secrets = de["block_hex_encode_secrets"].get<bool>();
+            if (de.contains("block_network_exfil") && de["block_network_exfil"].is_boolean()) rules_.restrictions.data_exfiltration.block_network_exfil = de["block_network_exfil"].get<bool>();
+            if (de.contains("block_socket_exfil") && de["block_socket_exfil"].is_boolean()) rules_.restrictions.data_exfiltration.block_socket_exfil = de["block_socket_exfil"].get<bool>();
+            if (de.contains("block_encoding_chains") && de["block_encoding_chains"].is_boolean()) rules_.restrictions.data_exfiltration.block_encoding_chains = de["block_encoding_chains"].get<bool>();
             if (de.contains("patterns") && de["patterns"].is_array()) {
                 for (const auto& p : de["patterns"]) {
                     if (p.is_string()) rules_.restrictions.data_exfiltration.patterns.push_back(p.get<std::string>());
@@ -908,20 +908,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (res.contains("resource_abuse") && res["resource_abuse"].is_object()) {
             auto& ra = res["resource_abuse"];
             rules_.explicitly_set.insert("restrictions.resource_abuse");
-            if (ra.contains("enabled")) rules_.restrictions.resource_abuse.enabled = ra["enabled"].get<bool>();
+            if (ra.contains("enabled") && ra["enabled"].is_boolean()) rules_.restrictions.resource_abuse.enabled = ra["enabled"].get<bool>();
             if (ra.contains("level")) { auto [en, lv] = parseEnforcementLevel(ra["level"]); rules_.restrictions.resource_abuse.level = lv; }
-            if (ra.contains("block_fork_bomb")) rules_.restrictions.resource_abuse.block_fork_bomb = ra["block_fork_bomb"].get<bool>();
-            if (ra.contains("block_disk_filling")) rules_.restrictions.resource_abuse.block_disk_filling = ra["block_disk_filling"].get<bool>();
+            if (ra.contains("block_fork_bomb") && ra["block_fork_bomb"].is_boolean()) rules_.restrictions.resource_abuse.block_fork_bomb = ra["block_fork_bomb"].get<bool>();
+            if (ra.contains("block_disk_filling") && ra["block_disk_filling"].is_boolean()) rules_.restrictions.resource_abuse.block_disk_filling = ra["block_disk_filling"].get<bool>();
             parseRationale(ra, rules_.restrictions.resource_abuse.rationale);
         }
         if (res.contains("information_disclosure") && res["information_disclosure"].is_object()) {
             auto& id = res["information_disclosure"];
             rules_.explicitly_set.insert("restrictions.information_disclosure");
-            if (id.contains("enabled")) rules_.restrictions.information_disclosure.enabled = id["enabled"].get<bool>();
+            if (id.contains("enabled") && id["enabled"].is_boolean()) rules_.restrictions.information_disclosure.enabled = id["enabled"].get<bool>();
             if (id.contains("level")) { auto [en, lv] = parseEnforcementLevel(id["level"]); rules_.restrictions.information_disclosure.level = lv; }
-            if (id.contains("block_env_dump")) rules_.restrictions.information_disclosure.block_env_dump = id["block_env_dump"].get<bool>();
-            if (id.contains("block_process_listing")) rules_.restrictions.information_disclosure.block_process_listing = id["block_process_listing"].get<bool>();
-            if (id.contains("block_system_info_leak")) rules_.restrictions.information_disclosure.block_system_info_leak = id["block_system_info_leak"].get<bool>();
+            if (id.contains("block_env_dump") && id["block_env_dump"].is_boolean()) rules_.restrictions.information_disclosure.block_env_dump = id["block_env_dump"].get<bool>();
+            if (id.contains("block_process_listing") && id["block_process_listing"].is_boolean()) rules_.restrictions.information_disclosure.block_process_listing = id["block_process_listing"].get<bool>();
+            if (id.contains("block_system_info_leak") && id["block_system_info_leak"].is_boolean()) rules_.restrictions.information_disclosure.block_system_info_leak = id["block_system_info_leak"].get<bool>();
             parseRationale(id, rules_.restrictions.information_disclosure.rationale);
         }
     }
@@ -940,12 +940,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (ns.contains("entropy_check") && ns["entropy_check"].is_object()) {
                 auto& ec = ns["entropy_check"];
                 rules_.code_quality.no_secrets.entropy_check.enabled = true;
-                if (ec.contains("threshold")) rules_.code_quality.no_secrets.entropy_check.threshold = ec["threshold"].get<double>();
-                if (ec.contains("min_length")) rules_.code_quality.no_secrets.entropy_check.min_length = ec["min_length"].get<int>();
+                if (ec.contains("threshold") && ec["threshold"].is_number()) rules_.code_quality.no_secrets.entropy_check.threshold = ec["threshold"].get<double>();
+                if (ec.contains("min_length") && ec["min_length"].is_number_integer()) rules_.code_quality.no_secrets.entropy_check.min_length = ec["min_length"].get<int>();
             }
             if (ns.contains("suspicious_variable_names") && ns["suspicious_variable_names"].is_object()) {
                 auto& sv = ns["suspicious_variable_names"];
-                if (sv.contains("enabled")) rules_.code_quality.no_secrets.suspicious_variable_names.enabled = sv["enabled"].get<bool>();
+                if (sv.contains("enabled") && sv["enabled"].is_boolean()) rules_.code_quality.no_secrets.suspicious_variable_names.enabled = sv["enabled"].get<bool>();
                 if (sv.contains("names")) for (auto& n : sv["names"]) rules_.code_quality.no_secrets.suspicious_variable_names.names.push_back(n.get<std::string>());
             }
             parseRationale(ns, rules_.code_quality.no_secrets.rationale);
@@ -959,7 +959,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (np.contains("level")) { auto [en, lv] = parseEnforcementLevel(np["level"]); rules_.code_quality.no_placeholders.level = lv; rules_.no_placeholders_level = lv; }
             if (np.contains("markers")) { rules_.code_quality.no_placeholders.markers.clear(); for (auto& m : np["markers"]) rules_.code_quality.no_placeholders.markers.push_back(m.get<std::string>()); }
             if (np.contains("custom_markers")) for (auto& m : np["custom_markers"]) rules_.code_quality.no_placeholders.custom_markers.push_back(m.get<std::string>());
-            if (np.contains("case_sensitive")) rules_.code_quality.no_placeholders.case_sensitive = np["case_sensitive"].get<bool>();
+            if (np.contains("case_sensitive") && np["case_sensitive"].is_boolean()) rules_.code_quality.no_placeholders.case_sensitive = np["case_sensitive"].get<bool>();
             parseRationale(np, rules_.code_quality.no_placeholders.rationale);
         }
 
@@ -1004,10 +1004,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto& sc = cq["semantic_checks"];
                 rules_.code_quality.semantic_checks.enabled = true;
                 if (sc.contains("level")) { auto [en, lv] = parseEnforcementLevel(sc["level"]); rules_.code_quality.semantic_checks.level = lv; }
-                if (sc.contains("check_imports")) rules_.code_quality.semantic_checks.check_imports = sc["check_imports"].get<bool>();
-                if (sc.contains("check_api_signatures")) rules_.code_quality.semantic_checks.check_api_signatures = sc["check_api_signatures"].get<bool>();
-                if (sc.contains("check_shell_syntax")) rules_.code_quality.semantic_checks.check_shell_syntax = sc["check_shell_syntax"].get<bool>();
-                if (sc.contains("check_dangerous_eval")) rules_.code_quality.semantic_checks.check_dangerous_eval = sc["check_dangerous_eval"].get<bool>();
+                if (sc.contains("check_imports") && sc["check_imports"].is_boolean()) rules_.code_quality.semantic_checks.check_imports = sc["check_imports"].get<bool>();
+                if (sc.contains("check_api_signatures") && sc["check_api_signatures"].is_boolean()) rules_.code_quality.semantic_checks.check_api_signatures = sc["check_api_signatures"].get<bool>();
+                if (sc.contains("check_shell_syntax") && sc["check_shell_syntax"].is_boolean()) rules_.code_quality.semantic_checks.check_shell_syntax = sc["check_shell_syntax"].get<bool>();
+                if (sc.contains("check_dangerous_eval") && sc["check_dangerous_eval"].is_boolean()) rules_.code_quality.semantic_checks.check_dangerous_eval = sc["check_dangerous_eval"].get<bool>();
                 parseRationale(sc, rules_.code_quality.semantic_checks.rationale);
             }
         }
@@ -1017,12 +1017,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& iv = cq["intent_validation"];
             rules_.code_quality.intent_validation.enabled = true;
             rules_.explicitly_set.insert("code_quality.intent_validation");
-            if (iv.contains("enabled")) rules_.code_quality.intent_validation.enabled = iv["enabled"].get<bool>();
-            if (iv.contains("required")) rules_.code_quality.intent_validation.required = iv["required"].get<bool>();
+            if (iv.contains("enabled") && iv["enabled"].is_boolean()) rules_.code_quality.intent_validation.enabled = iv["enabled"].get<bool>();
+            if (iv.contains("required") && iv["required"].is_boolean()) rules_.code_quality.intent_validation.required = iv["required"].get<bool>();
             if (iv.contains("level")) { auto [en, lv] = parseEnforcementLevel(iv["level"]); rules_.code_quality.intent_validation.level = lv; }
             if (iv.contains("missing_level")) { auto [en, lv] = parseEnforcementLevel(iv["missing_level"]); rules_.code_quality.intent_validation.missing_level = lv; }
             if (iv.contains("mode")) rules_.code_quality.intent_validation.mode = iv["mode"].get<std::string>();
-            if (iv.contains("min_function_lines")) rules_.code_quality.intent_validation.min_function_lines = iv["min_function_lines"].get<int>();
+            if (iv.contains("min_function_lines") && iv["min_function_lines"].is_number_integer()) rules_.code_quality.intent_validation.min_function_lines = iv["min_function_lines"].get<int>();
             if (iv.contains("exempt_functions")) {
                 for (auto& f : iv["exempt_functions"])
                     rules_.code_quality.intent_validation.exempt_functions.push_back(f.get<std::string>());
@@ -1046,12 +1046,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto& pii = cq["no_pii"];
                 rules_.code_quality.no_pii.enabled = true;
                 if (pii.contains("level")) { auto [en, lv] = parseEnforcementLevel(pii["level"]); rules_.code_quality.no_pii.level = lv; }
-                if (pii.contains("detect_ssn")) rules_.code_quality.no_pii.detect_ssn = pii["detect_ssn"].get<bool>();
-                if (pii.contains("detect_credit_card")) rules_.code_quality.no_pii.detect_credit_card = pii["detect_credit_card"].get<bool>();
-                if (pii.contains("detect_email")) rules_.code_quality.no_pii.detect_email = pii["detect_email"].get<bool>();
-                if (pii.contains("detect_phone")) rules_.code_quality.no_pii.detect_phone = pii["detect_phone"].get<bool>();
-                if (pii.contains("detect_ip_address")) rules_.code_quality.no_pii.detect_ip_address = pii["detect_ip_address"].get<bool>();
-                if (pii.contains("mask_in_errors")) rules_.code_quality.no_pii.mask_in_errors = pii["mask_in_errors"].get<bool>();
+                if (pii.contains("detect_ssn") && pii["detect_ssn"].is_boolean()) rules_.code_quality.no_pii.detect_ssn = pii["detect_ssn"].get<bool>();
+                if (pii.contains("detect_credit_card") && pii["detect_credit_card"].is_boolean()) rules_.code_quality.no_pii.detect_credit_card = pii["detect_credit_card"].get<bool>();
+                if (pii.contains("detect_email") && pii["detect_email"].is_boolean()) rules_.code_quality.no_pii.detect_email = pii["detect_email"].get<bool>();
+                if (pii.contains("detect_phone") && pii["detect_phone"].is_boolean()) rules_.code_quality.no_pii.detect_phone = pii["detect_phone"].get<bool>();
+                if (pii.contains("detect_ip_address") && pii["detect_ip_address"].is_boolean()) rules_.code_quality.no_pii.detect_ip_address = pii["detect_ip_address"].get<bool>();
+                if (pii.contains("mask_in_errors") && pii["mask_in_errors"].is_boolean()) rules_.code_quality.no_pii.mask_in_errors = pii["mask_in_errors"].get<bool>();
                 if (pii.contains("allowlist_patterns")) for (auto& a : pii["allowlist_patterns"]) rules_.code_quality.no_pii.allowlist_patterns.push_back(a.get<std::string>());
                 parseRationale(pii, rules_.code_quality.no_pii.rationale);
             }
@@ -1065,7 +1065,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (md.contains("variable_prefixes")) for (auto& p : md["variable_prefixes"]) rules_.code_quality.no_mock_data.variable_prefixes.push_back(p.get<std::string>());
             if (md.contains("function_prefixes")) for (auto& p : md["function_prefixes"]) rules_.code_quality.no_mock_data.function_prefixes.push_back(p.get<std::string>());
             if (md.contains("literal_patterns")) for (auto& p : md["literal_patterns"]) rules_.code_quality.no_mock_data.literal_patterns.push_back(p.get<std::string>());
-            if (md.contains("ignore_in_test_context")) rules_.code_quality.no_mock_data.ignore_in_test_context = md["ignore_in_test_context"].get<bool>();
+            if (md.contains("ignore_in_test_context") && md["ignore_in_test_context"].is_boolean()) rules_.code_quality.no_mock_data.ignore_in_test_context = md["ignore_in_test_context"].get<bool>();
             parseRationale(md, rules_.code_quality.no_mock_data.rationale);
         } else if (cq.contains("no_mock_data")) { rules_.explicitly_set.insert("code_quality.no_mock_data");
             auto [en, lv] = parseEnforcementLevel(cq["no_mock_data"]);
@@ -1083,8 +1083,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 auto& al = cq["no_apologetic_language"];
                 rules_.code_quality.no_apologetic_language.enabled = true;
                 if (al.contains("level")) { auto [en, lv] = parseEnforcementLevel(al["level"]); rules_.code_quality.no_apologetic_language.level = lv; }
-                if (al.contains("scan_comments_only")) rules_.code_quality.no_apologetic_language.scan_comments_only = al["scan_comments_only"].get<bool>();
-                if (al.contains("scan_strings")) rules_.code_quality.no_apologetic_language.scan_strings = al["scan_strings"].get<bool>();
+                if (al.contains("scan_comments_only") && al["scan_comments_only"].is_boolean()) rules_.code_quality.no_apologetic_language.scan_comments_only = al["scan_comments_only"].get<bool>();
+                if (al.contains("scan_strings") && al["scan_strings"].is_boolean()) rules_.code_quality.no_apologetic_language.scan_strings = al["scan_strings"].get<bool>();
                 parseRationale(al, rules_.code_quality.no_apologetic_language.rationale);
             }
         }
@@ -1094,9 +1094,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& mc = cq["max_complexity"];
             rules_.code_quality.max_complexity.enabled = true;
             if (mc.contains("level")) { auto [en, lv] = parseEnforcementLevel(mc["level"]); rules_.code_quality.max_complexity.level = lv; }
-            if (mc.contains("max_lines_per_block")) rules_.code_quality.max_complexity.max_lines_per_block = mc["max_lines_per_block"].get<int>();
-            if (mc.contains("max_nesting_depth")) rules_.code_quality.max_complexity.max_nesting_depth = mc["max_nesting_depth"].get<int>();
-            if (mc.contains("max_parameters")) rules_.code_quality.max_complexity.max_parameters = mc["max_parameters"].get<int>();
+            if (mc.contains("max_lines_per_block") && mc["max_lines_per_block"].is_number_integer()) rules_.code_quality.max_complexity.max_lines_per_block = mc["max_lines_per_block"].get<int>();
+            if (mc.contains("max_nesting_depth") && mc["max_nesting_depth"].is_number_integer()) rules_.code_quality.max_complexity.max_nesting_depth = mc["max_nesting_depth"].get<int>();
+            if (mc.contains("max_parameters") && mc["max_parameters"].is_number_integer()) rules_.code_quality.max_complexity.max_parameters = mc["max_parameters"].get<int>();
             parseRationale(mc, rules_.code_quality.max_complexity.rationale);
         }
 
@@ -1105,8 +1105,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& enc = cq["encoding"];
             rules_.code_quality.encoding.enabled = true;
             if (enc.contains("level")) { auto [en, lv] = parseEnforcementLevel(enc["level"]); rules_.code_quality.encoding.level = lv; }
-            if (enc.contains("block_null_bytes")) rules_.code_quality.encoding.block_null_bytes = enc["block_null_bytes"].get<bool>();
-            if (enc.contains("block_unicode_bidi")) rules_.code_quality.encoding.block_unicode_bidi = enc["block_unicode_bidi"].get<bool>();
+            if (enc.contains("block_null_bytes") && enc["block_null_bytes"].is_boolean()) rules_.code_quality.encoding.block_null_bytes = enc["block_null_bytes"].get<bool>();
+            if (enc.contains("block_unicode_bidi") && enc["block_unicode_bidi"].is_boolean()) rules_.code_quality.encoding.block_unicode_bidi = enc["block_unicode_bidi"].get<bool>();
             parseRationale(enc, rules_.code_quality.encoding.rationale);
         }
 
@@ -1116,8 +1116,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.code_quality.no_hardcoded_results.enabled = true;
             rules_.no_hardcoded_results = true;
             if (hr.contains("level")) { auto [en, lv] = parseEnforcementLevel(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
-            if (hr.contains("check_return_true_false")) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
-            if (hr.contains("check_dict_success_fields")) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
+            if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
+            if (hr.contains("check_dict_success_fields") && hr["check_dict_success_fields"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_dict_success_fields = hr["check_dict_success_fields"].get<bool>();
             parseRationale(hr, rules_.code_quality.no_hardcoded_results.rationale);
         }
 
@@ -1131,15 +1131,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             } else if (val.is_object()) {
                 os.enabled = true;
                 if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); os.level = lv; }
-                if (val.contains("enabled")) os.enabled = val["enabled"].get<bool>();
-                if (val.contains("check_empty_bodies")) os.check_empty_bodies = val["check_empty_bodies"].get<bool>();
-                if (val.contains("check_trivial_returns")) os.check_trivial_returns = val["check_trivial_returns"].get<bool>();
-                if (val.contains("check_identity_functions")) os.check_identity_functions = val["check_identity_functions"].get<bool>();
-                if (val.contains("check_not_implemented")) os.check_not_implemented = val["check_not_implemented"].get<bool>();
-                if (val.contains("check_comment_only_bodies")) os.check_comment_only_bodies = val["check_comment_only_bodies"].get<bool>();
-                if (val.contains("check_fabricated_results")) os.check_fabricated_results = val["check_fabricated_results"].get<bool>();
-                if (val.contains("case_sensitive")) os.case_sensitive = val["case_sensitive"].get<bool>();
-                if (val.contains("min_function_lines")) os.min_function_lines = val["min_function_lines"].get<int>();
+                if (val.contains("enabled") && val["enabled"].is_boolean()) os.enabled = val["enabled"].get<bool>();
+                if (val.contains("check_empty_bodies") && val["check_empty_bodies"].is_boolean()) os.check_empty_bodies = val["check_empty_bodies"].get<bool>();
+                if (val.contains("check_trivial_returns") && val["check_trivial_returns"].is_boolean()) os.check_trivial_returns = val["check_trivial_returns"].get<bool>();
+                if (val.contains("check_identity_functions") && val["check_identity_functions"].is_boolean()) os.check_identity_functions = val["check_identity_functions"].get<bool>();
+                if (val.contains("check_not_implemented") && val["check_not_implemented"].is_boolean()) os.check_not_implemented = val["check_not_implemented"].get<bool>();
+                if (val.contains("check_comment_only_bodies") && val["check_comment_only_bodies"].is_boolean()) os.check_comment_only_bodies = val["check_comment_only_bodies"].get<bool>();
+                if (val.contains("check_fabricated_results") && val["check_fabricated_results"].is_boolean()) os.check_fabricated_results = val["check_fabricated_results"].get<bool>();
+                if (val.contains("case_sensitive") && val["case_sensitive"].is_boolean()) os.case_sensitive = val["case_sensitive"].get<bool>();
+                if (val.contains("min_function_lines") && val["min_function_lines"].is_number_integer()) os.min_function_lines = val["min_function_lines"].get<int>();
                 if (val.contains("custom_patterns")) {
                     for (auto& p : val["custom_patterns"]) os.custom_patterns.push_back(p.get<std::string>());
                 }
@@ -1157,16 +1157,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             } else if (val.is_object()) {
                 il.enabled = true;
                 if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); il.level = lv; }
-                if (val.contains("enabled")) il.enabled = val["enabled"].get<bool>();
-                if (val.contains("check_empty_catch")) il.check_empty_catch = val["check_empty_catch"].get<bool>();
-                if (val.contains("check_swallowed_exceptions")) il.check_swallowed_exceptions = val["check_swallowed_exceptions"].get<bool>();
-                if (val.contains("check_generic_errors")) il.check_generic_errors = val["check_generic_errors"].get<bool>();
-                if (val.contains("check_vague_error_messages")) il.check_vague_error_messages = val["check_vague_error_messages"].get<bool>();
-                if (val.contains("check_single_iteration_loops")) il.check_single_iteration_loops = val["check_single_iteration_loops"].get<bool>();
-                if (val.contains("check_bare_raise")) il.check_bare_raise = val["check_bare_raise"].get<bool>();
-                if (val.contains("check_always_true_false")) il.check_always_true_false = val["check_always_true_false"].get<bool>();
-                if (val.contains("check_missing_validation")) il.check_missing_validation = val["check_missing_validation"].get<bool>();
-                if (val.contains("case_sensitive")) il.case_sensitive = val["case_sensitive"].get<bool>();
+                if (val.contains("enabled") && val["enabled"].is_boolean()) il.enabled = val["enabled"].get<bool>();
+                if (val.contains("check_empty_catch") && val["check_empty_catch"].is_boolean()) il.check_empty_catch = val["check_empty_catch"].get<bool>();
+                if (val.contains("check_swallowed_exceptions") && val["check_swallowed_exceptions"].is_boolean()) il.check_swallowed_exceptions = val["check_swallowed_exceptions"].get<bool>();
+                if (val.contains("check_generic_errors") && val["check_generic_errors"].is_boolean()) il.check_generic_errors = val["check_generic_errors"].get<bool>();
+                if (val.contains("check_vague_error_messages") && val["check_vague_error_messages"].is_boolean()) il.check_vague_error_messages = val["check_vague_error_messages"].get<bool>();
+                if (val.contains("check_single_iteration_loops") && val["check_single_iteration_loops"].is_boolean()) il.check_single_iteration_loops = val["check_single_iteration_loops"].get<bool>();
+                if (val.contains("check_bare_raise") && val["check_bare_raise"].is_boolean()) il.check_bare_raise = val["check_bare_raise"].get<bool>();
+                if (val.contains("check_always_true_false") && val["check_always_true_false"].is_boolean()) il.check_always_true_false = val["check_always_true_false"].get<bool>();
+                if (val.contains("check_missing_validation") && val["check_missing_validation"].is_boolean()) il.check_missing_validation = val["check_missing_validation"].get<bool>();
+                if (val.contains("case_sensitive") && val["case_sensitive"].is_boolean()) il.case_sensitive = val["case_sensitive"].get<bool>();
                 if (val.contains("custom_patterns")) {
                     for (auto& p : val["custom_patterns"]) il.custom_patterns.push_back(p.get<std::string>());
                 }
@@ -1187,11 +1187,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             } else if (val.is_object()) {
                 ha.enabled = true;
                 if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); ha.level = lv; }
-                if (val.contains("enabled")) ha.enabled = val["enabled"].get<bool>();
-                if (val.contains("check_cross_language")) ha.check_cross_language = val["check_cross_language"].get<bool>();
-                if (val.contains("check_made_up_functions")) ha.check_made_up_functions = val["check_made_up_functions"].get<bool>();
-                if (val.contains("check_wrong_syntax")) ha.check_wrong_syntax = val["check_wrong_syntax"].get<bool>();
-                if (val.contains("case_sensitive")) ha.case_sensitive = val["case_sensitive"].get<bool>();
+                if (val.contains("enabled") && val["enabled"].is_boolean()) ha.enabled = val["enabled"].get<bool>();
+                if (val.contains("check_cross_language") && val["check_cross_language"].is_boolean()) ha.check_cross_language = val["check_cross_language"].get<bool>();
+                if (val.contains("check_made_up_functions") && val["check_made_up_functions"].is_boolean()) ha.check_made_up_functions = val["check_made_up_functions"].get<bool>();
+                if (val.contains("check_wrong_syntax") && val["check_wrong_syntax"].is_boolean()) ha.check_wrong_syntax = val["check_wrong_syntax"].get<bool>();
+                if (val.contains("case_sensitive") && val["case_sensitive"].is_boolean()) ha.case_sensitive = val["case_sensitive"].get<bool>();
                 auto loadPatterns = [](const nlohmann::json& obj, const std::string& key, std::vector<std::string>& out) {
                     if (obj.contains(key)) for (auto& p : obj[key]) out.push_back(p.get<std::string>());
                 };
@@ -1216,19 +1216,19 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (en) cf.level = lv;
             } else if (val.is_object()) {
                 if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); cf.level = lv; }
-                if (val.contains("min_score")) cf.min_score = val["min_score"].get<int>();
-                if (val.contains("check_polyglot")) cf.check_polyglot = val["check_polyglot"].get<bool>();
-                if (val.contains("check_naab")) cf.check_naab = val["check_naab"].get<bool>();
-                if (val.contains("skip_if_has_polyglot_block")) cf.skip_if_has_polyglot_block = val["skip_if_has_polyglot_block"].get<bool>();
-                if (val.contains("min_lines_for_check")) cf.min_lines_for_check = val["min_lines_for_check"].get<int>();
+                if (val.contains("min_score") && val["min_score"].is_number_integer()) cf.min_score = val["min_score"].get<int>();
+                if (val.contains("check_polyglot") && val["check_polyglot"].is_boolean()) cf.check_polyglot = val["check_polyglot"].get<bool>();
+                if (val.contains("check_naab") && val["check_naab"].is_boolean()) cf.check_naab = val["check_naab"].get<bool>();
+                if (val.contains("skip_if_has_polyglot_block") && val["skip_if_has_polyglot_block"].is_boolean()) cf.skip_if_has_polyglot_block = val["skip_if_has_polyglot_block"].get<bool>();
+                if (val.contains("min_lines_for_check") && val["min_lines_for_check"].is_number_integer()) cf.min_lines_for_check = val["min_lines_for_check"].get<int>();
                 if (val.contains("rules") && val["rules"].is_array()) {
                     for (auto& rule_json : val["rules"]) {
                         ComplexityFloorRule rule;
                         if (rule_json.contains("names") && rule_json["names"].is_array()) {
                             for (auto& n : rule_json["names"]) rule.names.push_back(n.get<std::string>());
                         }
-                        if (rule_json.contains("min_score")) rule.min_score = rule_json["min_score"].get<int>();
-                        if (rule_json.contains("require_branching_or_loops")) rule.require_branching_or_loops = rule_json["require_branching_or_loops"].get<bool>();
+                        if (rule_json.contains("min_score") && rule_json["min_score"].is_number_integer()) rule.min_score = rule_json["min_score"].get<int>();
+                        if (rule_json.contains("require_branching_or_loops") && rule_json["require_branching_or_loops"].is_boolean()) rule.require_branching_or_loops = rule_json["require_branching_or_loops"].get<bool>();
                         if (rule_json.contains("message")) rule.message = rule_json["message"].get<std::string>();
                         cf.rules.push_back(std::move(rule));
                     }
@@ -1246,23 +1246,23 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (val.contains("weights") && val["weights"].is_object()) {
                     auto& w = val["weights"];
                     cf.weights.custom = true;
-                    if (w.contains("loop")) cf.weights.loop = std::max(0, w["loop"].get<int>());
-                    if (w.contains("padding_loop")) cf.weights.padding_loop = std::max(0, w["padding_loop"].get<int>());
-                    if (w.contains("nested_loops")) cf.weights.nested_loops = std::max(0, w["nested_loops"].get<int>());
-                    if (w.contains("large_iterations")) cf.weights.large_iterations = std::max(0, w["large_iterations"].get<int>());
-                    if (w.contains("function")) cf.weights.function = std::max(0, w["function"].get<int>());
-                    if (w.contains("recursion")) cf.weights.recursion = std::max(0, w["recursion"].get<int>());
-                    if (w.contains("array_ops")) cf.weights.array_ops = std::max(0, w["array_ops"].get<int>());
-                    if (w.contains("pipeline")) cf.weights.pipeline = std::max(0, w["pipeline"].get<int>());
-                    if (w.contains("pipeline_cap")) cf.weights.pipeline_cap = std::max(0, w["pipeline_cap"].get<int>());
-                    if (w.contains("comprehension")) cf.weights.comprehension = std::max(0, w["comprehension"].get<int>());
-                    if (w.contains("memory_alloc")) cf.weights.memory_alloc = std::max(0, w["memory_alloc"].get<int>());
-                    if (w.contains("lifetime")) cf.weights.lifetime = std::max(0, w["lifetime"].get<int>());
-                    if (w.contains("pointers")) cf.weights.pointers = std::max(0, w["pointers"].get<int>());
-                    if (w.contains("try_catch")) cf.weights.try_catch = std::max(0, w["try_catch"].get<int>());
-                    if (w.contains("error_propagation")) cf.weights.error_propagation = std::max(0, w["error_propagation"].get<int>());
-                    if (w.contains("import")) cf.weights.import = std::max(0, w["import"].get<int>());
-                    if (w.contains("external_call")) cf.weights.external_call = std::max(0, w["external_call"].get<int>());
+                    if (w.contains("loop") && w["loop"].is_number_integer()) cf.weights.loop = std::max(0, w["loop"].get<int>());
+                    if (w.contains("padding_loop") && w["padding_loop"].is_number_integer()) cf.weights.padding_loop = std::max(0, w["padding_loop"].get<int>());
+                    if (w.contains("nested_loops") && w["nested_loops"].is_number_integer()) cf.weights.nested_loops = std::max(0, w["nested_loops"].get<int>());
+                    if (w.contains("large_iterations") && w["large_iterations"].is_number_integer()) cf.weights.large_iterations = std::max(0, w["large_iterations"].get<int>());
+                    if (w.contains("function") && w["function"].is_number_integer()) cf.weights.function = std::max(0, w["function"].get<int>());
+                    if (w.contains("recursion") && w["recursion"].is_number_integer()) cf.weights.recursion = std::max(0, w["recursion"].get<int>());
+                    if (w.contains("array_ops") && w["array_ops"].is_number_integer()) cf.weights.array_ops = std::max(0, w["array_ops"].get<int>());
+                    if (w.contains("pipeline") && w["pipeline"].is_number_integer()) cf.weights.pipeline = std::max(0, w["pipeline"].get<int>());
+                    if (w.contains("pipeline_cap") && w["pipeline_cap"].is_number_integer()) cf.weights.pipeline_cap = std::max(0, w["pipeline_cap"].get<int>());
+                    if (w.contains("comprehension") && w["comprehension"].is_number_integer()) cf.weights.comprehension = std::max(0, w["comprehension"].get<int>());
+                    if (w.contains("memory_alloc") && w["memory_alloc"].is_number_integer()) cf.weights.memory_alloc = std::max(0, w["memory_alloc"].get<int>());
+                    if (w.contains("lifetime") && w["lifetime"].is_number_integer()) cf.weights.lifetime = std::max(0, w["lifetime"].get<int>());
+                    if (w.contains("pointers") && w["pointers"].is_number_integer()) cf.weights.pointers = std::max(0, w["pointers"].get<int>());
+                    if (w.contains("try_catch") && w["try_catch"].is_number_integer()) cf.weights.try_catch = std::max(0, w["try_catch"].get<int>());
+                    if (w.contains("error_propagation") && w["error_propagation"].is_number_integer()) cf.weights.error_propagation = std::max(0, w["error_propagation"].get<int>());
+                    if (w.contains("import") && w["import"].is_number_integer()) cf.weights.import = std::max(0, w["import"].get<int>());
+                    if (w.contains("external_call") && w["external_call"].is_number_integer()) cf.weights.external_call = std::max(0, w["external_call"].get<int>());
                 }
                 parseRationale(val, cf.rationale);
             }
@@ -1271,17 +1271,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         // Duplicate calls config
         if (cq.contains("duplicate_calls") && cq["duplicate_calls"].is_object()) { rules_.explicitly_set.insert("code_quality.duplicate_calls");
             auto& dc = cq["duplicate_calls"];
-            if (dc.contains("enabled")) rules_.code_quality.duplicate_calls.enabled = dc["enabled"].get<bool>();
-            if (dc.contains("threshold")) rules_.code_quality.duplicate_calls.threshold = dc["threshold"].get<int>();
-            if (dc.contains("max_entries")) rules_.code_quality.duplicate_calls.max_entries = dc["max_entries"].get<int>();
+            if (dc.contains("enabled") && dc["enabled"].is_boolean()) rules_.code_quality.duplicate_calls.enabled = dc["enabled"].get<bool>();
+            if (dc.contains("threshold") && dc["threshold"].is_number_integer()) rules_.code_quality.duplicate_calls.threshold = dc["threshold"].get<int>();
+            if (dc.contains("max_entries") && dc["max_entries"].is_number_integer()) rules_.code_quality.duplicate_calls.max_entries = dc["max_entries"].get<int>();
             parseRationale(dc, rules_.code_quality.duplicate_calls.rationale);
         }
 
         // Polyglot try/catch config
         if (cq.contains("polyglot_try_catch") && cq["polyglot_try_catch"].is_object()) { rules_.explicitly_set.insert("code_quality.polyglot_try_catch");
             auto& ptc = cq["polyglot_try_catch"];
-            if (ptc.contains("enabled")) rules_.code_quality.polyglot_try_catch.enabled = ptc["enabled"].get<bool>();
-            if (ptc.contains("max_entries")) rules_.code_quality.polyglot_try_catch.max_entries = ptc["max_entries"].get<int>();
+            if (ptc.contains("enabled") && ptc["enabled"].is_boolean()) rules_.code_quality.polyglot_try_catch.enabled = ptc["enabled"].get<bool>();
+            if (ptc.contains("max_entries") && ptc["max_entries"].is_number_integer()) rules_.code_quality.polyglot_try_catch.max_entries = ptc["max_entries"].get<int>();
         }
 
         // Drift detection: structural regression gate
@@ -1293,60 +1293,60 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.code_quality.drift_detection.level = lv;
             }
             if (dd.contains("baseline_path")) rules_.code_quality.drift_detection.baseline_path = dd["baseline_path"].get<std::string>();
-            if (dd.contains("max_function_loss")) rules_.code_quality.drift_detection.max_function_loss = dd["max_function_loss"].get<double>();
-            if (dd.contains("max_loc_loss")) rules_.code_quality.drift_detection.max_loc_loss = dd["max_loc_loss"].get<double>();
-            if (dd.contains("max_export_loss")) rules_.code_quality.drift_detection.max_export_loss = dd["max_export_loss"].get<double>();
-            if (dd.contains("max_struct_loss")) rules_.code_quality.drift_detection.max_struct_loss = dd["max_struct_loss"].get<double>();
-            if (dd.contains("auto_save")) rules_.code_quality.drift_detection.auto_save = dd["auto_save"].get<bool>();
+            if (dd.contains("max_function_loss") && dd["max_function_loss"].is_number()) rules_.code_quality.drift_detection.max_function_loss = dd["max_function_loss"].get<double>();
+            if (dd.contains("max_loc_loss") && dd["max_loc_loss"].is_number()) rules_.code_quality.drift_detection.max_loc_loss = dd["max_loc_loss"].get<double>();
+            if (dd.contains("max_export_loss") && dd["max_export_loss"].is_number()) rules_.code_quality.drift_detection.max_export_loss = dd["max_export_loss"].get<double>();
+            if (dd.contains("max_struct_loss") && dd["max_struct_loss"].is_number()) rules_.code_quality.drift_detection.max_struct_loss = dd["max_struct_loss"].get<double>();
+            if (dd.contains("auto_save") && dd["auto_save"].is_boolean()) rules_.code_quality.drift_detection.auto_save = dd["auto_save"].get<bool>();
             // Gate 1: Signature stability
-            if (dd.contains("check_signatures")) rules_.code_quality.drift_detection.check_signatures = dd["check_signatures"].get<bool>();
-            if (dd.contains("max_param_loss")) rules_.code_quality.drift_detection.max_param_loss = dd["max_param_loss"].get<double>();
+            if (dd.contains("check_signatures") && dd["check_signatures"].is_boolean()) rules_.code_quality.drift_detection.check_signatures = dd["check_signatures"].get<bool>();
+            if (dd.contains("max_param_loss") && dd["max_param_loss"].is_number()) rules_.code_quality.drift_detection.max_param_loss = dd["max_param_loss"].get<double>();
             // Gate 2: Import regression
-            if (dd.contains("check_imports")) rules_.code_quality.drift_detection.check_imports = dd["check_imports"].get<bool>();
-            if (dd.contains("max_import_loss")) rules_.code_quality.drift_detection.max_import_loss = dd["max_import_loss"].get<double>();
+            if (dd.contains("check_imports") && dd["check_imports"].is_boolean()) rules_.code_quality.drift_detection.check_imports = dd["check_imports"].get<bool>();
+            if (dd.contains("max_import_loss") && dd["max_import_loss"].is_number()) rules_.code_quality.drift_detection.max_import_loss = dd["max_import_loss"].get<double>();
             // Gate 3: Complexity regression
-            if (dd.contains("check_complexity")) rules_.code_quality.drift_detection.check_complexity = dd["check_complexity"].get<bool>();
-            if (dd.contains("max_complexity_loss")) rules_.code_quality.drift_detection.max_complexity_loss = dd["max_complexity_loss"].get<double>();
-            if (dd.contains("min_complexity_baseline")) rules_.code_quality.drift_detection.min_complexity_baseline = dd["min_complexity_baseline"].get<int>();
+            if (dd.contains("check_complexity") && dd["check_complexity"].is_boolean()) rules_.code_quality.drift_detection.check_complexity = dd["check_complexity"].get<bool>();
+            if (dd.contains("max_complexity_loss") && dd["max_complexity_loss"].is_number()) rules_.code_quality.drift_detection.max_complexity_loss = dd["max_complexity_loss"].get<double>();
+            if (dd.contains("min_complexity_baseline") && dd["min_complexity_baseline"].is_number_integer()) rules_.code_quality.drift_detection.min_complexity_baseline = dd["min_complexity_baseline"].get<int>();
             // Gate 4: Comment inflation
-            if (dd.contains("check_comment_ratio")) rules_.code_quality.drift_detection.check_comment_ratio = dd["check_comment_ratio"].get<bool>();
-            if (dd.contains("max_comment_ratio")) rules_.code_quality.drift_detection.max_comment_ratio = dd["max_comment_ratio"].get<double>();
-            if (dd.contains("max_comment_only_ratio")) rules_.code_quality.drift_detection.max_comment_only_ratio = dd["max_comment_only_ratio"].get<double>();
+            if (dd.contains("check_comment_ratio") && dd["check_comment_ratio"].is_boolean()) rules_.code_quality.drift_detection.check_comment_ratio = dd["check_comment_ratio"].get<bool>();
+            if (dd.contains("max_comment_ratio") && dd["max_comment_ratio"].is_number()) rules_.code_quality.drift_detection.max_comment_ratio = dd["max_comment_ratio"].get<double>();
+            if (dd.contains("max_comment_only_ratio") && dd["max_comment_only_ratio"].is_number()) rules_.code_quality.drift_detection.max_comment_only_ratio = dd["max_comment_only_ratio"].get<double>();
             // Gate 5: Dead export
-            if (dd.contains("check_hollow_exports")) rules_.code_quality.drift_detection.check_hollow_exports = dd["check_hollow_exports"].get<bool>();
-            if (dd.contains("min_hollow_export_complexity")) rules_.code_quality.drift_detection.min_hollow_export_complexity = dd["min_hollow_export_complexity"].get<int>();
+            if (dd.contains("check_hollow_exports") && dd["check_hollow_exports"].is_boolean()) rules_.code_quality.drift_detection.check_hollow_exports = dd["check_hollow_exports"].get<bool>();
+            if (dd.contains("min_hollow_export_complexity") && dd["min_hollow_export_complexity"].is_number_integer()) rules_.code_quality.drift_detection.min_hollow_export_complexity = dd["min_hollow_export_complexity"].get<int>();
             // Gate 6: Polyglot regression
-            if (dd.contains("check_polyglot")) rules_.code_quality.drift_detection.check_polyglot = dd["check_polyglot"].get<bool>();
-            if (dd.contains("max_polyglot_loss")) rules_.code_quality.drift_detection.max_polyglot_loss = dd["max_polyglot_loss"].get<double>();
+            if (dd.contains("check_polyglot") && dd["check_polyglot"].is_boolean()) rules_.code_quality.drift_detection.check_polyglot = dd["check_polyglot"].get<bool>();
+            if (dd.contains("max_polyglot_loss") && dd["max_polyglot_loss"].is_number()) rules_.code_quality.drift_detection.max_polyglot_loss = dd["max_polyglot_loss"].get<double>();
             // Gate 7: Struct field stability
-            if (dd.contains("check_struct_fields")) rules_.code_quality.drift_detection.check_struct_fields = dd["check_struct_fields"].get<bool>();
-            if (dd.contains("max_field_loss")) rules_.code_quality.drift_detection.max_field_loss = dd["max_field_loss"].get<double>();
+            if (dd.contains("check_struct_fields") && dd["check_struct_fields"].is_boolean()) rules_.code_quality.drift_detection.check_struct_fields = dd["check_struct_fields"].get<bool>();
+            if (dd.contains("max_field_loss") && dd["max_field_loss"].is_number()) rules_.code_quality.drift_detection.max_field_loss = dd["max_field_loss"].get<double>();
             // Gate 8: Test function regression
-            if (dd.contains("check_test_functions")) rules_.code_quality.drift_detection.check_test_functions = dd["check_test_functions"].get<bool>();
-            if (dd.contains("max_test_loss")) rules_.code_quality.drift_detection.max_test_loss = dd["max_test_loss"].get<double>();
+            if (dd.contains("check_test_functions") && dd["check_test_functions"].is_boolean()) rules_.code_quality.drift_detection.check_test_functions = dd["check_test_functions"].get<bool>();
+            if (dd.contains("max_test_loss") && dd["max_test_loss"].is_number()) rules_.code_quality.drift_detection.max_test_loss = dd["max_test_loss"].get<double>();
             // Gate 9: Function name stability
-            if (dd.contains("check_function_names")) rules_.code_quality.drift_detection.check_function_names = dd["check_function_names"].get<bool>();
-            if (dd.contains("max_function_name_loss")) rules_.code_quality.drift_detection.max_function_name_loss = dd["max_function_name_loss"].get<double>();
+            if (dd.contains("check_function_names") && dd["check_function_names"].is_boolean()) rules_.code_quality.drift_detection.check_function_names = dd["check_function_names"].get<bool>();
+            if (dd.contains("max_function_name_loss") && dd["max_function_name_loss"].is_number()) rules_.code_quality.drift_detection.max_function_name_loss = dd["max_function_name_loss"].get<double>();
             // Gate 10: Baseline tamper protection
-            if (dd.contains("require_baseline")) rules_.code_quality.drift_detection.require_baseline = dd["require_baseline"].get<bool>();
+            if (dd.contains("require_baseline") && dd["require_baseline"].is_boolean()) rules_.code_quality.drift_detection.require_baseline = dd["require_baseline"].get<bool>();
             // Gate 11: Function body hash
-            if (dd.contains("check_body_hash")) rules_.code_quality.drift_detection.check_body_hash = dd["check_body_hash"].get<bool>();
+            if (dd.contains("check_body_hash") && dd["check_body_hash"].is_boolean()) rules_.code_quality.drift_detection.check_body_hash = dd["check_body_hash"].get<bool>();
             // Gate 12: Parameter utilization
-            if (dd.contains("check_param_utilization")) rules_.code_quality.drift_detection.check_param_utilization = dd["check_param_utilization"].get<bool>();
-            if (dd.contains("min_param_utilization")) rules_.code_quality.drift_detection.min_param_utilization = dd["min_param_utilization"].get<double>();
+            if (dd.contains("check_param_utilization") && dd["check_param_utilization"].is_boolean()) rules_.code_quality.drift_detection.check_param_utilization = dd["check_param_utilization"].get<bool>();
+            if (dd.contains("min_param_utilization") && dd["min_param_utilization"].is_number()) rules_.code_quality.drift_detection.min_param_utilization = dd["min_param_utilization"].get<double>();
             // Gate 13: Config presence
-            if (dd.contains("check_config_presence")) rules_.code_quality.drift_detection.check_config_presence = dd["check_config_presence"].get<bool>();
+            if (dd.contains("check_config_presence") && dd["check_config_presence"].is_boolean()) rules_.code_quality.drift_detection.check_config_presence = dd["check_config_presence"].get<bool>();
             // Gate 14: Script location
-            if (dd.contains("check_script_location")) rules_.code_quality.drift_detection.check_script_location = dd["check_script_location"].get<bool>();
+            if (dd.contains("check_script_location") && dd["check_script_location"].is_boolean()) rules_.code_quality.drift_detection.check_script_location = dd["check_script_location"].get<bool>();
             // Gate 16: Signature presence
-            if (dd.contains("check_signature_presence")) rules_.code_quality.drift_detection.check_signature_presence = dd["check_signature_presence"].get<bool>();
+            if (dd.contains("check_signature_presence") && dd["check_signature_presence"].is_boolean()) rules_.code_quality.drift_detection.check_signature_presence = dd["check_signature_presence"].get<bool>();
             // Gate 17: Polyglot content regression
-            if (dd.contains("check_polyglot_content")) rules_.code_quality.drift_detection.check_polyglot_content = dd["check_polyglot_content"].get<bool>();
-            if (dd.contains("max_polyglot_shrink")) rules_.code_quality.drift_detection.max_polyglot_shrink = dd["max_polyglot_shrink"].get<double>();
+            if (dd.contains("check_polyglot_content") && dd["check_polyglot_content"].is_boolean()) rules_.code_quality.drift_detection.check_polyglot_content = dd["check_polyglot_content"].get<bool>();
+            if (dd.contains("max_polyglot_shrink") && dd["max_polyglot_shrink"].is_number()) rules_.code_quality.drift_detection.max_polyglot_shrink = dd["max_polyglot_shrink"].get<double>();
             // Gate 0 extension: Function gain detection
-            if (dd.contains("max_function_gain")) rules_.code_quality.drift_detection.max_function_gain = dd["max_function_gain"].get<double>();
+            if (dd.contains("max_function_gain") && dd["max_function_gain"].is_number()) rules_.code_quality.drift_detection.max_function_gain = dd["max_function_gain"].get<double>();
             // Gate 18: New function detection
-            if (dd.contains("check_new_functions")) rules_.code_quality.drift_detection.check_new_functions = dd["check_new_functions"].get<bool>();
+            if (dd.contains("check_new_functions") && dd["check_new_functions"].is_boolean()) rules_.code_quality.drift_detection.check_new_functions = dd["check_new_functions"].get<bool>();
             parseRationale(dd, rules_.code_quality.drift_detection.rationale);
         }
     }
@@ -1377,8 +1377,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("help")) rule.help = cr["help"].get<std::string>();
             if (cr.contains("good_example")) rule.good_example = cr["good_example"].get<std::string>();
             if (cr.contains("bad_example")) rule.bad_example = cr["bad_example"].get<std::string>();
-            if (cr.contains("enabled")) rule.enabled = cr["enabled"].get<bool>();
-            if (cr.contains("case_sensitive")) rule.case_sensitive = cr["case_sensitive"].get<bool>();
+            if (cr.contains("enabled") && cr["enabled"].is_boolean()) rule.enabled = cr["enabled"].get<bool>();
+            if (cr.contains("case_sensitive") && cr["case_sensitive"].is_boolean()) rule.case_sensitive = cr["case_sensitive"].get<bool>();
             if (cr.contains("tags")) for (auto& t : cr["tags"]) rule.tags.push_back(t.get<std::string>());
             parseRationale(cr, rule.rationale);
             // Compile regex
@@ -1440,7 +1440,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     if (pr.contains("help")) rule.help = pr["help"].get<std::string>();
                     if (pr.contains("good_example")) rule.good_example = pr["good_example"].get<std::string>();
                     if (pr.contains("bad_example")) rule.bad_example = pr["bad_example"].get<std::string>();
-                    if (pr.contains("enabled")) rule.enabled = pr["enabled"].get<bool>();
+                    if (pr.contains("enabled") && pr["enabled"].is_boolean()) rule.enabled = pr["enabled"].get<bool>();
                     if (rule.function_name.empty()) {
                         fprintf(stderr, "[governance] Warning: Plugin rule in '%s' missing 'function' field, skipping\n",
                                 plugin.file_path.c_str());
@@ -1464,25 +1464,25 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& out = j["output"];
         if (out.contains("summary") && out["summary"].is_object()) {
             auto& s = out["summary"];
-            if (s.contains("enabled")) rules_.output.summary.enabled = s["enabled"].get<bool>();
+            if (s.contains("enabled") && s["enabled"].is_boolean()) rules_.output.summary.enabled = s["enabled"].get<bool>();
             if (s.contains("format")) rules_.output.summary.format = s["format"].get<std::string>();
-            if (s.contains("show_passing")) rules_.output.summary.show_passing = s["show_passing"].get<bool>();
+            if (s.contains("show_passing") && s["show_passing"].is_boolean()) rules_.output.summary.show_passing = s["show_passing"].get<bool>();
             if (s.contains("group_by")) rules_.output.summary.group_by = s["group_by"].get<std::string>();
         }
         if (out.contains("errors") && out["errors"].is_object()) {
             auto& e = out["errors"];
-            if (e.contains("verbose")) rules_.output.errors.verbose = e["verbose"].get<bool>();
-            if (e.contains("show_help")) rules_.output.errors.show_help = e["show_help"].get<bool>();
-            if (e.contains("show_examples")) rules_.output.errors.show_examples = e["show_examples"].get<bool>();
-            if (e.contains("max_errors_per_rule")) rules_.output.errors.max_errors_per_rule = e["max_errors_per_rule"].get<int>();
-            if (e.contains("max_total_errors")) rules_.output.errors.max_total_errors = e["max_total_errors"].get<int>();
-            if (e.contains("show_code_context")) rules_.output.errors.show_code_context = e["show_code_context"].get<int>();
+            if (e.contains("verbose") && e["verbose"].is_boolean()) rules_.output.errors.verbose = e["verbose"].get<bool>();
+            if (e.contains("show_help") && e["show_help"].is_boolean()) rules_.output.errors.show_help = e["show_help"].get<bool>();
+            if (e.contains("show_examples") && e["show_examples"].is_boolean()) rules_.output.errors.show_examples = e["show_examples"].get<bool>();
+            if (e.contains("max_errors_per_rule") && e["max_errors_per_rule"].is_number_integer()) rules_.output.errors.max_errors_per_rule = e["max_errors_per_rule"].get<int>();
+            if (e.contains("max_total_errors") && e["max_total_errors"].is_number_integer()) rules_.output.errors.max_total_errors = e["max_total_errors"].get<int>();
+            if (e.contains("show_code_context") && e["show_code_context"].is_number_integer()) rules_.output.errors.show_code_context = e["show_code_context"].get<int>();
         }
         if (out.contains("formatting") && out["formatting"].is_object()) {
             auto& f = out["formatting"];
-            if (f.contains("color")) rules_.output.formatting.color = f["color"].get<bool>();
-            if (f.contains("unicode_symbols")) rules_.output.formatting.unicode_symbols = f["unicode_symbols"].get<bool>();
-            if (f.contains("width")) rules_.output.formatting.width = f["width"].get<int>();
+            if (f.contains("color") && f["color"].is_boolean()) rules_.output.formatting.color = f["color"].get<bool>();
+            if (f.contains("unicode_symbols") && f["unicode_symbols"].is_boolean()) rules_.output.formatting.unicode_symbols = f["unicode_symbols"].get<bool>();
+            if (f.contains("width") && f["width"].is_number_integer()) rules_.output.formatting.width = f["width"].get<int>();
         }
         if (out.contains("file_output") && out["file_output"].is_object()) {
             auto& fo = out["file_output"];
@@ -1490,12 +1490,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (fo.contains("report_sarif") && !fo["report_sarif"].is_null()) rules_.output.file_output.report_sarif = fo["report_sarif"].get<std::string>();
             if (fo.contains("report_junit") && !fo["report_junit"].is_null()) rules_.output.file_output.report_junit = fo["report_junit"].get<std::string>();
         }
-        if (out.contains("max_advisories")) { rules_.output.max_advisories = out["max_advisories"].get<int>(); rules_.explicitly_set.insert("output.max_advisories"); }
-        if (out.contains("advisory_summary")) rules_.output.advisory_summary = out["advisory_summary"].get<bool>();
-        if (out.contains("quiet")) rules_.quiet_config = out["quiet"].get<bool>();
-        if (out.contains("no_color")) rules_.no_color_config = out["no_color"].get<bool>();
+        if (out.contains("max_advisories") && out["max_advisories"].is_number_integer()) { rules_.output.max_advisories = out["max_advisories"].get<int>(); rules_.explicitly_set.insert("output.max_advisories"); }
+        if (out.contains("advisory_summary") && out["advisory_summary"].is_boolean()) rules_.output.advisory_summary = out["advisory_summary"].get<bool>();
+        if (out.contains("quiet") && out["quiet"].is_boolean()) rules_.quiet_config = out["quiet"].get<bool>();
+        if (out.contains("no_color") && out["no_color"].is_boolean()) rules_.no_color_config = out["no_color"].get<bool>();
         if (out.contains("voice")) rules_.output.voice = out["voice"].get<std::string>();
-        if (out.contains("voice_cache")) rules_.output.voice_cache = out["voice_cache"].get<bool>();
+        if (out.contains("voice_cache") && out["voice_cache"].is_boolean()) rules_.output.voice_cache = out["voice_cache"].get<bool>();
     }
 
     // V3 Audit (expanded)
@@ -1505,7 +1505,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (aud.contains("output_file")) { rules_.audit.output_file = aud["output_file"].get<std::string>(); rules_.explicitly_set.insert("audit.output_file"); }
         if (aud.contains("tamper_evidence") && aud["tamper_evidence"].is_object()) { rules_.explicitly_set.insert("audit.tamper_evidence");
             auto& te = aud["tamper_evidence"];
-            if (te.contains("enabled")) { rules_.audit.tamper_evidence.enabled = te["enabled"].get<bool>(); rules_.tamper_evidence = rules_.audit.tamper_evidence.enabled; }
+            if (te.contains("enabled") && te["enabled"].is_boolean()) { rules_.audit.tamper_evidence.enabled = te["enabled"].get<bool>(); rules_.tamper_evidence = rules_.audit.tamper_evidence.enabled; }
             if (te.contains("algorithm")) rules_.audit.tamper_evidence.algorithm = te["algorithm"].get<std::string>();
             if (te.contains("chain_genesis")) rules_.audit.tamper_evidence.chain_genesis = te["chain_genesis"].get<std::string>();
             if (te.contains("hmac_key")) rules_.audit.tamper_evidence.hmac_key = te["hmac_key"].get<std::string>();
@@ -1519,21 +1519,21 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (aud.contains("log_events") && aud["log_events"].is_object()) {
             auto& le = aud["log_events"];
-            if (le.contains("checks_passed")) rules_.audit.log_events.checks_passed = le["checks_passed"].get<bool>();
-            if (le.contains("checks_failed")) rules_.audit.log_events.checks_failed = le["checks_failed"].get<bool>();
-            if (le.contains("overrides")) rules_.audit.log_events.overrides = le["overrides"].get<bool>();
-            if (le.contains("polyglot_executed")) rules_.audit.log_events.polyglot_executed = le["polyglot_executed"].get<bool>();
-            if (le.contains("polyglot_timing")) rules_.audit.log_events.polyglot_timing = le["polyglot_timing"].get<bool>();
-            if (le.contains("taint_decisions")) rules_.audit.log_events.taint_decisions = le["taint_decisions"].get<bool>();
-            if (le.contains("contract_checks")) rules_.audit.log_events.contract_checks = le["contract_checks"].get<bool>();
+            if (le.contains("checks_passed") && le["checks_passed"].is_boolean()) rules_.audit.log_events.checks_passed = le["checks_passed"].get<bool>();
+            if (le.contains("checks_failed") && le["checks_failed"].is_boolean()) rules_.audit.log_events.checks_failed = le["checks_failed"].get<bool>();
+            if (le.contains("overrides") && le["overrides"].is_boolean()) rules_.audit.log_events.overrides = le["overrides"].get<bool>();
+            if (le.contains("polyglot_executed") && le["polyglot_executed"].is_boolean()) rules_.audit.log_events.polyglot_executed = le["polyglot_executed"].get<bool>();
+            if (le.contains("polyglot_timing") && le["polyglot_timing"].is_boolean()) rules_.audit.log_events.polyglot_timing = le["polyglot_timing"].get<bool>();
+            if (le.contains("taint_decisions") && le["taint_decisions"].is_boolean()) rules_.audit.log_events.taint_decisions = le["taint_decisions"].get<bool>();
+            if (le.contains("contract_checks") && le["contract_checks"].is_boolean()) rules_.audit.log_events.contract_checks = le["contract_checks"].get<bool>();
         }
         if (aud.contains("provenance") && aud["provenance"].is_object()) { rules_.explicitly_set.insert("audit.provenance");
             auto& prov = aud["provenance"];
-            if (prov.contains("enabled")) rules_.audit.provenance.enabled = prov["enabled"].get<bool>();
-            if (prov.contains("record_proof_objects")) rules_.audit.provenance.record_proof_objects = prov["record_proof_objects"].get<bool>();
-            if (prov.contains("record_attestations")) rules_.audit.provenance.record_attestations = prov["record_attestations"].get<bool>();
-            if (prov.contains("record_decisions")) rules_.audit.provenance.record_decisions = prov["record_decisions"].get<bool>();
-            if (prov.contains("sign_records")) rules_.audit.provenance.sign_records = prov["sign_records"].get<bool>();
+            if (prov.contains("enabled") && prov["enabled"].is_boolean()) rules_.audit.provenance.enabled = prov["enabled"].get<bool>();
+            if (prov.contains("record_proof_objects") && prov["record_proof_objects"].is_boolean()) rules_.audit.provenance.record_proof_objects = prov["record_proof_objects"].get<bool>();
+            if (prov.contains("record_attestations") && prov["record_attestations"].is_boolean()) rules_.audit.provenance.record_attestations = prov["record_attestations"].get<bool>();
+            if (prov.contains("record_decisions") && prov["record_decisions"].is_boolean()) rules_.audit.provenance.record_decisions = prov["record_decisions"].get<bool>();
+            if (prov.contains("sign_records") && prov["sign_records"].is_boolean()) rules_.audit.provenance.sign_records = prov["sign_records"].get<bool>();
             if (prov.contains("signing_key")) rules_.audit.provenance.signing_key = prov["signing_key"].get<std::string>();
             if (prov.contains("signing_key_env")) {
                 std::string env_name = prov["signing_key_env"].get<std::string>();
@@ -1548,25 +1548,25 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& meta = j["meta"];
         if (meta.contains("schema_validation") && meta["schema_validation"].is_object()) {
             auto& sv = meta["schema_validation"];
-            if (sv.contains("warn_unknown_keys")) rules_.meta.schema_validation.warn_unknown_keys = sv["warn_unknown_keys"].get<bool>();
-            if (sv.contains("suggest_corrections")) rules_.meta.schema_validation.suggest_corrections = sv["suggest_corrections"].get<bool>();
+            if (sv.contains("warn_unknown_keys") && sv["warn_unknown_keys"].is_boolean()) rules_.meta.schema_validation.warn_unknown_keys = sv["warn_unknown_keys"].get<bool>();
+            if (sv.contains("suggest_corrections") && sv["suggest_corrections"].is_boolean()) rules_.meta.schema_validation.suggest_corrections = sv["suggest_corrections"].get<bool>();
         }
         if (meta.contains("inheritance") && meta["inheritance"].is_object()) {
             auto& inh = meta["inheritance"];
-            if (inh.contains("max_depth")) rules_.meta.inheritance.max_depth = inh["max_depth"].get<int>();
+            if (inh.contains("max_depth") && inh["max_depth"].is_number_integer()) rules_.meta.inheritance.max_depth = inh["max_depth"].get<int>();
             if (inh.contains("merge_strategy")) rules_.meta.inheritance.merge_strategy = inh["merge_strategy"].get<std::string>();
             if (inh.contains("merge_arrays")) rules_.meta.inheritance.merge_arrays = inh["merge_arrays"].get<std::string>();
         }
         if (meta.contains("environment") && meta["environment"].is_object()) {
             auto& env = meta["environment"];
-            if (env.contains("allow_env_var_substitution")) rules_.meta.environment.allow_env_var_substitution = env["allow_env_var_substitution"].get<bool>();
+            if (env.contains("allow_env_var_substitution") && env["allow_env_var_substitution"].is_boolean()) rules_.meta.environment.allow_env_var_substitution = env["allow_env_var_substitution"].get<bool>();
             if (env.contains("env_prefix")) rules_.meta.environment.env_prefix = env["env_prefix"].get<std::string>();
-            if (env.contains("allow_cli_override")) rules_.meta.environment.allow_cli_override = env["allow_cli_override"].get<bool>();
+            if (env.contains("allow_cli_override") && env["allow_cli_override"].is_boolean()) rules_.meta.environment.allow_cli_override = env["allow_cli_override"].get<bool>();
         }
         if (meta.contains("feature_flags") && meta["feature_flags"].is_object()) {
             auto& ff = meta["feature_flags"];
-            if (ff.contains("experimental_checks")) rules_.meta.feature_flags.experimental_checks = ff["experimental_checks"].get<bool>();
-            if (ff.contains("verbose_parsing")) rules_.meta.feature_flags.verbose_parsing = ff["verbose_parsing"].get<bool>();
+            if (ff.contains("experimental_checks") && ff["experimental_checks"].is_boolean()) rules_.meta.feature_flags.experimental_checks = ff["experimental_checks"].get<bool>();
+            if (ff.contains("verbose_parsing") && ff["verbose_parsing"].is_boolean()) rules_.meta.feature_flags.verbose_parsing = ff["verbose_parsing"].get<bool>();
         }
     }
 
@@ -1576,26 +1576,26 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (pg.contains("variable_binding") && pg["variable_binding"].is_object()) {
             auto& vb = pg["variable_binding"];
             if (vb.contains("require_explicit")) { auto [en, lv] = parseEnforcementLevel(vb["require_explicit"]); rules_.polyglot.variable_binding.require_explicit = en; rules_.polyglot.variable_binding.require_explicit_level = lv; rules_.explicitly_set.insert("polyglot.variable_binding.require_explicit"); }
-            if (vb.contains("max_bound_variables")) { rules_.polyglot.variable_binding.max_bound_variables = vb["max_bound_variables"].get<int>(); rules_.explicitly_set.insert("polyglot.variable_binding.max_bound_variables"); }
+            if (vb.contains("max_bound_variables") && vb["max_bound_variables"].is_number_integer()) { rules_.polyglot.variable_binding.max_bound_variables = vb["max_bound_variables"].get<int>(); rules_.explicitly_set.insert("polyglot.variable_binding.max_bound_variables"); }
         }
         if (pg.contains("output") && pg["output"].is_object()) {
             auto& po = pg["output"];
-            if (po.contains("require_json_pipe")) { rules_.polyglot.output.require_json_pipe = po["require_json_pipe"].get<bool>(); rules_.explicitly_set.insert("polyglot.output.require_json_pipe"); }
-            if (po.contains("require_naab_return")) { rules_.polyglot.output.require_naab_return = po["require_naab_return"].get<bool>(); rules_.explicitly_set.insert("polyglot.output.require_naab_return"); }
-            if (po.contains("max_output_lines")) { rules_.polyglot.output.max_output_lines = po["max_output_lines"].get<int>(); rules_.explicitly_set.insert("polyglot.output.max_output_lines"); }
-            if (po.contains("validate_encoding")) rules_.polyglot.output.validate_encoding = po["validate_encoding"].get<bool>();
+            if (po.contains("require_json_pipe") && po["require_json_pipe"].is_boolean()) { rules_.polyglot.output.require_json_pipe = po["require_json_pipe"].get<bool>(); rules_.explicitly_set.insert("polyglot.output.require_json_pipe"); }
+            if (po.contains("require_naab_return") && po["require_naab_return"].is_boolean()) { rules_.polyglot.output.require_naab_return = po["require_naab_return"].get<bool>(); rules_.explicitly_set.insert("polyglot.output.require_naab_return"); }
+            if (po.contains("max_output_lines") && po["max_output_lines"].is_number_integer()) { rules_.polyglot.output.max_output_lines = po["max_output_lines"].get<int>(); rules_.explicitly_set.insert("polyglot.output.max_output_lines"); }
+            if (po.contains("validate_encoding") && po["validate_encoding"].is_boolean()) rules_.polyglot.output.validate_encoding = po["validate_encoding"].get<bool>();
         }
         if (pg.contains("parallel") && pg["parallel"].is_object()) {
             auto& par = pg["parallel"];
-            if (par.contains("max_parallel_blocks")) { rules_.polyglot.parallel.max_parallel_blocks = par["max_parallel_blocks"].get<int>(); rules_.explicitly_set.insert("polyglot.parallel.max_parallel_blocks"); }
-            if (par.contains("timeout_per_block")) { rules_.polyglot.parallel.timeout_per_block = par["timeout_per_block"].get<int>(); rules_.explicitly_set.insert("polyglot.parallel.timeout_per_block"); }
+            if (par.contains("max_parallel_blocks") && par["max_parallel_blocks"].is_number_integer()) { rules_.polyglot.parallel.max_parallel_blocks = par["max_parallel_blocks"].get<int>(); rules_.explicitly_set.insert("polyglot.parallel.max_parallel_blocks"); }
+            if (par.contains("timeout_per_block") && par["timeout_per_block"].is_number_integer()) { rules_.polyglot.parallel.timeout_per_block = par["timeout_per_block"].get<int>(); rules_.explicitly_set.insert("polyglot.parallel.timeout_per_block"); }
             if (par.contains("fail_strategy")) { rules_.polyglot.parallel.fail_strategy = par["fail_strategy"].get<std::string>(); rules_.explicitly_set.insert("polyglot.parallel.fail_strategy"); }
         }
         if (pg.contains("persistent_runtime") && pg["persistent_runtime"].is_object()) {
             auto& pr = pg["persistent_runtime"];
-            if (pr.contains("max_sessions")) { rules_.polyglot.persistent_runtime.max_sessions = pr["max_sessions"].get<int>(); rules_.explicitly_set.insert("polyglot.persistent_runtime.max_sessions"); }
-            if (pr.contains("session_timeout")) { rules_.polyglot.persistent_runtime.session_timeout = pr["session_timeout"].get<int>(); rules_.explicitly_set.insert("polyglot.persistent_runtime.session_timeout"); }
-            if (pr.contains("max_memory_per_session_mb")) { rules_.polyglot.persistent_runtime.max_memory_per_session_mb = pr["max_memory_per_session_mb"].get<int>(); rules_.explicitly_set.insert("polyglot.persistent_runtime.max_memory_per_session_mb"); }
+            if (pr.contains("max_sessions") && pr["max_sessions"].is_number_integer()) { rules_.polyglot.persistent_runtime.max_sessions = pr["max_sessions"].get<int>(); rules_.explicitly_set.insert("polyglot.persistent_runtime.max_sessions"); }
+            if (pr.contains("session_timeout") && pr["session_timeout"].is_number_integer()) { rules_.polyglot.persistent_runtime.session_timeout = pr["session_timeout"].get<int>(); rules_.explicitly_set.insert("polyglot.persistent_runtime.session_timeout"); }
+            if (pr.contains("max_memory_per_session_mb") && pr["max_memory_per_session_mb"].is_number_integer()) { rules_.polyglot.persistent_runtime.max_memory_per_session_mb = pr["max_memory_per_session_mb"].get<int>(); rules_.explicitly_set.insert("polyglot.persistent_runtime.max_memory_per_session_mb"); }
         }
     }
 
@@ -1603,13 +1603,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("polyglot_optimization") && j["polyglot_optimization"].is_object()) {
         auto& po = j["polyglot_optimization"];
 
-        if (po.contains("enabled")) rules_.polyglot_optimization.enabled = po["enabled"].get<bool>();
+        if (po.contains("enabled") && po["enabled"].is_boolean()) rules_.polyglot_optimization.enabled = po["enabled"].get<bool>();
         if (po.contains("enforcement_level")) rules_.polyglot_optimization.enforcement_level = po["enforcement_level"].get<std::string>();
 
         // Pattern detection
         if (po.contains("pattern_detection") && po["pattern_detection"].is_object()) {
             auto& pd = po["pattern_detection"];
-            if (pd.contains("enabled")) rules_.polyglot_optimization.pattern_detection.enabled = pd["enabled"].get<bool>();
+            if (pd.contains("enabled") && pd["enabled"].is_boolean()) rules_.polyglot_optimization.pattern_detection.enabled = pd["enabled"].get<bool>();
 
             // Task inference patterns
             if (pd.contains("task_inference") && pd["task_inference"].is_object()) {
@@ -1642,71 +1642,71 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         // Language diversity
         if (po.contains("language_diversity") && po["language_diversity"].is_object()) {
             auto& ld = po["language_diversity"];
-            if (ld.contains("enabled")) rules_.polyglot_optimization.language_diversity.enabled = ld["enabled"].get<bool>();
-            if (ld.contains("min_languages")) rules_.polyglot_optimization.language_diversity.min_languages = ld["min_languages"].get<int>();
-            if (ld.contains("max_single_language_percent")) rules_.polyglot_optimization.language_diversity.max_single_language_percent = ld["max_single_language_percent"].get<int>();
+            if (ld.contains("enabled") && ld["enabled"].is_boolean()) rules_.polyglot_optimization.language_diversity.enabled = ld["enabled"].get<bool>();
+            if (ld.contains("min_languages") && ld["min_languages"].is_number_integer()) rules_.polyglot_optimization.language_diversity.min_languages = ld["min_languages"].get<int>();
+            if (ld.contains("max_single_language_percent") && ld["max_single_language_percent"].is_number_integer()) rules_.polyglot_optimization.language_diversity.max_single_language_percent = ld["max_single_language_percent"].get<int>();
             if (ld.contains("message")) rules_.polyglot_optimization.language_diversity.message = ld["message"].get<std::string>();
         }
 
         // Helper errors
         if (po.contains("helper_errors") && po["helper_errors"].is_object()) {
             auto& he = po["helper_errors"];
-            if (he.contains("enabled")) rules_.polyglot_optimization.helper_errors.enabled = he["enabled"].get<bool>();
-            if (he.contains("show_alternative_language")) rules_.polyglot_optimization.helper_errors.show_alternative_language = he["show_alternative_language"].get<bool>();
-            if (he.contains("show_example_code")) rules_.polyglot_optimization.helper_errors.show_example_code = he["show_example_code"].get<bool>();
-            if (he.contains("fuzzy_match_threshold")) rules_.polyglot_optimization.helper_errors.fuzzy_match_threshold = he["fuzzy_match_threshold"].get<double>();
+            if (he.contains("enabled") && he["enabled"].is_boolean()) rules_.polyglot_optimization.helper_errors.enabled = he["enabled"].get<bool>();
+            if (he.contains("show_alternative_language") && he["show_alternative_language"].is_boolean()) rules_.polyglot_optimization.helper_errors.show_alternative_language = he["show_alternative_language"].get<bool>();
+            if (he.contains("show_example_code") && he["show_example_code"].is_boolean()) rules_.polyglot_optimization.helper_errors.show_example_code = he["show_example_code"].get<bool>();
+            if (he.contains("fuzzy_match_threshold") && he["fuzzy_match_threshold"].is_number()) rules_.polyglot_optimization.helper_errors.fuzzy_match_threshold = he["fuzzy_match_threshold"].get<double>();
         }
 
         // AI guidance
         if (po.contains("ai_guidance") && po["ai_guidance"].is_object()) {
             auto& ag = po["ai_guidance"];
-            if (ag.contains("enabled")) rules_.polyglot_optimization.ai_guidance.enabled = ag["enabled"].get<bool>();
-            if (ag.contains("include_in_errors")) rules_.polyglot_optimization.ai_guidance.include_in_errors = ag["include_in_errors"].get<bool>();
-            if (ag.contains("suggest_refactoring")) rules_.polyglot_optimization.ai_guidance.suggest_refactoring = ag["suggest_refactoring"].get<bool>();
-            if (ag.contains("show_benchmarks")) rules_.polyglot_optimization.ai_guidance.show_benchmarks = ag["show_benchmarks"].get<bool>();
+            if (ag.contains("enabled") && ag["enabled"].is_boolean()) rules_.polyglot_optimization.ai_guidance.enabled = ag["enabled"].get<bool>();
+            if (ag.contains("include_in_errors") && ag["include_in_errors"].is_boolean()) rules_.polyglot_optimization.ai_guidance.include_in_errors = ag["include_in_errors"].get<bool>();
+            if (ag.contains("suggest_refactoring") && ag["suggest_refactoring"].is_boolean()) rules_.polyglot_optimization.ai_guidance.suggest_refactoring = ag["suggest_refactoring"].get<bool>();
+            if (ag.contains("show_benchmarks") && ag["show_benchmarks"].is_boolean()) rules_.polyglot_optimization.ai_guidance.show_benchmarks = ag["show_benchmarks"].get<bool>();
         }
 
         // Empirical profiling
         if (po.contains("profiling") && po["profiling"].is_object()) {
             auto& pf = po["profiling"];
-            if (pf.contains("enabled")) rules_.polyglot_optimization.profiling.enabled = pf["enabled"].get<bool>();
+            if (pf.contains("enabled") && pf["enabled"].is_boolean()) rules_.polyglot_optimization.profiling.enabled = pf["enabled"].get<bool>();
             if (pf.contains("profile_path")) rules_.polyglot_optimization.profiling.profile_path = pf["profile_path"].get<std::string>();
-            if (pf.contains("max_entries")) rules_.polyglot_optimization.profiling.max_entries = pf["max_entries"].get<int>();
-            if (pf.contains("include_code_hash")) rules_.polyglot_optimization.profiling.include_code_hash = pf["include_code_hash"].get<bool>();
+            if (pf.contains("max_entries") && pf["max_entries"].is_number_integer()) rules_.polyglot_optimization.profiling.max_entries = pf["max_entries"].get<int>();
+            if (pf.contains("include_code_hash") && pf["include_code_hash"].is_boolean()) rules_.polyglot_optimization.profiling.include_code_hash = pf["include_code_hash"].get<bool>();
         }
 
         // Calibration
         if (po.contains("calibration") && po["calibration"].is_object()) {
             auto& cb = po["calibration"];
-            if (cb.contains("enabled")) rules_.polyglot_optimization.calibration.enabled = cb["enabled"].get<bool>();
-            if (cb.contains("auto_calibrate")) rules_.polyglot_optimization.calibration.auto_calibrate = cb["auto_calibrate"].get<bool>();
+            if (cb.contains("enabled") && cb["enabled"].is_boolean()) rules_.polyglot_optimization.calibration.enabled = cb["enabled"].get<bool>();
+            if (cb.contains("auto_calibrate") && cb["auto_calibrate"].is_boolean()) rules_.polyglot_optimization.calibration.auto_calibrate = cb["auto_calibrate"].get<bool>();
             if (cb.contains("calibration_path")) rules_.polyglot_optimization.calibration.calibration_path = cb["calibration_path"].get<std::string>();
-            if (cb.contains("max_age_days")) rules_.polyglot_optimization.calibration.max_age_days = cb["max_age_days"].get<int>();
-            if (cb.contains("iterations")) rules_.polyglot_optimization.calibration.iterations = cb["iterations"].get<int>();
+            if (cb.contains("max_age_days") && cb["max_age_days"].is_number_integer()) rules_.polyglot_optimization.calibration.max_age_days = cb["max_age_days"].get<int>();
+            if (cb.contains("iterations") && cb["iterations"].is_number_integer()) rules_.polyglot_optimization.calibration.iterations = cb["iterations"].get<int>();
         }
 
         // Confidence labels
         if (po.contains("confidence") && po["confidence"].is_object()) {
             auto& cf = po["confidence"];
             if (cf.contains("min_display_level")) rules_.polyglot_optimization.confidence.min_display_level = cf["min_display_level"].get<std::string>();
-            if (cf.contains("suppress_unknown")) rules_.polyglot_optimization.confidence.suppress_unknown = cf["suppress_unknown"].get<bool>();
-            if (cf.contains("show_measurement_details")) rules_.polyglot_optimization.confidence.show_measurement_details = cf["show_measurement_details"].get<bool>();
+            if (cf.contains("suppress_unknown") && cf["suppress_unknown"].is_boolean()) rules_.polyglot_optimization.confidence.suppress_unknown = cf["suppress_unknown"].get<bool>();
+            if (cf.contains("show_measurement_details") && cf["show_measurement_details"].is_boolean()) rules_.polyglot_optimization.confidence.show_measurement_details = cf["show_measurement_details"].get<bool>();
         }
 
         // Polyglot consensus verification
         if (po.contains("verification") && po["verification"].is_object()) {
             auto& vf = po["verification"];
-            if (vf.contains("enabled"))
+            if (vf.contains("enabled") && vf["enabled"].is_boolean())
                 rules_.polyglot_optimization.verification.enabled = vf["enabled"].get<bool>();
             if (vf.contains("enforcement_level"))
                 rules_.polyglot_optimization.verification.enforcement_level = vf["enforcement_level"].get<std::string>();
-            if (vf.contains("tolerance"))
+            if (vf.contains("tolerance") && vf["tolerance"].is_number())
                 rules_.polyglot_optimization.verification.tolerance = vf["tolerance"].get<double>();
-            if (vf.contains("min_consensus"))
+            if (vf.contains("min_consensus") && vf["min_consensus"].is_number_integer())
                 rules_.polyglot_optimization.verification.min_consensus = vf["min_consensus"].get<int>();
-            if (vf.contains("max_verification_time_ms"))
+            if (vf.contains("max_verification_time_ms") && vf["max_verification_time_ms"].is_number_integer())
                 rules_.polyglot_optimization.verification.max_verification_time_ms = vf["max_verification_time_ms"].get<int>();
-            if (vf.contains("show_drift_details"))
+            if (vf.contains("show_drift_details") && vf["show_drift_details"].is_boolean())
                 rules_.polyglot_optimization.verification.show_drift_details = vf["show_drift_details"].get<bool>();
             if (vf.contains("consensus_languages") && vf["consensus_languages"].is_array()) {
                 for (auto& lang : vf["consensus_languages"]) {
@@ -1724,12 +1724,12 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (vf.contains("drift_tracking") && vf["drift_tracking"].is_object()) {
                 auto& dt = vf["drift_tracking"];
                 auto& dtc = rules_.polyglot_optimization.verification.drift_tracking;
-                if (dt.contains("enabled")) dtc.enabled = dt["enabled"].get<bool>();
+                if (dt.contains("enabled") && dt["enabled"].is_boolean()) dtc.enabled = dt["enabled"].get<bool>();
                 if (dt.contains("path")) dtc.path = dt["path"].get<std::string>();
-                if (dt.contains("max_entries")) dtc.max_entries = dt["max_entries"].get<int>();
-                if (dt.contains("trend_window")) dtc.trend_window = dt["trend_window"].get<int>();
-                if (dt.contains("escalation_threshold")) dtc.escalation_threshold = dt["escalation_threshold"].get<double>();
-                if (dt.contains("include_code_hash")) dtc.include_code_hash = dt["include_code_hash"].get<bool>();
+                if (dt.contains("max_entries") && dt["max_entries"].is_number_integer()) dtc.max_entries = dt["max_entries"].get<int>();
+                if (dt.contains("trend_window") && dt["trend_window"].is_number_integer()) dtc.trend_window = dt["trend_window"].get<int>();
+                if (dt.contains("escalation_threshold") && dt["escalation_threshold"].is_number()) dtc.escalation_threshold = dt["escalation_threshold"].get<double>();
+                if (dt.contains("include_code_hash") && dt["include_code_hash"].is_boolean()) dtc.include_code_hash = dt["include_code_hash"].get<bool>();
             }
         }
 
@@ -1741,7 +1741,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 for (auto& [lang_name, score_obj] : lang_scores.items()) {
                     TaskLanguageScore score;
                     if (score_obj.is_object()) {
-                        if (score_obj.contains("score")) score.score = score_obj["score"].get<int>();
+                        if (score_obj.contains("score") && score_obj["score"].is_number_integer()) score.score = score_obj["score"].get<int>();
                         if (score_obj.contains("reason")) score.reason = score_obj["reason"].get<std::string>();
                     } else if (score_obj.is_number()) {
                         // Allow simple numeric scores
@@ -1759,7 +1759,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto loadHook = [](const nlohmann::json& hj, HookConfig& hc) {
             if (hj.contains("command") && !hj["command"].is_null()) hc.command = hj["command"].get<std::string>();
             if (hj.contains("args")) for (auto& a : hj["args"]) hc.args.push_back(a.get<std::string>());
-            if (hj.contains("timeout")) hc.timeout = hj["timeout"].get<int>();
+            if (hj.contains("timeout") && hj["timeout"].is_number_integer()) hc.timeout = hj["timeout"].get<int>();
         };
         auto& hk = j["hooks"];
         if (hk.contains("on_violation")) loadHook(hk["on_violation"], rules_.hooks.on_violation);
@@ -1772,14 +1772,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Project Context Awareness
     if (j.contains("project_context") && j["project_context"].is_object()) {
         auto& pc = j["project_context"];
-        if (pc.contains("enabled")) rules_.project_context.enabled = pc["enabled"].get<bool>();
+        if (pc.contains("enabled") && pc["enabled"].is_boolean()) rules_.project_context.enabled = pc["enabled"].get<bool>();
         if (pc.contains("enforcement_level")) rules_.project_context.enforcement_level = pc["enforcement_level"].get<std::string>();
         if (pc.contains("priority_source")) rules_.project_context.priority_source = pc["priority_source"].get<std::string>();
         if (pc.contains("sources") && pc["sources"].is_object()) {
             auto& src = pc["sources"];
-            if (src.contains("llm")) rules_.project_context.sources.llm = src["llm"].get<bool>();
-            if (src.contains("linters")) rules_.project_context.sources.linters = src["linters"].get<bool>();
-            if (src.contains("manifests")) rules_.project_context.sources.manifests = src["manifests"].get<bool>();
+            if (src.contains("llm") && src["llm"].is_boolean()) rules_.project_context.sources.llm = src["llm"].get<bool>();
+            if (src.contains("linters") && src["linters"].is_boolean()) rules_.project_context.sources.linters = src["linters"].get<bool>();
+            if (src.contains("manifests") && src["manifests"].is_boolean()) rules_.project_context.sources.manifests = src["manifests"].get<bool>();
         }
         if (pc.contains("watch_files")) {
             for (auto& f : pc["watch_files"]) rules_.project_context.watch_files.push_back(f.get<std::string>());
@@ -1792,15 +1792,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (pc.contains("extract") && pc["extract"].is_object()) {
             auto& ex = pc["extract"];
-            if (ex.contains("language_preferences")) rules_.project_context.extract_language_prefs = ex["language_preferences"].get<bool>();
-            if (ex.contains("banned_patterns")) rules_.project_context.extract_banned_patterns = ex["banned_patterns"].get<bool>();
-            if (ex.contains("style_rules")) rules_.project_context.extract_style_rules = ex["style_rules"].get<bool>();
-            if (ex.contains("custom_directives")) rules_.project_context.extract_custom_directives = ex["custom_directives"].get<bool>();
+            if (ex.contains("language_preferences") && ex["language_preferences"].is_boolean()) rules_.project_context.extract_language_prefs = ex["language_preferences"].get<bool>();
+            if (ex.contains("banned_patterns") && ex["banned_patterns"].is_boolean()) rules_.project_context.extract_banned_patterns = ex["banned_patterns"].get<bool>();
+            if (ex.contains("style_rules") && ex["style_rules"].is_boolean()) rules_.project_context.extract_style_rules = ex["style_rules"].get<bool>();
+            if (ex.contains("custom_directives") && ex["custom_directives"].is_boolean()) rules_.project_context.extract_custom_directives = ex["custom_directives"].get<bool>();
         }
-        if (pc.contains("feed_optimization")) rules_.project_context.feed_optimization = pc["feed_optimization"].get<bool>();
-        if (pc.contains("show_extractions")) rules_.project_context.show_extractions = pc["show_extractions"].get<bool>();
-        if (pc.contains("dry_run")) rules_.project_context.dry_run = pc["dry_run"].get<bool>();
-        if (pc.contains("max_file_size_kb")) rules_.project_context.max_file_size_kb = pc["max_file_size_kb"].get<int>();
+        if (pc.contains("feed_optimization") && pc["feed_optimization"].is_boolean()) rules_.project_context.feed_optimization = pc["feed_optimization"].get<bool>();
+        if (pc.contains("show_extractions") && pc["show_extractions"].is_boolean()) rules_.project_context.show_extractions = pc["show_extractions"].get<bool>();
+        if (pc.contains("dry_run") && pc["dry_run"].is_boolean()) rules_.project_context.dry_run = pc["dry_run"].get<bool>();
+        if (pc.contains("max_file_size_kb") && pc["max_file_size_kb"].is_number_integer()) rules_.project_context.max_file_size_kb = pc["max_file_size_kb"].get<int>();
     }
 
     // Contracts
@@ -1810,7 +1810,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto [en, lv] = parseEnforcementLevel(ct["level"]);
             if (en) rules_.contracts.level = lv;
         }
-        if (ct.contains("validate_inputs")) rules_.contracts.validate_inputs = ct["validate_inputs"].get<bool>();
+        if (ct.contains("validate_inputs") && ct["validate_inputs"].is_boolean()) rules_.contracts.validate_inputs = ct["validate_inputs"].get<bool>();
         if (ct.contains("functions") && ct["functions"].is_object()) {
             for (auto& [fn_name, fn_obj] : ct["functions"].items()) {
                 if (!fn_obj.is_object()) continue;
@@ -1823,11 +1823,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("return_type")) fc.return_type = fn_obj["return_type"].get<std::string>();
                 if (fn_obj.contains("return_range") && fn_obj["return_range"].is_array() && fn_obj["return_range"].size() == 2) {
                     fc.has_return_range = true;
-                    fc.return_range_min = fn_obj["return_range"][0].get<double>();
-                    fc.return_range_max = fn_obj["return_range"][1].get<double>();
+                    fc.return_range_min = fn_obj["return_range"][0].is_number() ? fn_obj["return_range"][0].get<double>() : 0.0;
+                    fc.return_range_max = fn_obj["return_range"][1].is_number() ? fn_obj["return_range"][1].get<double>() : 0.0;
                 }
-                if (fn_obj.contains("return_min")) { fc.has_return_min = true; fc.return_min = fn_obj["return_min"].get<double>(); }
-                if (fn_obj.contains("return_max")) { fc.has_return_max = true; fc.return_max = fn_obj["return_max"].get<double>(); }
+                if (fn_obj.contains("return_min") && fn_obj["return_min"].is_number()) { fc.has_return_min = true; fc.return_min = fn_obj["return_min"].get<double>(); }
+                if (fn_obj.contains("return_max") && fn_obj["return_max"].is_number()) { fc.has_return_max = true; fc.return_max = fn_obj["return_max"].get<double>(); }
                 if (fn_obj.contains("return_one_of") && fn_obj["return_one_of"].is_array()) {
                     for (auto& v : fn_obj["return_one_of"]) {
                         // Handle non-string values (ints, bools) by converting to string
@@ -1838,15 +1838,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         }
                     }
                 }
-                if (fn_obj.contains("return_non_empty")) fc.return_non_empty = fn_obj["return_non_empty"].get<bool>();
+                if (fn_obj.contains("return_non_empty") && fn_obj["return_non_empty"].is_boolean()) fc.return_non_empty = fn_obj["return_non_empty"].get<bool>();
                 if (fn_obj.contains("return_keys") && fn_obj["return_keys"].is_array()) {
                     for (auto& k : fn_obj["return_keys"]) fc.return_keys.push_back(k.get<std::string>());
                 }
-                if (fn_obj.contains("return_keys_non_null")) fc.return_keys_non_null = fn_obj["return_keys_non_null"].get<bool>();
-                if (fn_obj.contains("return_keys_non_empty")) fc.return_keys_non_empty = fn_obj["return_keys_non_empty"].get<bool>();
-                if (fn_obj.contains("return_length_min")) fc.return_length_min = fn_obj["return_length_min"].get<int>();
-                if (fn_obj.contains("return_length_max")) fc.return_length_max = fn_obj["return_length_max"].get<int>();
-                if (fn_obj.contains("return_not_null")) fc.return_not_null = fn_obj["return_not_null"].get<bool>();
+                if (fn_obj.contains("return_keys_non_null") && fn_obj["return_keys_non_null"].is_boolean()) fc.return_keys_non_null = fn_obj["return_keys_non_null"].get<bool>();
+                if (fn_obj.contains("return_keys_non_empty") && fn_obj["return_keys_non_empty"].is_boolean()) fc.return_keys_non_empty = fn_obj["return_keys_non_empty"].get<bool>();
+                if (fn_obj.contains("return_length_min") && fn_obj["return_length_min"].is_number_integer()) fc.return_length_min = fn_obj["return_length_min"].get<int>();
+                if (fn_obj.contains("return_length_max") && fn_obj["return_length_max"].is_number_integer()) fc.return_length_max = fn_obj["return_length_max"].get<int>();
+                if (fn_obj.contains("return_not_null") && fn_obj["return_not_null"].is_boolean()) fc.return_not_null = fn_obj["return_not_null"].get<bool>();
                 if (fn_obj.contains("return_matches")) fc.return_matches = fn_obj["return_matches"].get<std::string>();
                 if (fn_obj.contains("params") && fn_obj["params"].is_array()) {
                     for (auto& p : fn_obj["params"]) fc.params.push_back(p.get<std::string>());
@@ -1950,22 +1950,22 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("baselines") && j["baselines"].is_object()) {
         auto& bl = j["baselines"];
         rules_.explicitly_set.insert("baselines");
-        if (bl.contains("enabled")) rules_.baselines.enabled = bl["enabled"].get<bool>();
+        if (bl.contains("enabled") && bl["enabled"].is_boolean()) rules_.baselines.enabled = bl["enabled"].get<bool>();
         if (bl.contains("level")) {
             auto [en, lv] = parseEnforcementLevel(bl["level"]);
             if (en) rules_.baselines.level = lv;
         }
         if (bl.contains("path")) rules_.baselines.path = bl["path"].get<std::string>();
-        if (bl.contains("tolerance")) rules_.baselines.tolerance = bl["tolerance"].get<double>();
-        if (bl.contains("auto_record")) rules_.baselines.auto_record = bl["auto_record"].get<bool>();
-        if (bl.contains("hash_keys")) rules_.baselines.hash_keys = bl["hash_keys"].get<bool>();
+        if (bl.contains("tolerance") && bl["tolerance"].is_number()) rules_.baselines.tolerance = bl["tolerance"].get<double>();
+        if (bl.contains("auto_record") && bl["auto_record"].is_boolean()) rules_.baselines.auto_record = bl["auto_record"].get<bool>();
+        if (bl.contains("hash_keys") && bl["hash_keys"].is_boolean()) rules_.baselines.hash_keys = bl["hash_keys"].get<bool>();
     }
 
     // Taint Tracking
     if (j.contains("taint_tracking") && j["taint_tracking"].is_object()) {
         auto& tt = j["taint_tracking"];
-        if (tt.contains("enabled")) rules_.taint_tracking.enabled = tt["enabled"].get<bool>();
-        if (tt.contains("lineage")) rules_.taint_tracking.lineage = tt["lineage"].get<bool>();
+        if (tt.contains("enabled") && tt["enabled"].is_boolean()) rules_.taint_tracking.enabled = tt["enabled"].get<bool>();
+        if (tt.contains("lineage") && tt["lineage"].is_boolean()) rules_.taint_tracking.lineage = tt["lineage"].get<bool>();
         if (tt.contains("level")) { rules_.taint_tracking.level = tt["level"].get<std::string>(); rules_.explicitly_set.insert("taint_tracking.level"); }
         if (tt.contains("sources") && tt["sources"].is_array()) {
             for (const auto& s : tt["sources"]) {
@@ -1999,7 +1999,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
         }
         parseRationale(tt, rules_.taint_tracking.rationale);
-        if (tt.contains("gate_cross_block")) rules_.taint_tracking.gate_cross_block = tt["gate_cross_block"].get<bool>();
+        if (tt.contains("gate_cross_block") && tt["gate_cross_block"].is_boolean()) rules_.taint_tracking.gate_cross_block = tt["gate_cross_block"].get<bool>();
         if (tt.contains("cross_block_level")) {
             auto [en, lv] = parseEnforcementLevel(tt["cross_block_level"]);
             rules_.taint_tracking.cross_block_level = lv;
@@ -2015,15 +2015,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.approval.approver_keys.push_back(k.get<std::string>());
             }
         }
-        if (ap.contains("default_expiry_hours")) { rules_.approval.default_expiry_hours = ap["default_expiry_hours"].get<int>(); rules_.explicitly_set.insert("approval.default_expiry_hours"); }
+        if (ap.contains("default_expiry_hours") && ap["default_expiry_hours"].is_number_integer()) { rules_.approval.default_expiry_hours = ap["default_expiry_hours"].get<int>(); rules_.explicitly_set.insert("approval.default_expiry_hours"); }
     }
 
     // --- Trust Policy (Authority Decay) ---
     if (j.contains("trust") && j["trust"].is_object()) {
         auto& tp = j["trust"];
-        if (tp.contains("max_signature_age_days")) {
+        if (tp.contains("max_signature_age_days") && tp["max_signature_age_days"].is_number_integer()) {
             rules_.trust_policy.max_signature_age_days = tp["max_signature_age_days"].get<int>(); rules_.explicitly_set.insert("trust_policy.max_signature_age_days"); }
-        if (tp.contains("require_fresh_signature")) {
+        if (tp.contains("require_fresh_signature") && tp["require_fresh_signature"].is_boolean()) {
             rules_.trust_policy.require_fresh_signature = tp["require_fresh_signature"].get<bool>(); rules_.explicitly_set.insert("trust_policy.require_fresh_signature"); }
         if (tp.contains("stale_signature_level")) {
             rules_.explicitly_set.insert("trust_policy.stale_signature_level");
@@ -2032,9 +2032,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             else if (lev == "soft") rules_.trust_policy.stale_signature_level = EnforcementLevel::SOFT;
             else rules_.trust_policy.stale_signature_level = EnforcementLevel::ADVISORY;
         }
-        if (tp.contains("check_key_expiry")) {
+        if (tp.contains("check_key_expiry") && tp["check_key_expiry"].is_boolean()) {
             rules_.trust_policy.check_key_expiry = tp["check_key_expiry"].get<bool>(); rules_.explicitly_set.insert("trust_policy.check_key_expiry"); }
-        if (tp.contains("check_revocation")) {
+        if (tp.contains("check_revocation") && tp["check_revocation"].is_boolean()) {
             rules_.trust_policy.check_revocation = tp["check_revocation"].get<bool>(); rules_.explicitly_set.insert("trust_policy.check_revocation"); }
     }
 
@@ -2042,7 +2042,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("prerequisites") && j["prerequisites"].is_object()) {
         auto& pr = j["prerequisites"];
         rules_.explicitly_set.insert("prerequisites");
-        if (pr.contains("enabled")) rules_.prerequisites.enabled = pr["enabled"].get<bool>();
+        if (pr.contains("enabled") && pr["enabled"].is_boolean()) rules_.prerequisites.enabled = pr["enabled"].get<bool>();
         if (pr.contains("checks") && pr["checks"].is_array()) {
             for (const auto& chk : pr["checks"]) {
                 PrerequisiteCheck pc;
@@ -2065,7 +2065,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("contradiction_detection") && j["contradiction_detection"].is_object()) {
         auto& cd = j["contradiction_detection"];
         rules_.explicitly_set.insert("contradiction_detection");
-        if (cd.contains("enabled")) rules_.contradiction_detection.enabled = cd["enabled"].get<bool>();
+        if (cd.contains("enabled") && cd["enabled"].is_boolean()) rules_.contradiction_detection.enabled = cd["enabled"].get<bool>();
         if (cd.contains("max_level")) {
             std::string lev = cd["max_level"].get<std::string>();
             if (lev == "hard") rules_.contradiction_detection.max_level = EnforcementLevel::HARD;
@@ -2124,11 +2124,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("telemetry") && j["telemetry"].is_object()) {
         auto& tel = j["telemetry"];
         rules_.explicitly_set.insert("telemetry");
-        if (tel.contains("enabled")) rules_.telemetry_output.enabled = tel["enabled"].get<bool>();
+        if (tel.contains("enabled") && tel["enabled"].is_boolean()) rules_.telemetry_output.enabled = tel["enabled"].get<bool>();
         if (tel.contains("output_file")) rules_.telemetry_output.output_file = tel["output_file"].get<std::string>();
         if (tel.contains("tamper_evidence") && tel["tamper_evidence"].is_object()) {
             auto& te = tel["tamper_evidence"];
-            if (te.contains("enabled")) {
+            if (te.contains("enabled") && te["enabled"].is_boolean()) {
                 rules_.telemetry_output.tamper_evidence.enabled = te["enabled"].get<bool>();
                 rules_.explicitly_set.insert("telemetry.tamper_evidence.enabled");
             }
@@ -2161,23 +2161,23 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.telemetry_output.webhook_auth_header = val;
             }
         }
-        if (tel.contains("forward_batch_size")) {
+        if (tel.contains("forward_batch_size") && tel["forward_batch_size"].is_number_integer()) {
             int v = tel["forward_batch_size"].get<int>();
             rules_.telemetry_output.forward_batch_size = v < 1 ? 1 : v;
         }
-        if (tel.contains("forward_timeout_ms")) {
+        if (tel.contains("forward_timeout_ms") && tel["forward_timeout_ms"].is_number_integer()) {
             int v = tel["forward_timeout_ms"].get<int>();
             rules_.telemetry_output.forward_timeout_ms = v < 1 ? 1 : v;  // 0 = infinite in libcurl
         }
-        if (tel.contains("forward_retry_count")) {
+        if (tel.contains("forward_retry_count") && tel["forward_retry_count"].is_number_integer()) {
             int v = tel["forward_retry_count"].get<int>();
             rules_.telemetry_output.forward_retry_count = v < 0 ? 0 : v;
         }
-        if (tel.contains("forward_buffer_max")) {
+        if (tel.contains("forward_buffer_max") && tel["forward_buffer_max"].is_number_integer()) {
             int v = tel["forward_buffer_max"].get<int>();
             rules_.telemetry_output.forward_buffer_max = v < 0 ? 0 : v;
         }
-        if (tel.contains("forward_shutdown_drain_ms")) {
+        if (tel.contains("forward_shutdown_drain_ms") && tel["forward_shutdown_drain_ms"].is_number_integer()) {
             int v = tel["forward_shutdown_drain_ms"].get<int>();
             rules_.telemetry_output.forward_shutdown_drain_ms = v < 0 ? 0 : v;
         }
@@ -2273,7 +2273,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         agent.api_key_envs = {agent.api_key_env};
                     }
                 }
-                if (cfg_json.contains("max_tokens"))
+                if (cfg_json.contains("max_tokens") && cfg_json["max_tokens"].is_number_integer())
                     agent.max_tokens = cfg_json["max_tokens"].get<int>();
                 if (cfg_json.contains("system_prompt"))
                     agent.system_prompt = cfg_json["system_prompt"].get<std::string>();
@@ -2283,49 +2283,49 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 // Tool execution configuration
                 if (cfg_json.contains("tools_enabled") && cfg_json["tools_enabled"].is_boolean())
                     agent.tools_enabled = cfg_json["tools_enabled"].get<bool>();
-                if (cfg_json.contains("max_tool_calls_per_turn"))
+                if (cfg_json.contains("max_tool_calls_per_turn") && cfg_json["max_tool_calls_per_turn"].is_number_integer())
                     agent.max_tool_calls_per_turn = std::max(1, cfg_json["max_tool_calls_per_turn"].get<int>());
-                if (cfg_json.contains("max_tool_loop_turns"))
+                if (cfg_json.contains("max_tool_loop_turns") && cfg_json["max_tool_loop_turns"].is_number_integer())
                     agent.max_tool_loop_turns = std::max(1, cfg_json["max_tool_loop_turns"].get<int>());
-                if (cfg_json.contains("tool_result_max_chars"))
+                if (cfg_json.contains("tool_result_max_chars") && cfg_json["tool_result_max_chars"].is_number_integer())
                     agent.tool_result_max_chars = std::max(0, cfg_json["tool_result_max_chars"].get<int>());
-                if (cfg_json.contains("tool_result_max_total_chars"))
+                if (cfg_json.contains("tool_result_max_total_chars") && cfg_json["tool_result_max_total_chars"].is_number_integer())
                     agent.tool_result_max_total_chars = std::max(0, cfg_json["tool_result_max_total_chars"].get<int>());
-                if (cfg_json.contains("tool_timeout_seconds"))
+                if (cfg_json.contains("tool_timeout_seconds") && cfg_json["tool_timeout_seconds"].is_number_integer())
                     agent.tool_timeout_seconds = std::max(1, cfg_json["tool_timeout_seconds"].get<int>());
-                if (cfg_json.contains("max_turns"))
+                if (cfg_json.contains("max_turns") && cfg_json["max_turns"].is_number_integer())
                     agent.max_turns = cfg_json["max_turns"].get<int>();
-                if (cfg_json.contains("max_total_tokens"))
+                if (cfg_json.contains("max_total_tokens") && cfg_json["max_total_tokens"].is_number_integer())
                     agent.max_total_tokens = cfg_json["max_total_tokens"].get<int>();
-                if (cfg_json.contains("temperature"))
+                if (cfg_json.contains("temperature") && cfg_json["temperature"].is_number())
                     agent.temperature = cfg_json["temperature"].get<double>();
                 if (cfg_json.contains("stop_reason_action"))
                     agent.stop_reason_action = cfg_json["stop_reason_action"].get<std::string>();
-                if (cfg_json.contains("stream"))
+                if (cfg_json.contains("stream") && cfg_json["stream"].is_boolean())
                     agent.stream = cfg_json["stream"].get<bool>();
-                if (cfg_json.contains("timeout"))
+                if (cfg_json.contains("timeout") && cfg_json["timeout"].is_number_integer())
                     agent.timeout_seconds = cfg_json["timeout"].get<int>();
                 if (cfg_json.contains("response_format"))
                     agent.response_format = cfg_json["response_format"].get<std::string>();
-                if (cfg_json.contains("risk_budget")) {
+                if (cfg_json.contains("risk_budget") && cfg_json["risk_budget"].is_number_integer()) {
                     agent.risk_budget = cfg_json["risk_budget"].get<int>();
                     if (agent.risk_budget < 0) agent.risk_budget = 0;
                 }
                 // Standing Lease — TTL on agent authorization
-                if (cfg_json.contains("standing_lease_turns"))
+                if (cfg_json.contains("standing_lease_turns") && cfg_json["standing_lease_turns"].is_number_integer())
                     agent.standing_lease_turns = std::max(0, cfg_json["standing_lease_turns"].get<int>());
-                if (cfg_json.contains("standing_lease_seconds"))
+                if (cfg_json.contains("standing_lease_seconds") && cfg_json["standing_lease_seconds"].is_number_integer())
                     agent.standing_lease_seconds = std::max(0, cfg_json["standing_lease_seconds"].get<int>());
                 // Retry configuration
                 if (cfg_json.contains("retry") && cfg_json["retry"].is_object()) {
                     auto& r = cfg_json["retry"];
-                    if (r.contains("max_attempts"))
+                    if (r.contains("max_attempts") && r["max_attempts"].is_number_integer())
                         agent.retry.max_attempts = std::max(1, r["max_attempts"].get<int>());
-                    if (r.contains("backoff_ms"))
+                    if (r.contains("backoff_ms") && r["backoff_ms"].is_number_integer())
                         agent.retry.backoff_ms = std::max(0, r["backoff_ms"].get<int>());
-                    if (r.contains("backoff_multiplier"))
+                    if (r.contains("backoff_multiplier") && r["backoff_multiplier"].is_number())
                         agent.retry.backoff_multiplier = std::max(1.0, r["backoff_multiplier"].get<double>());
-                    if (r.contains("jitter"))
+                    if (r.contains("jitter") && r["jitter"].is_boolean())
                         agent.retry.jitter = r["jitter"].get<bool>();
                     if (r.contains("retry_on") && r["retry_on"].is_array()) {
                         agent.retry.retry_on.clear();
@@ -2343,15 +2343,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         agent.retry.never_retry.clear();
                         for (const auto& c : r["never_retry"]) agent.retry.never_retry.push_back(c.get<int>());
                     }
-                    if (r.contains("key_retry_after_seconds"))
+                    if (r.contains("key_retry_after_seconds") && r["key_retry_after_seconds"].is_number_integer())
                         agent.retry.key_retry_after_seconds = std::max(0, r["key_retry_after_seconds"].get<int>());
                 }
                 // Rate limit configuration
                 if (cfg_json.contains("rate_limit") && cfg_json["rate_limit"].is_object()) {
                     auto& rl = cfg_json["rate_limit"];
-                    if (rl.contains("requests_per_minute"))
+                    if (rl.contains("requests_per_minute") && rl["requests_per_minute"].is_number_integer())
                         agent.rate_limit.requests_per_minute = std::max(0, rl["requests_per_minute"].get<int>());
-                    if (rl.contains("delay_between_calls_ms"))
+                    if (rl.contains("delay_between_calls_ms") && rl["delay_between_calls_ms"].is_number_integer())
                         agent.rate_limit.delay_between_calls_ms = std::max(0, rl["delay_between_calls_ms"].get<int>());
                 }
                 // Output Contract — validation schema for LLM responses (Phase 7)
@@ -2407,13 +2407,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("quality_gate") && j["quality_gate"].is_object()) {
         auto& qg = j["quality_gate"];
         rules_.explicitly_set.insert("quality_gate");
-        if (qg.contains("enabled")) rules_.quality_gate.enabled = qg["enabled"].get<bool>();
+        if (qg.contains("enabled") && qg["enabled"].is_boolean()) rules_.quality_gate.enabled = qg["enabled"].get<bool>();
         if (qg.contains("conditions") && qg["conditions"].is_array()) {
             for (const auto& cond : qg["conditions"]) {
                 QualityGateCondition c;
                 if (cond.contains("metric")) c.metric = cond["metric"].get<std::string>();
                 if (cond.contains("operator")) c.op = cond["operator"].get<std::string>();
-                if (cond.contains("threshold")) c.threshold = cond["threshold"].get<int>();
+                if (cond.contains("threshold") && cond["threshold"].is_number_integer()) c.threshold = cond["threshold"].get<int>();
                 rules_.quality_gate.conditions.push_back(c);
             }
         }
@@ -2464,7 +2464,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.fail_policy = ar.value("fail_policy", "open");
         rules_.agent_review.dispatch_mode = ar.value("dispatch_mode", "sequential");
         rules_.agent_review.fail_strategy = ar.value("fail_strategy", "fail_fast");
-        if (ar.contains("max_parallel")) {
+        if (ar.contains("max_parallel") && ar["max_parallel"].is_number_integer()) {
             int mp = ar["max_parallel"].get<int>();
             rules_.agent_review.max_parallel = (mp < 0) ? 0 : mp;
         }
@@ -2483,23 +2483,23 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // --- Agent Dispatch (parallel agent execution config) ---
     if (j.contains("agent_dispatch") && j["agent_dispatch"].is_object()) {
         auto& ad = j["agent_dispatch"];
-        if (ad.contains("max_concurrent")) {
+        if (ad.contains("max_concurrent") && ad["max_concurrent"].is_number_integer()) {
             rules_.agent_dispatch.max_concurrent = ad["max_concurrent"].get<int>(); rules_.explicitly_set.insert("agent_dispatch.max_concurrent"); }
-        if (ad.contains("pool_size")) {
+        if (ad.contains("pool_size") && ad["pool_size"].is_number_integer()) {
             rules_.agent_dispatch.pool_size = ad["pool_size"].get<int>(); rules_.explicitly_set.insert("agent_dispatch.pool_size"); }
-        if (ad.contains("pool_queue_max")) {
+        if (ad.contains("pool_queue_max") && ad["pool_queue_max"].is_number_integer()) {
             rules_.agent_dispatch.pool_queue_max = ad["pool_queue_max"].get<int>(); rules_.explicitly_set.insert("agent_dispatch.pool_queue_max"); }
-        if (ad.contains("max_retries_per_run")) {
+        if (ad.contains("max_retries_per_run") && ad["max_retries_per_run"].is_number_integer()) {
             rules_.agent_dispatch.max_retries_per_run = std::max(0, ad["max_retries_per_run"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.max_retries_per_run"); }
         if (ad.contains("hard_stop") && ad["hard_stop"].is_object()) {
             auto& hs = ad["hard_stop"];
-            if (hs.contains("max_calls_per_run")) {
+            if (hs.contains("max_calls_per_run") && hs["max_calls_per_run"].is_number_integer()) {
                 rules_.agent_dispatch.hard_stop.max_calls_per_run = std::max(0, hs["max_calls_per_run"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.hard_stop.max_calls_per_run"); }
-            if (hs.contains("max_tokens_per_run")) {
+            if (hs.contains("max_tokens_per_run") && hs["max_tokens_per_run"].is_number_integer()) {
                 rules_.agent_dispatch.hard_stop.max_tokens_per_run = std::max(0, hs["max_tokens_per_run"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.hard_stop.max_tokens_per_run"); }
-            if (hs.contains("max_agent_time_ms")) {
+            if (hs.contains("max_agent_time_ms") && hs["max_agent_time_ms"].is_number_integer()) {
                 rules_.agent_dispatch.hard_stop.max_agent_time_ms = std::max(0, hs["max_agent_time_ms"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.hard_stop.max_agent_time_ms"); }
-            if (hs.contains("consecutive_failure_limit")) {
+            if (hs.contains("consecutive_failure_limit") && hs["consecutive_failure_limit"].is_number_integer()) {
                 rules_.agent_dispatch.hard_stop.consecutive_failure_limit = std::max(0, hs["consecutive_failure_limit"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.hard_stop.consecutive_failure_limit"); }
             if (hs.contains("action")) {
                 rules_.agent_dispatch.hard_stop.action = hs["action"].get<std::string>(); rules_.explicitly_set.insert("agent_dispatch.hard_stop.action"); }
@@ -2510,8 +2510,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("behavioral_sequences") && j["behavioral_sequences"].is_object()) { rules_.explicitly_set.insert("behavioral_sequences");
         auto& bs = j["behavioral_sequences"];
         auto& cfg = rules_.behavioral_sequences;
-        if (bs.contains("enabled")) cfg.enabled = bs["enabled"].get<bool>();
-        if (bs.contains("window_size")) cfg.window_size = bs["window_size"].get<size_t>();
+        if (bs.contains("enabled") && bs["enabled"].is_boolean()) cfg.enabled = bs["enabled"].get<bool>();
+        if (bs.contains("window_size") && bs["window_size"].is_number_unsigned()) cfg.window_size = bs["window_size"].get<size_t>();
         parseRationale(bs, cfg.rationale);
         if (bs.contains("patterns") && bs["patterns"].is_array()) {
             for (auto& pat : bs["patterns"]) {
@@ -2527,7 +2527,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     sp.level = EnforcementLevel::SOFT;
                 }
                 if (pat.contains("rationale")) sp.rationale = pat["rationale"].get<std::string>();
-                if (pat.contains("cross_agent")) sp.cross_agent = pat["cross_agent"].get<bool>();
+                if (pat.contains("cross_agent") && pat["cross_agent"].is_boolean()) sp.cross_agent = pat["cross_agent"].get<bool>();
                 if (pat.contains("sequence") && pat["sequence"].is_array()) {
                     for (auto& step_str : pat["sequence"]) {
                         SequenceStep step;
@@ -2559,90 +2559,90 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("context_drift") && j["context_drift"].is_object()) { rules_.explicitly_set.insert("context_drift");
         auto& cd = j["context_drift"];
         auto& cfg = rules_.context_drift;
-        if (cd.contains("enabled")) cfg.enabled = cd["enabled"].get<bool>();
+        if (cd.contains("enabled") && cd["enabled"].is_boolean()) cfg.enabled = cd["enabled"].get<bool>();
         if (cd.contains("level")) {
             auto [en, lv] = parseEnforcementLevel(cd["level"]);
             cfg.level = lv;
         }
-        if (cd.contains("coherence_threshold")) {
+        if (cd.contains("coherence_threshold") && cd["coherence_threshold"].is_number()) {
             cfg.coherence_threshold = cd["coherence_threshold"].get<double>();
             cfg.coherence_threshold = std::max(0.0, std::min(1.0, cfg.coherence_threshold));
         }
-        if (cd.contains("max_contradictions")) cfg.max_contradictions = cd["max_contradictions"].get<int>();
-        if (cd.contains("check_interval_turns")) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
-        if (cd.contains("fingerprint_window")) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
-        if (cd.contains("rate_normalized")) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
-        if (cd.contains("coherence_recovery_amount")) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
-        if (cd.contains("coherence_natural_healing")) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
-        if (cd.contains("temporal_decay_enabled")) cfg.temporal_decay_enabled = cd["temporal_decay_enabled"].get<bool>();
-        if (cd.contains("temporal_decay_per_minute")) cfg.temporal_decay_per_minute = std::max(0.0, cd["temporal_decay_per_minute"].get<double>());
-        if (cd.contains("temporal_decay_grace_minutes")) cfg.temporal_decay_grace_minutes = std::max(0.0, cd["temporal_decay_grace_minutes"].get<double>());
-        if (cd.contains("adaptive_baseline_enabled")) cfg.adaptive_baseline_enabled = cd["adaptive_baseline_enabled"].get<bool>();
-        if (cd.contains("adaptive_baseline_window")) cfg.adaptive_baseline_window = std::max(1, cd["adaptive_baseline_window"].get<int>());
-        if (cd.contains("adaptive_baseline_sensitivity")) cfg.adaptive_baseline_sensitivity = std::max(0.0, cd["adaptive_baseline_sensitivity"].get<double>());
+        if (cd.contains("max_contradictions") && cd["max_contradictions"].is_number_integer()) cfg.max_contradictions = cd["max_contradictions"].get<int>();
+        if (cd.contains("check_interval_turns") && cd["check_interval_turns"].is_number_integer()) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
+        if (cd.contains("fingerprint_window") && cd["fingerprint_window"].is_number_integer()) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
+        if (cd.contains("rate_normalized") && cd["rate_normalized"].is_boolean()) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
+        if (cd.contains("coherence_recovery_amount") && cd["coherence_recovery_amount"].is_number()) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
+        if (cd.contains("coherence_natural_healing") && cd["coherence_natural_healing"].is_number()) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
+        if (cd.contains("temporal_decay_enabled") && cd["temporal_decay_enabled"].is_boolean()) cfg.temporal_decay_enabled = cd["temporal_decay_enabled"].get<bool>();
+        if (cd.contains("temporal_decay_per_minute") && cd["temporal_decay_per_minute"].is_number()) cfg.temporal_decay_per_minute = std::max(0.0, cd["temporal_decay_per_minute"].get<double>());
+        if (cd.contains("temporal_decay_grace_minutes") && cd["temporal_decay_grace_minutes"].is_number()) cfg.temporal_decay_grace_minutes = std::max(0.0, cd["temporal_decay_grace_minutes"].get<double>());
+        if (cd.contains("adaptive_baseline_enabled") && cd["adaptive_baseline_enabled"].is_boolean()) cfg.adaptive_baseline_enabled = cd["adaptive_baseline_enabled"].get<bool>();
+        if (cd.contains("adaptive_baseline_window") && cd["adaptive_baseline_window"].is_number_integer()) cfg.adaptive_baseline_window = std::max(1, cd["adaptive_baseline_window"].get<int>());
+        if (cd.contains("adaptive_baseline_sensitivity") && cd["adaptive_baseline_sensitivity"].is_number()) cfg.adaptive_baseline_sensitivity = std::max(0.0, cd["adaptive_baseline_sensitivity"].get<double>());
         if (cd.contains("thresholds") && cd["thresholds"].is_object()) {
             auto& th = cd["thresholds"];
-            if (th.contains("velocity_drop")) cfg.thresholds.velocity_drop = th["velocity_drop"].get<double>();
-            if (th.contains("circular_lookback")) cfg.thresholds.circular_lookback = std::max(1, th["circular_lookback"].get<int>());
-            if (th.contains("underutilization_delay")) cfg.thresholds.underutilization_delay = std::max(0, th["underutilization_delay"].get<int>());
-            if (th.contains("scope_creep_min_history")) cfg.thresholds.scope_creep_min_history = std::max(1, th["scope_creep_min_history"].get<int>());
-            if (th.contains("scope_creep_min_new_types")) cfg.thresholds.scope_creep_min_new_types = std::max(1, th["scope_creep_min_new_types"].get<int>());
-            if (th.contains("repeated_failure_count")) cfg.thresholds.repeated_failure_count = std::max(1, th["repeated_failure_count"].get<int>());
-            if (th.contains("vocab_contraction_window")) cfg.thresholds.vocab_contraction_window = std::max(2, th["vocab_contraction_window"].get<int>());
-            if (th.contains("entropy_min_initial")) cfg.thresholds.entropy_min_initial = std::max(0.0, th["entropy_min_initial"].get<double>());
-            if (th.contains("entropy_contraction_ratio")) cfg.thresholds.entropy_contraction_ratio = std::max(0.0, std::min(1.0, th["entropy_contraction_ratio"].get<double>()));
-            if (th.contains("coherence_history_size")) cfg.thresholds.coherence_history_size = std::max(2, th["coherence_history_size"].get<int>());
+            if (th.contains("velocity_drop") && th["velocity_drop"].is_number()) cfg.thresholds.velocity_drop = th["velocity_drop"].get<double>();
+            if (th.contains("circular_lookback") && th["circular_lookback"].is_number_integer()) cfg.thresholds.circular_lookback = std::max(1, th["circular_lookback"].get<int>());
+            if (th.contains("underutilization_delay") && th["underutilization_delay"].is_number_integer()) cfg.thresholds.underutilization_delay = std::max(0, th["underutilization_delay"].get<int>());
+            if (th.contains("scope_creep_min_history") && th["scope_creep_min_history"].is_number_integer()) cfg.thresholds.scope_creep_min_history = std::max(1, th["scope_creep_min_history"].get<int>());
+            if (th.contains("scope_creep_min_new_types") && th["scope_creep_min_new_types"].is_number_integer()) cfg.thresholds.scope_creep_min_new_types = std::max(1, th["scope_creep_min_new_types"].get<int>());
+            if (th.contains("repeated_failure_count") && th["repeated_failure_count"].is_number_integer()) cfg.thresholds.repeated_failure_count = std::max(1, th["repeated_failure_count"].get<int>());
+            if (th.contains("vocab_contraction_window") && th["vocab_contraction_window"].is_number_integer()) cfg.thresholds.vocab_contraction_window = std::max(2, th["vocab_contraction_window"].get<int>());
+            if (th.contains("entropy_min_initial") && th["entropy_min_initial"].is_number()) cfg.thresholds.entropy_min_initial = std::max(0.0, th["entropy_min_initial"].get<double>());
+            if (th.contains("entropy_contraction_ratio") && th["entropy_contraction_ratio"].is_number()) cfg.thresholds.entropy_contraction_ratio = std::max(0.0, std::min(1.0, th["entropy_contraction_ratio"].get<double>()));
+            if (th.contains("coherence_history_size") && th["coherence_history_size"].is_number_integer()) cfg.thresholds.coherence_history_size = std::max(2, th["coherence_history_size"].get<int>());
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
             auto& sig = cd["signals"];
-            if (sig.contains("repeated_failures")) cfg.signals.repeated_failures = sig["repeated_failures"].get<bool>();
-            if (sig.contains("circular_actions")) cfg.signals.circular_actions = sig["circular_actions"].get<bool>();
-            if (sig.contains("scope_creep")) cfg.signals.scope_creep = sig["scope_creep"].get<bool>();
-            if (sig.contains("intent_contradictions")) cfg.signals.intent_contradictions = sig["intent_contradictions"].get<bool>();
-            if (sig.contains("vocabulary_contraction")) cfg.signals.vocabulary_contraction = sig["vocabulary_contraction"].get<bool>();
-            if (sig.contains("coherence_velocity")) cfg.signals.coherence_velocity = sig["coherence_velocity"].get<bool>();
-            if (sig.contains("capability_underutilization")) cfg.signals.capability_underutilization = sig["capability_underutilization"].get<bool>();
-            if (sig.contains("semantic_stability")) cfg.signals.semantic_stability = sig["semantic_stability"].get<bool>();
+            if (sig.contains("repeated_failures") && sig["repeated_failures"].is_boolean()) cfg.signals.repeated_failures = sig["repeated_failures"].get<bool>();
+            if (sig.contains("circular_actions") && sig["circular_actions"].is_boolean()) cfg.signals.circular_actions = sig["circular_actions"].get<bool>();
+            if (sig.contains("scope_creep") && sig["scope_creep"].is_boolean()) cfg.signals.scope_creep = sig["scope_creep"].get<bool>();
+            if (sig.contains("intent_contradictions") && sig["intent_contradictions"].is_boolean()) cfg.signals.intent_contradictions = sig["intent_contradictions"].get<bool>();
+            if (sig.contains("vocabulary_contraction") && sig["vocabulary_contraction"].is_boolean()) cfg.signals.vocabulary_contraction = sig["vocabulary_contraction"].get<bool>();
+            if (sig.contains("coherence_velocity") && sig["coherence_velocity"].is_boolean()) cfg.signals.coherence_velocity = sig["coherence_velocity"].get<bool>();
+            if (sig.contains("capability_underutilization") && sig["capability_underutilization"].is_boolean()) cfg.signals.capability_underutilization = sig["capability_underutilization"].get<bool>();
+            if (sig.contains("semantic_stability") && sig["semantic_stability"].is_boolean()) cfg.signals.semantic_stability = sig["semantic_stability"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
             auto& w = cd["weights"];
-            if (w.contains("circular")) cfg.weights.circular = w["circular"].get<double>();
-            if (w.contains("scope_creep")) cfg.weights.scope_creep = w["scope_creep"].get<double>();
-            if (w.contains("contradiction")) cfg.weights.contradiction = w["contradiction"].get<double>();
-            if (w.contains("repeated_failure")) cfg.weights.repeated_failure = w["repeated_failure"].get<double>();
-            if (w.contains("vocabulary_contraction")) cfg.weights.vocabulary_contraction = w["vocabulary_contraction"].get<double>();
-            if (w.contains("coherence_velocity")) cfg.weights.coherence_velocity = w["coherence_velocity"].get<double>();
-            if (w.contains("capability_underutilization")) cfg.weights.capability_underutilization = w["capability_underutilization"].get<double>();
-            if (w.contains("semantic_stability")) cfg.weights.semantic_stability = w["semantic_stability"].get<double>();
+            if (w.contains("circular") && w["circular"].is_number()) cfg.weights.circular = w["circular"].get<double>();
+            if (w.contains("scope_creep") && w["scope_creep"].is_number()) cfg.weights.scope_creep = w["scope_creep"].get<double>();
+            if (w.contains("contradiction") && w["contradiction"].is_number()) cfg.weights.contradiction = w["contradiction"].get<double>();
+            if (w.contains("repeated_failure") && w["repeated_failure"].is_number()) cfg.weights.repeated_failure = w["repeated_failure"].get<double>();
+            if (w.contains("vocabulary_contraction") && w["vocabulary_contraction"].is_number()) cfg.weights.vocabulary_contraction = w["vocabulary_contraction"].get<double>();
+            if (w.contains("coherence_velocity") && w["coherence_velocity"].is_number()) cfg.weights.coherence_velocity = w["coherence_velocity"].get<double>();
+            if (w.contains("capability_underutilization") && w["capability_underutilization"].is_number()) cfg.weights.capability_underutilization = w["capability_underutilization"].get<double>();
+            if (w.contains("semantic_stability") && w["semantic_stability"].is_number()) cfg.weights.semantic_stability = w["semantic_stability"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
             auto& rccfg = cfg.reality_checkpoint;
-            if (rc.contains("enabled")) rccfg.enabled = rc["enabled"].get<bool>();
+            if (rc.contains("enabled") && rc["enabled"].is_boolean()) rccfg.enabled = rc["enabled"].get<bool>();
             if (rc.contains("level")) {
                 auto [en, lv] = parseEnforcementLevel(rc["level"]);
                 rccfg.level = lv;
             }
-            if (rc.contains("pressure_threshold")) rccfg.pressure_threshold = rc["pressure_threshold"].get<double>();
-            if (rc.contains("sustained_turns_required")) rccfg.sustained_turns_required = rc["sustained_turns_required"].get<int>();
-            if (rc.contains("min_turns_between_checkpoints")) rccfg.min_turns_between_checkpoints = rc["min_turns_between_checkpoints"].get<int>();
-            if (rc.contains("expected_conversation_depth")) rccfg.expected_conversation_depth = rc["expected_conversation_depth"].get<int>();
+            if (rc.contains("pressure_threshold") && rc["pressure_threshold"].is_number()) rccfg.pressure_threshold = rc["pressure_threshold"].get<double>();
+            if (rc.contains("sustained_turns_required") && rc["sustained_turns_required"].is_number_integer()) rccfg.sustained_turns_required = rc["sustained_turns_required"].get<int>();
+            if (rc.contains("min_turns_between_checkpoints") && rc["min_turns_between_checkpoints"].is_number_integer()) rccfg.min_turns_between_checkpoints = rc["min_turns_between_checkpoints"].get<int>();
+            if (rc.contains("expected_conversation_depth") && rc["expected_conversation_depth"].is_number_integer()) rccfg.expected_conversation_depth = rc["expected_conversation_depth"].get<int>();
             parseRationale(rc, rccfg.rationale);
             if (rc.contains("weights") && rc["weights"].is_object()) {
                 auto& rw = rc["weights"];
-                if (rw.contains("coherence_proximity")) rccfg.weights.coherence_proximity = rw["coherence_proximity"].get<double>();
-                if (rw.contains("risk_score_proximity")) rccfg.weights.risk_score_proximity = rw["risk_score_proximity"].get<double>();
-                if (rw.contains("signal_density")) rccfg.weights.signal_density = rw["signal_density"].get<double>();
-                if (rw.contains("conversation_depth")) rccfg.weights.conversation_depth = rw["conversation_depth"].get<double>();
-                if (rw.contains("bsd_partial_progress")) rccfg.weights.bsd_partial_progress = rw["bsd_partial_progress"].get<double>();
-                if (rw.contains("pipeline_inherited")) rccfg.weights.pipeline_inherited = rw["pipeline_inherited"].get<double>();
-                if (rw.contains("coherence_acceleration")) rccfg.weights.coherence_acceleration = rw["coherence_acceleration"].get<double>();
-                if (rw.contains("codegen_pressure")) rccfg.weights.codegen_pressure = rw["codegen_pressure"].get<double>();
-                if (rw.contains("bsd_eviction_pressure")) rccfg.weights.bsd_eviction_pressure = rw["bsd_eviction_pressure"].get<double>();
+                if (rw.contains("coherence_proximity") && rw["coherence_proximity"].is_number()) rccfg.weights.coherence_proximity = rw["coherence_proximity"].get<double>();
+                if (rw.contains("risk_score_proximity") && rw["risk_score_proximity"].is_number()) rccfg.weights.risk_score_proximity = rw["risk_score_proximity"].get<double>();
+                if (rw.contains("signal_density") && rw["signal_density"].is_number()) rccfg.weights.signal_density = rw["signal_density"].get<double>();
+                if (rw.contains("conversation_depth") && rw["conversation_depth"].is_number()) rccfg.weights.conversation_depth = rw["conversation_depth"].get<double>();
+                if (rw.contains("bsd_partial_progress") && rw["bsd_partial_progress"].is_number()) rccfg.weights.bsd_partial_progress = rw["bsd_partial_progress"].get<double>();
+                if (rw.contains("pipeline_inherited") && rw["pipeline_inherited"].is_number()) rccfg.weights.pipeline_inherited = rw["pipeline_inherited"].get<double>();
+                if (rw.contains("coherence_acceleration") && rw["coherence_acceleration"].is_number()) rccfg.weights.coherence_acceleration = rw["coherence_acceleration"].get<double>();
+                if (rw.contains("codegen_pressure") && rw["codegen_pressure"].is_number()) rccfg.weights.codegen_pressure = rw["codegen_pressure"].get<double>();
+                if (rw.contains("bsd_eviction_pressure") && rw["bsd_eviction_pressure"].is_number()) rccfg.weights.bsd_eviction_pressure = rw["bsd_eviction_pressure"].get<double>();
             }
-            if (rc.contains("signal_density_divisor")) rccfg.signal_density_divisor = std::max(0.1, rc["signal_density_divisor"].get<double>());
-            if (rc.contains("acceleration_multiplier")) rccfg.acceleration_multiplier = std::max(0.1, rc["acceleration_multiplier"].get<double>());
+            if (rc.contains("signal_density_divisor") && rc["signal_density_divisor"].is_number()) rccfg.signal_density_divisor = std::max(0.1, rc["signal_density_divisor"].get<double>());
+            if (rc.contains("acceleration_multiplier") && rc["acceleration_multiplier"].is_number()) rccfg.acceleration_multiplier = std::max(0.1, rc["acceleration_multiplier"].get<double>());
         }
     }
 
@@ -2650,23 +2650,23 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("exposure_tracking") && j["exposure_tracking"].is_object()) { rules_.explicitly_set.insert("exposure_tracking");
         auto& et = j["exposure_tracking"];
         auto& cfg = rules_.exposure_tracking;
-        if (et.contains("enabled")) cfg.enabled = et["enabled"].get<bool>();
-        if (et.contains("max_autonomous_actions")) {
+        if (et.contains("enabled") && et["enabled"].is_boolean()) cfg.enabled = et["enabled"].get<bool>();
+        if (et.contains("max_autonomous_actions") && et["max_autonomous_actions"].is_number_integer()) {
             cfg.max_autonomous_actions = et["max_autonomous_actions"].get<int>();
             if (cfg.max_autonomous_actions < 0) cfg.max_autonomous_actions = 0;
         }
-        if (et.contains("max_unique_agents")) cfg.max_unique_agents = et["max_unique_agents"].get<int>();
-        if (et.contains("coherence_floor")) cfg.coherence_floor = et["coherence_floor"].get<double>();
-        if (et.contains("max_pipeline_depth")) {
+        if (et.contains("max_unique_agents") && et["max_unique_agents"].is_number_integer()) cfg.max_unique_agents = et["max_unique_agents"].get<int>();
+        if (et.contains("coherence_floor") && et["coherence_floor"].is_number()) cfg.coherence_floor = et["coherence_floor"].get<double>();
+        if (et.contains("max_pipeline_depth") && et["max_pipeline_depth"].is_number_integer()) {
             cfg.max_pipeline_depth = et["max_pipeline_depth"].get<int>();
             if (cfg.max_pipeline_depth < 0) cfg.max_pipeline_depth = 0;
         }
-        if (et.contains("checkpoint_cooldown_turns")) {
+        if (et.contains("checkpoint_cooldown_turns") && et["checkpoint_cooldown_turns"].is_number_integer()) {
             cfg.checkpoint_cooldown_turns = et["checkpoint_cooldown_turns"].get<int>();
             if (cfg.checkpoint_cooldown_turns < 0) cfg.checkpoint_cooldown_turns = 0;
         }
-        if (et.contains("min_capability_utilization")) cfg.min_capability_utilization = et["min_capability_utilization"].get<double>();
-        if (et.contains("utilization_check_after_turns")) cfg.utilization_check_after_turns = et["utilization_check_after_turns"].get<int>();
+        if (et.contains("min_capability_utilization") && et["min_capability_utilization"].is_number()) cfg.min_capability_utilization = et["min_capability_utilization"].get<double>();
+        if (et.contains("utilization_check_after_turns") && et["utilization_check_after_turns"].is_number_integer()) cfg.utilization_check_after_turns = et["utilization_check_after_turns"].get<int>();
         if (et.contains("level")) {
             auto [en, lv] = parseEnforcementLevel(et["level"]);
             cfg.level = lv;
@@ -2678,9 +2678,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("temporal_coupling") && j["temporal_coupling"].is_object()) { rules_.explicitly_set.insert("temporal_coupling");
         auto& tc = j["temporal_coupling"];
         auto& cfg = rules_.temporal_coupling;
-        if (tc.contains("enabled")) cfg.enabled = tc["enabled"].get<bool>();
-        if (tc.contains("max_correlation")) cfg.max_correlation = tc["max_correlation"].get<double>();
-        if (tc.contains("min_events")) cfg.min_events = tc["min_events"].get<int>();
+        if (tc.contains("enabled") && tc["enabled"].is_boolean()) cfg.enabled = tc["enabled"].get<bool>();
+        if (tc.contains("max_correlation") && tc["max_correlation"].is_number()) cfg.max_correlation = tc["max_correlation"].get<double>();
+        if (tc.contains("min_events") && tc["min_events"].is_number_integer()) cfg.min_events = tc["min_events"].get<int>();
         parseRationale(tc, cfg.rationale);
     }
 
@@ -2688,19 +2688,19 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("circuit_breaker") && j["circuit_breaker"].is_object()) { rules_.explicitly_set.insert("circuit_breaker");
         auto& cbj = j["circuit_breaker"];
         auto& cfg = rules_.circuit_breaker;
-        if (cbj.contains("enabled")) cfg.enabled = cbj["enabled"].get<bool>();
-        if (cbj.contains("elevated_threshold")) cfg.elevated_threshold = cbj["elevated_threshold"].get<double>();
-        if (cbj.contains("high_threshold")) cfg.high_threshold = cbj["high_threshold"].get<double>();
-        if (cbj.contains("critical_threshold")) cfg.critical_threshold = cbj["critical_threshold"].get<double>();
-        if (cbj.contains("elevated_sustained")) cfg.elevated_sustained = cbj["elevated_sustained"].get<int>();
-        if (cbj.contains("high_sustained")) cfg.high_sustained = cbj["high_sustained"].get<int>();
-        if (cbj.contains("critical_sustained")) cfg.critical_sustained = cbj["critical_sustained"].get<int>();
-        if (cbj.contains("step_up_enabled")) cfg.step_up_enabled = cbj["step_up_enabled"].get<bool>();
+        if (cbj.contains("enabled") && cbj["enabled"].is_boolean()) cfg.enabled = cbj["enabled"].get<bool>();
+        if (cbj.contains("elevated_threshold") && cbj["elevated_threshold"].is_number()) cfg.elevated_threshold = cbj["elevated_threshold"].get<double>();
+        if (cbj.contains("high_threshold") && cbj["high_threshold"].is_number()) cfg.high_threshold = cbj["high_threshold"].get<double>();
+        if (cbj.contains("critical_threshold") && cbj["critical_threshold"].is_number()) cfg.critical_threshold = cbj["critical_threshold"].get<double>();
+        if (cbj.contains("elevated_sustained") && cbj["elevated_sustained"].is_number_integer()) cfg.elevated_sustained = cbj["elevated_sustained"].get<int>();
+        if (cbj.contains("high_sustained") && cbj["high_sustained"].is_number_integer()) cfg.high_sustained = cbj["high_sustained"].get<int>();
+        if (cbj.contains("critical_sustained") && cbj["critical_sustained"].is_number_integer()) cfg.critical_sustained = cbj["critical_sustained"].get<int>();
+        if (cbj.contains("step_up_enabled") && cbj["step_up_enabled"].is_boolean()) cfg.step_up_enabled = cbj["step_up_enabled"].get<bool>();
         if (cbj.contains("step_up_at_level")) cfg.step_up_at_level = cbj["step_up_at_level"].get<std::string>();
         if (cbj.contains("step_up_challenge")) cfg.step_up_challenge = cbj["step_up_challenge"].get<std::string>();
-        if (cbj.contains("step_up_min_words")) cfg.step_up_min_words = std::max(1, cbj["step_up_min_words"].get<int>());
-        if (cbj.contains("step_up_cooldown_turns")) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
-        if (cbj.contains("step_up_keyword_threshold")) cfg.step_up_keyword_threshold = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
+        if (cbj.contains("step_up_min_words") && cbj["step_up_min_words"].is_number_integer()) cfg.step_up_min_words = std::max(1, cbj["step_up_min_words"].get<int>());
+        if (cbj.contains("step_up_cooldown_turns") && cbj["step_up_cooldown_turns"].is_number_integer()) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
+        if (cbj.contains("step_up_keyword_threshold") && cbj["step_up_keyword_threshold"].is_number()) cfg.step_up_keyword_threshold = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
         parseRationale(cbj, cfg.rationale);
     }
 
@@ -2708,9 +2708,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("advisory_escalation") && j["advisory_escalation"].is_object()) { rules_.explicitly_set.insert("advisory_escalation");
         auto& ae = j["advisory_escalation"];
         auto& cfg = rules_.advisory_escalation;
-        if (ae.contains("enabled")) cfg.enabled = ae["enabled"].get<bool>();
-        if (ae.contains("soft_after")) cfg.soft_after = std::max(2, ae["soft_after"].get<int>());
-        if (ae.contains("weight_multiplier")) cfg.weight_multiplier = std::max(1.0, ae["weight_multiplier"].get<double>());
+        if (ae.contains("enabled") && ae["enabled"].is_boolean()) cfg.enabled = ae["enabled"].get<bool>();
+        if (ae.contains("soft_after") && ae["soft_after"].is_number_integer()) cfg.soft_after = std::max(2, ae["soft_after"].get<int>());
+        if (ae.contains("weight_multiplier") && ae["weight_multiplier"].is_number()) cfg.weight_multiplier = std::max(1.0, ae["weight_multiplier"].get<double>());
         parseRationale(ae, cfg.rationale);
     }
 
@@ -2718,13 +2718,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("governance_health") && j["governance_health"].is_object()) { rules_.explicitly_set.insert("governance_health");
         auto& gh = j["governance_health"];
         auto& cfg = rules_.governance_health;
-        if (gh.contains("enabled")) cfg.enabled = gh["enabled"].get<bool>();
-        if (gh.contains("check_after_turns")) cfg.check_after_turns = gh["check_after_turns"].get<int>();
-        if (gh.contains("governance_entropy_warning")) cfg.governance_entropy_warning = gh["governance_entropy_warning"].get<double>();
-        if (gh.contains("consecutive_passes_suspicion")) cfg.consecutive_passes_suspicion = std::max(1, gh["consecutive_passes_suspicion"].get<int>());
-        if (gh.contains("impaired_degraded_turns")) cfg.impaired_degraded_turns = std::max(1, gh["impaired_degraded_turns"].get<int>());
-        if (gh.contains("impaired_signal_count")) cfg.impaired_signal_count = std::max(1, gh["impaired_signal_count"].get<int>());
-        if (gh.contains("pulse_cooldown_turns")) cfg.pulse_cooldown_turns = std::max(0, gh["pulse_cooldown_turns"].get<int>());
+        if (gh.contains("enabled") && gh["enabled"].is_boolean()) cfg.enabled = gh["enabled"].get<bool>();
+        if (gh.contains("check_after_turns") && gh["check_after_turns"].is_number_integer()) cfg.check_after_turns = gh["check_after_turns"].get<int>();
+        if (gh.contains("governance_entropy_warning") && gh["governance_entropy_warning"].is_number()) cfg.governance_entropy_warning = gh["governance_entropy_warning"].get<double>();
+        if (gh.contains("consecutive_passes_suspicion") && gh["consecutive_passes_suspicion"].is_number_integer()) cfg.consecutive_passes_suspicion = std::max(1, gh["consecutive_passes_suspicion"].get<int>());
+        if (gh.contains("impaired_degraded_turns") && gh["impaired_degraded_turns"].is_number_integer()) cfg.impaired_degraded_turns = std::max(1, gh["impaired_degraded_turns"].get<int>());
+        if (gh.contains("impaired_signal_count") && gh["impaired_signal_count"].is_number_integer()) cfg.impaired_signal_count = std::max(1, gh["impaired_signal_count"].get<int>());
+        if (gh.contains("pulse_cooldown_turns") && gh["pulse_cooldown_turns"].is_number_integer()) cfg.pulse_cooldown_turns = std::max(0, gh["pulse_cooldown_turns"].get<int>());
         parseRationale(gh, cfg.rationale);
     }
 
@@ -2732,7 +2732,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("pipeline_separation") && j["pipeline_separation"].is_object()) { rules_.explicitly_set.insert("pipeline_separation");
         auto& ps = j["pipeline_separation"];
         auto& cfg = rules_.pipeline_separation;
-        if (ps.contains("enabled")) cfg.enabled = ps["enabled"].get<bool>();
+        if (ps.contains("enabled") && ps["enabled"].is_boolean()) cfg.enabled = ps["enabled"].get<bool>();
         if (ps.contains("level")) {
             auto [en, lv] = parseEnforcementLevel(ps["level"]);
             cfg.level = lv;
@@ -2743,9 +2743,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // --- Governance Baseline (Feature 4) ---
     if (j.contains("governance_baseline") && j["governance_baseline"].is_object()) { rules_.explicitly_set.insert("governance_baseline");
         auto& gb = j["governance_baseline"];
-        if (gb.contains("enabled")) rules_.governance_baseline.enabled = gb["enabled"].get<bool>();
+        if (gb.contains("enabled") && gb["enabled"].is_boolean()) rules_.governance_baseline.enabled = gb["enabled"].get<bool>();
         if (gb.contains("path")) rules_.governance_baseline.path = gb["path"].get<std::string>();
-        if (gb.contains("fail_on_regression")) rules_.governance_baseline.fail_on_regression = gb["fail_on_regression"].get<bool>();
+        if (gb.contains("fail_on_regression") && gb["fail_on_regression"].is_boolean()) rules_.governance_baseline.fail_on_regression = gb["fail_on_regression"].get<bool>();
         if (gb.contains("level")) {
             auto lvl = gb["level"].get<std::string>();
             if (lvl == "hard") rules_.governance_baseline.level = EnforcementLevel::HARD;
