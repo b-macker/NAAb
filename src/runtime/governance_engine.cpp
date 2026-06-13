@@ -2433,7 +2433,7 @@ void GovernanceEngine::runGovernanceVoice() {
                 std::string raw((std::istreambuf_iterator<char>(cf)),
                                  std::istreambuf_iterator<char>());
                 auto wrapper = nlohmann::json::parse(raw);
-                if (wrapper.contains("data") && wrapper.contains("hmac")) {
+                if (wrapper.contains("data") && wrapper["data"].is_string() && wrapper.contains("hmac") && wrapper["hmac"].is_string()) {
                     std::string data_str = wrapper["data"].get<std::string>();
                     std::string stored_hmac = wrapper["hmac"].get<std::string>();
                     std::string hmac_key = security::CryptoUtils::sha256(
@@ -3071,7 +3071,7 @@ std::string GovernanceEngine::checkGovernanceBaseline() const {
     std::string msg = "[governance] Baseline REGRESSION detected:\n";
     for (const auto& r : regressions) msg += r + "\n";
     msg += fmt::format("  Baseline from: {}\n",
-        prev.contains("timestamp") ? prev["timestamp"].get<std::string>() : "unknown");
+        prev.contains("timestamp") && prev["timestamp"].is_string() ? prev["timestamp"].get<std::string>() : "unknown");
     return msg;
 }
 
@@ -4151,7 +4151,7 @@ std::string GovernanceEngine::checkDriftDetection(
         std::unordered_set<std::string> current_set(
             current.function_names.begin(), current.function_names.end());
         for (const auto& name : prev["function_names"]) {
-            std::string fn = name.get<std::string>();
+            std::string fn = (name.is_string() ? name.get<std::string>() : std::string());
             if (current_set.find(fn) == current_set.end()) {
                 std::string msg = fmt::format("Drift: function '{}' was deleted", fn);
                 // Info-level — the metric check above handles enforcement
@@ -4164,7 +4164,7 @@ std::string GovernanceEngine::checkDriftDetection(
         std::unordered_set<std::string> current_set(
             current.export_names.begin(), current.export_names.end());
         for (const auto& name : prev["export_names"]) {
-            std::string ex = name.get<std::string>();
+            std::string ex = (name.is_string() ? name.get<std::string>() : std::string());
             if (current_set.find(ex) == current_set.end()) {
                 std::string msg = fmt::format("Drift: exported function '{}' was deleted (API regression)", ex);
                 fprintf(stderr, "[governance] %s\n", msg.c_str());
@@ -4221,7 +4221,7 @@ std::string GovernanceEngine::checkDriftDetection(
             std::unordered_set<std::string> current_set(current.imports.begin(), current.imports.end());
             std::vector<std::string> deleted;
             for (const auto& imp : prev_imports) {
-                std::string name = imp.get<std::string>();
+                std::string name = (imp.is_string() ? imp.get<std::string>() : std::string());
                 if (current_set.find(name) == current_set.end()) {
                     deleted.push_back(name);
                     fprintf(stderr, "[governance] Drift: import '%s' was removed\n", name.c_str());
@@ -4339,7 +4339,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 std::unordered_set<std::string> current_langs(
                     current.polyglot_languages.begin(), current.polyglot_languages.end());
                 for (const auto& lang : prev["polyglot_languages"]) {
-                    std::string l = lang.get<std::string>();
+                    std::string l = (lang.is_string() ? lang.get<std::string>() : std::string());
                     if (current_langs.find(l) == current_langs.end()) {
                         removed_langs.push_back(l);
                         fprintf(stderr, "[governance] Drift: polyglot language '%s' was removed\n", l.c_str());
@@ -4384,7 +4384,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 std::vector<std::string> deleted_fields;
                 std::unordered_set<std::string> current_fields(it->second.begin(), it->second.end());
                 for (const auto& f : baseline_fields) {
-                    std::string fname = f.get<std::string>();
+                    std::string fname = (f.is_string() ? f.get<std::string>() : std::string());
                     if (current_fields.find(fname) == current_fields.end()) {
                         deleted_fields.push_back(fname);
                         fprintf(stderr, "[governance] Drift: struct '%s' field '%s' was deleted\n",
@@ -4417,7 +4417,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 current.test_functions.begin(), current.test_functions.end());
             std::vector<std::string> deleted;
             for (const auto& t : prev["test_functions"]) {
-                std::string name = t.get<std::string>();
+                std::string name = (t.is_string() ? t.get<std::string>() : std::string());
                 if (current_set.find(name) == current_set.end()) {
                     deleted.push_back(name);
                     fprintf(stderr, "[governance] Drift: test function '%s' was deleted\n", name.c_str());
@@ -4454,7 +4454,7 @@ std::string GovernanceEngine::checkDriftDetection(
                 current.function_names.begin(), current.function_names.end());
             std::vector<std::string> deleted;
             for (const auto& fn : prev["function_names"]) {
-                std::string name = fn.get<std::string>();
+                std::string name = (fn.is_string() ? fn.get<std::string>() : std::string());
                 if (current_set.find(name) == current_set.end()) {
                     deleted.push_back(name);
                     fprintf(stderr, "[governance] Drift: function '%s' was renamed or deleted\n", name.c_str());
@@ -4489,7 +4489,7 @@ std::string GovernanceEngine::checkDriftDetection(
         for (auto& [fn_name, baseline_hash] : prev["body_hashes"].items()) {
             auto it = current.body_hashes.find(fn_name);
             if (it == current.body_hashes.end()) continue;  // function deleted — handled by other gates
-            std::string expected = baseline_hash.get<std::string>();
+            std::string expected = (baseline_hash.is_string() ? baseline_hash.get<std::string>() : std::string());
             if (it->second != expected) {
                 changed.push_back(fn_name);
                 fprintf(stderr, "[governance] Drift: function '%s' body has been rewritten (hash mismatch).\n"
@@ -4602,7 +4602,7 @@ std::string GovernanceEngine::checkDriftDetection(
                               "  integrity settings.";
             violations.push_back(msg);
             enforce("drift_detection.config_presence", EnforcementLevel::HARD, msg);
-        } else if (prev.contains("config_hash") && !prev["config_hash"].get<std::string>().empty()) {
+        } else if (prev.contains("config_hash") && prev["config_hash"].is_string() && !prev["config_hash"].get<std::string>().empty()) {
             if (current.config_hash != prev["config_hash"].get<std::string>()) {
                 std::string cfg_help;
                 if (hasSigningCapability()) {
@@ -4625,7 +4625,7 @@ std::string GovernanceEngine::checkDriftDetection(
     }
 
     // Gate 14: Script location — block execution from unexpected directories
-    if (cfg.check_script_location && prev.contains("script_dir") && !prev["script_dir"].get<std::string>().empty()) {
+    if (cfg.check_script_location && prev.contains("script_dir") && prev["script_dir"].is_string() && !prev["script_dir"].get<std::string>().empty()) {
         std::string baseline_dir = prev["script_dir"].get<std::string>();
         if (current.script_dir != baseline_dir) {
             std::string msg = fmt::format(
@@ -4705,7 +4705,7 @@ std::string GovernanceEngine::checkDriftDetection(
     if (cfg.check_new_functions && prev.contains("function_names") && prev["function_names"].is_array()) {
         std::unordered_set<std::string> baseline_set;
         for (const auto& fn : prev["function_names"])
-            baseline_set.insert(fn.get<std::string>());
+            if (fn.is_string()) baseline_set.insert(fn.get<std::string>());
         std::vector<std::string> new_funcs;
         for (const auto& fn : current.function_names) {
             if (baseline_set.find(fn) == baseline_set.end())

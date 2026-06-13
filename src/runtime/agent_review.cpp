@@ -258,7 +258,7 @@ static bool loadCache(const std::string& path, AgentReviewResult& result,
         f >> wrapper;
 
         // F12: Verify HMAC integrity if present
-        if (wrapper.contains("hmac") && wrapper.contains("data")) {
+        if (wrapper.contains("hmac") && wrapper["hmac"].is_string() && wrapper.contains("data") && wrapper["data"].is_string()) {
             std::string data_str = wrapper["data"].get<std::string>();
             std::string stored_hmac = wrapper["hmac"].get<std::string>();
             json j = json::parse(data_str);

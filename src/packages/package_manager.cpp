@@ -165,7 +165,7 @@ std::string PackageManager::getLatestRelease(const std::string& owner, const std
 
     try {
         auto j = nlohmann::json::parse(response);
-        if (j.contains("tag_name")) {
+        if (j.contains("tag_name") && j["tag_name"].is_string()) {
             std::string tag = j["tag_name"].get<std::string>();
             // Strip leading 'v' if present
             if (!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
@@ -185,7 +185,7 @@ std::vector<std::string> PackageManager::listTags(const std::string& owner, cons
     try {
         auto j = nlohmann::json::parse(response);
         for (auto& tag : j) {
-            if (tag.contains("name")) {
+            if (tag.contains("name") && tag["name"].is_string()) {
                 tags.push_back(tag["name"].get<std::string>());
             }
         }
@@ -826,7 +826,7 @@ std::vector<PackageInfo> PackageManager::search(const std::string& query) const 
 
             if (!matches && pkg.contains("keywords")) {
                 for (auto& kw : pkg["keywords"]) {
-                    std::string kw_str = kw.get<std::string>();
+                    std::string kw_str = (kw.is_string() ? kw.get<std::string>() : std::string());
                     std::transform(kw_str.begin(), kw_str.end(), kw_str.begin(), ::tolower);
                     if (kw_str.find(q) != std::string::npos) {
                         matches = true;
@@ -843,7 +843,7 @@ std::vector<PackageInfo> PackageManager::search(const std::string& query) const 
                 info.version = pkg.value("latest", "");
                 if (pkg.contains("keywords")) {
                     for (auto& kw : pkg["keywords"]) {
-                        info.keywords.push_back(kw.get<std::string>());
+                        if (kw.is_string()) info.keywords.push_back(kw.get<std::string>());
                     }
                 }
                 results.push_back(std::move(info));
@@ -1009,7 +1009,7 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
             // Prefix rule IDs with package name
             if (plugin.contains("rules") && plugin["rules"].is_array()) {
                 for (auto& rule : plugin["rules"]) {
-                    if (rule.contains("id")) {
+                    if (rule.contains("id") && rule["id"].is_string()) {
                         std::string id = rule["id"].get<std::string>();
                         if (id.find(package_name + ".") != 0) {
                             rule["id"] = package_name + "." + id;
@@ -1034,7 +1034,7 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
     // Prefix rule IDs
     if (plugin_entry.contains("rules") && plugin_entry["rules"].is_array()) {
         for (auto& rule : plugin_entry["rules"]) {
-            if (rule.contains("id")) {
+            if (rule.contains("id") && rule["id"].is_string()) {
                 std::string id = rule["id"].get<std::string>();
                 if (id.find(package_name + ".") != 0) {
                     rule["id"] = package_name + "." + id;

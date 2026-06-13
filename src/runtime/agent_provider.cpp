@@ -136,12 +136,12 @@ static HttpResult httpPostRaw(
     // Extract error detail from non-2xx responses
     if (result.status_code < 200 || result.status_code >= 300) {
         std::string error_msg = "unknown error";
-        if (result.body.contains("error") && result.body["error"].contains("message")) {
+        if (result.body.contains("error") && result.body["error"].contains("message") && result.body["error"]["message"].is_string()) {
             error_msg = result.body["error"]["message"].get<std::string>();
         }
-        if (result.body.contains("error") && result.body["error"].contains("status")) {
+        if (result.body.contains("error") && result.body["error"].contains("status") && result.body["error"]["status"].is_string()) {
             error_msg = result.body["error"]["status"].get<std::string>();
-            if (result.body["error"].contains("message"))
+            if (result.body["error"].contains("message") && result.body["error"]["message"].is_string())
                 error_msg += ": " + result.body["error"]["message"].get<std::string>();
         }
         if (error_msg.size() > 200) error_msg = error_msg.substr(0, 200) + "...";
@@ -298,7 +298,7 @@ static NormalizedResponse normalizeResponse(
             auto& candidate = response["candidates"][0];
             if (candidate.contains("content") && candidate["content"].contains("parts")) {
                 for (const auto& part : candidate["content"]["parts"]) {
-                    if (part.contains("text")) {
+                    if (part.contains("text") && part["text"].is_string()) {
                         // Skip Gemini/Gemma "thought" parts (internal reasoning tokens)
                         if (part.contains("thought") && part["thought"].is_boolean() && part["thought"].get<bool>())
                             continue;
@@ -307,7 +307,7 @@ static NormalizedResponse normalizeResponse(
                     } else if (part.contains("functionCall")) {
                         ToolCallInfo tc;
                         tc.id = "gemini_" + std::to_string(result.tool_calls.size());
-                        if (part["functionCall"].contains("name"))
+                        if (part["functionCall"].contains("name") && part["functionCall"]["name"].is_string())
                             tc.name = part["functionCall"]["name"].get<std::string>();
                         if (part["functionCall"].contains("args"))
                             tc.arguments = part["functionCall"]["args"].dump();
@@ -317,7 +317,7 @@ static NormalizedResponse normalizeResponse(
                     }
                 }
             }
-            if (candidate.contains("finishReason"))
+            if (candidate.contains("finishReason") && candidate["finishReason"].is_string())
                 result.stop_reason = candidate["finishReason"].get<std::string>();
         }
         if (response.contains("usageMetadata")) {
@@ -333,14 +333,14 @@ static NormalizedResponse normalizeResponse(
     } else {
         if (response.contains("content") && response["content"].is_array()) {
             for (const auto& block : response["content"]) {
-                if (block.contains("type") && block["type"] == "text" && block.contains("text")) {
+                if (block.contains("type") && block["type"] == "text" && block.contains("text") && block["text"].is_string()) {
                     if (!result.content.empty()) result.content += "\n";
                     result.content += block["text"].get<std::string>();
                 } else if (block.contains("type") && block["type"] == "tool_use") {
                     ToolCallInfo tc;
-                    if (block.contains("id"))
+                    if (block.contains("id") && block["id"].is_string())
                         tc.id = block["id"].get<std::string>();
-                    if (block.contains("name"))
+                    if (block.contains("name") && block["name"].is_string())
                         tc.name = block["name"].get<std::string>();
                     if (block.contains("input"))
                         tc.arguments = block["input"].dump();
@@ -652,7 +652,7 @@ ProviderResult callAgentWithTools(
                 bool is_gemma = config.model.find("gemma") != std::string::npos;
                 if (is_gemma) {
                     if (!contents.empty() && contents[0]["role"] == "user") {
-                        std::string original = contents[0]["parts"][0]["text"].get<std::string>();
+                        std::string original = contents[0]["parts"][0]["text"].is_string() ? contents[0]["parts"][0]["text"].get<std::string>() : "";
                         contents[0]["parts"][0]["text"] = config.system_prompt + "\n\n" + original;
                         request_body["contents"] = contents;
                     }

@@ -1743,8 +1743,8 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
     }
 
     auto& entry = entries[key];
-    std::string expected = entry["output"].get<std::string>();
-    std::string expected_type = entry.contains("type") ? entry["type"].get<std::string>() : "";
+    std::string expected = entry.contains("output") && entry["output"].is_string() ? entry["output"].get<std::string>() : "";
+    std::string expected_type = entry.contains("type") && entry["type"].is_string() ? entry["type"].get<std::string>() : "";
 
     // Compare using tolerance for numeric types
     bool matches = false;
@@ -1875,7 +1875,7 @@ void GovernanceEngine::analyzeDriftTrend(const std::string& language) {
             if (line.empty()) continue;
             try {
                 auto j = nlohmann::json::parse(line);
-                if (j.contains("lang") && j["lang"].get<std::string>() == language) {
+                if (j.contains("lang") && j["lang"].is_string() && j["lang"].get<std::string>() == language) {
                     events.push_back(std::move(j));
                 }
             } catch (...) {

@@ -268,7 +268,7 @@ public:
             if (block_json.contains("keywords") && block_json["keywords"].is_array()) {
                 for (const auto& keyword : block_json["keywords"]) {
                     if (!keywords_str.empty()) keywords_str += " ";
-                    keywords_str += keyword.get<std::string>();
+                    keywords_str += (keyword.is_string() ? keyword.get<std::string>() : std::string());
                 }
             }
 
@@ -276,7 +276,7 @@ public:
             if (block_json.contains("use_cases") && block_json["use_cases"].is_array()) {
                 for (const auto& use_case : block_json["use_cases"]) {
                     if (!use_cases_str.empty()) use_cases_str += " ";
-                    use_cases_str += use_case.get<std::string>();
+                    use_cases_str += (use_case.is_string() ? use_case.get<std::string>() : std::string());
                 }
             }
 
@@ -300,14 +300,14 @@ public:
             // Index keywords
             if (block_json.contains("keywords") && block_json["keywords"].is_array()) {
                 for (const auto& keyword : block_json["keywords"]) {
-                    insertKeyword(block_id, keyword.get<std::string>());
+                    if (keyword.is_string()) insertKeyword(block_id, keyword.get<std::string>());
                 }
             }
 
             // Index use cases
             if (block_json.contains("use_cases") && block_json["use_cases"].is_array()) {
                 for (const auto& use_case : block_json["use_cases"]) {
-                    insertUseCase(block_id, use_case.get<std::string>());
+                    if (use_case.is_string()) insertUseCase(block_id, use_case.get<std::string>());
                 }
             }
 

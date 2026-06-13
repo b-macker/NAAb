@@ -294,7 +294,7 @@ static void loadCheckConfigs(const json& category_json,
         if (check_val.contains("enabled")) {
             cc.enabled = check_val["enabled"].get<bool>();
         }
-        if (check_val.contains("level")) {
+        if (check_val.contains("level") && check_val["level"].is_string()) {
             cc.level = check_val["level"].get<std::string>();
         }
         // Load numeric options
@@ -303,11 +303,11 @@ static void loadCheckConfigs(const json& category_json,
             if (val.is_number()) {
                 cc.num_options[key] = val.get<double>();
             } else if (val.is_string()) {
-                cc.str_options[key] = val.get<std::string>();
+                cc.str_options[key] = (val.is_string() ? val.get<std::string>() : std::string());
             } else if (val.is_array()) {
                 for (auto& elem : val) {
                     if (elem.is_string()) {
-                        cc.list_options.push_back(elem.get<std::string>());
+                        if (elem.is_string()) cc.list_options.push_back(elem.get<std::string>());
                     } else if (elem.is_number()) {
                         cc.num_list_options.push_back(elem.get<double>());
                     }
@@ -346,8 +346,8 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
     if (!quiet) fmt::print("Config: {}\n", govern_path_);
 
     // Load version/mode
-    if (scanner_cfg.contains("version")) config_.version = scanner_cfg["version"].get<std::string>();
-    if (scanner_cfg.contains("mode")) config_.mode = scanner_cfg["mode"].get<std::string>();
+    if (scanner_cfg.contains("version") && scanner_cfg["version"].is_string()) config_.version = scanner_cfg["version"].get<std::string>();
+    if (scanner_cfg.contains("mode") && scanner_cfg["mode"].is_string()) config_.mode = scanner_cfg["mode"].get<std::string>();
 
     // Load scan settings
     if (scanner_cfg.contains("scan") && scanner_cfg["scan"].is_object()) {
@@ -360,7 +360,7 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
         if (scan.contains("exclude_patterns") && scan["exclude_patterns"].is_array()) {
             config_.exclude_patterns.clear();
             for (auto& p : scan["exclude_patterns"]) {
-                config_.exclude_patterns.push_back(p.get<std::string>());
+                if (p.is_string()) config_.exclude_patterns.push_back(p.get<std::string>());
             }
         }
     }
@@ -400,19 +400,19 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
     // Load output settings
     if (scanner_cfg.contains("output") && scanner_cfg["output"].is_object()) {
         auto& output = scanner_cfg["output"];
-        if (output.contains("format")) config_.output_format = output["format"].get<std::string>();
+        if (output.contains("format") && output["format"].is_string()) config_.output_format = output["format"].get<std::string>();
         if (output.contains("max_issues_per_file")) config_.max_issues_per_file = output["max_issues_per_file"].get<int>();
         if (output.contains("max_total_issues")) config_.max_total_issues = output["max_total_issues"].get<int>();
-        if (output.contains("group_by")) config_.group_by = output["group_by"].get<std::string>();
-        if (output.contains("sort_by")) config_.sort_by = output["sort_by"].get<std::string>();
+        if (output.contains("group_by") && output["group_by"].is_string()) config_.group_by = output["group_by"].get<std::string>();
+        if (output.contains("sort_by") && output["sort_by"].is_string()) config_.sort_by = output["sort_by"].get<std::string>();
         if (output.contains("show_line_preview")) config_.show_line_preview = output["show_line_preview"].get<bool>();
         if (output.contains("show_fix_suggestion")) config_.show_fix_suggestion = output["show_fix_suggestion"].get<bool>();
         if (output.contains("save_json")) config_.save_json = output["save_json"].get<bool>();
         if (output.contains("save_text")) config_.save_text = output["save_text"].get<bool>();
         if (output.contains("save_sarif")) config_.save_sarif = output["save_sarif"].get<bool>();
-        if (output.contains("json_path")) config_.json_path = output["json_path"].get<std::string>();
-        if (output.contains("text_path")) config_.text_path = output["text_path"].get<std::string>();
-        if (output.contains("sarif_path")) config_.sarif_path = output["sarif_path"].get<std::string>();
+        if (output.contains("json_path") && output["json_path"].is_string()) config_.json_path = output["json_path"].get<std::string>();
+        if (output.contains("text_path") && output["text_path"].is_string()) config_.text_path = output["text_path"].get<std::string>();
+        if (output.contains("sarif_path") && output["sarif_path"].is_string()) config_.sarif_path = output["sarif_path"].get<std::string>();
     }
 
     return true;
