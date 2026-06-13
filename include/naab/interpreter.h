@@ -567,6 +567,7 @@ public:
     void setRequireGovernance(bool v) { require_governance_ = v; }
     void disableGovernance() {
         governance_.reset();
+        governance::GovernanceEngine::setCurrent(nullptr);
     }
     // Governance v4: Taint tracking getter (BUG-AwaitExpr fix)
     bool wasLastReturnTainted() const {
