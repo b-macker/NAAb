@@ -287,6 +287,8 @@ std::map<std::string, interpreter::NaabVal> Debugger::listGlobalVariables() {
 int Debugger::addWatch(const std::string& expression) {
     int id = next_watch_id_++;
     watches_[id] = expression;
+    // Note: watch expressions are stored but evaluation is not yet implemented.
+    // evaluateWatches() will return an error for each watch until this is completed.
     return id;
 }
 

@@ -3268,6 +3268,12 @@ bool GovernanceEngine::reloadIfChanged() {
                 sb->setAllowExec(false);
                 sb->removeCapability(security::Capability::SYS_EXEC);
             }
+            if (new_rp->capabilities.filesystem.mode == "none") {
+                sb->removeCapability(security::Capability::FS_READ);
+                sb->removeCapability(security::Capability::FS_WRITE);
+            } else if (new_rp->capabilities.filesystem.mode == "read") {
+                sb->removeCapability(security::Capability::FS_WRITE);
+            }
         }
 
         // Re-configure BSD/CDD detectors with new rules
