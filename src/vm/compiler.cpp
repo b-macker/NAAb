@@ -1469,30 +1469,35 @@ void Compiler::visit(ast::ImportStmt& node) {
 }
 
 void Compiler::visit(ast::ExportStmt& node) {
-    // Compile the inner declaration — the export keyword just marks it for external use
+    // Compile the inner declaration and record the exported name
     switch (node.getKind()) {
         case ast::ExportStmt::ExportKind::Function:
             if (node.getFunctionDecl()) {
+                exported_names_.insert(node.getFunctionDecl()->getName());
                 node.getFunctionDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::Variable:
             if (node.getVarDecl()) {
+                exported_names_.insert(node.getVarDecl()->getName());
                 node.getVarDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::Struct:
             if (node.getStructDecl()) {
+                exported_names_.insert(node.getStructDecl()->getName());
                 node.getStructDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::Enum:
             if (node.getEnumDecl()) {
+                exported_names_.insert(node.getEnumDecl()->getName());
                 node.getEnumDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::DefaultExpr:
             if (node.getExpr()) {
+                exported_names_.insert("default");
                 node.getExpr()->accept(*this);
                 int name_idx = identifierConstant("default");
                 emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(name_idx),

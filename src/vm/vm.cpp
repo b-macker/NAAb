@@ -3872,6 +3872,9 @@ VM::importModule(const std::string& module_path) {
                      module_path.c_str(), module_compiler.getLastError().c_str());
     }
 
+    // Capture explicitly exported names (if any) for post-execution filtering
+    auto module_exported_names = module_compiler.getExportedNames();
+
     // Execute the module in a fresh VM
     VM module_vm;
     module_vm.setStdlib(stdlib_);
@@ -3900,8 +3903,9 @@ VM::importModule(const std::string& module_path) {
         owned_functions_.push_back(std::move(fn));
     }
 
-    // Collect module exports: all user-defined globals
-    // Skip names that still have their default prelude values (not modified by module code)
+    // Collect module exports.
+    // If the module has explicit `export` declarations, only those names are exposed.
+    // Otherwise (no exports), fall back to all user-defined globals (backward compatibility).
     auto exports = std::make_shared<std::unordered_map<std::string, interpreter::NaabVal>>();
     for (auto& [name, val] : module_vm.globals_) {
         // Skip globals whose values are builtin/stdlib markers (prelude defaults)
@@ -3918,6 +3922,13 @@ VM::importModule(const std::string& module_path) {
                     std::string mod_name = sv.substr(18);
                     if (prelude.count(mod_name)) continue;
                 }
+        }
+        // If module used explicit exports, only expose those names.
+        // Always allow enum/struct type definitions through — they are types, not data.
+        if (!module_exported_names.empty() && !module_exported_names.count(name)) {
+            // Allow enum dicts (contain __enum_name__ key) to propagate
+            bool is_enum = val.isDict() && val.asDictConst().count("__enum_name__");
+            if (!is_enum) continue;
         }
         (*exports)[name] = val;
     }

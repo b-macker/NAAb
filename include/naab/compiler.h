@@ -36,6 +36,10 @@ public:
         return std::move(compiled_functions_);
     }
 
+    // Names explicitly marked with `export` keyword during compilation.
+    // If non-empty, importModule() should only expose these names.
+    const std::unordered_set<std::string>& getExportedNames() const { return exported_names_; }
+
 private:
     // Nested compiler state (one per function scope)
     struct CompilerState {
@@ -72,6 +76,9 @@ private:
 
     // String interning: dedup string constants in the constant pool
     std::unordered_map<std::string, int> string_constants_;
+
+    // Names explicitly exported by the module (populated during visit(ExportStmt))
+    std::unordered_set<std::string> exported_names_;
 
     // Pre-flight taint analysis: track statically-tainted variables at compile time
     // Mirrors tree-walker's expressionContainsTaint() for static analysis
