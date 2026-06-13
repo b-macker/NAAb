@@ -394,8 +394,10 @@ private:
     // Globals
     std::unordered_map<std::string, interpreter::NaabVal> globals_;
 
-    // Module cache
+    // Module cache: all user-defined globals (for merging into caller scope)
     std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_cache_;
+    // Public API cache: only exported names (for module dict access via mod.func())
+    std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>> module_public_api_;
     // naab-29 D-03: Circular import detection — shared between parent/child VMs
     std::shared_ptr<std::unordered_set<std::string>> modules_executing_ = std::make_shared<std::unordered_set<std::string>>();
     // Keep compiled functions alive so VMClosure pointers remain valid after module compilation
@@ -444,7 +446,9 @@ private:
     // NOTE: rawBits() is NOT used because NaabVal uses a handle table on ARM64 —
     // each fromLegacy() call allocates a new handle even for the same Value object.
     // toLegacy().get() returns the stable raw Value* shared by all NaabVal copies.
-    std::unordered_set<const void*> tainted_containers_;
+    // The map stores NaabVal copies as values to prevent the underlying Value from
+    // being freed (which would leave stale raw pointers as keys).
+    std::unordered_map<const void*, interpreter::NaabVal> tainted_containers_;
 
     // V-RT-008: GC cycle detector + instruction-count trigger
     // gc_detector_ runs mark-and-sweep on the VM stack + globals as roots.

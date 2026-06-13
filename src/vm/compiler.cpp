@@ -1064,9 +1064,23 @@ void Compiler::visit(ast::FunctionDecl& node) {
                 std::string body_text;
                 int brace_depth = 0;
                 bool found_start = false;
+                bool in_string = false;
+                char string_char = 0;
+                bool in_line_comment = false;
                 for (size_t i = start_idx; i < src_lines.size(); ++i) {
                     body_text += src_lines[i] + "\n";
-                    for (char c : src_lines[i]) {
+                    in_line_comment = false;
+                    const std::string& ln = src_lines[i];
+                    for (size_t j = 0; j < ln.size(); ++j) {
+                        char c = ln[j];
+                        if (in_line_comment) break;
+                        if (in_string) {
+                            if (c == '\\' && j + 1 < ln.size()) { ++j; continue; }
+                            if (c == string_char) in_string = false;
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') { in_string = true; string_char = c; continue; }
+                        if (c == '/' && j + 1 < ln.size() && ln[j + 1] == '/') { in_line_comment = true; break; }
                         if (c == '{') { brace_depth++; found_start = true; }
                         if (c == '}') brace_depth--;
                     }
@@ -1188,9 +1202,23 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                 std::string body_text;
                 int brace_depth = 0;
                 bool found_start = false;
+                bool in_string2 = false;
+                char string_char2 = 0;
+                bool in_line_comment2 = false;
                 for (size_t i = start_idx; i < lines.size(); ++i) {
                     body_text += lines[i] + "\n";
-                    for (char c : lines[i]) {
+                    in_line_comment2 = false;
+                    const std::string& ln = lines[i];
+                    for (size_t j = 0; j < ln.size(); ++j) {
+                        char c = ln[j];
+                        if (in_line_comment2) break;
+                        if (in_string2) {
+                            if (c == '\\' && j + 1 < ln.size()) { ++j; continue; }
+                            if (c == string_char2) in_string2 = false;
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') { in_string2 = true; string_char2 = c; continue; }
+                        if (c == '/' && j + 1 < ln.size() && ln[j + 1] == '/') { in_line_comment2 = true; break; }
                         if (c == '{') { brace_depth++; found_start = true; }
                         if (c == '}') brace_depth--;
                     }
@@ -1420,6 +1448,7 @@ void Compiler::visit(ast::ImportStmt& node) {
     if (node.isWildcard()) {
         // import * from "module" — import all names
         if (!node.getWildcardAlias().empty()) {
+            module_import_bindings_.insert(node.getWildcardAlias());
             int alias_idx = identifierConstant(node.getWildcardAlias());
             emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(alias_idx), line);
         } else {
@@ -1441,30 +1470,35 @@ void Compiler::visit(ast::ImportStmt& node) {
 }
 
 void Compiler::visit(ast::ExportStmt& node) {
-    // Compile the inner declaration — the export keyword just marks it for external use
+    // Compile the inner declaration and record the exported name
     switch (node.getKind()) {
         case ast::ExportStmt::ExportKind::Function:
             if (node.getFunctionDecl()) {
+                exported_names_.insert(node.getFunctionDecl()->getName());
                 node.getFunctionDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::Variable:
             if (node.getVarDecl()) {
+                exported_names_.insert(node.getVarDecl()->getName());
                 node.getVarDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::Struct:
             if (node.getStructDecl()) {
+                exported_names_.insert(node.getStructDecl()->getName());
                 node.getStructDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::Enum:
             if (node.getEnumDecl()) {
+                exported_names_.insert(node.getEnumDecl()->getName());
                 node.getEnumDecl()->accept(*this);
             }
             break;
         case ast::ExportStmt::ExportKind::DefaultExpr:
             if (node.getExpr()) {
+                exported_names_.insert("default");
                 node.getExpr()->accept(*this);
                 int name_idx = identifierConstant("default");
                 emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(name_idx),
@@ -1565,6 +1599,7 @@ void Compiler::visit(ast::ModuleUseStmt& node) {
         for (auto& c : file_path) {
             if (c == '.') c = '/';
         }
+        module_import_bindings_.insert(bind_name);
         int path_idx = makeConstant(interpreter::NaabVal::makeString(file_path));
         emitWide(OpCode::OP_IMPORT, static_cast<uint32_t>(path_idx), line);
         // Define the module dict as a global with the bind name

@@ -2085,7 +2085,7 @@ interpreter::NaabVal VM::run() {
                                             method == "insert" || method == "set");
                         bool is_read = (method == "get");
                         if (is_mutation && val_arg_tainted && (obj.isList() || obj.isDict())) {
-                            tainted_containers_.insert(obj.toLegacy().get());
+                            tainted_containers_.insert_or_assign(obj.toLegacy().get(), obj);
                         }
                         if (is_read && tainted_containers_.count(obj.toLegacy().get()) > 0) {
                             peekTaint(0) = true;
@@ -2298,7 +2298,7 @@ interpreter::NaabVal VM::run() {
                 // V-VM-003: if the stored value is tainted, record the container as
                 // tainted in the side-table so future reads from it propagate taint.
                 if (governance_ && val_taint_si && (obj.isList() || obj.isDict())) {
-                    tainted_containers_.insert(obj.toLegacy().get());
+                    tainted_containers_.insert_or_assign(obj.toLegacy().get(), obj);
                 }
                 push(val);
                 if (governance_) peekTaint(0) = val_taint_si;
@@ -3083,11 +3083,15 @@ interpreter::NaabVal VM::run() {
                 // Check module cache first
                 auto cache_it = module_cache_.find(module_path);
                 if (cache_it != module_cache_.end()) {
+                    // Merge all globals (for function execution deps)
                     for (auto& [ename, eval] : *cache_it->second) {
                         globals_[ename] = eval;
                     }
+                    // Push public API as module dict (for mod.func() access)
+                    auto api_it = module_public_api_.find(module_path);
+                    auto& dict_src = (api_it != module_public_api_.end()) ? api_it->second : cache_it->second;
                     push(interpreter::NaabVal::makeDict(
-                        std::unordered_map<std::string, interpreter::NaabVal>(*cache_it->second)));
+                        std::unordered_map<std::string, interpreter::NaabVal>(*dict_src)));
                     goto done_import;
                 }
 
@@ -3156,15 +3160,21 @@ interpreter::NaabVal VM::run() {
                     for (auto& [ename, eval] : *cache_it->second) {
                         globals_[ename] = eval;
                     }
+                    auto api_it = module_public_api_.find(canonical);
+                    auto& dict_src = (api_it != module_public_api_.end()) ? api_it->second : cache_it->second;
                     push(interpreter::NaabVal::makeDict(
-                        std::unordered_map<std::string, interpreter::NaabVal>(*cache_it->second)));
+                        std::unordered_map<std::string, interpreter::NaabVal>(*dict_src)));
                     goto done_import;
                 }
 
                 // Load, compile, and execute the module
-                auto exports = importModule(canonical);
-                module_cache_[canonical] = exports;
-                module_cache_[module_path] = exports;  // Cache under original path too
+                // Returns all user globals; public API cached in module_public_api_
+                auto all_globals = importModule(canonical);
+                // Also cache under original path for future lookups
+                module_cache_[module_path] = all_globals;
+                if (module_public_api_.count(canonical)) {
+                    module_public_api_[module_path] = module_public_api_[canonical];
+                }
 
                 // Re-register function evaluator — module VM may have overwritten it
                 // (module VM shares stdlib_ and its execute() sets the evaluator to
@@ -3184,15 +3194,15 @@ interpreter::NaabVal VM::run() {
                     }
                 }
 
-                // Define all module exports as globals in caller VM
-                // This ensures imported functions can find their enum/struct dependencies
-                // Always override — module exports are filtered to exclude default preludes
-                for (auto& [ename, eval] : *exports) {
+                // Merge ALL module globals into caller (exported functions need helpers, imports, etc.)
+                for (auto& [ename, eval] : *all_globals) {
                     globals_[ename] = eval;
                 }
 
+                // Push PUBLIC API as module dict (encapsulation: only exported names visible via mod.func())
+                auto& api = module_public_api_.count(canonical) ? module_public_api_[canonical] : all_globals;
                 push(interpreter::NaabVal::makeDict(
-                    std::unordered_map<std::string, interpreter::NaabVal>(*exports)));
+                    std::unordered_map<std::string, interpreter::NaabVal>(*api)));
             }
             done_import:
                 VM_NEXT();
@@ -3303,7 +3313,7 @@ interpreter::NaabVal VM::run() {
                     int gov_line = CURRENT_CHUNK().getLine(
                         static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
                     std::string terr = governance_->checkTaintedSink(
-                        var_name, "assignment", current_file_, gov_line);
+                        var_name, "variable.assign", current_file_, gov_line);
                     if (!terr.empty()) runtimeError("%s", terr.c_str());
                 }
             }
@@ -3872,6 +3882,10 @@ VM::importModule(const std::string& module_path) {
                      module_path.c_str(), module_compiler.getLastError().c_str());
     }
 
+    // Capture explicitly exported names (if any) for post-execution filtering
+    auto module_exported_names = module_compiler.getExportedNames();
+    auto module_import_bindings = module_compiler.getModuleImportBindings();
+
     // Execute the module in a fresh VM
     VM module_vm;
     module_vm.setStdlib(stdlib_);
@@ -3882,6 +3896,7 @@ VM::importModule(const std::string& module_path) {
 
     // Share the module cache so sub-imports can find already-loaded modules
     module_vm.module_cache_ = module_cache_;
+    module_vm.module_public_api_ = module_public_api_;
     // naab-29 D-03: Share executing set for cycle detection
     module_vm.modules_executing_ = modules_executing_;
 
@@ -3900,9 +3915,11 @@ VM::importModule(const std::string& module_path) {
         owned_functions_.push_back(std::move(fn));
     }
 
-    // Collect module exports: all user-defined globals
-    // Skip names that still have their default prelude values (not modified by module code)
-    auto exports = std::make_shared<std::unordered_map<std::string, interpreter::NaabVal>>();
+    // Collect module globals for two purposes:
+    // 1. all_globals: merged into caller's globals_ so exported functions can
+    //    reference helpers, imports, constants (execution dependency)
+    // 2. public_api: the module dict visible via `mod.func()` (encapsulation)
+    auto all_globals = std::make_shared<std::unordered_map<std::string, interpreter::NaabVal>>();
     for (auto& [name, val] : module_vm.globals_) {
         // Skip globals whose values are builtin/stdlib markers (prelude defaults)
         if (val.isString()) {
@@ -3919,16 +3936,33 @@ VM::importModule(const std::string& module_path) {
                     if (prelude.count(mod_name)) continue;
                 }
         }
-        (*exports)[name] = val;
+        (*all_globals)[name] = val;
+    }
+
+    // Build public API: only exported names + enum types (for module dict)
+    auto public_api = all_globals;  // Default: all globals visible (no export decls)
+    if (!module_exported_names.empty()) {
+        public_api = std::make_shared<std::unordered_map<std::string, interpreter::NaabVal>>();
+        for (auto& [name, val] : *all_globals) {
+            if (module_exported_names.count(name)) {
+                (*public_api)[name] = val;
+            } else if (val.isDict() && val.asDictConst().count("__enum_name__")) {
+                (*public_api)[name] = val;  // Enum types always visible
+            }
+        }
     }
 
     // Merge sub-module caches back
     for (auto& [path, cached] : module_vm.module_cache_) {
         module_cache_[path] = cached;
     }
+    for (auto& [path, api] : module_vm.module_public_api_) {
+        module_public_api_[path] = api;
+    }
 
-    module_cache_[module_path] = exports;
-    return exports;
+    module_cache_[module_path] = all_globals;
+    module_public_api_[module_path] = public_api;
+    return all_globals;
 }
 
 interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std::string& method,

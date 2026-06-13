@@ -646,6 +646,8 @@ Interpreter::Interpreter()
 Interpreter::~Interpreter() {
     // Bug 2: Null out static debug interpreter pointer to prevent dangling access
     stdlib::DebugModule::setInterpreter(nullptr);
+    // Clear thread-local governance pointer to prevent dangling access
+    governance::GovernanceEngine::setCurrent(nullptr);
 }
 
 void Interpreter::defineBuiltins() {

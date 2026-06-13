@@ -369,16 +369,10 @@ void Interpreter::collectReturnTypes(ast::Stmt* stmt, std::vector<ast::Type>& re
     // Check if this is a return statement
     if (auto* return_stmt = dynamic_cast<ast::ReturnStmt*>(stmt)) {
         if (return_stmt->getExpr()) {
-            // Has a return value - try to evaluate it to get its type
-            // BUGFIX: Catch errors during type inference - don't crash on undefined vars
-            try {
-                auto return_value = eval(*return_stmt->getExpr());
-                ast::Type inferred_type = inferTypeFromValue(return_value);
-                return_types.push_back(inferred_type);
-            } catch (...) {
-                // Can't infer type (e.g., undefined variable) - use unknown type
-                return_types.push_back(ast::Type(ast::TypeKind::Any));
-            }
+            // Static type inference from AST — never execute the expression.
+            // eval() would cause real side effects (file writes, API calls) during
+            // "type inference", which is incorrect.
+            return_types.push_back(return_stmt->getExpr()->getType());
         } else {
             // Return with no value -> void
             return_types.push_back(ast::Type::makeVoid());

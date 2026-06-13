@@ -72,12 +72,7 @@ NAAB
 EXIT_CODE=0
 "$NAAB_BIN" --no-governance --sandbox-level elevated \
     "${TMPDIR_NAAB}/env_get_elevated.naab" >"${TMPDIR_NAAB}/t5_out.log" 2>"${TMPDIR_NAAB}/t5_err.log" || EXIT_CODE=$?
-if [ "$EXIT_CODE" -gt 128 ]; then
-    SIG=$((EXIT_CODE - 128))
-    echo "  SKIP: env.get under elevated crashed with signal $SIG (CI runner issue)"
-else
-    check "env.get permitted under elevated (exit 0)" '[ "$EXIT_CODE" = "0" ]'
-fi
+check "env.get permitted under elevated (exit 0)" '[ "$EXIT_CODE" = "0" ]'
 
 echo ""
 echo "Env Sandbox Tests: $PASS passed, $FAIL failed"

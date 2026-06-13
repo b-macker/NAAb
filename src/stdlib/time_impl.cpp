@@ -18,6 +18,7 @@ namespace stdlib {
 
 // Forward declarations
 static int getInt(const interpreter::NaabVal& val);
+static int64_t getTimestamp(const interpreter::NaabVal& val);
 static double getDouble(const interpreter::NaabVal& val);
 static std::string getString(const interpreter::NaabVal& val);
 static interpreter::NaabVal makeInt(int i);
@@ -89,7 +90,7 @@ interpreter::NaabVal TimeModule::call(
         if (args.size() != 2) {
             throw std::runtime_error("format_timestamp() takes exactly 2 arguments (timestamp, format_string)");
         }
-        int timestamp = getInt(args[0]);
+        int64_t timestamp = getTimestamp(args[0]);
         std::string format = getString(args[1]);
 
         std::time_t time = static_cast<std::time_t>(timestamp);
@@ -119,18 +120,18 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = std::mktime(&tm_info);
-        return makeInt(static_cast<int>(time));
+        return interpreter::NaabVal::makeDouble(static_cast<double>(time));
     }
 
     // Function 6: year - Get year from timestamp (or current)
     if (function_name == "year") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("year() takes 0 or 1 argument");
         }
@@ -142,13 +143,13 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 7: month - Get month from timestamp (or current)
     if (function_name == "month") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("month() takes 0 or 1 argument");
         }
@@ -160,13 +161,13 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 8: day - Get day from timestamp (or current)
     if (function_name == "day") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("day() takes 0 or 1 argument");
         }
@@ -178,13 +179,13 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 9: hour - Get hour from timestamp (or current)
     if (function_name == "hour") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("hour() takes 0 or 1 argument");
         }
@@ -196,13 +197,13 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 10: minute - Get minute from timestamp (or current)
     if (function_name == "minute") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("minute() takes 0 or 1 argument");
         }
@@ -214,13 +215,13 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 11: second - Get second from timestamp (or current)
     if (function_name == "second") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("second() takes 0 or 1 argument");
         }
@@ -232,13 +233,13 @@ interpreter::NaabVal TimeModule::call(
 
     // Function 12: weekday - Get weekday from timestamp (or current) (0=Sunday, 6=Saturday)
     if (function_name == "weekday") {
-        int timestamp;
+        int64_t timestamp;
         if (args.size() == 0) {
             auto now = std::chrono::system_clock::now();
             timestamp = std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count();
         } else if (args.size() == 1) {
-            timestamp = getInt(args[0]);
+            timestamp = getTimestamp(args[0]);
         } else {
             throw std::runtime_error("weekday() takes 0 or 1 argument");
         }
@@ -307,6 +308,13 @@ static int getInt(const interpreter::NaabVal& val) {
     if (val.isInt()) return val.asInt();
     if (val.isDouble()) return static_cast<int>(val.asDouble());
     throw std::runtime_error("Expected integer value");
+}
+
+// 64-bit timestamp extraction — accepts int or double (from time.now())
+static int64_t getTimestamp(const interpreter::NaabVal& val) {
+    if (val.isInt()) return static_cast<int64_t>(val.asInt());
+    if (val.isDouble()) return static_cast<int64_t>(val.asDouble());
+    throw std::runtime_error("Expected numeric timestamp value");
 }
 
 static double getDouble(const interpreter::NaabVal& val) {

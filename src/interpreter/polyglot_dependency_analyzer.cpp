@@ -124,17 +124,8 @@ bool PolyglotDependencyAnalyzer::hasDependency(
     const PolyglotBlock& a,
     const PolyglotBlock& b
 ) const {
-    // If there are non-polyglot statements between these blocks,
-    // assume a dependency (intervening NAAb code may create implicit deps)
-    if (a.statement_index < b.statement_index &&
-        b.statement_index - a.statement_index > 1) {
-        return true;
-    }
-    if (b.statement_index < a.statement_index &&
-        a.statement_index - b.statement_index > 1) {
-        return true;
-    }
-
+    // Rely on data/output/anti dependency analysis rather than
+    // assuming dependency from statement index gaps alone
     return hasDataDependency(a, b) ||
            hasOutputDependency(a, b) ||
            hasAntiDependency(a, b);

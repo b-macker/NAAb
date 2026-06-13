@@ -2,6 +2,7 @@
 #include "../include/naab/ast.h"
 #include <fmt/core.h>
 #include <sstream>
+#include <fstream>
 #include <algorithm>
 
 namespace naab {
@@ -246,23 +247,47 @@ void InterpreterErrorReporter::reportInvalidOperator(
 // Hint Generators
 // ============================================================================
 
+static size_t levenshteinDistance(const std::string& a, const std::string& b) {
+    size_t m = a.size(), n = b.size();
+    std::vector<size_t> prev(n + 1), curr(n + 1);
+    for (size_t j = 0; j <= n; ++j) prev[j] = j;
+    for (size_t i = 1; i <= m; ++i) {
+        curr[0] = i;
+        for (size_t j = 1; j <= n; ++j) {
+            size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+            curr[j] = std::min({prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost});
+        }
+        std::swap(prev, curr);
+    }
+    return prev[n];
+}
+
 std::vector<std::string> InterpreterErrorReporter::suggestSimilarVariables(
     const std::string& name,
     const std::vector<StackFrame>& stack_trace
 ) {
     std::vector<std::string> hints;
 
-    // Simple suggestion: check for common typos
-    // In a real implementation, this would use Levenshtein distance
-    // to find similar variable names from the stack frames
-
     if (!stack_trace.empty() && !stack_trace[0].local_variables.empty()) {
-        hints.push_back(fmt::format("Variable '{}' is not defined. Did you mean one of these?", name));
+        // Collect candidates within Levenshtein distance threshold
+        size_t threshold = (name.size() <= 3) ? 1 : 2;
+        std::vector<std::pair<size_t, std::string>> candidates;
 
-        // Find similar names (simple prefix match for now)
         for (const auto& [var_name, value] : stack_trace[0].local_variables) {
-            if (var_name.find(name.substr(0, std::min(size_t(3), name.length()))) == 0) {
-                hints.push_back(fmt::format("    - {} (value: {})", var_name, value));
+            size_t dist = levenshteinDistance(name, var_name);
+            if (dist <= threshold && dist > 0) {
+                candidates.push_back({dist, var_name});
+            }
+        }
+
+        if (!candidates.empty()) {
+            std::sort(candidates.begin(), candidates.end());
+            hints.push_back(fmt::format("Variable '{}' is not defined. Did you mean one of these?", name));
+            for (const auto& [dist, var_name] : candidates) {
+                auto it = stack_trace[0].local_variables.find(var_name);
+                if (it != stack_trace[0].local_variables.end()) {
+                    hints.push_back(fmt::format("    - {} (value: {})", var_name, it->second));
+                }
             }
         }
     }
@@ -339,16 +364,43 @@ std::string InterpreterErrorReporter::getSourceContext(
     const ast::ASTNode* node,
     size_t context_lines
 ) const {
-    (void)context_lines;  // Unused - full implementation would use this
-
     if (!node) {
         return "";
     }
 
-    // In a full implementation, this would read the source file
-    // and extract context_lines before and after the error line
-    // For now, return a placeholder
-    return fmt::format("<source line {}>", node->getLocation().line);
+    auto loc = node->getLocation();
+    if (loc.filename.empty() || loc.line == 0) {
+        return fmt::format("<source line {}>", loc.line);
+    }
+
+    std::ifstream file(loc.filename);
+    if (!file.is_open()) {
+        return fmt::format("<source line {}>", loc.line);
+    }
+
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(file, line)) {
+        lines.push_back(line);
+    }
+
+    if (loc.line > lines.size()) {
+        return fmt::format("<source line {}>", loc.line);
+    }
+
+    std::ostringstream oss;
+    size_t start = (loc.line > context_lines) ? loc.line - context_lines - 1 : 0;
+    size_t end = std::min(loc.line + context_lines, lines.size());
+
+    for (size_t i = start; i < end; ++i) {
+        bool is_error_line = (i + 1 == loc.line);
+        oss << fmt::format("{}{:>4} | {}\n",
+            is_error_line ? ">" : " ",
+            i + 1,
+            lines[i]);
+    }
+
+    return oss.str();
 }
 
 } // namespace interpreter

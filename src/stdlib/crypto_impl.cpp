@@ -13,6 +13,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <limits>
 #include <cstring>
 
 // OpenSSL headers - if not available, functions will throw errors
@@ -182,11 +183,14 @@ interpreter::NaabVal CryptoModule::call(
             throw std::runtime_error("random_int() min must be <= max");
         }
 
-        // Use CSPRNG for crypto module consistency
-        std::string rand_bytes = generate_random_bytes(8);
-        uint64_t raw;
-        std::memcpy(&raw, rand_bytes.data(), sizeof(raw));
+        // Use CSPRNG with rejection sampling to eliminate modulo bias
         uint64_t range = static_cast<uint64_t>(max - min) + 1;
+        uint64_t threshold = (std::numeric_limits<uint64_t>::max() / range) * range;
+        uint64_t raw;
+        do {
+            std::string rand_bytes = generate_random_bytes(8);
+            std::memcpy(&raw, rand_bytes.data(), sizeof(raw));
+        } while (raw >= threshold);
         return makeInt(static_cast<int>(min + static_cast<int64_t>(raw % range)));
     }
 

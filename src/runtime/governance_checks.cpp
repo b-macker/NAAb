@@ -552,7 +552,9 @@ static std::string expandDangerousAliases(const std::string& language,
                     module_aliases[alias] = mod;
                 }
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
 
         // Expand module aliases: alias.func → module.func for dangerous funcs
         for (const auto& kv : module_aliases) {
@@ -563,7 +565,9 @@ static std::string expandDangerousAliases(const std::string& language,
                     std::string pat = "\\b" + kv.first + "\\." + func + "\\b";
                     std::regex re(pat, std::regex::ECMAScript);
                     working = std::regex_replace(working, re, kv.second + "." + func);
-                } catch (const std::regex_error&) {}
+                } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
             }
         }
     }
@@ -592,7 +596,9 @@ static std::string expandDangerousAliases(const std::string& language,
                     aliases[alias] = ref.canonical;
                 }
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     // ── Phase 1c: Dict/list indirection ─────────────────────────────────
@@ -621,7 +627,9 @@ static std::string expandDangerousAliases(const std::string& language,
 
                 dict_aliases[(*m)[1].str()] = ref.canonical;
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
 
         // List literal: fns = [os.system] or fns = [x, os.system, y]
         std::string list_pat = "(\\w+)\\s*" + assign_op + "\\s*\\[[^\\]]*\\b(" +
@@ -641,7 +649,9 @@ static std::string expandDangerousAliases(const std::string& language,
 
                 dict_aliases[(*m)[1].str()] = ref.canonical;
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     // ── Phase 2: Python from-import patterns ────────────────────────────
@@ -676,7 +686,9 @@ static std::string expandDangerousAliases(const std::string& language,
                     aliases[(*m)[3].str()] = it->second;
                 }
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
 
         // 2b: "from module import name1, name2, ..." (multi-import with optional "as")
         try {
@@ -728,7 +740,9 @@ static std::string expandDangerousAliases(const std::string& language,
                     }
                 }
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
 
         // 2c: "from module import *" — expand known dangerous functions from module
         try {
@@ -745,7 +759,9 @@ static std::string expandDangerousAliases(const std::string& language,
                     }
                 }
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     // ── Phase 3: Transitive alias chaining ──────────────────────────────
@@ -769,7 +785,9 @@ static std::string expandDangerousAliases(const std::string& language,
                         new_aliases[new_alias] = kv.second;
                     }
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         }
         if (new_aliases.empty()) break;
         for (const auto& kv : new_aliases) {
@@ -787,7 +805,9 @@ static std::string expandDangerousAliases(const std::string& language,
             std::string call_pat = "\\b" + kv.first + "(\\s*\\()";
             std::regex call_re(call_pat, std::regex::ECMAScript);
             working = std::regex_replace(working, call_re, kv.second + "$1");
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     // 4b: Dict/list indirection — replace container[...](  with canonical(
@@ -796,7 +816,9 @@ static std::string expandDangerousAliases(const std::string& language,
             std::string pat = "\\b" + kv.first + "\\s*\\[[^\\]]*\\](\\s*\\()";
             std::regex re(pat, std::regex::ECMAScript);
             working = std::regex_replace(working, re, kv.second + "$1");
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     return working;
@@ -865,8 +887,8 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
                         "email = \"john.doe@company.com\"",
                         "email = env.get(\"ADMIN_EMAIL\")"));
             }
-        } catch (const std::regex_error&) {
-            // Invalid pattern — skip
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
         } catch (const std::bad_alloc&) {
             throw std::runtime_error(
                 "Governance: memory exhausted during PII check — execution halted.\n"
@@ -967,7 +989,9 @@ std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
                         "mock_users = [{\"name\": \"John\"}]",
                         "users = load_users(data_path)"));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     // Check literal patterns
@@ -1090,7 +1114,9 @@ std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
                         "import pdb; pdb.set_trace()\nbreakpoint()",
                         "# Remove debug tools entirely — use print() for normal output"));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
     recordPass("code_quality.no_debug_artifacts", cfg.level);
     return "";
@@ -1200,7 +1226,9 @@ std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int li
                     "api_url = \"https://api.production.com/v1\"",
                     "api_url = os.environ.get(\"API_URL\", \"http://localhost:8080\")"));
         }
-    } catch (const std::regex_error&) {}
+    } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     recordPass("code_quality.no_hardcoded_urls", cfg.level);
     return "";
 }
@@ -1226,7 +1254,9 @@ std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int lin
                     "server = \"192.168.1.100\"",
                     "server = os.environ.get(\"SERVER_HOST\", \"localhost\")"));
         }
-    } catch (const std::regex_error&) {}
+    } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     recordPass("code_quality.no_hardcoded_ips", cfg.level);
     return "";
 }
@@ -2871,8 +2901,8 @@ std::string GovernanceEngine::checkFunctionContract(
                     "return value \"{}\" does not match pattern /{}/",
                     result_str, contract.return_matches));
             }
-        } catch (const std::regex_error&) {
-            // Invalid regex in contract config — skip, don't crash
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: contract regex pattern failed: %s\n", re.what());
         }
     }
 
@@ -4570,7 +4600,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                             "code_quality.no_hallucinated_apis",
                             full_suggestion, "", ""));
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         }
     }
 
@@ -4593,7 +4625,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                             "// this is wrong in Python",
                             "# this is correct in Python"));
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         } else if (language == "javascript" || language == "js") {
             // Check for Python comment style in JS (# not stripped by JS comment rules)
             try {
@@ -4609,7 +4643,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                             "# this is wrong in JavaScript",
                             "// this is correct in JavaScript"));
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         }
     }
 
@@ -4917,7 +4953,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                             "code_quality.semantic_checks",
                             check.suggestion, "", ""));
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         }
         return "";
     };
@@ -4953,7 +4991,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                                 "import json  # use stdlib modules"));
                     }
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         }
 
         // 2. API signature checks (cleaned code for most, raw for string-literal patterns)
@@ -5042,7 +5082,9 @@ std::string GovernanceEngine::checkSemanticIssues(
                                 "const result = JSON.stringify(data)  // use built-in QuickJS APIs"));
                     }
                 }
-            } catch (const std::regex_error&) {}
+            } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
         }
 
         // 2. API signature checks (cleaned + raw for string-literal patterns)
@@ -5844,7 +5886,9 @@ std::string GovernanceEngine::checkImports(const std::string& language,
                         cfg.enabled ? "restrictions.imports" : fmt::format("languages.per_language.{}.imports.blocked", language),
                         help_text, "", ""));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
     recordPass("restrictions.imports", cfg.level);
     return "";
@@ -5895,7 +5939,9 @@ std::string GovernanceEngine::checkBannedFunctions(const std::string& language,
                         fmt::format("languages.per_language.{}.banned_functions", language),
                         help, "", ""));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
     return "";
 }
@@ -5933,7 +5979,9 @@ std::string GovernanceEngine::checkLanguageStyle(const std::string& language,
                         "'var' has function scope — use 'let' or 'const' for block scope",
                         "var x = 1;", "let x = 1;  // or const x = 1;"));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
 
     return "";
@@ -5984,7 +6032,9 @@ std::string GovernanceEngine::checkCustomRules(const std::string& language,
                         "custom_rules[\"" + rule.id + "\"]",
                         rule.help, rule.bad_example, rule.good_example));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", re.what());
+        }
     }
     return "";
 }
