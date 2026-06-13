@@ -1103,7 +1103,11 @@ cat > "$WORK_DIR_17/govern.json" << 'EOF'
       "level": "hard",
       "check_body_hash": false,
       "check_complexity": true,
-      "max_complexity_loss": 0.5
+      "max_complexity_loss": 0.5,
+      "max_function_loss": 1.0,
+      "max_loc_loss": 1.0,
+      "max_export_loss": 1.0,
+      "max_struct_loss": 1.0
     }
   }
 }
@@ -1271,8 +1275,13 @@ cat > "$WORK_DIR_21/govern.json" << 'EOF'
       "enabled": true,
       "level": "hard",
       "check_body_hash": false,
+      "check_complexity": false,
       "check_polyglot_content": true,
-      "max_polyglot_shrink": 0.5
+      "max_polyglot_shrink": 0.5,
+      "max_function_loss": 1.0,
+      "max_loc_loss": 1.0,
+      "max_export_loss": 1.0,
+      "max_struct_loss": 1.0
     }
   }
 }
@@ -1441,7 +1450,8 @@ cat > "$WORK_DIR_23/govern.json" << 'EOF'
     "drift_detection": {
       "enabled": true,
       "level": "hard",
-      "check_new_functions": true
+      "check_new_functions": true,
+      "check_body_hash": false
     }
   }
 }
