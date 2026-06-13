@@ -4,6 +4,7 @@
 #include "naab/stdlib.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -166,6 +167,18 @@ interpreter::NaabVal IOModule::read_file(
 
     std::string filename = args[0].toString();
 
+    // Security: check sandbox before file read
+    auto* sb_r = security::ScopedSandbox::getCurrent();
+    if (sb_r && !sb_r->canRead(filename)) {
+        sb_r->logViolation("io.read_file", filename, "FS_READ capability required");
+        throw std::runtime_error(
+            "Security: io.read_file() denied by sandbox\n\n"
+            "  Path: " + filename + "\n\n"
+            "  The current sandbox level does not permit this file operation.\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
+        );
+    }
+
     std::ifstream file(filename);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file: " + filename);
@@ -187,6 +200,18 @@ interpreter::NaabVal IOModule::write_file(
     std::string filename = args[0].toString();
     std::string content = args[1].toString();
 
+    // Security: check sandbox before file write
+    auto* sb_w = security::ScopedSandbox::getCurrent();
+    if (sb_w && !sb_w->canWrite(filename)) {
+        sb_w->logViolation("io.write_file", filename, "FS_WRITE capability required");
+        throw std::runtime_error(
+            "Security: io.write_file() denied by sandbox\n\n"
+            "  Path: " + filename + "\n\n"
+            "  The current sandbox level does not permit this file operation.\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
+        );
+    }
+
     std::ofstream file(filename);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file for writing: " + filename);
@@ -206,6 +231,19 @@ interpreter::NaabVal IOModule::exists(
     }
 
     std::string filename = args[0].toString();
+
+    // Security: check sandbox before filesystem probe
+    auto* sb_e = security::ScopedSandbox::getCurrent();
+    if (sb_e && !sb_e->canRead(filename)) {
+        sb_e->logViolation("io.exists", filename, "FS_READ capability required");
+        throw std::runtime_error(
+            "Security: io.exists() denied by sandbox\n\n"
+            "  Path: " + filename + "\n\n"
+            "  The current sandbox level does not permit this file operation.\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
+        );
+    }
+
     bool file_exists = fs::exists(filename);
 
     return interpreter::NaabVal::makeBool(file_exists);
@@ -219,6 +257,18 @@ interpreter::NaabVal IOModule::list_dir(
     }
 
     std::string dir_path = args[0].toString();
+
+    // Security: check sandbox before directory listing
+    auto* sb_l = security::ScopedSandbox::getCurrent();
+    if (sb_l && !sb_l->canRead(dir_path)) {
+        sb_l->logViolation("io.list_dir", dir_path, "FS_READ capability required");
+        throw std::runtime_error(
+            "Security: io.list_dir() denied by sandbox\n\n"
+            "  Path: " + dir_path + "\n\n"
+            "  The current sandbox level does not permit this file operation.\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
+        );
+    }
 
     if (!fs::exists(dir_path) || !fs::is_directory(dir_path)) {
         throw std::runtime_error("Not a directory: " + dir_path);

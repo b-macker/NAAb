@@ -2085,7 +2085,7 @@ interpreter::NaabVal VM::run() {
                                             method == "insert" || method == "set");
                         bool is_read = (method == "get");
                         if (is_mutation && val_arg_tainted && (obj.isList() || obj.isDict())) {
-                            tainted_containers_.insert(obj.toLegacy().get());
+                            tainted_containers_.insert_or_assign(obj.toLegacy().get(), obj);
                         }
                         if (is_read && tainted_containers_.count(obj.toLegacy().get()) > 0) {
                             peekTaint(0) = true;
@@ -2298,7 +2298,7 @@ interpreter::NaabVal VM::run() {
                 // V-VM-003: if the stored value is tainted, record the container as
                 // tainted in the side-table so future reads from it propagate taint.
                 if (governance_ && val_taint_si && (obj.isList() || obj.isDict())) {
-                    tainted_containers_.insert(obj.toLegacy().get());
+                    tainted_containers_.insert_or_assign(obj.toLegacy().get(), obj);
                 }
                 push(val);
                 if (governance_) peekTaint(0) = val_taint_si;

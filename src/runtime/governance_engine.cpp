@@ -1475,6 +1475,7 @@ std::string GovernanceEngine::checkFilesystemImports(
         recordPass("capabilities.filesystem", EnforcementLevel::HARD);
         return "";
     }
+    bool any_pattern_failed = false;
     for (const auto& pat : FILESYSTEM_IMPORT_PATTERNS) {
         if (pat.language != language && pat.language != "any") continue;
         try {
@@ -1495,8 +1496,14 @@ std::string GovernanceEngine::checkFilesystemImports(
                             : pat.safe_alternative));
             }
         } catch (const std::regex_error&) {
-            // Invalid pattern — skip
+            // Fail-closed: a broken pattern means the check could not run
+            any_pattern_failed = true;
         }
+    }
+    if (any_pattern_failed) {
+        return enforce("capabilities.filesystem", EnforcementLevel::HARD,
+            "Filesystem capability check failed: one or more scan patterns could not compile. "
+            "Blocking as a precaution.");
     }
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";

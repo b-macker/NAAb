@@ -444,7 +444,9 @@ private:
     // NOTE: rawBits() is NOT used because NaabVal uses a handle table on ARM64 —
     // each fromLegacy() call allocates a new handle even for the same Value object.
     // toLegacy().get() returns the stable raw Value* shared by all NaabVal copies.
-    std::unordered_set<const void*> tainted_containers_;
+    // The map stores NaabVal copies as values to prevent the underlying Value from
+    // being freed (which would leave stale raw pointers as keys).
+    std::unordered_map<const void*, interpreter::NaabVal> tainted_containers_;
 
     // V-RT-008: GC cycle detector + instruction-count trigger
     // gc_detector_ runs mark-and-sweep on the VM stack + globals as roots.

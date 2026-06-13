@@ -25,7 +25,8 @@ bool MathModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "PI", "E", "pi", "e",
         "abs", "sqrt", "pow", "floor", "ceil", "round",
-        "min", "max", "sin", "cos", "tan"
+        "min", "max", "sin", "cos", "tan",
+        "random", "rand", "round_to"
     };
     return functions.count(name) > 0;
 }

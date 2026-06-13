@@ -1064,9 +1064,23 @@ void Compiler::visit(ast::FunctionDecl& node) {
                 std::string body_text;
                 int brace_depth = 0;
                 bool found_start = false;
+                bool in_string = false;
+                char string_char = 0;
+                bool in_line_comment = false;
                 for (size_t i = start_idx; i < src_lines.size(); ++i) {
                     body_text += src_lines[i] + "\n";
-                    for (char c : src_lines[i]) {
+                    in_line_comment = false;
+                    const std::string& ln = src_lines[i];
+                    for (size_t j = 0; j < ln.size(); ++j) {
+                        char c = ln[j];
+                        if (in_line_comment) break;
+                        if (in_string) {
+                            if (c == '\\' && j + 1 < ln.size()) { ++j; continue; }
+                            if (c == string_char) in_string = false;
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') { in_string = true; string_char = c; continue; }
+                        if (c == '/' && j + 1 < ln.size() && ln[j + 1] == '/') { in_line_comment = true; break; }
                         if (c == '{') { brace_depth++; found_start = true; }
                         if (c == '}') brace_depth--;
                     }
@@ -1188,9 +1202,23 @@ void Compiler::visit(ast::FunctionDeclStmt& node) {
                 std::string body_text;
                 int brace_depth = 0;
                 bool found_start = false;
+                bool in_string2 = false;
+                char string_char2 = 0;
+                bool in_line_comment2 = false;
                 for (size_t i = start_idx; i < lines.size(); ++i) {
                     body_text += lines[i] + "\n";
-                    for (char c : lines[i]) {
+                    in_line_comment2 = false;
+                    const std::string& ln = lines[i];
+                    for (size_t j = 0; j < ln.size(); ++j) {
+                        char c = ln[j];
+                        if (in_line_comment2) break;
+                        if (in_string2) {
+                            if (c == '\\' && j + 1 < ln.size()) { ++j; continue; }
+                            if (c == string_char2) in_string2 = false;
+                            continue;
+                        }
+                        if (c == '"' || c == '\'') { in_string2 = true; string_char2 = c; continue; }
+                        if (c == '/' && j + 1 < ln.size() && ln[j + 1] == '/') { in_line_comment2 = true; break; }
                         if (c == '{') { brace_depth++; found_start = true; }
                         if (c == '}') brace_depth--;
                     }

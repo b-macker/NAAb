@@ -5,6 +5,7 @@
 //           visit(ExportStmt), loadAndExecuteModule
 
 #include "naab/interpreter.h"
+#include "naab/governance.h"
 #include "naab/logger.h"
 #include "naab/language_registry.h"
 #include "naab/block_registry.h"
@@ -202,8 +203,11 @@ void Interpreter::visit(ast::UseStatement& node) {
             block_loader_->recordBlockUsage(node.getBlockId(), metadata.token_count);
         }
 
+    } catch (const governance::GovernanceHardError&) {
+        throw;  // HARD governance violations are uncatchable
     } catch (const std::exception& e) {
-        fmt::print("[ERROR] Failed to load block {}: {}\n", node.getBlockId(), e.what());
+        fmt::print(stderr, "[ERROR] Failed to load block {}: {}\n", node.getBlockId(), e.what());
+        throw;  // Propagate — callers must see load failures
     }
 }
 

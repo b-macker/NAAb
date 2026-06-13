@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include "naab/utils/string_utils.h"
 #include <fstream>
 #include <sstream>
@@ -25,6 +26,33 @@ static interpreter::NaabVal parseCSV(const std::string& content, const std::stri
 static interpreter::NaabVal parseCSVDict(const std::string& content, const std::string& delimiter);
 static std::vector<std::string> parseCSVLine(const std::string& line, const std::string& delimiter);
 static std::string formatCSVRow(const std::vector<std::string>& row, const std::string& delimiter);
+
+// Security: Check sandbox permissions before CSV file operations
+static void checkCsvSandbox(const std::string& path, const std::string& operation) {
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return;
+
+    bool allowed = false;
+    std::string capability;
+
+    if (operation == "read") {
+        allowed = sandbox->canRead(path);
+        capability = "FS_READ";
+    } else if (operation == "write") {
+        allowed = sandbox->canWrite(path);
+        capability = "FS_WRITE";
+    }
+
+    if (!allowed) {
+        sandbox->logViolation("csv." + operation, path, capability + " capability required");
+        throw std::runtime_error(
+            "Security: csv." + operation + "() denied by sandbox\n\n"
+            "  Path: " + path + "\n\n"
+            "  The current sandbox level does not permit this file operation.\n"
+            "  The project owner can adjust the sandbox level in the project configuration.\n"
+        );
+    }
+}
 
 // Implementation of CsvModule public methods
 
@@ -47,6 +75,7 @@ interpreter::NaabVal CsvModule::call(
             throw std::runtime_error("read() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkCsvSandbox(path, "read");
 
         std::ifstream file(path);
         if (!file.is_open()) {
@@ -66,6 +95,7 @@ interpreter::NaabVal CsvModule::call(
             throw std::runtime_error("read_dict() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkCsvSandbox(path, "read");
 
         std::ifstream file(path);
         if (!file.is_open()) {
@@ -107,6 +137,7 @@ interpreter::NaabVal CsvModule::call(
             throw std::runtime_error("write() takes 2 or 3 arguments");
         }
         std::string path = getString(args[0]);
+        checkCsvSandbox(path, "write");
         auto rows = getArrayOfArrays(args[1]);
         std::string delimiter = args.size() == 3 ? getString(args[2]) : ",";
 
@@ -128,6 +159,7 @@ interpreter::NaabVal CsvModule::call(
             throw std::runtime_error("write_dict() takes 2 or 3 arguments");
         }
         std::string path = getString(args[0]);
+        checkCsvSandbox(path, "write");
         auto rows = getArrayOfDicts(args[1]);
         std::string delimiter = args.size() == 3 ? getString(args[2]) : ",";
 
@@ -320,9 +352,19 @@ static std::string formatCSVRow(const std::vector<std::string>& row, const std::
         for (size_t i = 0; i < row.size(); ++i) {
             if (i > 0) result += delimiter;
 
-            // Quote field if it contains delimiter or quotes
-            if (row[i].find(delimiter) != std::string::npos || row[i].find('"') != std::string::npos) {
-                result += '"' + row[i] + '"';
+            // Quote field if it contains delimiter, quotes, or newlines (RFC 4180)
+            if (row[i].find(delimiter) != std::string::npos ||
+                row[i].find('"') != std::string::npos ||
+                row[i].find('\n') != std::string::npos ||
+                row[i].find('\r') != std::string::npos) {
+                // RFC 4180: double internal quotes before wrapping
+                std::string escaped = row[i];
+                size_t pos = 0;
+                while ((pos = escaped.find('"', pos)) != std::string::npos) {
+                    escaped.insert(pos, 1, '"');
+                    pos += 2;
+                }
+                result += '"' + escaped + '"';
             } else {
                 result += row[i];
             }
