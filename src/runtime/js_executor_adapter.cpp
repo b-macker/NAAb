@@ -60,7 +60,7 @@ interpreter::NaabVal JsExecutorAdapter::executeWithReturn(
                        "  - NAAb strings are passed as JS strings\n\n");
         }
 
-        return interpreter::NaabVal::makeNull();  // Return null on error
+        throw std::runtime_error(std::string("JavaScript execution error: ") + error_msg);
     }
 }
 

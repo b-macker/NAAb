@@ -654,7 +654,13 @@ interpreter::NaabVal PythonCExecutor::callFunction(
     const std::string& function_name,
     const std::vector<interpreter::NaabVal>& args
 ) {
-    throw std::runtime_error("PythonCExecutor::callFunction() not yet implemented for C API");
+    (void)function_name;
+    (void)args;
+    throw std::runtime_error(
+        "Python C API error: callFunction() is not implemented\n\n"
+        "  Help:\n"
+        "  - Use executeWithReturn() to run Python code instead\n"
+        "  - Or use the subprocess-based Python executor (default)\n");
 }
 
 /**

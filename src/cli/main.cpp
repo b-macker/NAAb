@@ -2851,7 +2851,41 @@ int main(int argc, char** argv) {
                 } else {
                     fmt::print("✗ {} needs formatting\n", filename);
                     if (show_diff) {
-                        fmt::print("\nFormatted output:\n{}\n", formatted);
+                        // Generate unified diff between source and formatted
+                        std::istringstream src_stream(source);
+                        std::istringstream fmt_stream(formatted);
+                        std::vector<std::string> src_lines, fmt_lines;
+                        std::string line;
+                        while (std::getline(src_stream, line)) src_lines.push_back(line);
+                        while (std::getline(fmt_stream, line)) fmt_lines.push_back(line);
+                        fmt::print("\n--- {}\n+++ {} (formatted)\n", filename, filename);
+                        size_t si = 0, fi = 0;
+                        while (si < src_lines.size() || fi < fmt_lines.size()) {
+                            if (si < src_lines.size() && fi < fmt_lines.size() &&
+                                src_lines[si] == fmt_lines[fi]) {
+                                fmt::print(" {}\n", src_lines[si]);
+                                si++; fi++;
+                            } else {
+                                // Find next matching line
+                                size_t match_s = si, match_f = fi;
+                                bool found = false;
+                                for (size_t d = 1; d < 10 && !found; d++) {
+                                    for (size_t ds = 0; ds <= d && !found; ds++) {
+                                        size_t df = d - ds;
+                                        if (si + ds < src_lines.size() && fi + df < fmt_lines.size() &&
+                                            src_lines[si + ds] == fmt_lines[fi + df]) {
+                                            match_s = si + ds; match_f = fi + df; found = true;
+                                        }
+                                    }
+                                }
+                                while (si < match_s) { fmt::print("-{}\n", src_lines[si++]); }
+                                while (fi < match_f) { fmt::print("+{}\n", fmt_lines[fi++]); }
+                                if (!found) {
+                                    if (si < src_lines.size()) fmt::print("-{}\n", src_lines[si++]);
+                                    if (fi < fmt_lines.size()) fmt::print("+{}\n", fmt_lines[fi++]);
+                                }
+                            }
+                        }
                     }
                     return 1;
                 }

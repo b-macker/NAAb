@@ -27,6 +27,7 @@ struct Lockfile {
     std::string naab_version;      // NAAb version string (e.g., "0.7.0")
     std::string platform;          // "linux/arm64", "darwin/arm64", etc.
     std::vector<LockfileEntry> runtimes;
+    bool parse_failed = false;     // True if lockfile JSON was malformed
 
     // Load from file. Returns empty Lockfile if file doesn't exist.
     static Lockfile load(const std::string& path);

@@ -86,8 +86,13 @@ Lockfile Lockfile::load(const std::string& path) {
                     lf.runtimes.push_back(e);
             }
         }
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[lockfile] Warning: failed to parse %s: %s\n",
+                path.c_str(), e.what());
+        lf.parse_failed = true;
     } catch (...) {
-        // Malformed lockfile — return with only the data we could parse
+        fprintf(stderr, "[lockfile] Warning: failed to parse %s\n", path.c_str());
+        lf.parse_failed = true;
     }
     return lf;
 }
@@ -97,6 +102,12 @@ Lockfile Lockfile::load(const std::string& path) {
 // ============================================================================
 
 void Lockfile::save(const std::string& path) const {
+    // Don't overwrite a valid lockfile with data from a failed parse
+    if (parse_failed) {
+        fprintf(stderr, "[lockfile] Skipping save — parse failed, preserving existing %s\n",
+                path.c_str());
+        return;
+    }
     // Create parent directory if needed
     std::filesystem::path p(path);
     if (p.has_parent_path()) {
