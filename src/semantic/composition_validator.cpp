@@ -310,12 +310,33 @@ bool CompositionValidator::isAdapter(const BlockMetadata& block) {
 std::vector<BlockMetadata> CompositionValidator::getAllAdapters() {
     std::vector<BlockMetadata> adapters;
 
-    // Search for adapter blocks
-    // This would ideally use BlockRegistry's search functionality
-    // For now, we return empty (would be populated from database in real usage)
+    if (!loader_) return adapters;
 
-    // TODO: Implement registry->searchByCategory("adapter") or similar
-    // For MVP, adapter detection is based on type compatibility
+    // Search for adapter-like blocks using the block loader
+    auto candidates = loader_->searchBlocks("adapter");
+    for (const auto& block : candidates) {
+        if (isAdapter(block)) {
+            adapters.push_back(block);
+        }
+    }
+
+    // Also search for type conversion blocks
+    auto converters = loader_->searchBlocks("convert");
+    for (const auto& block : converters) {
+        if (isAdapter(block)) {
+            // Avoid duplicates
+            bool already_added = false;
+            for (const auto& a : adapters) {
+                if (a.block_id == block.block_id) {
+                    already_added = true;
+                    break;
+                }
+            }
+            if (!already_added) {
+                adapters.push_back(block);
+            }
+        }
+    }
 
     return adapters;
 }
