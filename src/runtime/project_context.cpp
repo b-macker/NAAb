@@ -940,7 +940,7 @@ std::vector<ContextExtraction> ProjectContextLoader::parseJsonConfig(
                 ext.confidence = 100;
                 results.push_back(ext);
             }
-            if (fmt_cfg.contains("indentStyle")) {
+            if (fmt_cfg.contains("indentStyle") && fmt_cfg["indentStyle"].is_string()) {
                 ContextExtraction ext;
                 ext.id = generateRuleId(ContextLayer::LINTER, filename, "style", "indent-style-biome");
                 ext.layer = ContextLayer::LINTER;
@@ -1059,7 +1059,7 @@ std::vector<ContextExtraction> ProjectContextLoader::parseManifestFile(
             std::ifstream ifs(path);
             auto j = nlohmann::json::parse(ifs);
             if (j.contains("engines") && j["engines"].is_object() &&
-                j["engines"].contains("node")) {
+                j["engines"].contains("node") && j["engines"]["node"].is_string()) {
                 version_info = fmt::format("node {}", j["engines"]["node"].get<std::string>());
             }
         } catch (...) {}

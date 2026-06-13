@@ -74,13 +74,13 @@ Lockfile Lockfile::load(const std::string& path) {
         if (j.contains("runtimes") && j["runtimes"].is_array()) {
             for (const auto& entry : j["runtimes"]) {
                 LockfileEntry e;
-                if (entry.contains("language"))
+                if (entry.contains("language") && entry["language"].is_string())
                     e.language = entry["language"].get<std::string>();
-                if (entry.contains("runtime_version"))
+                if (entry.contains("runtime_version") && entry["runtime_version"].is_string())
                     e.runtime_version = entry["runtime_version"].get<std::string>();
-                if (entry.contains("binary_path"))
+                if (entry.contains("binary_path") && entry["binary_path"].is_string())
                     e.binary_path = entry["binary_path"].get<std::string>();
-                if (entry.contains("timestamp"))
+                if (entry.contains("timestamp") && entry["timestamp"].is_string())
                     e.timestamp = entry["timestamp"].get<std::string>();
                 if (!e.language.empty())
                     lf.runtimes.push_back(e);

@@ -185,12 +185,12 @@ KeyMetadata TrustStore::loadKeyMetadata(const std::string& fingerprint) {
 
     try {
         nlohmann::json j = nlohmann::json::parse(ifs);
-        if (j.contains("fingerprint")) meta.fingerprint = j["fingerprint"].get<std::string>();
-        if (j.contains("label")) meta.label = j["label"].get<std::string>();
+        if (j.contains("fingerprint") && j["fingerprint"].is_string()) meta.fingerprint = j["fingerprint"].get<std::string>();
+        if (j.contains("label") && j["label"].is_string()) meta.label = j["label"].get<std::string>();
         if (j.contains("created_at")) meta.created_at = j["created_at"].get<int64_t>();
         if (j.contains("expires_at")) meta.expires_at = j["expires_at"].get<int64_t>();
         if (j.contains("revoked")) meta.revoked = j["revoked"].get<bool>();
-        if (j.contains("revoked_reason")) meta.revoked_reason = j["revoked_reason"].get<std::string>();
+        if (j.contains("revoked_reason") && j["revoked_reason"].is_string()) meta.revoked_reason = j["revoked_reason"].get<std::string>();
         if (j.contains("revoked_at")) meta.revoked_at = j["revoked_at"].get<int64_t>();
     } catch (const std::exception& e) {
         fprintf(stderr, "[trust-store] WARNING: Invalid metadata for key %s: %s\n",

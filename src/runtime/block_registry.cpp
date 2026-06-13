@@ -88,7 +88,7 @@ std::string BlockRegistry::getBlockSource(const std::string& block_id) const {
             source = block_json.value("code", "");
 
             // If no inline code, check for code_file reference
-            if (source.empty() && block_json.contains("code_file")) {
+            if (source.empty() && block_json.contains("code_file") && block_json["code_file"].is_string()) {
                 std::string code_file = block_json["code_file"].get<std::string>();
                 // Resolve relative to the JSON file's directory
                 std::string dir = file_path.substr(0, file_path.find_last_of('/'));
@@ -220,11 +220,11 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
                     metadata.is_active = block_json.value("is_active", true);
 
                     // Handle potentially null fields
-                    metadata.category = block_json.contains("category") && !block_json["category"].is_null()
+                    metadata.category = block_json.contains("category") && block_json["category"].is_string() && !block_json["category"].is_null()
                         ? block_json["category"].get<std::string>() : "";
-                    metadata.subcategory = block_json.contains("subcategory") && !block_json["subcategory"].is_null()
+                    metadata.subcategory = block_json.contains("subcategory") && block_json["subcategory"].is_string() && !block_json["subcategory"].is_null()
                         ? block_json["subcategory"].get<std::string>() : "";
-                    metadata.code_hash = block_json.contains("code_hash") && !block_json["code_hash"].is_null()
+                    metadata.code_hash = block_json.contains("code_hash") && block_json["code_hash"].is_string() && !block_json["code_hash"].is_null()
                         ? block_json["code_hash"].get<std::string>() : "";
 
                     // AI-powered discovery fields (Phase 1.4)
@@ -236,17 +236,17 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
                     // Vector fields with JSON array parsing
                     if (block_json.contains("keywords") && block_json["keywords"].is_array()) {
                         for (const auto& keyword : block_json["keywords"]) {
-                            metadata.keywords.push_back(keyword.get<std::string>());
+                            if (keyword.is_string()) metadata.keywords.push_back(keyword.get<std::string>());
                         }
                     }
                     if (block_json.contains("use_cases") && block_json["use_cases"].is_array()) {
                         for (const auto& use_case : block_json["use_cases"]) {
-                            metadata.use_cases.push_back(use_case.get<std::string>());
+                            if (use_case.is_string()) metadata.use_cases.push_back(use_case.get<std::string>());
                         }
                     }
                     if (block_json.contains("related_blocks") && block_json["related_blocks"].is_array()) {
                         for (const auto& related : block_json["related_blocks"]) {
-                            metadata.related_blocks.push_back(related.get<std::string>());
+                            if (related.is_string()) metadata.related_blocks.push_back(related.get<std::string>());
                         }
                     }
 

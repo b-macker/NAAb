@@ -167,7 +167,19 @@ interpreter::NaabVal performRequest(
                 if (port_end == std::string::npos) port_end = url.size();
                 try {
                     port = std::stoi(url.substr(host_end + 1, port_end - host_end - 1));
-                } catch (...) {}
+                    if (port < 1 || port > 65535) {
+                        throw std::runtime_error(
+                            "HTTP error: port number out of range\n\n"
+                            "  Got: " + std::to_string(port) + "\n"
+                            "  Help:\n  - Port must be between 1 and 65535\n");
+                    }
+                } catch (const std::runtime_error&) {
+                    throw;
+                } catch (...) {
+                    throw std::runtime_error(
+                        "HTTP error: invalid port in URL\n\n"
+                        "  Help:\n  - Port must be a number between 1 and 65535\n");
+                }
             } else {
                 port = (url.substr(0, 5) == "https") ? 443 : 80;
             }
