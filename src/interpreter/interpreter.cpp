@@ -2015,8 +2015,14 @@ void Interpreter::visit(ast::ForStmt& node) {
         auto it = dict.find("__is_range");
         if (it != dict.end() && it->second.toBool()) {
             // This is a range - iterate from start to end
-            int start = dict.at("__range_start").toInt();
-            int end_val = dict.at("__range_end").toInt();
+            // V-RT-006: Guard range dict key access
+            auto rs_it = dict.find("__range_start");
+            auto re_it = dict.find("__range_end");
+            if (rs_it == dict.end() || re_it == dict.end()) {
+                throw std::runtime_error("Runtime error: malformed range object");
+            }
+            int start = rs_it->second.toInt();
+            int end_val = re_it->second.toInt();
             bool inclusive = false;
 
             // Check for inclusive flag (..= operator)

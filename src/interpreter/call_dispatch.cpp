@@ -2586,9 +2586,20 @@ void Interpreter::visit(ast::CallExpr& node) {
                                   "import sys\n");
 
                 // Execute the block code to define classes/functions using exec()
-                // This handles multi-line code with proper indentation
-                std::string exec_code = "exec('''" + block->code + "''')";
-                PyRun_SimpleString(exec_code.c_str());
+                // V-CD-001: Use compile()+exec() to avoid triple-quote injection.
+                // Previously used exec('''...''') which allowed breakout via ''' in block->code.
+                {
+                    PyObject* code_obj = Py_CompileString(block->code.c_str(),
+                                                          block->metadata.name.c_str(),
+                                                          Py_file_input);
+                    if (code_obj) {
+                        PyObject* result = PyEval_EvalCode(code_obj, nullptr, nullptr);
+                        Py_XDECREF(result);
+                        Py_DECREF(code_obj);
+                    } else {
+                        PyErr_Print();
+                    }
+                }
 
                 // Handle member access calls
                 if (!block->member_path.empty()) {
@@ -3072,9 +3083,19 @@ void Interpreter::visit(ast::MemberExpr& node) {
         // Fallback: Legacy Python handling for blocks without executor
         if (block->metadata.language == "python") {
 #ifdef NAAB_HAS_PYTHON
-            // Execute the block code using exec() to handle multi-line properly
-            std::string exec_code = "exec('''" + block->code + "''')";
-            PyRun_SimpleString(exec_code.c_str());
+            // V-CD-001: Use compile()+exec() to avoid triple-quote injection
+            {
+                PyObject* code_obj = Py_CompileString(block->code.c_str(),
+                                                      block->metadata.name.c_str(),
+                                                      Py_file_input);
+                if (code_obj) {
+                    PyObject* result = PyEval_EvalCode(code_obj, nullptr, nullptr);
+                    Py_XDECREF(result);
+                    Py_DECREF(code_obj);
+                } else {
+                    PyErr_Print();
+                }
+            }
 
             // Build member path
             std::string full_member_path = block->member_path.empty()

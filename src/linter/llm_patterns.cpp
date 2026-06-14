@@ -102,30 +102,24 @@ std::vector<Diagnostic> LLMPatternDetector::detectPatterns(const ast::Program& p
 // ============================================================================
 
 std::vector<Diagnostic> LLMPatternDetector::detectUnnecessaryTypeAnnotations(const ast::Program& program) {
-    // STUB: not implemented — requires AST traversal of VarDeclStmt type annotations
+    // V-LN-001: STUB — not yet implemented (requires AST traversal of VarDeclStmt type annotations)
     (void)program;
-    std::vector<Diagnostic> diagnostics;
-    return diagnostics;
+    return {};  // Returns empty: no false positives, but no detection either
 }
 
 // Removed: detectRedundantNullChecks, detectOveruseOfAny, detectIncorrectErrorHandling
 // — superseded by scanner checks (empty_catch, catch_and_ignore) or never dispatched
 
 std::vector<Diagnostic> LLMPatternDetector::detectPolyglotBlockMisuse(const ast::Program& program) {
-    // STUB: not implemented — requires AST traversal to detect:
-    // 1. Missing variable list: <<python data.mean() >> → <<python[data] data.mean() >>
-    // 2. Wrong variable list syntax
-    // 3. Trying to use async in polyglot blocks
+    // V-LN-001: STUB — not yet implemented (requires AST traversal for variable list + async checks)
     (void)program;
-    std::vector<Diagnostic> diagnostics;
-    return diagnostics;
+    return {};
 }
 
 std::vector<Diagnostic> LLMPatternDetector::detectModuleImportIssues(const ast::Program& program) {
-    // STUB: not implemented — requires AST traversal for JS/Python import syntax
+    // V-LN-001: STUB — not yet implemented (requires AST traversal for JS/Python import syntax)
     (void)program;
-    std::vector<Diagnostic> diagnostics;
-    return diagnostics;
+    return {};
 }
 
 std::vector<Diagnostic> LLMPatternDetector::detectAsyncWithoutImplementation(const ast::Program& program) {
@@ -177,17 +171,15 @@ std::vector<Diagnostic> LLMPatternDetector::detectIncorrectMainFunction(const as
 // Removed: detectUnquotedDictKeys — NAAb supports bare dict keys by design, not a bug
 
 std::vector<Diagnostic> LLMPatternDetector::detectJavaScriptIdioms(const ast::Program& program) {
-    // STUB: not implemented — requires AST traversal for const/var/===/ undefined patterns
+    // V-LN-001: STUB — not yet implemented (requires AST traversal for const/var/===/ undefined)
     (void)program;
-    std::vector<Diagnostic> diagnostics;
-    return diagnostics;
+    return {};
 }
 
 std::vector<Diagnostic> LLMPatternDetector::detectPythonIdioms(const ast::Program& program) {
-    // STUB: not implemented — requires AST traversal for def/None/: type annotation patterns
+    // V-LN-001: STUB — not yet implemented (requires AST traversal for def/None/: annotations)
     (void)program;
-    std::vector<Diagnostic> diagnostics;
-    return diagnostics;
+    return {};
 }
 
 // Removed: detectUnnecessaryComplexity — superseded by scanner (god_functions + deep_nesting)

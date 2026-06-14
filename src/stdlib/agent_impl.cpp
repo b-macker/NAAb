@@ -914,13 +914,29 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     } // unlock before API call
 
     // Build messages array from handle history + new message
+    // V-AG-003: Guard messages key access
     json messages_json = json::array();
-    auto& msg_list = handle["messages"].asList();
+    auto msgs_it = handle.find("messages");
+    if (msgs_it == handle.end() || !msgs_it->second.isList()) {
+        throw std::runtime_error(
+            "Agent error: handle missing 'messages' list\n\n"
+            "  Help:\n  - Use a handle returned by agent.create()\n");
+    }
+    auto& msg_list = msgs_it->second.asList();
     for (auto& msg : msg_list) {
         auto& msg_dict = msg.asDict();
+        // V-AG-002: Guard message dict key access
+        auto role_it = msg_dict.find("role");
+        auto content_it = msg_dict.find("content");
+        if (role_it == msg_dict.end() || !role_it->second.isString() ||
+            content_it == msg_dict.end() || !content_it->second.isString()) {
+            throw std::runtime_error(
+                "Agent error: each message must be a dict with 'role' and 'content' string keys\n\n"
+                "  Help:\n  - Use {role: \"user\", content: \"message\"}\n");
+        }
         json msg_obj;
-        msg_obj["role"] = msg_dict["role"].asString();
-        msg_obj["content"] = msg_dict["content"].asString();
+        msg_obj["role"] = role_it->second.asString();
+        msg_obj["content"] = content_it->second.asString();
         messages_json.push_back(msg_obj);
     }
     // Append new user message
@@ -2632,7 +2648,11 @@ static NaabVal agentRun(std::vector<NaabVal>& args) {
         ge->setLastReturnTainted(true, "agent.run");
     }
 
-    return response.asDict()["content"];
+    // V-AG-004: Guard response content access
+    if (!response.isDict()) return NaabVal::makeNull();
+    auto& resp_dict = response.asDictConst();
+    auto c_it = resp_dict.find("content");
+    return (c_it != resp_dict.end()) ? c_it->second : NaabVal::makeNull();
 }
 
 // ============================================================================
@@ -2675,8 +2695,14 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
             "  Help:\n  - Use the handle returned by agent.create()\n");
     }
 
-    // Read from server-side tracker (immune to handle mutation)
-    int handle_id = handle["id"].asInt();
+    // V-AG-001: Read handle_id with type guard (same pattern as validateHandle)
+    auto id_it = handle.find("id");
+    if (id_it == handle.end() || !id_it->second.isInt()) {
+        throw std::runtime_error(
+            "Agent error: Invalid agent handle\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n");
+    }
+    int handle_id = id_it->second.asInt();
     std::lock_guard<std::mutex> lock(s_agent_mutex);
     auto tracker_it = s_trackers.find(handle_id);
     if (tracker_it == s_trackers.end()) {
