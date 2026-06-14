@@ -148,8 +148,10 @@ public:
     int buildIndex(const std::string& blocks_path) {
         // Building search index (silent)
 
-        // Begin transaction for faster inserts
-        sqlite3_exec(db_, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+        // V-SQ-001: Begin transaction with error check
+        if (sqlite3_exec(db_, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            fmt::print(stderr, "[block-search] Failed to begin transaction\n");
+        }
 
         int indexed_count = 0;
 
@@ -169,8 +171,10 @@ public:
             return 0;
         }
 
-        // Commit transaction
-        sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr);
+        // V-SQ-001: Commit transaction with error check
+        if (sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            fmt::print(stderr, "[block-search] Failed to commit transaction\n");
+        }
 
         // Indexed blocks (silent)
         return indexed_count;
@@ -433,21 +437,21 @@ std::vector<SearchResult> BlockSearchIndex::search(const SearchQuery& query) {
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         SearchResult result;
 
-        // Parse BlockMetadata
-        result.metadata.block_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        result.metadata.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        result.metadata.language = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-
-        const char* cat = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        result.metadata.category = cat ? cat : "";
-        const char* subcat = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        result.metadata.subcategory = subcat ? subcat : "";
-
-        result.metadata.file_path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
-        result.metadata.code_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        // Parse BlockMetadata — V-SQ-002: NULL-guard all sqlite3_column_text results
+        auto col_text = [&](int col) -> std::string {
+            const char* s = reinterpret_cast<const char*>(sqlite3_column_text(stmt, col));
+            return s ? s : "";
+        };
+        result.metadata.block_id = col_text(0);
+        result.metadata.name = col_text(1);
+        result.metadata.language = col_text(2);
+        result.metadata.category = col_text(3);
+        result.metadata.subcategory = col_text(4);
+        result.metadata.file_path = col_text(5);
+        result.metadata.code_hash = col_text(6);
         result.metadata.token_count = sqlite3_column_int(stmt, 7);
         result.metadata.times_used = sqlite3_column_int(stmt, 8);
-        result.metadata.version = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 9));
+        result.metadata.version = col_text(9);
 
         // AI discovery fields
         const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
@@ -518,22 +522,22 @@ std::optional<BlockMetadata> BlockSearchIndex::getBlock(const std::string& block
         return std::nullopt;
     }
 
-    // Parse BlockMetadata
+    // Parse BlockMetadata — V-SQ-002: NULL-guard all sqlite3_column_text results
+    auto col_text = [&](int col) -> std::string {
+        const char* s = reinterpret_cast<const char*>(sqlite3_column_text(stmt, col));
+        return s ? s : "";
+    };
     BlockMetadata metadata;
-    metadata.block_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    metadata.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-    metadata.language = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-
-    const char* cat = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-    metadata.category = cat ? cat : "";
-    const char* subcat = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-    metadata.subcategory = subcat ? subcat : "";
-
-    metadata.file_path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
-    metadata.code_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+    metadata.block_id = col_text(0);
+    metadata.name = col_text(1);
+    metadata.language = col_text(2);
+    metadata.category = col_text(3);
+    metadata.subcategory = col_text(4);
+    metadata.file_path = col_text(5);
+    metadata.code_hash = col_text(6);
     metadata.token_count = sqlite3_column_int(stmt, 7);
     metadata.times_used = sqlite3_column_int(stmt, 8);
-    metadata.version = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 9));
+    metadata.version = col_text(9);
 
     // AI discovery fields
     const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));

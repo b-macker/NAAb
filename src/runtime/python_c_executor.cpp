@@ -236,6 +236,19 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
                      << "        raise ImportError('Import blocked by governance policy: ' + name)\n"
                      << "    return _naab_original_import(name, *args, **kwargs)\n"
                      << "_naab_builtins.__import__ = _naab_safe_import\n"
+                     // V-PY-001: Block importlib bypass and hide original import from user scope
+                     << "try:\n"
+                     << "    import importlib as _naab_importlib\n"
+                     << "    _naab_orig_import_module = _naab_importlib.import_module\n"
+                     << "    def _naab_safe_import_module(name, package=None):\n"
+                     << "        _top = name.split('.')[0]\n"
+                     << "        if _top in _naab_blocked_modules:\n"
+                     << "            raise ImportError('Import blocked by governance policy: ' + name)\n"
+                     << "        return _naab_orig_import_module(name, package)\n"
+                     << "    _naab_importlib.import_module = _naab_safe_import_module\n"
+                     << "    del _naab_importlib, _naab_orig_import_module\n"
+                     << "except Exception:\n"
+                     << "    pass\n"
                      << "del _naab_builtins\n";
                 PyRun_SimpleString(hook.str().c_str());
             }

@@ -381,11 +381,14 @@ PackageManager::ParsedSpec PackageManager::parseSpec(const std::string& spec) co
     }
 
     // V-PKG-001: Reject shell metacharacters in owner/repo/version
+    // V-PKG-002: Extended blocklist covers backslash, tilde, bang, hash, etc.
     for (const auto& s : {result.owner, result.repo, result.version}) {
         for (char c : s) {
             if (c == '\'' || c == '"' || c == ';' || c == '|' || c == '&' ||
                 c == '$' || c == '`' || c == '(' || c == ')' || c == '<' ||
-                c == '>' || c == '\n' || c == '\r' || c == ' ' || c == '\t') {
+                c == '>' || c == '\n' || c == '\r' || c == ' ' || c == '\t' ||
+                c == '\\' || c == '~' || c == '!' || c == '#' || c == '%' ||
+                c == '^' || c == '[' || c == ']' || c == '{' || c == '}') {
                 return ParsedSpec{};  // empty = invalid
             }
         }

@@ -504,6 +504,9 @@ interpreter::NaabVal CodegenModule::call(
             if (output.empty() && result.isString()) {
                 output = result.asString();
             }
+        } catch (const governance::GovernanceHardError&) {
+            security::ResourceLimiter::clearTimeout();
+            throw;  // V-CG-001: HARD blocks propagate without suppression
         } catch (const std::exception& e) {
             security::ResourceLimiter::clearTimeout();
             exit_code = 1;

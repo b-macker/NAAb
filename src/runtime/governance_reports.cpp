@@ -310,6 +310,23 @@ void GovernanceEngine::emitRefusalAttestation(
 }
 
 // --- Hooks ---
+
+// V-HK-001: Shell-escape a value for safe interpolation into shell commands.
+// Wraps in single quotes with internal quote escaping: val → 'val'
+// Single quotes prevent all shell metacharacter interpretation.
+static std::string shellEscape(const std::string& val) {
+    std::string escaped = "'";
+    for (char c : val) {
+        if (c == '\'') {
+            escaped += "'\\''";  // end quote, literal quote, restart quote
+        } else {
+            escaped += c;
+        }
+    }
+    escaped += "'";
+    return escaped;
+}
+
 void GovernanceEngine::fireHook(const HookConfig& hook,
                                  const std::unordered_map<std::string, std::string>& vars) {
     if (hook.command.empty()) return;
@@ -319,10 +336,12 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         std::string expanded = arg;
         for (const auto& [key, val] : vars) {
             std::string placeholder = "${" + key + "}";
+            // V-HK-001: Shell-escape substituted values to prevent command injection
+            std::string safe_val = shellEscape(val);
             size_t pos = expanded.find(placeholder);
             while (pos != std::string::npos) {
-                expanded.replace(pos, placeholder.size(), val);
-                pos = expanded.find(placeholder, pos + val.size());
+                expanded.replace(pos, placeholder.size(), safe_val);
+                pos = expanded.find(placeholder, pos + safe_val.size());
             }
         }
         cmd += " " + expanded;

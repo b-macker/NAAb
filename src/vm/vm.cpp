@@ -2672,10 +2672,15 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < num_vars; i++) pop();
 
-                // Extract info
+                // Extract info — V-VM-001: Guard polyglot info dict access
                 auto& info = block_info.asDictConst();
-                std::string language = info.at("language").toString();
-                std::string raw_code = info.at("code").toString();
+                auto lang_it = info.find("language");
+                auto code_it = info.find("code");
+                if (lang_it == info.end() || code_it == info.end()) {
+                    runtimeError("Internal error: malformed polyglot block info");
+                }
+                std::string language = lang_it->second.toString();
+                std::string raw_code = code_it->second.toString();
                 std::string return_type;
                 auto rt_it = info.find("return_type");
                 if (rt_it != info.end()) return_type = rt_it->second.toString();
