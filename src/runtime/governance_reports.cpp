@@ -3,6 +3,7 @@
 
 #include "naab/governance.h"
 #include "naab/telemetry_forwarder.h"
+#include "naab/error_sanitizer.h"
 #include "naab/crypto_utils.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
@@ -245,7 +246,7 @@ void GovernanceEngine::emitRefusalAttestation(
     ev["result"] = "refused";
     ev["binding_status"] = "non-binding";
     ev["execution_prevented"] = true;
-    ev["file"] = current_check_file_;
+    ev["file"] = error::ErrorSanitizer::sanitizeFilePaths(current_check_file_);
     ev["line"] = current_check_line_;
     // Cap violation message to prevent telemetry bloat
     ev["violation_message"] = violation_message.size() > 500
@@ -883,7 +884,7 @@ void GovernanceEngine::writeTelemetry() const {
             ? (r.passed ? "Check passed: " + r.rule_name : "Check failed: " + r.rule_name)
             : r.message;
         ev["timestamp"] = timestamp;
-        ev["file"] = r.file;
+        ev["file"] = error::ErrorSanitizer::sanitizeFilePaths(r.file);
         ev["line"] = r.line;
         ev["category"] = r.category;
         ev["severity"] = r.severity;

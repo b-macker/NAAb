@@ -124,8 +124,7 @@ private:
             if (i > 0) fmt::print(", ");
             fmt::print("{}", languages[i]);
         }
-        fmt::print("\n");
-        fmt::print("24,167 blocks available\n\n");
+        fmt::print("\n\n");
     }
 
     void handleCommand(const std::string& cmd) {
