@@ -426,6 +426,8 @@ public:
     std::shared_ptr<Environment> shallowCopy() const {
         auto copy = std::make_shared<Environment>();
         copy->values_ = values_;  // copy the map
+        copy->exported_structs_ = exported_structs_;  // async needs struct types
+        copy->exported_enums_ = exported_enums_;       // async needs enum types
         // Don't copy parent_ — async gets a flat snapshot of globals
         return copy;
     }

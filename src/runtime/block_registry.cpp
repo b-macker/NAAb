@@ -90,10 +90,23 @@ std::string BlockRegistry::getBlockSource(const std::string& block_id) const {
             // If no inline code, check for code_file reference
             if (source.empty() && block_json.contains("code_file") && block_json["code_file"].is_string()) {
                 std::string code_file = block_json["code_file"].get<std::string>();
-                // Resolve relative to the JSON file's directory
-                std::string dir = file_path.substr(0, file_path.find_last_of('/'));
-                std::string code_path = dir + "/" + code_file;
-                source = readFile(code_path);
+                // V-RT-005: Validate code_file is a simple filename (no path traversal)
+                if (!code_file.empty() &&
+                    code_file[0] != '/' &&
+                    code_file.find("..") == std::string::npos &&
+                    code_file.find('/') == std::string::npos &&
+                    code_file.find('\\') == std::string::npos) {
+                    // Resolve relative to the JSON file's directory
+                    std::string dir = file_path.substr(0, file_path.find_last_of('/'));
+                    std::string code_path = dir + "/" + code_file;
+                    // Double-check: canonical path must stay within block directory
+                    std::error_code ec;
+                    auto canonical_code = std::filesystem::canonical(code_path, ec);
+                    auto canonical_dir = std::filesystem::canonical(dir, ec);
+                    if (!ec && canonical_code.string().rfind(canonical_dir.string(), 0) == 0) {
+                        source = readFile(code_path);
+                    }
+                }
             }
         } catch (const std::exception& e) {
             return "";

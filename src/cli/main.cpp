@@ -1258,9 +1258,8 @@ int main(int argc, char** argv) {
         // Set default config for SandboxManager
         naab::security::SandboxManager::instance().setDefaultConfig(security_config);
 
-        // Configure Python import blocking based on sandbox level
-        // NOTE: Temporarily disabled while using pure C API (PythonCExecutor)
-        // TODO: Re-implement import blocking in PythonCExecutor for security
+        // Python import blocking: enforced at runtime in PythonCExecutor::executeWithReturn()
+        // via __import__ hook that checks govern.json languages.python.imports.blocked
 
         if (verbose) {
             fmt::print("[Security] Sandbox level: {}, timeout: {}s, memory: {}MB, network: {}\n",

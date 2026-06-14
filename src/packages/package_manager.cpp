@@ -29,10 +29,21 @@ const std::string PackageManager::REGISTRY_URL =
 // HTTP Helpers (using libcurl)
 // ============================================================================
 
+// Maximum HTTP response size for in-memory string responses (50 MB)
+static constexpr size_t MAX_HTTP_RESPONSE_SIZE = 50 * 1024 * 1024;
+
+struct StringWriteContext {
+    std::string* str;
+    size_t max_size;
+};
+
 static size_t writeStringCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t total = size * nmemb;
-    auto* str = static_cast<std::string*>(userp);
-    str->append(static_cast<char*>(contents), total);
+    auto* ctx = static_cast<StringWriteContext*>(userp);
+    if (ctx->str->size() + total > ctx->max_size) {
+        return 0;  // tells curl to abort with CURLE_WRITE_ERROR
+    }
+    ctx->str->append(static_cast<char*>(contents), total);
     return total;
 }
 
@@ -58,6 +69,7 @@ std::string PackageManager::httpGet(const std::string& url) {
     }
 
     std::string response;
+    StringWriteContext write_ctx{&response, MAX_HTTP_RESPONSE_SIZE};
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "User-Agent: NAAb-PackageManager/1.0");
     headers = curl_slist_append(headers, "Accept: application/vnd.github.v3+json");
@@ -71,10 +83,12 @@ std::string PackageManager::httpGet(const std::string& url) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeStringCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &write_ctx);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXFILESIZE_LARGE,
+                     static_cast<curl_off_t>(MAX_HTTP_RESPONSE_SIZE));
 
     CURLcode res = curl_easy_perform(curl);
     long http_code = 0;

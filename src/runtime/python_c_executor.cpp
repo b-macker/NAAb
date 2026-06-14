@@ -10,6 +10,7 @@
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
 #include "naab/subprocess_helpers.h"  // V-SC-006-ext: env scrub policy
+#include "naab/governance.h"         // Import blocking: blocked imports from govern.json
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -213,12 +214,40 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
     }
 #endif
 
+    // Import blocking: override __import__ to enforce govern.json blocked imports
+    // Catches __import__("os"), importlib.import_module("os"), and all runtime import paths
+    {
+        auto* engine = governance::GovernanceEngine::getCurrent();
+        if (engine) {
+            const auto* lang_cfg = engine->getLanguageConfig("python");
+            if (lang_cfg && !lang_cfg->imports.blocked.empty()) {
+                std::ostringstream hook;
+                hook << "import builtins as _naab_builtins\n"
+                     << "_naab_original_import = _naab_builtins.__import__\n"
+                     << "_naab_blocked_modules = {";
+                for (size_t i = 0; i < lang_cfg->imports.blocked.size(); ++i) {
+                    if (i > 0) hook << ",";
+                    hook << "'" << lang_cfg->imports.blocked[i] << "'";
+                }
+                hook << "}\n"
+                     << "def _naab_safe_import(name, *args, **kwargs):\n"
+                     << "    _top = name.split('.')[0]\n"
+                     << "    if _top in _naab_blocked_modules:\n"
+                     << "        raise ImportError('Import blocked by governance policy: ' + name)\n"
+                     << "    return _naab_original_import(name, *args, **kwargs)\n"
+                     << "_naab_builtins.__import__ = _naab_safe_import\n"
+                     << "del _naab_builtins\n";
+                PyRun_SimpleString(hook.str().c_str());
+            }
+        }
+    }
+
     // Helper lambda: restore stdout and get captured output
     auto captureAndRestoreStdout = [&globals, env_scrub_applied]() -> std::string {
         // V-SC-006-ext: Restore scrubbed env vars
         if (env_scrub_applied) {
             PyRun_SimpleString(
-                "import os as _naab_os\n"
+                "_naab_os = _naab_original_import('os') if '_naab_original_import' in dir() else __import__('os')\n"
                 "_naab_os.environ.update(_naab_saved_env)\n"
                 "del _naab_saved_env, _naab_os\n"
             );
