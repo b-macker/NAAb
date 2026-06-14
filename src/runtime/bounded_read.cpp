@@ -22,10 +22,10 @@ std::optional<std::string> readFileBounded(const std::string& path,
     // This eliminates the lstat-then-ifstream TOCTOU race.
     int fd = ::open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) return std::nullopt;
+    struct FdGuard { int f; ~FdGuard() { if (f >= 0) ::close(f); } } guard{fd};
 
     struct stat st;
     if (::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-        ::close(fd);
         return std::nullopt;
     }
 
@@ -41,7 +41,6 @@ std::optional<std::string> readFileBounded(const std::string& path,
         }
         content.append(buf, chunk);
     }
-    ::close(fd);
     if (n < 0) return std::nullopt;
     return content;
 #else

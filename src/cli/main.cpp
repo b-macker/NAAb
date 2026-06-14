@@ -298,7 +298,7 @@ void print_usage() {
     fmt::print("  --env <name>                        Apply environment overrides from govern.json\n");
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
-    fmt::print("                                      (default: standard - safe for enterprise)\n");
+    fmt::print("                                      (default: unrestricted)\n");
     fmt::print("  --timeout <seconds>                 Execution timeout per block (default: 30)\n");
     fmt::print("  --memory-limit <MB>                 Memory limit per block (default: 512)\n");
     fmt::print("  --allow-network                     Enable network access (default: disabled)\n");

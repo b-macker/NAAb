@@ -9,6 +9,8 @@
 #include <fmt/core.h>
 #include <stdexcept>
 #include <sstream>
+#include <climits>
+#include <cstdint>
 
 using json = nlohmann::json;
 
@@ -108,7 +110,12 @@ interpreter::NaabVal jsonToValue(const json& j) {
     } else if (j.is_boolean()) {
         return interpreter::NaabVal::makeBool(j.get<bool>());
     } else if (j.is_number_integer()) {
-        return interpreter::NaabVal::makeInt(j.get<int>());
+        auto val = j.get<int64_t>();
+        if (val >= INT_MIN && val <= INT_MAX) {
+            return interpreter::NaabVal::makeInt(static_cast<int>(val));
+        } else {
+            return interpreter::NaabVal::makeDouble(static_cast<double>(val));
+        }
     } else if (j.is_number_float()) {
         return interpreter::NaabVal::makeDouble(j.get<double>());
     } else if (j.is_string()) {

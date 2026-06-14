@@ -13,6 +13,7 @@
 #include <fmt/core.h>
 #include <stdexcept>
 #include <cstdlib>
+#include <random>
 #include <unordered_set>
 #include <mutex>
 #include <future>
@@ -1495,7 +1496,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             if (config->retry.jitter && delay > 0) {
                 int jitter_range = delay / 4;
                 if (jitter_range > 0) {
-                    delay += (std::rand() % (2 * jitter_range + 1)) - jitter_range;
+                    static thread_local std::mt19937 rng(std::random_device{}());
+                    std::uniform_int_distribution<int> dist(-jitter_range, jitter_range);
+                    delay += dist(rng);
                 }
             }
             if (delay > 0) {

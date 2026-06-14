@@ -7,6 +7,8 @@
 #include <mutex>
 #include <stdexcept>
 #include <vector>
+#include <climits>
+#include <cmath>
 
 namespace naab {
 namespace interpreter {
@@ -504,7 +506,13 @@ bool NaabVal::toBool() const {
 
 int NaabVal::toInt() const {
     if (isInt()) return asInt();
-    if (isDouble()) return static_cast<int>(asDouble());
+    if (isDouble()) {
+        double d = asDouble();
+        if (std::isnan(d)) return 0;
+        if (d >= static_cast<double>(INT_MAX)) return INT_MAX;
+        if (d <= static_cast<double>(INT_MIN)) return INT_MIN;
+        return static_cast<int>(d);
+    }
     if (isBool()) return asBool() ? 1 : 0;
     if (isHeap()) return asHeap()->shared_value->toInt();
     return 0;

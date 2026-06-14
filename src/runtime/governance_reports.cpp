@@ -60,7 +60,7 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
     entry["event"] = event_type;
     entry["rule"] = rule_name;
     entry["message"] = message;
-    if (!file.empty()) entry["file"] = file;
+    if (!file.empty()) entry["file"] = error::ErrorSanitizer::sanitizeFilePaths(file);
     if (line > 0) entry["line"] = line;
 
     // Include config rationale in audit entries when available

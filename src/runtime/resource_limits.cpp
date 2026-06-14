@@ -41,6 +41,8 @@ static std::atomic<uint64_t> g_win_timer_generation{0};
 #else
 // V-RT-007: cancel flag for the POSIX timer thread (set by clearTimeout()).
 std::atomic<bool> ResourceLimiter::posix_timer_cancel_{false};
+// Generation counter for cancellable POSIX timer threads (matches Windows pattern).
+static std::atomic<uint64_t> g_posix_timer_generation{0};
 #endif
 
 void ResourceLimiter::installSignalHandlers() {
@@ -95,14 +97,15 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
     // concurrent call to setExecutionTimeout() has its own independent timer.
     pthread_t tid = pthread_self();
     posix_timer_cancel_.store(false, std::memory_order_relaxed);
-    std::thread([seconds, tid]() {
+    uint64_t my_gen = ++g_posix_timer_generation;
+    std::thread([seconds, tid, my_gen]() {
         using clock = std::chrono::steady_clock;
         auto deadline = clock::now() + std::chrono::seconds(seconds);
         while (clock::now() < deadline) {
-            if (ResourceLimiter::posix_timer_cancel_.load(std::memory_order_relaxed)) return;
+            if (g_posix_timer_generation.load(std::memory_order_relaxed) != my_gen) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        if (!ResourceLimiter::posix_timer_cancel_.load(std::memory_order_relaxed)) {
+        if (g_posix_timer_generation.load(std::memory_order_relaxed) == my_gen) {
             // Set global_shutdown_ first so isTimeoutTriggered() returns true
             // even if the signal is not delivered immediately (e.g. tight loops
             // on Android/Termux where SIGALRM may stay pending).
@@ -139,6 +142,9 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
 void ResourceLimiter::clearTimeout() {
 #ifndef _WIN32
     // V-RT-007: cancel the posix timer thread and any residual system alarm.
+    // Bump generation counter to invalidate any in-flight timer thread
+    // (matches Windows pattern — stale timer sees mismatched generation and exits).
+    ++g_posix_timer_generation;
     posix_timer_cancel_.store(true, std::memory_order_relaxed);
     alarm(0);
 #else

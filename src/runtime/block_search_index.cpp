@@ -168,6 +168,7 @@ public:
         }
         if (ec) {
             fmt::print("[ERROR] Failed to open blocks directory: {}\n", blocks_path);
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
             return 0;
         }
 
