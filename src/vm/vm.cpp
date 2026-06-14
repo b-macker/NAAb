@@ -598,6 +598,19 @@ interpreter::NaabVal VM::run() {
             static_cast<int>(idx), static_cast<int>(CURRENT_CHUNK().constants.size())), \
            interpreter::NaabVal::makeNull()))
 
+// V-VM-002: Defense-in-depth guard for constant-pool string reads.
+// Compiler always stores strings via identifierConstant() → makeString(),
+// but this catches constant pool corruption or future compiler bugs.
+#define READ_CONSTANT_STRING(idx) \
+    ([&]() -> const std::string& { \
+        const auto& _rc_val = READ_CONSTANT(idx); \
+        if (!_rc_val.isString()) { \
+            runtimeError("Internal error: Expected string constant at index %d, got %s", \
+                static_cast<int>(idx), _rc_val.getTypeName().c_str()); \
+        } \
+        return _rc_val.asString(); \
+    }())
+
     // Debugger check — extracted to lambda so computed goto DISPATCH macro stays small
     auto debugCheck = [&]() {
         if (debugger_ && debugger_->isActive()) {
@@ -1323,7 +1336,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_GET_GLOBAL): {
-                const std::string& name = READ_CONSTANT(arg).asString();
+                const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
                     std::string helper = getVariableHelper(name);
@@ -1351,7 +1364,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_SET_GLOBAL): {
-                const std::string& name = READ_CONSTANT(arg).asString();
+                const std::string& name = READ_CONSTANT_STRING(arg);
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
                     std::string helper = getVariableHelper(name);
@@ -1387,7 +1400,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_DEFINE_GLOBAL): {
-                const std::string& name = READ_CONSTANT(arg).asString();
+                const std::string& name = READ_CONSTANT_STRING(arg);
                 bool t = peekTaint(0);
                 // Capture lineage before pop destroys the stack slot
                 std::string origin_func_dg;
@@ -1670,7 +1683,7 @@ interpreter::NaabVal VM::run() {
                 // Packed: [name_idx:16][argc:8] in the 24-bit arg
                 uint32_t name_idx = (arg >> 8) & 0xFFFF;
                 uint8_t argc = static_cast<uint8_t>(arg & 0xFF);
-                const std::string& method = READ_CONSTANT(name_idx).asString();
+                const std::string& method = READ_CONSTANT_STRING(name_idx);
 
                 // Object is below the args on the stack
                 interpreter::NaabVal& obj = peek(argc);
@@ -2101,6 +2114,11 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_CLOSURE): {
                 interpreter::NaabVal closure_val = READ_CONSTANT(arg);
+                // V-VM-005: Guard closure constant type
+                if (!closure_val.isVMClosure()) {
+                    runtimeError("Internal error: Expected closure constant at index %d, got %s",
+                                 static_cast<int>(arg), closure_val.getTypeName().c_str());
+                }
                 auto& closure = closure_val.asVMClosure();
                 CompiledFunction* fn = closure->function;
 
@@ -2428,6 +2446,12 @@ interpreter::NaabVal VM::run() {
 
                 interpreter::NaabVal idx_val = peek(0);
                 interpreter::NaabVal list = peek(1);
+                // V-VM-003: Guard iterator index — stack corruption or bytecode
+                // tampering could place a non-int here, causing garbage bits via asInt()
+                if (!idx_val.isInt()) {
+                    runtimeError("Type error: Iterator index must be an integer, got %s",
+                                 idx_val.getTypeName().c_str());
+                }
                 int64_t idx = idx_val.asInt();
                 auto& elems = list.asListConst();
 
@@ -2672,7 +2696,11 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < num_vars; i++) pop();
 
-                // Extract info — V-VM-001: Guard polyglot info dict access
+                // V-VM-001/V-VM-004: Guard polyglot info dict access
+                if (!block_info.isDict()) {
+                    runtimeError("Internal error: Expected dict constant for polyglot block info, got %s",
+                                 block_info.getTypeName().c_str());
+                }
                 auto& info = block_info.asDictConst();
                 auto lang_it = info.find("language");
                 auto code_it = info.find("code");
@@ -3051,8 +3079,8 @@ interpreter::NaabVal VM::run() {
                 // Packed: name_idx in upper 12 bits, lang_idx in lower 12 bits
                 uint32_t name_idx = (arg >> 12) & 0xFFF;
                 uint32_t lang_idx = arg & 0xFFF;
-                const std::string& name = READ_CONSTANT(name_idx).asString();
-                const std::string& language = READ_CONSTANT(lang_idx).asString();
+                const std::string& name = READ_CONSTANT_STRING(name_idx);
+                const std::string& language = READ_CONSTANT_STRING(lang_idx);
 
                 if (named_runtimes_.count(name)) {
                     runtimeError("Runtime error: Runtime '%s' already exists.\n\n"
@@ -3083,7 +3111,7 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_IMPORT): {
                 // arg = constant index of module path string
-                std::string module_path = frame->function->chunk.constants[arg].asString();
+                std::string module_path = READ_CONSTANT_STRING(arg);
 
                 // Check module cache first
                 auto cache_it = module_cache_.find(module_path);
@@ -3215,7 +3243,7 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_IMPORT_NAME): {
                 // arg = constant index of name to extract
                 // Module dict stays on stack — we push the extracted value on top
-                std::string name = frame->function->chunk.constants[arg].asString();
+                std::string name = READ_CONSTANT_STRING(arg);
                 auto& module_val = peek(0);  // Module is on top of stack
 
                 if (module_val.isDict()) {
