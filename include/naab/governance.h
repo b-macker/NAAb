@@ -3006,6 +3006,7 @@ private:
     std::string last_audit_hash_;
     mutable std::string last_telemetry_hash_;
     mutable std::mutex audit_mutex_;
+    std::atomic<int> audit_write_failures_{0};
 
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;

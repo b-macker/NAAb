@@ -79,8 +79,23 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
         std::ofstream ofs(output_file, std::ios::app);
         if (ofs.is_open()) {
             ofs << entry.dump() << "\n";
+            if (ofs.fail()) {
+                audit_write_failures_.fetch_add(1, std::memory_order_relaxed);
+                fmt::print(stderr, "[governance] AUDIT WRITE FAILURE: write to {} failed\n",
+                           output_file);
+            }
+        } else {
+            audit_write_failures_.fetch_add(1, std::memory_order_relaxed);
+            fmt::print(stderr, "[governance] AUDIT WRITE FAILURE: cannot open {}\n",
+                       output_file);
         }
-    } catch (...) {}
+    } catch (const std::exception& e) {
+        audit_write_failures_.fetch_add(1, std::memory_order_relaxed);
+        fmt::print(stderr, "[governance] AUDIT WRITE FAILURE: {}\n", e.what());
+    } catch (...) {
+        audit_write_failures_.fetch_add(1, std::memory_order_relaxed);
+        fmt::print(stderr, "[governance] AUDIT WRITE FAILURE: unknown error\n");
+    }
 }
 
 void GovernanceEngine::logPolyglotExecution(const std::string& language,

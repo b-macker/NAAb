@@ -2918,8 +2918,16 @@ static std::pair<std::string, int> validateHandle(NaabVal& handle_val) {
             "  Help:\n  - Use the handle returned by agent.create()\n");
     }
 
-    int handle_id = handle.at("id").asInt();
-    std::string config_name = handle.at("config_name").asString();
+    auto id_it = handle.find("id");
+    auto cn_it = handle.find("config_name");
+    if (id_it == handle.end() || !id_it->second.isInt() ||
+        cn_it == handle.end() || !cn_it->second.isString()) {
+        throw std::runtime_error(
+            "Agent error: Invalid agent handle\n\n"
+            "  Help:\n  - Use the handle returned by agent.create()\n");
+    }
+    int handle_id = id_it->second.asInt();
+    std::string config_name = cn_it->second.asString();
 
     // Verify HMAC nonce — prevents handle forgery and replay
     auto nonce_it = handle.find("__nonce");
@@ -3216,13 +3224,15 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
         std::vector<NaabVal> send_args = {handles[i], NaabVal::makeString(current_message)};
         try {
             last_response = agentSend(send_args);
+        } catch (const governance::GovernanceHardError&) {
+            throw;  // HARD blocks propagate without coherence recovery
         } catch (...) {
             // Recover coherence for the failed stage to prevent floor-grinding
             auto* ge = governance::GovernanceEngine::getCurrent();
             if (ge && ge->isActive() && handles[i].isDict()) {
                 auto& d = handles[i].asDict();
                 auto hid = d.find("id");
-                if (hid != d.end()) {
+                if (hid != d.end() && hid->second.isInt()) {
                     ge->recoverCoherence(hid->second.asInt());
                 }
             }
@@ -3281,7 +3291,7 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                             if (ge && ge->isActive() && handles[i + 1].isDict()) {
                                 auto& next_dict = handles[i + 1].asDict();
                                 auto hid_it = next_dict.find("id");
-                                if (hid_it != next_dict.end()) {
+                                if (hid_it != next_dict.end() && hid_it->second.isInt()) {
                                     ge->setInheritedPressure(hid_it->second.asInt(), stage_pressure);
                                 }
                             }
@@ -3294,7 +3304,7 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
                             if (ge && ge->isActive() && handles[i + 1].isDict()) {
                                 auto& next_dict = handles[i + 1].asDict();
                                 auto hid_it = next_dict.find("id");
-                                if (hid_it != next_dict.end()) {
+                                if (hid_it != next_dict.end() && hid_it->second.isInt()) {
                                     ge->recoverCoherence(hid_it->second.asInt());
                                 }
                             }
