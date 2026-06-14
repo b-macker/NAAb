@@ -223,7 +223,9 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
             if (lang_cfg && !lang_cfg->imports.blocked.empty()) {
                 std::ostringstream hook;
                 hook << "import builtins as _naab_builtins\n"
-                     << "_naab_original_import = _naab_builtins.__import__\n"
+                     << "if not hasattr(_naab_builtins, '_naab_original_import'):\n"
+                     << "    _naab_builtins._naab_original_import = _naab_builtins.__import__\n"
+                     << "_naab_original_import = _naab_builtins._naab_original_import\n"
                      << "_naab_blocked_modules = {";
                 for (size_t i = 0; i < lang_cfg->imports.blocked.size(); ++i) {
                     if (i > 0) hook << ",";
