@@ -1,0 +1,182 @@
+// NAAb-X2 Category 4: Tool-Assisted Refinement
+// 10 assertions — live API calls
+// Tests: register_tool, integrator with tools, multi-turn refinement, sequential_refinement plan
+use agent
+use orchestra
+use string
+
+fn validate_code(code) {
+    // Simple validation: check for def keyword and return statement
+    let has_def = string.contains(code, "def ")
+    let has_return = string.contains(code, "return")
+    return {
+        "valid": has_def && has_return,
+        "has_def": has_def,
+        "has_return": has_return,
+        "line_count": len(string.split(code, "\n")),
+        "feedback": if has_def && has_return { "Code structure looks valid" } else { "Missing function definition or return statement" }
+    }
+}
+
+fn lint_check(code) {
+    // Simple lint: check for common issues
+    let issues = []
+    if string.contains(code, "  \n") {
+        issues = issues + ["trailing whitespace"]
+    }
+    if string.contains(code, "import *") {
+        issues = issues + ["wildcard import"]
+    }
+    if string.contains(code, "pass") {
+        issues = issues + ["empty pass statement"]
+    }
+    return {
+        "issues": issues,
+        "issue_count": len(issues),
+        "clean": len(issues) == 0
+    }
+}
+
+main {
+    // D1: Register validate_code tool
+    let d1_ok = false
+    try {
+        let reg = agent.register_tool("validate_code", validate_code, {
+            "description": "Validate Python code structure — checks for function definitions and return statements",
+            "parameters": {
+                "code": {"type": "string", "description": "Python code to validate"}
+            }
+        })
+        d1_ok = true
+    } catch (e) {
+        print("d1_error: " + string(e))
+    }
+    print("d1_register_validate: " + string(d1_ok))
+
+    // D2: Register lint_check tool
+    let d2_ok = false
+    try {
+        agent.register_tool("lint_check", lint_check, {
+            "description": "Run lint checks on Python code — detects trailing whitespace, wildcard imports, empty pass",
+            "parameters": {
+                "code": {"type": "string", "description": "Python code to lint"}
+            }
+        })
+        d2_ok = true
+    } catch (e) {
+        print("d2_error: " + string(e))
+    }
+    print("d2_register_lint: " + string(d2_ok))
+
+    // D3: Integrator agent has tools in environment
+    let integ = agent.create("integrator")
+    let d3_ok = false
+    try {
+        let env = integ.get("environment")
+        let perms = env.get("permissions") ?? {}
+        let tools_enabled = perms.get("tools_enabled") ?? false
+        let tools_registered = perms.get("tools_registered") ?? 0
+        d3_ok = tools_enabled == true && tools_registered >= 2
+        print("d3_tools_enabled: " + string(tools_enabled))
+        print("d3_tools_registered: " + string(tools_registered))
+    } catch (e) {
+        print("d3_error: " + string(e))
+    }
+    print("d3_integrator_tools: " + string(d3_ok))
+
+    // D4: Send code to integrator — response tracks tool info
+    let d4_ok = false
+    let integ_resp = null
+    try {
+        integ_resp = agent.send(integ, "Here is Python code. Please use the validate_code tool to check it, then tell me if it's valid.\n\ndef add_task(tasks, title):\n    task = {'id': len(tasks)+1, 'title': title, 'done': False}\n    tasks.append(task)\n    return task")
+        let content = integ_resp.get("content") ?? ""
+        d4_ok = len(content) > 5
+        print("d4_content_len: " + string(len(content)))
+        print("d4_tool_calls: " + string(integ_resp.get("tool_calls_made") ?? 0))
+    } catch (e) {
+        print("d4_error: " + string(e))
+    }
+    print("d4_integrator_response: " + string(d4_ok))
+
+    // D5: Usage reflects tool interaction
+    let d5_ok = false
+    try {
+        let usage = agent.usage(integ)
+        let turns = usage.get("turns") ?? 0
+        let tokens = usage.get("total_tokens") ?? 0
+        d5_ok = turns >= 1 && tokens > 0
+        print("d5_turns: " + string(turns))
+        print("d5_tokens: " + string(tokens))
+        print("d5_tool_calls_total: " + string(usage.get("tool_calls_total") ?? 0))
+    } catch (e) {
+        print("d5_error: " + string(e))
+    }
+    print("d5_usage_after_tools: " + string(d5_ok))
+
+    // D6: Multi-turn refinement — send follow-up
+    let d6_ok = false
+    try {
+        let resp2 = agent.send(integ, "Now use the lint_check tool on the same code and tell me if there are any lint issues.")
+        let content2 = resp2.get("content") ?? ""
+        d6_ok = len(content2) > 5
+        print("d6_followup_len: " + string(len(content2)))
+        print("d6_tool_calls: " + string(resp2.get("tool_calls_made") ?? 0))
+    } catch (e) {
+        print("d6_error: " + string(e))
+    }
+    print("d6_multi_turn_refine: " + string(d6_ok))
+
+    // D7: Turn count grows with multi-turn
+    let d7_ok = false
+    try {
+        let usage2 = agent.usage(integ)
+        let turns = usage2.get("turns") ?? 0
+        d7_ok = turns >= 2
+        print("d7_total_turns: " + string(turns))
+    } catch (e) {
+        print("d7_error: " + string(e))
+    }
+    print("d7_turns_growing: " + string(d7_ok))
+
+    // D8: sequential_refinement creates a plan
+    let d8_ok = false
+    try {
+        let handles = [agent.create("architect"), agent.create("coder")]
+        let plan = orchestra.sequential_refinement(handles, "Build a calculator", 3)
+        d8_ok = plan.get("pattern") != null && plan.get("iterations") == 3
+        print("d8_pattern: " + string(plan.get("pattern") ?? "missing"))
+        print("d8_iterations: " + string(plan.get("iterations") ?? 0))
+    } catch (e) {
+        print("d8_error: " + string(e))
+    }
+    print("d8_refinement_plan: " + string(d8_ok))
+
+    // D9: Integrator environment shows turns_used after multi-turn
+    let d9_ok = false
+    try {
+        let env = agent.environment(integ)
+        let state = env.get("state") ?? {}
+        let turns_used = state.get("turns_used") ?? 0
+        d9_ok = turns_used >= 2
+        print("d9_env_turns_used: " + string(turns_used))
+    } catch (e) {
+        print("d9_error: " + string(e))
+    }
+    print("d9_env_state: " + string(d9_ok))
+
+    // D10: Dispatch status shows accumulated calls + tokens
+    let d10_ok = false
+    try {
+        let ds = agent.dispatch_status()
+        let calls = ds.get("calls_made") ?? 0
+        let tokens = ds.get("tokens_used") ?? 0
+        d10_ok = calls >= 2 && tokens > 0
+        print("d10_dispatch_calls: " + string(calls))
+        print("d10_dispatch_tokens: " + string(tokens))
+    } catch (e) {
+        print("d10_error: " + string(e))
+    }
+    print("d10_dispatch_tracked: " + string(d10_ok))
+
+    print("cat4_completed: true")
+}

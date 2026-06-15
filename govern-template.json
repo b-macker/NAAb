@@ -1772,6 +1772,7 @@
 
   "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
   "agent_dispatch": {
+    "default_timeout_seconds": 0,
     "max_concurrent": 6,
     "pool_size": 6,
     "pool_queue_max": 50,

@@ -1841,6 +1841,7 @@ struct TelemetryOutputConfig {
     int forward_retry_count = 2;        // retries on transient failure
     int forward_buffer_max = 1000;      // max queued events before drop
     int forward_shutdown_drain_ms = 5000; // M2: max shutdown drain time
+    bool deduplicate_checks = false;  // Fix 4B: collapse duplicate (rule,file,line) entries
 };
 
 // ============================================================================
@@ -1888,7 +1889,7 @@ struct AgentConfig {
     double temperature = 1.0;
     std::string stop_reason_action = "end";
     bool stream = false;
-    int timeout_seconds = 30;  // F11: per-call LLM API timeout
+    int timeout_seconds = 60;  // F11: per-call LLM API timeout (raised from 30 — slow models need 50+s)
     std::string response_format;  // "json" = validate + warn on non-JSON responses
     int risk_budget = 0;          // F8: finite risk budget (0 = unlimited), consumed by governance events
 
@@ -2105,6 +2106,7 @@ struct GovernanceRules {
         int pool_size = 6;         // thread pool worker count (I/O-bound, not CPU)
         int pool_queue_max = 50;   // max queued tasks before rejection
         int max_retries_per_run = 0; // 0 = unlimited
+        int default_timeout_seconds = 0; // 0 = use per-agent struct default (60s)
 
         // Hard stop: run-level kill switch for all agent API calls
         struct HardStopConfig {
@@ -2327,6 +2329,7 @@ public:
     bool isOverrideEnabled() const { return override_enabled_; }
     void setOverrideEnabled(bool enabled) { override_enabled_ = enabled; }
     void setOverrideReason(const std::string& reason) { override_reason_ = reason; }
+    void setAgentGovernanceActive(bool active) { agent_governance_active_.store(active, std::memory_order_relaxed); }
     const std::string& getOverrideReason() const { return override_reason_; }
     bool hasValidApproval(const std::string& rule_name, std::string& approver_id_out) const;
     const std::string& getLoadedPath() const { return loaded_path_; }
@@ -2355,7 +2358,7 @@ public:
     void applyAgentRole();
 
     // --- VM integration for execution contracts (type-erased to avoid VM link dependency) ---
-    using ContractCallFn = std::function<interpreter::NaabVal(interpreter::NaabVal, const std::vector<interpreter::NaabVal>&)>;
+    using ContractCallFn = std::function<interpreter::NaabVal(interpreter::NaabVal, const std::vector<interpreter::NaabVal>&, bool)>;
     using ContractGlobalsFn = std::function<const std::unordered_map<std::string, interpreter::NaabVal>&()>;
     void setVMCallbacks(ContractCallFn call_fn, ContractGlobalsFn globals_fn) {
         vm_call_fn_ = std::move(call_fn);
@@ -2364,12 +2367,14 @@ public:
     void clearVMCallbacks() { vm_call_fn_ = nullptr; vm_globals_fn_ = nullptr; }
 
     // Call a NaabVal function via the VM callback (used by tool execution loop)
+    // taint_all_args: when true, mark all arguments as tainted on the VM stack
     interpreter::NaabVal callVMFunction(const interpreter::NaabVal& fn,
-                                         const std::vector<interpreter::NaabVal>& args) {
+                                         const std::vector<interpreter::NaabVal>& args,
+                                         bool taint_all_args = false) {
         if (!vm_call_fn_) {
             throw std::runtime_error("Agent error: no VM callback available for tool execution");
         }
-        return vm_call_fn_(fn, args);
+        return vm_call_fn_(fn, args, taint_all_args);
     }
     bool hasVMCallbacks() const { return vm_call_fn_ != nullptr; }
 
@@ -2722,6 +2727,7 @@ public:
     int consumeRiskBudget(const std::string& config, int cost);   // F8: consume budget, return remaining
     int getRemainingBudget(const std::string& config) const;      // F8: query remaining budget
     std::string checkGovernanceHealth(int turn);    // F4: verify governance instrumentation
+    void emitEndOfRunHealthWarnings(FILE* fp, const std::string& timestamp) const;  // Fix 5B: end-of-run safety net
     double computeGovernanceEntropy() const;        // F16: entropy of governance check results
     GovernanceLevel getGovernanceLevel() const;     // F6: current system-wide governance level
     PulseVerdict computePulseVerdict(int turn);     // compute and update pulse health
@@ -2919,6 +2925,7 @@ private:
     std::unordered_set<std::string> unique_agents_;
     mutable std::mutex exposure_mutex_;         // guards unique_agents_
     std::atomic<bool> cdd_enabled_{false};
+    std::atomic<bool> agent_governance_active_{false};  // Fix 3B: only count consecutive_passes during agent phase
 
     // F8: Per-agent risk budget
     std::unordered_map<std::string, int> agent_risk_consumed_;

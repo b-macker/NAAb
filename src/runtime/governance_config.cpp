@@ -2181,6 +2181,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             int v = tel["forward_shutdown_drain_ms"].get<int>();
             rules_.telemetry_output.forward_shutdown_drain_ms = v < 0 ? 0 : v;
         }
+        // Fix 4B: opt-in telemetry check deduplication
+        if (tel.contains("deduplicate_checks") && tel["deduplicate_checks"].is_boolean()) {
+            rules_.telemetry_output.deduplicate_checks = tel["deduplicate_checks"].get<bool>();
+        }
     }
 
     // Auto-enable tamper-evident hash chain when output_file is set
@@ -2194,6 +2198,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // --- Agents (unified config: permissions + LLM) ---
     // Prefer "agents" key; fall back to legacy "agent_roles" for backward compat
     std::string agents_key = j.contains("agents") ? "agents" : "agent_roles";
+    std::unordered_set<std::string> agents_with_explicit_timeout;
     if (j.contains(agents_key) && j[agents_key].is_object()) {
         for (auto& [name, cfg_json] : j[agents_key].items()) {
             AgentConfig agent;
@@ -2303,8 +2308,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.stop_reason_action = cfg_json["stop_reason_action"].get<std::string>();
                 if (cfg_json.contains("stream") && cfg_json["stream"].is_boolean())
                     agent.stream = cfg_json["stream"].get<bool>();
-                if (cfg_json.contains("timeout") && cfg_json["timeout"].is_number_integer())
+                if (cfg_json.contains("timeout") && cfg_json["timeout"].is_number_integer()) {
                     agent.timeout_seconds = cfg_json["timeout"].get<int>();
+                    agents_with_explicit_timeout.insert(name);
+                }
                 if (cfg_json.contains("response_format") && cfg_json["response_format"].is_string())
                     agent.response_format = cfg_json["response_format"].get<std::string>();
                 if (cfg_json.contains("risk_budget") && cfg_json["risk_budget"].is_number_integer()) {
@@ -2491,6 +2498,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.agent_dispatch.pool_queue_max = ad["pool_queue_max"].get<int>(); rules_.explicitly_set.insert("agent_dispatch.pool_queue_max"); }
         if (ad.contains("max_retries_per_run") && ad["max_retries_per_run"].is_number_integer()) {
             rules_.agent_dispatch.max_retries_per_run = std::max(0, ad["max_retries_per_run"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.max_retries_per_run"); }
+        if (ad.contains("default_timeout_seconds") && ad["default_timeout_seconds"].is_number_integer()) {
+            rules_.agent_dispatch.default_timeout_seconds = std::max(0, ad["default_timeout_seconds"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.default_timeout_seconds"); }
         if (ad.contains("hard_stop") && ad["hard_stop"].is_object()) {
             auto& hs = ad["hard_stop"];
             if (hs.contains("max_calls_per_run") && hs["max_calls_per_run"].is_number_integer()) {
@@ -2503,6 +2512,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 rules_.agent_dispatch.hard_stop.consecutive_failure_limit = std::max(0, hs["consecutive_failure_limit"].get<int>()); rules_.explicitly_set.insert("agent_dispatch.hard_stop.consecutive_failure_limit"); }
             if (hs.contains("action") && hs["action"].is_string()) {
                 rules_.agent_dispatch.hard_stop.action = hs["action"].get<std::string>(); rules_.explicitly_set.insert("agent_dispatch.hard_stop.action"); }
+        }
+    }
+
+    // Apply agent_dispatch.default_timeout_seconds to agents without explicit timeout
+    if (rules_.agent_dispatch.default_timeout_seconds > 0) {
+        for (auto& agent : rules_.agents) {
+            if (!agents_with_explicit_timeout.count(agent.name)) {
+                agent.timeout_seconds = rules_.agent_dispatch.default_timeout_seconds;
+            }
         }
     }
 
@@ -2998,6 +3016,9 @@ static bool checkRatchetViolation(
         if (new_agent.timeout_seconds < old_agent->timeout_seconds)
             notices.push_back(fmt::format("agent.{}.timeout_seconds: {} -> {} (reduced)",
                 new_agent.name, old_agent->timeout_seconds, new_agent.timeout_seconds));
+        if (new_agent.timeout_seconds > old_agent->timeout_seconds && old_agent->timeout_seconds > 0)
+            violations.push_back(fmt::format("agent.{}.timeout_seconds: {} -> {} (loosened)",
+                new_agent.name, old_agent->timeout_seconds, new_agent.timeout_seconds));
         if (new_agent.temperature != old_agent->temperature)
             notices.push_back(fmt::format("agent.{}.temperature: {:.1f} -> {:.1f}",
                 new_agent.name, old_agent->temperature, new_agent.temperature));
@@ -3118,6 +3139,15 @@ static bool checkRatchetViolation(
                 old_agent.name));
         }
     }
+
+    // --- Agent dispatch ratchet enforcement ---
+    if (new_r.agent_dispatch.default_timeout_seconds > old_r.agent_dispatch.default_timeout_seconds
+        && old_r.agent_dispatch.default_timeout_seconds > 0)
+        violations.push_back(fmt::format("agent_dispatch.default_timeout_seconds: {} -> {} (loosened)",
+            old_r.agent_dispatch.default_timeout_seconds, new_r.agent_dispatch.default_timeout_seconds));
+    else if (new_r.agent_dispatch.default_timeout_seconds < old_r.agent_dispatch.default_timeout_seconds)
+        notices.push_back(fmt::format("agent_dispatch.default_timeout_seconds: {} -> {} (tightened)",
+            old_r.agent_dispatch.default_timeout_seconds, new_r.agent_dispatch.default_timeout_seconds));
 
     // --- Codegen ratchet enforcement ---
     // codegen.enabled: false→true = loosening
@@ -3946,6 +3976,7 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
             if (bad.pool_size != defaults.agent_dispatch.pool_size) cad.pool_size = bad.pool_size;
             if (bad.pool_queue_max != defaults.agent_dispatch.pool_queue_max) cad.pool_queue_max = bad.pool_queue_max;
             if (bad.max_retries_per_run > 0) cad.max_retries_per_run = bad.max_retries_per_run;
+            if (bad.default_timeout_seconds > 0) cad.default_timeout_seconds = bad.default_timeout_seconds;
             if (bad.hard_stop.max_calls_per_run > 0) cad.hard_stop.max_calls_per_run = bad.hard_stop.max_calls_per_run;
             if (bad.hard_stop.max_tokens_per_run > 0) cad.hard_stop.max_tokens_per_run = bad.hard_stop.max_tokens_per_run;
             if (bad.hard_stop.max_agent_time_ms > 0) cad.hard_stop.max_agent_time_ms = bad.hard_stop.max_agent_time_ms;
@@ -3961,6 +3992,8 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
                 cad.pool_queue_max = bad.pool_queue_max;
             if (!child.explicitly_set.count("agent_dispatch.max_retries_per_run") && bad.max_retries_per_run > 0)
                 cad.max_retries_per_run = bad.max_retries_per_run;
+            if (!child.explicitly_set.count("agent_dispatch.default_timeout_seconds") && bad.default_timeout_seconds > 0)
+                cad.default_timeout_seconds = bad.default_timeout_seconds;
             if (!child.explicitly_set.count("agent_dispatch.hard_stop.max_calls_per_run") && bad.hard_stop.max_calls_per_run > 0)
                 cad.hard_stop.max_calls_per_run = bad.hard_stop.max_calls_per_run;
             if (!child.explicitly_set.count("agent_dispatch.hard_stop.max_tokens_per_run") && bad.hard_stop.max_tokens_per_run > 0)

@@ -873,7 +873,12 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     }
     // Pulse: track governance liveness
     pulse_.total_checks++;
-    pulse_.consecutive_passes++;
+    // Fix 3B: only count consecutive passes during agent phase.
+    // Static source checks (~1,800) naturally all pass, inflating the counter
+    // past consecutive_passes_suspicion and triggering spurious DEGRADED verdict.
+    if (agent_governance_active_.load(std::memory_order_relaxed)) {
+        pulse_.consecutive_passes++;
+    }
     pulse_.last_check_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
 }
@@ -5962,6 +5967,54 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
     return warnings;
 }
 
+// Fix 5B: End-of-run health check — emits GOVERNANCE_HEALTH_WARNING telemetry events
+// for instrumentation failures that the per-turn checkGovernanceHealth() missed
+// (e.g., because check_after_turns was never reached).
+// This is const-safe: uses only atomic loads and const methods on drift_analyzer_/sequence_detector_.
+void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& timestamp) const {
+    if (!rules().governance_health.enabled) return;
+
+    auto emitWarning = [&](const std::string& detail) {
+        nlohmann::json ev;
+        ev["run_id"] = run_id_;
+        ev["event_type"] = "GOVERNANCE_HEALTH_WARNING";
+        ev["source"] = "end_of_run";
+        ev["timestamp"] = timestamp;
+        ev["detail"] = detail;
+        if (rules().telemetry_output.tamper_evidence.enabled) {
+            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            ev["prev_hash"] = last_telemetry_hash_.empty()
+                ? rules().telemetry_output.tamper_evidence.chain_genesis
+                : last_telemetry_hash_;
+            last_telemetry_hash_ = computeHash(ev.dump(),
+                rules().telemetry_output.tamper_evidence);
+            ev["hash"] = last_telemetry_hash_;
+        }
+        std::string line = ev.dump() + "\n";
+        fwrite(line.c_str(), 1, line.size(), fp);
+    };
+
+    // Check 1: CDD enabled but never analyzed any turns
+    if (cdd_enabled_.load(std::memory_order_relaxed) &&
+        drift_analyzer_.totalTurnsAnalyzed() == 0) {
+        emitWarning("CDD enabled but analyzed 0 turns — context drift detection was inert this run");
+    }
+
+    // Check 2: BSD enabled but received no events
+    if (bsd_enabled_.load(std::memory_order_relaxed) &&
+        sequence_detector_.totalEventsProcessed() == 0) {
+        emitWarning("BSD enabled but received 0 events — behavioral sequence detection was inert this run");
+    }
+
+    // Check 3: check_after_turns never reached (agents ran but too few turns)
+    size_t cdd_turns = drift_analyzer_.totalTurnsAnalyzed();
+    if (rules().governance_health.check_after_turns > static_cast<int>(cdd_turns) && cdd_turns > 0) {
+        emitWarning("check_after_turns=" + std::to_string(rules().governance_health.check_after_turns) +
+            " but only " + std::to_string(cdd_turns) +
+            " agent turns occurred — per-turn health check never fired");
+    }
+}
+
 int GovernanceEngine::checkDecisionTraceCoherence(const std::string& agent_config) {
     std::lock_guard<std::mutex> lock(trace_history_mutex_);
     auto& traces = agent_decision_traces_[agent_config];
@@ -6065,9 +6118,13 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     bool cdd_ok = (cdd_turns > 0 || turn < 3 || !cdd_enabled_.load());
     if (!cdd_ok && cdd_enabled_.load()) degradation_signals++;
 
-    // Subsystem: entropy health
+    // Subsystem: entropy health — only after agent phase startup.
+    // Static source checks (~1,800) are inherently uniform (all pass = entropy ~0)
+    // and dominate check_results_ for the first few agent turns. Grace period (turn >= 3)
+    // matches BSD/CDD startup grace to let agent-phase checks accumulate.
     double ent = computeGovernanceEntropy();
-    if (ent >= 0.0 && ent < rules().governance_health.governance_entropy_warning)
+    if (agent_governance_active_.load(std::memory_order_relaxed) && turn >= 3 &&
+        ent >= 0.0 && ent < rules().governance_health.governance_entropy_warning)
         degradation_signals++;
 
     // Subsystem: telemetry health (hash chain advancing = telemetry operational)

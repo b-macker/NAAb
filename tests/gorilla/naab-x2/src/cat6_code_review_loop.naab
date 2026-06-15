@@ -1,0 +1,184 @@
+// NAAb-X2 Category 6: Code Review Loop with Execution
+// Full pipeline: architect → coder (with run_code tool) → executor → reviewer → coder fix loop
+use agent
+use codegen
+use json
+use string
+
+// Tool: actually executes Python code and returns stdout + stderr
+fn run_code(code) {
+    try {
+        let result = codegen.run("python", code)
+        return {
+            "success": true,
+            "stdout": string(result),
+            "error": ""
+        }
+    } catch (e) {
+        return {
+            "success": false,
+            "stdout": "",
+            "error": string(e)
+        }
+    }
+}
+
+fn dump_messages(name, handle) {
+    let msgs = agent.messages(handle)
+    print("  +-- " + name + " (" + string(len(msgs)) + " messages) --+")
+    for i in 0..len(msgs) {
+        let m = msgs[i]
+        let role = m.get("role") ?? "?"
+        let content = m.get("content") ?? ""
+        let preview = content
+        if len(preview) > 800 {
+            preview = string.substring(preview, 0, 800) + "\n... [" + string(len(content) - 800) + " more chars]"
+        }
+        print("  | [" + string(i) + "] " + string.upper(role) + ":")
+        let lines = string.split(preview, "\n")
+        for j in 0..len(lines) {
+            print("  |   " + lines[j])
+        }
+        print("  |")
+    }
+    print("  +--------------------------------------+")
+}
+
+main {
+    // Register the run_code tool — this actually executes Python via codegen
+    agent.register_tool("run_code", run_code, {
+        "description": "Execute Python code and return stdout/stderr. Use this to test your code before finalizing.",
+        "parameters": {
+            "code": {"type": "string", "description": "Python code to execute"}
+        }
+    })
+
+    let coder_handle = agent.create("coder")
+    let executor_handle = agent.create("executor")
+    let reviewer_handle = agent.create("reviewer")
+
+    // ===== STEP 1: Architect designs =====
+    print("== STEP 1: ARCHITECT DESIGNS ==")
+    let arch = agent.create("architect")
+    let design_resp = agent.send(arch, "Design a Python module with these functions:\n1. add_task(tasks, title) -> dict: Add a task with unique ID, title, done=False\n2. complete_task(tasks, task_id) -> bool: Mark task done by ID\n3. delete_task(tasks, task_id) -> bool: Remove task by ID\n4. list_pending(tasks) -> list: Return only incomplete tasks\n\nUse dicts for tasks. IDs must stay unique even after deletions. Include edge case handling.")
+    let design = design_resp.get("content") ?? ""
+    print("  Architect output (" + string(len(design)) + " chars)")
+    print("")
+    dump_messages("architect", arch)
+
+    // ===== STEP 2: Coder implements with run_code tool =====
+    print("")
+    print("== STEP 2: CODER IMPLEMENTS (has run_code tool) ==")
+    let code_prompt = "Implement this design in Python. IMPORTANT: Use the run_code tool to test your code before giving your final answer. Include test code that:\n- Adds 3 tasks\n- Completes task 1\n- Deletes task 2\n- Lists pending tasks\n- Tries to complete a non-existent task\n- Tries to delete a non-existent task\n\nDesign spec:\n" + design
+    let code_resp = agent.send(coder_handle, code_prompt)
+    let code_content = code_resp.get("content") ?? ""
+    print("  Coder response (" + string(len(code_content)) + " chars)")
+    print("  Tool calls made: " + string(code_resp.get("tool_calls_made") ?? 0))
+    print("  Tool results: " + json.stringify(code_resp.get("tool_results") ?? []))
+    print("  Tool loop exit: " + string(code_resp.get("tool_loop_exit_reason") ?? "n/a"))
+    print("")
+    dump_messages("coder", coder_handle)
+
+    // ===== STEP 3: Extract code =====
+    print("")
+    print("== STEP 3: EXTRACTED CODE ==")
+    let extracted = agent.extract_code(code_content, "python")
+    if len(extracted) < 20 {
+        // If extract_code didn't find fences, use the raw content
+        extracted = code_content
+    }
+    print(extracted)
+
+    // ===== STEP 4: Independent execution =====
+    print("")
+    print("== STEP 4: INDEPENDENT EXECUTION ==")
+    let exec_output = ""
+    let exec_success = false
+    try {
+        let result = codegen.run("python", extracted)
+        exec_output = string(result)
+        exec_success = true
+        print("  Exit: SUCCESS")
+        print("  Output:")
+        let olines = string.split(exec_output, "\n")
+        for i in 0..len(olines) {
+            print("    " + olines[i])
+        }
+    } catch (e) {
+        exec_output = string(e)
+        print("  Exit: ERROR")
+        print("  " + exec_output)
+    }
+
+    // ===== STEP 5: QA executor reviews output =====
+    print("")
+    print("== STEP 5: QA EXECUTOR REVIEWS ==")
+    let qa_prompt = "Here is Python code and its execution output. Analyze whether the code and output are correct.\n\nCODE:\n```python\n" + extracted + "\n```\n\nEXECUTION OUTPUT:\n```\n" + exec_output + "\n```\n\nCheck:\n1. Does add_task generate unique IDs even after deletions?\n2. Does complete_task handle non-existent IDs?\n3. Does delete_task handle non-existent IDs?\n4. Does list_pending correctly filter completed tasks?\n5. Are edge cases covered?"
+    let qa_resp = agent.send(executor_handle, qa_prompt)
+    let qa_report = qa_resp.get("content") ?? ""
+    print("  QA report (" + string(len(qa_report)) + " chars):")
+    print("")
+    dump_messages("executor", executor_handle)
+
+    // ===== STEP 6: Senior reviewer decides =====
+    print("")
+    print("== STEP 6: SENIOR REVIEWER ==")
+    let review_prompt = "Review this submission.\n\nCODE:\n```python\n" + extracted + "\n```\n\nEXECUTION OUTPUT:\n```\n" + exec_output + "\n```\n\nQA REPORT:\n" + qa_report + "\n\nIs this production-ready? If REJECTED, give specific fixes."
+    let review_resp = agent.send(reviewer_handle, review_prompt)
+    let review_text = review_resp.get("content") ?? ""
+    print("")
+    dump_messages("reviewer", reviewer_handle)
+
+    // Check verdict
+    let verdict = "UNKNOWN"
+    if string.contains(review_text, "APPROVED") { verdict = "APPROVED" }
+    if string.contains(review_text, "REJECTED") { verdict = "REJECTED" }
+    print("")
+    print("  VERDICT: " + verdict)
+
+    // ===== STEP 7: Fix loop (if rejected) =====
+    if verdict == "REJECTED" {
+        print("")
+        print("== STEP 7: CODER FIX LOOP (rejected, sending feedback) ==")
+        let fix_prompt = "Your code was REJECTED. Here is the reviewer feedback:\n\n" + review_text + "\n\nQA report:\n" + qa_report + "\n\nFix the issues and use the run_code tool to verify your fix works. Give the corrected code in ```python fences."
+        let fix_resp = agent.send(coder_handle, fix_prompt)
+        let fix_content = fix_resp.get("content") ?? ""
+        print("  Fix response (" + string(len(fix_content)) + " chars)")
+        print("  Tool calls made: " + string(fix_resp.get("tool_calls_made") ?? 0))
+        print("  Tool results: " + json.stringify(fix_resp.get("tool_results") ?? []))
+        print("")
+        dump_messages("coder (after fix)", coder_handle)
+
+        // Extract and run fixed code
+        let fixed = agent.extract_code(fix_content, "python")
+        if len(fixed) > 20 {
+            print("")
+            print("== FIXED CODE ==")
+            print(fixed)
+            print("")
+            print("== EXECUTE FIXED CODE ==")
+            try {
+                let fix_result = codegen.run("python", fixed)
+                print("  Exit: SUCCESS")
+                print("  Output:")
+                let flines = string.split(string(fix_result), "\n")
+                for i in 0..len(flines) {
+                    print("    " + flines[i])
+                }
+            } catch (e) {
+                print("  Exit: ERROR")
+                print("  " + string(e))
+            }
+        }
+    } else {
+        print("  (Code approved — no fix loop needed)")
+    }
+
+    // ===== FINAL STATS =====
+    print("")
+    print("== FINAL STATS ==")
+    let ds = agent.dispatch_status()
+    print("  Dispatch: calls=" + string(ds.get("calls_made")) + " tokens=" + string(ds.get("tokens_used")) + " time=" + string(ds.get("agent_time_ms")) + "ms")
+    print("  Coder usage: " + json.stringify(agent.usage(coder_handle)))
+    print("  Coder messages: " + string(len(agent.messages(coder_handle))))
+}

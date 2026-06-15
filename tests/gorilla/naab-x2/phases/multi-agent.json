@@ -1,0 +1,156 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-X2: Multi-agent app-builder gorilla test",
+  "languages": {
+    "allowed": ["python"],
+    "require_explicit": false
+  },
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "write" },
+    "shell": { "enabled": false }
+  },
+  "agents": {
+    "architect": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 1024,
+      "max_turns": 15,
+      "max_total_tokens": 30000,
+      "standing_lease_turns": 10,
+      "system_prompt": "You are a software architect. When asked to design an app, respond with a clear specification including data models, function signatures, and module structure. Be concise. Always respond with substantive technical content.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "coder": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 2048,
+      "max_turns": 15,
+      "max_total_tokens": 50000,
+      "system_prompt": "You are a programmer. Given a specification, write clean code. Always wrap your code output in ```python fences. Be concise and produce working code.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "reviewer_a": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 512,
+      "max_turns": 10,
+      "max_total_tokens": 15000,
+      "system_prompt": "You are a strict code reviewer focused on correctness and security. Review code and end your review with exactly one of: APPROVED, REJECTED, or NEEDS_REVIEW. Be concise.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "reviewer_b": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 512,
+      "max_turns": 10,
+      "max_total_tokens": 15000,
+      "system_prompt": "You are a pragmatic code reviewer focused on readability and maintainability. Review code and end your review with exactly one of: APPROVED, REJECTED, or NEEDS_REVIEW. Be concise.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "integrator": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 1024,
+      "max_turns": 15,
+      "max_total_tokens": 30000,
+      "system_prompt": "You are a code integrator. Given code and review feedback, produce an improved version. When asked to validate or lint code, always use the available tools. Wrap code in ```python fences.",
+      "response_format": "text",
+      "tools_enabled": true,
+      "tools": ["validate_code", "lint_check"],
+      "max_tool_calls_per_turn": 3,
+      "max_tool_loop_turns": 3,
+      "tool_result_max_chars": 2048,
+      "tool_timeout_seconds": 10,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "no_send_agent": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 256,
+      "max_turns": 5,
+      "system_prompt": "Test agent.",
+      "tools_enabled": false,
+      "allowed_actions": ["TOOL_EXEC"],
+      "retry": { "max_attempts": 3, "backoff_ms": 500 }
+    }
+  },
+  "agent_dispatch": {
+    "default_timeout_seconds": 90,
+    "max_concurrent": 4,
+    "max_calls_per_run": 80,
+    "max_tokens_per_run": 500000,
+    "max_agent_time_ms": 600000
+  },
+  "taint_tracking": {
+    "enabled": true,
+    "level": "detect",
+    "sources": ["env.get", "polyglot_output", "agent_output"],
+    "sinks": ["file.write", "file.append"]
+  },
+  "context_drift": {
+    "enabled": true,
+    "threshold": 0.7,
+    "temporal_decay_enabled": false
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "step_up_enabled": false
+  },
+  "advisory_escalation": {
+    "enabled": true,
+    "soft_after": 5,
+    "weight_multiplier": 1.5
+  },
+  "pipeline_separation": {
+    "enabled": true,
+    "level": "soft",
+    "max_pipeline_depth": 5
+  },
+  "governance_health": {
+    "enabled": true,
+    "pulse_interval_turns": 5
+  },
+  "limits": {
+    "call_depth": 100,
+    "loop_iterations": 100000,
+    "timeout": {"global": 600}
+  },
+  "scanner": {
+    "enabled": true,
+    "code_quality": true,
+    "lang_naab": true
+  },
+  "requirements": {
+    "variable_binding": "soft",
+    "main_block": "hard"
+  },
+  "code_quality": {
+    "no_secrets": "hard",
+    "no_placeholders": "soft",
+    "no_simulation_markers": "soft"
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  }
+}

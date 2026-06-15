@@ -3638,7 +3638,7 @@ interpreter::NaabVal GovernanceEngine::callContractTestFunction(
                 padded_args.push_back(interpreter::NaabVal::makeList({}));  // empty list
             }
         }
-        return vm_call_fn_(fn, padded_args);
+        return vm_call_fn_(fn, padded_args, false);  // contract test args — not tainted
     }
 
     // --- Tree-walker path ---
