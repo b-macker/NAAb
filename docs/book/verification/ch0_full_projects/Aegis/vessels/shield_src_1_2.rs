@@ -39,7 +39,7 @@
     }
 
     fn main() {
-        let algo_type = 0;
+        let algo_type = 2;
 
         let mut buffer = String::new();
         io::stdin().read_to_string(&mut buffer).unwrap();

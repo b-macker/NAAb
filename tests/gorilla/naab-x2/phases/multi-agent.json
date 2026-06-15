@@ -24,7 +24,7 @@
       "response_format": "text",
       "tools_enabled": false,
       "allowed_actions": ["AGENT_SEND"],
-      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
     },
     "coder": {
       "provider": "gemini",
@@ -37,7 +37,7 @@
       "response_format": "text",
       "tools_enabled": false,
       "allowed_actions": ["AGENT_SEND"],
-      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
     },
     "reviewer_a": {
       "provider": "gemini",
@@ -50,7 +50,7 @@
       "response_format": "text",
       "tools_enabled": false,
       "allowed_actions": ["AGENT_SEND"],
-      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
     },
     "reviewer_b": {
       "provider": "gemini",
@@ -63,7 +63,7 @@
       "response_format": "text",
       "tools_enabled": false,
       "allowed_actions": ["AGENT_SEND"],
-      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
     },
     "integrator": {
       "provider": "gemini",
@@ -81,7 +81,7 @@
       "tool_result_max_chars": 2048,
       "tool_timeout_seconds": 10,
       "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
-      "retry": { "max_attempts": 6, "backoff_ms": 500 }
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
     },
     "no_send_agent": {
       "provider": "gemini",
@@ -96,6 +96,7 @@
     }
   },
   "agent_dispatch": {
+    "default_timeout_seconds": 90,
     "max_concurrent": 4,
     "max_calls_per_run": 80,
     "max_tokens_per_run": 500000,

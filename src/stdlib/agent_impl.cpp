@@ -613,6 +613,10 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
             "  - Agents must be defined in governance config before use\n");
     }
 
+    // Fix 3B: mark agent phase active so Pulse consecutive_passes counter
+    // only tracks agent-phase checks, not static source scanning.
+    engine->setAgentGovernanceActive(true);
+
     // Find agent config
     const auto* config = findAgentConfig(config_name);
     if (!config) {
@@ -1809,7 +1813,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         NaabVal result_val;
                         if (gov_engine && gov_engine->hasVMCallbacks()) {
                             result_val = gov_engine->callVMFunction(
-                                snap_it->second.function, naab_args);
+                                snap_it->second.function, naab_args, true);  // taint: args from LLM
                         } else {
                             throw std::runtime_error("Agent error: no VM callback for tool execution");
                         }

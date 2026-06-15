@@ -17,6 +17,7 @@
 #include <regex>
 #include <chrono>
 #include <functional>
+#include <unordered_set>
 #ifndef _WIN32
 #  include <sys/file.h>
 #endif
@@ -873,7 +874,17 @@ void GovernanceEngine::writeTelemetry() const {
     std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
     std::string timestamp(ts_buf);
 
+    // Fix 4B: opt-in deduplication of governance check entries
+    std::unordered_set<std::string> seen_keys;
+    size_t dedup_count = 0;
+
     for (const auto& r : check_results_) {
+        // Fix 4B: skip duplicate (rule_name, file, line) entries
+        if (rules().telemetry_output.deduplicate_checks) {
+            std::string key = r.rule_name + "|" + r.file + "|" + std::to_string(r.line);
+            if (!seen_keys.insert(key).second) { dedup_count++; continue; }
+        }
+
         nlohmann::json ev;
         ev["run_id"] = run_id_;
         ev["agent_id"] = agent_id_;
@@ -921,6 +932,33 @@ void GovernanceEngine::writeTelemetry() const {
             if (fwd) fwd->enqueue(ev.dump());
         }
     }
+
+    // Fix 4B: emit summary event recording dedup stats
+    if (rules().telemetry_output.deduplicate_checks && dedup_count > 0) {
+        nlohmann::json summary;
+        summary["run_id"] = run_id_;
+        summary["event_type"] = "GovernanceCheckSummary";
+        summary["timestamp"] = timestamp;
+        summary["total_checks"] = check_results_.size();
+        summary["unique_sites"] = seen_keys.size();
+        summary["deduplicated"] = dedup_count;
+        if (rules().telemetry_output.tamper_evidence.enabled) {
+            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            summary["prev_hash"] = last_telemetry_hash_.empty()
+                ? rules().telemetry_output.tamper_evidence.chain_genesis
+                : last_telemetry_hash_;
+            last_telemetry_hash_ = computeHash(summary.dump(),
+                rules().telemetry_output.tamper_evidence);
+            summary["hash"] = last_telemetry_hash_;
+        }
+        std::string sline = summary.dump() + "\n";
+        fwrite(sline.c_str(), 1, sline.size(), fp.get());
+    }
+
+    // Fix 5B: emit end-of-run health warnings (catches instrumentation failures
+    // that per-turn checkGovernanceHealth() missed due to check_after_turns gate)
+    emitEndOfRunHealthWarnings(fp.get(), timestamp);
+
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
     if (!check_results_.empty()) {

@@ -351,8 +351,10 @@ public:
     const std::unordered_map<std::string, interpreter::NaabVal>& getGlobals() const { return globals_; }
 
     // Call a NAAb function from C++ (used by stdlib callbacks and governance contracts)
+    // taint_all_args: when true, mark all arguments as tainted (for tool execution with LLM-generated args)
     interpreter::NaabVal callNaabFunction(interpreter::NaabVal fn,
-                                          const std::vector<interpreter::NaabVal>& args);
+                                          const std::vector<interpreter::NaabVal>& args,
+                                          bool taint_all_args = false);
 
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;

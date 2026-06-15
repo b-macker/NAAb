@@ -3824,7 +3824,8 @@ bool VM::callFunction(VMClosure* closure, int argc) {
 }
 
 interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
-                                          const std::vector<interpreter::NaabVal>& args) {
+                                          const std::vector<interpreter::NaabVal>& args,
+                                          bool taint_all_args) {
     if (!fn.isVMClosure()) {
         runtimeError("callNaabFunction: value is not a function");
     }
@@ -3842,9 +3843,12 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     interpreter::NaabVal* saved_stack_top = stack_top_;
 
     // Push function + args onto stack
-    push(fn);  // callee slot
+    push(fn);  // callee slot (untainted — it's the function itself)
     for (auto& arg : args) {
         push(arg);
+        if (taint_all_args) {
+            *(taint_top_ - 1) = true;  // override the false set by push()
+        }
     }
 
     // Set up the call

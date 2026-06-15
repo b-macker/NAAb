@@ -1,0 +1,116 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb-X2 Cat 6: Code review loop with execution",
+  "languages": {
+    "allowed": ["python"],
+    "require_explicit": false
+  },
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "write" },
+    "shell": { "enabled": false }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": ["python"],
+    "allow_tainted_code": true,
+    "per_call_timeout_seconds": 10,
+    "max_calls_per_run": 30,
+    "max_output_chars": 4096
+  },
+  "agents": {
+    "architect": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 1024,
+      "max_turns": 5,
+      "max_total_tokens": 20000,
+      "system_prompt": "You are a software architect. Design clear, testable specifications. Be concise.",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "coder": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 2048,
+      "max_turns": 10,
+      "max_total_tokens": 60000,
+      "system_prompt": "You are a Python programmer. When you write code, ALWAYS test it by calling the run_code tool before giving your final answer. If the tool shows errors, fix the code and run it again. Wrap your final code in ```python fences.",
+      "tools_enabled": true,
+      "tools": ["run_code"],
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 5,
+      "tool_result_max_chars": 4096,
+      "tool_timeout_seconds": 15,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "executor": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 1024,
+      "max_turns": 5,
+      "max_total_tokens": 20000,
+      "system_prompt": "You are a QA engineer. You receive code and its execution output. Analyze whether the output is correct and complete. Report any bugs, missing edge cases, or incorrect behavior. Be specific and factual. End with PASS or FAIL.",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "reviewer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 1024,
+      "max_turns": 5,
+      "max_total_tokens": 20000,
+      "system_prompt": "You are a senior code reviewer. You receive code, execution output, and a QA report. Decide if the code is production-ready. If not, give specific, actionable feedback the developer can use to fix it. End with APPROVED or REJECTED with a one-line reason.",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    }
+  },
+  "agent_dispatch": {
+    "default_timeout_seconds": 90,
+    "max_concurrent": 4,
+    "max_calls_per_run": 50,
+    "max_tokens_per_run": 500000,
+    "max_agent_time_ms": 600000
+  },
+  "taint_tracking": {
+    "enabled": true,
+    "level": "detect",
+    "sources": ["env.get", "polyglot_output", "agent_output"],
+    "sinks": ["file.write", "file.append"]
+  },
+  "limits": {
+    "timeout": {"global": 600},
+    "call_depth": 100,
+    "loop_iterations": 100000
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  },
+  "pipeline_separation": {
+    "enabled": true,
+    "level": "soft",
+    "max_pipeline_depth": 5
+  },
+  "scanner": {
+    "enabled": true,
+    "code_quality": true,
+    "lang_naab": true
+  },
+  "requirements": {
+    "variable_binding": "soft",
+    "main_block": "hard"
+  },
+  "code_quality": {
+    "no_secrets": "hard",
+    "no_placeholders": "soft"
+  }
+}
