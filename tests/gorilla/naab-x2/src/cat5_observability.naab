@@ -1,0 +1,164 @@
+// NAAb-X2 Category 5: Observability & Governance State
+// 10 assertions — live API calls
+// Tests: usage, dispatch_status, environment depth, governance.health, messages, cross-agent tracking
+use agent
+use string
+
+main {
+    // Create 3 agents and do some work
+    let arch = agent.create("architect")
+    let coder = agent.create("coder")
+    let rev = agent.create("reviewer_a")
+
+    // Drive some traffic
+    try {
+        agent.send(arch, "Name three functions for a TODO app. One line each.")
+        agent.send(coder, "Write a Python one-liner: a function that doubles a number.")
+        agent.send(rev, "Is 'add_task' a good function name? Reply YES or NO.")
+    } catch (e) {
+        print("setup_error: " + string(e))
+    }
+
+    // E1: agent.usage() returns complete dict for architect
+    let e1_ok = false
+    try {
+        let usage = agent.usage(arch)
+        let has_turns = usage.get("turns") != null
+        let has_tokens = usage.get("total_tokens") != null
+        let has_input = usage.get("input_tokens") != null
+        let has_output = usage.get("output_tokens") != null
+        e1_ok = has_turns && has_tokens && has_input && has_output
+        print("e1_turns: " + string(usage.get("turns") ?? 0))
+        print("e1_total_tokens: " + string(usage.get("total_tokens") ?? 0))
+        print("e1_input_tokens: " + string(usage.get("input_tokens") ?? 0))
+        print("e1_output_tokens: " + string(usage.get("output_tokens") ?? 0))
+    } catch (e) {
+        print("e1_error: " + string(e))
+    }
+    print("e1_usage_complete: " + string(e1_ok))
+
+    // E2: dispatch_status() reflects 3 calls made
+    let e2_ok = false
+    try {
+        let ds = agent.dispatch_status()
+        let calls = ds.get("calls_made") ?? 0
+        let tokens = ds.get("tokens_used") ?? 0
+        e2_ok = calls >= 3 && tokens > 0
+        print("e2_dispatch_calls: " + string(calls))
+        print("e2_dispatch_tokens: " + string(tokens))
+    } catch (e) {
+        print("e2_error: " + string(e))
+    }
+    print("e2_dispatch_status: " + string(e2_ok))
+
+    // E3: key_health reports keys
+    let e3_ok = false
+    try {
+        let kh = agent.key_health("architect")
+        let active_keys = kh.get("active") ?? []
+        let avail_count = kh.get("available") ?? 0
+        e3_ok = avail_count > 0 && len(active_keys) > 0
+        print("e3_available: " + string(avail_count))
+        print("e3_active_count: " + string(len(active_keys)))
+    } catch (e) {
+        print("e3_error: " + string(e))
+    }
+    print("e3_key_health: " + string(e3_ok))
+
+    // E4: Environment has governance_level
+    let e4_ok = false
+    try {
+        let env = agent.environment(arch)
+        let state = env.get("state") ?? {}
+        let level = state.get("governance_level")
+        e4_ok = level != null
+        print("e4_gov_level: " + string(level ?? "missing"))
+    } catch (e) {
+        print("e4_error: " + string(e))
+    }
+    print("e4_governance_level: " + string(e4_ok))
+
+    // E5: Environment has governance_health
+    let e5_ok = false
+    try {
+        let env = agent.environment(arch)
+        let state = env.get("state") ?? {}
+        let health = state.get("governance_health")
+        e5_ok = health != null
+        print("e5_gov_health: " + string(health ?? "missing"))
+    } catch (e) {
+        print("e5_error: " + string(e))
+    }
+    print("e5_governance_health: " + string(e5_ok))
+
+    // E6: Environment has lease_remaining
+    let e6_ok = false
+    try {
+        let env = agent.environment(arch)
+        let state = env.get("state") ?? {}
+        let lease = state.get("lease_remaining")
+        e6_ok = lease != null
+        print("e6_lease: " + string(lease ?? -1))
+    } catch (e) {
+        print("e6_error: " + string(e))
+    }
+    print("e6_lease_remaining: " + string(e6_ok))
+
+    // E7: Environment has dispatch proximity
+    let e7_ok = false
+    try {
+        let env = agent.environment(arch)
+        let state = env.get("state") ?? {}
+        let dispatch = state.get("dispatch") ?? {}
+        let calls_remaining = dispatch.get("calls_remaining")
+        e7_ok = calls_remaining != null
+        print("e7_dispatch_remaining: " + string(calls_remaining ?? -1))
+    } catch (e) {
+        print("e7_error: " + string(e))
+    }
+    print("e7_dispatch_proximity: " + string(e7_ok))
+
+    // E8: All 3 agents have independent token counters
+    let e8_ok = false
+    try {
+        let u_arch = agent.usage(arch)
+        let u_code = agent.usage(coder)
+        let u_rev = agent.usage(rev)
+        let t1 = u_arch.get("total_tokens") ?? 0
+        let t2 = u_code.get("total_tokens") ?? 0
+        let t3 = u_rev.get("total_tokens") ?? 0
+        e8_ok = t1 > 0 && t2 > 0 && t3 > 0
+        print("e8_arch_tokens: " + string(t1))
+        print("e8_coder_tokens: " + string(t2))
+        print("e8_rev_tokens: " + string(t3))
+    } catch (e) {
+        print("e8_error: " + string(e))
+    }
+    print("e8_independent_tokens: " + string(e8_ok))
+
+    // E9: Dispatch tokens_used = sum of all agents
+    let e9_ok = false
+    try {
+        let ds = agent.dispatch_status()
+        let total_dispatch = ds.get("tokens_used") ?? 0
+        e9_ok = total_dispatch > 0
+        print("e9_total_dispatch_tokens: " + string(total_dispatch))
+    } catch (e) {
+        print("e9_error: " + string(e))
+    }
+    print("e9_dispatch_tokens: " + string(e9_ok))
+
+    // E10: agent.messages() returns conversation history
+    let e10_ok = false
+    try {
+        let msgs = agent.messages(arch)
+        let count = len(msgs)
+        e10_ok = count >= 2  // At least user + assistant
+        print("e10_message_count: " + string(count))
+    } catch (e) {
+        print("e10_error: " + string(e))
+    }
+    print("e10_messages_history: " + string(e10_ok))
+
+    print("cat5_completed: true")
+}

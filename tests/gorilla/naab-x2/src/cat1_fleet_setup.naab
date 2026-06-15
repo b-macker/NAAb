@@ -1,0 +1,118 @@
+// NAAb-X2 Category 1: Agent Fleet Setup
+// 10 assertions — no live API calls needed
+// Tests: agent.create, agent.check, environment, key_health, dispatch_status, action matrix
+use agent
+
+main {
+    // A1: Create architect agent
+    let a1_ok = false
+    let arch = null
+    try {
+        arch = agent.create("architect")
+        a1_ok = arch != null && arch.get("id") != null
+    } catch (e) {
+        print("a1_error: " + string(e))
+    }
+    print("a1_create_architect: " + string(a1_ok))
+
+    // A2: Create coder agent
+    let a2_ok = false
+    let coder = null
+    try {
+        coder = agent.create("coder")
+        a2_ok = coder != null && coder.get("id") != null
+    } catch (e) {
+        print("a2_error: " + string(e))
+    }
+    print("a2_create_coder: " + string(a2_ok))
+
+    // A3: Create reviewer_a agent
+    let a3_ok = false
+    let rev_a = null
+    try {
+        rev_a = agent.create("reviewer_a")
+        a3_ok = rev_a != null && rev_a.get("id") != null
+    } catch (e) {
+        print("a3_error: " + string(e))
+    }
+    print("a3_create_reviewer_a: " + string(a3_ok))
+
+    // A4: Create reviewer_b agent
+    let a4_ok = false
+    let rev_b = null
+    try {
+        rev_b = agent.create("reviewer_b")
+        a4_ok = rev_b != null && rev_b.get("id") != null
+    } catch (e) {
+        print("a4_error: " + string(e))
+    }
+    print("a4_create_reviewer_b: " + string(a4_ok))
+
+    // A5: Create integrator agent (has tools)
+    let a5_ok = false
+    let integ = null
+    try {
+        integ = agent.create("integrator")
+        a5_ok = integ != null && integ.get("id") != null
+    } catch (e) {
+        print("a5_error: " + string(e))
+    }
+    print("a5_create_integrator: " + string(a5_ok))
+
+    // A6: agent.check() pre-flight validation
+    let a6_ok = false
+    try {
+        let check = agent.check("architect")
+        a6_ok = check.get("valid") == true
+        print("a6_provider: " + string(check.get("provider") ?? "none"))
+    } catch (e) {
+        print("a6_error: " + string(e))
+    }
+    print("a6_check_valid: " + string(a6_ok))
+
+    // A7: Environment shows key pool size from config
+    let a7_pool = 0
+    try {
+        let env = arch.get("environment")
+        a7_pool = env.get("key_pool_size") ?? 0
+    } catch (e) {
+        print("a7_error: " + string(e))
+    }
+    print("a7_key_pool: " + string(a7_pool))
+
+    // A8: Environment has model and provider
+    let a8_ok = false
+    try {
+        let env = arch.get("environment")
+        let has_provider = env.get("provider") != null
+        let has_model_chain = env.get("model_chain") != null
+        a8_ok = has_provider && has_model_chain
+        print("a8_provider: " + string(env.get("provider") ?? "missing"))
+    } catch (e) {
+        print("a8_error: " + string(e))
+    }
+    print("a8_env_config: " + string(a8_ok))
+
+    // A9: Dispatch status starts clean
+    let a9_ok = false
+    try {
+        let ds = agent.dispatch_status()
+        a9_ok = ds.get("calls_made") == 0 && ds.get("hard_stopped") == false
+        print("a9_calls_made: " + string(ds.get("calls_made") ?? -1))
+    } catch (e) {
+        print("a9_error: " + string(e))
+    }
+    print("a9_dispatch_clean: " + string(a9_ok))
+
+    // A10: Action matrix enforcement — no_send_agent blocked from sending
+    let a10_blocked = false
+    try {
+        let restricted = agent.create("no_send_agent")
+        agent.send(restricted, "test")
+    } catch (e) {
+        a10_blocked = true
+    }
+    print("a10_action_matrix: " + string(a10_blocked))
+
+    print("cat1_completed: true")
+}

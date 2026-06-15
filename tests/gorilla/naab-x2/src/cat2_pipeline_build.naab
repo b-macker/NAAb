@@ -1,0 +1,125 @@
+// NAAb-X2 Category 2: Pipeline Build
+// 10 assertions — live API calls (4 total: 1 send + 2 pipeline + 1 coder send)
+// Tests: agent.send, agent.pipeline, upstream provenance, extract_code, multi-turn
+use agent
+use string
+
+main {
+    let arch = agent.create("architect")
+    let coder = agent.create("coder")
+
+    // B1: Architect designs a TODO app (1 API call)
+    let b1_ok = false
+    let arch_resp = null
+    try {
+        arch_resp = agent.send(arch, "Design a simple TODO list app with functions: add_task, complete_task, list_tasks. Just list the function signatures in 3 lines.")
+        let content = arch_resp.get("content") ?? ""
+        b1_ok = len(content) > 10
+        print("b1_content_len: " + string(len(content)))
+    } catch (e) {
+        print("b1_error: " + string(e))
+    }
+    print("b1_architect_design: " + string(b1_ok))
+
+    // B2: Response trace has model info (no extra API call)
+    let b2_ok = false
+    try {
+        let trace = arch_resp.get("trace") ?? {}
+        b2_ok = trace.get("model") != null && trace.get("provider") != null
+        print("b2_model: " + string(trace.get("model") ?? "missing"))
+    } catch (e) {
+        print("b2_error: " + string(e))
+    }
+    print("b2_trace_model: " + string(b2_ok))
+
+    // B3-B6: Pipeline architect -> coder (2 API calls — pipeline stage 1 + stage 2)
+    let b3_ok = false
+    let b4_ok = false
+    let b5_ok = false
+    let b6_ok = false
+    let pipeline_resp = null
+    try {
+        let p_arch = agent.create("architect")
+        let p_coder = agent.create("coder")
+        pipeline_resp = agent.pipeline([p_arch, p_coder], "Design then implement a Python function add(a, b) that returns a + b. Stage 1: specify it. Stage 2: write the code in ```python fences.")
+        let content = pipeline_resp.get("content") ?? ""
+        b3_ok = len(content) > 10
+        print("b3_pipeline_len: " + string(len(content)))
+
+        // B4: success field
+        b4_ok = pipeline_resp.get("success") == true
+
+        // B5: upstream_provenance
+        let env = pipeline_resp.get("environment") ?? {}
+        let state = env.get("state") ?? {}
+        let prov = state.get("upstream_provenance")
+        b5_ok = prov != null
+
+        // B6: provenance has model_used
+        if prov != null {
+            b6_ok = prov.get("model_used") != null
+            print("b6_upstream_model: " + string(prov.get("model_used") ?? "missing"))
+        }
+    } catch (e) {
+        print("b3_error: " + string(e))
+    }
+    print("b3_pipeline_output: " + string(b3_ok))
+    print("b4_pipeline_success: " + string(b4_ok))
+    print("b5_upstream_provenance: " + string(b5_ok))
+    print("b6_provenance_model: " + string(b6_ok))
+
+    // B7: extract_code on a coder response (1 API call)
+    let b7_ok = false
+    try {
+        let code_resp = agent.send(coder, "Write a Python function greet(name) that returns 'Hello, ' + name. Use ```python fences.")
+        let raw = code_resp.get("content") ?? ""
+        let extracted = agent.extract_code(raw, "python")
+        b7_ok = len(extracted) > 5
+        print("b7_extracted_len: " + string(len(extracted)))
+    } catch (e) {
+        print("b7_error: " + string(e))
+    }
+    print("b7_extract_code: " + string(b7_ok))
+
+    // B8: Multi-turn — architect has history from B1 (no extra API call)
+    let b8_ok = false
+    try {
+        let msgs = agent.messages(arch)
+        b8_ok = len(msgs) >= 2  // at least user + assistant from B1
+        print("b8_message_count: " + string(len(msgs)))
+    } catch (e) {
+        print("b8_error: " + string(e))
+    }
+    print("b8_multi_turn_history: " + string(b8_ok))
+
+    // B9: Usage tracking — architect turn + tokens (no extra API call)
+    let b9_ok = false
+    try {
+        let usage = agent.usage(arch)
+        let turns = usage.get("turns") ?? 0
+        let tokens = usage.get("total_tokens") ?? 0
+        b9_ok = turns >= 1 && tokens > 0
+        print("b9_turns: " + string(turns))
+        print("b9_tokens: " + string(tokens))
+    } catch (e) {
+        print("b9_error: " + string(e))
+    }
+    print("b9_usage_tracked: " + string(b9_ok))
+
+    // B10: Coder usage independent from architect (no extra API call)
+    let b10_ok = false
+    try {
+        let c_usage = agent.usage(coder)
+        let a_usage = agent.usage(arch)
+        let c_turns = c_usage.get("turns") ?? 0
+        let a_turns = a_usage.get("turns") ?? 0
+        b10_ok = c_turns > 0 && a_turns > 0
+        print("b10_coder_turns: " + string(c_turns))
+        print("b10_arch_turns: " + string(a_turns))
+    } catch (e) {
+        print("b10_error: " + string(e))
+    }
+    print("b10_independent_usage: " + string(b10_ok))
+
+    print("cat2_completed: true")
+}
