@@ -1,0 +1,113 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "NAAb self-audit: agents review NAAb's own C++ source",
+  "agents": {
+    "auditor": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 4096,
+      "max_turns": 5,
+      "max_total_tokens": 30000,
+      "temperature": 0.1,
+      "system_prompt": "You are a C++ security auditor for a governance engine. Given a list of source files with line counts, select the 3 highest-priority files to audit and for each identify 2-3 specific line regions (200-line windows) to focus on. Prioritize: catch blocks that may swallow GovernanceHardError, unguarded nlohmann json .get<T>() calls, FILE*/fstream resource leaks, unchecked return values, thread safety. Output ONLY a JSON array: [{\"file\": \"path\", \"regions\": [{\"start\": N, \"end\": N, \"reason\": \"...\"}]}]",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "analyzer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 6144,
+      "max_turns": 10,
+      "max_total_tokens": 80000,
+      "temperature": 0.2,
+      "system_prompt": "You are a C++ static analysis expert for governance/security code. You receive C++ source chunks and identify: 1) catch blocks catching std::exception without preceding GovernanceHardError rethrow 2) nlohmann json .get<T>() without .contains()/.is_*() guard 3) FILE*/fstream not closed on all paths 4) Thread safety: shared mutable state without mutex 5) Unchecked return values. For each finding: severity (critical/high/medium/low), line range, category, description, suggested fix. Output JSON: {\"findings\": [{\"severity\": \"...\", \"lines\": \"N-M\", \"category\": \"...\", \"description\": \"...\", \"fix\": \"...\"}]}",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "coder": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 6144,
+      "max_turns": 10,
+      "max_total_tokens": 60000,
+      "temperature": 0.3,
+      "system_prompt": "You are a Python script author who writes regex analysis scripts to detect C++ code patterns. When asked to verify findings, write Python scripts that parse the file line by line, track brace nesting for scope, find patterns using regex, and report findings as JSON to stdout. Use only: re, sys, json modules. Always use the run_analysis tool to execute your script. Use read_file to fetch source files. Output final analysis as JSON.",
+      "tools_enabled": true,
+      "tools": ["read_file", "run_analysis"],
+      "max_tool_calls_per_turn": 10,
+      "max_tool_loop_turns": 5,
+      "tool_result_max_chars": 4096,
+      "tool_timeout_seconds": 30,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    },
+    "reviewer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
+      "max_tokens": 4096,
+      "max_turns": 5,
+      "max_total_tokens": 30000,
+      "temperature": 0.1,
+      "system_prompt": "You are a senior code review lead. You receive: 1) LLM analyzer findings about C++ source 2) automated Python script results. Cross-reference them. Dismiss false positives (e.g., guarded .get<T> flagged as unguarded). Confirm true positives. Rate each: critical/high/medium/low. End with VERDICT: PASS (no critical/high), NEEDS_WORK (has critical/high), or INCONCLUSIVE. Output JSON: {\"confirmed\": [...], \"dismissed\": [...], \"verdict\": \"...\", \"summary\": \"...\"}",
+      "tools_enabled": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
+    }
+  },
+  "agent_dispatch": {
+    "default_timeout_seconds": 120,
+    "max_concurrent": 4,
+    "max_calls_per_run": 30,
+    "max_tokens_per_run": 300000,
+    "max_agent_time_ms": 600000
+  },
+  "security": {
+    "sandbox_level": "elevated"
+  },
+  "capabilities": {
+    "filesystem": { "mode": "write" },
+    "network": { "enabled": true },
+    "shell": { "enabled": true }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": ["python"],
+    "allow_tainted_code": true,
+    "per_call_timeout_seconds": 15,
+    "max_calls_per_run": 30,
+    "max_output_chars": 8192
+  },
+  "taint_tracking": {
+    "enabled": true,
+    "level": "detect",
+    "sources": ["env.get", "polyglot_output", "agent_output"],
+    "sinks": ["file.write", "file.append"]
+  },
+  "pipeline_separation": {
+    "enabled": true,
+    "level": "soft",
+    "max_pipeline_depth": 5
+  },
+  "scanner": {
+    "enabled": true,
+    "code_quality": true,
+    "lang_naab": true
+  },
+  "limits": {
+    "timeout": { "global": 900 }
+  },
+  "telemetry": {
+    "enabled": true,
+    "output_file": "examples/self-audit/telemetry.jsonl"
+  },
+  "governance_health": {
+    "enabled": true
+  }
+}

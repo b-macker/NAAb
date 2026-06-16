@@ -1027,12 +1027,14 @@
   "_comment_agents_providers": "Providers: 'anthropic' (default, api_key_env defaults to ANTHROPIC_API_KEY) or 'gemini'/'google' (api_key_env defaults to GEMINI_API_KEY). Responses are scanned by checkSecrets (hard) and checkPii (configurable). Turn/token limits enforced server-side.",
   "_comment_agents_tools": "Tool Execution — tools_enabled (bool, default false) is the master switch. tools (string array) is the allowlist — must match agent.register_tool() names. max_tool_calls_per_turn caps invocations per agentSend(). max_tool_loop_turns caps LLM round-trips. tool_result_max_chars truncates individual results. tool_result_max_total_chars caps cumulative results. tool_timeout_seconds is per-call timeout. All tool config fields are ratchet-enforced (can tighten mid-run, cannot loosen).",
   "_comment_agents_resilience": "model and api_key_env accept string or array. Array enables fallback chain (model) and key rotation (api_key_env). retry configures exponential backoff with jitter. key_retry_after_seconds enables dead key revival after cooldown (0 = never revive). rate_limit adds client-side throttling.",
+  "_comment_agents_thinking": "thinking_budget controls thinking/reasoning tokens. -1 (default): provider decides (WARNING: thinking models may consume entire output budget — increase max_tokens to compensate). 0: don't configure thinking (safe for all models). >0: enable thinking with that budget (sends thinkingConfig to Gemini, thinking block to Anthropic — only works on models that accept it). Gemini: thinking shares maxOutputTokens — max_tokens is expanded by thinking_budget. Anthropic: thinking is separate from max_tokens. Note: some models (gemma-4-*) think by default but reject thinkingConfig — use -1 and increase max_tokens instead. Ratchet-enforced.",
   "agents": {
     "researcher": {
       "provider": "anthropic",
       "model": "claude-sonnet-4-20250514",
       "api_key_env": "ANTHROPIC_API_KEY",
       "max_tokens": 4096,
+      "thinking_budget": -1,
       "system_prompt": "You are a research assistant.",
       "max_turns": 20,
       "max_total_tokens": 50000,
@@ -1077,6 +1079,7 @@
       "model": ["gemma-3-4b-it", "gemini-2.5-flash"],
       "api_key_env": ["GEMINI_API_KEY"],
       "max_tokens": 8192,
+      "thinking_budget": -1,
       "system_prompt": "You are a coding assistant.",
       "max_turns": 50,
       "max_total_tokens": 200000,

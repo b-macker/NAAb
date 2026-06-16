@@ -261,6 +261,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         limits["max_total_tokens"] = NaabVal::makeInt(config->max_total_tokens);
         limits["timeout_seconds"] = NaabVal::makeInt(config->timeout_seconds);
         limits["risk_budget"] = NaabVal::makeInt(config->risk_budget);
+        limits["thinking_budget"] = NaabVal::makeInt(config->thinking_budget);
         env["limits"] = NaabVal::makeDict(std::move(limits));
 
         // Model chain
@@ -1334,10 +1335,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
 
         if (result.response.success) {
-            // Treat zero-token empty responses as a soft failure — retry if budget allows.
+            // Treat empty responses as a soft failure — retry if budget allows.
             // Free-tier providers occasionally return HTTP 200 with no content.
             // Guard is BEFORE consecutive_failures reset to preserve real failure history.
-            if (result.response.output_tokens == 0 && result.response.content.empty()
+            // Check content AND tool_calls: tool-only responses (content="" + tool_calls=[...])
+            // are normal for tool-use models and should NOT be retried.
+            if (result.response.content.empty() && result.response.tool_calls.empty()
                     && attempt + 1 < max_attempts) {
                 last_error = "empty response (0 output tokens)";
                 s_dispatch.total_retries++;
@@ -1376,6 +1379,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"latency_ms", std::to_string(attempt_ms)},
                     {"input_tokens", std::to_string(agent_resp.input_tokens)},
                     {"output_tokens", std::to_string(agent_resp.output_tokens)},
+                    {"thinking_tokens", std::to_string(agent_resp.thinking_tokens)},
+                    {"truncated", agent_resp.truncated ? "true" : "false"},
                     {"attempts", std::to_string(attempts_made)},
                     {"fallback_used", agent_resp.fallback_used ? "true" : "false"}
                 });
@@ -1728,6 +1733,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 json tool_args;
                 try {
                     tool_args = json::parse(tc.arguments);
+                } catch (const governance::GovernanceHardError&) {
+                    throw;  // uncatchable — propagate to main
                 } catch (const std::exception&) {
                     if (gov_engine) {
                         gov_engine->emitEvent(governance::RuntimeEventType::TOOL_ERROR,
@@ -2308,6 +2315,46 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         });
     }
 
+    // Telemetry: response truncated — LLM hit token limit before completing
+    if (gov_engine && gov_engine->isActive() && agent_resp.truncated) {
+        gov_engine->writeAgentTelemetry("RESPONSE_TRUNCATED", {
+            {"handle_id",       std::to_string(handle_id)},
+            {"config_name",     config_name},
+            {"turn",            std::to_string(current_turn)},
+            {"stop_reason",     stop_reason},
+            {"output_tokens",   std::to_string(resp_output_tokens)},
+            {"thinking_tokens", std::to_string(agent_resp.thinking_tokens)},
+            {"configured_max",  std::to_string(config ? config->max_tokens : 0)},
+            {"thinking_budget", std::to_string(config ? config->thinking_budget : -1)},
+            {"content_length",  std::to_string(content.size())}
+        });
+    }
+
+    if (agent_resp.truncated) {
+        if (agent_resp.thinking_tokens > 0 && config && config->thinking_budget == -1) {
+            fprintf(stderr,
+                "[agent] Response truncated: %d thinking tokens consumed %d-token budget"
+                " (handle=%d, agent=%s)\n"
+                "        Set thinking_budget in govern.json for this agent:\n"
+                "          \"thinking_budget\": 0    — disable thinking\n"
+                "          \"thinking_budget\": 1024 — cap thinking tokens\n",
+                agent_resp.thinking_tokens, config->max_tokens,
+                handle_id, config_name.c_str());
+        } else if (agent_resp.thinking_tokens > 0 && config) {
+            fprintf(stderr,
+                "[agent] Response truncated: thinking=%d exceeded budget=%d, max_tokens=%d"
+                " (handle=%d)\n"
+                "        Increase thinking_budget or max_tokens in govern.json\n",
+                agent_resp.thinking_tokens, config->thinking_budget,
+                config->max_tokens, handle_id);
+        } else {
+            fprintf(stderr,
+                "[agent] Response truncated: output hit max_tokens=%d (handle=%d)\n"
+                "        Increase max_tokens in govern.json\n",
+                config ? config->max_tokens : 0, handle_id);
+        }
+    }
+
     // response_format: check JSON validity BEFORE CDD so parse failures feed coherence
     bool json_valid_result = true;
     std::string json_error_signal;
@@ -2412,17 +2459,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // Update handle: append messages, update counters
-    // Add user message to history
-    std::unordered_map<std::string, NaabVal> user_msg_val;
-    user_msg_val["role"] = NaabVal::makeString("user");
-    user_msg_val["content"] = NaabVal::makeString(message);
-    msg_list.push_back(NaabVal::makeDict(std::move(user_msg_val)));
+    // Skip empty-response turns to prevent history poisoning — empty assistant
+    // messages confuse models into returning nothing on subsequent turns.
+    // Skip BOTH user and assistant to preserve Gemini's strict role alternation
+    // (consecutive user messages cause HTTP 400). Tracker still updates below.
+    if (!content.empty()) {
+        // Add user message to history
+        std::unordered_map<std::string, NaabVal> user_msg_val;
+        user_msg_val["role"] = NaabVal::makeString("user");
+        user_msg_val["content"] = NaabVal::makeString(message);
+        msg_list.push_back(NaabVal::makeDict(std::move(user_msg_val)));
 
-    // Add assistant message to history
-    std::unordered_map<std::string, NaabVal> asst_msg_val;
-    asst_msg_val["role"] = NaabVal::makeString("assistant");
-    asst_msg_val["content"] = NaabVal::makeString(content);
-    msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
+        // Add assistant message to history
+        std::unordered_map<std::string, NaabVal> asst_msg_val;
+        asst_msg_val["role"] = NaabVal::makeString("assistant");
+        asst_msg_val["content"] = NaabVal::makeString(content);
+        msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
+    }
 
     // Update server-side tracker (authoritative) and handle dict (informational)
     {
@@ -2538,10 +2591,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     result["content"] = NaabVal::makeString(content);
     result["role"] = NaabVal::makeString("assistant");
     result["stop_reason"] = NaabVal::makeString(stop_reason);
+    result["truncated"] = NaabVal::makeBool(agent_resp.truncated);
 
     std::unordered_map<std::string, NaabVal> usage_val;
     usage_val["input_tokens"] = NaabVal::makeInt(resp_input_tokens);
     usage_val["output_tokens"] = NaabVal::makeInt(resp_output_tokens);
+    usage_val["thinking_tokens"] = NaabVal::makeInt(agent_resp.thinking_tokens);
     result["usage"] = NaabVal::makeDict(std::move(usage_val));
 
     // Trace dict (traceability for key rotation, retry, fallback)

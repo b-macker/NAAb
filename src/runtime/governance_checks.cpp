@@ -3737,6 +3737,9 @@ std::string GovernanceEngine::checkMustProduce(
             in_contract_test_ = true;
             result = callContractTestFunction(func_name, args);
             in_contract_test_ = false;
+        } catch (const governance::GovernanceHardError&) {
+            in_contract_test_ = false;
+            throw;  // uncatchable — propagate to main
         } catch (const std::exception& e) {
             in_contract_test_ = false;
             addTrace(fmt::format("must_produce test #{}: call threw: {}", i + 1, e.what()));
@@ -3840,6 +3843,9 @@ std::string GovernanceEngine::checkMustVary(
             result_a = callContractTestFunction(func_name, args_a);
             result_b = callContractTestFunction(func_name, args_b);
             in_contract_test_ = false;
+        } catch (const governance::GovernanceHardError&) {
+            in_contract_test_ = false;
+            throw;  // uncatchable — propagate to main
         } catch (const std::exception& e) {
             in_contract_test_ = false;
             addTrace(fmt::format("must_vary test #{}: call threw: {}", i + 1, e.what()));
@@ -3910,6 +3916,9 @@ std::string GovernanceEngine::checkMustDifferentiate(
             result_a = callContractTestFunction(func_name, args_a);
             result_b = callContractTestFunction(func_name, args_b);
             in_contract_test_ = false;
+        } catch (const governance::GovernanceHardError&) {
+            in_contract_test_ = false;
+            throw;  // uncatchable — propagate to main
         } catch (const std::exception& e) {
             in_contract_test_ = false;
             addTrace(fmt::format("must_differentiate test #{}: call threw: {}", i + 1, e.what()));
@@ -3983,6 +3992,9 @@ std::string GovernanceEngine::checkMustHandleCase(
                 results.push_back(result.isNull() ? "null" : result.toString());
             }
             in_contract_test_ = false;
+        } catch (const governance::GovernanceHardError&) {
+            in_contract_test_ = false;
+            throw;  // uncatchable — propagate to main
         } catch (const std::exception& e) {
             in_contract_test_ = false;
             addTrace(fmt::format("must_handle_case test #{}: call threw: {}", i + 1, e.what()));
@@ -4072,6 +4084,9 @@ std::string GovernanceEngine::checkMustSatisfy(
         in_contract_test_ = true;
         result = callContractTestFunction(func_name, test_args);
         in_contract_test_ = false;
+    } catch (const governance::GovernanceHardError&) {
+        in_contract_test_ = false;
+        throw;  // uncatchable — propagate to main
     } catch (const std::exception& e) {
         in_contract_test_ = false;
         addTrace(fmt::format("must_satisfy: call to '{}' threw: {}", func_name, e.what()));

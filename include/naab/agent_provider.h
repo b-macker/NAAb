@@ -23,6 +23,8 @@ struct AgentResponse {
     std::string stop_reason;
     int input_tokens = 0;
     int output_tokens = 0;
+    bool truncated = false;      // true when response hit token limit
+    int thinking_tokens = 0;     // thinking tokens consumed (Gemini thoughtsTokenCount)
     std::string error;  // non-empty on failure
 
     // Tool calls (populated when stop_reason indicates tool use)

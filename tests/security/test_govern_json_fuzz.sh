@@ -441,6 +441,18 @@ fuzz_tool "codegen.max_nesting_depth: negative" \
 fuzz_tool "codegen.max_cumulative_calls: 0" \
     '{"codegen":{"enabled":true,"max_cumulative_calls":0}}'
 
+# --- Category 15: thinking_budget fuzz ---
+fuzz_tool "thinking_budget -1 sentinel" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","thinking_budget":-1}}}'
+fuzz_tool "thinking_budget 0 disable" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","thinking_budget":0}}}'
+fuzz_tool "thinking_budget positive" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","thinking_budget":5000}}}'
+fuzz_tool "thinking_budget underflow" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","thinking_budget":-999}}}'
+fuzz_tool "thinking_budget type mismatch" \
+    '{"agents":{"a":{"provider":"gemini","model":"m","api_key_env":"K","thinking_budget":"unlimited"}}}'
+
 # Cleanup
 rm -rf "$FUZZ_DIR"
 
