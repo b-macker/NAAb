@@ -1,0 +1,446 @@
+// NAAb Self-Audit: Governance Engine Reviews Its Own Source
+// Uses NAAb's multi-agent system to audit NAAb's C++ source code.
+// The governance engine governs the agents that are auditing it.
+use agent
+use codegen
+use file
+use json
+use string
+use env
+use governance
+
+// ── Tool: read a chunk of a source file ──
+// Called by the coder agent via tool loop
+fn read_file(path, start_line, line_count) {
+    if start_line == null { start_line = 0 }
+    if line_count == null { line_count = 200 }
+    let content = ""
+    try {
+        content = file.read(path)
+    } catch (e) {
+        return json.stringify({success: false, error: "Cannot read: " + string(path)})
+    }
+    let lines = string.split(content, "\n")
+    let total = len(lines)
+    if start_line >= total {
+        return json.stringify({success: true, content: "", total_lines: total,
+            note: "start_line beyond end of file"})
+    }
+    let end_line = start_line + line_count
+    if end_line > total { end_line = total }
+    let chunk = []
+    for i in start_line..end_line {
+        chunk.push(string(i + 1) + ": " + lines[i])
+    }
+    return json.stringify({success: true, content: string.join(chunk, "\n"),
+        total_lines: total, start_line: start_line + 1, end_line: end_line})
+}
+
+// ── Tool: run a Python analysis script ──
+// Called by the coder agent to execute verification scripts
+fn run_analysis(code) {
+    try {
+        let result = codegen.run("python", code)
+        return json.stringify({success: true, output: string(result)})
+    } catch (e) {
+        return json.stringify({success: false, error: string(e)})
+    }
+}
+
+// ── Helper: read a chunk directly (not a tool — called by NAAb program) ──
+fn read_chunk(filepath, start, count) {
+    let content = file.read(filepath)
+    let lines = string.split(content, "\n")
+    let total = len(lines)
+    let end_at = start + count
+    if end_at > total { end_at = total }
+    let chunk = []
+    for i in start..end_at {
+        chunk.push(string(i + 1) + ": " + lines[i])
+    }
+    return string.join(chunk, "\n")
+}
+
+fn print_section(title) {
+    print("")
+    print("=== " + title + " ===")
+}
+
+main {
+    let project = env.get("HOME") + "/.naab/language"
+    let src = project + "/src"
+
+    // ── Audit Manifest ──
+    let manifest = [
+        {file: src + "/runtime/governance_checks.cpp",  lines: 6906, priority: "critical"},
+        {file: src + "/stdlib/agent_impl.cpp",          lines: 3587, priority: "critical"},
+        {file: src + "/runtime/governance_engine.cpp",  lines: 6594, priority: "critical"},
+        {file: src + "/runtime/governance_config.cpp",  lines: 4424, priority: "high"},
+        {file: src + "/stdlib/codegen_impl.cpp",        lines: 593,  priority: "high"},
+        {file: src + "/vm/vm.cpp",                      lines: 5129, priority: "high"},
+        {file: src + "/cli/main.cpp",                   lines: 4752, priority: "medium"}
+    ]
+
+    print_section("NAAb Self-Audit: Governance Engine Source Review")
+    print("Auditing " + string(len(manifest)) + " C++ source files")
+    print("Using NAAb governance to govern the audit agents")
+
+    // Register tools for coder agent
+    agent.register_tool("read_file", read_file, {
+        description: "Read lines from a C++ source file. Returns numbered lines as JSON.",
+        parameters: {
+            path:       {type: "string", description: "Absolute path to the C++ file"},
+            start_line: {type: "number", description: "0-based start line (default 0)"},
+            line_count: {type: "number", description: "Number of lines to read (default 200)"}
+        }
+    })
+    agent.register_tool("run_analysis", run_analysis, {
+        description: "Execute a Python script for C++ source analysis. Returns stdout as JSON.",
+        parameters: {
+            code: {type: "string", description: "Python code to execute (use re, sys, json only)"}
+        }
+    })
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 1: Scope — auditor selects high-priority audit targets
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Phase 1: Scope Selection")
+    let auditor = agent.create("auditor")
+
+    let manifest_text = "NAAb C++ source files for governance engine audit:\n\n"
+    for entry in manifest {
+        manifest_text = manifest_text + "- " + entry.get("file") +
+            " (" + string(entry.get("lines")) + " lines, " +
+            entry.get("priority") + " priority)\n"
+    }
+    manifest_text = manifest_text + "\nSelect the 3 highest-priority files. " +
+        "For each, identify 2-3 specific regions (200-line windows) to audit. " +
+        "Focus on: catch blocks, json parsing, resource management, thread safety."
+
+    let scope_raw = ""
+    try {
+        let scope_resp = agent.send(auditor, manifest_text)
+        scope_raw = scope_resp.get("content") ?? ""
+        print("Auditor response: " + string(len(scope_raw)) + " chars")
+        print("Auditor raw: " + scope_raw)
+    } catch (e) {
+        print("Auditor API error: " + string(e))
+        print("Using fallback targets")
+    }
+
+    // Parse scope JSON — extract from markdown fences if needed
+    let scope_code = agent.extract_code(scope_raw, "json")
+    if len(scope_code) < 10 { scope_code = scope_raw }
+
+    let targets = []
+    try {
+        targets = json.parse(scope_code)
+    } catch (e) {
+        print("  JSON parse failed, using fallback targets")
+        // Fallback: hardcoded high-value regions based on actual codebase knowledge
+        targets = [
+            {file: src + "/stdlib/agent_impl.cpp", regions: [
+                {start: 1700, end: 1900, reason: "tool execution catch blocks"},
+                {start: 600, end: 800, reason: "agent creation and validation"}
+            ]},
+            {file: src + "/runtime/governance_engine.cpp", regions: [
+                {start: 860, end: 1060, reason: "recordPass/recordFail and pulse tracking"},
+                {start: 5900, end: 6100, reason: "checkGovernanceHealth"}
+            ]},
+            {file: src + "/runtime/governance_config.cpp", regions: [
+                {start: 2180, end: 2380, reason: "agent config JSON parsing"},
+                {start: 2480, end: 2530, reason: "agent_dispatch parsing"}
+            ]}
+        ]
+    }
+
+    print("Targets:")
+    for t in targets {
+        let tfile = t.get("file") ?? "?"
+        let regions = t.get("regions") ?? []
+        print("  " + tfile + " - " + string(len(regions)) + " region(s)")
+        for r in regions {
+            print("    lines " + string(r.get("start") ?? 0) + "-" +
+                string(r.get("end") ?? 0) + ": " + (r.get("reason") ?? ""))
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 2: Analyze — read C++ chunks, send to analyzer agent
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Phase 2: Analysis")
+    let all_findings = []
+
+    for target in targets {
+        let tfile = target.get("file") ?? ""
+        let regions = target.get("regions") ?? []
+        print("")
+        print("-- Analyzing: " + tfile + " --")
+
+        for region in regions {
+            // Fresh analyzer per region — each is an independent analysis.
+            // Reusing one handle accumulates 21K+ tokens of irrelevant context.
+            let analyzer = agent.create("analyzer")
+            let rstart = region.get("start") ?? 0
+            let rend = region.get("end") ?? 200
+            let reason = region.get("reason") ?? ""
+            let chunk_size = rend - rstart
+
+            print("  Region " + string(rstart) + "-" + string(rend) + " (" + reason + ")")
+
+            // Read the C++ chunk directly
+            let chunk_text = ""
+            try {
+                chunk_text = read_chunk(tfile, rstart, chunk_size)
+            } catch (e) {
+                print("    SKIP: cannot read file")
+                continue
+            }
+            if len(chunk_text) < 10 {
+                print("    SKIP: empty region")
+                continue
+            }
+
+            // Send to analyzer agent
+            let analysis_prompt = "Analyze this C++ code from " + tfile +
+                " (lines " + string(rstart) + "-" + string(rend) + ").\n" +
+                "Focus: " + reason + "\n\n```cpp\n" + chunk_text + "\n```\n\n" +
+                "Check for:\n" +
+                "1. catch(std::exception/runtime_error) without preceding GovernanceHardError rethrow\n" +
+                "2. nlohmann json .get<T>() without .contains()/.is_*() guard\n" +
+                "3. FILE*/fstream not closed on all paths\n" +
+                "4. Thread safety: shared mutable state without mutex\n" +
+                "5. Unchecked return values\n\n" +
+                "Output: {\"findings\": [{\"severity\": \"...\", \"lines\": \"N-M\", " +
+                "\"category\": \"...\", \"description\": \"...\", \"fix\": \"...\"}]}"
+
+            let raw = ""
+            let stop = ""
+            let otokens = 0
+            let itokens = 0
+            try {
+                let resp = agent.send(analyzer, analysis_prompt)
+                raw = resp.get("content") ?? ""
+                stop = resp.get("stop_reason") ?? "?"
+                let usage = resp.get("usage") ?? {}
+                otokens = usage.get("output_tokens") ?? 0
+                itokens = usage.get("input_tokens") ?? 0
+            } catch (e) {
+                print("    API error: " + string(e))
+                print("    SKIP: continuing to next region")
+                continue
+            }
+
+            // Debug: show raw response
+            print("    stop=" + stop + " in=" + string(itokens) + " out=" + string(otokens) + " chars=" + string(len(raw)))
+            print("    Raw: " + raw)
+
+            // Parse findings JSON
+            let analysis_json = agent.extract_code(raw, "json")
+            if len(analysis_json) < 5 { analysis_json = raw }
+
+            try {
+                let parsed = json.parse(analysis_json)
+                let findings = parsed.get("findings") ?? []
+                print("    Found " + string(len(findings)) + " issue(s)")
+                for f in findings {
+                    all_findings.push({
+                        file: tfile,
+                        region: string(rstart) + "-" + string(rend),
+                        severity: f.get("severity") ?? "unknown",
+                        category: f.get("category") ?? "unknown",
+                        description: f.get("description") ?? "",
+                        fix: f.get("fix") ?? "",
+                        lines: f.get("lines") ?? ""
+                    })
+                }
+            } catch (e) {
+                print("    Could not parse findings")
+                all_findings.push({
+                    file: tfile, region: string(rstart) + "-" + string(rend),
+                    severity: "unknown", category: "parse_error",
+                    description: "Analyzer returned unparseable output",
+                    fix: "", lines: ""
+                })
+            }
+        }
+    }
+
+    print("")
+    print("Total analyzer findings: " + string(len(all_findings)))
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 3: Verify — coder writes Python scripts to confirm/deny
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Phase 3: Automated Verification")
+
+    if len(all_findings) == 0 {
+        print("No findings to verify — skipping coder phase")
+    }
+
+    let verifications = []
+
+    if len(all_findings) > 0 {
+        let coder = agent.create("coder")
+
+        // Deduplicate findings by category for the coder
+        let findings_summary = "The analyzer found these issues in NAAb C++ source.\n" +
+            "Write Python scripts to verify each category.\n" +
+            "Use read_file to fetch source files, run_analysis to execute scripts.\n\n"
+        let categories_seen = []
+        for f in all_findings {
+            let cat = f.get("category") ?? ""
+            let already = false
+            for c in categories_seen {
+                if c == cat { already = true }
+            }
+            if !already {
+                categories_seen.push(cat)
+                findings_summary = findings_summary + "- " + cat +
+                    " | " + (f.get("file") ?? "") +
+                    " | Lines " + (f.get("lines") ?? "") +
+                    " | " + (f.get("description") ?? "") + "\n"
+            }
+        }
+        findings_summary = findings_summary +
+            "\nFor each unique category, write ONE Python script that:\n" +
+            "1. Reads the relevant file using read_file\n" +
+            "2. Uses regex to search for the pattern\n" +
+            "3. Reports whether the finding is confirmed or a false positive\n" +
+            "Execute each script with run_analysis.\n" +
+            "Final output JSON: {\"verifications\": [{\"category\": \"...\", " +
+            "\"confirmed\": true/false, \"evidence\": \"...\"}]}"
+
+        let coder_raw = ""
+        let tool_calls = 0
+        try {
+            let coder_resp = agent.send(coder, findings_summary)
+            coder_raw = coder_resp.get("content") ?? ""
+            tool_calls = coder_resp.get("tool_calls_made") ?? 0
+            print("Coder made " + string(tool_calls) + " tool calls")
+            print("Coder raw: " + coder_raw)
+        } catch (e) {
+            print("Coder API error: " + string(e))
+            print("Skipping automated verification")
+        }
+
+        // Parse verification results
+        let coder_json = agent.extract_code(coder_raw, "json")
+        if len(coder_json) < 5 { coder_json = coder_raw }
+        try {
+            let parsed = json.parse(coder_json)
+            verifications = parsed.get("verifications") ?? []
+        } catch (e) {
+            print("Could not parse coder results")
+        }
+        print("Verifications completed: " + string(len(verifications)))
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 4: Review — cross-reference and produce verdict
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Phase 4: Final Review")
+    let reviewer = agent.create("reviewer")
+
+    let review_prompt = "Cross-reference these NAAb C++ governance engine audit results:\n\n" +
+        "ANALYZER FINDINGS (" + string(len(all_findings)) + "):\n" +
+        json.stringify(all_findings) +
+        "\n\nAUTOMATED VERIFICATIONS (" + string(len(verifications)) + "):\n" +
+        json.stringify(verifications) +
+        "\n\nFor each finding:\n" +
+        "- If the automated verification confirms it, mark as confirmed\n" +
+        "- If the verification denies it (false positive), dismiss it\n" +
+        "- If no verification exists, use your judgment\n\n" +
+        "VERDICT: PASS (no critical/high confirmed), NEEDS_WORK (has critical/high), " +
+        "or INCONCLUSIVE.\n" +
+        "Output JSON: {\"confirmed\": [{\"severity\": \"...\", \"file\": \"...\", " +
+        "\"description\": \"...\"}], \"dismissed\": [{\"reason\": \"...\"}], " +
+        "\"verdict\": \"...\", \"summary\": \"...\"}"
+
+    let review_raw = ""
+    try {
+        let review_resp = agent.send(reviewer, review_prompt)
+        review_raw = review_resp.get("content") ?? ""
+        print("Reviewer raw: " + review_raw)
+    } catch (e) {
+        print("Reviewer API error: " + string(e))
+        print("Skipping review — reporting raw findings")
+    }
+
+    // Extract verdict
+    let verdict = "INCONCLUSIVE"
+    if string.contains(review_raw, "PASS") { verdict = "PASS" }
+    if string.contains(review_raw, "NEEDS_WORK") { verdict = "NEEDS_WORK" }
+
+    let confirmed = []
+    let dismissed = []
+    let summary = ""
+    let review_json = agent.extract_code(review_raw, "json")
+    if len(review_json) < 5 { review_json = review_raw }
+    try {
+        let rp = json.parse(review_json)
+        confirmed = rp.get("confirmed") ?? []
+        dismissed = rp.get("dismissed") ?? []
+        summary = rp.get("summary") ?? ""
+        let v = rp.get("verdict") ?? ""
+        if len(v) > 0 { verdict = v }
+    } catch (e) {
+        print("Could not parse review JSON")
+    }
+
+    print("Verdict: " + verdict)
+    print("Confirmed: " + string(len(confirmed)) + " findings")
+    print("Dismissed: " + string(len(dismissed)) + " false positives")
+    if len(summary) > 0 {
+        print("Summary: " + summary)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE 5: Report — structured output + governance meta-check
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Audit Report")
+
+    let report = {
+        audit: "NAAb Self-Audit",
+        files_audited: len(targets),
+        total_findings: len(all_findings),
+        confirmed_findings: len(confirmed),
+        dismissed_findings: len(dismissed),
+        verifications_run: len(verifications),
+        verdict: verdict,
+        summary: summary,
+        confirmed: confirmed,
+        dismissed: dismissed
+    }
+
+    let report_str = json.stringify(report)
+    print(report_str)
+
+    try {
+        file.write("examples/self-audit/audit-report.json", report_str)
+        print("")
+        print("Report saved: examples/self-audit/audit-report.json")
+    } catch (e) {
+        print("(Could not save report file)")
+    }
+
+    // ── The Meta Moment ──
+    // NAAb's governance engine was actively governing the agents that just audited it.
+    // The same taint tracking, sandbox enforcement, agent budget limits, and pulse
+    // health monitoring being audited were enforcing policy on the audit itself.
+    print_section("Governance Health (Meta)")
+    print("NAAb governance governed the agents that just audited it:")
+
+    let pulse = governance.health()
+    print("  Pulse:     " + (pulse.get("verdict") ?? "unknown"))
+    print("  Coherence: " + string(pulse.get("coherence") ?? 0))
+    print("  Epoch:     " + string(pulse.get("governance_epoch") ?? 0))
+
+    let ds = agent.dispatch_status()
+    print("  API calls: " + string(ds.get("calls_made") ?? 0))
+    print("  Tokens:    " + string(ds.get("tokens_used") ?? 0))
+    print("  Time:      " + string(ds.get("agent_time_ms") ?? 0) + "ms")
+
+    print("")
+    print("Self-audit complete. Verdict: " + verdict)
+}

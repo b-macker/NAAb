@@ -164,6 +164,7 @@ SKIP_FILES["test_plugin.naab"]=1          # governance plugin library, not stand
 SKIP_DIRS=(
     "tests/chapter verification/ch0_full_projects"  # Gemini-generated projects (most have runtime issues)
     "tests/property"  # Property-based tests run via dedicated runner, not standalone
+    "examples/self-audit"  # Agent scripts requiring API keys, not standalone tests
 )
 
 echo "═══════════════════════════════════════════════════════════"

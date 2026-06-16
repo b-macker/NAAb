@@ -2148,12 +2148,17 @@ std::string GovernanceEngine::checkHardcodedResults(
 // ============================================================================
 
 void GovernanceEngine::emitAdvisory(const std::string& msg) {
-    int max = rules().output.max_advisories;
-    if (max > 0 && advisory_count_ >= max) {
-        advisory_suppressed_++;
-        return;
+    // V-CONC-009: mutex-guard advisory counters for batch+tools edge case
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        int max = rules().output.max_advisories;
+        if (max > 0 && advisory_count_ >= max) {
+            advisory_suppressed_++;
+            return;
+        }
+        advisory_count_++;
     }
-    advisory_count_++;
+    // Print outside lock to avoid holding mutex during I/O
     fmt::print(stderr, "{}\n", msg);
 }
 
@@ -3059,7 +3064,7 @@ std::string GovernanceEngine::checkGovernanceBaseline() const {
 
     std::vector<std::string> regressions;
     auto check = [&](const char* name, int current, const char* key) {
-        if (prev.contains(key) && current > prev[key].get<int>()) {
+        if (prev.contains(key) && prev[key].is_number_integer() && current > prev[key].get<int>()) {
             regressions.push_back(fmt::format(
                 "  {} increased: {} -> {} (+{})",
                 name, prev[key].get<int>(), current, current - prev[key].get<int>()));
@@ -4006,13 +4011,13 @@ std::string GovernanceEngine::checkDriftDetection(
     {
         bool baseline_had_signing = false;
         // Check root-level signing_configured flag
-        if (baseline.contains("signing_configured") && baseline["signing_configured"].get<bool>()) {
+        if (baseline.contains("signing_configured") && baseline["signing_configured"].is_boolean() && baseline["signing_configured"].get<bool>()) {
             baseline_had_signing = true;
         }
         // Check per-file signature_present flags
         if (!baseline_had_signing && baseline.contains("files")) {
             for (auto& [fname, entry] : baseline["files"].items()) {
-                if (entry.contains("signature_present") && entry["signature_present"].get<bool>()) {
+                if (entry.contains("signature_present") && entry["signature_present"].is_boolean() && entry["signature_present"].get<bool>()) {
                     baseline_had_signing = true;
                     break;
                 }
@@ -4108,6 +4113,7 @@ std::string GovernanceEngine::checkDriftDetection(
     auto checkLoss = [&](const char* name, int current_val, const char* json_key,
                          double max_loss) {
         if (!prev.contains(json_key)) return;
+        if (!prev[json_key].is_number_integer()) return;
         int baseline_val = prev[json_key].get<int>();
         if (baseline_val == 0) return;  // Can't lose what you didn't have
         double loss = 1.0 - (static_cast<double>(current_val) / baseline_val);
@@ -4134,6 +4140,7 @@ std::string GovernanceEngine::checkDriftDetection(
     auto checkGain = [&](const char* name, int current_val, const char* json_key,
                          double max_gain) {
         if (!prev.contains(json_key)) return;
+        if (!prev[json_key].is_number_integer()) return;
         int baseline_val = prev[json_key].get<int>();
         if (baseline_val == 0) return;
         double gain = (static_cast<double>(current_val) / baseline_val) - 1.0;
@@ -4195,6 +4202,7 @@ std::string GovernanceEngine::checkDriftDetection(
     // Gate 1: Signature stability — param count per function
     if (cfg.check_signatures && prev.contains("param_counts") && prev["param_counts"].is_object()) {
         for (auto& [fn_name, baseline_count] : prev["param_counts"].items()) {
+            if (!baseline_count.is_number_integer()) continue;
             int bcount = baseline_count.get<int>();
             if (bcount == 0) continue;
             auto it = current.param_counts.find(fn_name);
@@ -4258,6 +4266,7 @@ std::string GovernanceEngine::checkDriftDetection(
     // Gate 3: Complexity regression (per-function)
     if (cfg.check_complexity && prev.contains("complexity_scores") && prev["complexity_scores"].is_object()) {
         for (auto& [fn_name, baseline_score] : prev["complexity_scores"].items()) {
+            if (!baseline_score.is_number_integer()) continue;
             int bscore = baseline_score.get<int>();
             if (bscore < cfg.min_complexity_baseline) continue; // skip trivial functions
             auto it = current.complexity_scores.find(fn_name);
@@ -4278,7 +4287,7 @@ std::string GovernanceEngine::checkDriftDetection(
     }
 
     // Gate 4: Comment inflation
-    if (cfg.check_comment_ratio && prev.contains("code_lines")) {
+    if (cfg.check_comment_ratio && prev.contains("code_lines") && prev["code_lines"].is_number_integer()) {
         int baseline_code = prev["code_lines"].get<int>();
         if (baseline_code > 0 && current.code_lines + current.comment_lines > 0) {
             double current_ratio = static_cast<double>(current.comment_lines) /
@@ -4335,7 +4344,7 @@ std::string GovernanceEngine::checkDriftDetection(
     }
 
     // Gate 6: Polyglot regression
-    if (cfg.check_polyglot && prev.contains("polyglot_blocks")) {
+    if (cfg.check_polyglot && prev.contains("polyglot_blocks") && prev["polyglot_blocks"].is_number_integer()) {
         int baseline_blocks = prev["polyglot_blocks"].get<int>();
         if (baseline_blocks > 0) {
             // Collect removed languages first (used in both stderr and violation message)
@@ -4558,6 +4567,7 @@ std::string GovernanceEngine::checkDriftDetection(
         for (auto& [fn_name, baseline_util] : prev["param_utilization"].items()) {
             auto it = current.param_utilization.find(fn_name);
             if (it == current.param_utilization.end()) continue;  // deleted — handled elsewhere
+            if (!baseline_util.is_number()) continue;
             double prev_util = baseline_util.get<double>();
             if (it->second < prev_util && it->second < cfg.min_param_utilization) {
                 degraded.push_back(fn_name);
@@ -4599,7 +4609,7 @@ std::string GovernanceEngine::checkDriftDetection(
     }
 
     // Gate 13: Config presence — fail-closed if govern.json removed since baseline
-    if (cfg.check_config_presence && prev.contains("config_present") && prev["config_present"].get<bool>()) {
+    if (cfg.check_config_presence && prev.contains("config_present") && prev["config_present"].is_boolean() && prev["config_present"].get<bool>()) {
         if (!current.config_present) {
             std::string msg = "Drift: govern.json was present at baseline time but is now missing.\n"
                               "  Help: Restore govern.json to its original location. Governance config\n"
@@ -4645,7 +4655,7 @@ std::string GovernanceEngine::checkDriftDetection(
     }
 
     // Gate 16: Signature presence — fail-closed if .sig removed since baseline
-    if (cfg.check_signature_presence && prev.contains("signature_present") && prev["signature_present"].get<bool>()) {
+    if (cfg.check_signature_presence && prev.contains("signature_present") && prev["signature_present"].is_boolean() && prev["signature_present"].get<bool>()) {
         if (!current.signature_present) {
             std::string msg = "Drift: govern.json.sig was present at baseline time but is now missing.\n"
                               "  Help: The signature file was removed. The signing key holder must\n"
@@ -4659,7 +4669,7 @@ std::string GovernanceEngine::checkDriftDetection(
     }
 
     // Gate 16b: Baseline signature presence — fail-closed if drift-baseline.json.sig removed
-    if (cfg.check_signature_presence && prev.contains("baseline_signature_present") && prev["baseline_signature_present"].get<bool>()) {
+    if (cfg.check_signature_presence && prev.contains("baseline_signature_present") && prev["baseline_signature_present"].is_boolean() && prev["baseline_signature_present"].get<bool>()) {
         if (!current.baseline_signature_present) {
             std::string msg = "Drift: drift-baseline.json.sig was present at baseline time but is now missing.\n"
                               "  Help: The baseline signature was removed. The signing key holder must\n"
@@ -4678,6 +4688,7 @@ std::string GovernanceEngine::checkDriftDetection(
         for (auto& [fn_name, baseline_loc] : prev["polyglot_loc"].items()) {
             auto it = current.polyglot_loc.find(fn_name);
             if (it == current.polyglot_loc.end()) continue;
+            if (!baseline_loc.is_number_integer()) continue;
             int prev_loc = baseline_loc.get<int>();
             if (prev_loc > 0) {
                 double ratio = static_cast<double>(it->second) / prev_loc;
@@ -4774,12 +4785,12 @@ void GovernanceEngine::saveDriftBaseline(
             try {
                 auto prev = nlohmann::json::parse(existing);
                 bool baseline_had_signing = false;
-                if (prev.contains("signing_configured") && prev["signing_configured"].get<bool>()) {
+                if (prev.contains("signing_configured") && prev["signing_configured"].is_boolean() && prev["signing_configured"].get<bool>()) {
                     baseline_had_signing = true;
                 }
                 if (!baseline_had_signing && prev.contains("files")) {
                     for (auto& [fname, entry] : prev["files"].items()) {
-                        if (entry.contains("signature_present") && entry["signature_present"].get<bool>()) {
+                        if (entry.contains("signature_present") && entry["signature_present"].is_boolean() && entry["signature_present"].get<bool>()) {
                             baseline_had_signing = true;
                             break;
                         }
