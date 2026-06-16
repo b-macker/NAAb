@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/safe_math.h"
 #include "naab/utils/string_utils.h"
 #include "naab/utils/error_formatter.h"
 #include <vector>
@@ -688,7 +689,7 @@ static std::vector<interpreter::NaabVal> getArray(const interpreter::NaabVal& va
 
 static int getInt(const interpreter::NaabVal& val) {
     if (val.isInt()) return val.asInt();
-    if (val.isDouble()) return static_cast<int>(val.asDouble());
+    if (val.isDouble()) return naab::math::safeDoubleToInt(val.asDouble());
     throw std::runtime_error(
         "Type error: Expected integer, got " + val.getTypeName() + "\n\n"
         "  Help:\n"

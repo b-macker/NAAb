@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/safe_math.h"
 #include "naab/subprocess_helpers.h"
 #include "naab/sandbox.h"
 #include "naab/platform.h"
@@ -99,7 +100,7 @@ interpreter::NaabVal ProcessModule::call(
             if (args[0].isInt()) {
                 code = args[0].asInt();
             } else if (args[0].isDouble()) {
-                code = static_cast<int>(args[0].asDouble());
+                code = naab::math::safeDoubleToInt(args[0].asDouble());
             }
         }
         // V-DOS-014: Throw ExitException instead of calling std::exit() directly.
@@ -119,7 +120,7 @@ interpreter::NaabVal ProcessModule::call(
         if (args[0].isInt()) {
             pid = args[0].asInt();
         } else if (args[0].isDouble()) {
-            pid = static_cast<int>(args[0].asDouble());
+            pid = naab::math::safeDoubleToInt(args[0].asDouble());
         } else {
             throw std::runtime_error(
                 "process.kill(): pid must be an integer, got " + args[0].getTypeName()

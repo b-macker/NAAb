@@ -2341,19 +2341,19 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         agent.retry.jitter = r["jitter"].get<bool>();
                     if (r.contains("retry_on") && r["retry_on"].is_array()) {
                         agent.retry.retry_on.clear();
-                        for (const auto& c : r["retry_on"]) agent.retry.retry_on.push_back(c.get<int>());
+                        for (const auto& c : r["retry_on"]) { if (c.is_number_integer()) agent.retry.retry_on.push_back(c.get<int>()); }
                     }
                     if (r.contains("skip_key_on") && r["skip_key_on"].is_array()) {
                         agent.retry.skip_key_on.clear();
-                        for (const auto& c : r["skip_key_on"]) agent.retry.skip_key_on.push_back(c.get<int>());
+                        for (const auto& c : r["skip_key_on"]) { if (c.is_number_integer()) agent.retry.skip_key_on.push_back(c.get<int>()); }
                     }
                     if (r.contains("fallback_model_on") && r["fallback_model_on"].is_array()) {
                         agent.retry.fallback_model_on.clear();
-                        for (const auto& c : r["fallback_model_on"]) agent.retry.fallback_model_on.push_back(c.get<int>());
+                        for (const auto& c : r["fallback_model_on"]) { if (c.is_number_integer()) agent.retry.fallback_model_on.push_back(c.get<int>()); }
                     }
                     if (r.contains("never_retry") && r["never_retry"].is_array()) {
                         agent.retry.never_retry.clear();
-                        for (const auto& c : r["never_retry"]) agent.retry.never_retry.push_back(c.get<int>());
+                        for (const auto& c : r["never_retry"]) { if (c.is_number_integer()) agent.retry.never_retry.push_back(c.get<int>()); }
                     }
                     if (r.contains("key_retry_after_seconds") && r["key_retry_after_seconds"].is_number_integer())
                         agent.retry.key_retry_after_seconds = std::max(0, r["key_retry_after_seconds"].get<int>());

@@ -1687,7 +1687,12 @@ void Interpreter::visit(ast::IfExpr& node) {
 
 void Interpreter::visit(ast::ThrowExpr& node) {
     auto val = eval(*node.getExpr());
-    throw NaabException(val);
+    // V-TAINT-THROW: propagate taint across throw/catch
+    NaabError err(val);
+    if (governance_ && governance_->isActive()) {
+        err.setTainted(checkRhsTainted(node.getExpr()));
+    }
+    throw err;
 }
 
 void Interpreter::visit(ast::TryCatchExpr& node) {
@@ -1706,7 +1711,22 @@ void Interpreter::visit(ast::TryCatchExpr& node) {
         catch_env->define(node.getErrorName(), error_val);
         auto saved = current_env_;
         current_env_ = catch_env;
+        // V-TAINT-THROW: propagate taint from thrown value to catch variable
+        bool prev_taint = false;
+        if (governance_ && governance_->isActive()) {
+            prev_taint = governance_->isTainted(node.getErrorName());
+            if (e.isTainted()) {
+                governance_->markTainted(node.getErrorName());
+            } else {
+                governance_->clearTaint(node.getErrorName());
+            }
+        }
         node.getCatchExpr()->accept(*this);
+        // Restore outer taint state for the error variable name
+        if (governance_ && governance_->isActive()) {
+            if (prev_taint) governance_->markTainted(node.getErrorName());
+            else governance_->clearTaint(node.getErrorName());
+        }
         current_env_ = saved;
     } catch (const std::exception& ex) {
         auto error_val = NaabVal::makeString(ex.what());
@@ -1714,7 +1734,17 @@ void Interpreter::visit(ast::TryCatchExpr& node) {
         catch_env->define(node.getErrorName(), error_val);
         auto saved = current_env_;
         current_env_ = catch_env;
+        // V-TAINT-THROW: std::exception from polyglot/stdlib — mark as tainted
+        bool prev_taint = false;
+        if (governance_ && governance_->isActive()) {
+            prev_taint = governance_->isTainted(node.getErrorName());
+            governance_->markTainted(node.getErrorName());
+        }
         node.getCatchExpr()->accept(*this);
+        if (governance_ && governance_->isActive()) {
+            if (prev_taint) governance_->markTainted(node.getErrorName());
+            else governance_->clearTaint(node.getErrorName());
+        }
         current_env_ = saved;
     }
 }
@@ -2587,11 +2617,16 @@ void Interpreter::visit(ast::TryStmt& node) {
         }
         current_env_->define(catch_clause->error_name, error_val);
 
-        // BUG-AB + REFACTOR-2: Scoped catch variable taint — save/restore outer taint state
+        // BUG-AB + REFACTOR-2 + V-TAINT-THROW: Scoped catch variable taint
         bool catch_var_was_tainted = false;
         if (governance_ && governance_->isActive()) {
             catch_var_was_tainted = governance_->isTainted(catch_clause->error_name);
-            governance_->clearTaint(catch_clause->error_name);
+            // V-TAINT-THROW: propagate taint from thrown value to catch variable
+            if (e.isTainted()) {
+                governance_->markTainted(catch_clause->error_name);
+            } else {
+                governance_->clearTaint(catch_clause->error_name);
+            }
         }
 
         // BUG-1: Lambda to restore catch variable taint on ALL exit paths (happy + throw)
@@ -2723,7 +2758,13 @@ void Interpreter::visit(ast::TryStmt& node) {
 }
 
 void Interpreter::visit(ast::ThrowStmt& node) {
-    throw NaabException(eval(*node.getExpr()));
+    auto val = eval(*node.getExpr());
+    // V-TAINT-THROW: propagate taint across throw/catch
+    NaabError err(val);
+    if (governance_ && governance_->isActive()) {
+        err.setTainted(checkRhsTainted(node.getExpr()));
+    }
+    throw err;
 }
 // ============================================================================
 

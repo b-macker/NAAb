@@ -2211,12 +2211,15 @@ void GovernanceEngine::flushGroupedAdvisories() {
                    "(increase output.max_advisories to see all)\n", advisory_suppressed_);
     }
 
-    // Reset
-    dup_call_summary_.clear();
-    ptc_functions_.clear();
-    emitted_advisories_.clear();
-    advisory_count_ = 0;
-    advisory_suppressed_ = 0;
+    // Reset — under mutex to avoid race with enforce() in agent.batch() workers
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        dup_call_summary_.clear();
+        ptc_functions_.clear();
+        emitted_advisories_.clear();
+        advisory_count_ = 0;
+        advisory_suppressed_ = 0;
+    }
 }
 
 // ============================================================================
@@ -4804,8 +4807,17 @@ void GovernanceEngine::saveDriftBaseline(
                         resolved.c_str());
                     return;
                 }
-            } catch (...) {
-                // Baseline is corrupt or unreadable — allow overwrite
+            } catch (const std::exception& parse_err) {
+                // Baseline is corrupt — fail-closed: assume it was signed
+                if (!hasSigningCapability()) {
+                    fprintf(stderr,
+                        "[governance] INTEGRITY BLOCK: Baseline '%s' is corrupt "
+                        "and cannot verify signing history. Provide signing keys to overwrite.\n",
+                        resolved.c_str());
+                    return;
+                }
+                fprintf(stderr, "[governance] WARNING: Baseline '%s' is corrupt, overwriting "
+                    "(signing keys available)\n", resolved.c_str());
             }
         }
     }
@@ -4816,7 +4828,10 @@ void GovernanceEngine::saveDriftBaseline(
         std::ifstream ifs(resolved);
         if (ifs.is_open()) {
             try { baseline = nlohmann::json::parse(ifs); }
-            catch (...) { baseline = nlohmann::json::object(); }
+            catch (...) {
+                baseline = nlohmann::json::object();
+                fprintf(stderr, "[governance] WARNING: Existing baseline corrupt, starting fresh\n");
+            }
         }
     }
 
@@ -5173,11 +5188,20 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
                 result.passed = false;
             }
         } else if (check.type == "command") {
-            // Run arbitrary command, check exit code 0
-            std::string out, err;
-            int rc = naab::runtime::execute_subprocess_with_pipes("/bin/sh", {"-c", check.name}, out, err);
-            result.passed = (rc == 0);
-            result.observed = result.passed ? "exit 0" : fmt::format("exit {}", rc);
+            // Defense-in-depth: prerequisite commands must pass shell capability check
+            std::string shell_err = checkShellAllowed();
+            if (!shell_err.empty()) {
+                result.passed = false;
+                result.observed = "<shell execution not allowed>";
+                result.message = "Prerequisite command blocked: shell capability is disabled";
+            } else {
+                auto containment = naab::runtime::SubprocessContainment::fromCurrentSandbox("/bin/sh");
+                std::string out, err;
+                int rc = naab::runtime::execute_subprocess_with_pipes(
+                    "/bin/sh", {"-c", check.name}, out, err, nullptr, &containment);
+                result.passed = (rc == 0);
+                result.observed = result.passed ? "exit 0" : fmt::format("exit {}", rc);
+            }
         } else {
             result.observed = "<unknown check type: " + check.type + ">";
             result.passed = false;

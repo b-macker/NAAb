@@ -4,6 +4,7 @@
 #include "naab/block_tester.h"
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
+#include "naab/safe_math.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -195,7 +196,7 @@ bool BlockTester::checkAssertion(const Assertion& assertion,
                     return false;
                 }
                 int actual_int = result.isInt() ? static_cast<int>(result.asInt())
-                                                : static_cast<int>(result.asDouble());
+                                                : naab::math::safeDoubleToInt(result.asDouble());
                 int expected_int = std::stoi(assertion.expected);
                 if (actual_int <= expected_int) {
                     error_message = fmt::format("{} not > {}", actual_int, expected_int);
@@ -214,7 +215,7 @@ bool BlockTester::checkAssertion(const Assertion& assertion,
                     return false;
                 }
                 int actual_int = result.isInt() ? static_cast<int>(result.asInt())
-                                                : static_cast<int>(result.asDouble());
+                                                : naab::math::safeDoubleToInt(result.asDouble());
                 int expected_int = std::stoi(assertion.expected);
                 if (actual_int >= expected_int) {
                     error_message = fmt::format("{} not < {}", actual_int, expected_int);

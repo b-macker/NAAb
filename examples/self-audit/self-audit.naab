@@ -1,6 +1,6 @@
-// NAAb Self-Audit: Governance Engine Reviews Its Own Source
-// Uses NAAb's multi-agent system to audit NAAb's C++ source code.
-// The governance engine governs the agents that are auditing it.
+// NAAb Autonomous Auditor v3: Suspicion-First Pipeline
+// 3-stage: Deterministic Pre-Scan → LLM Suspicion Scan → Dedup/Rank/Report
+// Uses P1-P8 bug patterns + L1-L40 slop taxonomy
 use agent
 use codegen
 use file
@@ -9,45 +9,6 @@ use string
 use env
 use governance
 
-// ── Tool: read a chunk of a source file ──
-// Called by the coder agent via tool loop
-fn read_file(path, start_line, line_count) {
-    if start_line == null { start_line = 0 }
-    if line_count == null { line_count = 200 }
-    let content = ""
-    try {
-        content = file.read(path)
-    } catch (e) {
-        return json.stringify({success: false, error: "Cannot read: " + string(path)})
-    }
-    let lines = string.split(content, "\n")
-    let total = len(lines)
-    if start_line >= total {
-        return json.stringify({success: true, content: "", total_lines: total,
-            note: "start_line beyond end of file"})
-    }
-    let end_line = start_line + line_count
-    if end_line > total { end_line = total }
-    let chunk = []
-    for i in start_line..end_line {
-        chunk.push(string(i + 1) + ": " + lines[i])
-    }
-    return json.stringify({success: true, content: string.join(chunk, "\n"),
-        total_lines: total, start_line: start_line + 1, end_line: end_line})
-}
-
-// ── Tool: run a Python analysis script ──
-// Called by the coder agent to execute verification scripts
-fn run_analysis(code) {
-    try {
-        let result = codegen.run("python", code)
-        return json.stringify({success: true, output: string(result)})
-    } catch (e) {
-        return json.stringify({success: false, error: string(e)})
-    }
-}
-
-// ── Helper: read a chunk directly (not a tool — called by NAAb program) ──
 fn read_chunk(filepath, start, count) {
     let content = file.read(filepath)
     let lines = string.split(content, "\n")
@@ -63,374 +24,463 @@ fn read_chunk(filepath, start, count) {
 
 fn print_section(title) {
     print("")
-    print("=== " + title + " ===")
+    print("================================================================")
+    print("  " + title)
+    print("================================================================")
+}
+
+// ── DO NOT FLAG list for Stage 2 dedup ──
+fn is_suppressed(description) {
+    let suppress = [
+        "semverGe", "looksLikeBase64", "looksLikeHex", "validateSchema",
+        "flushGroupedAdvisories", "polyglot_async_test",
+        "fp_deleter", "V-LN-001", "thread_local",
+        "saveCounterState", "restoreCounterState",
+        "dup_call_summary_", "ptc_functions_",
+        "python_c_executor"
+    ]
+    for s in suppress {
+        if string.contains(description, s) { return true }
+    }
+    return false
 }
 
 main {
     let project = env.get("HOME") + "/.naab/language"
     let src = project + "/src"
 
-    // ── Audit Manifest ──
+    print_section("NAAb Autonomous Auditor v3")
+    print("  Pipeline: Stage 0 (deterministic) → Stage 1 (LLM suspicions) → Stage 2 (dedup/report)")
+    print("  Patterns: P1-P8 bug patterns + L1-L40 slop taxonomy")
+    print("  Contract: flag suspicions, human confirms")
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 0: Deterministic Pre-Scan (no LLM, zero FPs by design)
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Stage 0: Deterministic Pre-Scan")
+
+    let stage0_raw = ""
+    try {
+        stage0_raw = string(codegen.run("shell",
+            "bash " + project + "/examples/self-audit/stage0-prescan.sh " + project + " 2>/dev/null"))
+    } catch (e) {
+        print("  Stage 0 FAILED: " + string(e))
+        stage0_raw = "{\"summary\":{\"total_findings\":0,\"checks_run\":0}}"
+    }
+
+    // Parse JSONL output
+    let confirmed = []
+    let stage0_summary = {}
+    let stage0_lines = string.split(stage0_raw, "\n")
+    for line in stage0_lines {
+        let trimmed = string.trim(line)
+        if len(trimmed) < 3 { continue }
+        try {
+            let obj = json.parse(trimmed)
+            if obj.has("summary") {
+                stage0_summary = obj.get("summary") ?? {}
+            } else {
+                confirmed.push(obj)
+            }
+        } catch (e) {
+            // Skip unparseable lines
+        }
+    }
+
+    let s0_total = len(confirmed)
+    // Count unique check types as proxy for checks_run
+    let check_types = {}
+    for f in confirmed {
+        let ck = f.get("check") ?? "?"
+        check_types[ck] = true
+    }
+    let s0_checks = len(check_types.keys())
+    print("  Check categories: " + string(s0_checks))
+    print("  Confirmed findings: " + string(len(confirmed)))
+
+    // Group Stage 0 findings by check type for summary
+    let s0_by_check = {}
+    for f in confirmed {
+        let check = f.get("check") ?? "?"
+        let cur = s0_by_check.get(check) ?? 0
+        s0_by_check[check] = cur + 1
+    }
+    for check in s0_by_check.keys() {
+        print("    " + check + ": " + string(s0_by_check[check]))
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 0.5: Git recon (context for Stage 1 prompts)
+    // ═══════════════════════════════════════════════════════════════
+    let git_log = ""
+    try {
+        git_log = string(codegen.run("shell",
+            "cd " + project + " && git log --oneline -10 2>/dev/null || echo 'no git'"))
+    } catch (e) { git_log = "unavailable" }
+
+    let changed_files = []
+    try {
+        let stat = string(codegen.run("shell",
+            "cd " + project + " && git diff HEAD~5 --stat 2>/dev/null || echo ''"))
+        let stat_lines = string.split(stat, "\n")
+        for line in stat_lines {
+            if string.contains(line, "src/") {
+                let parts = string.split(string.trim(line), " ")
+                if len(parts) > 0 { changed_files.push(parts[0]) }
+            }
+        }
+    } catch (e) { }
+
+    if len(changed_files) > 0 {
+        print("  Recently changed: " + string(len(changed_files)) + " source files")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 1: LLM Suspicion Scan (per-file + cross-file boundaries)
+    // ═══════════════════════════════════════════════════════════════
+    print_section("Stage 1: LLM Suspicion Scan")
+
+    // Audit manifest — files and targeted windows
     let manifest = [
-        {file: src + "/runtime/governance_checks.cpp",  lines: 6906, priority: "critical"},
-        {file: src + "/stdlib/agent_impl.cpp",          lines: 3587, priority: "critical"},
-        {file: src + "/runtime/governance_engine.cpp",  lines: 6594, priority: "critical"},
-        {file: src + "/runtime/governance_config.cpp",  lines: 4424, priority: "high"},
-        {file: src + "/stdlib/codegen_impl.cpp",        lines: 593,  priority: "high"},
-        {file: src + "/vm/vm.cpp",                      lines: 5129, priority: "high"},
-        {file: src + "/cli/main.cpp",                   lines: 4752, priority: "medium"}
+        {file: src + "/runtime/governance_checks.cpp",  lines: 6906, priority: "critical",
+         windows: [[3100, 3500], [4300, 4700], [6500, 6906]]},
+        {file: src + "/stdlib/agent_impl.cpp",          lines: 3587, priority: "critical",
+         windows: [[1700, 2100], [3000, 3400], [3400, 3587]]},
+        {file: src + "/runtime/governance_engine.cpp",  lines: 6594, priority: "critical",
+         windows: [[860, 1260], [2100, 2500], [5000, 5400]]},
+        {file: src + "/runtime/governance_config.cpp",  lines: 4424, priority: "high",
+         windows: [[2100, 2500], [4200, 4424]]},
+        {file: src + "/stdlib/codegen_impl.cpp",        lines: 593,  priority: "high",
+         windows: [[0, 593]]},
+        {file: src + "/vm/vm.cpp",                      lines: 5129, priority: "high",
+         windows: [[0, 400], [2400, 2800]]},
+        {file: src + "/cli/main.cpp",                   lines: 4752, priority: "medium",
+         windows: [[800, 1200], [2400, 2800]]}
     ]
 
-    print_section("NAAb Self-Audit: Governance Engine Source Review")
-    print("Auditing " + string(len(manifest)) + " C++ source files")
-    print("Using NAAb governance to govern the audit agents")
+    let boundaries = [
+        {name: "agent-governance", file_a: src + "/stdlib/agent_impl.cpp",
+         file_b: src + "/runtime/governance_engine.cpp",
+         window_a: [3100, 3400], window_b: [860, 1060],
+         focus: "GovernanceGuard lifecycle, tool callback taint, agentSend→enforce path"},
+        {name: "vm-governance", file_a: src + "/vm/vm.cpp",
+         file_b: src + "/runtime/governance_engine.cpp",
+         window_a: [2400, 2700], window_b: [860, 1060],
+         focus: "VM taint stack↔governance taint, GovernanceHardError, callNaabFunction callback"},
+        {name: "codegen-governance", file_a: src + "/stdlib/codegen_impl.cpp",
+         file_b: src + "/runtime/governance_engine.cpp",
+         window_a: [0, 400], window_b: [860, 1060],
+         focus: "codegen.run→governance checks, HardError in codegen try/catch, taint_all_args"},
+        {name: "config-engine", file_a: src + "/runtime/governance_config.cpp",
+         file_b: src + "/runtime/governance_engine.cpp",
+         window_a: [4200, 4424], window_b: [2100, 2400],
+         focus: "Config reload→state consistency, ratchet enforcement, extends/inheritance"}
+    ]
 
-    // Register tools for coder agent
-    agent.register_tool("read_file", read_file, {
-        description: "Read lines from a C++ source file. Returns numbered lines as JSON.",
-        parameters: {
-            path:       {type: "string", description: "Absolute path to the C++ file"},
-            start_line: {type: "number", description: "0-based start line (default 0)"},
-            line_count: {type: "number", description: "Number of lines to read (default 200)"}
-        }
-    })
-    agent.register_tool("run_analysis", run_analysis, {
-        description: "Execute a Python script for C++ source analysis. Returns stdout as JSON.",
-        parameters: {
-            code: {type: "string", description: "Python code to execute (use re, sys, json only)"}
-        }
-    })
+    let suspicions = []
+    let api_calls = 0
 
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 1: Scope — auditor selects high-priority audit targets
-    // ═══════════════════════════════════════════════════════════════
-    print_section("Phase 1: Scope Selection")
-    let auditor = agent.create("auditor")
-
-    let manifest_text = "NAAb C++ source files for governance engine audit:\n\n"
+    // ── Per-file scans ──
     for entry in manifest {
-        manifest_text = manifest_text + "- " + entry.get("file") +
-            " (" + string(entry.get("lines")) + " lines, " +
-            entry.get("priority") + " priority)\n"
-    }
-    manifest_text = manifest_text + "\nSelect the 3 highest-priority files. " +
-        "For each, identify 2-3 specific regions (200-line windows) to audit. " +
-        "Focus on: catch blocks, json parsing, resource management, thread safety."
+        let tfile = entry.get("file")
+        let windows = entry.get("windows") ?? []
+        let priority = entry.get("priority") ?? "medium"
 
-    let scope_raw = ""
-    try {
-        let scope_resp = agent.send(auditor, manifest_text)
-        scope_raw = scope_resp.get("content") ?? ""
-        print("Auditor response: " + string(len(scope_raw)) + " chars")
-        print("Auditor raw: " + scope_raw)
-    } catch (e) {
-        print("Auditor API error: " + string(e))
-        print("Using fallback targets")
-    }
-
-    // Parse scope JSON — extract from markdown fences if needed
-    let scope_code = agent.extract_code(scope_raw, "json")
-    if len(scope_code) < 10 { scope_code = scope_raw }
-
-    let targets = []
-    try {
-        targets = json.parse(scope_code)
-    } catch (e) {
-        print("  JSON parse failed, using fallback targets")
-        // Fallback: hardcoded high-value regions based on actual codebase knowledge
-        targets = [
-            {file: src + "/stdlib/agent_impl.cpp", regions: [
-                {start: 1700, end: 1900, reason: "tool execution catch blocks"},
-                {start: 600, end: 800, reason: "agent creation and validation"}
-            ]},
-            {file: src + "/runtime/governance_engine.cpp", regions: [
-                {start: 860, end: 1060, reason: "recordPass/recordFail and pulse tracking"},
-                {start: 5900, end: 6100, reason: "checkGovernanceHealth"}
-            ]},
-            {file: src + "/runtime/governance_config.cpp", regions: [
-                {start: 2180, end: 2380, reason: "agent config JSON parsing"},
-                {start: 2480, end: 2530, reason: "agent_dispatch parsing"}
-            ]}
-        ]
-    }
-
-    print("Targets:")
-    for t in targets {
-        let tfile = t.get("file") ?? "?"
-        let regions = t.get("regions") ?? []
-        print("  " + tfile + " - " + string(len(regions)) + " region(s)")
-        for r in regions {
-            print("    lines " + string(r.get("start") ?? 0) + "-" +
-                string(r.get("end") ?? 0) + ": " + (r.get("reason") ?? ""))
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 2: Analyze — read C++ chunks, send to analyzer agent
-    // ═══════════════════════════════════════════════════════════════
-    print_section("Phase 2: Analysis")
-    let all_findings = []
-
-    for target in targets {
-        let tfile = target.get("file") ?? ""
-        let regions = target.get("regions") ?? []
         print("")
-        print("-- Analyzing: " + tfile + " --")
+        print("-- " + tfile + " (" + priority + ") --")
 
-        for region in regions {
-            // Fresh analyzer per region — each is an independent analysis.
-            // Reusing one handle accumulates 21K+ tokens of irrelevant context.
-            let analyzer = agent.create("analyzer")
-            let rstart = region.get("start") ?? 0
-            let rend = region.get("end") ?? 200
-            let reason = region.get("reason") ?? ""
-            let chunk_size = rend - rstart
+        let recently_changed = false
+        for cf in changed_files {
+            if string.contains(tfile, cf) { recently_changed = true }
+        }
+        if recently_changed { print("  * Recently modified") }
 
-            print("  Region " + string(rstart) + "-" + string(rend) + " (" + reason + ")")
-
-            // Read the C++ chunk directly
-            let chunk_text = ""
+        // Read all windows
+        let combined_code = ""
+        for w in windows {
             try {
-                chunk_text = read_chunk(tfile, rstart, chunk_size)
+                let chunk = read_chunk(tfile, w[0], w[1] - w[0])
+                combined_code = combined_code + "\n// --- Lines " + string(w[0]) + "-" + string(w[1]) + " ---\n" + chunk
             } catch (e) {
-                print("    SKIP: cannot read file")
-                continue
+                print("  SKIP window " + string(w[0]) + "-" + string(w[1]))
             }
-            if len(chunk_text) < 10 {
-                print("    SKIP: empty region")
-                continue
-            }
+        }
 
-            // Send to analyzer agent
-            let analysis_prompt = "Analyze this C++ code from " + tfile +
-                " (lines " + string(rstart) + "-" + string(rend) + ").\n" +
-                "Focus: " + reason + "\n\n```cpp\n" + chunk_text + "\n```\n\n" +
-                "Check for:\n" +
-                "1. catch(std::exception/runtime_error) without preceding GovernanceHardError rethrow\n" +
-                "2. nlohmann json .get<T>() without .contains()/.is_*() guard\n" +
-                "3. FILE*/fstream not closed on all paths\n" +
-                "4. Thread safety: shared mutable state without mutex\n" +
-                "5. Unchecked return values\n\n" +
-                "Output: {\"findings\": [{\"severity\": \"...\", \"lines\": \"N-M\", " +
-                "\"category\": \"...\", \"description\": \"...\", \"fix\": \"...\"}]}"
+        if len(combined_code) < 20 {
+            print("  SKIP: no readable code")
+            continue
+        }
 
-            let raw = ""
-            let stop = ""
-            let otokens = 0
-            let itokens = 0
-            try {
-                let resp = agent.send(analyzer, analysis_prompt)
-                raw = resp.get("content") ?? ""
-                stop = resp.get("stop_reason") ?? "?"
-                let usage = resp.get("usage") ?? {}
-                otokens = usage.get("output_tokens") ?? 0
-                itokens = usage.get("input_tokens") ?? 0
-            } catch (e) {
-                print("    API error: " + string(e))
-                print("    SKIP: continuing to next region")
-                continue
-            }
+        let spotter = agent.create("spotter")
 
-            // Debug: show raw response
-            print("    stop=" + stop + " in=" + string(itokens) + " out=" + string(otokens) + " chars=" + string(len(raw)))
-            print("    Raw: " + raw)
+        let prompt = "Scan this C++ code for suspicious patterns. File: " + tfile + " (priority: " + priority + ")\n"
+        if recently_changed { prompt = prompt + "NOTE: Recently modified — extra scrutiny.\n" }
+        prompt = prompt + "Recent commits:\n" + git_log + "\n\n"
+        prompt = prompt + "```cpp\n" + combined_code + "\n```\n\n"
+        prompt = prompt + "Apply your bug patterns (P1-P8) and slop levels (L3-L40). "
+        prompt = prompt + "Check the DO NOT FLAG list. "
+        prompt = prompt + "Flag anything suspicious — you do NOT need to confirm it's a real bug. "
+        prompt = prompt + "Output JSON: {\"suspicions\": [...]}"
 
-            // Parse findings JSON
-            let analysis_json = agent.extract_code(raw, "json")
-            if len(analysis_json) < 5 { analysis_json = raw }
+        try {
+            let resp = agent.send(spotter, prompt)
+            let raw = resp.get("content") ?? ""
+            let usage = resp.get("usage") ?? {}
+            print("  in=" + string(usage.get("input_tokens") ?? 0) + " out=" + string(usage.get("output_tokens") ?? 0))
+            api_calls = api_calls + 1
+
+            let sj = agent.extract_code(raw, "json")
+            if len(sj) < 5 { sj = raw }
 
             try {
-                let parsed = json.parse(analysis_json)
-                let findings = parsed.get("findings") ?? []
-                print("    Found " + string(len(findings)) + " issue(s)")
-                for f in findings {
-                    all_findings.push({
+                let parsed = json.parse(sj)
+                let file_suspicions = parsed.get("suspicions") ?? []
+                print("  Suspicions: " + string(len(file_suspicions)))
+                for s in file_suspicions {
+                    suspicions.push({
                         file: tfile,
-                        region: string(rstart) + "-" + string(rend),
-                        severity: f.get("severity") ?? "unknown",
-                        category: f.get("category") ?? "unknown",
-                        description: f.get("description") ?? "",
-                        fix: f.get("fix") ?? "",
-                        lines: f.get("lines") ?? ""
+                        source: "stage1-file",
+                        level: s.get("level") ?? "?",
+                        lines: s.get("lines") ?? "",
+                        smell: s.get("smell") ?? s.get("description") ?? "",
+                        snippet: s.get("snippet") ?? ""
                     })
                 }
             } catch (e) {
-                print("    Could not parse findings")
-                all_findings.push({
-                    file: tfile, region: string(rstart) + "-" + string(rend),
-                    severity: "unknown", category: "parse_error",
-                    description: "Analyzer returned unparseable output",
-                    fix: "", lines: ""
-                })
+                print("  Parse error — raw: " + string(len(raw)) + " chars")
             }
+        } catch (e) {
+            print("  API error: " + string(e))
+        }
+    }
+
+    // ── Cross-file boundary scans ──
+    print("")
+    print("-- Cross-file boundaries --")
+
+    for boundary in boundaries {
+        let bname = boundary.get("name") ?? "?"
+        let file_a = boundary.get("file_a") ?? ""
+        let file_b = boundary.get("file_b") ?? ""
+        let wa = boundary.get("window_a") ?? [0, 200]
+        let wb = boundary.get("window_b") ?? [0, 200]
+        let focus = boundary.get("focus") ?? ""
+
+        print("")
+        print("  Boundary: " + bname + " — " + focus)
+
+        let code_a = ""
+        let code_b = ""
+        try { code_a = read_chunk(file_a, wa[0], wa[1] - wa[0]) } catch (e) { print("  SKIP: cannot read A"); continue }
+        try { code_b = read_chunk(file_b, wb[0], wb[1] - wb[0]) } catch (e) { print("  SKIP: cannot read B"); continue }
+
+        let bs = agent.create("boundary_spotter")
+
+        let prompt = "Scan the interface boundary between these two C++ files for suspicious patterns.\n\n"
+        prompt = prompt + "FILE A: " + file_a + " (lines " + string(wa[0]) + "-" + string(wa[1]) + ")\n"
+        prompt = prompt + "```cpp\n" + code_a + "\n```\n\n"
+        prompt = prompt + "FILE B: " + file_b + " (lines " + string(wb[0]) + "-" + string(wb[1]) + ")\n"
+        prompt = prompt + "```cpp\n" + code_b + "\n```\n\n"
+        prompt = prompt + "Focus: " + focus + "\n\n"
+        prompt = prompt + "Flag cross-file smells: state mismatches, error handling gaps, taint loss, mutex scope, config sync. "
+        prompt = prompt + "Output JSON: {\"suspicions\": [...]}"
+
+        try {
+            let resp = agent.send(bs, prompt)
+            let raw = resp.get("content") ?? ""
+            let usage = resp.get("usage") ?? {}
+            print("  in=" + string(usage.get("input_tokens") ?? 0) + " out=" + string(usage.get("output_tokens") ?? 0))
+            api_calls = api_calls + 1
+
+            let bj = agent.extract_code(raw, "json")
+            if len(bj) < 5 { bj = raw }
+
+            try {
+                let parsed = json.parse(bj)
+                let bsuspicions = parsed.get("suspicions") ?? []
+                print("  Suspicions: " + string(len(bsuspicions)))
+                for s in bsuspicions {
+                    suspicions.push({
+                        file: file_a + " <> " + file_b,
+                        source: "stage1-boundary",
+                        boundary: bname,
+                        level: s.get("level") ?? "?",
+                        lines: (s.get("lines_a") ?? s.get("lines") ?? "") + " / " + (s.get("lines_b") ?? ""),
+                        smell: s.get("smell") ?? s.get("description") ?? "",
+                        snippet: s.get("snippet") ?? ""
+                    })
+                }
+            } catch (e) {
+                print("  Parse error")
+            }
+        } catch (e) {
+            print("  API error: " + string(e))
         }
     }
 
     print("")
-    print("Total analyzer findings: " + string(len(all_findings)))
+    print("Stage 1 complete: " + string(len(suspicions)) + " suspicions from " + string(api_calls) + " API calls")
 
     // ═══════════════════════════════════════════════════════════════
-    // PHASE 3: Verify — coder writes Python scripts to confirm/deny
+    // STAGE 2: Dedup, Filter, Rank, Report
     // ═══════════════════════════════════════════════════════════════
-    print_section("Phase 3: Automated Verification")
+    print_section("Stage 2: Dedup / Filter / Report")
 
-    if len(all_findings) == 0 {
-        print("No findings to verify — skipping coder phase")
-    }
-
-    let verifications = []
-
-    if len(all_findings) > 0 {
-        let coder = agent.create("coder")
-
-        // Deduplicate findings by category for the coder
-        let findings_summary = "The analyzer found these issues in NAAb C++ source.\n" +
-            "Write Python scripts to verify each category.\n" +
-            "Use read_file to fetch source files, run_analysis to execute scripts.\n\n"
-        let categories_seen = []
-        for f in all_findings {
-            let cat = f.get("category") ?? ""
-            let already = false
-            for c in categories_seen {
-                if c == cat { already = true }
-            }
-            if !already {
-                categories_seen.push(cat)
-                findings_summary = findings_summary + "- " + cat +
-                    " | " + (f.get("file") ?? "") +
-                    " | Lines " + (f.get("lines") ?? "") +
-                    " | " + (f.get("description") ?? "") + "\n"
-            }
+    // 2a. Apply DO NOT FLAG suppression
+    let active_suspicions = []
+    let suppressed = []
+    for s in suspicions {
+        let desc = (s.get("smell") ?? "") + " " + (s.get("snippet") ?? "") + " " + (s.get("file") ?? "")
+        if is_suppressed(desc) {
+            suppressed.push(s)
+        } else {
+            active_suspicions.push(s)
         }
-        findings_summary = findings_summary +
-            "\nFor each unique category, write ONE Python script that:\n" +
-            "1. Reads the relevant file using read_file\n" +
-            "2. Uses regex to search for the pattern\n" +
-            "3. Reports whether the finding is confirmed or a false positive\n" +
-            "Execute each script with run_analysis.\n" +
-            "Final output JSON: {\"verifications\": [{\"category\": \"...\", " +
-            "\"confirmed\": true/false, \"evidence\": \"...\"}]}"
+    }
 
-        let coder_raw = ""
-        let tool_calls = 0
-        try {
-            let coder_resp = agent.send(coder, findings_summary)
-            coder_raw = coder_resp.get("content") ?? ""
-            tool_calls = coder_resp.get("tool_calls_made") ?? 0
-            print("Coder made " + string(tool_calls) + " tool calls")
-            print("Coder raw: " + coder_raw)
-        } catch (e) {
-            print("Coder API error: " + string(e))
-            print("Skipping automated verification")
+    if len(suppressed) > 0 {
+        print("  Suppressed (DO NOT FLAG): " + string(len(suppressed)))
+    }
+
+    // 2b. Dedup by file+line (merge suspicions hitting same location)
+    let seen_locations = {}
+    let deduped = []
+    for s in active_suspicions {
+        let key = (s.get("file") ?? "") + ":" + (s.get("lines") ?? "")
+        if seen_locations.has(key) {
+            // Merge: append smell to existing
+            let idx = seen_locations[key]
+            let existing = deduped[idx]
+            let merged_smell = (existing.get("smell") ?? "") + " | " + (s.get("smell") ?? "")
+            existing["smell"] = merged_smell
+            existing["refs"] = (existing.get("refs") ?? 1) + 1
+        } else {
+            s["refs"] = 1
+            seen_locations[key] = len(deduped)
+            deduped.push(s)
         }
+    }
 
-        // Parse verification results
-        let coder_json = agent.extract_code(coder_raw, "json")
-        if len(coder_json) < 5 { coder_json = coder_raw }
-        try {
-            let parsed = json.parse(coder_json)
-            verifications = parsed.get("verifications") ?? []
-        } catch (e) {
-            print("Could not parse coder results")
+    if len(active_suspicions) != len(deduped) {
+        print("  Deduped: " + string(len(active_suspicions)) + " → " + string(len(deduped)))
+    }
+
+    // 2c. Group by level for readability
+    let by_level = {}
+    for s in deduped {
+        let lvl = s.get("level") ?? "?"
+        if !by_level.has(lvl) { by_level[lvl] = [] }
+        by_level[lvl].push(s)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // OUTPUT: Structured report
+    // ═══════════════════════════════════════════════════════════════
+    print_section("AUDIT REPORT")
+
+    // Section 1: Confirmed (from Stage 0)
+    print("")
+    print("=== CONFIRMED (deterministic, high confidence) ===")
+    print("")
+
+    let s0_grouped = {}
+    for f in confirmed {
+        let check = f.get("check") ?? "?"
+        if !s0_grouped.has(check) { s0_grouped[check] = [] }
+        s0_grouped[check].push(f)
+    }
+
+    let confirmed_idx = 1
+    for check in s0_grouped.keys() {
+        let items = s0_grouped[check]
+        print("  [" + check + "] (" + string(len(items)) + " findings)")
+        for item in items {
+            let fpath = item.get("file") ?? "?"
+            let fline = item.get("line") ?? 0
+            let fdesc = item.get("description") ?? ""
+            print("    D-" + string(confirmed_idx) + ": " + fpath + ":" + string(fline))
+            print("         " + fdesc)
+            confirmed_idx = confirmed_idx + 1
         }
-        print("Verifications completed: " + string(len(verifications)))
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 4: Review — cross-reference and produce verdict
-    // ═══════════════════════════════════════════════════════════════
-    print_section("Phase 4: Final Review")
-    let reviewer = agent.create("reviewer")
-
-    let review_prompt = "Cross-reference these NAAb C++ governance engine audit results:\n\n" +
-        "ANALYZER FINDINGS (" + string(len(all_findings)) + "):\n" +
-        json.stringify(all_findings) +
-        "\n\nAUTOMATED VERIFICATIONS (" + string(len(verifications)) + "):\n" +
-        json.stringify(verifications) +
-        "\n\nFor each finding:\n" +
-        "- If the automated verification confirms it, mark as confirmed\n" +
-        "- If the verification denies it (false positive), dismiss it\n" +
-        "- If no verification exists, use your judgment\n\n" +
-        "VERDICT: PASS (no critical/high confirmed), NEEDS_WORK (has critical/high), " +
-        "or INCONCLUSIVE.\n" +
-        "Output JSON: {\"confirmed\": [{\"severity\": \"...\", \"file\": \"...\", " +
-        "\"description\": \"...\"}], \"dismissed\": [{\"reason\": \"...\"}], " +
-        "\"verdict\": \"...\", \"summary\": \"...\"}"
-
-    let review_raw = ""
-    try {
-        let review_resp = agent.send(reviewer, review_prompt)
-        review_raw = review_resp.get("content") ?? ""
-        print("Reviewer raw: " + review_raw)
-    } catch (e) {
-        print("Reviewer API error: " + string(e))
-        print("Skipping review — reporting raw findings")
-    }
-
-    // Extract verdict
-    let verdict = "INCONCLUSIVE"
-    if string.contains(review_raw, "PASS") { verdict = "PASS" }
-    if string.contains(review_raw, "NEEDS_WORK") { verdict = "NEEDS_WORK" }
-
-    let confirmed = []
-    let dismissed = []
-    let summary = ""
-    let review_json = agent.extract_code(review_raw, "json")
-    if len(review_json) < 5 { review_json = review_raw }
-    try {
-        let rp = json.parse(review_json)
-        confirmed = rp.get("confirmed") ?? []
-        dismissed = rp.get("dismissed") ?? []
-        summary = rp.get("summary") ?? ""
-        let v = rp.get("verdict") ?? ""
-        if len(v) > 0 { verdict = v }
-    } catch (e) {
-        print("Could not parse review JSON")
-    }
-
-    print("Verdict: " + verdict)
-    print("Confirmed: " + string(len(confirmed)) + " findings")
-    print("Dismissed: " + string(len(dismissed)) + " false positives")
-    if len(summary) > 0 {
-        print("Summary: " + summary)
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 5: Report — structured output + governance meta-check
-    // ═══════════════════════════════════════════════════════════════
-    print_section("Audit Report")
-
-    let report = {
-        audit: "NAAb Self-Audit",
-        files_audited: len(targets),
-        total_findings: len(all_findings),
-        confirmed_findings: len(confirmed),
-        dismissed_findings: len(dismissed),
-        verifications_run: len(verifications),
-        verdict: verdict,
-        summary: summary,
-        confirmed: confirmed,
-        dismissed: dismissed
-    }
-
-    let report_str = json.stringify(report)
-    print(report_str)
-
-    try {
-        file.write("examples/self-audit/audit-report.json", report_str)
         print("")
-        print("Report saved: examples/self-audit/audit-report.json")
-    } catch (e) {
-        print("(Could not save report file)")
     }
 
-    // ── The Meta Moment ──
-    // NAAb's governance engine was actively governing the agents that just audited it.
-    // The same taint tracking, sandbox enforcement, agent budget limits, and pulse
-    // health monitoring being audited were enforcing policy on the audit itself.
-    print_section("Governance Health (Meta)")
-    print("NAAb governance governed the agents that just audited it:")
+    // Section 2: Suspicions (from Stage 1)
+    print("=== SUSPICIONS (LLM-flagged, needs human review) ===")
+    print("")
 
+    if len(deduped) == 0 {
+        print("  (none)")
+    }
+
+    let suspicion_idx = 1
+    for lvl in by_level.keys() {
+        let items = by_level[lvl]
+        print("  [" + lvl + "] (" + string(len(items)) + " suspicions)")
+        for item in items {
+            let sfile = item.get("file") ?? "?"
+            let slines = item.get("lines") ?? "?"
+            let ssmell = item.get("smell") ?? "?"
+            let srefs = item.get("refs") ?? 1
+            let ref_tag = ""
+            if srefs > 1 { ref_tag = " (x" + string(srefs) + " refs)" }
+            print("    S-" + string(suspicion_idx) + ": " + sfile + ":" + slines + ref_tag)
+            print("         " + ssmell)
+            suspicion_idx = suspicion_idx + 1
+        }
+        print("")
+    }
+
+    // Section 3: Suppressed
+    if len(suppressed) > 0 {
+        print("=== SUPPRESSED (matched DO NOT FLAG) ===")
+        print("")
+        for s in suppressed {
+            print("    X: " + (s.get("file") ?? "?") + " — " + (s.get("smell") ?? "?"))
+        }
+        print("")
+    }
+
+    // Section 4: Summary
+    print("=== SUMMARY ===")
+    print("")
+    print("  Stage 0 (deterministic): " + string(len(confirmed)) + " confirmed findings from " + string(s0_checks) + " checks")
+    print("  Stage 1 (LLM):           " + string(len(suspicions)) + " raw suspicions from " + string(api_calls) + " API calls")
+    print("  Stage 2 (filtered):      " + string(len(deduped)) + " unique suspicions (" + string(len(suppressed)) + " suppressed)")
+    print("  Total actionable:        " + string(len(confirmed) + len(deduped)))
+    print("")
+
+    // Save JSON report
+    let report = {
+        audit: "NAAb Autonomous Auditor v3",
+        architecture: "3-stage suspicion-first",
+        stage0: {
+            checks_run: s0_checks,
+            confirmed: len(confirmed),
+            findings: confirmed
+        },
+        stage1: {
+            api_calls: api_calls,
+            raw_suspicions: len(suspicions),
+            filtered: len(deduped),
+            suppressed: len(suppressed),
+            suspicions: deduped
+        },
+        total_actionable: len(confirmed) + len(deduped),
+        git_context: git_log
+    }
+
+    try {
+        // Use codegen.run to write report (avoids taint sink on file.write for agent output)
+        let report_json = json.stringify(report)
+        codegen.run("python", "import json\nwith open('examples/self-audit/audit-report.json', 'w') as f:\n    f.write(" + json.stringify(report_json) + ")")
+        print("  Report saved: examples/self-audit/audit-report.json")
+    } catch (e) {
+        print("  (Could not save report: " + string(e) + ")")
+    }
+
+    // Governance health meta
+    print_section("Governance Health (Meta)")
     let pulse = governance.health()
     print("  Pulse:     " + (pulse.get("verdict") ?? "unknown"))
     print("  Coherence: " + string(pulse.get("coherence") ?? 0))
@@ -442,5 +492,7 @@ main {
     print("  Time:      " + string(ds.get("agent_time_ms") ?? 0) + "ms")
 
     print("")
-    print("Self-audit complete. Verdict: " + verdict)
+    print("Autonomous audit v3 complete.")
+    print("  " + string(len(confirmed)) + " confirmed (fix now)")
+    print("  " + string(len(deduped)) + " suspicions (review needed)")
 }

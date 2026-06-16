@@ -860,7 +860,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  Expected: max {} turns\n\n"
                 "  Help:\n"
                 "  - Create a new agent handle for a fresh conversation\n"
-                "  - Or increase max_turns in govern.json agents config\n",
+                "  - Or create a new agent handle for a longer conversation\n",
                 config->max_turns, tracker.turns, config->max_turns));
         }
 
@@ -913,7 +913,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
                 "  Help:\n"
                 "  - Create a new agent handle for a fresh conversation\n"
-                "  - Or increase max_total_tokens in govern.json agents config\n",
+                "  - Or create a new agent handle with a larger token budget\n",
                 total_used, config->max_total_tokens));
         }
         current_turn = tracker.turns;

@@ -24,6 +24,7 @@
 #endif
 #include <climits>
 #include <unordered_set>
+#include <naab/safe_math.h>
 
 namespace naab {
 namespace interpreter {
@@ -1381,7 +1382,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                             throw std::runtime_error(
                                 "Governance: stdlib call rate limit exceeded.\n\n"
                                 "  Too many stdlib function calls per second.\n"
-                                "  Reduce call frequency or increase limits.rate.max_stdlib_calls_per_second in govern.json.\n");
+                                "  Reduce call frequency or restructure code to batch operations.\n");
                         }
 
                         // File ops rate limiting
@@ -1389,7 +1390,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                             throw std::runtime_error(
                                 "Governance: file operation rate limit exceeded.\n\n"
                                 "  Too many file operations per second.\n"
-                                "  Reduce file I/O frequency or increase limits.rate.max_file_ops_per_second in govern.json.\n");
+                                "  Reduce file I/O frequency or restructure code to batch file operations.\n");
                         }
 
                         // Network check for http module
@@ -2804,20 +2805,20 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         if (args.size() == 1) {
             if (args[0].isInt()) { end = args[0].asInt(); }
-            else if (args[0].isDouble()) { end = static_cast<int>(args[0].asDouble()); }
+            else if (args[0].isDouble()) { end = naab::math::safeDoubleToInt(args[0].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
         } else if (args.size() >= 2) {
             if (args[0].isInt()) { start = args[0].asInt(); }
-            else if (args[0].isDouble()) { start = static_cast<int>(args[0].asDouble()); }
+            else if (args[0].isDouble()) { start = naab::math::safeDoubleToInt(args[0].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
 
             if (args[1].isInt()) { end = args[1].asInt(); }
-            else if (args[1].isDouble()) { end = static_cast<int>(args[1].asDouble()); }
+            else if (args[1].isDouble()) { end = naab::math::safeDoubleToInt(args[1].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
         }
         if (args.size() == 3) {
             if (args[2].isInt()) { step = args[2].asInt(); }
-            else if (args[2].isDouble()) { step = static_cast<int>(args[2].asDouble()); }
+            else if (args[2].isDouble()) { step = naab::math::safeDoubleToInt(args[2].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
         }
 
@@ -2883,10 +2884,10 @@ void Interpreter::visit(ast::CallExpr& node) {
         if (args.size() != 3) throw std::runtime_error("__slice() takes exactly 3 arguments");
         int start = 0, end = 0;
         if (args[1].isInt()) start = args[1].asInt();
-        else if (args[1].isDouble()) start = static_cast<int>(args[1].asDouble());
+        else if (args[1].isDouble()) start = naab::math::safeDoubleToInt(args[1].asDouble());
         else throw std::runtime_error("Slice start index must be a number");
         if (args[2].isInt()) end = args[2].asInt();
-        else if (args[2].isDouble()) end = static_cast<int>(args[2].asDouble());
+        else if (args[2].isDouble()) end = naab::math::safeDoubleToInt(args[2].asDouble());
         else throw std::runtime_error("Slice end index must be a number");
 
         if (args[0].isList()) {

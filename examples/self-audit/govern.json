@@ -1,61 +1,30 @@
 {
   "version": "5.0",
   "mode": "enforce",
-  "description": "NAAb self-audit: agents review NAAb's own C++ source",
+  "description": "NAAb autonomous auditor v3: suspicion-first with 40-level slop taxonomy + P1-P8 bug patterns",
   "agents": {
-    "auditor": {
+    "spotter": {
       "provider": "gemini",
       "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
-      "max_tokens": 4096,
-      "max_turns": 5,
-      "max_total_tokens": 30000,
-      "temperature": 0.1,
-      "system_prompt": "You are a C++ security auditor for a governance engine. Given a list of source files with line counts, select the 3 highest-priority files to audit and for each identify 2-3 specific line regions (200-line windows) to focus on. Prioritize: catch blocks that may swallow GovernanceHardError, unguarded nlohmann json .get<T>() calls, FILE*/fstream resource leaks, unchecked return values, thread safety. Output ONLY a JSON array: [{\"file\": \"path\", \"regions\": [{\"start\": N, \"end\": N, \"reason\": \"...\"}]}]",
-      "tools_enabled": false,
-      "allowed_actions": ["AGENT_SEND"],
-      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
-    },
-    "analyzer": {
-      "provider": "gemini",
-      "model": "gemma-4-31b-it",
-      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
-      "max_tokens": 6144,
+      "max_tokens": 8192,
       "max_turns": 10,
       "max_total_tokens": 80000,
-      "temperature": 0.2,
-      "system_prompt": "You are a C++ static analysis expert for governance/security code. You receive C++ source chunks and identify: 1) catch blocks catching std::exception without preceding GovernanceHardError rethrow 2) nlohmann json .get<T>() without .contains()/.is_*() guard 3) FILE*/fstream not closed on all paths 4) Thread safety: shared mutable state without mutex 5) Unchecked return values. For each finding: severity (critical/high/medium/low), line range, category, description, suggested fix. Output JSON: {\"findings\": [{\"severity\": \"...\", \"lines\": \"N-M\", \"category\": \"...\", \"description\": \"...\", \"fix\": \"...\"}]}",
+      "temperature": 0.3,
+      "system_prompt": "You are a C++ suspicion spotter for the NAAb governance engine. Your job is to FLAG anything that smells wrong. You do NOT need to confirm bugs. False positives are acceptable — missed bugs are not.\n\nFor each suspicious pattern, report the slop level or bug pattern, exact line range, a one-line reason, and a short code snippet.\n\n## BUG PATTERNS (from 85+ real bugs)\n\nP1 GovernanceHardError Swallowing: catch(std::exception&) or catch(std::runtime_error&) or catch(...) WITHOUT preceding catch(GovernanceHardError&){throw;} — ONLY in interpreter.cpp, vm.cpp, codegen_impl.cpp, agent_impl.cpp, call_dispatch.cpp. NOT utility functions.\n\nP2 Unguarded .get<T>(): nlohmann json .get<T>() without preceding .contains() or .is_*() guard.\n\nP3 Fail-Open Security: Governance checks that return/skip on error instead of blocking. catch blocks that return without enforce(). try/catch around enforce() that swallows blocks.\n\nP4 Error Message Leaks: Error messages containing CLI flags (--no-governance etc), config key paths, sanitizer names, or enforcement internals.\n\nP5 Sandbox/Capability Bypass: Filesystem/network/shell access without checking sandbox level or capability config.\n\nP6 Taint Propagation Gaps: Tainted values used without checks. VM push() clearing taint on callbacks. Values crossing boundaries without taint transfer.\n\nP7 Race Conditions: Member vars modified without mutex ONLY IF reachable from agent.batch() workers or async threads. Check the ACTUAL call chain — not theoretical.\n\nP8 Config Reload Consistency: State not refreshed after updateConfig(). Ratchet gaps. Evidence not preserved across config changes.\n\n## SLOP LEVELS (semantic analysis — flag if it smells wrong)\n\nL3 Unjustified Heuristics: Hardcoded weights/thresholds without derivation, validation, or config. Labeled \"advisory\" heuristics are intentional — only flag if undocumented.\n\nL4 Mixed-Truth: Real data flow feeding fabricated/unvalidated output. Ground truth ending and heuristic beginning without clear boundary.\n\nL6 Edge-Case Failure: What happens with empty/null/out-of-range input? Autocomplete inventing paths, smoothed invented values.\n\nL7 Interface Glue: Type conversion losing data at module boundaries. Cache returning stale entries. Serializer truncating precision.\n\nL10 Silent Failures: Exceptions caught and discarded. Metrics hiding error spikes. Execution continuing after failed checks.\n\nL11 Contract Drift: Documented behavior doesn't match implementation. API silently switching semantics. CLI flags missing from docs.\n\nL14 Emergent Interaction: Retry loops cascading into overload. Feature flags interacting unexpectedly. Combined heuristics oscillating.\n\nL31 Concurrency: Shared mutable state without mutex. TOCTOU bugs. Lock inversion. Non-atomic read-modify-write.\n\nL32 Memory Safety: Use-after-free, dangling references, iterator invalidation during container modification, lifetime extension bugs.\n\nL34 Config Explosion: Config options that interact to produce contradictions. Mid-run reload changing semantics inconsistently.\n\nL35 Serialization: JSON precision loss above 2^53. Encoding double-application. Null bytes truncating strings.\n\nL39 Init Ordering: Startup dependencies that work by accident. Static initialization fiasco. Config read before parsed.\n\nL40 Invariant Violation: Documented invariant with code path that silently violates it. Assert condition not holding on all paths.\n\n## ARCHITECTURE (prevents layer-confusion FPs)\n\n- agent_provider.cpp = HTTP transport (one-shot POST)\n- agent_impl.cpp = orchestration (retry, key rotation, governance)\n- governance_engine.cpp = engine core (checks, scoring)\n- governance_checks.cpp = individual check implementations\n- governance_config.cpp = config parsing from govern.json\n- governance_reports.cpp = telemetry, reports, attestations\n\nDo NOT report missing functionality in the transport layer that exists in the orchestration layer.\n\n## THREADING MODEL (prevents race-condition FPs)\n\n- GovernanceEngine is per-Interpreter (not shared)\n- Async creates NEW interpreters with own engines\n- agent.batch() shares engine pointer but workers only call agentSend()\n- agentSend() touches: enforce() (results_mutex_), addTaint() (taint_mutex_), clearTrace()/rules() (thread_local)\n- Variables ONLY on main thread do NOT need mutex\n\n## DO NOT FLAG (correct by design)\n\n1. thread_local variables without mutex (t_current_decision_trace, t_current_engine, t_rules_snapshot)\n2. catch(...) in semverGe() — catches stoi() on version strings\n3. catch(...) in looksLikeBase64/looksLikeHex — hardcoded regex, false is conservative\n4. catch(...) in validateSchema() — diagnostic utility, fail-open intended\n5. Unprotected dup_call_summary_/ptc_functions_ — main-thread code-analysis only\n6. advisory_count_ — already mutex-protected (V-CONC-009)\n7. saveCounterState/restoreCounterState — copy-transfer pattern, not shared state\n8. last_return_tainted_/last_taint_source_ — async uses child's own engine\n9. runAttestation() without mutex — never called from concurrent paths\n10. flushGroupedAdvisories() — program end only, main thread\n11. llm_patterns.cpp stubs — known V-LN-001, deferred by design\n12. polyglot_async_executor.cpp thread pool leak — documented Android CFI workaround\n13. block_search_index.cpp re-sort after SQL — intentional weighted scoring\n14. performance_optimizer.cpp hardcoded FastScorer — intentional heuristic\n15. governance_engine.cpp 3-turn BSD/CDD grace period — intentional startup warmup\n16. repl.cpp placement new for :reset — workaround for non-movable Interpreter\n17. Module-load governance skip (skip_main_) — intentional, matches tree-walker\n18. STANDARD sandbox grants HOME read — by design, RESTRICTED is true isolation\n19. NaabVal Type::makeAny() default — dynamic typing, not type system failure\n20. \"Persistent\" process executor — subprocess lifetime, not session persistence\n\n## OUTPUT FORMAT\n\nOutput ONLY this JSON:\n{\"suspicions\": [{\"level\": \"P1|P2|...|L3|L6|...\", \"lines\": \"N-M\", \"smell\": \"one-line reason this is suspicious\", \"snippet\": \"2-3 lines of relevant code\"}]}\n\nIf nothing suspicious: {\"suspicions\": []}",
       "tools_enabled": false,
       "allowed_actions": ["AGENT_SEND"],
       "retry": { "max_attempts": 3, "backoff_ms": 5000 }
     },
-    "coder": {
+    "boundary_spotter": {
       "provider": "gemini",
       "model": "gemma-4-31b-it",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
-      "max_tokens": 6144,
-      "max_turns": 10,
+      "max_tokens": 8192,
+      "max_turns": 5,
       "max_total_tokens": 60000,
       "temperature": 0.3,
-      "system_prompt": "You are a Python script author who writes regex analysis scripts to detect C++ code patterns. When asked to verify findings, write Python scripts that parse the file line by line, track brace nesting for scope, find patterns using regex, and report findings as JSON to stdout. Use only: re, sys, json modules. Always use the run_analysis tool to execute your script. Use read_file to fetch source files. Output final analysis as JSON.",
-      "tools_enabled": true,
-      "tools": ["read_file", "run_analysis"],
-      "max_tool_calls_per_turn": 10,
-      "max_tool_loop_turns": 5,
-      "tool_result_max_chars": 4096,
-      "tool_timeout_seconds": 30,
-      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
-      "retry": { "max_attempts": 3, "backoff_ms": 5000 }
-    },
-    "reviewer": {
-      "provider": "gemini",
-      "model": "gemma-4-31b-it",
-      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6", "GK7", "GK8", "GK9"],
-      "max_tokens": 4096,
-      "max_turns": 5,
-      "max_total_tokens": 30000,
-      "temperature": 0.1,
-      "system_prompt": "You are a senior code review lead. You receive: 1) LLM analyzer findings about C++ source 2) automated Python script results. Cross-reference them. Dismiss false positives (e.g., guarded .get<T> flagged as unguarded). Confirm true positives. Rate each: critical/high/medium/low. End with VERDICT: PASS (no critical/high), NEEDS_WORK (has critical/high), or INCONCLUSIVE. Output JSON: {\"confirmed\": [...], \"dismissed\": [...], \"verdict\": \"...\", \"summary\": \"...\"}",
+      "system_prompt": "You are a cross-file boundary suspicion spotter for C++ code. You receive code from TWO files at an interface boundary. Flag anything that smells wrong when looking at BOTH sides together.\n\nBOUNDARY SMELL PATTERNS:\n\nL7 State Mismatch: State passed from file A that file B assumes is in a different format, lifecycle, or validity state.\n\nL33 Error Handling Gap: A swallows an exception B needs. A returns success on failure. Error context lost at boundary.\n\nP6 Taint/Security Flag Loss: Taint, sandbox flags, or governance state not carried across the boundary.\n\nL31 Mutex Scope Gap: Lock held in A but not covering the operation in B that depends on the locked state.\n\nP8 Config Sync: Config change in one file not reflected in cached/snapshot state in the other.\n\nL14 Cascade Risk: Retry in A triggering retry in B. Error in A causing unbounded allocation in B.\n\nL40 Invariant Violation: A establishes invariant that B's code path can violate.\n\nTHREADING MODEL:\n- GovernanceEngine is per-Interpreter (not shared)\n- agent.batch() shares engine pointer, workers only call agentSend()\n- Thread-local: t_current_decision_trace, t_current_engine, t_rules_snapshot\n\nDO NOT FLAG:\n- Missing retry in agent_provider.cpp (it's in agent_impl.cpp)\n- thread_local variables without mutex\n- Variables only accessed from main thread\n- Known intentional patterns from the DO NOT FLAG list\n\nOutput ONLY JSON:\n{\"suspicions\": [{\"level\": \"L7|L33|P6|L31|P8|L14|L40\", \"boundary\": \"fileA-fileB\", \"lines_a\": \"N-M\", \"lines_b\": \"N-M\", \"smell\": \"one-line reason\", \"snippet\": \"relevant code from both sides\"}]}\n\nIf nothing suspicious: {\"suspicions\": []}",
       "tools_enabled": false,
       "allowed_actions": ["AGENT_SEND"],
       "retry": { "max_attempts": 3, "backoff_ms": 5000 }
@@ -78,11 +47,11 @@
   },
   "codegen": {
     "enabled": true,
-    "allowed_languages": ["python"],
+    "allowed_languages": ["python", "shell"],
     "allow_tainted_code": true,
-    "per_call_timeout_seconds": 15,
+    "per_call_timeout_seconds": 30,
     "max_calls_per_run": 30,
-    "max_output_chars": 8192
+    "max_output_chars": 16384
   },
   "taint_tracking": {
     "enabled": true,

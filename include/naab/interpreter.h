@@ -217,6 +217,10 @@ public:
     ErrorType getType() const { return error_type_; }
     const std::vector<StackFrame>& getStackTrace() const { return stack_trace_; }
     NaabVal getValue() const { return value_; }
+    bool isTainted() const { return tainted_; }
+
+    // Setters
+    void setTainted(bool t) { tainted_ = t; }
 
     // Add frame to stack trace
     void pushFrame(const StackFrame& frame) {
@@ -234,6 +238,7 @@ private:
     ErrorType error_type_;
     std::vector<StackFrame> stack_trace_;
     NaabVal value_;  // For throw <value> support
+    bool tainted_ = false;  // V-TAINT-THROW: propagate taint across throw/catch
 };
 
 // Forward declarations for struct and enum types
