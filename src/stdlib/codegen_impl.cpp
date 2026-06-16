@@ -205,6 +205,11 @@ interpreter::NaabVal CodegenModule::call(
             codegen_cfg = gov_engine->getCodegenConfig();
         }
 
+        // Capture and immediately reset the thread-local taint flag.
+        // Must happen before any throw to prevent stale flag on next call.
+        bool arg_was_tainted = t_codegen_arg_tainted;
+        t_codegen_arg_tainted = false;
+
         // Step 1: Master switch check
         if (gov_engine && gov_engine->isActive() && !codegen_cfg.enabled) {
             // Emit CODEGEN_BLOCKED event
@@ -239,7 +244,7 @@ interpreter::NaabVal CodegenModule::call(
 
         // Step 3: Taint check on code_string (Gap 1)
         if (gov_engine && gov_engine->isActive()) {
-            if (t_codegen_arg_tainted && !codegen_cfg.allow_tainted_code) {
+            if (arg_was_tainted && !codegen_cfg.allow_tainted_code) {
                 t_codegen_blocked_count++;
                 gov_engine->emitEvent(governance::RuntimeEventType::CODEGEN_BLOCKED,
                     "codegen.run('" + language + "') blocked: tainted code string",
@@ -251,8 +256,6 @@ interpreter::NaabVal CodegenModule::call(
                     "  by default for safety.\n");
             }
         }
-        // Reset taint flag after checking
-        t_codegen_arg_tainted = false;
 
         // Step 4: Code size + cumulative limits (Gap 3, Gap 5)
         if (gov_engine && gov_engine->isActive()) {

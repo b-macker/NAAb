@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstdint>
+#include <cmath>
 #include <limits>
 #include <fmt/core.h>
 
@@ -264,6 +265,26 @@ inline Dest safeCast(Source value) {
     }
 
     return static_cast<Dest>(value);
+}
+
+// ============================================================================
+// Safe Double-to-Int Conversion
+// ============================================================================
+
+/**
+ * Safe conversion from double to int with NaN/Infinity/range checks
+ *
+ * Prevents undefined behavior from static_cast<int>(double) when the
+ * double is NaN, Infinity, or outside INT_MIN..INT_MAX range.
+ * @throws std::runtime_error if value cannot be safely converted
+ */
+inline int safeDoubleToInt(double d) {
+    if (!std::isfinite(d))
+        throw std::runtime_error("Cannot convert non-finite value to integer");
+    if (d < static_cast<double>(std::numeric_limits<int>::min()) ||
+        d > static_cast<double>(std::numeric_limits<int>::max()))
+        throw std::runtime_error("Value out of integer range");
+    return static_cast<int>(d);
 }
 
 // ============================================================================

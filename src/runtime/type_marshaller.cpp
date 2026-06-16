@@ -3,6 +3,7 @@
 
 #include "naab/type_marshaller.h"
 #include "naab/interpreter.h"
+#include "naab/safe_math.h"
 #include "naab/naab_val.h"
 #include <fmt/core.h>
 #include <stdexcept>
@@ -45,7 +46,7 @@ int TypeMarshaller::toInt(const interpreter::NaabVal& val) {
     if (val.isInt()) {
         return val.asInt();
     } else if (val.isDouble()) {
-        return static_cast<int>(val.asDouble());
+        return naab::math::safeDoubleToInt(val.asDouble());
     } else if (val.isBool()) {
         return val.asBool() ? 1 : 0;
     } else {

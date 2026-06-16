@@ -1875,6 +1875,7 @@ struct AgentConfig {
     std::string api_key_env = "ANTHROPIC_API_KEY";  // primary key env var
     std::vector<std::string> api_key_envs;      // rotation keys [primary, alt1, alt2, ...]
     int max_tokens = 4096;
+    int thinking_budget = -1;  // -1=provider default, 0=disable, >0=budget in tokens
     std::string system_prompt;
     std::vector<std::string> tools;
     // Tool execution configuration

@@ -37,6 +37,7 @@ SECURITY_FILES=(
     "src/api/governance_c_api.cpp"
     "src/stdlib/agent_impl.cpp"
     "src/stdlib/codegen_impl.cpp"
+    "src/interpreter/polyglot.cpp"
 )
 
 # Patterns that should NEVER appear in string literals within these files
@@ -61,6 +62,11 @@ BANNED_IN_STRINGS=(
     # Config weakening hints
     'Adjust.*govern.json|config weakening hint in error string'
     'adjust.*govern.json|config weakening hint in error string'
+    'increase.*govern.json|config weakening hint in error string'
+    'increase.*in govern|config weakening hint in error string'
+    'increase.*max_output_size|config weakening hint in error string'
+    'max_turns in govern|agent config key leaked in error string'
+    'max_total_tokens in govern|agent config key leaked in error string'
     # Enforcement bypass hints
     'soft-mandatory|enforcement level bypass hint in error string'
     'soft.mandatory|enforcement level bypass hint in error string'

@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/safe_math.h"
 #include "naab/utils/string_utils.h"
 #include <chrono>
 #include <ctime>
@@ -306,7 +307,7 @@ interpreter::NaabVal TimeModule::call(
 // Helper functions
 static int getInt(const interpreter::NaabVal& val) {
     if (val.isInt()) return val.asInt();
-    if (val.isDouble()) return static_cast<int>(val.asDouble());
+    if (val.isDouble()) return naab::math::safeDoubleToInt(val.asDouble());
     throw std::runtime_error("Expected integer value");
 }
 

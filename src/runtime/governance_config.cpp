@@ -2318,6 +2318,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.risk_budget = cfg_json["risk_budget"].get<int>();
                     if (agent.risk_budget < 0) agent.risk_budget = 0;
                 }
+                // Thinking budget — -1=provider default, 0=disable, >0=budget
+                if (cfg_json.contains("thinking_budget") && cfg_json["thinking_budget"].is_number_integer()) {
+                    agent.thinking_budget = cfg_json["thinking_budget"].get<int>();
+                    if (agent.thinking_budget < -1) agent.thinking_budget = -1;
+                }
                 // Standing Lease — TTL on agent authorization
                 if (cfg_json.contains("standing_lease_turns") && cfg_json["standing_lease_turns"].is_number_integer())
                     agent.standing_lease_turns = std::max(0, cfg_json["standing_lease_turns"].get<int>());
@@ -2336,19 +2341,19 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         agent.retry.jitter = r["jitter"].get<bool>();
                     if (r.contains("retry_on") && r["retry_on"].is_array()) {
                         agent.retry.retry_on.clear();
-                        for (const auto& c : r["retry_on"]) agent.retry.retry_on.push_back(c.get<int>());
+                        for (const auto& c : r["retry_on"]) { if (c.is_number_integer()) agent.retry.retry_on.push_back(c.get<int>()); }
                     }
                     if (r.contains("skip_key_on") && r["skip_key_on"].is_array()) {
                         agent.retry.skip_key_on.clear();
-                        for (const auto& c : r["skip_key_on"]) agent.retry.skip_key_on.push_back(c.get<int>());
+                        for (const auto& c : r["skip_key_on"]) { if (c.is_number_integer()) agent.retry.skip_key_on.push_back(c.get<int>()); }
                     }
                     if (r.contains("fallback_model_on") && r["fallback_model_on"].is_array()) {
                         agent.retry.fallback_model_on.clear();
-                        for (const auto& c : r["fallback_model_on"]) agent.retry.fallback_model_on.push_back(c.get<int>());
+                        for (const auto& c : r["fallback_model_on"]) { if (c.is_number_integer()) agent.retry.fallback_model_on.push_back(c.get<int>()); }
                     }
                     if (r.contains("never_retry") && r["never_retry"].is_array()) {
                         agent.retry.never_retry.clear();
-                        for (const auto& c : r["never_retry"]) agent.retry.never_retry.push_back(c.get<int>());
+                        for (const auto& c : r["never_retry"]) { if (c.is_number_integer()) agent.retry.never_retry.push_back(c.get<int>()); }
                     }
                     if (r.contains("key_retry_after_seconds") && r["key_retry_after_seconds"].is_number_integer())
                         agent.retry.key_retry_after_seconds = std::max(0, r["key_retry_after_seconds"].get<int>());
@@ -3013,6 +3018,15 @@ static bool checkRatchetViolation(
         if (new_agent.risk_budget > 0 && new_agent.risk_budget < old_agent->risk_budget)
             notices.push_back(fmt::format("agent.{}.risk_budget: {} -> {} (reduced)",
                 new_agent.name, old_agent->risk_budget, new_agent.risk_budget));
+        // thinking_budget: reducing = tightening (notice)
+        if (new_agent.thinking_budget >= 0 && new_agent.thinking_budget < old_agent->thinking_budget
+                && old_agent->thinking_budget > 0)
+            notices.push_back(fmt::format("agent.{}.thinking_budget: {} -> {} (reduced)",
+                new_agent.name, old_agent->thinking_budget, new_agent.thinking_budget));
+        // -1 → explicit = now explicit (notice)
+        if (old_agent->thinking_budget == -1 && new_agent.thinking_budget >= 0)
+            notices.push_back(fmt::format("agent.{}.thinking_budget: default -> {} (now explicit)",
+                new_agent.name, new_agent.thinking_budget));
         if (new_agent.timeout_seconds < old_agent->timeout_seconds)
             notices.push_back(fmt::format("agent.{}.timeout_seconds: {} -> {} (reduced)",
                 new_agent.name, old_agent->timeout_seconds, new_agent.timeout_seconds));
@@ -3039,6 +3053,18 @@ static bool checkRatchetViolation(
         if (new_agent.risk_budget > old_agent->risk_budget && old_agent->risk_budget > 0)
             violations.push_back(fmt::format("agent.{}.risk_budget: {} -> {} (loosened)",
                 new_agent.name, old_agent->risk_budget, new_agent.risk_budget));
+        // thinking_budget: increasing = loosening (violation)
+        if (old_agent->thinking_budget >= 0 && new_agent.thinking_budget > old_agent->thinking_budget)
+            violations.push_back(fmt::format("agent.{}.thinking_budget: {} -> {} (loosened)",
+                new_agent.name, old_agent->thinking_budget, new_agent.thinking_budget));
+        // 0 (disabled) → -1 (provider default, may enable thinking) = loosening
+        if (old_agent->thinking_budget == 0 && new_agent.thinking_budget == -1)
+            violations.push_back(fmt::format("agent.{}.thinking_budget: 0 (disabled) -> -1 (provider default, loosened)",
+                new_agent.name));
+        // N>0 → -1 (provider default, unknown budget) = loosening
+        if (old_agent->thinking_budget > 0 && new_agent.thinking_budget == -1)
+            violations.push_back(fmt::format("agent.{}.thinking_budget: {} -> -1 (provider default, loosened)",
+                new_agent.name, old_agent->thinking_budget));
 
         // Network allowed loosening
         if (new_agent.network_allowed_set && old_agent->network_allowed_set) {

@@ -124,6 +124,8 @@ include/naab/       All headers
 - **Non-binding refusal attestation**: tamper-evident proof of governance blocks. Signed attestation recorded when HARD block prevents execution.
 - **Agent Output Contracts**: per-agent `output_contract` in govern.json agents block — `format`, `required_fields`, `field_types`, `regex_checks`. Validated after RESPONSE_SCAN. `CONTRACT_VIOLATION` telemetry event on failure. Config: `OutputContract` struct in `governance_config.h`.
 - **RESPONSE_SUPPRESSED telemetry**: emitted when `content.empty()` after all retries — records handle_id, config_name, turn, reason, retries_used. Fills observability gap where empty responses looked like they never reached post-receive governance.
+- **RESPONSE_TRUNCATED telemetry**: emitted when `agent_resp.truncated` is true (stop_reason is MAX_TOKENS/max_tokens). Records thinking_tokens, configured_max, thinking_budget, content_length. Three-case stderr warning: (1) thinking consumed budget with no config, (2) thinking configured but too small, (3) pure response overflow.
+- **Thinking budget**: `thinking_budget` per-agent config field. `-1` = provider default (backward compatible), `0` = disable thinking, `>0` = enable with budget. Gemini: expands `maxOutputTokens = max_tokens + thinking_budget` and sends `thinkingConfig.thinkingBudget`. Anthropic: sends separate `thinking` block. Ratchet-enforced (loosening blocked). `agent.send()` response includes `truncated` (bool) and `usage.thinking_tokens` (int). Agent environment includes `limits.thinking_budget`.
 - **BSD pattern normalization**: `matchesStep()` normalizes UPPERCASE_UNDERSCORE pattern names (e.g., `"AGENT_SEND"`) to lowercase dot-notation (`"agent.send"`) for matching against `eventTypeToString()` output. Both formats accepted in govern.json patterns.
 
 ### Enterprise Readiness
@@ -180,7 +182,7 @@ include/naab/       All headers
 ### Telemetry
 - `GovernanceEngine::writeTelemetry()` in `governance_reports.cpp` writes JSONL events
 - Each event includes `run_id` (timestamp-pid, generated once in `loadFromFile()`) for separating runs in shared output files
-- Agent telemetry event types (25): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`
+- Agent telemetry event types (26): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `RESPONSE_TRUNCATED`
 - Telemetry forwarding: `telemetry.forwarding` config enables webhook/SIEM push of events
 - Tamper-evident hash chain: each telemetry event includes `prev_hash` linking to previous event, creating an immutable audit trail
 

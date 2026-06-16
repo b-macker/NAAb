@@ -29,6 +29,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <unordered_set>
+#include <naab/safe_math.h>
 
 namespace naab {
 namespace vm {
@@ -287,13 +288,13 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
         if (argc < 1 || argc > 3) runtimeError("range() takes 1-3 arguments");
         int start = 0, end = 0, step = 1;
         if (argc == 1) {
-            end = args[0].isInt() ? args[0].asInt() : static_cast<int>(args[0].asDouble());
+            end = args[0].isInt() ? args[0].asInt() : naab::math::safeDoubleToInt(args[0].asDouble());
         } else {
-            start = args[0].isInt() ? args[0].asInt() : static_cast<int>(args[0].asDouble());
-            end = args[1].isInt() ? args[1].asInt() : static_cast<int>(args[1].asDouble());
+            start = args[0].isInt() ? args[0].asInt() : naab::math::safeDoubleToInt(args[0].asDouble());
+            end = args[1].isInt() ? args[1].asInt() : naab::math::safeDoubleToInt(args[1].asDouble());
         }
         if (argc == 3) {
-            step = args[2].isInt() ? args[2].asInt() : static_cast<int>(args[2].asDouble());
+            step = args[2].isInt() ? args[2].asInt() : naab::math::safeDoubleToInt(args[2].asDouble());
         }
         if (step == 0) runtimeError("range() step cannot be zero");
         std::vector<interpreter::NaabVal> result;
@@ -308,8 +309,8 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
     }
     if (name == "__slice") {
         if (argc != 3) runtimeError("__slice() takes exactly 3 arguments");
-        int start = args[1].isInt() ? args[1].asInt() : static_cast<int>(args[1].asDouble());
-        int end_val = args[2].isInt() ? args[2].asInt() : static_cast<int>(args[2].asDouble());
+        int start = args[1].isInt() ? args[1].asInt() : naab::math::safeDoubleToInt(args[1].asDouble());
+        int end_val = args[2].isInt() ? args[2].asInt() : naab::math::safeDoubleToInt(args[2].asDouble());
         if (args[0].isList()) {
             auto& list = args[0].asList();
             int len = static_cast<int>(list.size());
@@ -2623,6 +2624,8 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_THROW): {
+                // V-TAINT-THROW: preserve taint across throw/catch to prevent laundering
+                bool was_tainted = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal exception = pop();
                 // Unwind to nearest exception handler
                 if (exception_handlers_.empty()) {
@@ -2640,8 +2643,9 @@ interpreter::NaabVal VM::run() {
                 stack_top_ = handler.stack_base;
                 syncTaintTop();
                 frame->ip = handler.catch_ip;
-                // Push exception value for catch clause (untainted)
+                // Push exception value for catch clause (preserve taint)
                 push(exception);
+                if (was_tainted) peekTaint(0) = true;
             }
                 VM_NEXT();
 
@@ -2740,7 +2744,7 @@ interpreter::NaabVal VM::run() {
                     if (!governance_->checkPolyglotRate()) {
                         runtimeError("Governance: polyglot execution rate limit exceeded.\n\n"
                             "  Too many polyglot blocks executed per second.\n"
-                            "  Reduce execution frequency or increase limits.rate.max_polyglot_per_second in govern.json.\n");
+                            "  Reduce execution frequency or restructure code to batch polyglot calls.\n");
                     }
 
                     // Taint sink check: block tainted variables from reaching polyglot blocks
@@ -4576,12 +4580,12 @@ interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::
         if (!governance_->checkStdlibRate()) {
             runtimeError("Governance: stdlib call rate limit exceeded.\n\n"
                 "  Too many stdlib function calls per second.\n"
-                "  Reduce call frequency or increase limits.rate.max_stdlib_calls_per_second in govern.json.\n");
+                "  Reduce call frequency or restructure code to batch operations.\n");
         }
         if (module == "file" && !governance_->checkFileOpsRate()) {
             runtimeError("Governance: file operation rate limit exceeded.\n\n"
                 "  Too many file operations per second.\n"
-                "  Reduce file I/O frequency or increase limits.rate.max_file_ops_per_second in govern.json.\n");
+                "  Reduce file I/O frequency or restructure code to batch file operations.\n");
         }
     }
 

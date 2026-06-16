@@ -188,6 +188,40 @@ static json httpPost(
 }
 
 // ============================================================================
+// Thinking budget helpers
+// ============================================================================
+
+// Apply thinking_budget to Gemini generationConfig.
+// When thinking_budget > 0, expands maxOutputTokens and sends thinkingConfig.
+// When thinking_budget == 0 or -1, just sends maxOutputTokens without thinkingConfig
+// (some models like gemma-4-31b-it reject thinkingConfig even with budget=0).
+static void applyGeminiThinkingConfig(json& gen_config,
+                                       const governance::AgentConfig& config) {
+    if (config.thinking_budget > 0) {
+        gen_config["maxOutputTokens"] = config.max_tokens + config.thinking_budget;
+        json tc;
+        tc["thinkingBudget"] = config.thinking_budget;
+        gen_config["thinkingConfig"] = tc;
+    } else {
+        gen_config["maxOutputTokens"] = config.max_tokens;
+    }
+}
+
+// Apply thinking_budget to Anthropic request body.
+// Anthropic thinking budget is separate from max_tokens (no adjustment needed).
+static void applyAnthropicThinkingConfig(json& request_body,
+                                          const governance::AgentConfig& config) {
+    request_body["max_tokens"] = config.max_tokens;
+    if (config.thinking_budget > 0) {
+        request_body["thinking"] = {
+            {"type", "enabled"},
+            {"budget_tokens", config.thinking_budget}
+        };
+    }
+    // thinking_budget == 0 or -1: no thinking block (backward compatible)
+}
+
+// ============================================================================
 // Call Anthropic Messages API
 // ============================================================================
 
@@ -198,7 +232,7 @@ static json callAnthropic(
 
     json request_body;
     request_body["model"] = config.model;
-    request_body["max_tokens"] = config.max_tokens;
+    applyAnthropicThinkingConfig(request_body, config);
     request_body["messages"] = messages;
     if (config.temperature != 1.0)
         request_body["temperature"] = config.temperature;
@@ -242,7 +276,7 @@ static json callGemini(
     request_body["contents"] = contents;
 
     json gen_config;
-    gen_config["maxOutputTokens"] = config.max_tokens;
+    applyGeminiThinkingConfig(gen_config, config);
     if (config.temperature != 1.0)
         gen_config["temperature"] = config.temperature;
     request_body["generationConfig"] = gen_config;
@@ -285,6 +319,8 @@ struct NormalizedResponse {
     int input_tokens = 0;
     int output_tokens = 0;
     std::vector<ToolCallInfo> tool_calls;
+    bool truncated = false;
+    int thinking_tokens = 0;
 };
 
 static NormalizedResponse normalizeResponse(
@@ -319,6 +355,8 @@ static NormalizedResponse normalizeResponse(
             }
             if (candidate.contains("finishReason") && candidate["finishReason"].is_string())
                 result.stop_reason = candidate["finishReason"].get<std::string>();
+            if (result.stop_reason == "MAX_TOKENS")
+                result.truncated = true;
         }
         if (response.contains("usageMetadata")) {
             auto& usage = response["usageMetadata"];
@@ -326,6 +364,8 @@ static NormalizedResponse normalizeResponse(
                 result.input_tokens = usage["promptTokenCount"].get<int>();
             if (usage.contains("candidatesTokenCount"))
                 result.output_tokens = usage["candidatesTokenCount"].get<int>();
+            if (usage.contains("thoughtsTokenCount") && usage["thoughtsTokenCount"].is_number_integer())
+                result.thinking_tokens = usage["thoughtsTokenCount"].get<int>();
         }
         if (result.output_tokens == 0 && !result.content.empty()) {
             result.output_tokens = static_cast<int>(result.content.size() / 4);
@@ -352,6 +392,8 @@ static NormalizedResponse normalizeResponse(
         }
         if (response.contains("stop_reason") && response["stop_reason"].is_string())
             result.stop_reason = response["stop_reason"].get<std::string>();
+        if (result.stop_reason == "max_tokens")
+            result.truncated = true;
         if (response.contains("usage") && response["usage"].is_object()) {
             auto& usage = response["usage"];
             if (usage.contains("input_tokens"))
@@ -411,6 +453,8 @@ AgentResponse callAgentSimple(
         result.stop_reason = normalized.stop_reason;
         result.input_tokens = normalized.input_tokens;
         result.output_tokens = normalized.output_tokens;
+        result.truncated = normalized.truncated;
+        result.thinking_tokens = normalized.thinking_tokens;
     } catch (const std::exception& e) {
         result.success = false;
         result.error = e.what();
@@ -440,6 +484,8 @@ AgentResponse callAgentMultiTurn(
         result.stop_reason = normalized.stop_reason;
         result.input_tokens = normalized.input_tokens;
         result.output_tokens = normalized.output_tokens;
+        result.truncated = normalized.truncated;
+        result.thinking_tokens = normalized.thinking_tokens;
         result.tool_calls = std::move(normalized.tool_calls);
     } catch (const std::exception& e) {
         result.success = false;
@@ -483,7 +529,7 @@ ProviderResult callAgentWithStatus(
             request_body["contents"] = contents;
 
             json gen_config;
-            gen_config["maxOutputTokens"] = config.max_tokens;
+            applyGeminiThinkingConfig(gen_config, config);
             if (config.temperature != 1.0)
                 gen_config["temperature"] = config.temperature;
             request_body["generationConfig"] = gen_config;
@@ -515,7 +561,7 @@ ProviderResult callAgentWithStatus(
         } else {
             // Anthropic format
             request_body["model"] = config.model;
-            request_body["max_tokens"] = config.max_tokens;
+            applyAnthropicThinkingConfig(request_body, config);
             request_body["messages"] = messages;
             if (config.temperature != 1.0)
                 request_body["temperature"] = config.temperature;
@@ -574,6 +620,8 @@ ProviderResult callAgentWithStatus(
         pr.response.stop_reason = normalized.stop_reason;
         pr.response.input_tokens = normalized.input_tokens;
         pr.response.output_tokens = normalized.output_tokens;
+        pr.response.truncated = normalized.truncated;
+        pr.response.thinking_tokens = normalized.thinking_tokens;
         pr.response.tool_calls = std::move(normalized.tool_calls);
 
     } catch (const std::exception& e) {
@@ -643,7 +691,7 @@ ProviderResult callAgentWithTools(
             request_body["contents"] = contents;
 
             json gen_config;
-            gen_config["maxOutputTokens"] = config.max_tokens;
+            applyGeminiThinkingConfig(gen_config, config);
             if (config.temperature != 1.0)
                 gen_config["temperature"] = config.temperature;
             request_body["generationConfig"] = gen_config;
@@ -694,7 +742,7 @@ ProviderResult callAgentWithTools(
         } else {
             // Anthropic format
             request_body["model"] = config.model;
-            request_body["max_tokens"] = config.max_tokens;
+            applyAnthropicThinkingConfig(request_body, config);
             request_body["messages"] = messages;
             if (config.temperature != 1.0)
                 request_body["temperature"] = config.temperature;
@@ -767,6 +815,8 @@ ProviderResult callAgentWithTools(
         pr.response.stop_reason = normalized.stop_reason;
         pr.response.input_tokens = normalized.input_tokens;
         pr.response.output_tokens = normalized.output_tokens;
+        pr.response.truncated = normalized.truncated;
+        pr.response.thinking_tokens = normalized.thinking_tokens;
         pr.response.tool_calls = std::move(normalized.tool_calls);
 
     } catch (const std::exception& e) {

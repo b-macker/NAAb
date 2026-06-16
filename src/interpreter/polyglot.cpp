@@ -173,7 +173,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             throw std::runtime_error(
                 "Governance: polyglot execution rate limit exceeded.\n\n"
                 "  Too many polyglot blocks executed per second.\n"
-                "  Reduce execution frequency or increase limits.rate.max_polyglot_per_second in govern.json.\n");
+                "  Reduce execution frequency or restructure code to batch polyglot calls.\n");
         }
 
         // FIX-DX-2 + FIX-D: Taint tracking for ALL language bindings
@@ -720,9 +720,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 throw std::runtime_error(
                     "Governance: polyglot output exceeds configured limit\n\n"
                     "  Output size: " + std::to_string(sz) + " bytes\n"
-                    "  Limit (limits.data.output_size): " + std::to_string(global_limit) + " bytes\n"
                     "  Language: " + language + "\n"
-                    "  Reduce the output size or increase limits.data.output_size in govern.json.\n"
+                    "  Reduce the output size or restructure code to produce less output.\n"
                 );
             }
 
@@ -733,9 +732,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 throw std::runtime_error(
                     "Governance: polyglot output exceeds per-language limit\n\n"
                     "  Output size: " + std::to_string(sz) + " bytes\n"
-                    "  Limit (languages." + language + ".max_output_size): "
-                    + std::to_string(lang_cfg->max_output_size) + " bytes\n"
-                    "  Reduce the output or increase max_output_size for " + language + " in govern.json.\n"
+                    "  Language: " + language + "\n"
+                    "  Reduce the output or restructure code to produce less output.\n"
                 );
             }
         }

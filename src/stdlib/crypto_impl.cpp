@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/safe_math.h"
 #include "naab/utils/string_utils.h"
 #include <string>
 #include <vector>
@@ -325,7 +326,7 @@ static std::string getString(const interpreter::NaabVal& val) {
 
 static int getInt(const interpreter::NaabVal& val) {
     if (val.isInt()) return val.asInt();
-    if (val.isDouble()) return static_cast<int>(val.asDouble());
+    if (val.isDouble()) return naab::math::safeDoubleToInt(val.asDouble());
     throw std::runtime_error("Expected integer value");
 }
 
