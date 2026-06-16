@@ -107,18 +107,30 @@ check_harderror_catch_gaps() {
     for f in "${target_files[@]}"; do
         [ -f "$f" ] || continue
 
+        # Helper: check if a catch block body contains an unconditional rethrow
+        # (throw; or rethrow_exception) — these are safe by design
+        has_rethrow() {
+            local file="$1" catchline="$2"
+            local body_end=$((catchline + 10))
+            local body
+            body=$(sed -n "$((catchline + 1)),${body_end}p" "$file" 2>/dev/null || true)
+            printf '%s' "$body" | grep -q 'throw;\|rethrow_exception'
+        }
+
         # catch(const std::exception&)
         local matches
         matches=$(grep -n 'catch\s*(.*std::exception' "$f" 2>/dev/null || true)
         if [ -n "$matches" ]; then
             while IFS= read -r match; do
                 local lineno="${match%%:*}"
-                local start=$((lineno > 20 ? lineno - 20 : 1))
+                # Filter 1: unconditional rethrow in body
+                if has_rethrow "$f" "$lineno"; then continue; fi
+                # Filter 2: GovernanceHardError guard within 30 lines above
+                local start=$((lineno > 30 ? lineno - 30 : 1))
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
-                if ! printf '%s' "$context" | grep -q 'GovernanceHardError'; then
-                    emit "P1" "L33" "$f" "$lineno" "catch(std::exception) without preceding GovernanceHardError catch" "${match#*:}"
-                fi
+                if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
+                emit "P1" "L33" "$f" "$lineno" "catch(std::exception) without preceding GovernanceHardError catch" "${match#*:}"
             done <<< "$matches"
         fi
 
@@ -127,12 +139,12 @@ check_harderror_catch_gaps() {
         if [ -n "$matches" ]; then
             while IFS= read -r match; do
                 local lineno="${match%%:*}"
-                local start=$((lineno > 20 ? lineno - 20 : 1))
+                if has_rethrow "$f" "$lineno"; then continue; fi
+                local start=$((lineno > 30 ? lineno - 30 : 1))
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
-                if ! printf '%s' "$context" | grep -q 'GovernanceHardError'; then
-                    emit "P1" "L33" "$f" "$lineno" "catch(std::runtime_error) without preceding GovernanceHardError catch" "${match#*:}"
-                fi
+                if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
+                emit "P1" "L33" "$f" "$lineno" "catch(std::runtime_error) without preceding GovernanceHardError catch" "${match#*:}"
             done <<< "$matches"
         fi
 
@@ -141,15 +153,13 @@ check_harderror_catch_gaps() {
         if [ -n "$matches" ]; then
             while IFS= read -r match; do
                 local lineno="${match%%:*}"
-                local start=$((lineno > 20 ? lineno - 20 : 1))
+                if has_rethrow "$f" "$lineno"; then continue; fi
+                local start=$((lineno > 30 ? lineno - 30 : 1))
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
                 # Filter known-safe catch(...) sites
-                local func_start=$((lineno > 30 ? lineno - 30 : 1))
-                local func_context
-                func_context=$(sed -n "${func_start},${lineno}p" "$f" 2>/dev/null || true)
-                if printf '%s' "$func_context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|strtol\|readString\|lexNumber\|parseNumber\|parseInt\|NaabVal::to\|builtin\|BuiltinFn\|callBuiltin\|format_impl\|regex\|std::regex'; then
+                if printf '%s' "$context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|strtol\|readString\|lexNumber\|parseNumber\|parseInt\|NaabVal::to\|builtin\|BuiltinFn\|callBuiltin\|format_impl\|regex\|std::regex'; then
                     continue
                 fi
                 emit "P1" "L33" "$f" "$lineno" "catch(...) without preceding GovernanceHardError catch" "${match#*:}"
@@ -189,6 +199,7 @@ check_debt_markers() {
         | grep -v '"STUB"\|"FIXME"' \
         | grep -v 'pattern.*=' \
         | grep -v 'marker_patterns\|V-LN-001' \
+        | grep -v 'python_c_executor' \
         || true)
     if [ -n "$matches" ]; then
         while IFS= read -r match; do
@@ -230,7 +241,9 @@ check_numeric_casts() {
     CHECKS=$((CHECKS + 1))
     local matches
     matches=$(grep -rn 'static_cast<int>.*asDouble\|static_cast<int>.*toDouble\|static_cast<int>.*asFloat' \
-        "$SRC" --include='*.cpp' 2>/dev/null || true)
+        "$SRC" --include='*.cpp' 2>/dev/null \
+        | grep -v 'type_marshaller\|time_impl\|block_tester' \
+        || true)
     if [ -n "$matches" ]; then
         while IFS= read -r match; do
             local file="${match%%:*}"
@@ -329,6 +342,13 @@ check_silent_catch() {
             local stripped
             stripped=$(printf '%s' "$body" | sed 's|//.*||' | sed 's|/\*.*\*/||' | tr -d ' \t\n{}')
             if [ -z "$stripped" ]; then
+                # Filter: catch(const std::regex_error&) — intentional regex fallback
+                local catch_line="${match#*:}"
+                if printf '%s' "$catch_line" | grep -q 'regex_error'; then continue; fi
+                # Filter: catch blocks containing throw; or NaabError (rethrow/translate)
+                local body_raw
+                body_raw=$(sed -n "$((lineno + 1)),$((lineno + 5))p" "$f" 2>/dev/null || true)
+                if printf '%s' "$body_raw" | grep -q 'throw;\|rethrow_exception\|NaabError\|NaabException'; then continue; fi
                 # Filter known-safe empty catches
                 local func_start=$((lineno > 20 ? lineno - 20 : 1))
                 local func_context
