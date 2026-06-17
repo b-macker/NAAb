@@ -912,7 +912,7 @@ void Interpreter::visit(ast::Program& node) {
                 + std::string(level == governance::EnforcementLevel::HARD ? "HARD-MANDATORY" :
                               level == governance::EnforcementLevel::SOFT ? "SOFT-MANDATORY" : "ADVISORY")
                 + "]\n\n"
-                "  Rule (govern.json): requirements.main_block\n\n"
+                "  Rule: main block required\n\n"
                 "  Help:\n"
                 "  - All programs must have a main {{ }} block when governance requires it\n"
                 "  - Wrap your top-level code in: main {{ ... }}\n\n"

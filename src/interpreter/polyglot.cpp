@@ -6,6 +6,7 @@
 //           serializeValueForLanguage
 
 #include "naab/interpreter.h"
+#include "naab/governance.h"
 #include "naab/logger.h"
 #include "naab/language_registry.h"
 #ifndef _WIN32
@@ -991,6 +992,9 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             governance_->addPolyglotExecution(rec);
         }
 
+    } catch (const governance::GovernanceHardError&) {
+        gc_suspended_ = false;
+        throw;  // uncatchable — propagate to main
     } catch (const std::exception& e) {
         gc_suspended_ = false;
         std::string error_msg = e.what();

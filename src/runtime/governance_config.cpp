@@ -99,7 +99,7 @@ std::string GovernanceEngine::formatError(
     if (!location.empty()) {
         oss << "  At: " << location << "\n";
     }
-    oss << "  Rule (govern.json): " << rule << "\n\n";
+    oss << "  Rule: " << rule << "\n\n";
 
     if (!help.empty()) {
         oss << "  Help:\n";

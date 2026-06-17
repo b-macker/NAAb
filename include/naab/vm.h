@@ -474,16 +474,25 @@ private:
     }
 
     interpreter::NaabVal pop() {
+        if (stack_top_ <= stack_.get()) {
+            runtimeError("Stack underflow");
+        }
         --taint_top_;
         return std::move(*--stack_top_);
     }
 
     interpreter::NaabVal& peek(int distance = 0) {
+        if (stack_top_ - stack_.get() < distance + 1) {
+            runtimeError("Stack underflow");
+        }
         return *(stack_top_ - 1 - distance);
     }
 
     // Taint stack access (mirrors peek)
     bool& peekTaint(int distance = 0) {
+        if (taint_top_ - taint_stack_.get() < distance + 1) {
+            runtimeError("Stack underflow");
+        }
         return *(taint_top_ - 1 - distance);
     }
 

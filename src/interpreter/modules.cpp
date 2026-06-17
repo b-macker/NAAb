@@ -409,6 +409,10 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
             // ISS-024 Fix: Store module environment for struct resolution
             loaded_modules_[dep_module->getName()] = module_env;
 
+        } catch (const governance::GovernanceHardError&) {
+            current_env_ = prev_env;
+            current_file_ = prev_file;
+            throw;
         } catch (const std::exception& e) {
             // Restore environment before throwing
             current_env_ = prev_env;
@@ -826,6 +830,16 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
         LOG_DEBUG("[SUCCESS] Module loaded successfully: {}\n", module_path);
         LOG_DEBUG("          Exported {} symbols\n", module_exports_.size());
 
+    } catch (const governance::GovernanceHardError&) {
+        --module_loading_depth_;
+        modules_executing_.erase(module_path);
+        popFileContext();
+        current_env_ = saved_env;
+        module_exports_ = saved_exports;
+        if (governance_ && governance_->isActive()) {
+            governance_->restoreTaintState(saved_taint);
+        }
+        throw;
     } catch (const std::exception& e) {
         --module_loading_depth_;
         modules_executing_.erase(module_path);  // naab-29 D-03: Cleanup on error
@@ -924,6 +938,15 @@ void Interpreter::loadPluginFile(const std::string& path) {
         loaded_plugin_files_.insert(canonical);
         LOG_DEBUG("[SUCCESS] Governance plugin loaded: {} ({} functions exported)\n", path, exported_count);
 
+    } catch (const governance::GovernanceHardError&) {
+        --module_loading_depth_;
+        popFileContext();
+        current_env_ = saved_env;
+        module_exports_ = saved_exports;
+        if (governance_ && governance_->isActive()) {
+            governance_->restoreTaintState(saved_taint);
+        }
+        throw;
     } catch (const std::exception& e) {
         --module_loading_depth_;
         popFileContext();

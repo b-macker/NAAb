@@ -6,6 +6,7 @@
 //           visit(RangeExpr), visit(StructLiteralExpr)
 
 #include "naab/interpreter.h"
+#include "naab/governance.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/error_helpers.h"
@@ -1097,6 +1098,8 @@ void Interpreter::visit(ast::LiteralExpr& node) {
                             if (!result_.isNull()) {
                                 result += result_.toString();
                             }
+                        } catch (const governance::GovernanceHardError&) {
+                            throw;  // uncatchable — propagate to main
                         } catch (const std::exception& e) {
                             // Rethrow with context about the interpolation
                             std::string interp_err = std::string(e.what());
