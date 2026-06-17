@@ -2057,6 +2057,8 @@ std::string GovernanceEngine::verifyPolyglotResult(
             vr.success = true;
             // Drain captured output to prevent leaking into subsequent real executions
             verif_executor->getCapturedOutput();
+        } catch (const governance::GovernanceHardError&) {
+            throw;
         } catch (const std::exception& e) {
             vr.success = false;
             vr.error = e.what();
@@ -2203,6 +2205,8 @@ void GovernanceEngine::loadPlugins() {
         try {
             interp->loadPluginFile(plugin_path.string());
             plugin.loaded = true;
+        } catch (const governance::GovernanceHardError&) {
+            throw;
         } catch (const std::exception& e) {
             fprintf(stderr, "[governance] Warning: Failed to load plugin %s: %s\n",
                     plugin_path.string().c_str(), e.what());
@@ -2288,6 +2292,8 @@ std::string GovernanceEngine::checkPluginRules(
             interpreter::NaabVal result;
             try {
                 result = interp->callFunction(fn, {ctx_val});
+            } catch (const governance::GovernanceHardError&) {
+                throw;
             } catch (const std::exception& e) {
                 fprintf(stderr, "[governance] Plugin rule '%s' threw: %s\n",
                         rule.id.c_str(), e.what());

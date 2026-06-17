@@ -184,7 +184,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
                     + std::string(level == governance::EnforcementLevel::HARD ? "HARD-MANDATORY" :
                                   level == governance::EnforcementLevel::SOFT ? "SOFT-MANDATORY" : "ADVISORY")
                     + "]\n\n"
-                    "  Rule (govern.json): requirements.main_block\n\n"
+                    "  Rule: main block required\n\n"
                     "  Help:\n"
                     "  - All programs must have a main { } block when governance requires it\n";
                 if (level == governance::EnforcementLevel::HARD) {

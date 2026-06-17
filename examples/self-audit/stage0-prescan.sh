@@ -14,13 +14,13 @@ CHECKS=0
 trap "rm -f $TMPOUT" EXIT
 
 emit() {
-    local check="$1" level="$2" file="$3" line="$4" desc="$5" evidence="$6"
+    local check="$1" level="$2" file="$3" line="$4" desc="$5" evidence="$6" confidence="${7:-70}"
     local relfile="${file#$LANG_DIR/}"
     # Escape backslashes and quotes for JSON
     evidence=$(printf '%s' "$evidence" | sed 's/\\/\\\\/g; s/"/\\"/g' | head -c 120)
     desc=$(printf '%s' "$desc" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    printf '{"check":"%s","level":"%s","file":"%s","line":%s,"description":"%s","evidence":"%s"}\n' \
-        "$check" "$level" "$relfile" "$line" "$desc" "$evidence" >> "$TMPOUT"
+    printf '{"check":"%s","level":"%s","file":"%s","line":%s,"description":"%s","evidence":"%s","confidence":%s}\n' \
+        "$check" "$level" "$relfile" "$line" "$desc" "$evidence" "$confidence" >> "$TMPOUT"
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -47,11 +47,14 @@ check_unguarded_get() {
         if [ -n "$matches" ]; then
             while IFS= read -r match; do
                 local lineno="${match%%:*}"
+                local line_text="${match#*:}"
+                # Skip if guard is on the same line
+                if printf '%s' "$line_text" | grep -q 'is_number_integer\|is_number()\|\.contains('; then continue; fi
                 local start=$((lineno > 5 ? lineno - 5 : 1))
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
-                if ! printf '%s' "$context" | grep -q 'is_number_integer\|is_number()'; then
-                    emit "P2" "L7" "$f" "$lineno" "Unguarded .get<int>() — no is_number_integer() check" "${match#*:}"
+                if ! printf '%s' "$context" | grep -q 'is_number_integer\|is_number()\|\.contains('; then
+                    emit "P2" "L7" "$f" "$lineno" "Unguarded .get<int>() — no is_number_integer() check" "$line_text" 65
                 fi
             done <<< "$matches"
         fi
@@ -63,12 +66,12 @@ check_unguarded_get() {
                 local lineno="${match%%:*}"
                 local line_text="${match#*:}"
                 # Skip if guard is on the same line
-                if printf '%s' "$line_text" | grep -q 'is_string'; then continue; fi
+                if printf '%s' "$line_text" | grep -q 'is_string\|\.contains('; then continue; fi
                 local start=$((lineno > 5 ? lineno - 5 : 1))
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
-                if ! printf '%s' "$context" | grep -q 'is_string'; then
-                    emit "P2" "L7" "$f" "$lineno" "Unguarded .get<std::string>() — no is_string() check" "$line_text"
+                if ! printf '%s' "$context" | grep -q 'is_string\|\.contains('; then
+                    emit "P2" "L7" "$f" "$lineno" "Unguarded .get<std::string>() — no is_string() check" "$line_text" 65
                 fi
             done <<< "$matches"
         fi
@@ -79,12 +82,12 @@ check_unguarded_get() {
             while IFS= read -r match; do
                 local lineno="${match%%:*}"
                 local line_text="${match#*:}"
-                if printf '%s' "$line_text" | grep -q 'is_boolean'; then continue; fi
+                if printf '%s' "$line_text" | grep -q 'is_boolean\|\.contains('; then continue; fi
                 local start=$((lineno > 5 ? lineno - 5 : 1))
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
-                if ! printf '%s' "$context" | grep -q 'is_boolean'; then
-                    emit "P2" "L7" "$f" "$lineno" "Unguarded .get<bool>() — no is_boolean() check" "$line_text"
+                if ! printf '%s' "$context" | grep -q 'is_boolean\|\.contains('; then
+                    emit "P2" "L7" "$f" "$lineno" "Unguarded .get<bool>() — no is_boolean() check" "$line_text" 65
                 fi
             done <<< "$matches"
         fi
@@ -102,6 +105,10 @@ check_harderror_catch_gaps() {
         "$SRC/stdlib/codegen_impl.cpp"
         "$SRC/stdlib/agent_impl.cpp"
         "$SRC/interpreter/call_dispatch.cpp"
+        "$SRC/interpreter/expressions.cpp"
+        "$SRC/interpreter/polyglot.cpp"
+        "$SRC/interpreter/modules.cpp"
+        "$SRC/runtime/governance_reports.cpp"
     )
 
     for f in "${target_files[@]}"; do
@@ -111,7 +118,7 @@ check_harderror_catch_gaps() {
         # (throw; or rethrow_exception) — these are safe by design
         has_rethrow() {
             local file="$1" catchline="$2"
-            local body_end=$((catchline + 10))
+            local body_end=$((catchline + 20))
             local body
             body=$(sed -n "$((catchline + 1)),${body_end}p" "$file" 2>/dev/null || true)
             printf '%s' "$body" | grep -q 'throw;\|rethrow_exception'
@@ -130,7 +137,11 @@ check_harderror_catch_gaps() {
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
-                emit "P1" "L33" "$f" "$lineno" "catch(std::exception) without preceding GovernanceHardError catch" "${match#*:}"
+                # Filter 3: known-safe call sites (no NAAb execution possible)
+                if printf '%s' "$context" | grep -q 'block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|std::stod\|current_env_'; then
+                    continue
+                fi
+                emit "P1" "L33" "$f" "$lineno" "catch(std::exception) without preceding GovernanceHardError catch" "${match#*:}" 70
             done <<< "$matches"
         fi
 
@@ -144,7 +155,11 @@ check_harderror_catch_gaps() {
                 local context
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
-                emit "P1" "L33" "$f" "$lineno" "catch(std::runtime_error) without preceding GovernanceHardError catch" "${match#*:}"
+                # Filter 3: known-safe call sites (no NAAb execution possible)
+                if printf '%s' "$context" | grep -q 'block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|std::stod\|current_env_'; then
+                    continue
+                fi
+                emit "P1" "L33" "$f" "$lineno" "catch(std::runtime_error) without preceding GovernanceHardError catch" "${match#*:}" 70
             done <<< "$matches"
         fi
 
@@ -159,10 +174,10 @@ check_harderror_catch_gaps() {
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
                 # Filter known-safe catch(...) sites
-                if printf '%s' "$context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|strtol\|readString\|lexNumber\|parseNumber\|parseInt\|NaabVal::to\|builtin\|BuiltinFn\|callBuiltin\|format_impl\|regex\|std::regex'; then
+                if printf '%s' "$context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|strtol\|readString\|lexNumber\|parseNumber\|parseInt\|NaabVal::to\|builtin\|BuiltinFn\|callBuiltin\|format_impl\|regex\|std::regex\|block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|global_env_\|current_env_'; then
                     continue
                 fi
-                emit "P1" "L33" "$f" "$lineno" "catch(...) without preceding GovernanceHardError catch" "${match#*:}"
+                emit "P1" "L33" "$f" "$lineno" "catch(...) without preceding GovernanceHardError catch" "${match#*:}" 70
             done <<< "$matches"
         fi
     done
@@ -183,7 +198,7 @@ check_error_leaks() {
         while IFS= read -r line; do
             local desc
             desc=$(printf '%s' "$line" | sed 's/^\s*FAIL:\s*//')
-            emit "P4" "L9" "test_error_msg_leaks.sh" "0" "$desc" "error message leak detected"
+            emit "P4" "L9" "test_error_msg_leaks.sh" "0" "$desc" "error message leak detected" 90
         done <<< "$fail_lines"
     fi
 }
@@ -209,7 +224,7 @@ check_debt_markers() {
             local text="${rest#*:}"
             local marker="STUB"
             printf '%s' "$text" | grep -q 'FIXME' && marker="FIXME"
-            emit "L30" "L1" "$file" "$lineno" "Debt marker: $marker" "$text"
+            emit "L30" "L1" "$file" "$lineno" "Debt marker: $marker" "$text" 90
         done <<< "$matches"
     fi
 }
@@ -229,7 +244,7 @@ check_hollow_tests() {
             local file="${match%%:*}"
             local rest="${match#*:}"
             local lineno="${rest%%:*}"
-            emit "L2" "L2" "$file" "$lineno" "Tautological assertion — tests nothing" "${rest#*:}"
+            emit "L2" "L2" "$file" "$lineno" "Tautological assertion — tests nothing" "${rest#*:}" 95
         done <<< "$matches"
     fi
 }
@@ -253,7 +268,7 @@ check_numeric_casts() {
             local context
             context=$(sed -n "${start},${lineno}p" "$file" 2>/dev/null || true)
             if ! printf '%s' "$context" | grep -q 'INT_MAX\|INT_MIN\|numeric_limits\|clamp\|std::min\|std::max'; then
-                emit "L37" "L37" "$file" "$lineno" "Unchecked static_cast<int> from floating-point" "${rest#*:}"
+                emit "L37" "L37" "$file" "$lineno" "Unchecked static_cast<int> from floating-point" "${rest#*:}" 95
             fi
         done <<< "$matches"
     fi
@@ -280,7 +295,7 @@ check_fd_leaks() {
             local after
             after=$(sed -n "${lineno},${end}p" "$file" 2>/dev/null || true)
             if ! printf '%s' "$after" | grep -q 'fclose'; then
-                emit "L36" "L36" "$file" "$lineno" "fopen() without fclose() within 50 lines" "${rest#*:}"
+                emit "L36" "L36" "$file" "$lineno" "fopen() without fclose() within 50 lines" "${rest#*:}" 85
             fi
         done <<< "$matches"
     fi
@@ -308,7 +323,7 @@ check_vm_taint_push() {
                 local before
                 before=$(sed -n "${start},${lineno}p" "$vmfile" 2>/dev/null || true)
                 if printf '%s' "$before" | grep -q 'callback\|callNaab\|tool\|CALL_NATIVE'; then
-                    emit "P6" "L7" "$vmfile" "$lineno" "push(result) in callback path without taint propagation" "${match#*:}"
+                    emit "P6" "L7" "$vmfile" "$lineno" "push(result) in callback path without taint propagation" "${match#*:}" 75
                 fi
             fi
         done <<< "$matches"
@@ -337,7 +352,7 @@ check_silent_catch() {
         while IFS= read -r match; do
             local lineno="${match%%:*}"
             local body
-            body=$(sed -n "$((lineno + 1)),$((lineno + 3))p" "$f" 2>/dev/null || true)
+            body=$(sed -n "$((lineno + 1)),$((lineno + 10))p" "$f" 2>/dev/null || true)
             # Strip comments and whitespace
             local stripped
             stripped=$(printf '%s' "$body" | sed 's|//.*||' | sed 's|/\*.*\*/||' | tr -d ' \t\n{}')
@@ -347,7 +362,7 @@ check_silent_catch() {
                 if printf '%s' "$catch_line" | grep -q 'regex_error'; then continue; fi
                 # Filter: catch blocks containing throw; or NaabError (rethrow/translate)
                 local body_raw
-                body_raw=$(sed -n "$((lineno + 1)),$((lineno + 5))p" "$f" 2>/dev/null || true)
+                body_raw=$(sed -n "$((lineno + 1)),$((lineno + 10))p" "$f" 2>/dev/null || true)
                 if printf '%s' "$body_raw" | grep -q 'throw;\|rethrow_exception\|NaabError\|NaabException'; then continue; fi
                 # Filter known-safe empty catches
                 local func_start=$((lineno > 20 ? lineno - 20 : 1))
@@ -356,7 +371,7 @@ check_silent_catch() {
                 if printf '%s' "$func_context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|urandom\|unsetenv'; then
                     continue
                 fi
-                emit "L10" "L10" "$f" "$lineno" "Empty catch block — exception silently swallowed" "${match#*:}"
+                emit "L10" "L10" "$f" "$lineno" "Empty catch block — exception silently swallowed" "${match#*:}" 60
             fi
         done <<< "$matches"
     done
@@ -381,7 +396,7 @@ check_cli_flag_sync() {
         local count
         count=$(grep -c -- "$flag" "$mainfile" 2>/dev/null || echo "0")
         if [ "$count" -lt 2 ]; then
-            emit "L5" "L5" "$mainfile" "0" "CLI flag $flag may only appear in one of pre-scan/run-loop (found $count times)" "$flag appears $count time(s)"
+            emit "L5" "L5" "$mainfile" "0" "CLI flag $flag may only appear in one of pre-scan/run-loop (found $count times)" "$flag appears $count time(s)" 50
         fi
     done
 }

@@ -6535,7 +6535,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
                 }
             }
         }
-    } catch (...) {}
+    } catch (const std::exception&) {}
     return warnings;
 }
 

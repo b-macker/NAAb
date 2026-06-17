@@ -752,7 +752,10 @@ int main(int argc, char** argv) {
                 if (jarg == "--reason" && j + 1 < argc) {
                     reason = argv[++j]; command_arg_index = j;
                 } else if (jarg == "--expiry" && j + 1 < argc) {
-                    expiry_hours = std::stoi(argv[++j]); command_arg_index = j;
+                    try { expiry_hours = std::stoi(argv[++j]); } catch (const std::exception&) {
+                        fprintf(stderr, "Error: --expiry requires a numeric value\n"); return 1;
+                    }
+                    command_arg_index = j;
                 }
             }
             // Load signing key
@@ -1075,9 +1078,13 @@ int main(int argc, char** argv) {
             } else if (arg == "--sandbox-level" && i + 1 < argc) {
                 sandbox_level = argv[++i];
             } else if (arg == "--timeout" && i + 1 < argc) {
-                timeout = std::stoi(argv[++i]);
+                try { timeout = std::stoi(argv[++i]); } catch (const std::exception&) {
+                    fprintf(stderr, "Error: --timeout requires a numeric value\n"); return 1;
+                }
             } else if (arg == "--memory-limit" && i + 1 < argc) {
-                memory_limit = std::stoull(argv[++i]);
+                try { memory_limit = std::stoull(argv[++i]); } catch (const std::exception&) {
+                    fprintf(stderr, "Error: --memory-limit requires a numeric value\n"); return 1;
+                }
             } else if (arg == "--allow-network") {
                 network_enabled = true;
             } else if (arg == "--no-governance") {
@@ -3955,7 +3962,9 @@ int main(int argc, char** argv) {
                 std::string task;
                 while (std::getline(iss, task, ',')) filter_tasks.push_back(task);
             } else if (arg == "--iterations" && i + 1 < argc) {
-                iterations = std::stoi(argv[++i]);
+                try { iterations = std::stoi(argv[++i]); } catch (const std::exception&) {
+                    fprintf(stderr, "Error: --iterations requires a numeric value\n"); return 1;
+                }
             } else if (arg == "--output" && i + 1 < argc) {
                 output_path = argv[++i];
             }
@@ -4279,7 +4288,9 @@ int main(int argc, char** argv) {
                 std::string lang;
                 while (std::getline(iss, lang, ',')) race_languages.push_back(lang);
             } else if (arg == "--block" && i + 1 < argc) {
-                block_index = std::stoi(argv[++i]);
+                try { block_index = std::stoi(argv[++i]); } catch (const std::exception&) {
+                    fprintf(stderr, "Error: --block requires a numeric value\n"); return 1;
+                }
             } else if (arg.size() > 5 && arg.substr(arg.size()-5) == ".naab") {
                 race_file = arg;
             }
