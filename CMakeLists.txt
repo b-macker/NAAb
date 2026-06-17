@@ -1675,3 +1675,17 @@ endif()
 option(ENABLE_FUZZING "Enable libFuzzer fuzz targets (requires Clang)" OFF)
 add_subdirectory(fuzz)
 
+# ============================================================================
+# clang-tidy Static Analysis
+# ============================================================================
+find_program(CLANG_TIDY clang-tidy)
+if(CLANG_TIDY)
+    add_custom_target(clang-tidy
+        COMMAND ${CMAKE_SOURCE_DIR}/scripts/run-clang-tidy.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running clang-tidy on governance-critical files"
+    )
+    message(STATUS "  clang-tidy found: ${CLANG_TIDY}")
+    message(STATUS "  Run with: make clang-tidy")
+endif()
+
