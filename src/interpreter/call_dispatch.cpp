@@ -528,6 +528,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                             // Expression mode: capture return value
                             result_ = rt.executor->executeWithReturn(code);
                         }
+                    } catch (const governance::GovernanceHardError&) {
+                        throw;  // uncatchable — propagate to main
                     } catch (const std::exception& e) {
                         std::string err = e.what();
 

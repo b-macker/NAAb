@@ -6853,8 +6853,8 @@ std::string GovernanceEngine::checkDeterminism(const std::string& language,
             if (std::regex_search(code, re)) {
                 return "uses " + desc + " (non-deterministic)";
             }
-        } catch (...) {
-            // Skip broken regex
+        } catch (const std::regex_error& e) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", e.what());
         }
     }
     return "";
@@ -6895,8 +6895,8 @@ std::string GovernanceEngine::checkErrorDumps(const std::string& output, int lin
             if (std::regex_search(output, re)) {
                 return "error dump detected: " + desc;
             }
-        } catch (...) {
-            // Skip broken regex
+        } catch (const std::regex_error& e) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed: %s\n", e.what());
         }
     }
     return "";
