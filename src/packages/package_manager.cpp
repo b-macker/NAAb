@@ -185,7 +185,11 @@ std::string PackageManager::getLatestRelease(const std::string& owner, const std
             if (!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
             return tag;
         }
-    } catch (...) {}
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: failed to parse latest release JSON: %s\n", e.what());
+    } catch (...) {
+        fprintf(stderr, "[packages] Warning: failed to parse latest release JSON: unknown error\n");
+    }
 
     return "main";
 }
@@ -203,7 +207,11 @@ std::vector<std::string> PackageManager::listTags(const std::string& owner, cons
                 tags.push_back(tag["name"].get<std::string>());
             }
         }
-    } catch (...) {}
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: failed to parse tag list JSON: %s\n", e.what());
+    } catch (...) {
+        fprintf(stderr, "[packages] Warning: failed to parse tag list JSON: unknown error\n");
+    }
 
     return tags;
 }
@@ -866,7 +874,11 @@ std::vector<PackageInfo> PackageManager::search(const std::string& query) const 
                 results.push_back(std::move(info));
             }
         }
-    } catch (...) {}
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: registry search failed: %s\n", e.what());
+    } catch (...) {
+        fprintf(stderr, "[packages] Warning: registry search failed: unknown error\n");
+    }
 
     return results;
 }
@@ -990,8 +1002,11 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
         try {
             std::ifstream ifs(govern_path);
             govern = nlohmann::json::parse(ifs);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "[packages] Warning: could not parse govern.json: %s\n", e.what());
+            return false;
         } catch (...) {
-            fmt::print(stderr, "  Warning: Could not parse govern.json, skipping governance integration\n");
+            fprintf(stderr, "[packages] Warning: could not parse govern.json: unknown error\n");
             return false;
         }
     } else {
@@ -1004,8 +1019,11 @@ bool PackageManager::applyPackageGovernance(const std::string& package_name) {
     try {
         std::ifstream ifs(rules_path);
         rules = nlohmann::json::parse(ifs);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: could not parse %s: %s\n", rules_path.c_str(), e.what());
+        return false;
     } catch (...) {
-        fmt::print(stderr, "  Warning: Could not parse {}, skipping governance\n", rules_path);
+        fprintf(stderr, "[packages] Warning: could not parse %s: unknown error\n", rules_path.c_str());
         return false;
     }
 
@@ -1109,8 +1127,10 @@ bool PackageManager::removePackageGovernance(const std::string& package_name) {
         std::ofstream ofs(govern_path);
         ofs << govern.dump(2) << std::endl;
 
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: failed to remove package governance: %s\n", e.what());
     } catch (...) {
-        // Non-fatal
+        fprintf(stderr, "[packages] Warning: failed to remove package governance: unknown error\n");
     }
 
     return true;
@@ -1171,8 +1191,10 @@ bool PackageManager::addToManifest(const std::string& name, const std::string& g
         std::ofstream ofs(manifest);
         ofs << content;
 
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: failed to update manifest: %s\n", e.what());
     } catch (...) {
-        // Non-fatal
+        fprintf(stderr, "[packages] Warning: failed to update manifest: unknown error\n");
     }
 
     return true;
@@ -1206,8 +1228,10 @@ bool PackageManager::removeFromManifest(const std::string& name) {
         std::ofstream ofs(manifest);
         ofs << result;
 
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: failed to remove from manifest: %s\n", e.what());
     } catch (...) {
-        // Non-fatal
+        fprintf(stderr, "[packages] Warning: failed to remove from manifest: unknown error\n");
     }
 
     return true;
@@ -1238,7 +1262,11 @@ bool PackageLock::load(const std::string& path) {
         }
 
         return true;
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[packages] Warning: failed to load lockfile: %s\n", e.what());
+        return false;
     } catch (...) {
+        fprintf(stderr, "[packages] Warning: failed to load lockfile: unknown error\n");
         return false;
     }
 }

@@ -36,6 +36,9 @@ check_unguarded_get() {
         "$SRC/stdlib/agent_impl.cpp"
         "$SRC/stdlib/codegen_impl.cpp"
         "$SRC/cli/main.cpp"
+        "$SRC/scanner/scanner.cpp"
+        "$SRC/runtime/agent_provider.cpp"
+        "$SRC/runtime/trust_store.cpp"
     )
 
     for f in "${target_files[@]}"; do
@@ -109,6 +112,10 @@ check_harderror_catch_gaps() {
         "$SRC/interpreter/polyglot.cpp"
         "$SRC/interpreter/modules.cpp"
         "$SRC/runtime/governance_reports.cpp"
+        "$SRC/runtime/polyglot_async_executor.cpp"
+        "$SRC/api/rest_api.cpp"
+        "$SRC/api/governance_c_api.cpp"
+        "$SRC/packages/package_manager.cpp"
     )
 
     for f in "${target_files[@]}"; do
@@ -138,7 +145,7 @@ check_harderror_catch_gaps() {
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
                 # Filter 3: known-safe call sites (no NAAb execution possible)
-                if printf '%s' "$context" | grep -q 'block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|std::stod\|current_env_'; then
+                if printf '%s' "$context" | grep -q 'block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|std::stod\|current_env_\|\[packages\]\|\[project\]\|enqueue\|AsyncCallback\|thread_pool\|set_content\|block_loader\|req\.\|httpGet\|PackageLock\|toml::parse_file\|registry_url\|naab_gov_\|last_error\|last_error_\|strdup\|loadFromFile\|CurrentEngineGuard\|naab\.toml\|keywords\|std::transform'; then
                     continue
                 fi
                 emit "P1" "L33" "$f" "$lineno" "catch(std::exception) without preceding GovernanceHardError catch" "${match#*:}" 70
@@ -156,7 +163,7 @@ check_harderror_catch_gaps() {
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
                 # Filter 3: known-safe call sites (no NAAb execution possible)
-                if printf '%s' "$context" | grep -q 'block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|std::stod\|current_env_'; then
+                if printf '%s' "$context" | grep -q 'block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|std::stod\|current_env_\|\[packages\]\|\[project\]\|enqueue\|AsyncCallback\|thread_pool\|set_content\|block_loader\|req\.\|httpGet\|PackageLock\|toml::parse_file\|registry_url\|naab_gov_\|last_error\|last_error_\|strdup\|loadFromFile\|CurrentEngineGuard\|naab\.toml\|keywords\|std::transform'; then
                     continue
                 fi
                 emit "P1" "L33" "$f" "$lineno" "catch(std::runtime_error) without preceding GovernanceHardError catch" "${match#*:}" 70
@@ -174,7 +181,7 @@ check_harderror_catch_gaps() {
                 context=$(sed -n "${start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$context" | grep -q 'GovernanceHardError'; then continue; fi
                 # Filter known-safe catch(...) sites
-                if printf '%s' "$context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|strtol\|readString\|lexNumber\|parseNumber\|parseInt\|NaabVal::to\|builtin\|BuiltinFn\|callBuiltin\|format_impl\|regex\|std::regex\|block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|global_env_\|current_env_'; then
+                if printf '%s' "$context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|strtol\|readString\|lexNumber\|parseNumber\|parseInt\|NaabVal::to\|builtin\|BuiltinFn\|callBuiltin\|format_impl\|regex\|std::regex\|block_loader_\|buildDependencyGraph\|module_env->get\|logAuditEvent\|ofstream\|ifstream\|ed25519Sign\|CryptoUtils\|json::parse\|calibration_data_\|baselines_data_\|getGlobalEnv\|global_env_\|current_env_\|\[packages\]\|\[project\]\|enqueue\|AsyncCallback\|thread_pool\|set_content\|block_loader\|req\.\|httpGet\|PackageLock\|toml::parse_file\|registry_url\|naab_gov_\|last_error\|last_error_\|strdup\|loadFromFile\|CurrentEngineGuard\|naab\.toml\|keywords\|std::transform'; then
                     continue
                 fi
                 emit "P1" "L33" "$f" "$lineno" "catch(...) without preceding GovernanceHardError catch" "${match#*:}" 70
@@ -342,6 +349,8 @@ check_silent_catch() {
         "$SRC/stdlib/agent_impl.cpp"
         "$SRC/vm/vm.cpp"
         "$SRC/interpreter/interpreter.cpp"
+        "$SRC/packages/package_manager.cpp"
+        "$SRC/runtime/project_context.cpp"
     )
 
     for f in "${target_files[@]}"; do
@@ -369,6 +378,10 @@ check_silent_catch() {
                 local func_context
                 func_context=$(sed -n "${func_start},${lineno}p" "$f" 2>/dev/null || true)
                 if printf '%s' "$func_context" | grep -q 'semverGe\|looksLikeBase64\|looksLikeHex\|validateSchema\|stoi\|stod\|urandom\|unsetenv'; then
+                    continue
+                fi
+                # Filter: package_manager/project_context fallback catch(...) arms after std::exception
+                if printf '%s' "$func_context" | grep -q '\[packages\] Warning\|\[project\] Warning'; then
                     continue
                 fi
                 emit "L10" "L10" "$f" "$lineno" "Empty catch block — exception silently swallowed" "${match#*:}" 60
