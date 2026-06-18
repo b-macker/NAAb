@@ -2411,13 +2411,13 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
             // If no direct source (taint propagated from another variable), inherit lineage
             if (origin.empty()) {
                 if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getInit())) {
-                    auto* meta = governance_->getTaintLineage(id->getName());
+                    auto meta = governance_->getTaintLineage(id->getName());
                     if (meta) { origin = meta->origin_function; arg_hint = meta->origin_argument; }
                 } else if (auto* bin = dynamic_cast<ast::BinaryExpr*>(node.getInit())) {
                     // For concat: check both sides for tainted identifier with lineage
                     for (auto* side : {bin->getLeft(), bin->getRight()}) {
                         if (auto* sid = dynamic_cast<ast::IdentifierExpr*>(side)) {
-                            auto* meta = governance_->getTaintLineage(sid->getName());
+                            auto meta = governance_->getTaintLineage(sid->getName());
                             if (meta) { origin = meta->origin_function; arg_hint = meta->origin_argument; break; }
                         }
                     }

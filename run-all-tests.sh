@@ -1435,6 +1435,61 @@ else
     echo "  test_subprocess_containment.sh: not found, skipping"
 fi
 
+# --- Logic Correctness & Structural Verification ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Logic Correctness & Structural Verification"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+
+ORACLE_SCRIPT="tests/governance_v4/oracle/test_decision_oracle.sh"
+if [ -f "$ORACLE_SCRIPT" ]; then
+    if bash "$ORACLE_SCRIPT" 2>&1; then
+        echo "  test_decision_oracle.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_decision_oracle.sh")
+    fi
+else
+    echo "  test_decision_oracle.sh: not found, skipping"
+fi
+
+DIFF_SCRIPT="tests/vm/test_vm_treewalker_diff.sh"
+if [ -f "$DIFF_SCRIPT" ]; then
+    if bash "$DIFF_SCRIPT" 2>&1; then
+        echo "  test_vm_treewalker_diff.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_vm_treewalker_diff.sh")
+    fi
+else
+    echo "  test_vm_treewalker_diff.sh: not found, skipping"
+fi
+
+INVARIANT_SCRIPT="tests/governance_v4/invariants/test_invariant_enforcement.sh"
+if [ -f "$INVARIANT_SCRIPT" ]; then
+    if bash "$INVARIANT_SCRIPT" 2>&1; then
+        echo "  test_invariant_enforcement.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_invariant_enforcement.sh")
+    fi
+else
+    echo "  test_invariant_enforcement.sh: not found, skipping"
+fi
+
+CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
+if [ -f "$CANARY_SCRIPT" ]; then
+    if bash "$CANARY_SCRIPT" 2>&1; then
+        echo "  test_prescan_canaries.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_prescan_canaries.sh")
+    fi
+else
+    echo "  test_prescan_canaries.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

@@ -27,7 +27,7 @@ bool ResourceLimiter::initialized_ = false;
 // the script — the SIGALRM signal is delivered to whichever thread handles it,
 // which on Linux is typically the signalling thread or the process's main thread.
 // For multi-tenant use, prefer per-thread alarm delivery via timer_create(CLOCK_THREAD_CPUTIME_ID).
-thread_local bool ResourceLimiter::timeout_triggered_ = false;
+thread_local volatile bool ResourceLimiter::timeout_triggered_ = false;
 // V-ASYNC-001: process-wide shutdown flag. Set by signal handlers alongside
 // timeout_triggered_. Unlike the thread_local flag, this is visible to ALL
 // threads — including ThreadPool workers that never receive SIGALRM directly.

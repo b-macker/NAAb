@@ -62,7 +62,7 @@ private:
     static void handleCpuLimit(int sig);
 
     static bool initialized_;
-    static thread_local bool timeout_triggered_;
+    static thread_local volatile bool timeout_triggered_;
     // V-ASYNC-001: process-wide flag visible to all threads (async workers).
     // Set alongside timeout_triggered_ in signal handlers; cleared on each
     // new setExecutionTimeout() call and in clearTimeout().

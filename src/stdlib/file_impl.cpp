@@ -104,11 +104,20 @@ static std::string readFileNoFollow(const std::string& path) {
     std::string result;
     char buf[8192];
     ssize_t n;
-    while ((n = ::read(fd, buf, sizeof(buf))) > 0) {
-        result.append(buf, static_cast<size_t>(n));
+    for (;;) {
+        n = ::read(fd, buf, sizeof(buf));
+        if (n > 0) {
+            result.append(buf, static_cast<size_t>(n));
+        } else if (n == 0) {
+            break;
+        } else if (errno == EINTR) {
+            continue;
+        } else {
+            ::close(fd);
+            throw std::runtime_error("Failed to read file: " + path);
+        }
     }
     ::close(fd);
-    if (n < 0) throw std::runtime_error("Failed to read file: " + path);
     return result;
 }
 
@@ -129,7 +138,11 @@ static void writeFileNoFollow(const std::string& path, const std::string& conten
     size_t remaining = content.size();
     while (remaining > 0) {
         ssize_t written = ::write(fd, data, remaining);
-        if (written < 0) { ::close(fd); throw std::runtime_error("Failed to write file: " + path); }
+        if (written < 0) {
+            if (errno == EINTR) continue;
+            ::close(fd);
+            throw std::runtime_error("Failed to write file: " + path);
+        }
         data += written;
         remaining -= static_cast<size_t>(written);
     }

@@ -193,9 +193,9 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
                     if (!governance_->isOverrideEnabled()) {
                         throw std::runtime_error(msg + "\n  This rule is enforced by the project's governance configuration.\n");
                     }
-                    fprintf(stderr, "[governance] OVERRIDE requirements.main_block: %s\n", msg.c_str());
+                    fprintf(stderr, "[governance] OVERRIDE: %s\n", msg.c_str());
                 } else {
-                    fprintf(stderr, "[governance] WARNING requirements.main_block: Program has no main block\n");
+                    fprintf(stderr, "[governance] WARNING: Program has no main block\n");
                 }
             }
         }
@@ -259,7 +259,9 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
             try {
                 double d = std::stod(args[0].asString());
                 return interpreter::NaabVal::makeInt(static_cast<int>(d));
-            } catch (...) {
+            } catch (const governance::GovernanceHardError&) {
+                throw;
+            } catch (const std::exception&) {
                 runtimeError("int() cannot convert \"%s\" to int", args[0].asString().c_str());
             }
         }
@@ -270,7 +272,9 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
         if (args[0].isString()) {
             try {
                 return interpreter::NaabVal::makeDouble(std::stod(args[0].asString()));
-            } catch (...) {
+            } catch (const governance::GovernanceHardError&) {
+                throw;
+            } catch (const std::exception&) {
                 runtimeError("float() cannot convert \"%s\" to float", args[0].asString().c_str());
             }
         }
@@ -1353,7 +1357,7 @@ interpreter::NaabVal VM::run() {
                     peekTaint(0) = tainted;
                     // Restore lineage from governance engine's per-variable metadata
                     if (tainted && governance_->getRules().taint_tracking.lineage) {
-                        auto* meta = governance_->getTaintLineage(name);
+                        auto meta = governance_->getTaintLineage(name);
                         if (meta) {
                             size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
                             taint_lineage_map_[tos] = {meta->origin_function, meta->origin_argument,
@@ -2767,6 +2771,11 @@ interpreter::NaabVal VM::run() {
                                 std::string origin_func;
                                 std::string origin_arg;
                                 if (!taint_lineage_map_.empty()) {
+                                    // Guard: num_vars must not exceed stack depth
+                                    ptrdiff_t stack_depth = stack_top_ - stack_.get();
+                                    if (stack_depth < num_vars) {
+                                        runtimeError("Internal error: stack underflow in polyglot bound variable lookup");
+                                    }
                                     // bound vars are at stack positions: stack_top_ - num_vars + bi
                                     size_t var_offset = static_cast<size_t>(
                                         (stack_top_ - num_vars + static_cast<int>(bi)) - stack_.get());

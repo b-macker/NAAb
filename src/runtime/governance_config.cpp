@@ -2458,8 +2458,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         parseRationale(sc, rules_.scoring.rationale);
         if (rules_.scoring.yellow_threshold > rules_.scoring.red_threshold) {
             fmt::print(stderr, "[WARN] scoring.yellow_threshold ({}) > red_threshold ({}) — "
-                       "yellow warnings will never appear\n",
+                       "clamping yellow to red\n",
                        rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+            rules_.scoring.yellow_threshold = rules_.scoring.red_threshold;
         }
     }
 
@@ -2473,6 +2474,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         rules_.agent_review.voice = ar.value("voice", "");
         rules_.agent_review.cache = ar.value("cache", false);
         rules_.agent_review.hints = ar.value("hints", false);
+        // Default: "open" (warn-only). agent_review itself defaults to disabled.
+        // Set to "closed" for fail-safe behavior when agent_review is enabled.
         rules_.agent_review.fail_policy = ar.value("fail_policy", "open");
         rules_.agent_review.dispatch_mode = ar.value("dispatch_mode", "sequential");
         rules_.agent_review.fail_strategy = ar.value("fail_strategy", "fail_fast");

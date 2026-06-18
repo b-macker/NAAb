@@ -35,6 +35,7 @@ echo "Installing to $INSTALL_DIR/bin/..."
 mkdir -p "$INSTALL_DIR/bin"
 cp naab-lang "$INSTALL_DIR/bin/" 2>/dev/null || true
 cp naab-lsp "$INSTALL_DIR/bin/" 2>/dev/null || true
+cp naab-gov "$INSTALL_DIR/bin/" 2>/dev/null || true
 
 chmod +x "$INSTALL_DIR/bin"/naab-* 2>/dev/null || true
 

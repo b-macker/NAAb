@@ -1006,7 +1006,7 @@ void GovernanceEngine::writeAgentTelemetry(
     ev["event_type"] = event_type;
     ev["timestamp"] = std::string(ts_buf);
     for (const auto& [k, v] : fields) {
-        ev[k] = v;
+        ev[k] = error::ErrorSanitizer::sanitizeFilePaths(v);
     }
 
     // Tamper-evident hash chain
@@ -1830,7 +1830,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
 
     if (matches) {
         // Update runs counter and last_seen
-        int runs = entry.contains("runs") ? entry["runs"].get<int>() : 0;
+        int runs = (entry.contains("runs") && entry["runs"].is_number_integer()) ? entry["runs"].get<int>() : 0;
         entry["runs"] = runs + 1;
         auto now = std::chrono::system_clock::now();
         auto ts = std::chrono::duration_cast<std::chrono::seconds>(
