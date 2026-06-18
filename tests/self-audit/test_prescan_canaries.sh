@@ -61,7 +61,16 @@ else
     _SYSTMP="${TMPDIR:-/tmp}"
 fi
 PRESCAN_OUT="$_SYSTMP/canary_prescan_$$"
-trap 'rm -f "$PRESCAN_OUT"' EXIT
+cleanup() {
+    # Always revert injected files — critical if killed mid-test (OOM, signal)
+    local relint="src/interpreter/interpreter.cpp"
+    local relcfg="src/runtime/governance_config.cpp"
+    cd "$LANG_DIR" 2>/dev/null || true
+    git checkout -- "$relint" 2>/dev/null || true
+    git checkout -- "$relcfg" 2>/dev/null || true
+    rm -f "$PRESCAN_OUT"
+}
+trap cleanup EXIT
 
 echo "=== Prescan Canary Tests ==="
 echo "  Prescan: $PRESCAN"
