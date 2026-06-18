@@ -2967,7 +2967,8 @@ std::string GovernanceEngine::formatScoreBreakdown() const {
 }
 
 bool GovernanceEngine::verifyScoreIntegrity() const {
-    std::lock_guard<std::mutex> lock(results_mutex_);
+    // NOTE: caller (printDashboard) already holds results_mutex_.
+    // Do NOT lock here — std::mutex is not recursive and will deadlock.
     if (!rules().scoring.enabled) return true;
     int recomputed = 0;
     std::unordered_map<std::string, int> occ_counts;
