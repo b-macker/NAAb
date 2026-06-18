@@ -1426,6 +1426,7 @@
       "wrapper_classes":        { "enabled": true, "level": "advisory" },
       "unused_imports":         { "enabled": true, "level": "soft" },
       "missing_imports":        { "enabled": true, "level": "soft" },
+      "phantom_imports":        { "enabled": true, "level": "soft" },
       "single_use_variable":    { "enabled": false, "level": "advisory" },
       "copy_paste_signatures":  { "enabled": true, "level": "advisory" },
       "excessive_type_checks":  { "enabled": true, "level": "advisory" },
@@ -1770,7 +1771,9 @@
     "cache": true,
     "dispatch_mode": "sequential",
     "max_parallel": 0,
-    "fail_strategy": "fail_fast"
+    "fail_strategy": "fail_fast",
+    "fail_policy": "open",
+    "_comment_fail_policy": "Policy when agent review fails: 'open' (warn only) or 'closed' (block). Default: open"
   },
 
   "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
@@ -1917,6 +1920,14 @@
     "soft_after": 3,
     "weight_multiplier": 1.5,
     "rationale": "Repeated advisories harden — persistent issues must be addressed"
+  },
+
+  "_comment_scoring_calibration": "Scoring Calibration — operator-driven weight overrides. Persists calibration to .naab/scoring-calibration.json. Use governance.calibrate(rule, weight, reason) to set overrides. governance.calibration() returns current overrides.",
+  "scoring_calibration": {
+    "enabled": false,
+    "path": ".naab/scoring-calibration.json",
+    "auto_save": true,
+    "rationale": "Operator-driven weight overrides — tune scoring weights based on project experience"
   },
 
   "_comment_governance_health": "Governance Health Monitoring — verify BSD/CDD instrumentation is operational. Detects: BSD received 0 events after N turns, CDD analyzed 0 turns after N turns, perfect coherence (1.0) after 10+ turns. governance_entropy_warning flags suspiciously uniform governance check result distributions. Pulse thresholds: consecutive_passes_suspicion (flag if all checks pass N+ times), impaired_degraded_turns/impaired_signal_count (IMPAIRED verdict conditions), pulse_cooldown_turns (min turns between verdict transitions). Nuclear safety system exercising analog.",

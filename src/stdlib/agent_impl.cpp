@@ -829,11 +829,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Get config
     const auto* config = findAgentConfig(config_name);
     if (!config) {
-        throw std::runtime_error(fmt::format(
-            "Agent error: Agent config '{}' no longer available\n\n"
+        throw std::runtime_error(
+            "Agent error: Agent config no longer available\n\n"
             "  Help:\n"
-            "  - The governance configuration may have changed\n",
-            config_name));
+            "  - The governance configuration may have changed\n");
     }
 
     // Server-side governance enforcement (immune to handle mutation)
@@ -991,12 +990,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // invalidating the pointer obtained before reload.
         config = findAgentConfig(config_name);
         if (!config) {
-            throw std::runtime_error(fmt::format(
-                "Agent error: Agent config '{}' removed during governance reload\n\n"
+            throw std::runtime_error(
+                "Agent error: Agent config removed during governance reload\n\n"
                 "  Help:\n"
                 "  - The governance configuration was reloaded mid-run\n"
-                "  - The agent config is no longer available\n",
-                config_name));
+                "  - The agent config is no longer available\n");
         }
     }
 
@@ -2042,12 +2040,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 gov_engine->reloadIfChanged();
                 config = findAgentConfig(config_name);
                 if (!config) {
-                    throw std::runtime_error(fmt::format(
-                        "Agent error: Agent config '{}' removed during governance reload\n\n"
+                    throw std::runtime_error(
+                        "Agent error: Agent config removed during governance reload\n\n"
                         "  Help:\n"
                         "  - The governance configuration was reloaded mid-run\n"
-                        "  - The agent config is no longer available\n",
-                        config_name));
+                        "  - The agent config is no longer available\n");
                 }
                 // Check if tools were disabled mid-loop
                 if (!config->tools_enabled) {

@@ -214,8 +214,10 @@ std::vector<std::string> ProjectContextLoader::walkUpward(
 
                     found.push_back(candidate.string());
                 }
+            } catch (const std::exception& e) {
+                fprintf(stderr, "[project] Warning: directory scan failed: %s\n", e.what());
             } catch (...) {
-                // Permission errors, etc. — skip silently
+                fprintf(stderr, "[project] Warning: directory scan failed: unknown error\n");
             }
         }
 
@@ -261,8 +263,10 @@ std::vector<ContextExtraction> ProjectContextLoader::discoverAndParseLLMFiles(
         try {
             auto extractions = parseMarkdownFile(path, filename);
             all.insert(all.end(), extractions.begin(), extractions.end());
+        } catch (const std::exception& e) {
+            fprintf(stderr, "[project] Warning: failed to parse %s: %s\n", path.c_str(), e.what());
         } catch (...) {
-            // Malformed file — skip with implicit warning
+            fprintf(stderr, "[project] Warning: failed to parse %s: unknown error\n", path.c_str());
         }
     }
 
@@ -728,8 +732,10 @@ std::vector<ContextExtraction> ProjectContextLoader::discoverAndParseLinterConfi
             }
             // .clang-format, rustfmt.toml, .rubocop.yml would need YAML/TOML parsers
             // For now, only parse structured JSON and INI-like (.editorconfig) files
+        } catch (const std::exception& e) {
+            fprintf(stderr, "[project] Warning: failed to parse config file: %s\n", e.what());
         } catch (...) {
-            // Malformed config — skip
+            fprintf(stderr, "[project] Warning: failed to parse config file: unknown error\n");
         }
     }
 
@@ -837,8 +843,12 @@ std::vector<ContextExtraction> ProjectContextLoader::parseJsonConfig(
     nlohmann::json j;
     try {
         j = nlohmann::json::parse(raw);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[project] Warning: malformed JSON in %s: %s\n", filename.c_str(), e.what());
+        return results;
     } catch (...) {
-        return results;  // Malformed JSON — skip
+        fprintf(stderr, "[project] Warning: malformed JSON in %s: unknown error\n", filename.c_str());
+        return results;
     }
 
     // ESLint
@@ -1029,8 +1039,10 @@ std::vector<ContextExtraction> ProjectContextLoader::discoverAndParseManifests(
                 break;
             }
         }
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[project] Warning: directory iteration failed: %s\n", e.what());
     } catch (...) {
-        // Directory iteration failed — skip
+        fprintf(stderr, "[project] Warning: directory iteration failed: unknown error\n");
     }
 
     return all;
@@ -1062,7 +1074,11 @@ std::vector<ContextExtraction> ProjectContextLoader::parseManifestFile(
                 j["engines"].contains("node") && j["engines"]["node"].is_string()) {
                 version_info = fmt::format("node {}", j["engines"]["node"].get<std::string>());
             }
-        } catch (...) {}
+        } catch (const std::exception& e) {
+            fprintf(stderr, "[project] Warning: failed to read package.json: %s\n", e.what());
+        } catch (...) {
+            fprintf(stderr, "[project] Warning: failed to read package.json: unknown error\n");
+        }
     } else if (filename == "go.mod") {
         try {
             std::ifstream ifs(path);
@@ -1073,7 +1089,11 @@ std::vector<ContextExtraction> ProjectContextLoader::parseManifestFile(
                     break;
                 }
             }
-        } catch (...) {}
+        } catch (const std::exception& e) {
+            fprintf(stderr, "[project] Warning: failed to read go.mod: %s\n", e.what());
+        } catch (...) {
+            fprintf(stderr, "[project] Warning: failed to read go.mod: unknown error\n");
+        }
     }
 
     // Create the detection extraction

@@ -523,7 +523,8 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         static const std::vector<std::string> known_modules = {
             "math", "string", "json", "csv", "file", "time", "regex",
             "env", "io", "crypto", "log", "uuid", "validate", "process",
-            "path", "http", "array", "dict", "agent"
+            "path", "http", "array", "dict", "agent", "debug",
+            "bolo", "collections", "codegen", "governance", "orchestra"
         };
         // Collect imported modules
         std::unordered_set<std::string> imported;
@@ -547,6 +548,29 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                         trim(lines[i]),
                         fmt::format("Add 'use {}' at the top of the file", mod));
                     break; // one issue per missing module
+                }
+            }
+        }
+    }
+
+    // 11d. phantom_imports (NAAb) — detect `use X` where X is not a known stdlib module
+    if (isEnabled(CAT, "phantom_imports") && language == "naab") {
+        static const std::unordered_set<std::string> known_stdlib = {
+            "io", "json", "http", "collections", "string", "array", "math",
+            "time", "env", "csv", "regex", "crypto", "file", "debug",
+            "bolo", "path", "dict", "log", "uuid", "validate", "process",
+            "agent", "codegen", "governance", "orchestra"
+        };
+        static const std::regex ph_use_pat(R"(^\s*use\s+(\w+)\s*$)");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::smatch m;
+            if (std::regex_search(lines[i], m, ph_use_pat)) {
+                std::string mod = m[1].str();
+                if (!known_stdlib.count(mod)) {
+                    addIssue(issues, filepath, i + 1, "phantom_imports", CAT,
+                        fmt::format("'{}' is not a known stdlib module", mod),
+                        trim(lines[i]),
+                        "Check spelling or ensure this is a valid file-based module");
                 }
             }
         }

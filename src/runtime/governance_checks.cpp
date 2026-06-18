@@ -6301,8 +6301,6 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // so downstream pattern-based checks catch indirect calls through variables
     stripped = expandDangerousAliases(lang, stripped);
 
-    std::string stripped_all = stripComments(stripped);  // Also strip comments
-
     std::string err;
 
     // Language allowed? (uses normalized name)
@@ -6596,11 +6594,11 @@ bool GovernanceEngine::isTainted(const std::string& var_name) const {
     return taint_set_.count(var_name) > 0;
 }
 
-const TaintMetadata* GovernanceEngine::getTaintLineage(const std::string& var_name) const {
+std::optional<TaintMetadata> GovernanceEngine::getTaintLineage(const std::string& var_name) const {
     std::lock_guard<std::mutex> lock(taint_mutex_);
     auto it = taint_lineage_.find(var_name);
-    if (it != taint_lineage_.end()) return &it->second;
-    return nullptr;
+    if (it != taint_lineage_.end()) return it->second;
+    return std::nullopt;
 }
 
 // BUG-O: Save/restore taint state for module loading isolation

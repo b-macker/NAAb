@@ -900,6 +900,14 @@ void GovernanceEngine::writeTelemetry() const {
         ev["category"] = r.category;
         ev["severity"] = r.severity;
         ev["level"] = levelToString(r.level);
+        // Scoring enrichment: include weight and escalation data for advisory violations
+        if (rules().scoring.enabled && !r.passed && r.level == EnforcementLevel::ADVISORY) {
+            auto sit = score_contributions_.find(r.rule_name);
+            if (sit != score_contributions_.end()) {
+                ev["score_contribution"] = sit->second;
+            }
+            ev["escalated"] = r.escalated;
+        }
         if (!r.cwe_ids.empty()) {
             ev["cwe"] = nlohmann::json::array();
             for (const auto& c : r.cwe_ids) ev["cwe"].push_back(c);
@@ -959,6 +967,38 @@ void GovernanceEngine::writeTelemetry() const {
     // that per-turn checkGovernanceHealth() missed due to check_after_turns gate)
     emitEndOfRunHealthWarnings(fp.get(), timestamp);
 
+    // End-of-run scoring snapshot for cross-run analysis
+    if (rules().scoring.enabled && cumulative_score_ > 0) {
+        nlohmann::json snap;
+        snap["run_id"] = run_id_;
+        snap["event_type"] = "ScoringSnapshot";
+        snap["timestamp"] = timestamp;
+        snap["cumulative_score"] = cumulative_score_;
+        snap["risk_zone"] = cumulative_score_ >= rules().scoring.red_threshold ? "RED" :
+                            cumulative_score_ >= rules().scoring.yellow_threshold ? "YELLOW" : "GREEN";
+        nlohmann::json breakdown = nlohmann::json::object();
+        for (const auto& [rule, total] : score_contributions_) {
+            breakdown[rule] = total;
+        }
+        snap["score_breakdown"] = breakdown;
+        if (rules().telemetry_output.tamper_evidence.enabled) {
+            std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+            snap["prev_hash"] = last_telemetry_hash_.empty()
+                ? rules().telemetry_output.tamper_evidence.chain_genesis
+                : last_telemetry_hash_;
+            last_telemetry_hash_ = computeHash(snap.dump(),
+                rules().telemetry_output.tamper_evidence);
+            snap["hash"] = last_telemetry_hash_;
+        }
+        std::string sline = snap.dump() + "\n";
+        fwrite(sline.c_str(), 1, sline.size(), fp.get());
+        {
+            std::shared_ptr<TelemetryForwarder> fwd;
+            { std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_); fwd = telemetry_forwarder_; }
+            if (fwd) fwd->enqueue(snap.dump());
+        }
+    }
+
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
     if (!check_results_.empty()) {
@@ -1006,7 +1046,7 @@ void GovernanceEngine::writeAgentTelemetry(
     ev["event_type"] = event_type;
     ev["timestamp"] = std::string(ts_buf);
     for (const auto& [k, v] : fields) {
-        ev[k] = v;
+        ev[k] = error::ErrorSanitizer::sanitizeFilePaths(v);
     }
 
     // Tamper-evident hash chain
@@ -1830,7 +1870,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
 
     if (matches) {
         // Update runs counter and last_seen
-        int runs = entry.contains("runs") ? entry["runs"].get<int>() : 0;
+        int runs = (entry.contains("runs") && entry["runs"].is_number_integer()) ? entry["runs"].get<int>() : 0;
         entry["runs"] = runs + 1;
         auto now = std::chrono::system_clock::now();
         auto ts = std::chrono::duration_cast<std::chrono::seconds>(
