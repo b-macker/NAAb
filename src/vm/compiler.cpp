@@ -1577,10 +1577,10 @@ void Compiler::visit(ast::ModuleUseStmt& node) {
 
     // Check if it's a known stdlib module name (prelude modules)
     static const std::unordered_set<std::string> stdlib_modules = {
-        "io", "math", "string", "array", "file", "json", "http",
-        "crypto", "time", "env", "debug", "os", "regex",
-        "csv", "collections", "bolo", "path", "dict",
-        "log", "uuid", "validate", "process"
+        "io", "json", "http", "collections", "string", "array", "math",
+        "time", "env", "csv", "regex", "crypto", "file", "debug",
+        "bolo", "path", "dict", "log", "uuid", "validate", "process",
+        "agent", "codegen", "governance", "orchestra"
     };
     if (stdlib_modules.count(module_path)) {
         // Stdlib module: emit marker string
