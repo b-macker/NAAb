@@ -346,13 +346,71 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
 }
 
 // ============================================================================
+// governance.calibrate(rule_name, weight, reason) — set operator weight override
+// ============================================================================
+
+static NaabVal governanceCalibrate(std::vector<NaabVal>& args) {
+    if (args.size() < 3 || !args[0].isString() || !args[1].isInt() || !args[2].isString()) {
+        throw std::runtime_error(
+            "Runtime error: governance.calibrate() requires (rule_name, weight, reason)\n\n"
+            "  Help:\n"
+            "  - rule_name: string — the governance rule to calibrate\n"
+            "  - weight: int — new weight override (0 = suppress)\n"
+            "  - reason: string — why this weight was chosen\n");
+    }
+    auto* engine = GovernanceEngine::getCurrent();
+    if (!engine) {
+        throw std::runtime_error(
+            "Governance error: governance.calibrate() requires an active governance engine\n\n"
+            "  Help:\n"
+            "  - Ensure govern.json is present in the project directory\n");
+    }
+    std::string rule = args[0].asString();
+    int weight = static_cast<int>(args[1].asInt());
+    std::string reason = args[2].asString();
+    bool ok = engine->calibrateRule(rule, weight, reason);
+
+    std::unordered_map<std::string, NaabVal> result;
+    result["success"] = NaabVal::makeBool(ok);
+    result["rule"] = NaabVal::makeString(rule);
+    result["weight"] = NaabVal::makeInt(weight);
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
+// governance.calibration() — get all calibration overrides
+// ============================================================================
+
+static NaabVal governanceCalibration(std::vector<NaabVal>& args) {
+    (void)args;
+    auto* engine = GovernanceEngine::getCurrent();
+    if (!engine) {
+        throw std::runtime_error(
+            "Governance error: governance.calibration() requires an active governance engine\n\n"
+            "  Help:\n"
+            "  - Ensure govern.json is present in the project directory\n");
+    }
+    auto overrides = engine->getCalibrationOverrides();
+    std::unordered_map<std::string, NaabVal> result;
+    for (const auto& [rule, entry] : overrides) {
+        std::unordered_map<std::string, NaabVal> e;
+        e["weight"] = NaabVal::makeInt(entry.weight_override);
+        e["reason"] = NaabVal::makeString(entry.reason);
+        e["updated_at"] = NaabVal::makeString(entry.updated_at);
+        e["observation_count"] = NaabVal::makeInt(entry.observation_count);
+        result[rule] = NaabVal::makeDict(std::move(e));
+    }
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
 // Module interface
 // ============================================================================
 
 bool GovernanceModule::hasFunction(const std::string& name) const {
     return name == "scorer" || name == "finding" || name == "evaluate" ||
            name == "findings" || name == "score" || name == "parse_findings" ||
-           name == "health";
+           name == "health" || name == "calibrate" || name == "calibration";
 }
 
 NaabVal GovernanceModule::call(
@@ -365,11 +423,14 @@ NaabVal GovernanceModule::call(
     if (function_name == "score") return governanceScore(args);
     if (function_name == "parse_findings") return governanceParseFindings(args);
     if (function_name == "health") return governanceHealth(args);
+    if (function_name == "calibrate") return governanceCalibrate(args);
+    if (function_name == "calibration") return governanceCalibration(args);
 
     throw std::runtime_error(
         "Runtime error: governance module has no function '" + function_name + "'\n\n"
         "  Help:\n"
-        "  - Available: scorer, finding, evaluate, findings, score, parse_findings, health\n");
+        "  - Available: scorer, finding, evaluate, findings, score, parse_findings, "
+        "health, calibrate, calibration\n");
 }
 
 } // namespace stdlib

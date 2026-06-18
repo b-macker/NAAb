@@ -920,13 +920,48 @@ std::string GovernanceEngine::enforce(
         if (rules().scoring.enabled && level == EnforcementLevel::ADVISORY) {
             int weight = rules().scoring.default_weight;
             std::string weight_source = "default";
-            auto wit = rules().scoring.rule_weights.find(rule_name);
-            if (wit != rules().scoring.rule_weights.end()) {
-                weight = wit->second;
-                weight_source = "rule_weights";
-            } else if (rule_name == "code_quality.intent_validation.self_declared") {
-                weight = 1;  // supporting functions: reduced weight
-                weight_source = "self_declared reduction";
+            // Contextual weight waterfall: rule:category:severity → rule:category → rule
+            std::string ctx_cat, ctx_sev;
+            if (!check_results_.empty()) {
+                ctx_cat = check_results_.back().category;
+                ctx_sev = check_results_.back().severity;
+            }
+            // Level 1: rule:category:severity (most specific)
+            if (!ctx_cat.empty() && !ctx_sev.empty()) {
+                auto wit = rules().scoring.rule_weights.find(
+                    rule_name + ":" + ctx_cat + ":" + ctx_sev);
+                if (wit != rules().scoring.rule_weights.end()) {
+                    weight = wit->second;
+                    weight_source = "rule_weights:" + ctx_cat + ":" + ctx_sev;
+                }
+            }
+            // Level 2: rule:category
+            if (weight_source == "default" && !ctx_cat.empty()) {
+                auto wit = rules().scoring.rule_weights.find(rule_name + ":" + ctx_cat);
+                if (wit != rules().scoring.rule_weights.end()) {
+                    weight = wit->second;
+                    weight_source = "rule_weights:" + ctx_cat;
+                }
+            }
+            // Level 3: rule (existing exact match — backward compatible)
+            if (weight_source == "default") {
+                auto wit = rules().scoring.rule_weights.find(rule_name);
+                if (wit != rules().scoring.rule_weights.end()) {
+                    weight = wit->second;
+                    weight_source = "rule_weights";
+                } else if (rule_name == "code_quality.intent_validation.self_declared") {
+                    weight = 1;  // supporting functions: reduced weight
+                    weight_source = "self_declared reduction";
+                }
+            }
+            // Scoring calibration: operator weight override takes precedence over config
+            if (rules().scoring_calibration.enabled) {
+                loadScoringCalibration();
+                auto cit = scoring_calibration_.find(rule_name);
+                if (cit != scoring_calibration_.end() && cit->second.weight_override >= 0) {
+                    weight = cit->second.weight_override;
+                    weight_source = "calibration";
+                }
             }
             weight = std::max(0, weight);
             // Advisory Escalation: multiply weight on 2nd+ occurrence
@@ -2979,11 +3014,42 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         // Escalated advisories return before scoring in enforce() — exclude
         if (r.escalated) continue;
         int weight = rules().scoring.default_weight;
-        auto wit = rules().scoring.rule_weights.find(r.rule_name);
-        if (wit != rules().scoring.rule_weights.end()) {
-            weight = wit->second;
-        } else if (r.rule_name == "code_quality.intent_validation.self_declared") {
-            weight = 1;  // supporting functions: reduced weight
+        // Mirror contextual weight waterfall from enforce()
+        std::string v_cat = r.category;
+        std::string v_sev = r.severity;
+        bool v_found = false;
+        // Level 1: rule:category:severity
+        if (!v_cat.empty() && !v_sev.empty()) {
+            auto wit = rules().scoring.rule_weights.find(
+                r.rule_name + ":" + v_cat + ":" + v_sev);
+            if (wit != rules().scoring.rule_weights.end()) {
+                weight = wit->second;
+                v_found = true;
+            }
+        }
+        // Level 2: rule:category
+        if (!v_found && !v_cat.empty()) {
+            auto wit = rules().scoring.rule_weights.find(r.rule_name + ":" + v_cat);
+            if (wit != rules().scoring.rule_weights.end()) {
+                weight = wit->second;
+                v_found = true;
+            }
+        }
+        // Level 3: rule (existing exact match)
+        if (!v_found) {
+            auto wit = rules().scoring.rule_weights.find(r.rule_name);
+            if (wit != rules().scoring.rule_weights.end()) {
+                weight = wit->second;
+            } else if (r.rule_name == "code_quality.intent_validation.self_declared") {
+                weight = 1;  // supporting functions: reduced weight
+            }
+        }
+        // Mirror calibration override from enforce()
+        if (rules().scoring_calibration.enabled) {
+            auto cit = scoring_calibration_.find(r.rule_name);
+            if (cit != scoring_calibration_.end() && cit->second.weight_override >= 0) {
+                weight = cit->second.weight_override;
+            }
         }
         weight = std::max(0, weight);
         // Advisory Escalation: mirror enforce() weight multiplier
@@ -2999,6 +3065,133 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
         }
     }
     return recomputed == cumulative_score_;
+}
+
+// ============================================================================
+// Scoring Calibration — operator-driven weight overrides
+// ============================================================================
+
+void GovernanceEngine::loadScoringCalibration() const {
+    if (scoring_calibration_loaded_) return;
+    scoring_calibration_loaded_ = true;
+    if (!rules().scoring_calibration.enabled) return;
+
+    std::string path = rules().scoring_calibration.path;
+    if (!path.empty() && path[0] != '/') {
+        // Resolve relative to govern.json directory
+        std::string dir = rules().telemetry_output.output_file;
+        auto slash = dir.find_last_of('/');
+        if (slash != std::string::npos) {
+            path = dir.substr(0, slash + 1) + path;
+        }
+        // If no directory context, use path as-is (relative to cwd)
+    }
+
+    std::ifstream in(path);
+    if (!in.is_open()) return;  // No calibration file yet — normal for first run
+
+    try {
+        nlohmann::json j = nlohmann::json::parse(in);
+        if (!j.contains("overrides") || !j["overrides"].is_object()) return;
+        for (auto& [rule, data] : j["overrides"].items()) {
+            if (!data.is_object()) continue;
+            ScoringCalibrationEntry entry;
+            if (data.contains("weight") && data["weight"].is_number_integer())
+                entry.weight_override = data["weight"].get<int>();
+            if (data.contains("reason") && data["reason"].is_string())
+                entry.reason = data["reason"].get<std::string>();
+            if (data.contains("updated_at") && data["updated_at"].is_string())
+                entry.updated_at = data["updated_at"].get<std::string>();
+            if (data.contains("observation_count") && data["observation_count"].is_number_integer())
+                entry.observation_count = data["observation_count"].get<int>();
+            scoring_calibration_[rule] = entry;
+        }
+    } catch (...) {
+        fprintf(stderr, "[governance] Warning: scoring calibration file corrupt, ignoring\n");
+    }
+}
+
+void GovernanceEngine::saveScoringCalibration() const {
+    if (scoring_calibration_.empty()) return;
+
+    std::string path = rules().scoring_calibration.path;
+
+    std::filesystem::path p(path);
+    if (p.has_parent_path())
+        std::filesystem::create_directories(p.parent_path());
+
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char ts[32];
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+
+    nlohmann::json j;
+    j["version"] = 1;
+    j["updated_at"] = std::string(ts);
+    j["overrides"] = nlohmann::json::object();
+    for (const auto& [rule, entry] : scoring_calibration_) {
+        nlohmann::json e;
+        e["weight"] = entry.weight_override;
+        e["reason"] = entry.reason;
+        e["updated_at"] = entry.updated_at;
+        e["observation_count"] = entry.observation_count;
+        j["overrides"][rule] = e;
+    }
+
+    std::ofstream ofs(path);
+    if (ofs.is_open()) {
+        ofs << j.dump(2) << "\n";
+        fprintf(stderr, "[governance] Scoring calibration saved to %s\n", path.c_str());
+    }
+}
+
+bool GovernanceEngine::calibrateRule(const std::string& rule_name,
+                                      int weight_override,
+                                      const std::string& reason) {
+    if (!rules().scoring_calibration.enabled) return false;
+    loadScoringCalibration();
+
+    auto& entry = scoring_calibration_[rule_name];
+    entry.weight_override = std::max(0, weight_override);
+    entry.reason = reason;
+    entry.observation_count++;
+
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char ts[32];
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+    entry.updated_at = std::string(ts);
+
+    scoring_calibration_dirty_ = true;
+    return true;
+}
+
+bool GovernanceEngine::resetCalibration(const std::string& rule_name) {
+    if (!rules().scoring_calibration.enabled) return false;
+    loadScoringCalibration();
+    auto it = scoring_calibration_.find(rule_name);
+    if (it == scoring_calibration_.end()) return false;
+    scoring_calibration_.erase(it);
+    scoring_calibration_dirty_ = true;
+    return true;
+}
+
+std::unordered_map<std::string, ScoringCalibrationEntry>
+GovernanceEngine::getCalibrationOverrides() const {
+    loadScoringCalibration();
+    return scoring_calibration_;
 }
 
 // ============================================================================

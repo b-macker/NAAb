@@ -46,6 +46,9 @@ GovernanceEngine::~GovernanceEngine() {
     if (baselines_dirty_) {
         saveBaselines();
     }
+    if (scoring_calibration_dirty_ && rules().scoring_calibration.auto_save) {
+        saveScoringCalibration();
+    }
     if (baselines_data_) {
         delete static_cast<nlohmann::json*>(baselines_data_);
         baselines_data_ = nullptr;
@@ -2462,6 +2465,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                        rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
             rules_.scoring.yellow_threshold = rules_.scoring.red_threshold;
         }
+    }
+
+    // --- Scoring Calibration (operator-driven weight overrides) ---
+    if (j.contains("scoring_calibration") && j["scoring_calibration"].is_object()) {
+        auto& sc = j["scoring_calibration"];
+        rules_.scoring_calibration.enabled = sc.value("enabled", false);
+        if (sc.contains("path") && sc["path"].is_string())
+            rules_.scoring_calibration.path = sc["path"].get<std::string>();
+        rules_.scoring_calibration.auto_save = sc.value("auto_save", true);
+        parseRationale(sc, rules_.scoring_calibration.rationale);
     }
 
     // --- Agent Review (LLM-based governance phase) ---

@@ -1236,6 +1236,24 @@ struct ScoringConfig {
 };
 
 // ============================================================================
+// Scoring Calibration — operator-driven weight overrides
+// ============================================================================
+
+struct ScoringCalibrationEntry {
+    int weight_override = -1;       // -1 = no override, use config weight
+    std::string reason;              // operator's rationale
+    std::string updated_at;          // ISO timestamp
+    int observation_count = 0;       // times operator reviewed this rule
+};
+
+struct ScoringCalibrationConfig {
+    bool enabled = false;
+    std::string rationale;
+    std::string path = ".naab/scoring-calibration.json";
+    bool auto_save = true;
+};
+
+// ============================================================================
 // Behavioral Sequence Detection — config structs
 // ============================================================================
 
@@ -2143,6 +2161,7 @@ struct GovernanceRules {
 
     // --- Cumulative risk scoring ---
     ScoringConfig scoring;
+    ScoringCalibrationConfig scoring_calibration;
 
     // --- Governance baseline (Feature 4) ---
     GovernanceBaselineConfig governance_baseline;
@@ -2629,6 +2648,11 @@ public:
     std::string formatScoreBreakdown() const;
     bool verifyScoreIntegrity() const;
 
+    // --- Scoring Calibration (operator-driven weight overrides) ---
+    bool calibrateRule(const std::string& rule_name, int weight_override, const std::string& reason);
+    bool resetCalibration(const std::string& rule_name);
+    std::unordered_map<std::string, ScoringCalibrationEntry> getCalibrationOverrides() const;
+
     // --- Environment Attestation ---
     std::vector<AttestationResult> runAttestation();
 
@@ -2974,6 +2998,13 @@ private:
     static constexpr int SCORE_SATURATION_LIMIT = 100000;
     int cumulative_score_ = 0;
     std::unordered_map<std::string, int> score_contributions_;
+
+    // Scoring calibration — operator-driven weight overrides
+    mutable std::unordered_map<std::string, ScoringCalibrationEntry> scoring_calibration_;
+    mutable bool scoring_calibration_loaded_ = false;
+    bool scoring_calibration_dirty_ = false;
+    void loadScoringCalibration() const;
+    void saveScoringCalibration() const;
 
     // Evidence Epoch — monotonic counter incremented on state transitions
     // Prior-epoch evidence is discounted (database MVCC / court jurisdiction analog)
