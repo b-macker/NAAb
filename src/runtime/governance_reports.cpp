@@ -1830,7 +1830,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
 
     if (matches) {
         // Update runs counter and last_seen
-        int runs = entry.contains("runs") ? entry["runs"].get<int>() : 0;
+        int runs = (entry.contains("runs") && entry["runs"].is_number_integer()) ? entry["runs"].get<int>() : 0;
         entry["runs"] = runs + 1;
         auto now = std::chrono::system_clock::now();
         auto ts = std::chrono::duration_cast<std::chrono::seconds>(

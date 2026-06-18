@@ -1770,7 +1770,9 @@
     "cache": true,
     "dispatch_mode": "sequential",
     "max_parallel": 0,
-    "fail_strategy": "fail_fast"
+    "fail_strategy": "fail_fast",
+    "fail_policy": "open",
+    "_comment_fail_policy": "Policy when agent review fails: 'open' (warn only) or 'closed' (block). Default: open"
   },
 
   "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
