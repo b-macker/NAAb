@@ -81,9 +81,10 @@ void Interpreter::visit(ast::UseStatement& node) {
 
         // Check if it's close to a stdlib module name
         static const std::vector<std::string> stdlib_names = {
-            "io", "json", "string", "array", "math", "file", "http",
-            "time", "regex", "crypto", "csv", "env", "collections",
-            "log", "uuid", "validate", "process", "path", "dict", "debug", "bolo"
+            "io", "json", "http", "collections", "string", "array", "math",
+            "time", "env", "csv", "regex", "crypto", "file", "debug",
+            "bolo", "path", "dict", "log", "uuid", "validate", "process",
+            "agent", "codegen", "governance", "orchestra"
         };
         for (const auto& sn : stdlib_names) {
             if (module_name == sn) {
@@ -524,9 +525,10 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
         // Check if it's close to a stdlib module name
         static const std::vector<std::string> stdlib_names = {
-            "io", "json", "string", "array", "math", "file", "http",
-            "time", "regex", "crypto", "csv", "env", "collections",
-            "log", "uuid", "validate", "process", "path", "dict", "debug", "bolo"
+            "io", "json", "http", "collections", "string", "array", "math",
+            "time", "env", "csv", "regex", "crypto", "file", "debug",
+            "bolo", "path", "dict", "log", "uuid", "validate", "process",
+            "agent", "codegen", "governance", "orchestra"
         };
         for (const auto& stdlib_name : stdlib_names) {
             if (bare_name == stdlib_name) {
