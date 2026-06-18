@@ -1006,7 +1006,7 @@ void GovernanceEngine::writeAgentTelemetry(
     ev["event_type"] = event_type;
     ev["timestamp"] = std::string(ts_buf);
     for (const auto& [k, v] : fields) {
-        ev[k] = v;
+        ev[k] = error::ErrorSanitizer::sanitizeFilePaths(v);
     }
 
     // Tamper-evident hash chain
