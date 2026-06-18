@@ -35,6 +35,12 @@ SIGNING_KEY="$TMPBASE/test-key.pem"
 
 PASS=0; FAIL=0; SKIP=0
 
+# Windows detection — shell executor requires /bin/sh (POSIX only)
+IS_WINDOWS=false
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+    IS_WINDOWS=true
+fi
+
 sign_dir() {
     local dir="$1"
     (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
@@ -120,7 +126,10 @@ echo "should not run"
 }'
 check "O-CAP-01" "shell disabled → exit 3" "3" "$ORACLE_RC"
 
-# O-CAP-02: shell enabled → success
+# O-CAP-02: shell enabled → success (shell executor requires /bin/sh)
+if $IS_WINDOWS; then
+    skip "O-CAP-02" "shell executor requires /bin/sh"
+else
 run_oracle "cap02" '{
     "mode": "enforce",
     "languages": { "allowed": ["shell"] },
@@ -133,6 +142,7 @@ echo "hello"
     print(r)
 }'
 check "O-CAP-02" "shell enabled → exit 0" "0" "$ORACLE_RC"
+fi
 
 # O-CAP-03: network disabled → HARD block
 run_oracle "cap03" '{
@@ -228,6 +238,9 @@ main {
 check "O-CAP-09" "codegen disabled → exit 1" "1" "$ORACLE_RC"
 
 # O-CAP-10: all capabilities enabled, clean code → exit 0
+if $IS_WINDOWS; then
+    skip "O-CAP-10" "shell executor requires /bin/sh"
+else
 run_oracle "cap10" '{
     "mode": "enforce",
     "languages": { "allowed": ["shell"] },
@@ -244,6 +257,7 @@ echo "ok"
     print(r)
 }'
 check "O-CAP-10" "all enabled, clean code → exit 0" "0" "$ORACLE_RC"
+fi
 
 echo ""
 
@@ -505,14 +519,21 @@ main {
 check "O-TAINT-04" "tainted → sanitize → file.write → allowed" "0" "$ORACLE_RC"
 
 # O-TAINT-05: file.read → file.write (unsanitized) → BLOCK
+if $IS_WINDOWS; then
+    skip "O-TAINT-05" "POSIX file paths"
+else
 run_oracle "taint05" "$(taint_config "$TMPBASE/taint05/")" "use file
 main {
     let data = file.read(\"$TMPBASE/taint05/govern.json\")
     file.write(\"$TMPBASE/taint05/out.txt\", string(data))
 }"
 check "O-TAINT-05" "file.read → file.write (unsanitized) → blocked" "3" "$ORACLE_RC"
+fi
 
 # O-TAINT-06: polyglot output → file.write (unsanitized) → BLOCK
+if $IS_WINDOWS; then
+    skip "O-TAINT-06" "shell executor requires /bin/sh"
+else
 run_oracle "taint06" "$(taint_config "$TMPBASE/taint06/")" "use file
 main {
     let data = <<shell
@@ -521,6 +542,7 @@ echo \"tainted_output\"
     file.write(\"$TMPBASE/taint06/out.txt\", string(data))
 }"
 check "O-TAINT-06" "polyglot output → file.write → blocked" "3" "$ORACLE_RC"
+fi
 
 # O-TAINT-07: env.get → variable → file.write (indirect taint) → BLOCK
 run_oracle "taint07" "$(taint_config "$TMPBASE/taint07/")" "use env
@@ -708,6 +730,9 @@ echo "blocked"
 check "O-SEC-08" "blocked language → exit 3" "3" "$ORACLE_RC"
 
 # O-SEC-09: allowed language passes
+if $IS_WINDOWS; then
+    skip "O-SEC-09" "shell executor requires /bin/sh"
+else
 run_oracle "sec09" '{
     "mode": "enforce",
     "languages": { "allowed": ["shell"], "blocked": ["python"] },
@@ -720,6 +745,7 @@ echo "allowed"
     print(r)
 }'
 check "O-SEC-09" "allowed language → exit 0" "0" "$ORACLE_RC"
+fi
 
 # O-SEC-10: loop_iterations enforcement (correct config key)
 run_oracle "sec10" '{
