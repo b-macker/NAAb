@@ -43,6 +43,12 @@ sign_dir() {
 cleanup() { teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
 
+skip() {
+    local id="$1" desc="$2"
+    echo "  SKIP [$id] $desc"
+    SKIP=$((SKIP + 1))
+}
+
 check() {
     local id="$1" desc="$2" expected="$3" actual="$4"
     if [ "$expected" = "$actual" ]; then
@@ -842,8 +848,24 @@ echo ""
 
 # =====================================================================
 # CATEGORY 6: Ratchet Enforcement (5 tests)
+# Ratchet tests use shutil.copy() to swap govern.json mid-run.
+# On Windows, file locking prevents this — skip.
 # =====================================================================
 echo "--- Category 6: Ratchet Enforcement ---"
+
+IS_WINDOWS=false
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+    IS_WINDOWS=true
+fi
+
+if $IS_WINDOWS; then
+    skip "O-RATCH-01" "mid-run file swap requires POSIX file semantics"
+    skip "O-RATCH-02" "mid-run file swap requires POSIX file semantics"
+    skip "O-RATCH-03" "mid-run file swap requires POSIX file semantics"
+    skip "O-RATCH-04" "mid-run file swap requires POSIX file semantics"
+    skip "O-RATCH-04b" "mid-run file swap requires POSIX file semantics"
+    skip "O-RATCH-05" "mid-run file swap requires POSIX file semantics"
+else
 
 # O-RATCH-01: Tightening capability mid-run → new restriction enforced
 # reloadIfChanged() fires before every polyglot block (polyglot.cpp:158)
@@ -1058,6 +1080,8 @@ print("still strict")
 NAABEOF
 ORACLE_OUT=$(cd "$RDIR" && timeout 30s "$NAAB" test.naab 2>&1) && ORACLE_RC=$? || ORACLE_RC=$?
 check_contains "O-RATCH-05" "numeric limit loosening rejected" "$ORACLE_OUT" "ratchet"
+
+fi  # end !IS_WINDOWS
 
 echo ""
 

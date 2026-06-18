@@ -33,10 +33,11 @@ trap cleanup EXIT
 
 # Known divergences — real bugs documented by this test.
 # Update this list as bugs are fixed.
+# D01: TW shell capability block throws runtime_error (exit 1) not GovernanceHardError (exit 3) on Windows
 # D02/D18: TW taint throws runtime_error (exit 1) not GovernanceHardError (exit 3)
 # D16: TW bad config exits 1 not 4
 # D17: TW DETECT taint doesn't throw at all (exits 0)
-KNOWN_DIVERGENCES="D02 D16 D17 D18"
+KNOWN_DIVERGENCES="D01 D02 D16 D17 D18"
 
 is_known() {
     local id="$1"

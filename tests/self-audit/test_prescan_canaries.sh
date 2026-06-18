@@ -17,8 +17,9 @@ PASS=0; FAIL=0
 
 # Safety: ensure we're in a git repo so we can revert
 if ! cd "$LANG_DIR" || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "ERROR: not in a git repo — cannot safely inject/revert canaries"
-    exit 1
+    echo "SKIP: not in a git repo — cannot safely inject/revert canaries"
+    echo "  test_prescan_canaries.sh: SKIPPED (no git)"
+    exit 0
 fi
 
 # Verify no uncommitted changes to files we'll inject into

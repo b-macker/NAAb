@@ -60,8 +60,24 @@ echo ""
 
 # =====================================================================
 # RATCHET ENFORCEMENT (5 tests)
+# Ratchet tests use shutil.copy() to swap govern.json mid-run.
+# On Windows, file locking prevents replacing a file that's open,
+# so the config swap silently fails and ratchet behavior isn't testable.
 # =====================================================================
 echo "--- Ratchet Enforcement ---"
+
+IS_WINDOWS=false
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+    IS_WINDOWS=true
+fi
+
+if $IS_WINDOWS; then
+    skip "I-RATCH-01" "mid-run file swap requires POSIX file semantics"
+    skip "I-RATCH-02" "mid-run file swap requires POSIX file semantics"
+    skip "I-RATCH-03" "mid-run file swap requires POSIX file semantics"
+    skip "I-RATCH-04" "mid-run file swap requires POSIX file semantics"
+    skip "I-RATCH-05" "mid-run file swap requires POSIX file semantics"
+else
 
 # I-RATCH-01: Mid-run tightening accepted → capability revoked after reload
 # Ratchet checks capabilities.shell.enabled (governance_config.cpp:2921)
@@ -295,6 +311,8 @@ if echo "$OUT" | grep -qi "ratchet"; then
 else
     fail "I-RATCH-05" "expected ratchet rejection (exit $RC)"
 fi
+
+fi  # end !IS_WINDOWS
 
 echo ""
 
