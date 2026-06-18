@@ -2458,8 +2458,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         parseRationale(sc, rules_.scoring.rationale);
         if (rules_.scoring.yellow_threshold > rules_.scoring.red_threshold) {
             fmt::print(stderr, "[WARN] scoring.yellow_threshold ({}) > red_threshold ({}) — "
-                       "yellow warnings will never appear\n",
+                       "clamping yellow to red\n",
                        rules_.scoring.yellow_threshold, rules_.scoring.red_threshold);
+            rules_.scoring.yellow_threshold = rules_.scoring.red_threshold;
         }
     }
 

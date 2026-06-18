@@ -1756,6 +1756,7 @@ std::string GovernanceEngine::checkShellAllowed() {
 
 std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
     clearTrace();
+    reloadIfChanged();  // S-3 fix: pick up mid-run config changes before enforcement
     // Master switch: env_vars.read = false blocks all reads
     if (!rules().capabilities.env_vars.read) {
         return enforce("capabilities.env_vars.read", EnforcementLevel::HARD,
@@ -1815,6 +1816,7 @@ std::string GovernanceEngine::checkEnvVarRead(const std::string& var_name) {
 
 std::string GovernanceEngine::checkEnvVarWrite(const std::string& var_name) {
     clearTrace();
+    reloadIfChanged();  // S-3 fix: pick up mid-run config changes before enforcement
     // Master switch: env_vars.write = false blocks all writes
     if (!rules().capabilities.env_vars.write) {
         return enforce("capabilities.env_vars.write", EnforcementLevel::HARD,
@@ -2227,6 +2229,7 @@ void GovernanceEngine::flushGroupedAdvisories() {
 // ============================================================================
 
 std::string GovernanceEngine::formatSummary() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     if (check_results_.empty()) return "";
 
     int passed = 0, warned = 0, blocked = 0;
@@ -2569,6 +2572,7 @@ bool GovernanceEngine::hasIntentBlock() const {
 }
 
 std::string GovernanceEngine::formatSummaryOneLine() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     if (check_results_.empty()) return "";
 
     int passed = 0, warned = 0, blocked = 0;
@@ -2622,6 +2626,7 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
 // ============================================================================
 
 void GovernanceEngine::printDashboard() const {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     int passed = 0, blocked = 0;
     std::map<std::string, int> block_counts;
     for (const auto& r : check_results_) {
@@ -4812,12 +4817,12 @@ void GovernanceEngine::saveDriftBaseline(
                 if (!hasSigningCapability()) {
                     fprintf(stderr,
                         "[governance] INTEGRITY BLOCK: Baseline '%s' is corrupt "
-                        "and cannot verify signing history. Provide signing keys to overwrite.\n",
-                        resolved.c_str());
+                        "and cannot verify signing history. Provide signing keys to overwrite. (%s)\n",
+                        resolved.c_str(), parse_err.what());
                     return;
                 }
                 fprintf(stderr, "[governance] WARNING: Baseline '%s' is corrupt, overwriting "
-                    "(signing keys available)\n", resolved.c_str());
+                    "(signing keys available, error: %s)\n", resolved.c_str(), parse_err.what());
             }
         }
     }
@@ -5195,12 +5200,25 @@ std::vector<AttestationResult> GovernanceEngine::runAttestation() {
                 result.observed = "<shell execution not allowed>";
                 result.message = "Prerequisite command blocked: shell capability is disabled";
             } else {
-                auto containment = naab::runtime::SubprocessContainment::fromCurrentSandbox("/bin/sh");
-                std::string out, err;
-                int rc = naab::runtime::execute_subprocess_with_pipes(
-                    "/bin/sh", {"-c", check.name}, out, err, nullptr, &containment);
-                result.passed = (rc == 0);
-                result.observed = result.passed ? "exit 0" : fmt::format("exit {}", rc);
+                // Split command into argv — no shell interpretation (S-11 fix)
+                std::vector<std::string> cmd_args;
+                std::istringstream iss(check.name);
+                std::string token;
+                while (iss >> token) cmd_args.push_back(token);
+                if (cmd_args.empty()) {
+                    result.passed = false;
+                    result.observed = "<empty command>";
+                } else {
+                    std::string cmd = cmd_args[0];
+                    // execute_subprocess_with_pipes prepends command_path as argv[0]
+                    std::vector<std::string> remaining(cmd_args.begin() + 1, cmd_args.end());
+                    auto containment = naab::runtime::SubprocessContainment::fromCurrentSandbox(cmd);
+                    std::string out, err;
+                    int rc = naab::runtime::execute_subprocess_with_pipes(
+                        cmd, remaining, out, err, nullptr, &containment);
+                    result.passed = (rc == 0);
+                    result.observed = result.passed ? "exit 0" : fmt::format("exit {}", rc);
+                }
             }
         } else {
             result.observed = "<unknown check type: " + check.type + ">";

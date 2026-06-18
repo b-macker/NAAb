@@ -21,6 +21,7 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <set>
 #include <functional>
 
@@ -2813,7 +2814,7 @@ public:
                      int line = 0);
     void clearTaint(const std::string& var_name);
     bool isTainted(const std::string& var_name) const;
-    const TaintMetadata* getTaintLineage(const std::string& var_name) const;
+    std::optional<TaintMetadata> getTaintLineage(const std::string& var_name) const;
     std::string checkTaintedSink(const std::string& var_name,
                                   const std::string& sink_type,
                                   const std::string& file, int line);

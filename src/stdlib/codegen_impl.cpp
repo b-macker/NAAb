@@ -28,7 +28,7 @@ static thread_local int t_codegen_blocked_count = 0;
 static thread_local int64_t t_codegen_total_duration_ms = 0;
 static thread_local size_t t_codegen_cumulative_bytes = 0;
 static thread_local int t_codegen_nesting_depth = 0;
-static thread_local std::unordered_map<int, int> t_codegen_per_agent_calls;
+static thread_local std::unordered_map<uintptr_t, int> t_codegen_per_agent_calls;
 
 // --- Nesting guard ---
 struct ScopedCodegenDepth {
@@ -294,7 +294,7 @@ interpreter::NaabVal CodegenModule::call(
             // Per-agent call limit
             if (agent_ctx && codegen_cfg.max_cumulative_calls_per_agent > 0) {
                 // Use a simple hash of agent context pointer as handle proxy
-                int agent_key = static_cast<int>(reinterpret_cast<uintptr_t>(agent_ctx) & 0xFFFFFF);
+                uintptr_t agent_key = reinterpret_cast<uintptr_t>(agent_ctx);
                 if (t_codegen_per_agent_calls[agent_key] >= codegen_cfg.max_cumulative_calls_per_agent) {
                     throw std::runtime_error(
                         "Codegen error: per-agent cumulative call limit reached\n\n"
@@ -548,7 +548,7 @@ interpreter::NaabVal CodegenModule::call(
         t_codegen_call_count++;
         t_codegen_cumulative_bytes += code.size();
         if (agent_ctx) {
-            int agent_key = static_cast<int>(reinterpret_cast<uintptr_t>(agent_ctx) & 0xFFFFFF);
+            uintptr_t agent_key = reinterpret_cast<uintptr_t>(agent_ctx);
             t_codegen_per_agent_calls[agent_key]++;
         }
 

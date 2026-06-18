@@ -1353,7 +1353,7 @@ interpreter::NaabVal VM::run() {
                     peekTaint(0) = tainted;
                     // Restore lineage from governance engine's per-variable metadata
                     if (tainted && governance_->getRules().taint_tracking.lineage) {
-                        auto* meta = governance_->getTaintLineage(name);
+                        auto meta = governance_->getTaintLineage(name);
                         if (meta) {
                             size_t tos = static_cast<size_t>((stack_top_ - 1) - stack_.get());
                             taint_lineage_map_[tos] = {meta->origin_function, meta->origin_argument,

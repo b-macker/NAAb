@@ -113,12 +113,12 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     // Inherit lineage from source variable if no direct taint source
                     if (origin.empty()) {
                         if (auto* rid = dynamic_cast<ast::IdentifierExpr*>(node.getRight())) {
-                            auto* meta = governance_->getTaintLineage(rid->getName());
+                            auto meta = governance_->getTaintLineage(rid->getName());
                             if (meta) { origin = meta->origin_function; arg_hint = meta->origin_argument; }
                         } else if (auto* bin = dynamic_cast<ast::BinaryExpr*>(node.getRight())) {
                             for (auto* side : {bin->getLeft(), bin->getRight()}) {
                                 if (auto* sid = dynamic_cast<ast::IdentifierExpr*>(side)) {
-                                    auto* meta = governance_->getTaintLineage(sid->getName());
+                                    auto meta = governance_->getTaintLineage(sid->getName());
                                     if (meta) { origin = meta->origin_function; arg_hint = meta->origin_argument; break; }
                                 }
                             }
