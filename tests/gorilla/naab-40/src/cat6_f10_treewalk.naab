@@ -1,0 +1,13 @@
+// NAAb-40 Cat6 F10: Previously-missing modules work in --tree-walk
+use agent
+use codegen
+use governance
+use orchestra
+
+main {
+    let h = governance.health()
+    let v = orchestra.consensus_vote({votes: ["APPROVED"]})
+    print("tw_agent_ok")
+    print("tw_governance: " + h.get("verdict"))
+    print("tw_orchestra: " + v.get("verdict"))
+}

@@ -1,0 +1,48 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "description": "NAAb-40 Cat3: Dashboard deadlock fix + scoring output",
+    "languages": {
+        "allowed": ["python"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": false }
+    },
+    "scoring": {
+        "enabled": true,
+        "yellow_threshold": 10,
+        "red_threshold": 50,
+        "rule_weights": {
+            "custom_rules.DASH-TRIGGER": 5,
+            "custom_rules.DASH-HEAVY": 20
+        }
+    },
+    "scoring_calibration": {
+        "enabled": true,
+        "auto_save": false
+    },
+    "custom_rules": [
+        {
+            "id": "DASH-TRIGGER",
+            "name": "Dashboard trigger",
+            "pattern": "TRIGGER_ADVISORY",
+            "level": "advisory",
+            "message": "Dashboard test advisory violation",
+            "enabled": true
+        },
+        {
+            "id": "DASH-HEAVY",
+            "name": "Dashboard heavy trigger",
+            "pattern": "HEAVY_ADVISORY",
+            "level": "advisory",
+            "message": "Dashboard test heavy advisory violation",
+            "enabled": true
+        }
+    ],
+    "governance_health": {
+        "enabled": true
+    }
+}

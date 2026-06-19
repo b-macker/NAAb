@@ -1,0 +1,21 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "description": "NAAb-40 Cat6: Unicode normalization + stdlib module sync",
+    "languages": {
+        "allowed": ["python"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": false }
+    },
+    "code_quality": {
+        "enabled": true,
+        "level": "advisory"
+    },
+    "governance_health": {
+        "enabled": true
+    }
+}

@@ -1,0 +1,3 @@
+// NAAb-40 Cat6 F5: use agent loads in VM
+use agent
+main { print("agent_ok") }

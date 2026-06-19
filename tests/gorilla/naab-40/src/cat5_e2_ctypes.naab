@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E2: import ctypes blocked
+main {
+    let r = <<python
+import ctypes
+print("bypass")
+>>
+    print(string(r))
+}

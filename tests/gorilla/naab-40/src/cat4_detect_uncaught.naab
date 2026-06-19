@@ -1,0 +1,8 @@
+// NAAb-40 Cat4 D2/D9: DETECT without try/catch — exits non-zero (not 3)
+main {
+    let r = <<python
+# DETECT_TRIGGER
+print("should_not_reach")
+>>
+    print("bypass: " + string(r))
+}

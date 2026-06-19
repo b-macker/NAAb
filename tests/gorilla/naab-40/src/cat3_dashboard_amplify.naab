@@ -1,0 +1,15 @@
+// NAAb-40 Cat3: Dashboard amplify test — calibrate a rule to weight 500
+use governance
+
+main {
+    // Amplify DASH-HEAVY weight to 500 BEFORE triggering
+    governance.calibrate("custom_rules.DASH-HEAVY", 500, "amplify for testing")
+
+    // Trigger DASH-HEAVY advisory (will score at 500 due to calibration)
+    let r1 = <<python
+# HEAVY_ADVISORY
+print("heavy1")
+>>
+
+    print("amplify_done")
+}

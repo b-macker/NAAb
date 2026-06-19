@@ -1,0 +1,34 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "description": "NAAb-40 Cat4: DETECT-level violations + HARD error",
+    "languages": {
+        "allowed": ["python"],
+        "blocked": ["ruby"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": false }
+    },
+    "custom_rules": [
+        {
+            "id": "TEST-DETECT",
+            "name": "Test DETECT rule",
+            "description": "Triggers on DETECT_TRIGGER pattern for testing",
+            "pattern": "DETECT_TRIGGER",
+            "level": "detect",
+            "message": "DETECT violation: TEST-DETECT rule matched",
+            "help": "Remove the DETECT_TRIGGER pattern",
+            "enabled": true
+        }
+    ],
+    "code_quality": {
+        "enabled": true,
+        "level": "advisory"
+    },
+    "governance_health": {
+        "enabled": true
+    }
+}

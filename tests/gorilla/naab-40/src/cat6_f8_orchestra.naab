@@ -1,0 +1,6 @@
+// NAAb-40 Cat6 F8: use orchestra loads + works
+use orchestra
+main {
+    let v = orchestra.consensus_vote({votes: ["APPROVED"]})
+    print(v.get("verdict"))
+}

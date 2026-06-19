@@ -1,0 +1,3 @@
+// NAAb-40 Cat6 F6: use codegen loads in VM
+use codegen
+main { print("codegen_ok") }

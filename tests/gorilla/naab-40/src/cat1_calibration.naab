@@ -1,0 +1,116 @@
+// NAAb-40 Category 1: Scoring Calibration — Behavioral Effect
+// 10 assertions: calibrate(), calibration(), overrides, edge cases
+use governance
+
+main {
+    // A1: calibrate() returns {success: true}
+    let a1_ok = false
+    try {
+        let r = governance.calibrate("test_rule_1", 42, "test reason")
+        a1_ok = r.get("success") == true
+    } catch (e) {
+        print("a1_error: " + string(e))
+    }
+    print("a1_calibrate_success: " + string(a1_ok))
+
+    // A2: calibration() nested dict has weight matching input
+    let a2_ok = false
+    try {
+        let c = governance.calibration()
+        a2_ok = c.get("test_rule_1").get("weight") == 42
+    } catch (e) {
+        print("a2_error: " + string(e))
+    }
+    print("a2_weight_match: " + string(a2_ok))
+
+    // A3: observation_count increments on repeated calibrate
+    let a3_ok = false
+    try {
+        governance.calibrate("count_rule", 10, "first")
+        governance.calibrate("count_rule", 10, "second")
+        let c = governance.calibration()
+        a3_ok = c.get("count_rule").get("observation_count") == 2
+    } catch (e) {
+        print("a3_error: " + string(e))
+    }
+    print("a3_observation_count: " + string(a3_ok))
+
+    // A4: Overwrite same rule — latest weight wins
+    let a4_ok = false
+    try {
+        governance.calibrate("overwrite_rule", 100, "first")
+        governance.calibrate("overwrite_rule", 200, "second")
+        let c = governance.calibration()
+        a4_ok = c.get("overwrite_rule").get("weight") == 200
+    } catch (e) {
+        print("a4_error: " + string(e))
+    }
+    print("a4_overwrite_latest: " + string(a4_ok))
+
+    // A5: Negative weight clamped to 0
+    let a5_ok = false
+    try {
+        governance.calibrate("neg_rule", -5, "negative test")
+        let c = governance.calibration()
+        a5_ok = c.get("neg_rule").get("weight") == 0
+    } catch (e) {
+        print("a5_error: " + string(e))
+    }
+    print("a5_negative_clamped: " + string(a5_ok))
+
+    // A6: Multiple rules accumulate independently
+    let a6_ok = false
+    try {
+        governance.calibrate("multi_r1", 10, "rule 1")
+        governance.calibrate("multi_r2", 20, "rule 2")
+        let c = governance.calibration()
+        a6_ok = c.get("multi_r1").get("weight") == 10 &&
+                c.get("multi_r2").get("weight") == 20
+    } catch (e) {
+        print("a6_error: " + string(e))
+    }
+    print("a6_multi_rules: " + string(a6_ok))
+
+    // A7: Bad args (2 args) throws with "requires" in message
+    let a7_ok = false
+    try {
+        governance.calibrate("r1", 100)
+        a7_ok = false
+    } catch (e) {
+        a7_ok = string(e).contains("requires") || string(e).contains("arguments") || string(e).contains("arity")
+    }
+    print("a7_bad_arity: " + string(a7_ok))
+
+    // A8: Bad type (string weight) throws
+    let a8_ok = false
+    try {
+        governance.calibrate("r1", "x", "y")
+        a8_ok = false
+    } catch (e) {
+        a8_ok = true
+    }
+    print("a8_bad_type: " + string(a8_ok))
+
+    // A9: calibration() returns reason string matching input
+    let a9_ok = false
+    try {
+        governance.calibrate("reason_rule", 5, "test reason exact")
+        let c = governance.calibration()
+        a9_ok = c.get("reason_rule").get("reason") == "test reason exact"
+    } catch (e) {
+        print("a9_error: " + string(e))
+    }
+    print("a9_reason_match: " + string(a9_ok))
+
+    // A10: calibration() returns non-empty updated_at string
+    let a10_ok = false
+    try {
+        governance.calibrate("ts_rule", 1, "timestamp test")
+        let c = governance.calibration()
+        let ts = c.get("ts_rule").get("updated_at")
+        a10_ok = type(ts) == "string" && ts.length() > 0
+    } catch (e) {
+        print("a10_error: " + string(e))
+    }
+    print("a10_updated_at: " + string(a10_ok))
+}

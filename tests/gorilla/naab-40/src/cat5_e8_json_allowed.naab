@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E8: import json allowed
+main {
+    let r = <<python
+import json
+print(json.dumps({"ok": True}))
+>>
+    print(string(r))
+}

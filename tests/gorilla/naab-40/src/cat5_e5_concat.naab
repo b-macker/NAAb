@@ -1,0 +1,9 @@
+// NAAb-40 Cat5 E5: __import__("o"+"s") string concat blocked
+main {
+    let r = <<python
+m = "o" + "s"
+__import__(m)
+print("bypass")
+>>
+    print(string(r))
+}

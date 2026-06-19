@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E6: from os import system blocked
+main {
+    let r = <<python
+from os import system
+print("bypass")
+>>
+    print(string(r))
+}

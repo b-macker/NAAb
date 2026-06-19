@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E7: import socket blocked
+main {
+    let r = <<python
+import socket
+print("bypass")
+>>
+    print(string(r))
+}

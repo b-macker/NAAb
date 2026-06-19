@@ -1,0 +1,49 @@
+// NAAb-40 Cat4 D1/D3/D4/D5: DETECT violation caught by try/catch
+main {
+    // D1: DETECT is catchable
+    let d1_caught = false
+    try {
+        let r = <<python
+# DETECT_TRIGGER
+print("should_not_reach")
+>>
+    } catch (e) {
+        d1_caught = true
+    }
+    print("DETECT_CAUGHT: " + string(d1_caught))
+
+    // D3: Error message contains rule info
+    let d3_has_info = false
+    try {
+        let r = <<python
+# DETECT_TRIGGER
+print("x")
+>>
+    } catch (e) {
+        d3_has_info = string(e).contains("DETECT") || string(e).contains("TEST-DETECT") || string(e).contains("violation")
+    }
+    print("d3_has_info: " + string(d3_has_info))
+
+    // D4: Execution continues after catch
+    print("CONTINUED")
+
+    // D5: Multiple catches in same program
+    let caught_1 = false
+    let caught_2 = false
+    try {
+        let r = <<python
+# DETECT_TRIGGER
+>>
+    } catch (e) {
+        caught_1 = true
+    }
+    try {
+        let r = <<python
+# DETECT_TRIGGER
+>>
+    } catch (e) {
+        caught_2 = true
+    }
+    print("CAUGHT_1: " + string(caught_1))
+    print("CAUGHT_2: " + string(caught_2))
+}
