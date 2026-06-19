@@ -1,0 +1,19 @@
+// Fix 1 (partial): max_unique_agents enforcement
+// With max_unique_agents=2 and FAKE_KEY, agent.create fails at API key
+// But we verify the config is parsed and agent infrastructure loads
+use agent
+
+main {
+    // F1-04: agent module loads without error
+    print("F1_04_AGENT_LOADED: true")
+
+    // F1-05: agent.create fails gracefully (API key missing, not crash)
+    let f1_05_graceful = false
+    try {
+        let h = agent.create("test_no_delegate")
+    } catch (e) {
+        // Should fail with "API key not available", not crash
+        f1_05_graceful = string(e).contains("API key")
+    }
+    print("F1_05_GRACEFUL_FAIL: " + string(f1_05_graceful))
+}

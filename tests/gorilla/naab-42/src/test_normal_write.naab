@@ -1,0 +1,9 @@
+// Fix 2: verify normal file writes still work (not over-blocked)
+use file
+
+main {
+    let tmpfile = "/data/data/com.termux/files/usr/tmp/naab42_normal_" + string(math.random(1000, 9999))
+    file.write(tmpfile, "test")
+    print("NORMAL_WRITE_OK")
+    file.delete(tmpfile)
+}

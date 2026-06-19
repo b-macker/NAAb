@@ -1,0 +1,8 @@
+// Fix 2: govern.json self-protection — write attempt
+// This will exit 3 (GovernanceHardError) if self-protection works
+use file
+
+main {
+    file.write("govern.json", "{}")
+    print("WRITE_SUCCEEDED")
+}
