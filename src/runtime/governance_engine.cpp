@@ -2940,12 +2940,18 @@ std::string GovernanceEngine::evaluateQualityGate() const {
     }
 
     // Cumulative risk scoring gate (independent of quality_gate.enabled)
-    if (rules().scoring.enabled && cumulative_score_ >= rules().scoring.red_threshold) {
+    // Snapshot under lock, then use outside — formatScoreBreakdown() takes its own lock
+    int score_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(results_mutex_);
+        score_snapshot = cumulative_score_;
+    }
+    if (rules().scoring.enabled && score_snapshot >= rules().scoring.red_threshold) {
         if (audit_mode) {
             fprintf(stderr, "[governance] AUDIT: Scoring gate WOULD block — score %d >= threshold %d\n",
-                    cumulative_score_, rules().scoring.red_threshold);
+                    score_snapshot, rules().scoring.red_threshold);
         } else {
-            int deficit = cumulative_score_ - rules().scoring.red_threshold;
+            int deficit = score_snapshot - rules().scoring.red_threshold;
             std::string breakdown = formatScoreBreakdown();
             return fmt::format(
                 "Governance error: Cumulative risk score {} reached threshold {}\n\n"
@@ -2955,7 +2961,7 @@ std::string GovernanceEngine::evaluateQualityGate() const {
                 "  - Fix the top contributor to drop below threshold fastest\n"
                 "  - Each fixed violation removes its weight from the score\n"
                 "  - Target: reduce score by at least {} points\n",
-                cumulative_score_, rules().scoring.red_threshold,
+                score_snapshot, rules().scoring.red_threshold,
                 deficit, breakdown, deficit);
         }
     }

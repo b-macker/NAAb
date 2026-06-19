@@ -182,7 +182,7 @@ include/naab/       All headers
 ### Telemetry
 - `GovernanceEngine::writeTelemetry()` in `governance_reports.cpp` writes JSONL events
 - Each event includes `run_id` (timestamp-pid, generated once in `loadFromFile()`) for separating runs in shared output files
-- Agent telemetry event types (26): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `RESPONSE_TRUNCATED`
+- Agent telemetry event types (27): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `POLYGLOT_EXEC`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `RESPONSE_TRUNCATED`
 - Telemetry forwarding: `telemetry.forwarding` config enables webhook/SIEM push of events
 - Tamper-evident hash chain: each telemetry event includes `prev_hash` linking to previous event, creating an immutable audit trail
 

@@ -739,6 +739,12 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             }
         }
 
+        // Mark polyglot output as tainted — external process output may contain
+        // untrusted data. Matches codegen pattern (codegen_impl.cpp:544).
+        if (governance_ && governance_->isActive()) {
+            governance_->setLastReturnTainted(true, "polyglot." + language);
+        }
+
         // Polyglot Consensus Verification: cross-language result checking
         if (governance_ && governance_->isVerificationEnabled() && !result_.isNull()) {
             std::string result_str = result_.toString();

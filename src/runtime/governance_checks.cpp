@@ -6445,6 +6445,17 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkPolyglotOptimization(lang, code, line);
     if (!err.empty()) return err;
 
+    // Telemetry: record successful polyglot governance pass
+    if (rules().telemetry_output.enabled) {
+        writeAgentTelemetry("POLYGLOT_EXEC", {
+            {"language", lang},
+            {"code_size", std::to_string(code.size())},
+            {"source_file", source_file},
+            {"line", std::to_string(line)},
+            {"governance_epoch", std::to_string(getGovernanceEpoch())}
+        });
+    }
+
     return "";
 }
 

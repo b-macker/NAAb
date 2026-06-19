@@ -1172,6 +1172,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 cb.step_up_keyword_threshold);
                         }
 
+                        // Gate lease renewal on coherence if drift tracking is active
+                        bool coherence_ok = true;
+                        if (passed && gov_engine) {
+                            auto drift_state = gov_engine->getDriftState(handle_id);
+                            double floor = gov_engine->getRules().exposure_tracking.coherence_floor;
+                            if (drift_state && floor > 0.0 && drift_state->coherence_score < floor) {
+                                coherence_ok = false;
+                            }
+                        }
+
                         // Update tracker state (server-side)
                         {
                             std::lock_guard<std::mutex> lock(s_agent_mutex);
@@ -1180,13 +1190,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 it->second.last_challenge_turn = current_turn;
                                 if (passed) {
                                     it->second.challenges_passed++;
-                                    // Standing Lease: renew lease on successful challenge
-                                    if (config->standing_lease_turns > 0) {
-                                        it->second.lease_granted_turn = current_turn;
-                                        it->second.lease_expires_turn = current_turn + config->standing_lease_turns;
-                                    }
-                                    if (config->standing_lease_seconds > 0) {
-                                        it->second.lease_granted_time = std::chrono::steady_clock::now();
+                                    // Standing Lease: renew only if coherence is above floor
+                                    if (coherence_ok) {
+                                        if (config->standing_lease_turns > 0) {
+                                            it->second.lease_granted_turn = current_turn;
+                                            it->second.lease_expires_turn = current_turn + config->standing_lease_turns;
+                                        }
+                                        if (config->standing_lease_seconds > 0) {
+                                            it->second.lease_granted_time = std::chrono::steady_clock::now();
+                                        }
                                     }
                                 } else {
                                     it->second.challenges_failed++;
