@@ -1,0 +1,62 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "sandbox_level": "elevated",
+    "languages": {
+        "allowed": ["python", "javascript", "shell"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "write" },
+        "shell": { "enabled": true },
+        "env_vars": { "read": true, "write": false }
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "detect",
+        "sources": ["file.read", "env.get", "polyglot_output"],
+        "sinks": ["file.write"]
+    },
+    "behavioral_sequences": {
+        "enabled": true
+    },
+    "exposure_tracking": {
+        "enabled": true,
+        "max_unique_agents": 2
+    },
+    "temporal_coupling": {
+        "enabled": true,
+        "level": "soft",
+        "max_correlation": 0.85,
+        "min_events": 3
+    },
+    "agents": {
+        "test_no_delegate": {
+            "model": "gemini-2.5-flash",
+            "max_tokens": 100,
+            "max_turns": 3,
+            "api_key_env": "FAKE_KEY_NONEXISTENT",
+            "allowed_actions": ["FS_READ"],
+            "tools_enabled": false
+        },
+        "test_with_delegate": {
+            "model": "gemini-2.5-flash",
+            "max_tokens": 100,
+            "max_turns": 3,
+            "api_key_env": "FAKE_KEY_NONEXISTENT",
+            "allowed_actions": ["FS_READ", "AGENT_SEND"],
+            "tools_enabled": false
+        },
+        "test_unlimited": {
+            "model": "gemini-2.5-flash",
+            "max_tokens": 100,
+            "max_turns": 3,
+            "api_key_env": "FAKE_KEY_NONEXISTENT",
+            "tools_enabled": false
+        }
+    },
+    "telemetry": {
+        "enabled": true
+    }
+}

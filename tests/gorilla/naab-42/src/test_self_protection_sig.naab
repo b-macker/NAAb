@@ -1,0 +1,8 @@
+// Fix 2: govern.json.sig self-protection — write attempt
+// This will exit 3 (GovernanceHardError) if self-protection works
+use file
+
+main {
+    file.write("govern.json.sig", "fake")
+    print("WRITE_SUCCEEDED")
+}
