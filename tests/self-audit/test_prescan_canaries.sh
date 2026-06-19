@@ -13,6 +13,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LANG_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PRESCAN="$LANG_DIR/examples/self-audit/stage0-prescan.sh"
 SRC="$LANG_DIR/src"
+
+# Serialize concurrent runs — this test injects canaries into source files,
+# so two instances racing will see each other's uncommitted changes.
+LOCKFILE="${TMPDIR:-/tmp}/naab_prescan_canary.lock"
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+    echo "SKIP: another test_prescan_canaries.sh is running — waiting for lock"
+    flock 9  # block until the other instance finishes
+fi
 PASS=0; FAIL=0
 
 # Safety: ensure we're in a git repo so we can revert
