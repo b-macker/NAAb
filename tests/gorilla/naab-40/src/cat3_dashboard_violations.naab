@@ -1,0 +1,32 @@
+// NAAb-40 Cat3: Dashboard deadlock test — triggers advisory violations via custom rules
+use governance
+
+main {
+    // C7: Calibrate DASH-TRIGGER to weight 0 BEFORE triggering
+    // This suppresses it from the score breakdown
+    governance.calibrate("custom_rules.DASH-TRIGGER", 0, "suppress for testing")
+
+    // Trigger DASH-TRIGGER advisory via polyglot blocks (weight=0 due to calibration)
+    let r1 = <<python
+# TRIGGER_ADVISORY
+print("v1")
+>>
+
+    let r2 = <<python
+# TRIGGER_ADVISORY
+print("v2")
+>>
+
+    let r3 = <<python
+# TRIGGER_ADVISORY
+print("v3")
+>>
+
+    // Trigger DASH-HEAVY (has default weight 20 from rule_weights)
+    let r4 = <<python
+# HEAVY_ADVISORY
+print("v4")
+>>
+
+    print("dashboard_done")
+}

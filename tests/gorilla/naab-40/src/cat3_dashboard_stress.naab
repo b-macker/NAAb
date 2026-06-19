@@ -1,0 +1,35 @@
+// NAAb-40 Cat3: Dashboard stress test — 5+ violations
+main {
+    // Multiple TRIGGER_ADVISORY for stress
+    let r1 = <<python
+# TRIGGER_ADVISORY
+print("s1")
+>>
+
+    let r2 = <<python
+# TRIGGER_ADVISORY
+print("s2")
+>>
+
+    let r3 = <<python
+# TRIGGER_ADVISORY
+print("s3")
+>>
+
+    let r4 = <<python
+# TRIGGER_ADVISORY
+print("s4")
+>>
+
+    let r5 = <<python
+# TRIGGER_ADVISORY
+print("s5")
+>>
+
+    let r6 = <<python
+# HEAVY_ADVISORY
+print("s6")
+>>
+
+    print("stress_done")
+}

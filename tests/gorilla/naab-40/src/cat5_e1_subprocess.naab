@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E1: import subprocess blocked
+main {
+    let r = <<python
+import subprocess
+print("bypass")
+>>
+    print(string(r))
+}

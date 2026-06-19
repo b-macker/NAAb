@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E3: __import__("os") dynamic import blocked
+main {
+    let r = <<python
+__import__("os")
+print("bypass")
+>>
+    print(string(r))
+}

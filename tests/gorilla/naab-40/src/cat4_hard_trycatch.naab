@@ -1,0 +1,11 @@
+// NAAb-40 Cat4 D7: HARD block uncatchable by try/catch — exits 3
+main {
+    try {
+        let r = <<ruby
+puts "should_not_reach"
+>>
+        print("caught_bypass: " + string(r))
+    } catch (e) {
+        print("caught: " + string(e))
+    }
+}

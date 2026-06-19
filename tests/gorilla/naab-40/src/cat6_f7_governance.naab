@@ -1,0 +1,6 @@
+// NAAb-40 Cat6 F7: use governance loads + works
+use governance
+main {
+    let h = governance.health()
+    print(h.get("verdict"))
+}

@@ -1,0 +1,9 @@
+// NAAb-40 Cat5 E4: importlib.import_module("subprocess") blocked
+main {
+    let r = <<python
+import importlib
+importlib.import_module("subprocess")
+print("bypass")
+>>
+    print(string(r))
+}

@@ -1,0 +1,7 @@
+// NAAb-40 Cat4 D6: HARD block — blocked language ruby — exits 3
+main {
+    let r = <<ruby
+puts "should_not_reach"
+>>
+    print("bypass: " + string(r))
+}

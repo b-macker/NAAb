@@ -1,0 +1,32 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "description": "NAAb-40 Cat5: Python import hook coverage",
+    "languages": {
+        "allowed": ["python"],
+        "require_explicit": false,
+        "per_language": {
+            "python": {
+                "imports": {
+                    "mode": "blocklist",
+                    "blocked": ["subprocess", "ctypes", "os", "shutil", "socket"]
+                }
+            }
+        }
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": false }
+    },
+    "code_quality": {
+        "enabled": true,
+        "level": "advisory"
+    },
+    "security": {
+        "sandbox_level": "standard"
+    },
+    "governance_health": {
+        "enabled": true
+    }
+}

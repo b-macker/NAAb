@@ -1,0 +1,30 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "description": "NAAb-40 Cat1: Scoring calibration behavioral effect",
+    "languages": {
+        "allowed": ["python"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": false }
+    },
+    "scoring": {
+        "enabled": true,
+        "yellow_threshold": 50,
+        "red_threshold": 100
+    },
+    "scoring_calibration": {
+        "enabled": true,
+        "auto_save": false
+    },
+    "code_quality": {
+        "enabled": true,
+        "level": "advisory"
+    },
+    "governance_health": {
+        "enabled": true
+    }
+}

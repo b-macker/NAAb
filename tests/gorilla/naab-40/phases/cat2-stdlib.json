@@ -1,0 +1,17 @@
+{
+    "version": "5.0",
+    "mode": "enforce",
+    "description": "NAAb-40 Cat2: Stdlib & VM parity — sorted, struct methods, string ops",
+    "languages": {
+        "allowed": ["python"],
+        "require_explicit": false
+    },
+    "capabilities": {
+        "network": { "enabled": false },
+        "filesystem": { "mode": "read" },
+        "shell": { "enabled": false }
+    },
+    "governance_health": {
+        "enabled": true
+    }
+}

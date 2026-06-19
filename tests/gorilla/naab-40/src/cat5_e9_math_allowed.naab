@@ -1,0 +1,8 @@
+// NAAb-40 Cat5 E9: import math allowed
+main {
+    let r = <<python
+import math
+print(int(math.sqrt(16)))
+>>
+    print(string(r))
+}

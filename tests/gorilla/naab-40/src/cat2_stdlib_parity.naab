@@ -1,0 +1,119 @@
+// NAAb-40 Category 2: Stdlib & VM Parity
+// 10 assertions — no live API calls
+// Tests: array.sorted(), struct methods, string operations
+use array
+use string
+
+main {
+    // B1: array.sorted() returns new array (non-mutating)
+    let b1_ok = false
+    try {
+        let original = [3, 1, 4, 1, 5]
+        let sorted_arr = original.sorted()
+        b1_ok = original[0] == 3 && original[1] == 1 &&
+                sorted_arr[0] == 1 && sorted_arr[1] == 1 &&
+                sorted_arr[2] == 3
+    } catch (e) {
+        print("b1_error: " + string(e))
+    }
+    print("b1_sorted_nonmutating: " + string(b1_ok))
+
+    // B2: array.sort() mutates in place
+    let b2_ok = false
+    try {
+        let arr = [5, 2, 8, 1]
+        arr.sort()
+        b2_ok = arr[0] == 1 && arr[1] == 2 && arr[2] == 5 && arr[3] == 8
+    } catch (e) {
+        print("b2_error: " + string(e))
+    }
+    print("b2_sort_mutating: " + string(b2_ok))
+
+    // B3: array.sorted() with custom comparator
+    let b3_ok = false
+    try {
+        let arr = [3, 1, 4, 1, 5]
+        let desc = arr.sorted(fn(a, b) { return b - a })
+        b3_ok = desc[0] == 5 && desc[1] == 4 && desc[2] == 3
+    } catch (e) {
+        print("b3_error: " + string(e))
+    }
+    print("b3_sorted_comparator: " + string(b3_ok))
+
+    // B4: struct .get() method works
+    let b4_ok = false
+    try {
+        let d = {name: "alice", age: 30}
+        b4_ok = d.get("name") == "alice" && d.get("age") == 30
+    } catch (e) {
+        print("b4_error: " + string(e))
+    }
+    print("b4_struct_get: " + string(b4_ok))
+
+    // B5: struct .get() returns null for missing key
+    let b5_ok = false
+    try {
+        let d = {name: "bob"}
+        b5_ok = d.get("missing") == null
+    } catch (e) {
+        print("b5_error: " + string(e))
+    }
+    print("b5_struct_get_missing: " + string(b5_ok))
+
+    // B6: struct .has() method works
+    let b6_ok = false
+    try {
+        let d = {x: 1, y: 2}
+        b6_ok = d.has("x") == true && d.has("z") == false
+    } catch (e) {
+        print("b6_error: " + string(e))
+    }
+    print("b6_struct_has: " + string(b6_ok))
+
+    // B7: struct .keys() returns array of keys
+    let b7_ok = false
+    try {
+        let d = {a: 1, b: 2, c: 3}
+        let k = d.keys()
+        b7_ok = type(k) == "array" && k.length() == 3
+    } catch (e) {
+        print("b7_error: " + string(e))
+    }
+    print("b7_struct_keys: " + string(b7_ok))
+
+    // B8: struct .values() returns array of values
+    let b8_ok = false
+    try {
+        let d = {a: 10, b: 20}
+        let v = d.values()
+        b8_ok = type(v) == "array" && v.length() == 2
+    } catch (e) {
+        print("b8_error: " + string(e))
+    }
+    print("b8_struct_values: " + string(b8_ok))
+
+    // B9: struct .size() returns count
+    let b9_ok = false
+    try {
+        let d = {x: 1, y: 2, z: 3}
+        b9_ok = d.size() == 3
+    } catch (e) {
+        print("b9_error: " + string(e))
+    }
+    print("b9_struct_size: " + string(b9_ok))
+
+    // B10: string module operations
+    let b10_ok = false
+    try {
+        let s = "Hello, World!"
+        let upper = s.upper()
+        let lower = s.lower()
+        let trimmed = "  hi  ".trim()
+        let has = s.contains("World")
+        b10_ok = upper == "HELLO, WORLD!" && lower == "hello, world!" &&
+                 trimmed == "hi" && has == true
+    } catch (e) {
+        print("b10_error: " + string(e))
+    }
+    print("b10_string_ops: " + string(b10_ok))
+}

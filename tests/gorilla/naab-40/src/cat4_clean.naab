@@ -1,0 +1,7 @@
+// NAAb-40 Cat4 D10: Clean code with no DETECT pattern — exits 0
+main {
+    let r = <<python
+print("clean_output")
+>>
+    print("result: " + string(r))
+}
