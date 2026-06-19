@@ -1430,6 +1430,7 @@ struct TemporalCouplingConfig {
     std::string rationale;
     double max_correlation = 0.85;  // flag if pairwise correlation exceeds this
     int min_events = 10;           // minimum events before computing correlation
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
 };
 
 // F6: Graduated Circuit Breakers — system-wide governance levels
@@ -2360,6 +2361,7 @@ public:
     const GovernanceRules& getRules() const;
     std::shared_ptr<const GovernanceRules> getRulesPtr() const;
     GovernanceRules& getMutableRules();  // init-only — UB if called during concurrent execution
+    void addGovernanceProtectedPaths(GovernanceRules& target_rules);
 
     // --- Legacy Getters (backward compatible) ---
     int getTimeoutSeconds() const;

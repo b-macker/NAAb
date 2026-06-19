@@ -2720,6 +2720,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (tc.contains("enabled") && tc["enabled"].is_boolean()) cfg.enabled = tc["enabled"].get<bool>();
         if (tc.contains("max_correlation") && tc["max_correlation"].is_number()) cfg.max_correlation = tc["max_correlation"].get<double>();
         if (tc.contains("min_events") && tc["min_events"].is_number_integer()) cfg.min_events = tc["min_events"].get<int>();
+        if (tc.contains("level") && tc["level"].is_string()) {
+            auto [en, lv] = parseEnforcementLevel(tc["level"]);
+            cfg.level = lv;
+        }
         parseRationale(tc, cfg.rationale);
     }
 
@@ -3288,6 +3292,9 @@ bool GovernanceEngine::reloadIfChanged() {
 
         // Apply minimum enforcement levels to new rules
         enforceMinimumLevelsOnRules(new_rules);
+
+        // Re-apply governance self-protection to new rules (survives reload)
+        addGovernanceProtectedPaths(new_rules);
 
         // One-way ratchet: reject any loosening
         std::vector<std::string> violations;

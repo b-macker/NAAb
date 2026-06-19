@@ -705,6 +705,10 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
             bool loaded = loadFromFile(candidate.string());
             if (!loaded) return false;
 
+            // Self-protection: structurally block writes to governance infrastructure
+            // Added after parsing so govern.json cannot remove its own protection
+            addGovernanceProtectedPaths(getMutableRules());
+
             // Project Context Awareness — load supplemental rules from project files
             if (rules().project_context.enabled) {
                 ProjectContextLoader loader;
@@ -750,6 +754,38 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
     }
     last_error_ = "not_found";
     return false;
+}
+
+// ============================================================================
+// Governance Self-Protection — add infrastructure paths to blocked_paths
+// ============================================================================
+
+void GovernanceEngine::addGovernanceProtectedPaths(GovernanceRules& target_rules) {
+    auto& fs_cfg = target_rules.capabilities.filesystem;
+    auto addProtectedPath = [&](const std::string& path) {
+        if (path.empty()) return;
+        std::string canon;
+        try { canon = std::filesystem::weakly_canonical(path).string(); }
+        catch (...) { canon = path; }
+        for (const auto& bp : fs_cfg.blocked_paths) {
+            std::string bp_canon;
+            try { bp_canon = std::filesystem::weakly_canonical(bp).string(); }
+            catch (...) { bp_canon = bp; }
+            if (bp_canon == canon) return;
+        }
+        fs_cfg.blocked_paths.push_back(canon);
+    };
+
+    // Block govern.json and .sig sidecar (skip for inline configs with no file)
+    if (!govern_json_dir_.empty()) {
+        addProtectedPath(govern_json_dir_ + "/govern.json");
+        addProtectedPath(govern_json_dir_ + "/govern.json.sig");
+    }
+    // Block trust store directory
+    const char* home = std::getenv("HOME");
+    if (home) {
+        addProtectedPath(std::string(home) + "/.naab/trusted-keys");
+    }
 }
 
 // ============================================================================
@@ -6318,7 +6354,6 @@ std::string GovernanceEngine::checkTemporalCoupling() {
     if (agent_event_turns_.size() < 2) return "";
 
     // Compute pairwise lag correlation (simplified: check if agent B consistently follows A)
-    std::string warnings;
     std::vector<std::string> agents;
     for (const auto& [name, turns] : agent_event_turns_) {
         if (static_cast<int>(turns.size()) >= cfg.min_events) agents.push_back(name);
@@ -6343,14 +6378,16 @@ std::string GovernanceEngine::checkTemporalCoupling() {
 
             double correlation = static_cast<double>(correlated) / total;
             if (correlation > cfg.max_correlation) {
-                warnings += fmt::format("Temporal coupling: agents '{}' and '{}' correlated "
-                    "(r={:.2f}, threshold={:.2f})\n", agents[i], agents[j],
-                    correlation, cfg.max_correlation);
+                std::string msg = fmt::format(
+                    "Temporal coupling detected: agents '{}' and '{}' correlation {:.2f} exceeds {:.2f}",
+                    agents[i], agents[j], correlation, cfg.max_correlation);
+                std::string err = enforce("temporal_coupling", cfg.level, msg);
+                if (!err.empty()) return err;
             }
         }
     }
 
-    return warnings;
+    return "";
 }
 
 // ============================================================================

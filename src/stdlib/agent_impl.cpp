@@ -618,6 +618,24 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     // only tracks agent-phase checks, not static source scanning.
     engine->setAgentGovernanceActive(true);
 
+    // Tool execution context — agent creation from tool callbacks
+    // requires AGENT_SEND in the parent agent's allowed_actions
+    if (t_in_tool_execution_for_handle >= 0 && t_tool_agent_context) {
+        if (!t_tool_agent_context->allowed_actions.empty()) {
+            bool can_delegate = false;
+            for (const auto& a : t_tool_agent_context->allowed_actions) {
+                if (a == "AGENT_SEND") { can_delegate = true; break; }
+            }
+            if (!can_delegate) {
+                throw std::runtime_error(
+                    "Agent error: agent.create denied — parent agent lacks AGENT_SEND permission\n\n"
+                    "  Help:\n"
+                    "  - Tool functions cannot create agents unless the parent agent's\n"
+                    "    allowed_actions includes AGENT_SEND\n");
+            }
+        }
+    }
+
     // Find agent config
     const auto* config = findAgentConfig(config_name);
     if (!config) {
@@ -669,6 +687,18 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     std::string nonce;
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
+
+        // Global agent count limit (existing config field, now enforced)
+        int max_agents = engine->getRules().exposure_tracking.max_unique_agents;
+        if (max_agents > 0 && static_cast<int>(s_trackers.size()) >= max_agents) {
+            throw std::runtime_error(
+                "Agent error: agent.create denied — max agent count reached\n\n"
+                "  Active agents: " + std::to_string(s_trackers.size()) + "\n"
+                "  Limit: " + std::to_string(max_agents) + "\n\n"
+                "  Help:\n"
+                "  - Reduce the number of concurrent agents\n");
+        }
+
         handle_id = ++s_handle_counter;
         std::string nonce_input = std::to_string(handle_id) + ":" + config_name + ":" +
             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -833,6 +863,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "Agent error: Agent config no longer available\n\n"
             "  Help:\n"
             "  - The governance configuration may have changed\n");
+    }
+
+    // Gap O: block recursive self-send from tool execution
+    // t_in_tool_execution_for_handle is SET when a tool callback is running
+    // but was NEVER CHECKED — a tool could agent.send() its own invoking handle
+    if (t_in_tool_execution_for_handle == validated_id) {
+        throw std::runtime_error(
+            "Agent error: agent.send denied — recursive self-send from tool execution\n\n"
+            "  Help:\n"
+            "  - A tool function cannot call agent.send() on the agent that invoked it\n"
+            "  - Use a different agent handle for delegation\n");
     }
 
     // Server-side governance enforcement (immune to handle mutation)
@@ -2587,10 +2628,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // Temporal coupling — inter-agent timing correlation
+    // enforce() handles ADVISORY (stderr), SOFT (block), HARD (throw GovernanceHardError)
     if (gov_engine && gov_engine->isActive()) {
-        std::string coupling_warnings = gov_engine->checkTemporalCoupling();
-        if (!coupling_warnings.empty()) {
-            fprintf(stderr, "%s", coupling_warnings.c_str());
+        std::string coupling_err = gov_engine->checkTemporalCoupling();
+        if (!coupling_err.empty()) {
+            throw std::runtime_error(coupling_err);
         }
     }
 

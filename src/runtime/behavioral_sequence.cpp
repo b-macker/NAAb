@@ -245,6 +245,37 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         p.level = EnforcementLevel::ADVISORY;
         default_patterns_.push_back(std::move(p));
     }
+
+    // 15. Cross-agent file relay: agent A writes file, agent B reads file
+    //     gap=5: moderate — relay may span a few intermediate events
+    //     Only matches when both events originate from agent contexts
+    {
+        SequencePattern p;
+        p.name = "cross_agent_file_relay";
+        p.steps.push_back(makeStep({"FILE_WRITE"}));
+        p.steps.push_back(makeStep({"FILE_READ"}));
+        p.cross_agent = true;
+        p.max_gap = 5;
+        p.level = EnforcementLevel::ADVISORY;
+        p.rationale = "Cross-agent file-based data transfer — verify content was validated";
+        default_patterns_.push_back(std::move(p));
+    }
+
+    // 16. Cross-agent tool chain: agent A tool call leads to agent B tool call
+    //     gap=10: wider — delegation may cross send/receive boundaries
+    //     Only matches when both events originate from agent contexts
+    {
+        SequencePattern p;
+        p.name = "cross_agent_tool_chain";
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"AGENT_SEND"}));
+        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.cross_agent = true;
+        p.max_gap = 10;
+        p.level = EnforcementLevel::ADVISORY;
+        p.rationale = "Cross-agent tool delegation chain — verify authorization propagation";
+        default_patterns_.push_back(std::move(p));
+    }
 }
 
 const std::vector<SequencePattern>& BehavioralSequenceDetector::getActivePatterns() const {
