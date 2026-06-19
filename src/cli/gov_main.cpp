@@ -496,16 +496,21 @@ int main(int argc, char* argv[]) {
         rest.emplace_back(argv[i]);
     }
 
-    if (cmd == "lint") {
-        return cmdLint(rest);
-    }
+    try {
+        if (cmd == "lint") {
+            return cmdLint(rest);
+        }
 
-    if (cmd == "check") {
-        return cmdCheck(rest);
-    }
+        if (cmd == "check") {
+            return cmdCheck(rest);
+        }
 
-    if (cmd == "scan") {
-        return cmdScan(rest);
+        if (cmd == "scan") {
+            return cmdScan(rest);
+        }
+    } catch (const naab::governance::GovernanceHardError& e) {
+        std::cerr << e.what() << "\n";
+        _exit(3);
     }
 
     std::cerr << "naab-gov: unknown command: " << cmd << "\n"
