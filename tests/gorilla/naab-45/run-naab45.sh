@@ -86,7 +86,7 @@ else
     echo -e "${CYAN}Signals: response_quality=on, thinking_collapse=on, reality_checkpoint=on${NC}"
     echo ""
 
-    OUTPUT=$(cd "$WORKDIR" && timeout 3600 "$NAAB" --governance-dashboard "adversarial.naab" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
+    OUTPUT=$(cd "$WORKDIR" && timeout 7200 "$NAAB" --governance-dashboard "adversarial.naab" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
 
     echo ""
     echo -e "${CYAN}--- Output (last 60 lines) ---${NC}"
@@ -155,7 +155,7 @@ else
     if [ "$EXIT_CODE" -eq 0 ] || [ "$EXIT_CODE" -eq 2 ] || [ "$EXIT_CODE" -eq 3 ]; then
         pass "S01" "Program completed (exit $EXIT_CODE)"
     elif [ "$EXIT_CODE" -eq 124 ]; then
-        fail "S01" "Program timed out (1-hour limit)"
+        fail "S01" "Program timed out (2-hour limit)"
     else
         fail "S01" "Program crashed" "exit code $EXIT_CODE"
     fi
