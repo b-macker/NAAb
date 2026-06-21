@@ -1,0 +1,12 @@
+// Minimal codegen runner for naab-46.
+// Reads Python code from code.py in current dir, runs through codegen.run()
+// with governance. Exit 0 = passed, exit 3 = GovernanceHardError.
+
+use codegen
+use file
+
+main {
+    let code = file.read("code.py")
+    let result = codegen.run("python", code)
+    print(string(result))
+}
