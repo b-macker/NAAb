@@ -5595,6 +5595,18 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         results.push_back(c);
     }
 
+    // CONTRA-010: blocked_commands configured but code_injection not enabled
+    if (!rules().capabilities.shell.blocked_commands.empty() &&
+        !rules().restrictions.code_injection.enabled) {
+        ContradictionResult c;
+        c.pattern_id = "CONTRA-010";
+        c.description = "Shell blocked_commands configured but restrictions.code_injection is disabled — "
+                        "non-shell languages (Python, JavaScript) can execute commands via API calls";
+        c.level = level;
+        c.resolution = "Enable restrictions.code_injection with block_command_injection: true";
+        results.push_back(c);
+    }
+
     // Record each contradiction as a governance finding
     for (const auto& c : results) {
         std::string rule_name = "contradiction." + c.pattern_id;

@@ -258,6 +258,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (sec.contains("sandbox_level") && sec["sandbox_level"].is_string()) rules_.sandbox_level_config = sec["sandbox_level"].get<std::string>();
         if (sec.contains("allow_network") && sec["allow_network"].is_boolean()) rules_.allow_network_config = sec["allow_network"].get<bool>();
         if (sec.contains("strict_types") && sec["strict_types"].is_boolean()) rules_.strict_types_config = sec["strict_types"].get<bool>();
+
+        // naab-46: Warn on misplaced keys that have no effect in the security section
+        if (sec.contains("blocked_commands")) {
+            fprintf(stderr, "[governance] Warning: \"security.blocked_commands\" has no effect — "
+                            "use \"capabilities.shell.blocked_commands\" instead\n");
+        }
+        if (sec.contains("blocked_paths")) {
+            fprintf(stderr, "[governance] Warning: \"security.blocked_paths\" has no effect — "
+                            "use \"capabilities.filesystem.blocked_paths\" instead\n");
+        }
     }
 
     // API section
@@ -852,6 +862,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (ci.contains("level")) { auto [en, lv] = parseEnforcementLevel(ci["level"]); rules_.restrictions.code_injection.level = lv; }
             if (ci.contains("block_dynamic_code_gen") && ci["block_dynamic_code_gen"].is_boolean()) rules_.restrictions.code_injection.block_dynamic_code_gen = ci["block_dynamic_code_gen"].get<bool>();
             if (ci.contains("block_sql_injection_patterns") && ci["block_sql_injection_patterns"].is_boolean()) rules_.restrictions.code_injection.block_sql_injection_patterns = ci["block_sql_injection_patterns"].get<bool>();
+            if (ci.contains("block_command_injection") && ci["block_command_injection"].is_boolean()) rules_.restrictions.code_injection.block_command_injection = ci["block_command_injection"].get<bool>();
+            if (ci.contains("block_template_injection") && ci["block_template_injection"].is_boolean()) rules_.restrictions.code_injection.block_template_injection = ci["block_template_injection"].get<bool>();
+            if (ci.contains("block_xpath_injection") && ci["block_xpath_injection"].is_boolean()) rules_.restrictions.code_injection.block_xpath_injection = ci["block_xpath_injection"].get<bool>();
+            if (ci.contains("block_ldap_injection") && ci["block_ldap_injection"].is_boolean()) rules_.restrictions.code_injection.block_ldap_injection = ci["block_ldap_injection"].get<bool>();
             parseRationale(ci, rules_.restrictions.code_injection.rationale);
         }
         if (res.contains("crypto") && res["crypto"].is_object()) {
