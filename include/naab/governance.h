@@ -2491,13 +2491,17 @@ public:
     // Security checks
     std::string checkShellInjection(const std::string& code, int line = 0);
     std::string checkCodeInjection(const std::string& language,
-                                    const std::string& code, int line = 0);
+                                    const std::string& code,
+                                    const std::string& normalized_code,
+                                    int line = 0);
     std::string checkPrivilegeEscalation(const std::string& code, int line = 0);
     std::string checkDataExfiltration(const std::string& code, int line = 0);
     std::string checkResourceAbuse(const std::string& code, int line = 0);
     std::string checkInfoDisclosure(const std::string& language,
                                      const std::string& code, int line = 0);
-    std::string checkCryptoWeakness(const std::string& code, int line = 0);
+    std::string checkCryptoWeakness(const std::string& code,
+                                     const std::string& normalized_code,
+                                     int line = 0);
     std::string checkVcsSecretExtraction(const std::string& code, int line = 0);
     std::string checkObfuscationSignals(const std::string& language,
                                         const std::string& raw_code,

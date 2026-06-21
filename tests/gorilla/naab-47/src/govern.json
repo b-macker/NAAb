@@ -1,7 +1,7 @@
 {
   "version": "5.0",
   "mode": "enforce",
-  "description": "NAAb-46: Live LLM governance scan. Tests whether governance blocks dangerous code from live LLM output while allowing safe code. Uses agy (Antigravity CLI) instead of agent API.",
+  "description": "NAAb-47: Live LLM JavaScript governance scan. Tests whether governance blocks dangerous JS code from live LLM output while allowing safe code.",
 
   "languages": {
     "allowed": ["python", "javascript", "shell"],
@@ -59,7 +59,7 @@
     "tamper_evidence": {
       "enabled": true,
       "algorithm": "sha256",
-      "chain_genesis": "naab46-live-scan"
+      "chain_genesis": "naab47-js-scan"
     }
   },
 

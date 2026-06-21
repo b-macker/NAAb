@@ -174,7 +174,7 @@ static const std::unordered_map<std::string, CheckFn>& getCheckTable() {
         {"secrets",
          [](auto& e, auto&, auto& c, int ln) { return e.checkSecrets(c, ln); }},
         {"code_injection",
-         [](auto& e, auto& l, auto& c, int ln) { return e.checkCodeInjection(l, c, ln); }},
+         [](auto& e, auto& l, auto& c, int ln) { return e.checkCodeInjection(l, c, c, ln); }},
         {"sql_injection",
          [](auto& e, auto&, auto& c, int ln) { return e.checkSqlInjection(c, ln); }},
         {"dangerous_calls",
@@ -203,7 +203,7 @@ static const std::unordered_map<std::string, CheckFn>& getCheckTable() {
         {"data_exfiltration",
          [](auto& e, auto&, auto& c, int ln) { return e.checkDataExfiltration(c, ln); }},
         {"crypto_weakness",
-         [](auto& e, auto&, auto& c, int ln) { return e.checkCryptoWeakness(c, ln); }},
+         [](auto& e, auto&, auto& c, int ln) { return e.checkCryptoWeakness(c, c, ln); }},
     };
     return table;
 }
