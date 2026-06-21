@@ -1480,11 +1480,16 @@ fi
 
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
-    if bash "$CANARY_SCRIPT" 2>&1; then
-        echo "  test_prescan_canaries.sh: ALL PASSED"
+    # Canary test injects/reverts source files — skip when working tree is dirty
+    if git diff --quiet -- src/ include/ 2>/dev/null; then
+        if bash "$CANARY_SCRIPT" 2>&1; then
+            echo "  test_prescan_canaries.sh: ALL PASSED"
+        else
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("test_prescan_canaries.sh")
+        fi
     else
-        FAILED=$((FAILED + 1))
-        FAILED_TESTS+=("test_prescan_canaries.sh")
+        echo "  test_prescan_canaries.sh: SKIPPED (uncommitted changes in src/include)"
     fi
 else
     echo "  test_prescan_canaries.sh: not found, skipping"

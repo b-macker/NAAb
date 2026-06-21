@@ -2751,6 +2751,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_min_words") && cbj["step_up_min_words"].is_number_integer()) cfg.step_up_min_words = std::max(1, cbj["step_up_min_words"].get<int>());
         if (cbj.contains("step_up_cooldown_turns") && cbj["step_up_cooldown_turns"].is_number_integer()) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
         if (cbj.contains("step_up_keyword_threshold") && cbj["step_up_keyword_threshold"].is_number()) cfg.step_up_keyword_threshold = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
+        if (cbj.contains("step_up_max_consecutive_failures") && cbj["step_up_max_consecutive_failures"].is_number_integer()) cfg.step_up_max_consecutive_failures = std::max(0, cbj["step_up_max_consecutive_failures"].get<int>());
         parseRationale(cbj, cfg.rationale);
     }
 

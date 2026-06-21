@@ -1480,6 +1480,11 @@ struct CircuitBreakerConfig {
     // 30% of the system_prompt's key terms. Low enough to allow paraphrasing, high
     // enough to catch completely unrelated responses.
     double step_up_keyword_threshold = 0.3;
+    // Probationary lease: after N consecutive challenge failures, skip 1 challenge
+    // so the actual prompt goes through, breaking the death spiral where expired lease →
+    // challenge fail → turn never advances → lease still expired → infinite loop.
+    // 0 = disabled (no probationary lease). 3 = skip after 3 consecutive failures.
+    int step_up_max_consecutive_failures = 3;
 };
 
 // Advisory Escalation — repeated advisories harden over time

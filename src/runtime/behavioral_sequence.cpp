@@ -973,11 +973,13 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 8: Response quality — content ratio too low (mostly thinking, little output)
+    // Gemini: candidatesTokenCount = content only, thoughtsTokenCount = separate.
+    // Ratio = content / (content + thinking) = proportion of generation that is useful.
     if (config_->signals.response_quality) {
         for (const auto& ev : turn_events) {
-            if (ev.type == RuntimeEventType::AGENT_RESPONSE && ev.output_tokens > 0) {
-                double content_tokens = static_cast<double>(ev.output_tokens - ev.thinking_tokens);
-                double ratio = content_tokens / static_cast<double>(ev.output_tokens);
+            double total_gen = static_cast<double>(ev.output_tokens + ev.thinking_tokens);
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && total_gen > 0) {
+                double ratio = static_cast<double>(ev.output_tokens) / total_gen;
                 if (ratio < config_->thresholds.response_quality_min_ratio) {
                     state.response_quality_count++;
                     if (!in_baseline) {
