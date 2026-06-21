@@ -6434,6 +6434,11 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkPrivilegeEscalation(stripped, line);
     if (!err.empty()) return err;
+    // Privilege escalation commands (sudo, chmod +s) appear inside string args to
+    // execution functions (os.system("sudo ..."), subprocess.run(["chmod", "+s", ...])).
+    // Check normalized code to catch commands inside string literals.
+    err = checkPrivilegeEscalation(normalized, line);
+    if (!err.empty()) return err;
     err = checkDataExfiltration(stripped, line);
     if (!err.empty()) return err;
     err = checkResourceAbuse(stripped, line);
