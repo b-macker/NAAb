@@ -1286,9 +1286,10 @@ struct ContextDriftConfig {
     std::string rationale;
     EnforcementLevel level = EnforcementLevel::ADVISORY;
     // Rationale: 0.5 = midpoint of [0,1] range — agent starts with benefit of the doubt (1.0)
-    // and must lose half its coherence before enforcement fires. Empirically, well-behaved agents
-    // rarely drop below 0.7; adversarial agents cross 0.5 within 5-8 turns.
-    double coherence_threshold = 0.5;
+    // Coherence below this value triggers enforcement. With content-aware CDD (Phase 1a),
+    // well-behaved agents maintain ~0.9; degraded agents drop to 0.6-0.7. Threshold at 0.7
+    // means composite pressure starts contributing when coherence dips below 0.7.
+    double coherence_threshold = 0.7;
     int max_contradictions = 5;
     int check_interval_turns = 3;
     int fingerprint_window = 20;
@@ -1318,6 +1319,8 @@ struct ContextDriftConfig {
         bool coherence_velocity = true;       // F1: fire when coherence decaying rapidly
         bool capability_underutilization = false; // F9: fire on sudden late capability use
         bool semantic_stability = false;       // F19: fire on content topic shift (expensive)
+        bool response_quality = false;         // fire when content/output ratio is low (agent)
+        bool thinking_collapse = false;        // fire when thinking tokens drop >50% from baseline
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
     // Rationale: ordered by threat severity. contradiction (0.2) is heaviest because
@@ -1336,6 +1339,8 @@ struct ContextDriftConfig {
         double coherence_velocity = 0.12;     // F1: moderate — velocity drop is a derivative signal
         double capability_underutilization = 0.1; // F9: low — may be legitimate deferred usage
         double semantic_stability = 0.1;       // F19: low — topic shifts are common in exploration
+        double response_quality = 0.08;        // moderate — low content ratio indicates degradation
+        double thinking_collapse = 0.06;       // low-moderate — progressive model capability loss
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -1372,6 +1377,15 @@ struct ContextDriftConfig {
         // 10 entries: enough for velocity/acceleration smoothing over recent history
         // without excessive memory. Matches underutilization_delay for consistency.
         int coherence_history_size = 10;
+        // 0.3: fire when <30% of output tokens are content (rest is thinking).
+        // Normal responses have 50-80% content; <30% means thinking dominates.
+        double response_quality_min_ratio = 0.3;
+        // 0.5: fire when mean thinking drops to 50% of baseline. Gradual degradation
+        // threshold — aggressive enough to catch collapse, not so tight as to fire on
+        // normal variation.
+        double thinking_collapse_ratio = 0.5;
+        // 20: rolling window size for thinking token history. Matches conversation depth.
+        int thinking_history_window = 20;
     } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -2746,7 +2760,9 @@ public:
 
     // --- Behavioral Sequence Detection ---
     std::string emitEvent(RuntimeEventType type, const std::string& detail,
-                          const std::string& file = "", int line = 0);
+                          const std::string& file = "", int line = 0,
+                          const std::string& content_fingerprint = "",
+                          int output_tokens = 0, int thinking_tokens = 0);
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
     void setInheritedPressure(int handle_id, double pressure);

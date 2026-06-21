@@ -5996,7 +5996,9 @@ void GovernanceEngine::printValidationReport() {
 // ============================================================================
 
 std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
-                                         const std::string& file, int line) {
+                                         const std::string& file, int line,
+                                         const std::string& content_fingerprint,
+                                         int output_tokens, int thinking_tokens) {
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     RuntimeEvent ev;
@@ -6004,6 +6006,9 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.detail = detail;
     ev.file = file;
     ev.line = line;
+    ev.content_fingerprint = content_fingerprint;
+    ev.output_tokens = output_tokens;
+    ev.thinking_tokens = thinking_tokens;
     ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
     ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);
     {
@@ -6225,11 +6230,21 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
     }
 
     // Check 3: Perfect coherence (1.0) after 10+ turns → suspicious
+    // Suppress during adaptive baseline (coherence hasn't been penalized yet)
+    // and for a few turns after recovery (recovery resets to 1.0)
     int handle_id = current_agent_handle_.load(std::memory_order_relaxed);
     auto state = drift_analyzer_.getDriftState(handle_id);
     if (state && turn >= 10 && state->coherence_score >= 1.0) {
-        warnings += fmt::format("WARNING: Perfect coherence (1.0) after {} turns "
-            "(possible detection bypass)\n", turn);
+        bool suppress = false;
+        // During baseline, coherence is expected to stay at 1.0
+        if (!state->baseline_complete) suppress = true;
+        // After recovery, coherence is reset to 1.0 — allow a cooldown window
+        if (state->last_recovery_turn >= 0 &&
+            turn - state->last_recovery_turn <= 3) suppress = true;
+        if (!suppress) {
+            warnings += fmt::format("WARNING: Perfect coherence (1.0) after {} turns "
+                "(possible detection bypass)\n", turn);
+        }
     }
 
     // F16: Check governance entropy
