@@ -972,6 +972,64 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
+    // Signal 8: Response quality — content ratio too low (mostly thinking, little output)
+    // Gemini: candidatesTokenCount = content only, thoughtsTokenCount = separate.
+    // Ratio = content / (content + thinking) = proportion of generation that is useful.
+    if (config_->signals.response_quality) {
+        for (const auto& ev : turn_events) {
+            double total_gen = static_cast<double>(ev.output_tokens + ev.thinking_tokens);
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && total_gen > 0) {
+                double ratio = static_cast<double>(ev.output_tokens) / total_gen;
+                if (ratio < config_->thresholds.response_quality_min_ratio) {
+                    state.response_quality_count++;
+                    if (!in_baseline) {
+                        state.coherence_score -= penalty(config_->weights.response_quality,
+                                                          state.response_quality_count);
+                    }
+                    state.signals_fired_this_turn++;
+                }
+            }
+        }
+    }
+
+    // Signal 9: Thinking collapse — thinking tokens dropped >50% from baseline mean
+    if (config_->signals.thinking_collapse) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE) {
+                state.thinking_history.push_back(ev.thinking_tokens);
+                if (static_cast<int>(state.thinking_history.size()) >
+                    config_->thresholds.thinking_history_window) {
+                    state.thinking_history.pop_front();
+                }
+            }
+        }
+        // Set baseline mean when adaptive baseline completes (or after enough history)
+        if (state.thinking_baseline_mean < 0.0 &&
+            (state.baseline_complete || static_cast<int>(state.thinking_history.size()) >=
+             config_->thresholds.thinking_history_window / 2)) {
+            if (!state.thinking_history.empty()) {
+                double sum = 0.0;
+                for (int t : state.thinking_history) sum += t;
+                state.thinking_baseline_mean = sum / static_cast<double>(state.thinking_history.size());
+            }
+        }
+        // Fire when current mean drops below threshold ratio of baseline
+        if (state.thinking_baseline_mean > 0.0 &&
+            static_cast<int>(state.thinking_history.size()) >= 3) {
+            double current_sum = 0.0;
+            for (int t : state.thinking_history) current_sum += t;
+            double current_mean = current_sum / static_cast<double>(state.thinking_history.size());
+            if (current_mean < state.thinking_baseline_mean * config_->thresholds.thinking_collapse_ratio) {
+                state.thinking_collapse_count++;
+                if (!in_baseline) {
+                    state.coherence_score -= penalty(config_->weights.thinking_collapse,
+                                                      state.thinking_collapse_count);
+                }
+                state.signals_fired_this_turn++;
+            }
+        }
+    }
+
     // F15: Natural healing — when no signals fired this turn, slowly recover
     if (state.signals_fired_this_turn == 0 && config_->coherence_natural_healing > 0.0) {
         state.coherence_score += config_->coherence_natural_healing;
@@ -1023,6 +1081,11 @@ std::string ContextDriftAnalyzer::computeFingerprint(
             case RuntimeEventType::DECODE:      part = "DE"; break;
             case RuntimeEventType::PROCESS_EXEC: part = "PX"; break;
             default: part = "XX"; break;
+        }
+        // Include content fingerprint for agent events — breaks mechanical
+        // "ARAS" pattern so isCircular() only fires on actual loops
+        if (!ev.content_fingerprint.empty()) {
+            part += ":" + ev.content_fingerprint.substr(0, 8);
         }
         parts.push_back(part);
     }
@@ -1084,6 +1147,7 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
         it->second.coherence_history.push_back(it->second.coherence_score);
         it->second.coherence_velocity = 0.0;
         it->second.coherence_acceleration = 0.0;
+        it->second.last_recovery_turn = it->second.last_checked_turn;
     }
 }
 

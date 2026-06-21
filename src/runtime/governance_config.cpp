@@ -258,6 +258,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (sec.contains("sandbox_level") && sec["sandbox_level"].is_string()) rules_.sandbox_level_config = sec["sandbox_level"].get<std::string>();
         if (sec.contains("allow_network") && sec["allow_network"].is_boolean()) rules_.allow_network_config = sec["allow_network"].get<bool>();
         if (sec.contains("strict_types") && sec["strict_types"].is_boolean()) rules_.strict_types_config = sec["strict_types"].get<bool>();
+
+        // naab-46: Warn on misplaced keys that have no effect in the security section
+        if (sec.contains("blocked_commands")) {
+            fprintf(stderr, "[governance] Warning: \"security.blocked_commands\" has no effect — "
+                            "use \"capabilities.shell.blocked_commands\" instead\n");
+        }
+        if (sec.contains("blocked_paths")) {
+            fprintf(stderr, "[governance] Warning: \"security.blocked_paths\" has no effect — "
+                            "use \"capabilities.filesystem.blocked_paths\" instead\n");
+        }
     }
 
     // API section
@@ -852,6 +862,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (ci.contains("level")) { auto [en, lv] = parseEnforcementLevel(ci["level"]); rules_.restrictions.code_injection.level = lv; }
             if (ci.contains("block_dynamic_code_gen") && ci["block_dynamic_code_gen"].is_boolean()) rules_.restrictions.code_injection.block_dynamic_code_gen = ci["block_dynamic_code_gen"].get<bool>();
             if (ci.contains("block_sql_injection_patterns") && ci["block_sql_injection_patterns"].is_boolean()) rules_.restrictions.code_injection.block_sql_injection_patterns = ci["block_sql_injection_patterns"].get<bool>();
+            if (ci.contains("block_command_injection") && ci["block_command_injection"].is_boolean()) rules_.restrictions.code_injection.block_command_injection = ci["block_command_injection"].get<bool>();
+            if (ci.contains("block_template_injection") && ci["block_template_injection"].is_boolean()) rules_.restrictions.code_injection.block_template_injection = ci["block_template_injection"].get<bool>();
+            if (ci.contains("block_xpath_injection") && ci["block_xpath_injection"].is_boolean()) rules_.restrictions.code_injection.block_xpath_injection = ci["block_xpath_injection"].get<bool>();
+            if (ci.contains("block_ldap_injection") && ci["block_ldap_injection"].is_boolean()) rules_.restrictions.code_injection.block_ldap_injection = ci["block_ldap_injection"].get<bool>();
             parseRationale(ci, rules_.restrictions.code_injection.rationale);
         }
         if (res.contains("crypto") && res["crypto"].is_object()) {
@@ -2631,6 +2645,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("entropy_min_initial") && th["entropy_min_initial"].is_number()) cfg.thresholds.entropy_min_initial = std::max(0.0, th["entropy_min_initial"].get<double>());
             if (th.contains("entropy_contraction_ratio") && th["entropy_contraction_ratio"].is_number()) cfg.thresholds.entropy_contraction_ratio = std::max(0.0, std::min(1.0, th["entropy_contraction_ratio"].get<double>()));
             if (th.contains("coherence_history_size") && th["coherence_history_size"].is_number_integer()) cfg.thresholds.coherence_history_size = std::max(2, th["coherence_history_size"].get<int>());
+            if (th.contains("response_quality_min_ratio") && th["response_quality_min_ratio"].is_number()) cfg.thresholds.response_quality_min_ratio = std::max(0.0, std::min(1.0, th["response_quality_min_ratio"].get<double>()));
+            if (th.contains("thinking_collapse_ratio") && th["thinking_collapse_ratio"].is_number()) cfg.thresholds.thinking_collapse_ratio = std::max(0.0, std::min(1.0, th["thinking_collapse_ratio"].get<double>()));
+            if (th.contains("thinking_history_window") && th["thinking_history_window"].is_number_integer()) cfg.thresholds.thinking_history_window = std::max(2, th["thinking_history_window"].get<int>());
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
@@ -2643,6 +2660,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("coherence_velocity") && sig["coherence_velocity"].is_boolean()) cfg.signals.coherence_velocity = sig["coherence_velocity"].get<bool>();
             if (sig.contains("capability_underutilization") && sig["capability_underutilization"].is_boolean()) cfg.signals.capability_underutilization = sig["capability_underutilization"].get<bool>();
             if (sig.contains("semantic_stability") && sig["semantic_stability"].is_boolean()) cfg.signals.semantic_stability = sig["semantic_stability"].get<bool>();
+            if (sig.contains("response_quality") && sig["response_quality"].is_boolean()) cfg.signals.response_quality = sig["response_quality"].get<bool>();
+            if (sig.contains("thinking_collapse") && sig["thinking_collapse"].is_boolean()) cfg.signals.thinking_collapse = sig["thinking_collapse"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
             auto& w = cd["weights"];
@@ -2654,6 +2673,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("coherence_velocity") && w["coherence_velocity"].is_number()) cfg.weights.coherence_velocity = w["coherence_velocity"].get<double>();
             if (w.contains("capability_underutilization") && w["capability_underutilization"].is_number()) cfg.weights.capability_underutilization = w["capability_underutilization"].get<double>();
             if (w.contains("semantic_stability") && w["semantic_stability"].is_number()) cfg.weights.semantic_stability = w["semantic_stability"].get<double>();
+            if (w.contains("response_quality") && w["response_quality"].is_number()) cfg.weights.response_quality = w["response_quality"].get<double>();
+            if (w.contains("thinking_collapse") && w["thinking_collapse"].is_number()) cfg.weights.thinking_collapse = w["thinking_collapse"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];

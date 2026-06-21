@@ -57,6 +57,9 @@ struct RuntimeEvent {
     std::string agent_config;   // agent config name ("risk_assessor", etc.)
     size_t sequence_id = 0;     // global monotonic counter
     std::chrono::steady_clock::time_point timestamp;
+    std::string content_fingerprint;  // hash of response content (agent events only)
+    int output_tokens = 0;            // total output tokens (agent events only)
+    int thinking_tokens = 0;          // thinking tokens consumed (agent events only)
 };
 
 // --- FSM State Per Pattern ---
@@ -137,6 +140,15 @@ struct DriftState {
     int consecutive_high_pressure_turns = 0;
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
     int signals_fired_this_turn = 0;
+
+    // Recovery tracking (Phase 4a)
+    int last_recovery_turn = -1;              // turn of last coherence recovery (-1 = never)
+
+    // Response quality tracking (Phase 1b/1c)
+    int response_quality_count = 0;           // turns where content ratio was below threshold
+    int thinking_collapse_count = 0;          // turns where thinking dropped >50% from baseline
+    std::deque<int> thinking_history;          // rolling window of thinking token counts
+    double thinking_baseline_mean = -1.0;     // established after baseline window completes
 };
 
 // --- Event Ring Buffer + Sequence Pattern Matcher ---

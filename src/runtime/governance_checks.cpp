@@ -5358,6 +5358,19 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
         } else if (language == "nim") {
             pats.push_back("\\bexecProcess\\s*\\(");
             pats.push_back("\\bstartProcess\\s*\\(");
+        } else if (language == "javascript" || language == "typescript") {
+            // Qualified child_process method calls
+            pats.push_back("child_process\\.(?:exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)\\s*\\(");
+            // Destructured child_process functions (names unique to child_process)
+            pats.push_back("\\bexecSync\\s*\\(");
+            pats.push_back("\\bexecFile(?:Sync)?\\s*\\(");
+            pats.push_back("\\bspawnSync\\s*\\(");
+            // Deno/Bun command execution
+            pats.push_back("Deno\\.(?:run|Command)\\s*\\(");
+            pats.push_back("Bun\\.(?:spawn|spawnSync)\\s*\\(");
+            // Note: require('child_process') and import 'child_process' are handled
+            // by checkImports() which uses normalized (non-stripped) code.
+            // exec() is already caught by block_dynamic_code_gen globally.
         } else {
             // Fallback for unknown languages
             pats.push_back("os\\.system\\s*\\(");

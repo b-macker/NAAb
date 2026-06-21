@@ -1688,7 +1688,7 @@
     "enabled": false,
     "rationale": "Detect when agents lose alignment with their task through behavioral drift.",
     "level": "advisory",
-    "coherence_threshold": 0.5,
+    "coherence_threshold": 0.7,
     "max_contradictions": 5,
     "check_interval_turns": 3,
     "fingerprint_window": 10,
@@ -1709,7 +1709,9 @@
       "coherence_velocity": true,
       "vocabulary_contraction": true,
       "capability_underutilization": false,
-      "semantic_stability": false
+      "semantic_stability": false,
+      "response_quality": false,
+      "thinking_collapse": false
     },
     "weights": {
       "circular": 0.15,
@@ -1718,7 +1720,9 @@
       "repeated_failure": 0.10,
       "vocabulary_contraction": 0.10,
       "capability_underutilization": 0.10,
-      "semantic_stability": 0.10
+      "semantic_stability": 0.10,
+      "response_quality": 0.08,
+      "thinking_collapse": 0.06
     },
     "thresholds": {
       "velocity_drop": -0.15,
@@ -1730,7 +1734,10 @@
       "vocab_contraction_window": 6,
       "entropy_min_initial": 0.5,
       "entropy_contraction_ratio": 0.6,
-      "coherence_history_size": 10
+      "coherence_history_size": 10,
+      "response_quality_min_ratio": 0.3,
+      "thinking_collapse_ratio": 0.5,
+      "thinking_history_window": 20
     },
     "reality_checkpoint": {
       "enabled": false,

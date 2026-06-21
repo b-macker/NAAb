@@ -92,6 +92,7 @@ struct AgentTracker {
     int lease_expires_turn = 0;    // turn after which agent must re-authorize (0 = no lease)
     std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
     int key_offset = 0;  // round-robin position across agent.send() calls
+    int truncation_count = 0;  // times response was truncated (MAX_TOKENS)
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -177,10 +178,26 @@ static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
     return true;
 }
 
+// Extract >3-char lowercase keywords from text
+static void extractKeywords(const std::string& text, std::unordered_set<std::string>& out) {
+    std::string current;
+    for (char c : text) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        } else {
+            if (current.size() > 3) out.insert(current);
+            current.clear();
+        }
+    }
+    if (current.size() > 3) out.insert(current);
+}
+
 // Score a step-up challenge response: word count + keyword overlap with system prompt
-static bool scoreStepUpChallenge(const std::string& response,
-                                  const std::string& system_prompt,
-                                  int min_words, double keyword_threshold) {
+// and recent user prompts (context-aware). Returns overlap ratio for telemetry.
+static double scoreStepUpChallengeRatio(const std::string& response,
+                                         const std::string& system_prompt,
+                                         const std::vector<std::string>& recent_prompts,
+                                         int min_words) {
     // 1. Word count
     int words = 0;
     bool in_word = false;
@@ -192,21 +209,15 @@ static bool scoreStepUpChallenge(const std::string& response,
             words++;
         }
     }
-    if (words < min_words) return false;
+    if (words < min_words) return -1.0;  // word count failure
 
-    // 2. Extract meaningful keywords from system prompt (lowercase, >3 chars)
+    // 2. Extract keywords from system prompt AND recent user prompts
     std::unordered_set<std::string> prompt_keywords;
-    std::string current;
-    for (char c : system_prompt) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        } else {
-            if (current.size() > 3) prompt_keywords.insert(current);
-            current.clear();
-        }
+    extractKeywords(system_prompt, prompt_keywords);
+    for (const auto& prompt : recent_prompts) {
+        extractKeywords(prompt, prompt_keywords);
     }
-    if (current.size() > 3) prompt_keywords.insert(current);
-    if (prompt_keywords.empty()) return true;  // no keywords to check
+    if (prompt_keywords.empty()) return 1.0;  // no keywords to check
 
     // 3. Check overlap with response
     std::string response_lower;
@@ -218,7 +229,7 @@ static bool scoreStepUpChallenge(const std::string& response,
     for (const auto& kw : prompt_keywords) {
         if (response_lower.find(kw) != std::string::npos) found++;
     }
-    return static_cast<double>(found) / prompt_keywords.size() >= keyword_threshold;
+    return static_cast<double>(found) / static_cast<double>(prompt_keywords.size());
 }
 
 // Pipeline upstream provenance — keyed by downstream handle_id
@@ -1166,7 +1177,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     std::lock_guard<std::mutex> lock(s_agent_mutex);
                     auto it = s_trackers.find(handle_id);
                     if (it != s_trackers.end()) {
-                        should_challenge = lease_expired ||  // always challenge on lease expiry
+                        should_challenge = lease_expired ||
                             (current_turn - it->second.last_challenge_turn) >= cb.step_up_cooldown_turns;
                     }
                 }
@@ -1204,13 +1215,39 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         auto challenge_result = runtime::callAgentWithStatus(
                             challenge_config, challenge_key, challenge_msgs.dump());
 
+                        // Extract recent user messages for context-aware scoring
+                        std::vector<std::string> recent_prompts;
+                        {
+                            auto msgs_it2 = handle.find("messages");
+                            if (msgs_it2 != handle.end() && msgs_it2->second.isList()) {
+                                auto& mlist = msgs_it2->second.asList();
+                                int count = 0;
+                                for (auto rit = mlist.rbegin(); rit != mlist.rend() && count < 5; ++rit) {
+                                    if (rit->isDict()) {
+                                        auto& d = rit->asDict();
+                                        auto r_it = d.find("role");
+                                        auto c_it = d.find("content");
+                                        if (r_it != d.end() && r_it->second.isString() &&
+                                            r_it->second.asString() == "user" &&
+                                            c_it != d.end() && c_it->second.isString()) {
+                                            recent_prompts.push_back(c_it->second.asString());
+                                            count++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         bool passed = false;
+                        double keyword_ratio = -1.0;
                         if (challenge_result.response.success) {
-                            passed = scoreStepUpChallenge(
+                            keyword_ratio = scoreStepUpChallengeRatio(
                                 challenge_result.response.content,
                                 config->system_prompt,
-                                cb.step_up_min_words,
-                                cb.step_up_keyword_threshold);
+                                recent_prompts,
+                                cb.step_up_min_words);
+                            passed = (keyword_ratio >= 0.0 &&
+                                      keyword_ratio >= cb.step_up_keyword_threshold);
                         }
 
                         // Gate lease renewal on coherence if drift tracking is active
@@ -1243,6 +1280,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                     }
                                 } else {
                                     it->second.challenges_failed++;
+                                    // Advance turn counter on failure — a failed challenge
+                                    // IS a turn. Without this, turn never advances and the
+                                    // agent loops forever (lease expired → fail → same turn).
+                                    it->second.turns++;
+                                    handle["turns"] = NaabVal::makeInt(it->second.turns);
+                                    current_turn = it->second.turns;
                                 }
                             }
                         }
@@ -1251,12 +1294,22 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             gov_engine->recoverCoherence(handle_id);
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_PASS", {
                                 {"agent", config_name},
-                                {"turn", std::to_string(current_turn)}
+                                {"turn", std::to_string(current_turn)},
+                                {"response_length", std::to_string(challenge_result.response.content.size())},
+                                {"output_tokens", std::to_string(challenge_result.response.output_tokens)},
+                                {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
+                                {"keyword_ratio", std::to_string(keyword_ratio)},
+                                {"context_prompts", std::to_string(recent_prompts.size())}
                             });
                         } else {
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_FAIL", {
                                 {"agent", config_name},
-                                {"turn", std::to_string(current_turn)}
+                                {"turn", std::to_string(current_turn)},
+                                {"response_length", std::to_string(challenge_result.response.content.size())},
+                                {"output_tokens", std::to_string(challenge_result.response.output_tokens)},
+                                {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
+                                {"keyword_ratio", std::to_string(keyword_ratio)},
+                                {"context_prompts", std::to_string(recent_prompts.size())}
                             });
                             throw std::runtime_error(
                                 "Agent error: Step-up challenge failed\n\n"
@@ -1423,6 +1476,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
             // Telemetry: successful response
             if (gov_engine && gov_engine->isActive()) {
+                // Content hash for post-hoc audit (hash first 500 chars)
+                std::string content_hash;
+                if (!agent_resp.content.empty()) {
+                    content_hash = security::CryptoUtils::sha256(
+                        agent_resp.content.substr(0,
+                            std::min(agent_resp.content.size(), size_t(500))));
+                }
                 gov_engine->writeAgentTelemetry("AGENT_RESPONSE", {
                     {"handle_id", std::to_string(handle_id)},
                     {"model", current_model},
@@ -1433,7 +1493,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"thinking_tokens", std::to_string(agent_resp.thinking_tokens)},
                     {"truncated", agent_resp.truncated ? "true" : "false"},
                     {"attempts", std::to_string(attempts_made)},
-                    {"fallback_used", agent_resp.fallback_used ? "true" : "false"}
+                    {"fallback_used", agent_resp.fallback_used ? "true" : "false"},
+                    {"content_hash", content_hash},
+                    {"content_length", std::to_string(agent_resp.content.size())}
                 });
             }
             break;
@@ -2380,6 +2442,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         });
     }
 
+    // Track truncation count in agent tracker
+    if (agent_resp.truncated) {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto it = s_trackers.find(handle_id);
+        if (it != s_trackers.end()) {
+            it->second.truncation_count++;
+            // Advisory: majority of responses are being truncated
+            if (it->second.truncation_count * 2 > it->second.turns &&
+                it->second.turns >= 4 && gov_engine && gov_engine->isActive()) {
+                gov_engine->emitAdvisory(
+                    fmt::format("Agent '{}': {}/{} responses truncated ({}%) — "
+                        "consider increasing max_tokens or reducing prompt size",
+                        config_name, it->second.truncation_count, it->second.turns,
+                        it->second.truncation_count * 100 / it->second.turns));
+            }
+        }
+    }
+
     if (agent_resp.truncated) {
         if (agent_resp.thinking_tokens > 0 && config && config->thinking_budget == -1) {
             fprintf(stderr,
@@ -2547,9 +2627,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Behavioral sequence: emit agent.response event + context drift check
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
+        // Content-aware fingerprint: hash first 200 chars of response so CDD
+        // can distinguish different responses (breaks mechanical "ARAS" pattern)
+        std::string cfp;
+        if (!agent_resp.content.empty()) {
+            cfp = security::CryptoUtils::sha256(
+                agent_resp.content.substr(0, std::min(agent_resp.content.size(), size_t(200))));
+        }
         gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
             "agent.response('" + config_name + "', tokens=" +
-            std::to_string(resp_output_tokens) + ")", "", 0);
+            std::to_string(resp_output_tokens) + ")", "", 0, cfp,
+            resp_output_tokens, agent_resp.thinking_tokens);
         // Context drift check — include json parse failures as coherence signals
         std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
         // Read governance level before CDD (for change detection)
