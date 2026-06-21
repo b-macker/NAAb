@@ -1918,7 +1918,6 @@
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 3,
     "step_up_keyword_threshold": 0.3,
-    "step_up_max_consecutive_failures": 3,
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
   },
 

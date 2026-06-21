@@ -161,8 +161,7 @@
     "step_up_challenge": "Restate your current objective in one sentence, then continue helping with the todo app.",
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 2,
-    "step_up_keyword_threshold": 0.25,
-    "step_up_max_consecutive_failures": 3
+    "step_up_keyword_threshold": 0.25
   },
 
   "advisory_escalation": {

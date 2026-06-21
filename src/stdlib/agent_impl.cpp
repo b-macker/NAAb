@@ -93,7 +93,6 @@ struct AgentTracker {
     std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
     int key_offset = 0;  // round-robin position across agent.send() calls
     int truncation_count = 0;  // times response was truncated (MAX_TOKENS)
-    int consecutive_challenge_failures = 0;  // reset on pass, triggers probationary lease at max
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -1178,21 +1177,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     std::lock_guard<std::mutex> lock(s_agent_mutex);
                     auto it = s_trackers.find(handle_id);
                     if (it != s_trackers.end()) {
-                        // Probationary lease: after N consecutive challenge failures,
-                        // skip challenge for 1 turn so the actual prompt goes through.
-                        // Breaks the death spiral where lease-expired → challenge-fail →
-                        // turn never advances → lease still expired → infinite loop.
-                        if (lease_expired &&
-                            cb.step_up_max_consecutive_failures > 0 &&
-                            it->second.consecutive_challenge_failures >= cb.step_up_max_consecutive_failures) {
-                            // Grant a 1-turn probationary lease
-                            it->second.lease_expires_turn = current_turn + 2;  // expires after next turn
-                            it->second.consecutive_challenge_failures = 0;
-                            should_challenge = false;
-                        } else {
-                            should_challenge = lease_expired ||
-                                (current_turn - it->second.last_challenge_turn) >= cb.step_up_cooldown_turns;
-                        }
+                        should_challenge = lease_expired ||
+                            (current_turn - it->second.last_challenge_turn) >= cb.step_up_cooldown_turns;
                     }
                 }
                 if (should_challenge) {
@@ -1282,7 +1268,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 it->second.last_challenge_turn = current_turn;
                                 if (passed) {
                                     it->second.challenges_passed++;
-                                    it->second.consecutive_challenge_failures = 0;
                                     // Standing Lease: renew only if coherence is above floor
                                     if (coherence_ok) {
                                         if (config->standing_lease_turns > 0) {
@@ -1295,7 +1280,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                     }
                                 } else {
                                     it->second.challenges_failed++;
-                                    it->second.consecutive_challenge_failures++;
+                                    // Advance turn counter on failure — a failed challenge
+                                    // IS a turn. Without this, turn never advances and the
+                                    // agent loops forever (lease expired → fail → same turn).
+                                    it->second.turns++;
+                                    handle["turns"] = NaabVal::makeInt(it->second.turns);
+                                    current_turn = it->second.turns;
                                 }
                             }
                         }
