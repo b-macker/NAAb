@@ -205,7 +205,7 @@ static int cmdLint(const std::vector<std::string>& args) {
     runCheck(engine.checkSqlInjection(source));
     runCheck(engine.checkPathTraversal(source));
     runCheck(engine.checkShellInjection(source));
-    runCheck(engine.checkCodeInjection("naab", source));
+    runCheck(engine.checkCodeInjection("naab", source, source));
     runCheck(engine.checkHardcodedUrls(source));
     runCheck(engine.checkHardcodedIps(source));
     runCheck(engine.checkHardcodedResults(source));

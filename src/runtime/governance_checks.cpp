@@ -5321,7 +5321,9 @@ std::string GovernanceEngine::checkShellInjection(const std::string& code, int l
 
 // --- Security: Code Injection ---
 std::string GovernanceEngine::checkCodeInjection(const std::string& language,
-                                                  const std::string& code, int line) {
+                                                  const std::string& code,
+                                                  const std::string& normalized_code,
+                                                  int line) {
     auto& cfg = rules().restrictions.code_injection;
     if (!cfg.enabled) return "";
     clearTrace();
@@ -5380,10 +5382,11 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
             pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call)\\s*\\(");
         }
     }
-    // API names are case-sensitive (Function !== function, os.system !== OS.SYSTEM)
+    // API names are case-sensitive on stripped code (Function !== function, os.system !== OS.SYSTEM)
     std::string found = searchPatterns(code, pats, false);
-    // SQL keywords are case-insensitive (SELECT === select)
-    if (found.empty()) found = searchPatterns(code, pats_ci, true);
+    // SQL patterns are case-insensitive on normalized code — they match string contents
+    // (e.g., f"SELECT {var}", "SELECT " + var) which are removed by stripStringLiterals
+    if (found.empty()) found = searchPatterns(normalized_code, pats_ci, true);
     if (!found.empty()) {
         return enforce("restrictions.code_injection", cfg.level,
             formatError(cfg.level, fmt::format("Code injection pattern in {} block: \"{}\"", language, found),
@@ -5546,7 +5549,9 @@ std::string GovernanceEngine::checkInfoDisclosure(const std::string& language,
 }
 
 // --- Security: Crypto Weakness ---
-std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int line) {
+std::string GovernanceEngine::checkCryptoWeakness(const std::string& code,
+                                                   const std::string& normalized_code,
+                                                   int line) {
     auto& cfg = rules().restrictions.crypto;
     if (!cfg.enabled) return "";
     clearTrace();
@@ -5559,8 +5564,13 @@ std::string GovernanceEngine::checkCryptoWeakness(const std::string& code, int l
         auto& ciphers = cfg.weak_ciphers.empty() ? (const std::vector<std::string>&)(std::vector<std::string>{"des", "rc4", "blowfish"}) : cfg.weak_ciphers;
         for (const auto& c : ciphers) pats.push_back("\\b" + c + "\\b");
     }
-    if (cfg.block_hardcoded_keys) pats.push_back("(?:encryption|signing|crypto)_key\\s*=\\s*['\"][^'\"]+['\"]");
+    // Weak hash/cipher patterns search stripped code (avoid false positives from strings)
     std::string found = searchPatterns(code, pats);
+    // Hardcoded key pattern needs normalized code — quotes are stripped out
+    if (found.empty() && cfg.block_hardcoded_keys) {
+        std::vector<std::string> key_pats = {"(?:encryption|signing|crypto)_key\\s*=\\s*['\"][^'\"]+['\"]"};
+        found = searchPatterns(normalized_code, key_pats);
+    }
     if (!found.empty()) {
         return enforce("restrictions.crypto", cfg.level,
             formatError(cfg.level, fmt::format("Cryptographic weakness: \"{}\"", found),
@@ -5783,8 +5793,14 @@ std::string GovernanceEngine::checkObfuscationSignals(
     } else if (language == "php") {
         has_sink = has_signal(stripped_code, {
             "\\beval\\s*\\(", "\\bassert\\s*\\(",
-            "\\bcreate_function\\s*\\(", "\\bpreg_replace\\s*\\(.*/e"
+            "\\bcreate_function\\s*\\("
         });
+        // preg_replace /e modifier is inside a string literal — check raw_code
+        if (!has_sink) {
+            has_sink = has_signal(raw_code, {
+                "\\bpreg_replace\\s*\\(.*/e"
+            });
+        }
         has_encoding = has_signal(raw_code, {
             "\\bbase64_decode\\s*\\(", "\\bhex2bin\\s*\\(",
             "\\bgzinflate\\s*\\(", "\\bstr_rot13\\s*\\("
@@ -6414,7 +6430,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // Security checks — use stripped code
     err = checkShellInjection(stripped, line);
     if (!err.empty()) return err;
-    err = checkCodeInjection(lang, stripped, line);
+    err = checkCodeInjection(lang, stripped, normalized, line);
     if (!err.empty()) return err;
     err = checkPrivilegeEscalation(stripped, line);
     if (!err.empty()) return err;
@@ -6424,7 +6440,7 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
     err = checkInfoDisclosure(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkCryptoWeakness(stripped, line);
+    err = checkCryptoWeakness(stripped, normalized, line);
     if (!err.empty()) return err;
     err = checkVcsSecretExtraction(normalized, line);  // uses normalized raw code — secret targets in strings
     if (!err.empty()) return err;
