@@ -549,6 +549,12 @@ static const std::vector<DangerousPattern> NETWORK_IMPORT_PATTERNS = {
     // JavaScript
     {"javascript", "require\\s*\\(\\s*['\"]https?['\"]", "http/https require (network access)", ""},
     {"javascript", "require\\s*\\(\\s*['\"]node-fetch['\"]", "node-fetch require (network access)", ""},
+    {"javascript", "require\\s*\\(\\s*['\"]net['\"]", "net require (raw TCP/socket access)", ""},
+    {"javascript", "require\\s*\\(\\s*['\"]dgram['\"]", "dgram require (UDP socket access)", ""},
+    {"javascript", "require\\s*\\(\\s*['\"]tls['\"]", "tls require (TLS socket access)", ""},
+    {"javascript", "import.*from\\s*['\"]net['\"]", "net import (raw TCP/socket access)", ""},
+    {"javascript", "import.*from\\s*['\"]dgram['\"]", "dgram import (UDP socket access)", ""},
+    {"javascript", "import.*from\\s*['\"]tls['\"]", "tls import (TLS socket access)", ""},
     {"javascript", "\\bfetch\\s*\\(",            "fetch() call (network access)", ""},
     {"javascript", "XMLHttpRequest",             "XMLHttpRequest (network access)", ""},
     // Ruby
@@ -624,8 +630,11 @@ static const std::vector<DangerousPattern> FILESYSTEM_IMPORT_PATTERNS = {
      "\\bfs\\.(?:read|write|open|unlink|rmdir|mkdir|readdir|exists|stat|copyFile|rename)\\b",
      "Node.js fs module call (direct filesystem access)",
      "Use NAAb stdlib file module instead of fs"},
-    {"javascript", "require\\s*\\(\\s*['\"]fs['\"]",
+    {"javascript", "require\\s*\\(\\s*['\"]fs(?:/promises)?['\"]",
      "require('fs') (filesystem module import)",
+     "Use NAAb stdlib file module instead of Node.js fs"},
+    {"javascript", "import.*from\\s*['\"]fs(?:/promises)?['\"]",
+     "import 'fs' (filesystem module import)",
      "Use NAAb stdlib file module instead of Node.js fs"},
     // Shell — recursive/forced deletion
     {"shell", "\\brm\\s+-[rRf]",
@@ -1546,8 +1555,10 @@ std::string GovernanceEngine::checkNetworkImports(
 std::string GovernanceEngine::checkFilesystemImports(
     const std::string& language, const std::string& code, int line) {
     clearTrace();
-    // Only enforce when filesystem access is restricted (not the default "write" mode)
-    if (rules().filesystem_mode == "write" || rules().filesystem_mode.empty()) {
+    // Only enforce when filesystem access is fully disabled ("none").
+    // "read" mode allows filesystem reads (require('fs') needed for that).
+    // "write" or empty is the default (full access).
+    if (rules().filesystem_mode != "none") {
         recordPass("capabilities.filesystem", EnforcementLevel::HARD);
         return "";
     }

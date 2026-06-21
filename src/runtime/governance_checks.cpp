@@ -5325,11 +5325,14 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
     auto& cfg = rules().restrictions.code_injection;
     if (!cfg.enabled) return "";
     clearTrace();
+    // Case-sensitive patterns: API names are exact (eval, exec, Function, os.system, etc.)
     std::vector<std::string> pats;
+    // Case-insensitive patterns: SQL keywords (SELECT/select, INSERT/insert, etc.)
+    std::vector<std::string> pats_ci;
     if (cfg.block_dynamic_code_gen) { pats.push_back("\\beval\\s*\\("); pats.push_back("\\bexec\\s*\\("); pats.push_back("\\bFunction\\s*\\("); }
     if (cfg.block_sql_injection_patterns) {
-        pats.push_back("(?:SELECT|INSERT|UPDATE|DELETE)\\s+.*['\"]\\s*\\+");
-        pats.push_back("f['\"].*(?:SELECT|INSERT|UPDATE|DELETE).*\\{");
+        pats_ci.push_back("(?:SELECT|INSERT|UPDATE|DELETE)\\s+.*['\"]\\s*\\+");
+        pats_ci.push_back("f['\"].*(?:SELECT|INSERT|UPDATE|DELETE).*\\{");
     }
     if (cfg.block_command_injection) {
         if (language == "python") {
@@ -5377,7 +5380,10 @@ std::string GovernanceEngine::checkCodeInjection(const std::string& language,
             pats.push_back("subprocess\\.(?:call|Popen|run|check_output|check_call)\\s*\\(");
         }
     }
-    std::string found = searchPatterns(code, pats);
+    // API names are case-sensitive (Function !== function, os.system !== OS.SYSTEM)
+    std::string found = searchPatterns(code, pats, false);
+    // SQL keywords are case-insensitive (SELECT === select)
+    if (found.empty()) found = searchPatterns(code, pats_ci, true);
     if (!found.empty()) {
         return enforce("restrictions.code_injection", cfg.level,
             formatError(cfg.level, fmt::format("Code injection pattern in {} block: \"{}\"", language, found),
@@ -6426,13 +6432,16 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // Capability checks for polyglot blocks
-    err = checkNetworkImports(lang, stripped, line);
+    // NOTE: These checks use normalized (non-stripped) code because import/require
+    // patterns match module names inside string literals (e.g., require("child_process")).
+    // stripStringLiterals removes those names, making the patterns dead on stripped code.
+    err = checkNetworkImports(lang, normalized, line);
     if (!err.empty()) return err;
-    err = checkFilesystemImports(lang, stripped, line);
+    err = checkFilesystemImports(lang, normalized, line);
     if (!err.empty()) return err;
 
-    // Per-language checks
-    err = checkImports(lang, stripped, line);
+    // Per-language checks — checkImports matches require('mod')/import 'mod' patterns
+    err = checkImports(lang, normalized, line);
     if (!err.empty()) return err;
     err = checkBannedFunctions(lang, stripped, line);
     if (!err.empty()) return err;

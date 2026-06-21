@@ -1,0 +1,12 @@
+// Minimal codegen runner for naab-47 (JavaScript).
+// Reads JS code from code.js in current dir, runs through codegen.run()
+// with governance. Exit 0 = passed, exit 3 = GovernanceHardError.
+
+use codegen
+use file
+
+main {
+    let code = file.read("code.js")
+    let result = codegen.run("javascript", code)
+    print(string(result))
+}
