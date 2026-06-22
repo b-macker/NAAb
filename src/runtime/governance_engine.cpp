@@ -6021,7 +6021,8 @@ void GovernanceEngine::printValidationReport() {
 std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string& detail,
                                          const std::string& file, int line,
                                          const std::string& content_fingerprint,
-                                         int output_tokens, int thinking_tokens) {
+                                         int output_tokens, int thinking_tokens,
+                                         const std::unordered_set<std::string>& content_keywords) {
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     RuntimeEvent ev;
@@ -6032,6 +6033,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.content_fingerprint = content_fingerprint;
     ev.output_tokens = output_tokens;
     ev.thinking_tokens = thinking_tokens;
+    ev.content_keywords = content_keywords;
     ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
     ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);
     {
@@ -6469,6 +6471,15 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     pulse_.telemetry_connected = telemetry_ok;
     pulse_.entropy = ent;
 
+    // Subsystem: semantic health — are semantic signals producing data when enabled?
+    {
+        const auto& cdd_cfg = rules().context_drift;
+        bool semantic_enabled = cdd_cfg.signals.semantic_stability || cdd_cfg.signals.mandate_alignment;
+        bool semantic_ok = !semantic_enabled || turn < 5 ||
+                           drift_analyzer_.totalTurnsAnalyzed() > 0;
+        if (!semantic_ok) degradation_signals++;
+    }
+
     // Consecutive passes check (suspiciously uniform — all governance checks passing)
     const auto& ghcfg = rules().governance_health;
     if (pulse_.consecutive_passes > ghcfg.consecutive_passes_suspicion) degradation_signals++;
@@ -6720,6 +6731,15 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 }
             }
 
+            // Factor 10: Semantic deviation (mandate alignment inverse)
+            double semantic_pres = 0.0;
+            if (!state->mandate_alignment_history.empty()) {
+                double alignment_sum = 0.0;
+                for (double v : state->mandate_alignment_history) alignment_sum += v;
+                double alignment_mean = alignment_sum / static_cast<double>(state->mandate_alignment_history.size());
+                semantic_pres = std::clamp(1.0 - alignment_mean, 0.0, 1.0);
+            }
+
             // Weighted composite
             double composite =
                 rccfg.weights.coherence_proximity * coherence_prox +
@@ -6730,7 +6750,8 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 rccfg.weights.pipeline_inherited * inherited +
                 rccfg.weights.coherence_acceleration * accel_factor +
                 rccfg.weights.codegen_pressure * codegen_pres +
-                rccfg.weights.bsd_eviction_pressure * eviction_pres;
+                rccfg.weights.bsd_eviction_pressure * eviction_pres +
+                rccfg.weights.semantic_deviation * semantic_pres;
 
             // Track sustained pressure
             int consecutive = state->consecutive_high_pressure_turns;
@@ -6857,6 +6878,11 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
 std::optional<governance::DriftState> GovernanceEngine::getDriftState(int handle_id) const {
     return drift_analyzer_.getDriftState(handle_id);
+}
+
+void GovernanceEngine::initializeMandateKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    drift_analyzer_.initializeMandateKeywords(handle_id, keywords);
 }
 
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(

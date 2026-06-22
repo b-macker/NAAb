@@ -2648,6 +2648,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("response_quality_min_ratio") && th["response_quality_min_ratio"].is_number()) cfg.thresholds.response_quality_min_ratio = std::max(0.0, std::min(1.0, th["response_quality_min_ratio"].get<double>()));
             if (th.contains("thinking_collapse_ratio") && th["thinking_collapse_ratio"].is_number()) cfg.thresholds.thinking_collapse_ratio = std::max(0.0, std::min(1.0, th["thinking_collapse_ratio"].get<double>()));
             if (th.contains("thinking_history_window") && th["thinking_history_window"].is_number_integer()) cfg.thresholds.thinking_history_window = std::max(2, th["thinking_history_window"].get<int>());
+            if (th.contains("semantic_stability_min_overlap") && th["semantic_stability_min_overlap"].is_number()) cfg.thresholds.semantic_stability_min_overlap = std::max(0.0, std::min(1.0, th["semantic_stability_min_overlap"].get<double>()));
+            if (th.contains("mandate_alignment_min") && th["mandate_alignment_min"].is_number()) cfg.thresholds.mandate_alignment_min = std::max(0.0, std::min(1.0, th["mandate_alignment_min"].get<double>()));
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
@@ -2660,8 +2662,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("coherence_velocity") && sig["coherence_velocity"].is_boolean()) cfg.signals.coherence_velocity = sig["coherence_velocity"].get<bool>();
             if (sig.contains("capability_underutilization") && sig["capability_underutilization"].is_boolean()) cfg.signals.capability_underutilization = sig["capability_underutilization"].get<bool>();
             if (sig.contains("semantic_stability") && sig["semantic_stability"].is_boolean()) cfg.signals.semantic_stability = sig["semantic_stability"].get<bool>();
+            if (sig.contains("mandate_alignment") && sig["mandate_alignment"].is_boolean()) cfg.signals.mandate_alignment = sig["mandate_alignment"].get<bool>();
             if (sig.contains("response_quality") && sig["response_quality"].is_boolean()) cfg.signals.response_quality = sig["response_quality"].get<bool>();
             if (sig.contains("thinking_collapse") && sig["thinking_collapse"].is_boolean()) cfg.signals.thinking_collapse = sig["thinking_collapse"].get<bool>();
+            if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
             auto& w = cd["weights"];
@@ -2673,6 +2677,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("coherence_velocity") && w["coherence_velocity"].is_number()) cfg.weights.coherence_velocity = w["coherence_velocity"].get<double>();
             if (w.contains("capability_underutilization") && w["capability_underutilization"].is_number()) cfg.weights.capability_underutilization = w["capability_underutilization"].get<double>();
             if (w.contains("semantic_stability") && w["semantic_stability"].is_number()) cfg.weights.semantic_stability = w["semantic_stability"].get<double>();
+            if (w.contains("mandate_alignment") && w["mandate_alignment"].is_number()) cfg.weights.mandate_alignment = w["mandate_alignment"].get<double>();
             if (w.contains("response_quality") && w["response_quality"].is_number()) cfg.weights.response_quality = w["response_quality"].get<double>();
             if (w.contains("thinking_collapse") && w["thinking_collapse"].is_number()) cfg.weights.thinking_collapse = w["thinking_collapse"].get<double>();
         }
@@ -2700,6 +2705,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (rw.contains("coherence_acceleration") && rw["coherence_acceleration"].is_number()) rccfg.weights.coherence_acceleration = rw["coherence_acceleration"].get<double>();
                 if (rw.contains("codegen_pressure") && rw["codegen_pressure"].is_number()) rccfg.weights.codegen_pressure = rw["codegen_pressure"].get<double>();
                 if (rw.contains("bsd_eviction_pressure") && rw["bsd_eviction_pressure"].is_number()) rccfg.weights.bsd_eviction_pressure = rw["bsd_eviction_pressure"].get<double>();
+                if (rw.contains("semantic_deviation") && rw["semantic_deviation"].is_number()) rccfg.weights.semantic_deviation = rw["semantic_deviation"].get<double>();
             }
             if (rc.contains("signal_density_divisor") && rc["signal_density_divisor"].is_number()) rccfg.signal_density_divisor = std::max(0.1, rc["signal_density_divisor"].get<double>());
             if (rc.contains("acceleration_multiplier") && rc["acceleration_multiplier"].is_number()) rccfg.acceleration_multiplier = std::max(0.1, rc["acceleration_multiplier"].get<double>());

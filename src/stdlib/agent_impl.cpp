@@ -418,9 +418,21 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
                 exercised.push_back(NaabVal::makeString(c));
             state["capabilities_granted"] = NaabVal::makeList(std::move(granted));
             state["capabilities_exercised"] = NaabVal::makeList(std::move(exercised));
+
+            // Semantic governance fields
+            state["semantic_stability_count"] = NaabVal::makeInt(drift_opt->semantic_stability_count);
+            state["mandate_drift_count"] = NaabVal::makeInt(drift_opt->mandate_drift_count);
+            if (!drift_opt->mandate_alignment_history.empty()) {
+                double ma_sum = 0;
+                for (double v : drift_opt->mandate_alignment_history) ma_sum += v;
+                double ma_mean = ma_sum / static_cast<double>(drift_opt->mandate_alignment_history.size());
+                state["mandate_alignment"] = NaabVal::makeDouble(ma_mean);
+            }
         } else {
             state["coherence"] = NaabVal::makeDouble(1.0);  // fresh agent
             state["pipeline_depth"] = NaabVal::makeInt(0);
+            state["semantic_stability_count"] = NaabVal::makeInt(0);
+            state["mandate_drift_count"] = NaabVal::makeInt(0);
         }
 
         // Risk budget remaining (getRemainingBudget() is public, const)
@@ -1050,6 +1062,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Initialize mandate keywords on first send (for mandate alignment signal)
+    if (gov_engine && gov_engine->isActive() && current_turn == 0 &&
+        !config->system_prompt.empty() &&
+        gov_engine->getRules().context_drift.signals.mandate_alignment) {
+        std::unordered_set<std::string> mandate_kw;
+        extractKeywords(config->system_prompt, mandate_kw);
+        if (!mandate_kw.empty()) {
+            gov_engine->initializeMandateKeywords(handle_id, mandate_kw);
+        }
+    }
+
     // Behavioral sequence: emit agent.send event (once, before retry loop)
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
@@ -1556,7 +1579,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
             if (gov_engine && gov_engine->isActive() &&
                 gov_engine->getRules().context_drift.enabled) {
-                gov_engine->checkContextDrift(handle_id, current_turn, "api_call_failed");
+                gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
             }
             if (gov_engine && gov_engine->isActive()) {
                 gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
@@ -1573,7 +1596,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (should_never_retry) {
             if (gov_engine && gov_engine->isActive() &&
                 gov_engine->getRules().context_drift.enabled) {
-                gov_engine->checkContextDrift(handle_id, current_turn, last_error);
+                gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:" + last_error);
             }
             throw std::runtime_error(last_error);
         }
@@ -1633,7 +1656,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     if (!agent_resp.success) {
         if (gov_engine && gov_engine->isActive() &&
             gov_engine->getRules().context_drift.enabled) {
-            gov_engine->checkContextDrift(handle_id, current_turn, "api_call_failed");
+            gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
         }
         throw std::runtime_error(fmt::format(
             "Agent error: All {} attempts exhausted\n\n"
@@ -2630,20 +2653,26 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Content-aware fingerprint: hash first 200 chars of response so CDD
         // can distinguish different responses (breaks mechanical "ARAS" pattern)
         std::string cfp;
+        std::unordered_set<std::string> response_keywords;
         if (!agent_resp.content.empty()) {
             cfp = security::CryptoUtils::sha256(
                 agent_resp.content.substr(0, std::min(agent_resp.content.size(), size_t(200))));
+            // Extract keywords for semantic analysis (reuse existing extractKeywords)
+            extractKeywords(agent_resp.content, response_keywords);
         }
+        // Events are emitted at the turn set by setAgentContext (pre-increment).
+        // CDD must query the same turn to find these events.
+        int event_turn = gov_engine->getCurrentAgentTurn();
         gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(resp_output_tokens) + ")", "", 0, cfp,
-            resp_output_tokens, agent_resp.thinking_tokens);
+            resp_output_tokens, agent_resp.thinking_tokens, response_keywords);
         // Context drift check — include json parse failures as coherence signals
         std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
         // Read governance level before CDD (for change detection)
         int level_before = static_cast<int>(gov_engine->getGovernanceLevel());
         std::string drift_err = gov_engine->checkContextDrift(
-            handle_id, current_turn, cdd_error);
+            handle_id, event_turn, cdd_error);
         // CDD_TURN: emit BEFORE potential throw so it's always in the audit trail
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
@@ -2676,6 +2705,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"governance_level", level_str},
                     {"drift_detected",   "false"},
                     {"state",            "no_data_yet"}
+                });
+            }
+            // SEMANTIC_TURN: emit when semantic signals are enabled and have data
+            if (drift_state && gov_engine->getRules().telemetry_output.enabled &&
+                (gov_engine->getRules().context_drift.signals.semantic_stability ||
+                 gov_engine->getRules().context_drift.signals.mandate_alignment)) {
+                std::string ma_str = "N/A";
+                if (!drift_state->mandate_alignment_history.empty()) {
+                    double ma_sum = 0;
+                    for (double v : drift_state->mandate_alignment_history) ma_sum += v;
+                    double ma_mean = ma_sum / static_cast<double>(drift_state->mandate_alignment_history.size());
+                    char ma_buf[32];
+                    snprintf(ma_buf, sizeof(ma_buf), "%.4f", ma_mean);
+                    ma_str = ma_buf;
+                }
+                gov_engine->writeAgentTelemetry("SEMANTIC_TURN", {
+                    {"handle_id",              std::to_string(handle_id)},
+                    {"turn",                   std::to_string(current_turn)},
+                    {"semantic_stability_count", std::to_string(drift_state->semantic_stability_count)},
+                    {"mandate_drift_count",     std::to_string(drift_state->mandate_drift_count)},
+                    {"mandate_alignment",       ma_str},
+                    {"keywords_count",          std::to_string(response_keywords.size())}
                 });
             }
             // GOVERNANCE_LEVEL_CHANGE: only when level transitions
@@ -2778,6 +2829,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             gov_notices.push_back(fmt::format(
                 "Reality Checkpoint: pressure {:.2f} sustained {} turns",
                 cp.pressure, cp.sustained_turns));
+        }
+    }
+
+    // Semantic analysis (if semantic signals enabled)
+    if (gov_engine && gov_engine->isActive()) {
+        auto drift_st = gov_engine->getDriftState(handle_id);
+        if (drift_st) {
+            std::unordered_map<std::string, NaabVal> sem;
+            sem["semantic_stability_count"] = NaabVal::makeInt(drift_st->semantic_stability_count);
+            sem["mandate_drift_count"] = NaabVal::makeInt(drift_st->mandate_drift_count);
+            if (!drift_st->mandate_alignment_history.empty()) {
+                double ma_sum = 0;
+                for (double v : drift_st->mandate_alignment_history) ma_sum += v;
+                double ma_mean = ma_sum / static_cast<double>(drift_st->mandate_alignment_history.size());
+                sem["mandate_alignment"] = NaabVal::makeDouble(ma_mean);
+            }
+            result["semantic"] = NaabVal::makeDict(std::move(sem));
         }
     }
 

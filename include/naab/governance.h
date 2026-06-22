@@ -1319,8 +1319,10 @@ struct ContextDriftConfig {
         bool coherence_velocity = true;       // F1: fire when coherence decaying rapidly
         bool capability_underutilization = false; // F9: fire on sudden late capability use
         bool semantic_stability = false;       // F19: fire on content topic shift (expensive)
+        bool mandate_alignment = false;        // fire when response drifts from system_prompt keywords
         bool response_quality = false;         // fire when content/output ratio is low (agent)
         bool thinking_collapse = false;        // fire when thinking tokens drop >50% from baseline
+        bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
     // Rationale: ordered by threat severity. contradiction (0.2) is heaviest because
@@ -1339,6 +1341,7 @@ struct ContextDriftConfig {
         double coherence_velocity = 0.12;     // F1: moderate — velocity drop is a derivative signal
         double capability_underutilization = 0.1; // F9: low — may be legitimate deferred usage
         double semantic_stability = 0.1;       // F19: low — topic shifts are common in exploration
+        double mandate_alignment = 0.12;       // moderate — mandate drift is a stronger signal than topic shift
         double response_quality = 0.08;        // moderate — low content ratio indicates degradation
         double thinking_collapse = 0.06;       // low-moderate — progressive model capability loss
     } weights;
@@ -1386,6 +1389,12 @@ struct ContextDriftConfig {
         double thinking_collapse_ratio = 0.5;
         // 20: rolling window size for thinking token history. Matches conversation depth.
         int thinking_history_window = 20;
+        // 0.25: Jaccard similarity below 25% = major topic shift. Normal on-topic turns
+        // share 30-60% of keywords; 25% catches "todo app" → "tell me jokes" transitions.
+        double semantic_stability_min_overlap = 0.25;
+        // 0.15: at least 15% of system_prompt keywords should appear in rolling response
+        // average. Below this the agent has abandoned its mandate.
+        double mandate_alignment_min = 0.15;
     } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -1413,6 +1422,7 @@ struct ContextDriftConfig {
             double coherence_acceleration = 0.0; // opt-in: second derivative of coherence
             double codegen_pressure = 0.0;       // opt-in: blocked/total codegen ratio
             double bsd_eviction_pressure = 0.0;  // opt-in: evicted/total BSD event ratio
+            double semantic_deviation = 0.0;     // opt-in: semantic mandate deviation pressure
         } weights;
         // Scaling factors for pressure normalization.
         // 4.0: maps 4 signals/turn to pressure=1.0. Most turns fire 0-2 signals;
@@ -2766,9 +2776,11 @@ public:
     std::string emitEvent(RuntimeEventType type, const std::string& detail,
                           const std::string& file = "", int line = 0,
                           const std::string& content_fingerprint = "",
-                          int output_tokens = 0, int thinking_tokens = 0);
+                          int output_tokens = 0, int thinking_tokens = 0,
+                          const std::unordered_set<std::string>& content_keywords = {});
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
+    int getCurrentAgentTurn() const { return current_agent_turn_.load(std::memory_order_relaxed); }
     void setInheritedPressure(int handle_id, double pressure);
     void recoverCoherence(int handle_id);  // F15: coherence recovery at pipeline transitions
     void setPipelineDepth(int handle_id, int depth);  // F3: set pipeline nesting depth
@@ -2798,6 +2810,9 @@ public:
 
     // Agent environment: get drift state for environment dict
     std::optional<governance::DriftState> getDriftState(int handle_id) const;
+
+    // Initialize mandate keywords for semantic mandate alignment signal
+    void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
     // Reality checkpoint: get pressure data for response dict
     struct CheckpointData {

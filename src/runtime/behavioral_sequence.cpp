@@ -715,19 +715,25 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Signal 2: Repeated failures (same error string seen multiple times)
     if (config_->signals.repeated_failures && !error_if_any.empty()) {
-        state.recent_errors.push_back(error_if_any);
-        if (state.recent_errors.size() > 10) state.recent_errors.pop_front();
-        int same_count = 0;
-        for (const auto& e : state.recent_errors) {
-            if (e == error_if_any) same_count++;
-        }
-        if (same_count >= config_->thresholds.repeated_failure_count) {
-            state.repeated_failures++;
-            turn_failures++;
-            if (!in_baseline) {
-                state.coherence_score -= penalty(config_->weights.repeated_failure, state.repeated_failures);
+        // Infrastructure errors (API failures, network errors) are categorically different
+        // from behavioral drift — a flaky API is not the agent misbehaving.
+        bool is_infrastructure = (error_if_any.size() >= 15 &&
+            error_if_any.substr(0, 15) == "infrastructure:");
+        if (!is_infrastructure || !config_->signals.exclude_infrastructure_errors) {
+            state.recent_errors.push_back(error_if_any);
+            if (state.recent_errors.size() > 10) state.recent_errors.pop_front();
+            int same_count = 0;
+            for (const auto& e : state.recent_errors) {
+                if (e == error_if_any) same_count++;
             }
-            state.signals_fired_this_turn++;
+            if (same_count >= config_->thresholds.repeated_failure_count) {
+                state.repeated_failures++;
+                turn_failures++;
+                if (!in_baseline) {
+                    state.coherence_score -= penalty(config_->weights.repeated_failure, state.repeated_failures);
+                }
+                state.signals_fired_this_turn++;
+            }
         }
     }
 
@@ -1030,6 +1036,67 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
+    // Signal 10: Semantic stability (F19) — topic shift detection via Jaccard similarity
+    if (config_->signals.semantic_stability) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                if (!state.prev_response_keywords.empty()) {
+                    // Jaccard similarity: |A ∩ B| / |A ∪ B|
+                    size_t intersection = 0;
+                    for (const auto& kw : ev.content_keywords) {
+                        if (state.prev_response_keywords.count(kw)) intersection++;
+                    }
+                    size_t union_size = state.prev_response_keywords.size() +
+                                        ev.content_keywords.size() - intersection;
+                    double similarity = union_size > 0 ?
+                        static_cast<double>(intersection) / static_cast<double>(union_size) : 1.0;
+
+                    if (similarity < config_->thresholds.semantic_stability_min_overlap) {
+                        state.semantic_stability_count++;
+                        if (!in_baseline) {
+                            state.coherence_score -= penalty(config_->weights.semantic_stability,
+                                                              state.semantic_stability_count);
+                        }
+                        state.signals_fired_this_turn++;
+                    }
+                }
+                state.prev_response_keywords = ev.content_keywords;
+                break;
+            }
+        }
+    }
+
+    // Signal 11: Mandate alignment — continuous system_prompt keyword adherence
+    if (config_->signals.mandate_alignment && !state.mandate_keywords.empty()) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                int found = 0;
+                for (const auto& kw : state.mandate_keywords) {
+                    if (ev.content_keywords.count(kw)) found++;
+                }
+                double alignment = static_cast<double>(found) / static_cast<double>(state.mandate_keywords.size());
+                state.mandate_alignment_history.push_back(alignment);
+                while (state.mandate_alignment_history.size() > 20)
+                    state.mandate_alignment_history.pop_front();
+
+                // Fire when rolling mean drops below threshold
+                double mean = 0;
+                for (double v : state.mandate_alignment_history) mean += v;
+                mean /= static_cast<double>(state.mandate_alignment_history.size());
+
+                if (mean < config_->thresholds.mandate_alignment_min) {
+                    state.mandate_drift_count++;
+                    if (!in_baseline) {
+                        state.coherence_score -= penalty(config_->weights.mandate_alignment,
+                                                          state.mandate_drift_count);
+                    }
+                    state.signals_fired_this_turn++;
+                }
+                break;
+            }
+        }
+    }
+
     // F15: Natural healing — when no signals fired this turn, slowly recover
     if (state.signals_fired_this_turn == 0 && config_->coherence_natural_healing > 0.0) {
         state.coherence_score += config_->coherence_natural_healing;
@@ -1149,6 +1216,12 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
         it->second.coherence_acceleration = 0.0;
         it->second.last_recovery_turn = it->second.last_checked_turn;
     }
+}
+
+void ContextDriftAnalyzer::initializeMandateKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    drift_states_[handle_id].mandate_keywords = keywords;
 }
 
 } // namespace governance

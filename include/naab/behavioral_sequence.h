@@ -60,6 +60,7 @@ struct RuntimeEvent {
     std::string content_fingerprint;  // hash of response content (agent events only)
     int output_tokens = 0;            // total output tokens (agent events only)
     int thinking_tokens = 0;          // thinking tokens consumed (agent events only)
+    std::unordered_set<std::string> content_keywords;  // keywords from response (agent events only)
 };
 
 // --- FSM State Per Pattern ---
@@ -114,6 +115,12 @@ struct DriftState {
 
     // F19: Semantic stability (keyword overlap between consecutive responses)
     std::unordered_set<std::string> prev_response_keywords;
+    int semantic_stability_count = 0;     // turns where topic shifted significantly
+
+    // Mandate alignment — continuous system_prompt keyword adherence
+    std::unordered_set<std::string> mandate_keywords;  // extracted from system_prompt
+    std::deque<double> mandate_alignment_history;       // rolling window of alignment scores
+    int mandate_drift_count = 0;                        // turns where rolling mean dropped below threshold
 
     // Temporal trust decay — trust erodes when not actively reinforced
     std::chrono::steady_clock::time_point last_activity_time = std::chrono::steady_clock::now();
@@ -237,6 +244,9 @@ public:
 
     // F15: Recover coherence (e.g., at pipeline stage transitions)
     void resetCoherence(int handle_id, double amount);
+
+    // Initialize mandate keywords from system_prompt (for mandate alignment signal)
+    void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
     void reset();
 

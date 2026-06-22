@@ -1710,8 +1710,10 @@
       "vocabulary_contraction": true,
       "capability_underutilization": false,
       "semantic_stability": false,
+      "mandate_alignment": false,
       "response_quality": false,
-      "thinking_collapse": false
+      "thinking_collapse": false,
+      "exclude_infrastructure_errors": true
     },
     "weights": {
       "circular": 0.15,
@@ -1721,6 +1723,7 @@
       "vocabulary_contraction": 0.10,
       "capability_underutilization": 0.10,
       "semantic_stability": 0.10,
+      "mandate_alignment": 0.12,
       "response_quality": 0.08,
       "thinking_collapse": 0.06
     },
@@ -1737,7 +1740,9 @@
       "coherence_history_size": 10,
       "response_quality_min_ratio": 0.3,
       "thinking_collapse_ratio": 0.5,
-      "thinking_history_window": 20
+      "thinking_history_window": 20,
+      "semantic_stability_min_overlap": 0.25,
+      "mandate_alignment_min": 0.15
     },
     "reality_checkpoint": {
       "enabled": false,
@@ -1758,7 +1763,8 @@
         "pipeline_inherited": 0.0,
         "coherence_acceleration": 0.0,
         "codegen_pressure": 0.0,
-        "bsd_eviction_pressure": 0.0
+        "bsd_eviction_pressure": 0.0,
+        "semantic_deviation": 0.0
       }
     }
   },
