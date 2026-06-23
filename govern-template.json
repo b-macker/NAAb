@@ -1724,6 +1724,7 @@
     "fingerprint_window": 10,
     "rate_normalized": false,
     "coherence_recovery_amount": 0.2,
+    "coherence_recovery_cap": 1.0,
     "coherence_natural_healing": 0.0,
     "temporal_decay_enabled": false,
     "temporal_decay_per_minute": 0.01,

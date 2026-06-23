@@ -2641,6 +2641,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("fingerprint_window") && cd["fingerprint_window"].is_number_integer()) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
         if (cd.contains("rate_normalized") && cd["rate_normalized"].is_boolean()) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
         if (cd.contains("coherence_recovery_amount") && cd["coherence_recovery_amount"].is_number()) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
+        if (cd.contains("coherence_recovery_cap") && cd["coherence_recovery_cap"].is_number()) cfg.coherence_recovery_cap = cd["coherence_recovery_cap"].get<double>();
         if (cd.contains("coherence_natural_healing") && cd["coherence_natural_healing"].is_number()) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
         if (cd.contains("temporal_decay_enabled") && cd["temporal_decay_enabled"].is_boolean()) cfg.temporal_decay_enabled = cd["temporal_decay_enabled"].get<bool>();
         if (cd.contains("temporal_decay_per_minute") && cd["temporal_decay_per_minute"].is_number()) cfg.temporal_decay_per_minute = std::max(0.0, cd["temporal_decay_per_minute"].get<double>());

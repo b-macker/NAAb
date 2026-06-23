@@ -6674,9 +6674,13 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
 
-    // --- Reality Checkpoint: composite pressure detection ---
+    // --- Composite pressure detection + circuit breaker + pulse ---
+    // Composite pressure, pulse verdict, and governance level updates run whenever
+    // CDD is active (getDriftState returns valid state). Only the blocking reality
+    // checkpoint enforcement is gated on rccfg.enabled. This decoupling ensures
+    // circuit breaker and pulse can function independently of reality_checkpoint.
     const auto& rccfg = rules().context_drift.reality_checkpoint;
-    if (!drifted && rccfg.enabled) {
+    if (!drifted) {
         auto state = drift_analyzer_.getDriftState(handle_id);
         if (state) {
             // Factor 1: Coherence proximity (how close to threshold)
@@ -6747,7 +6751,8 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 semantic_pres = std::clamp(1.0 - alignment_mean, 0.0, 1.0);
             }
 
-            // Weighted composite
+            // Weighted composite (uses rccfg.weights struct defaults when
+            // reality_checkpoint is not configured — defaults sum to 1.0)
             double composite =
                 rccfg.weights.coherence_proximity * coherence_prox +
                 rccfg.weights.risk_score_proximity * risk_prox +
@@ -6770,44 +6775,49 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 consecutive = std::max(0, consecutive - 1);  // decay, not instant reset
             }
 
-            // Check trigger condition: sustained + cooldown
-            if (consecutive >= rccfg.sustained_turns_required &&
-                (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
+            // Reality checkpoint enforcement — ONLY this blocking action
+            // is gated on rccfg.enabled. Pressure tracking, pulse, and
+            // circuit breaker run independently.
+            if (rccfg.enabled) {
+                // Check trigger condition: sustained + cooldown
+                if (consecutive >= rccfg.sustained_turns_required &&
+                    (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
 
-                // Reset and persist state
-                drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn);
+                    // Reset and persist state
+                    drift_analyzer_.updateCheckpointState(handle_id, composite, 0, turn);
 
-                clearTrace();
-                addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
-                    composite, rccfg.pressure_threshold));
-                addTrace(fmt::format("  coherence_proximity={:.2f} risk_proximity={:.2f} "
-                    "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f} inherited={:.2f} "
-                    "codegen={:.2f} eviction={:.2f}",
-                    coherence_prox, risk_prox, signal_dens, depth, bsd_progress, inherited,
-                    codegen_pres, eviction_pres));
-                addTrace(fmt::format("  sustained {} turns", consecutive));
+                    clearTrace();
+                    addTrace(fmt::format("reality_checkpoint: pressure={:.2f} (threshold={:.2f})",
+                        composite, rccfg.pressure_threshold));
+                    addTrace(fmt::format("  coherence_proximity={:.2f} risk_proximity={:.2f} "
+                        "signal_density={:.2f} depth={:.2f} bsd_progress={:.2f} inherited={:.2f} "
+                        "codegen={:.2f} eviction={:.2f}",
+                        coherence_prox, risk_prox, signal_dens, depth, bsd_progress, inherited,
+                        codegen_pres, eviction_pres));
+                    addTrace(fmt::format("  sustained {} turns", consecutive));
 
-                // Build generic pressure summary (no factor breakdown — avoid teaching
-                // agents which signals to game below threshold)
-                int active_factors = (coherence_prox > 0.3 ? 1 : 0) + (risk_prox > 0.3 ? 1 : 0)
-                    + (signal_dens > 0.3 ? 1 : 0) + (depth > 0.3 ? 1 : 0)
-                    + (bsd_progress > 0.3 ? 1 : 0) + (inherited > 0.3 ? 1 : 0)
-                    + (codegen_pres > 0.3 ? 1 : 0) + (eviction_pres > 0.3 ? 1 : 0);
+                    // Build generic pressure summary (no factor breakdown — avoid teaching
+                    // agents which signals to game below threshold)
+                    int active_factors = (coherence_prox > 0.3 ? 1 : 0) + (risk_prox > 0.3 ? 1 : 0)
+                        + (signal_dens > 0.3 ? 1 : 0) + (depth > 0.3 ? 1 : 0)
+                        + (bsd_progress > 0.3 ? 1 : 0) + (inherited > 0.3 ? 1 : 0)
+                        + (codegen_pres > 0.3 ? 1 : 0) + (eviction_pres > 0.3 ? 1 : 0);
 
-                return enforce("context_drift.reality_checkpoint", rccfg.level,
-                    formatError(rccfg.level,
-                        fmt::format("Reality checkpoint — sustained operational pressure\n\n"
-                            "  Pressure score: {:.2f} (sustained {} turns, {} contributing factors)\n",
-                            composite, consecutive, active_factors),
-                        "", "context_drift.reality_checkpoint",
-                        "Multiple governance signals are contributing to elevated pressure.\n"
-                        "The agent may be losing alignment with the task.\n"
-                        "Consider reviewing recent actions and providing clearer direction.",
-                        "", ""));
-            } else {
-                // Update pressure tracking without firing
-                drift_analyzer_.updateCheckpointState(handle_id, composite, consecutive, -1);
+                    return enforce("context_drift.reality_checkpoint", rccfg.level,
+                        formatError(rccfg.level,
+                            fmt::format("Reality checkpoint — sustained operational pressure\n\n"
+                                "  Pressure score: {:.2f} (sustained {} turns, {} contributing factors)\n",
+                                composite, consecutive, active_factors),
+                            "", "context_drift.reality_checkpoint",
+                            "Multiple governance signals are contributing to elevated pressure.\n"
+                            "The agent may be losing alignment with the task.\n"
+                            "Consider reviewing recent actions and providing clearer direction.",
+                            "", ""));
+                }
             }
+
+            // Update pressure tracking (reached when checkpoint didn't fire or is disabled)
+            drift_analyzer_.updateCheckpointState(handle_id, composite, consecutive, -1);
 
             // Pulse: compute verdict unconditionally (not gated on circuit breaker)
             PulseVerdict prev_pv = getPulseVerdict();

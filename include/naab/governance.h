@@ -1298,6 +1298,7 @@ struct ContextDriftConfig {
     // correct action, requiring sustained good behavior to fully recover. Analogous to credit
     // restoration: recent good conduct helps but doesn't erase history immediately.
     double coherence_recovery_amount = 0.2;
+    double coherence_recovery_cap = 1.0;     // Maximum coherence after recovery (< 1.0 for diminishing returns)
     double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
     // Temporal trust decay — coherence erodes over time even when idle
     bool temporal_decay_enabled = false;

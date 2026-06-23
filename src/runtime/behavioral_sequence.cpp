@@ -1097,9 +1097,11 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
-    // F15: Natural healing — when no signals fired this turn, slowly recover
-    if (state.signals_fired_this_turn == 0 && config_->coherence_natural_healing > 0.0) {
-        state.coherence_score += config_->coherence_natural_healing;
+    // F15: Natural healing — proportional to signal cleanliness.
+    // Full healing at 0 signals, half at 1, third at 2, etc.
+    if (config_->coherence_natural_healing > 0.0) {
+        double heal_factor = 1.0 / (1.0 + state.signals_fired_this_turn);
+        state.coherence_score += config_->coherence_natural_healing * heal_factor;
     }
 
     // Clamp coherence score to [0.0, 1.0]
@@ -1208,7 +1210,16 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = drift_states_.find(handle_id);
     if (it != drift_states_.end()) {
-        it->second.coherence_score = std::min(1.0, it->second.coherence_score + amount);
+        // Diminishing returns: recovery gets harder as coherence approaches cap.
+        // Instant recovery events (challenge pass, pipeline transition) shouldn't
+        // erase all evidence of degradation — sustained healthy behavior earns
+        // that back through natural healing instead.
+        double cap = config_ ? config_->coherence_recovery_cap : 1.0;
+        double old = it->second.coherence_score;
+        if (old < cap) {
+            it->second.coherence_score = old + amount * (cap - old);
+            it->second.coherence_score = std::min(cap, it->second.coherence_score);
+        }
         // Clear history and derivatives to prevent false velocity/acceleration signals
         it->second.coherence_history.clear();
         it->second.coherence_history.push_back(it->second.coherence_score);
