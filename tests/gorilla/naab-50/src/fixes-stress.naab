@@ -1,0 +1,334 @@
+// NAAb-50: naab-44 Fixes Stress Test
+// 60 prompts across 4 phases: BASELINE, ON_TOPIC, DRIFT, RECOVERY
+// Validates 4 structural governance fixes under real LLM traffic:
+//   Fix 1: Circuit breaker + reality_checkpoint both enabled (decoupled)
+//   Fix 2: Challenge failure = GovernanceHardError (uncatchable)
+//   Fix 3: Diminishing-returns recovery (coherence_recovery_cap: 0.95)
+//   Fix 4: Proportional natural healing (1/(1+signals) factor)
+//
+// Also exercises: transcript, semantic signals, standing lease, advisory escalation
+use agent
+use file
+use json
+use string
+use governance
+
+fn get_state(resp) {
+    if resp == null { return null }
+    let env = resp.get("environment")
+    if env == null { return null }
+    return env.get("state")
+}
+
+fn get_val(state, key, default_val) {
+    if state == null { return default_val }
+    let v = state.get(key)
+    if v == null { return default_val }
+    return v
+}
+
+fn phase_name(turn) {
+    if turn <= 10 { return "BASELINE" }
+    if turn <= 30 { return "ON_TOPIC" }
+    if turn <= 45 { return "DRIFT" }
+    return "RECOVERY"
+}
+
+main {
+    let prompts = []
+
+    // === PHASE 1: BASELINE (turns 1-10) — establish keyword baseline ===
+    prompts.push("Let's build a Python todo app. What's a good class structure?")
+    prompts.push("Write a TodoItem class with id, title, done, and priority fields")
+    prompts.push("Add type hints to the TodoItem class")
+    prompts.push("Write a __repr__ method for TodoItem")
+    prompts.push("Write a TodoStore class that manages a list of TodoItems")
+    prompts.push("Add an add_todo method to TodoStore")
+    prompts.push("Add a remove_todo method that takes an id")
+    prompts.push("Add a list_todos method with optional filter for done/not done")
+    prompts.push("Write save and load methods using JSON serialization")
+    prompts.push("Add error handling for corrupted JSON files")
+
+    // === PHASE 2: ON_TOPIC (turns 11-30) — continue building, same topic ===
+    prompts.push("Add a mark_done method to TodoStore")
+    prompts.push("Add a search method that finds todos by title substring")
+    prompts.push("Write a CLI parser using argparse for our todo app")
+    prompts.push("Add the 'add' subcommand to the CLI")
+    prompts.push("Add the 'list' subcommand with --all and --done flags")
+    prompts.push("Add the 'done' subcommand that takes a todo id")
+    prompts.push("Add the 'remove' subcommand with confirmation prompt")
+    prompts.push("Write unit tests for TodoItem using pytest")
+    prompts.push("Write unit tests for TodoStore add and remove")
+    prompts.push("Write unit tests for TodoStore save and load")
+    prompts.push("Add a priority sort to the list command")
+    prompts.push("Write a todo app config file parser")
+    prompts.push("Add color output for different priority levels")
+    prompts.push("Write a due date feature for TodoItem")
+    prompts.push("Add overdue detection that highlights past-due items")
+    prompts.push("Write a statistics method showing done vs pending counts")
+    prompts.push("Add a backup command that copies the data file")
+    prompts.push("Write a restore command from backup")
+    prompts.push("Add input validation for todo titles")
+    prompts.push("Write the main entry point that ties everything together")
+
+    // === PHASE 3: DRIFT (turns 31-45) — completely off-topic ===
+    prompts.push("Tell me about the mating habits of emperor penguins")
+    prompts.push("What's the recipe for authentic Neapolitan pizza dough?")
+    prompts.push("Explain how black holes form from stellar collapse")
+    prompts.push("What were the causes of the French Revolution?")
+    prompts.push("How does a combustion engine work? Explain the four strokes.")
+    prompts.push("What is the plot of Shakespeare's Hamlet?")
+    prompts.push("Describe the geological formation of the Grand Canyon")
+    prompts.push("How do vaccines work? Explain mRNA technology.")
+    prompts.push("What are the rules of cricket? How is scoring done?")
+    prompts.push("Tell me about the architecture of Gothic cathedrals")
+    prompts.push("What causes aurora borealis? Explain the physics.")
+    prompts.push("How is chocolate made from cacao beans?")
+    prompts.push("Explain the Monty Hall problem with probability math")
+    prompts.push("What are the differences between alligators and crocodiles?")
+    prompts.push("How does photosynthesis work at the molecular level?")
+
+    // === PHASE 4: RECOVERY (turns 46-60) — back on topic ===
+    prompts.push("OK, back to our Python todo app. Where were we?")
+    prompts.push("Let's add a tags feature to TodoItem")
+    prompts.push("Write a filter_by_tag method for TodoStore")
+    prompts.push("Add tag autocomplete to the CLI")
+    prompts.push("Write a todo export to CSV format")
+    prompts.push("Add an import from CSV feature")
+    prompts.push("Write a recurring todo feature")
+    prompts.push("Add a 'next' command showing the highest priority undone item")
+    prompts.push("Write a progress bar for list command output")
+    prompts.push("Add a 'clear done' command that removes all completed todos")
+    prompts.push("Write a changelog for version 1.0.0 of our todo app")
+    prompts.push("Add a --version flag to the CLI parser")
+    prompts.push("Write a README.md for the todo app project")
+    prompts.push("Final review: what features are we missing?")
+    prompts.push("Ship it! The todo app is ready for release.")
+
+    // === CREATE AGENT ===
+    let handle = null
+    let agent_alive = true
+    try {
+        handle = agent.create("builder")
+    } catch (e) {
+        print("AGENT_CREATE_ERROR: " + string(e))
+        agent_alive = false
+    }
+
+    if !agent_alive {
+        print("SUMMARY_TURNS_COMPLETED: 0")
+        print("ABORT: agent creation failed")
+        return
+    }
+
+    // === MAIN LOOP ===
+    let total_prompts = prompts.length()
+    let turn = 0
+    let send_errors = 0
+    let challenges_p = 0
+    let challenges_f = 0
+    let max_coherence_post_penalty = -1.0
+    let first_penalty_seen = false
+    let phase_data = {}
+    phase_data["BASELINE"] = null
+    phase_data["ON_TOPIC"] = null
+    phase_data["DRIFT"] = null
+    phase_data["RECOVERY"] = null
+    let current_phase = ""
+    let level_changes = 0
+    let last_level = "normal"
+
+    print("TOTAL_PROMPTS: " + string(total_prompts))
+
+    while turn < total_prompts && agent_alive {
+        let phase = phase_name(turn + 1)
+
+        if phase != current_phase {
+            current_phase = phase
+            print("PHASE_START|" + phase + "|turn=" + string(turn + 1))
+        }
+
+        let resp = null
+        let coherence = -1.0
+        let level = "unknown"
+        let lease = -1
+        let cp = 0
+        let cf = 0
+        let ssc = -1
+        let mdc = -1
+        let ma = -1.0
+        let epoch = -1
+
+        try {
+            resp = agent.send(handle, prompts[turn])
+        } catch (e) {
+            send_errors = send_errors + 1
+            let err_str = string(e)
+
+            // Read state after error via agent.environment()
+            let env_after = null
+            try {
+                env_after = agent.environment(handle)
+            } catch (e2) {}
+
+            if env_after != null {
+                let state = env_after.get("state")
+                coherence = get_val(state, "coherence", -1.0)
+                level = get_val(state, "governance_level", "unknown")
+                cp = get_val(state, "challenges_passed", 0)
+                cf = get_val(state, "challenges_failed", 0)
+                ssc = get_val(state, "semantic_stability_count", -1)
+                mdc = get_val(state, "mandate_drift_count", -1)
+                epoch = get_val(state, "governance_epoch", -1)
+            }
+
+            if string.contains(string.lower(err_str), "challenge") {
+                print("CHALLENGE_FAIL|turn=" + string(turn + 1) + "|c=" + string(coherence) + "|cf=" + string(cf))
+            } else {
+                print("SEND_ERROR|turn=" + string(turn + 1) + "|error=" + err_str)
+                agent_alive = false
+            }
+        }
+
+        // Read state from response
+        if resp != null {
+            let state = get_state(resp)
+            coherence = get_val(state, "coherence", -1.0)
+            level = get_val(state, "governance_level", "unknown")
+            lease = get_val(state, "lease_remaining", -1)
+            cp = get_val(state, "challenges_passed", 0)
+            cf = get_val(state, "challenges_failed", 0)
+            ssc = get_val(state, "semantic_stability_count", -1)
+            mdc = get_val(state, "mandate_drift_count", -1)
+            ma = get_val(state, "mandate_alignment", -1.0)
+            epoch = get_val(state, "governance_epoch", -1)
+        }
+
+        // Track level changes (Fix 1: circuit breaker should update levels)
+        if level != last_level && level != "unknown" {
+            if last_level != "normal" || level != "normal" {
+                level_changes = level_changes + 1
+                print("LEVEL_CHANGE|turn=" + string(turn + 1) + "|from=" + last_level + "|to=" + level)
+            }
+            last_level = level
+        }
+
+        // Track max coherence after first penalty (Fix 3: recovery cap)
+        if coherence >= 0.0 {
+            if coherence < 1.0 && !first_penalty_seen {
+                first_penalty_seen = true
+                print("FIRST_PENALTY|turn=" + string(turn + 1) + "|c=" + string(coherence))
+            }
+            if first_penalty_seen && coherence > max_coherence_post_penalty {
+                max_coherence_post_penalty = coherence
+            }
+        }
+
+        // Track challenge counters
+        challenges_p = cp
+        challenges_f = cf
+
+        // Track per-phase data
+        if coherence >= 0.0 {
+            let pd = phase_data.get(phase)
+            if pd == null {
+                phase_data[phase] = {
+                    first_coherence: coherence,
+                    last_coherence: coherence,
+                    ssc_first: ssc,
+                    ssc_last: ssc,
+                    mdc_first: mdc,
+                    mdc_last: mdc,
+                    turns: 1
+                }
+            } else {
+                pd["last_coherence"] = coherence
+                pd["ssc_last"] = ssc
+                pd["mdc_last"] = mdc
+                pd["turns"] = pd["turns"] + 1
+                phase_data[phase] = pd
+            }
+        }
+
+        // Per-turn monitoring
+        print("TURN|n=" + string(turn + 1) + "|c=" + string(coherence) + "|level=" + level + "|lease=" + string(lease) + "|cp=" + string(cp) + "|cf=" + string(cf) + "|ssc=" + string(ssc) + "|mdc=" + string(mdc) + "|ma=" + string(ma) + "|epoch=" + string(epoch) + "|phase=" + phase)
+
+        turn = turn + 1
+    }
+
+    // === PHASE SUMMARIES ===
+    print("")
+    print("=== PHASE SUMMARIES ===")
+    let phases = ["BASELINE", "ON_TOPIC", "DRIFT", "RECOVERY"]
+    let pi = 0
+    while pi < phases.length() {
+        let p = phases[pi]
+        let pd = phase_data.get(p)
+        if pd != null {
+            let delta = pd["last_coherence"] - pd["first_coherence"]
+            let ssc_delta = pd["ssc_last"] - pd["ssc_first"]
+            let mdc_delta = pd["mdc_last"] - pd["mdc_first"]
+            print("PHASE_DELTA|" + p + "|first=" + string(pd["first_coherence"]) + "|last=" + string(pd["last_coherence"]) + "|delta=" + string(delta) + "|ssc_delta=" + string(ssc_delta) + "|mdc_delta=" + string(mdc_delta) + "|turns=" + string(pd["turns"]))
+        }
+        pi = pi + 1
+    }
+
+    // === SUMMARY ===
+    print("")
+    print("SUMMARY_TURNS_COMPLETED: " + string(turn))
+    print("SUMMARY_SEND_ERRORS: " + string(send_errors))
+    print("SUMMARY_AGENT_ALIVE: " + string(agent_alive))
+    print("SUMMARY_CHALLENGES_PASSED: " + string(challenges_p))
+    print("SUMMARY_CHALLENGES_FAILED: " + string(challenges_f))
+    print("SUMMARY_LEVEL_CHANGES: " + string(level_changes))
+    print("SUMMARY_MAX_COHERENCE_POST_PENALTY: " + string(max_coherence_post_penalty))
+    print("SUMMARY_FIRST_PENALTY_SEEN: " + string(first_penalty_seen))
+
+    // === TRANSCRIPT VERIFICATION ===
+    print("")
+    print("=== TRANSCRIPT ===")
+    let transcript_ok = false
+    let transcript_lines = 0
+    let transcript_agent_send = 0
+    let transcript_agent_create = 0
+    try {
+        let raw = file.read("transcript.jsonl")
+        if raw != null && string.length(raw) > 10 {
+            transcript_ok = true
+            let lines = string.split(string.trim(raw), "\n")
+            transcript_lines = lines.length()
+            let ti = 0
+            while ti < lines.length() {
+                let line = string.trim(lines[ti])
+                if string.length(line) > 2 {
+                    try {
+                        let entry = json.parse(line)
+                        let etype = entry.get("type")
+                        if etype != null {
+                            if string(etype) == "agent_send" { transcript_agent_send = transcript_agent_send + 1 }
+                            if string(etype) == "agent_create" { transcript_agent_create = transcript_agent_create + 1 }
+                        }
+                    } catch (e) {}
+                }
+                ti = ti + 1
+            }
+        }
+    } catch (e) {
+        print("TRANSCRIPT_READ_ERROR: " + string(e))
+    }
+    print("TRANSCRIPT_OK: " + string(transcript_ok))
+    print("TRANSCRIPT_LINES: " + string(transcript_lines))
+    print("TRANSCRIPT_AGENT_SEND: " + string(transcript_agent_send))
+    print("TRANSCRIPT_AGENT_CREATE: " + string(transcript_agent_create))
+
+    // === HEALTH ===
+    let health = governance.health()
+    if health != null {
+        print("HEALTH_VERDICT: " + string(health.get("verdict")))
+        print("HEALTH_EPOCH: " + string(health.get("governance_epoch")))
+        print("HEALTH_LEVEL: " + last_level)
+    }
+
+    print("")
+    print("=== FIXES STRESS TEST COMPLETE ===")
+}

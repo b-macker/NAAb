@@ -427,12 +427,15 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
                 for (double v : drift_opt->mandate_alignment_history) ma_sum += v;
                 double ma_mean = ma_sum / static_cast<double>(drift_opt->mandate_alignment_history.size());
                 state["mandate_alignment"] = NaabVal::makeDouble(ma_mean);
+            } else {
+                state["mandate_alignment"] = NaabVal::makeDouble(0.0);
             }
         } else {
             state["coherence"] = NaabVal::makeDouble(1.0);  // fresh agent
             state["pipeline_depth"] = NaabVal::makeInt(0);
             state["semantic_stability_count"] = NaabVal::makeInt(0);
             state["mandate_drift_count"] = NaabVal::makeInt(0);
+            state["mandate_alignment"] = NaabVal::makeDouble(0.0);
         }
 
         // Risk budget remaining (getRemainingBudget() is public, const)

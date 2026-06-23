@@ -974,6 +974,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 state.baseline.stddev_failures = (variance > 0.0) ? std::sqrt(variance) : 0.0;
 
                 state.baseline_complete = true;
+                state.baseline_completed_turn = turn_number;
             }
         }
     }
