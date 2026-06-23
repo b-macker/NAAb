@@ -1502,7 +1502,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
                                 {"context_prompts", std::to_string(recent_prompts.size())}
                             });
-                            throw std::runtime_error(
+                            throw governance::GovernanceHardError(
                                 "Agent error: Step-up challenge failed\n\n"
                                 "  Help:\n"
                                 "  - The agent could not demonstrate coherence with its task\n"

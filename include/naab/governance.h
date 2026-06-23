@@ -1298,6 +1298,7 @@ struct ContextDriftConfig {
     // correct action, requiring sustained good behavior to fully recover. Analogous to credit
     // restoration: recent good conduct helps but doesn't erase history immediately.
     double coherence_recovery_amount = 0.2;
+    double coherence_recovery_cap = 1.0;     // Maximum coherence after recovery (< 1.0 for diminishing returns)
     double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
     // Temporal trust decay — coherence erodes over time even when idle
     bool temporal_decay_enabled = false;
@@ -1486,10 +1487,11 @@ struct CircuitBreakerConfig {
     // 3 turns cooldown: prevents challenge fatigue — too frequent challenges degrade
     // agent performance. Matches pulse cooldown for consistency.
     int step_up_cooldown_turns = 3;
-    // 0.3 = 30% keyword overlap: the agent's challenge response must contain at least
-    // 30% of the system_prompt's key terms. Low enough to allow paraphrasing, high
-    // enough to catch completely unrelated responses.
-    double step_up_keyword_threshold = 0.3;
+    // 0.4 = 40% keyword overlap: the agent's challenge response must contain at least
+    // 40% of the combined system_prompt + recent user prompt key terms. High enough to
+    // catch unrelated or evasive responses, low enough to allow paraphrasing. Minimum
+    // enforceable floor: 0.2 (lower values are clamped during config parsing).
+    double step_up_keyword_threshold = 0.4;
 };
 
 // Advisory Escalation — repeated advisories harden over time
