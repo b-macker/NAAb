@@ -751,6 +751,46 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
     // Environment self-awareness: agent knows its limits from birth
     handle["environment"] = buildEnvironmentDict(handle_id, config_name);
 
+    // Agent interaction transcript: creation entry with config snapshot
+    if (engine && engine->isActive() && engine->isTranscriptAgent(config_name)) {
+        auto now = std::chrono::system_clock::now();
+        auto t = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf;
+        localtime_r(&t, &tm_buf);
+        char ts_buf[32];
+        std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+
+        nlohmann::json te;
+        te["type"] = "agent_create";
+        te["run_id"] = engine->getRunId();
+        te["timestamp"] = std::string(ts_buf);
+        te["handle_id"] = handle_id;
+        te["agent"] = config_name;
+
+        nlohmann::json cfg;
+        cfg["provider"] = config->provider;
+        cfg["model"] = config->model;
+        if (!config->model_chain.empty()) cfg["model_chain"] = config->model_chain;
+        cfg["max_tokens"] = config->max_tokens;
+        cfg["thinking_budget"] = config->thinking_budget;
+        cfg["temperature"] = config->temperature;
+        cfg["max_turns"] = config->max_turns;
+        cfg["max_total_tokens"] = config->max_total_tokens;
+        cfg["system_prompt"] = config->system_prompt;
+        cfg["tools_enabled"] = config->tools_enabled;
+        if (!config->tools.empty()) cfg["tools"] = config->tools;
+        if (!config->response_format.empty()) cfg["response_format"] = config->response_format;
+        cfg["risk_budget"] = config->risk_budget;
+        cfg["standing_lease_turns"] = config->standing_lease_turns;
+        cfg["standing_lease_seconds"] = config->standing_lease_seconds;
+        cfg["retry_max_attempts"] = config->retry.max_attempts;
+        if (!config->allowed_actions.empty()) cfg["allowed_actions"] = config->allowed_actions;
+        if (!config->output_contract.format.empty()) cfg["output_contract_format"] = config->output_contract.format;
+        te["config"] = cfg;
+
+        engine->writeAgentTranscript(te.dump());
+    }
+
     return NaabVal::makeDict(std::move(handle));
 }
 
@@ -903,6 +943,43 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Lock to validate tracker state; released before slow API call
     int handle_id = validated_id;
     int current_turn = 0;
+
+    // Transcript: accumulate per-turn data, write once at end
+    auto* gov_for_transcript = governance::GovernanceEngine::getCurrent();
+    bool transcript_active = gov_for_transcript && gov_for_transcript->isActive()
+        && gov_for_transcript->isTranscriptAgent(config_name);
+    nlohmann::json transcript_entry;
+    auto transcript_start = std::chrono::steady_clock::now();
+    if (transcript_active) {
+        transcript_entry["type"] = "agent_send";
+        transcript_entry["handle_id"] = handle_id;
+        transcript_entry["agent"] = config_name;
+        transcript_entry["prompt"] = message;
+    }
+
+    // Error-path transcript helper: writes partial entry with error details
+    auto write_error_transcript = [&](const std::string& error_msg) {
+        if (!transcript_active || !gov_for_transcript) return;
+        try {
+            transcript_entry["error"] = true;
+            transcript_entry["error_message"] = error_msg;
+            auto tend = std::chrono::steady_clock::now();
+            transcript_entry["wall_time_ms"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+                tend - transcript_start).count();
+            auto now = std::chrono::system_clock::now();
+            auto t = std::chrono::system_clock::to_time_t(now);
+            std::tm tm_buf;
+            localtime_r(&t, &tm_buf);
+            char ts_buf[32];
+            std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+            transcript_entry["timestamp"] = std::string(ts_buf);
+            transcript_entry["run_id"] = gov_for_transcript->getRunId();
+            gov_for_transcript->writeAgentTranscript(transcript_entry.dump());
+        } catch (...) {} // never mask the real error
+    };
+
+    try { // transcript error-path wrapper
+
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
         auto tracker_it = s_trackers.find(handle_id);
@@ -980,6 +1057,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 total_used, config->max_total_tokens));
         }
         current_turn = tracker.turns;
+        if (transcript_active) {
+            transcript_entry["turn"] = current_turn;
+            transcript_entry["turns_remaining"] = config->max_turns - current_turn;
+        }
     } // unlock before API call
 
     // Build messages array from handle history + new message
@@ -1014,6 +1095,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     user_msg["content"] = message;
     messages_json.push_back(user_msg);
 
+    if (transcript_active) {
+        // Prepend system prompt to messages for complete transcript
+        nlohmann::json full_messages = nlohmann::json::array();
+        if (config && !config->system_prompt.empty()) {
+            full_messages.push_back({{"role", "system"}, {"content", config->system_prompt}});
+        }
+        for (const auto& m : messages_json) full_messages.push_back(m);
+        transcript_entry["messages"] = full_messages;
+    }
+
     // Hard stop check
     if (s_dispatch.hard_stopped.load()) {
         std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
@@ -1044,6 +1135,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  - Place the key in ~/.naab/keys/" + keys[0] + "\n");
     }
 
+    if (transcript_active) {
+        nlohmann::json api_params;
+        api_params["model"] = models[0];
+        if (models.size() > 1) api_params["model_chain"] = models;
+        api_params["max_tokens"] = config->max_tokens;
+        api_params["thinking_budget"] = config->thinking_budget;
+        api_params["temperature"] = config->temperature;
+        api_params["keys_available"] = static_cast<int>(keys.size());
+        transcript_entry["api_params"] = api_params;
+    }
+
     // Mid-run governance reload check (Governance Under Survivability)
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
     std::vector<std::string> gov_notices;
@@ -1070,7 +1172,37 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         extractKeywords(config->system_prompt, mandate_kw);
         if (!mandate_kw.empty()) {
             gov_engine->initializeMandateKeywords(handle_id, mandate_kw);
+            if (transcript_active) {
+                transcript_entry["mandate_keywords_count"] = static_cast<int>(mandate_kw.size());
+            }
         }
+    }
+
+    // Transcript: first-turn config snapshot
+    if (transcript_active && current_turn == 0 && config) {
+        nlohmann::json cfg;
+        cfg["provider"] = config->provider;
+        cfg["model"] = config->model;
+        if (!config->model_chain.empty()) cfg["model_chain"] = config->model_chain;
+        cfg["max_tokens"] = config->max_tokens;
+        cfg["thinking_budget"] = config->thinking_budget;
+        cfg["temperature"] = config->temperature;
+        cfg["max_turns"] = config->max_turns;
+        cfg["max_total_tokens"] = config->max_total_tokens;
+        if (!config->system_prompt.empty())
+            cfg["system_prompt"] = config->system_prompt.substr(0, 500);
+        cfg["tools_enabled"] = config->tools_enabled;
+        if (!config->tools.empty()) cfg["tools"] = config->tools;
+        if (!config->response_format.empty()) cfg["response_format"] = config->response_format;
+        cfg["risk_budget"] = config->risk_budget;
+        cfg["standing_lease_turns"] = config->standing_lease_turns;
+        cfg["standing_lease_seconds"] = config->standing_lease_seconds;
+        if (!config->allowed_actions.empty()) cfg["allowed_actions"] = config->allowed_actions;
+        cfg["retry_max_attempts"] = config->retry.max_attempts;
+        if (!config->output_contract.format.empty()) {
+            cfg["output_contract"] = {{"format", config->output_contract.format}};
+        }
+        transcript_entry["config"] = cfg;
     }
 
     // Behavioral sequence: emit agent.send event (once, before retry loop)
@@ -1079,6 +1211,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         gov_engine->setAgentContext(handle_id, current_turn, config_name);
         std::string bsd_block = gov_engine->emitEvent(governance::RuntimeEventType::AGENT_SEND,
             "agent.send('" + config_name + "')", "", 0);
+        if (transcript_active) {
+            transcript_entry["bsd_pre_send"] = bsd_block.empty() ? "pass" : "block";
+        }
         if (!bsd_block.empty()) {
             throw std::runtime_error(bsd_block);
         }
@@ -1130,6 +1265,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         });
     }
 
+    if (transcript_active) {
+        transcript_entry["prompt_scan"] = {
+            {"result", "pass"}, {"message_length", message.size()}
+        };
+    }
+
     // Pre-call admission check
     if (gov_engine && gov_engine->isActive()) {
         std::string admission = gov_engine->checkAdmission(config_name);
@@ -1166,6 +1307,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"unique_agents",         std::to_string(gov_engine->getUniqueAgentCount())},
                 {"governance_level",      adm_level_str}
             });
+            if (transcript_active) {
+                transcript_entry["admission"] = {
+                    {"result", "pass"},
+                    {"governance_level", adm_level_str},
+                    {"risk_budget_remaining", gov_engine->getRemainingBudget(config_name)},
+                    {"autonomous_actions", gov_engine->getAutonomousActionCount()}
+                };
+            }
         }
     }
 
@@ -1313,6 +1462,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             }
                         }
 
+                        if (transcript_active) {
+                            transcript_entry["challenge"] = {
+                                {"triggered", true},
+                                {"passed", passed},
+                                {"keyword_ratio", keyword_ratio},
+                                {"lease_expired", lease_expired},
+                                {"coherence_ok", coherence_ok},
+                                {"response_length", static_cast<int>(challenge_result.response.content.size())}
+                            };
+                        }
+
                         if (passed) {
                             gov_engine->recoverCoherence(handle_id);
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_PASS", {
@@ -1361,6 +1521,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 });
             }
         }
+    }
+    if (transcript_active && !initial_tool_defs.empty()) {
+        nlohmann::json tool_names = nlohmann::json::array();
+        for (const auto& td : initial_tool_defs) tool_names.push_back(td.name);
+        transcript_entry["tools_sent"] = tool_names;
     }
 
     // ── Retry loop with key rotation, model fallback, backoff + jitter ──
@@ -1521,6 +1686,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"content_length", std::to_string(agent_resp.content.size())}
                 });
             }
+
+            if (transcript_active) {
+                // Record successful attempt
+                if (!transcript_entry.contains("attempts")) transcript_entry["attempts"] = nlohmann::json::array();
+                transcript_entry["attempts"].push_back({
+                    {"n", attempts_made}, {"model", current_model}, {"key_env", key_env},
+                    {"latency_ms", attempt_ms}, {"success", true}
+                });
+                // Capture raw response
+                transcript_entry["raw_response"] = {
+                    {"content", agent_resp.content},
+                    {"stop_reason", agent_resp.stop_reason},
+                    {"input_tokens", agent_resp.input_tokens},
+                    {"output_tokens", agent_resp.output_tokens},
+                    {"thinking_tokens", agent_resp.thinking_tokens},
+                    {"truncated", agent_resp.truncated}
+                };
+            }
             break;
         }
 
@@ -1565,6 +1748,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"http_status", std::to_string(status)},
                 {"api_key_env", key_env},
                 {"model", current_model}
+            });
+        }
+        if (transcript_active) {
+            if (!transcript_entry.contains("attempts")) transcript_entry["attempts"] = nlohmann::json::array();
+            transcript_entry["attempts"].push_back({
+                {"n", attempt + 1}, {"model", current_model}, {"key_env", key_env},
+                {"http_status", status}, {"success", false}, {"error", last_error}
             });
         }
 
@@ -1713,6 +1903,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
             }
         }
+    }
+
+    bool fence_was_stripped = (content != agent_resp.content);
+    if (transcript_active) {
+        transcript_entry["fence_stripped"] = fence_was_stripped;
     }
 
     std::string stop_reason = agent_resp.stop_reason;
@@ -2267,6 +2462,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"exit_reason", tool_loop_exit_reason}
             });
         }
+        if (transcript_active && tool_calls_this_send > 0) {
+            transcript_entry["tool_loop"] = {
+                {"calls_made", tool_calls_this_send},
+                {"calls_blocked", tool_blocked_this_send},
+                {"turns", tool_loop_turns},
+                {"exit_reason", tool_loop_exit_reason}
+            };
+        }
     } // end if tools_enabled
 
     // Block tool_use if still unresolved (tools not enabled or tool loop exhausted without text)
@@ -2508,6 +2711,20 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    if (transcript_active) {
+        if (agent_resp.truncated) {
+            transcript_entry["response_truncated"] = {
+                {"thinking_tokens", agent_resp.thinking_tokens},
+                {"output_tokens", resp_output_tokens},
+                {"configured_max", config ? config->max_tokens : 0},
+                {"thinking_budget", config ? config->thinking_budget : -1}
+            };
+        }
+        if (content.empty()) {
+            transcript_entry["response_suppressed"] = true;
+        }
+    }
+
     // response_format: check JSON validity BEFORE CDD so parse failures feed coherence
     bool json_valid_result = true;
     std::string json_error_signal;
@@ -2610,6 +2827,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     config_name, config->output_contract.format, contract_error));
         }
     }
+    if (transcript_active) {
+        nlohmann::json cc;
+        cc["json_valid"] = json_valid_result;
+        if (config && !config->output_contract.format.empty()) {
+            cc["contract_format"] = config->output_contract.format;
+            cc["contract_result"] = "pass"; // would have thrown on fail
+        }
+        transcript_entry["contract_check"] = cc;
+    }
 
     // Update handle: append messages, update counters
     // Skip empty-response turns to prevent history poisoning — empty assistant
@@ -2645,6 +2871,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
         handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
         current_turn = tracker.turns;  // updated turn count
+        if (transcript_active) {
+            transcript_entry["tracker_update"] = {
+                {"turns_after", tracker.turns},
+                {"input_tokens_total", tracker.input_tokens},
+                {"output_tokens_total", tracker.output_tokens}
+            };
+        }
     }
 
     // Behavioral sequence: emit agent.response event + context drift check
@@ -2748,6 +2981,43 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Transcript: CDD, governance state, and response scan
+    if (transcript_active && gov_engine && gov_engine->isActive()) {
+        // Response scan result (if we got here, it passed)
+        if (!content.empty()) {
+            transcript_entry["response_scan"] = {
+                {"result", "pass"}, {"content_length", content.size()}
+            };
+        }
+        // CDD state
+        auto drift_st = gov_engine->getDriftState(handle_id);
+        if (drift_st) {
+            nlohmann::json cdd;
+            cdd["coherence"] = drift_st->coherence_score;
+            cdd["velocity"] = drift_st->coherence_velocity;
+            cdd["acceleration"] = drift_st->coherence_acceleration;
+            cdd["signals_fired"] = drift_st->signals_fired_this_turn;
+            cdd["semantic_stability_count"] = drift_st->semantic_stability_count;
+            cdd["mandate_drift_count"] = drift_st->mandate_drift_count;
+            if (!drift_st->mandate_alignment_history.empty()) {
+                double ma_sum = 0;
+                for (double v : drift_st->mandate_alignment_history) ma_sum += v;
+                cdd["mandate_alignment"] = ma_sum / static_cast<double>(drift_st->mandate_alignment_history.size());
+            }
+            transcript_entry["cdd"] = cdd;
+        }
+        // Governance context
+        const char* gov_level_names[] = {"normal", "elevated", "high", "critical"};
+        int gl = static_cast<int>(gov_engine->getGovernanceLevel());
+        const char* pulse_names[] = {"HEALTHY", "DEGRADED", "IMPAIRED"};
+        int pv = static_cast<int>(gov_engine->getPulseVerdict());
+        transcript_entry["governance"] = {
+            {"level", (gl >= 0 && gl <= 3) ? gov_level_names[gl] : "unknown"},
+            {"pulse", (pv >= 0 && pv <= 2) ? pulse_names[pv] : "unknown"},
+            {"epoch", gov_engine->getGovernanceEpoch()}
+        };
+    }
+
     // Governance health check — verify instrumentation is operational
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().governance_health.enabled) {
@@ -2770,6 +3040,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // enforce() handles ADVISORY (stderr), SOFT (block), HARD (throw GovernanceHardError)
     if (gov_engine && gov_engine->isActive()) {
         std::string coupling_err = gov_engine->checkTemporalCoupling();
+        if (transcript_active) {
+            transcript_entry["temporal_coupling"] = coupling_err.empty() ? "pass" : "warn";
+        }
         if (!coupling_err.empty()) {
             throw std::runtime_error(coupling_err);
         }
@@ -2885,7 +3158,36 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         gov_engine->setLastReturnTainted(true, "agent.send");
     }
 
+    // Transcript: write complete entry
+    if (transcript_active && gov_for_transcript) {
+        transcript_entry["processed_response"] = content;
+        transcript_entry["error"] = false;
+        auto transcript_end = std::chrono::steady_clock::now();
+        transcript_entry["wall_time_ms"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+            transcript_end - transcript_start).count();
+        auto now = std::chrono::system_clock::now();
+        auto t = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf;
+        localtime_r(&t, &tm_buf);
+        char ts_buf[32];
+        std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+        transcript_entry["timestamp"] = std::string(ts_buf);
+        transcript_entry["run_id"] = gov_for_transcript->getRunId();
+        gov_for_transcript->writeAgentTranscript(transcript_entry.dump());
+    }
+
     return NaabVal::makeDict(std::move(result));
+
+    } catch (const governance::GovernanceHardError& e) {
+        write_error_transcript(e.what());
+        throw;
+    } catch (const std::exception& e) {
+        write_error_transcript(e.what());
+        throw;
+    } catch (...) {
+        write_error_transcript("unknown error");
+        throw;
+    }
 }
 
 // ============================================================================

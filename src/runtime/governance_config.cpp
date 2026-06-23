@@ -2202,6 +2202,21 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (tel.contains("deduplicate_checks") && tel["deduplicate_checks"].is_boolean()) {
             rules_.telemetry_output.deduplicate_checks = tel["deduplicate_checks"].get<bool>();
         }
+
+        // Agent interaction transcript
+        if (tel.contains("transcript") && tel["transcript"].is_object()) {
+            auto& tr = tel["transcript"];
+            if (tr.contains("enabled") && tr["enabled"].is_boolean())
+                rules_.transcript.enabled = tr["enabled"].get<bool>();
+            if (tr.contains("output_file") && tr["output_file"].is_string())
+                rules_.transcript.output_file = tr["output_file"].get<std::string>();
+            if (tr.contains("agents") && tr["agents"].is_array()) {
+                for (const auto& a : tr["agents"]) {
+                    if (a.is_string())
+                        rules_.transcript.agents.push_back(a.get<std::string>());
+                }
+            }
+        }
     }
 
     // Auto-enable tamper-evident hash chain when output_file is set

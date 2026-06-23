@@ -1074,6 +1074,39 @@ void GovernanceEngine::writeAgentTelemetry(
     }
 }
 
+// --- Agent Interaction Transcript ---
+
+void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
+    if (!rules().transcript.enabled || rules().transcript.output_file.empty()) return;
+
+    auto fp_deleter = [](FILE* f) {
+#ifndef _WIN32
+        ::flock(fileno(f), LOCK_UN);
+#endif
+        fclose(f);
+    };
+    std::unique_ptr<FILE, decltype(fp_deleter)> fp(
+        fopen(rules().transcript.output_file.c_str(), "a"), fp_deleter);
+    if (!fp) return;
+#ifndef _WIN32
+    if (::flock(fileno(fp.get()), LOCK_EX) != 0) {
+        fprintf(stderr, "[governance] warning: transcript file lock failed\n");
+    }
+#endif
+
+    std::string line = json_line + "\n";
+    fwrite(line.c_str(), 1, line.size(), fp.get());
+}
+
+bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {
+    if (!rules().transcript.enabled || rules().transcript.output_file.empty()) return false;
+    if (rules().transcript.agents.empty()) return true;  // empty = all agents
+    for (const auto& a : rules().transcript.agents) {
+        if (a == agent_name) return true;
+    }
+    return false;
+}
+
 // --- Agent Role Application ---
 // C1: init-only — copy-mutate-swap to avoid writing shared rules_ptr_
 void GovernanceEngine::applyAgentRole() {

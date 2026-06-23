@@ -1889,6 +1889,16 @@ struct TelemetryOutputConfig {
 };
 
 // ============================================================================
+// Agent Interaction Transcript Config
+// ============================================================================
+
+struct TranscriptConfig {
+    bool enabled = false;
+    std::string output_file;             // JSONL path, append mode
+    std::vector<std::string> agents;     // empty = all agents, ["name"] = filter
+};
+
+// ============================================================================
 // Agent Config (was AgentRoleConfig — now includes LLM config)
 // ============================================================================
 
@@ -2142,6 +2152,7 @@ struct GovernanceRules {
 
     // --- Agent governance ---
     TelemetryOutputConfig telemetry_output;
+    TranscriptConfig transcript;
     std::vector<AgentConfig> agents;  // was: agent_roles (migrated to unified config)
     std::vector<ScorerConfig> scorers; // named scorer configs from "scorers" section
 
@@ -2432,6 +2443,11 @@ public:
     void writeTelemetry() const;
     void writeAgentTelemetry(const std::string& event_type,
         const std::unordered_map<std::string, std::string>& fields);
+
+    // --- Agent interaction transcript ---
+    void writeAgentTranscript(const std::string& json_line);
+    bool isTranscriptAgent(const std::string& agent_name) const;
+    const std::string& getRunId() const { return run_id_; }
 
     // --- Check context (for report file/line tracking) ---
     void setCheckContext(const std::string& file, int line = 0);
