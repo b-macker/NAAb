@@ -17,10 +17,10 @@ Binary lands at `build/naab-lang`.
 ## Test
 
 ```bash
-# Full suite — 396 tests, 1 pre-existing failure (test_drift_detection.sh)
+# Full suite — 396 tests, 0 unexpected failures
 cd ~/.naab/language && bash run-all-tests.sh
 
-# Security leak check — 738 checks, 0 failures
+# Security leak check — 874 checks, 0 failures
 bash tests/security/test_error_msg_leaks.sh
 ```
 
@@ -200,6 +200,18 @@ include/naab/       All headers
 - Agent telemetry event types (28): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `POLYGLOT_EXEC`, `PROMPT_SCAN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `RESPONSE_TRUNCATED`, `SEMANTIC_TURN`
 - Telemetry forwarding: `telemetry.forwarding` config enables webhook/SIEM push of events
 - Tamper-evident hash chain: each telemetry event includes `prev_hash` linking to previous event, creating an immutable audit trail
+
+### Agent Interaction Transcript
+- Opt-in JSONL log capturing the full lifecycle of every `agent.create()` and `agent.send()` call with complete content visibility — prompts, responses, governance scan details, CDD signals, retry attempts, tool args/results, challenges, errors
+- **Separate from telemetry**: NOT mixed into the tamper-evident hash chain. This is an audit/debug log, not a tamper-evident chain
+- Config: `telemetry.transcript` section in govern.json — `enabled` (bool), `output_file` (JSONL path), `agents` (array — empty = all agents, `["name"]` = filter)
+- `writeAgentTranscript()` in `governance_reports.cpp` — same fopen/flock/fwrite pattern as telemetry but simpler (no hash chain, no webhook)
+- `isTranscriptAgent()` — returns false if disabled, true if agents array empty, otherwise checks name membership
+- 22 hook points in `agentSend()` (`agent_impl.cpp`), gated by `transcript_active` flag — zero overhead when disabled
+- Two entry types: `agent_create` (handle_id, agent, config snapshot) and `agent_send` (turn, messages, api_params, attempts, raw_response, fence_stripped, tool_loop, response_scan, cdd, governance state, processed_response, error flag)
+- Error path: `agentSend()` wrapped in try/catch — GovernanceHardError caught before re-throw, partial transcript written with `error: true` and `error_message`
+- Windows: all `localtime_r` calls use `#ifdef _WIN32` / `localtime_s` guards (3 sites in agent_impl.cpp)
+- Test: `tests/governance_v4/test_transcript.sh` — 28 assertions (disabled-by-default, transcript writing, agent name filtering, field depth, JSON validity)
 
 ## Conventions
 
