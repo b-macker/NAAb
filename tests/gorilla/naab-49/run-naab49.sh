@@ -78,16 +78,7 @@ else
     echo ""
 
     STDOUT_FILE="$WORKDIR/stdout.log"
-    (cd "$WORKDIR" && timeout --kill-after=10 900 "$NAAB" --governance-dashboard "semantic-builder.naab" >"$STDOUT_FILE" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
-    # timeout returns 124; SIGTERM=143, SIGKILL=137; naab-lang may hang after script
-    # completes (known bug: background thread prevents clean exit)
-    if [ "$EXIT_CODE" -eq 124 ] || [ "$EXIT_CODE" -eq 143 ] || [ "$EXIT_CODE" -eq 137 ]; then
-        # Check if script produced enough output — process hung but data is valid
-        TURN_COUNT=$(grep -c '^TURN|' "$STDOUT_FILE" 2>/dev/null || echo "0")
-        if [ "$TURN_COUNT" -ge 30 ]; then
-            EXIT_CODE=0  # Script completed enough, process just didn't exit cleanly
-        fi
-    fi
+    (cd "$WORKDIR" && timeout 900 "$NAAB" --governance-dashboard "semantic-builder.naab" >"$STDOUT_FILE" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
     OUTPUT=$(cat "$STDOUT_FILE" 2>/dev/null)
 
     echo ""
@@ -100,12 +91,7 @@ else
     # Extract values
     # ============================================================
     TURNS=$(echo "$OUTPUT" | grep -oP 'SUMMARY_TURNS_COMPLETED: \K[0-9]+' | head -1)
-    # Fallback: count TURN lines if summary wasn't printed (process hang)
-    if [ -z "$TURNS" ] || [ "$TURNS" -eq 0 ]; then
-        TURNS=$(echo "$OUTPUT" | grep -c '^TURN|' || echo "0")
-    fi
 
-    # Phase deltas: try PHASE_DELTA lines first, fall back to TURN line extraction
     ONTOPIC_DELTA=$(echo "$OUTPUT" | grep 'PHASE_DELTA|ON_TOPIC' | grep -oP '\|delta=\K-?[0-9.e+-]+' | head -1)
     DRIFT_DELTA=$(echo "$OUTPUT" | grep 'PHASE_DELTA|DRIFT' | grep -oP '\|delta=\K-?[0-9.e+-]+' | head -1)
     RECOVERY_DELTA=$(echo "$OUTPUT" | grep 'PHASE_DELTA|RECOVERY' | grep -oP '\|delta=\K-?[0-9.e+-]+' | head -1)
@@ -114,43 +100,6 @@ else
     DRIFT_MDC_DELTA=$(echo "$OUTPUT" | grep 'PHASE_DELTA|DRIFT' | grep -oP 'mdc_delta=\K-?[0-9]+' | head -1)
     ONTOPIC_SSC_DELTA=$(echo "$OUTPUT" | grep 'PHASE_DELTA|ON_TOPIC' | grep -oP 'ssc_delta=\K-?[0-9]+' | head -1)
     ONTOPIC_MDC_DELTA=$(echo "$OUTPUT" | grep 'PHASE_DELTA|ON_TOPIC' | grep -oP 'mdc_delta=\K-?[0-9]+' | head -1)
-
-    # Fallback: extract from TURN lines if PHASE_DELTA missing (process hung before summary)
-    if [ -z "$DRIFT_SSC_DELTA" ] && [ "$TURNS" -ge 31 ]; then
-        # Get first and last SSC/MDC/coherence values for each phase from TURN lines
-        _on_first=$(echo "$OUTPUT" | grep 'phase=ON_TOPIC' | head -1)
-        _on_last=$(echo "$OUTPUT" | grep 'phase=ON_TOPIC' | tail -1)
-        _dr_first=$(echo "$OUTPUT" | grep 'phase=DRIFT' | head -1)
-        _dr_last=$(echo "$OUTPUT" | grep 'phase=DRIFT' | tail -1)
-        _re_first=$(echo "$OUTPUT" | grep 'phase=RECOVERY' | head -1)
-        _re_last=$(echo "$OUTPUT" | grep 'phase=RECOVERY' | tail -1)
-        if [ -n "$_on_first" ] && [ -n "$_dr_first" ]; then
-            _on_ssc_f=$(echo "$_on_first" | grep -oP 'ssc=\K[0-9]+')
-            _on_ssc_l=$(echo "$_on_last" | grep -oP 'ssc=\K[0-9]+')
-            _on_mdc_f=$(echo "$_on_first" | grep -oP 'mdc=\K[0-9]+')
-            _on_mdc_l=$(echo "$_on_last" | grep -oP 'mdc=\K[0-9]+')
-            _on_c_f=$(echo "$_on_first" | tr '|' '\n' | grep '^c=' | cut -d= -f2)
-            _on_c_l=$(echo "$_on_last" | tr '|' '\n' | grep '^c=' | cut -d= -f2)
-            _dr_ssc_f=$(echo "$_dr_first" | grep -oP 'ssc=\K[0-9]+')
-            _dr_ssc_l=$(echo "$_dr_last" | grep -oP 'ssc=\K[0-9]+')
-            _dr_mdc_f=$(echo "$_dr_first" | grep -oP 'mdc=\K[0-9]+')
-            _dr_mdc_l=$(echo "$_dr_last" | grep -oP 'mdc=\K[0-9]+')
-            _dr_c_f=$(echo "$_dr_first" | tr '|' '\n' | grep '^c=' | cut -d= -f2)
-            _dr_c_l=$(echo "$_dr_last" | tr '|' '\n' | grep '^c=' | cut -d= -f2)
-            ONTOPIC_SSC_DELTA=$(( ${_on_ssc_l:-0} - ${_on_ssc_f:-0} ))
-            ONTOPIC_MDC_DELTA=$(( ${_on_mdc_l:-0} - ${_on_mdc_f:-0} ))
-            DRIFT_SSC_DELTA=$(( ${_dr_ssc_l:-0} - ${_dr_ssc_f:-0} ))
-            DRIFT_MDC_DELTA=$(( ${_dr_mdc_l:-0} - ${_dr_mdc_f:-0} ))
-            ONTOPIC_DELTA=$(echo "${_on_c_l:-0} - ${_on_c_f:-0}" | bc -l 2>/dev/null)
-            DRIFT_DELTA=$(echo "${_dr_c_l:-0} - ${_dr_c_f:-0}" | bc -l 2>/dev/null)
-            if [ -n "$_re_first" ]; then
-                _re_c_f=$(echo "$_re_first" | tr '|' '\n' | grep '^c=' | cut -d= -f2)
-                _re_c_l=$(echo "$_re_last" | tr '|' '\n' | grep '^c=' | cut -d= -f2)
-                RECOVERY_DELTA=$(echo "${_re_c_l:-0} - ${_re_c_f:-0}" | bc -l 2>/dev/null)
-            fi
-            echo -e "  ${CYAN}NOTE${NC} Phase data extracted from TURN lines (summary not printed)"
-        fi
-    fi
 
     # Telemetry — count from file directly (NAAb string parsing too slow for large files)
     TELEM_FILE="$WORKDIR/telemetry.jsonl"
