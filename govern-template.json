@@ -22,6 +22,7 @@
         "max_lines": 200,
         "max_output_size": 0,
         "banned_functions": ["eval(", "exec(", "compile(", "__import__("],
+        "banned_keywords": [],
         "banned_globals": [],
         "required_imports": [],
         "imports": {
@@ -234,6 +235,7 @@
       "dict_size": 50000,
       "string_length": 1000000,
       "nesting_depth": 20,
+      "max_json_depth": 20,
       "output_size": 1000000,
       "input_size": 1000000
     },
@@ -374,7 +376,8 @@
       "block_system_info_leak": true,
       "block_directory_listing": false,
       "directory_listing_level": "advisory",
-      "block_error_stack_traces": false
+      "block_error_stack_traces": false,
+      "suppressions": []
     },
     "code_injection": {
       "enabled": true,
@@ -558,6 +561,7 @@
       "check_polyglot": false,
       "check_naab": true,
       "skip_if_has_polyglot_block": true,
+      "target_prefixes": [],
       "rules": [
         {
           "names": ["test_"],
@@ -610,7 +614,9 @@
     "intent_validation": {
       "enabled": false,
       "level": "soft",
-      "min_overlap": 0.3
+      "min_overlap": 0.3,
+      "missing_level": "soft",
+      "exempt_functions": []
     },
     "project_intent": "",
     "function_intents": {},
@@ -806,7 +812,7 @@
       "compute_alert_statistics": {
         "description": "Anti-hardcoding: return key must change when input varies",
         "must_vary": [
-          {"key": "escalation_rate", "across": "alerts"}
+          {"key": "escalation_rate", "across": "alerts", "fixtures": []}
         ]
       },
       "classify_event": {
@@ -857,7 +863,13 @@
       "compute_bounded": {
         "description": "Range constraint on numeric return",
         "return_type": "float",
-        "return_range": [0.0, 100.0]
+        "return_range": [0.0, 100.0],
+        "return_max": 100.0
+      },
+      "process_items": {
+        "description": "Arity constraint (alternative to min_arity/max_arity)",
+        "arity": { "min": 1, "max": 4 },
+        "return_type": "array"
       }
     }
   },
@@ -878,6 +890,7 @@
       "name": "no_eval_python",
       "description": "Prevent eval() in Python blocks",
       "pattern": "\\beval\\s*\\(",
+      "trigger": "",
       "languages": ["python"],
       "level": "hard",
       "message": "eval() is forbidden — use ast.literal_eval() or json.loads()",
@@ -998,7 +1011,8 @@
       "record_attestations": false,
       "record_decisions": false,
       "sign_records": false,
-      "signing_key": ""
+      "signing_key": "",
+      "signing_key_env": ""
     }
   },
 
@@ -1020,7 +1034,14 @@
     "forward_timeout_ms": 5000,
     "forward_retry_count": 3,
     "forward_buffer_max": 1000,
-    "forward_shutdown_drain_ms": 3000
+    "forward_shutdown_drain_ms": 3000,
+    "deduplicate_checks": false,
+    "_comment_transcript": "Agent Interaction Transcript — opt-in JSONL log capturing complete agent.create() and agent.send() lifecycle with full content visibility. Separate from tamper-evident telemetry. Per-agent filtering via agents array (empty = all agents). Use for testing (content-level assertions), production auditing, and debugging.",
+    "transcript": {
+      "enabled": false,
+      "output_file": "transcript.jsonl",
+      "agents": []
+    }
   },
 
   "_comment_agents": "Agents — unified per-agent permissions + LLM config for governed AI conversations. Per-agent separation of duties: network_allowed (bool) controls network access, allowed_actions (array of SHELL_EXEC/NET_CONNECT/FS_READ/FS_WRITE/AGENT_SEND/TOOL_EXEC) restricts actions. Ratchet enforcement prevents mid-run loosening.",
@@ -1057,7 +1078,15 @@
       "risk_budget": 0,
       "standing_lease_turns": 0,
       "standing_lease_seconds": 0,
-      "output_contract": {},
+      "stream": false,
+      "stop_reason_action": "",
+      "_comment_output_contract": "Output contract — validate agent response structure. format: 'json' requires valid JSON. required_fields: keys that must exist. field_types: expected types per key. regex_checks: regex patterns per key.",
+      "output_contract": {
+        "format": "",
+        "required_fields": [],
+        "field_types": {},
+        "regex_checks": {}
+      },
       "retry": {
         "max_attempts": 1,
         "backoff_ms": 1000,
@@ -1268,7 +1297,8 @@
       "enabled": true,
       "calibration_path": "~/.naab/calibration.json",
       "max_age_days": 30,
-      "iterations": 3
+      "iterations": 3,
+      "auto_calibrate": false
     },
 
     "confidence": {
@@ -1792,6 +1822,7 @@
   "_comment_agent_dispatch": "Agent Dispatch — parallel execution config for agent.batch() and agent.fan_out(). Controls thread pool size, concurrency limits, and run-level hard stop budgets.",
   "agent_dispatch": {
     "default_timeout_seconds": 0,
+    "max_retries_per_run": 0,
     "max_concurrent": 6,
     "pool_size": 6,
     "pool_queue_max": 50,

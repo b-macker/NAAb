@@ -756,7 +756,11 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         auto now = std::chrono::system_clock::now();
         auto t = std::chrono::system_clock::to_time_t(now);
         std::tm tm_buf;
+#ifdef _WIN32
+        localtime_s(&tm_buf, &t);
+#else
         localtime_r(&t, &tm_buf);
+#endif
         char ts_buf[32];
         std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
 
@@ -969,7 +973,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             auto now = std::chrono::system_clock::now();
             auto t = std::chrono::system_clock::to_time_t(now);
             std::tm tm_buf;
+#ifdef _WIN32
+            localtime_s(&tm_buf, &t);
+#else
             localtime_r(&t, &tm_buf);
+#endif
             char ts_buf[32];
             std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
             transcript_entry["timestamp"] = std::string(ts_buf);
@@ -3168,7 +3176,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         auto now = std::chrono::system_clock::now();
         auto t = std::chrono::system_clock::to_time_t(now);
         std::tm tm_buf;
+#ifdef _WIN32
+        localtime_s(&tm_buf, &t);
+#else
         localtime_r(&t, &tm_buf);
+#endif
         char ts_buf[32];
         std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
         transcript_entry["timestamp"] = std::string(ts_buf);
