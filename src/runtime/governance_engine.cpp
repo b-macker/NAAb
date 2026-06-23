@@ -2842,10 +2842,17 @@ void GovernanceEngine::printDashboard() const {
             fprintf(stderr, "Exposure:   %d autonomous actions, %zu unique agents\n",
                     actions, unique);
             // F8: Show risk budget status per agent
+            // NOTE: getRemainingBudget() also acquires risk_budget_mutex_, so we
+            // must compute remaining budget inline to avoid recursive lock deadlock.
             {
                 std::lock_guard<std::mutex> lock(risk_budget_mutex_);
                 for (const auto& [name, consumed] : agent_risk_consumed_) {
-                    int remaining = getRemainingBudget(name);
+                    // Inline budget lookup (mirrors getRemainingBudget logic)
+                    const AgentConfig* ac = nullptr;
+                    for (const auto& a : rules().agents) {
+                        if (a.name == name) { ac = &a; break; }
+                    }
+                    int remaining = (ac && ac->risk_budget > 0) ? ac->risk_budget - consumed : -1;
                     if (remaining >= 0) {
                         fprintf(stderr, "Budget:     %s: %d remaining (consumed %d)\n",
                                 name.c_str(), remaining, consumed);
