@@ -1955,7 +1955,7 @@
     "step_up_challenge": "Before responding, restate your current objective in one sentence, then proceed.",
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 3,
-    "step_up_keyword_threshold": 0.3,
+    "step_up_keyword_threshold": 0.4,
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
   },
 

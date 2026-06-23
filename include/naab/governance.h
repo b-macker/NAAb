@@ -1487,10 +1487,11 @@ struct CircuitBreakerConfig {
     // 3 turns cooldown: prevents challenge fatigue — too frequent challenges degrade
     // agent performance. Matches pulse cooldown for consistency.
     int step_up_cooldown_turns = 3;
-    // 0.3 = 30% keyword overlap: the agent's challenge response must contain at least
-    // 30% of the system_prompt's key terms. Low enough to allow paraphrasing, high
-    // enough to catch completely unrelated responses.
-    double step_up_keyword_threshold = 0.3;
+    // 0.4 = 40% keyword overlap: the agent's challenge response must contain at least
+    // 40% of the combined system_prompt + recent user prompt key terms. High enough to
+    // catch unrelated or evasive responses, low enough to allow paraphrasing. Minimum
+    // enforceable floor: 0.2 (lower values are clamped during config parsing).
+    double step_up_keyword_threshold = 0.4;
 };
 
 // Advisory Escalation — repeated advisories harden over time

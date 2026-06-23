@@ -6273,6 +6273,10 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
         // After recovery, coherence is reset to 1.0 — allow a cooldown window
         if (state->last_recovery_turn >= 0 &&
             turn - state->last_recovery_turn <= 3) suppress = true;
+        // Post-baseline grace: coherence 1.0 is expected right after baseline
+        // completes because penalties were suppressed during the window
+        if (state->baseline_completed_turn >= 0 &&
+            turn - state->baseline_completed_turn <= 3) suppress = true;
         if (!suppress) {
             warnings += fmt::format("WARNING: Perfect coherence (1.0) after {} turns "
                 "(possible detection bypass)\n", turn);
@@ -6280,8 +6284,11 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
     }
 
     // F16: Check governance entropy
+    // Suppress when CDD is actively analyzing turns — low entropy is structural,
+    // not suspicious, because static source passes dominate the check_results_ buffer
     double entropy = computeGovernanceEntropy();
-    if (entropy >= 0.0 && entropy < cfg.governance_entropy_warning) {
+    if (entropy >= 0.0 && entropy < cfg.governance_entropy_warning &&
+        drift_analyzer_.totalTurnsAnalyzed() == 0) {
         warnings += fmt::format("WARNING: Governance entropy {:.2f} bits (below {:.2f} threshold) "
             "— suspiciously uniform check results\n", entropy, cfg.governance_entropy_warning);
     }
@@ -6461,7 +6468,8 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     // matches BSD/CDD startup grace to let agent-phase checks accumulate.
     double ent = computeGovernanceEntropy();
     if (agent_governance_active_.load(std::memory_order_relaxed) && turn >= 3 &&
-        ent >= 0.0 && ent < rules().governance_health.governance_entropy_warning)
+        ent >= 0.0 && ent < rules().governance_health.governance_entropy_warning &&
+        drift_analyzer_.totalTurnsAnalyzed() == 0)
         degradation_signals++;
 
     // Subsystem: telemetry health (hash chain advancing = telemetry operational)

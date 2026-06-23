@@ -128,6 +128,7 @@ struct DriftState {
     // Adaptive baseline — observe "normal" behavior before penalizing deviations
     bool baseline_complete = false;
     int baseline_turns_counted = 0;
+    int baseline_completed_turn = -1;  // wall-clock turn when baseline finished (-1 = not yet)
     struct BaselineStats {
         double mean_failures = 0.0;
         double mean_circular = 0.0;
