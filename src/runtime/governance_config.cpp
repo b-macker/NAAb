@@ -2786,7 +2786,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_challenge") && cbj["step_up_challenge"].is_string()) cfg.step_up_challenge = cbj["step_up_challenge"].get<std::string>();
         if (cbj.contains("step_up_min_words") && cbj["step_up_min_words"].is_number_integer()) cfg.step_up_min_words = std::max(1, cbj["step_up_min_words"].get<int>());
         if (cbj.contains("step_up_cooldown_turns") && cbj["step_up_cooldown_turns"].is_number_integer()) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
-        if (cbj.contains("step_up_keyword_threshold") && cbj["step_up_keyword_threshold"].is_number()) cfg.step_up_keyword_threshold = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
+        if (cbj.contains("step_up_keyword_threshold") && cbj["step_up_keyword_threshold"].is_number()) {
+            double val = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
+            if (val < 0.2) {
+                fprintf(stderr, "[governance] Warning: step_up_keyword_threshold %.2f is below minimum 0.2 — clamped to 0.2\n", val);
+                val = 0.2;
+            }
+            cfg.step_up_keyword_threshold = val;
+        }
         parseRationale(cbj, cfg.rationale);
     }
 
@@ -2871,6 +2878,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (!pin.language.empty() && !pin.required_version.empty())
                 rules_.runtime_versions.push_back(pin);
         }
+    }
+
+    // --- Post-parse warnings ---
+    // Circuit breaker without reality checkpoint: graduated response works (composite
+    // pressure + level updates run independently) but checkpoint enforcement is disabled.
+    // Warn so operators know they're missing the blocking intervention layer.
+    if (rules_.circuit_breaker.enabled && !rules_.context_drift.reality_checkpoint.enabled) {
+        fprintf(stderr, "[governance] Warning: circuit_breaker enabled without reality_checkpoint — "
+                        "governance levels will update but checkpoint enforcement is inactive\n");
     }
 }
 
