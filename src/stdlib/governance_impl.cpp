@@ -340,6 +340,7 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
     result["bsd_connected"] = NaabVal::makeBool(pulse.bsd_connected);
     result["cdd_connected"] = NaabVal::makeBool(pulse.cdd_connected);
     result["telemetry_connected"] = NaabVal::makeBool(pulse.telemetry_connected);
+    result["transcript_connected"] = NaabVal::makeBool(pulse.transcript_connected);
     // Evidence epoch — monotonic state transition counter
     result["governance_epoch"] = NaabVal::makeInt(engine->getGovernanceEpoch());
     return NaabVal::makeDict(std::move(result));

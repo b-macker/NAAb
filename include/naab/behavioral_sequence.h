@@ -58,6 +58,7 @@ struct RuntimeEvent {
     size_t sequence_id = 0;     // global monotonic counter
     std::chrono::steady_clock::time_point timestamp;
     std::string content_fingerprint;  // hash of response content (agent events only)
+    int input_tokens = 0;             // input/prompt tokens (agent events only)
     int output_tokens = 0;            // total output tokens (agent events only)
     int thinking_tokens = 0;          // thinking tokens consumed (agent events only)
     std::unordered_set<std::string> content_keywords;  // keywords from response (agent events only)
@@ -122,6 +123,42 @@ struct DriftState {
     std::deque<double> mandate_alignment_history;       // rolling window of alignment scores
     int mandate_drift_count = 0;                        // turns where rolling mean dropped below threshold
 
+    // Instruction recall — tracks mid-conversation user instruction keywords
+    std::unordered_set<std::string> instruction_keywords;  // accumulated from user prompts
+    int instruction_recall_count = 0;                      // turns where recall dropped below threshold
+
+    // Plan drift — tracks execution against stated plan steps
+    bool plan_extracted = false;                                          // whether plan has been parsed
+    std::vector<std::unordered_set<std::string>> plan_step_keywords;     // keywords per plan step
+    int plan_last_step_matched = -1;                                     // index of last matched step
+    int plan_drift_count = 0;                                            // turns with drift detected
+
+    // Entity consistency — tracks entity-context associations across turns
+    std::unordered_map<std::string, std::unordered_set<std::string>> entity_context;  // entity → context keywords
+    int entity_consistency_count = 0;                                    // turns with entity contradiction
+
+    // Instruction conflict — detect contradictory user instructions
+    std::deque<std::unordered_set<std::string>> instruction_history;    // keyword sets per user prompt (sliding window)
+    int instruction_conflict_count = 0;                                 // turns with conflicting instructions detected
+
+    // Persona fingerprint — detect linguistic style shifts
+    std::deque<int> response_keyword_counts;     // rolling window of keyword counts per response
+    double persona_baseline_mean = -1.0;         // established after adaptive baseline completes
+    double persona_baseline_stddev = 0.0;        // stddev for deviation detection
+    int persona_drift_count = 0;                 // turns where style deviated significantly
+
+    // Tool chain integrity — detect tool result misrepresentation
+    std::unordered_map<std::string, std::unordered_set<std::string>> tool_result_keywords;  // tool_name → result keywords
+    int tool_integrity_count = 0;                // turns where agent misrepresented tool results
+
+    // Claim-result reconciliation — detect tool outcome misrepresentation
+    // Tracks actual success/failure per tool, compares against agent claims.
+    // Unlike tool_chain_integrity (keyword recall), this detects STATUS misrepresentation:
+    // agent claims "success" when tool returned error, or vice versa.
+    std::unordered_map<std::string, bool> tool_last_outcome;  // tool_name → last success/failure
+    int claim_result_mismatch_count = 0;                      // turns where agent misrepresented tool outcome
+    std::deque<double> claim_accuracy_history;                 // rolling window of per-turn accuracy (size 20)
+
     // Temporal trust decay — trust erodes when not actively reinforced
     std::chrono::steady_clock::time_point last_activity_time = std::chrono::steady_clock::now();
 
@@ -157,6 +194,11 @@ struct DriftState {
     int thinking_collapse_count = 0;          // turns where thinking dropped >50% from baseline
     std::deque<int> thinking_history;          // rolling window of thinking token counts
     double thinking_baseline_mean = -1.0;     // established after baseline window completes
+
+    // Context growth tracking — detect prompt bloat
+    int context_growth_count = 0;             // turns where input tokens exceeded baseline by factor
+    std::deque<int> input_tokens_history;      // rolling window of input token counts
+    double input_tokens_baseline_mean = -1.0;  // established after baseline window completes
 };
 
 // --- Event Ring Buffer + Sequence Pattern Matcher ---
@@ -248,6 +290,20 @@ public:
 
     // Initialize mandate keywords from system_prompt (for mandate alignment signal)
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Add instruction keywords from user prompts (for instruction recall signal)
+    void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Extract plan steps from agent response text (for plan drift signal)
+    // Only extracts on first call per handle; subsequent calls are no-ops.
+    void extractPlanFromResponse(int handle_id, const std::string& response_text);
+
+    // Record tool result keywords (for tool chain integrity signal)
+    void recordToolResult(int handle_id, const std::string& tool_name,
+                          const std::unordered_set<std::string>& result_keywords);
+
+    // Record tool execution outcome for claim-result reconciliation
+    void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
 
     void reset();
 

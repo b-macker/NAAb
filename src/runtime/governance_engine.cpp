@@ -2825,6 +2825,17 @@ void GovernanceEngine::printDashboard() const {
                         state->last_pressure_score,
                         state->consecutive_high_pressure_turns);
             }
+            if (state->claim_result_mismatch_count > 0 || state->tool_integrity_count > 0) {
+                fprintf(stderr, "Reconcil:   %d mismatches, %d integrity violations",
+                        state->claim_result_mismatch_count, state->tool_integrity_count);
+                if (!state->claim_accuracy_history.empty()) {
+                    double ca_sum = 0;
+                    for (double v : state->claim_accuracy_history) ca_sum += v;
+                    double ca_mean = ca_sum / static_cast<double>(state->claim_accuracy_history.size());
+                    fprintf(stderr, ", accuracy=%.2f", ca_mean);
+                }
+                fprintf(stderr, "\n");
+            }
         } else {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
@@ -6029,7 +6040,8 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
                                          const std::string& file, int line,
                                          const std::string& content_fingerprint,
                                          int output_tokens, int thinking_tokens,
-                                         const std::unordered_set<std::string>& content_keywords) {
+                                         const std::unordered_set<std::string>& content_keywords,
+                                         int input_tokens) {
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     RuntimeEvent ev;
@@ -6038,6 +6050,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.file = file;
     ev.line = line;
     ev.content_fingerprint = content_fingerprint;
+    ev.input_tokens = input_tokens;
     ev.output_tokens = output_tokens;
     ev.thinking_tokens = thinking_tokens;
     ev.content_keywords = content_keywords;
@@ -6334,7 +6347,10 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
             ev["hash"] = last_telemetry_hash_;
         }
         std::string line = ev.dump() + "\n";
-        fwrite(line.c_str(), 1, line.size(), fp);
+        size_t written = fwrite(line.c_str(), 1, line.size(), fp);
+        if (written != line.size()) {
+            telemetry_write_failures_.fetch_add(1, std::memory_order_relaxed);
+        }
     };
 
     // Check 1: CDD enabled but never analyzed any turns
@@ -6484,6 +6500,8 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     pulse_.bsd_connected = bsd_ok;
     pulse_.cdd_connected = cdd_ok;
     pulse_.telemetry_connected = telemetry_ok;
+    pulse_.transcript_connected = !rules().transcript.enabled ||
+        !rules().transcript.output_file.empty();
     pulse_.entropy = ent;
 
     // Subsystem: semantic health — are semantic signals producing data when enabled?
@@ -6908,6 +6926,27 @@ std::optional<governance::DriftState> GovernanceEngine::getDriftState(int handle
 void GovernanceEngine::initializeMandateKeywords(
     int handle_id, const std::unordered_set<std::string>& keywords) {
     drift_analyzer_.initializeMandateKeywords(handle_id, keywords);
+}
+
+void GovernanceEngine::addInstructionKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    drift_analyzer_.addInstructionKeywords(handle_id, keywords);
+}
+
+void GovernanceEngine::extractPlanFromResponse(
+    int handle_id, const std::string& response_text) {
+    drift_analyzer_.extractPlanFromResponse(handle_id, response_text);
+}
+
+void GovernanceEngine::recordToolResult(
+    int handle_id, const std::string& tool_name,
+    const std::unordered_set<std::string>& result_keywords) {
+    drift_analyzer_.recordToolResult(handle_id, tool_name, result_keywords);
+}
+
+void GovernanceEngine::recordToolOutcome(
+    int handle_id, const std::string& tool_name, bool success) {
+    drift_analyzer_.recordToolOutcome(handle_id, tool_name, success);
 }
 
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(

@@ -1478,6 +1478,18 @@ else
     echo "  test_invariant_enforcement.sh: not found, skipping"
 fi
 
+D1_RECONCIL_SCRIPT="tests/governance_v4/test_d1_reconciliation.sh"
+if [ -f "$D1_RECONCIL_SCRIPT" ]; then
+    if bash "$D1_RECONCIL_SCRIPT" 2>&1; then
+        echo "  test_d1_reconciliation.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_d1_reconciliation.sh")
+    fi
+else
+    echo "  test_d1_reconciliation.sh: not found, skipping"
+fi
+
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
     # Canary test injects/reverts source files — skip when working tree is dirty

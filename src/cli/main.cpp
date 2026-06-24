@@ -741,6 +741,19 @@ int main(int argc, char** argv) {
             }
             fprintf(stderr, "Key revoked: %s (reason: %s)\n", fp.c_str(), reason.c_str());
             return 0;
+        } else if (arg == "--verify-telemetry-chain" && command_arg_index + 1 < argc) {
+            std::string chain_file = argv[++command_arg_index];
+            std::string hmac_key;
+            if (command_arg_index + 2 < argc &&
+                std::string(argv[command_arg_index + 1]) == "--hmac-key") {
+                hmac_key = argv[command_arg_index + 2];
+                command_arg_index += 2;
+            } else {
+                const char* env_key = std::getenv("NAAB_TELEMETRY_HMAC_KEY");
+                if (env_key) hmac_key = env_key;
+            }
+            return naab::governance::GovernanceEngine::verifyTelemetryChain(
+                chain_file, hmac_key);
         } else if (arg == "--approve" && command_arg_index + 1 < argc) {
             // Generate a signed approval token for a governance rule
             std::string rule_name = argv[++command_arg_index];

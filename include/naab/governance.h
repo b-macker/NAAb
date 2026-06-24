@@ -1323,6 +1323,14 @@ struct ContextDriftConfig {
         bool mandate_alignment = false;        // fire when response drifts from system_prompt keywords
         bool response_quality = false;         // fire when content/output ratio is low (agent)
         bool thinking_collapse = false;        // fire when thinking tokens drop >50% from baseline
+        bool context_growth = false;           // fire when input tokens exceed baseline by factor
+        bool instruction_recall = false;       // fire when agent stops referencing earlier user instructions
+        bool plan_drift = false;               // fire when agent diverges from its stated multi-step plan
+        bool entity_consistency = false;       // fire when entity-context associations contradict prior turns
+        bool instruction_conflict = false;     // fire when user instructions contradict prior instructions
+        bool persona_fingerprint = false;      // fire when response style deviates from established baseline
+        bool tool_chain_integrity = false;     // fire when agent misrepresents tool results
+        bool claim_result_reconciliation = false; // fire when agent misrepresents tool success/failure status
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1345,6 +1353,14 @@ struct ContextDriftConfig {
         double mandate_alignment = 0.12;       // moderate — mandate drift is a stronger signal than topic shift
         double response_quality = 0.08;        // moderate — low content ratio indicates degradation
         double thinking_collapse = 0.06;       // low-moderate — progressive model capability loss
+        double context_growth = 0.07;          // moderate — context bloat degrades all other signals
+        double instruction_recall = 0.08;     // moderate — forgetting user instructions is a strong drift signal
+        double plan_drift = 0.09;             // moderate-high — diverging from stated plan is a strong drift signal
+        double entity_consistency = 0.08;     // moderate — entity confusion indicates state corruption
+        double instruction_conflict = 0.10;   // moderate-high — contradictory instructions are a strong confusion signal
+        double persona_fingerprint = 0.05;    // low — style shifts are common and often legitimate
+        double tool_chain_integrity = 0.08;   // moderate — misrepresenting tool results indicates hallucination
+        double claim_result_reconciliation = 0.12; // moderate-high — status misrepresentation is unambiguous hallucination
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -1396,11 +1412,40 @@ struct ContextDriftConfig {
         // 0.15: at least 15% of system_prompt keywords should appear in rolling response
         // average. Below this the agent has abandoned its mandate.
         double mandate_alignment_min = 0.15;
+        // 3.0: fire when input tokens exceed 3x the baseline mean. Normal context grows
+        // gradually (1.5-2x); 3x indicates prompt bloat diluting high-signal tokens.
+        double context_growth_factor = 3.0;
+        // 0.10: at least 10% of accumulated instruction keywords should appear in responses.
+        // Lower than mandate_alignment (0.15) because instructions accumulate over time and
+        // not every response needs to reference every instruction.
+        double instruction_recall_min = 0.10;
+        // 0.20: at least 20% keyword overlap to consider a plan step "referenced".
+        // Lower than semantic_stability (0.25) because plan step descriptions are short
+        // and a response may address a step without using all its exact words.
+        double plan_step_overlap_min = 0.20;
+        // 0.25: when a known entity reappears with <25% overlap of its historical context
+        // keywords, the agent may be confusing entities or mixing state. Normal variation
+        // in how an entity is described stays above 30-40%.
+        double entity_context_min_overlap = 0.25;
+        // 0.40: two instructions sharing >40% topic keywords are about the same subject.
+        // Combined with presence of negation markers, indicates a contradiction.
+        double instruction_conflict_topic_overlap = 0.40;
+        // 10: sliding window size for instruction history
+        int instruction_conflict_window = 10;
+        // 2.0: fire when response keyword count deviates by more than 2 standard deviations
+        // from the baseline mean. Normal variation stays within 1.5 stddev.
+        double persona_deviation_factor = 2.0;
+        // 0.15: at least 15% of tool result keywords should appear in the agent's response
+        // when it references that tool. Below this the agent may be fabricating results.
+        double tool_result_recall_min = 0.15;
+        // 0.70: rolling claim accuracy below 70% triggers escalated penalty.
+        // Agent must correctly report tool success/failure at least 70% of the time.
+        double claim_accuracy_min = 0.70;
     } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
     struct RealityCheckpoint {
-        bool enabled = false;
+        bool enabled = true;
         std::string rationale;
         EnforcementLevel level = EnforcementLevel::SOFT;
         double pressure_threshold = 0.7;
@@ -1492,6 +1537,14 @@ struct CircuitBreakerConfig {
     // catch unrelated or evasive responses, low enough to allow paraphrasing. Minimum
     // enforceable floor: 0.2 (lower values are clamped during config parsing).
     double step_up_keyword_threshold = 0.4;
+    // Contextual challenges: when true, challenge prompts are dynamically selected
+    // from DriftState data (tool results, plan steps, instructions, entities) rather
+    // than using the canned step_up_challenge prompt. Falls back to canned when no
+    // richer data is available.
+    bool step_up_contextual = false;
+    // Lower threshold for contextual challenges — tool/plan keywords are more specific
+    // than system_prompt keywords, so a lower overlap bar is appropriate.
+    double step_up_contextual_threshold = 0.30;
 };
 
 // Advisory Escalation — repeated advisories harden over time
@@ -1549,6 +1602,7 @@ struct GovernancePulse {
     bool bsd_connected = true;
     bool cdd_connected = true;
     bool telemetry_connected = true;
+    bool transcript_connected = true;
     double entropy = -1.0;            // -1 = not yet computed
 
     // Hysteresis (sustained degradation required before transition)
@@ -2795,7 +2849,8 @@ public:
                           const std::string& file = "", int line = 0,
                           const std::string& content_fingerprint = "",
                           int output_tokens = 0, int thinking_tokens = 0,
-                          const std::unordered_set<std::string>& content_keywords = {});
+                          const std::unordered_set<std::string>& content_keywords = {},
+                          int input_tokens = 0);
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
     int getCurrentAgentTurn() const { return current_agent_turn_.load(std::memory_order_relaxed); }
@@ -2812,6 +2867,8 @@ public:
     PulseVerdict getPulseVerdict() const;            // read current pulse verdict
     GovernancePulse getPulse() const;                // full pulse struct for dashboard/stdlib
     int getGovernanceEpoch() const;                   // monotonic evidence epoch counter
+    static int verifyTelemetryChain(const std::string& filepath,
+        const std::string& hmac_key = "");            // CLI: --verify-telemetry-chain
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
     std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
@@ -2831,6 +2888,19 @@ public:
 
     // Initialize mandate keywords for semantic mandate alignment signal
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Add instruction keywords from user prompts (for instruction recall signal)
+    void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Extract plan steps from agent response (for plan drift signal)
+    void extractPlanFromResponse(int handle_id, const std::string& response_text);
+
+    // Record tool result keywords (for tool chain integrity signal)
+    void recordToolResult(int handle_id, const std::string& tool_name,
+                          const std::unordered_set<std::string>& result_keywords);
+
+    // Record tool execution outcome for claim-result reconciliation
+    void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
 
     // Reality checkpoint: get pressure data for response dict
     struct CheckpointData {
@@ -3102,6 +3172,7 @@ private:
     mutable std::string last_telemetry_hash_;
     mutable std::mutex audit_mutex_;
     std::atomic<int> audit_write_failures_{0};
+    mutable std::atomic<int> telemetry_write_failures_{0};
 
     // Telemetry forwarding (webhook/SIEM)
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;

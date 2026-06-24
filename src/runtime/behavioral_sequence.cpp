@@ -24,6 +24,135 @@ static std::string normalizeEventTypeName(const std::string& raw) {
     return s;
 }
 
+// Extract keywords (>3 chars) from text, lowercased — local version for CDD signals
+static void extractKeywordsLocal(const std::string& text, std::unordered_set<std::string>& out) {
+    std::string current;
+    for (char c : text) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
+            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        } else {
+            if (current.size() > 3) out.insert(current);
+            current.clear();
+        }
+    }
+    if (current.size() > 3) out.insert(current);
+}
+
+// Extract ordered plan steps from agent response text.
+// Matches patterns: "1.", "1)", "Step 1:", "Phase 1:", "- Step 1"
+// Returns vector of keyword sets, one per plan step (empty if no plan found).
+static std::vector<std::unordered_set<std::string>> extractPlanSteps(const std::string& text) {
+    std::vector<std::unordered_set<std::string>> steps;
+    std::istringstream stream(text);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (line.empty()) continue;
+        // Skip leading whitespace for pattern matching
+        size_t start = line.find_first_not_of(" \t");
+        if (start == std::string::npos) continue;
+        std::string trimmed = line.substr(start);
+        bool is_step = false;
+        // Pattern: "1." or "1)" (numbered list)
+        if (trimmed.size() >= 2 && std::isdigit(static_cast<unsigned char>(trimmed[0]))) {
+            size_t i = 1;
+            while (i < trimmed.size() && std::isdigit(static_cast<unsigned char>(trimmed[i]))) i++;
+            if (i < trimmed.size() && (trimmed[i] == '.' || trimmed[i] == ')')) {
+                is_step = true;
+            }
+        }
+        // Pattern: "Step N:" or "Phase N:" (case-insensitive)
+        if (!is_step) {
+            std::string lower = trimmed.substr(0, std::min(trimmed.size(), size_t(10)));
+            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+            if ((lower.substr(0, 5) == "step " || lower.substr(0, 6) == "phase ") &&
+                lower.size() > 6) {
+                // Check that a digit follows
+                size_t dpos = (lower[0] == 's') ? 5 : 6;
+                if (dpos < lower.size() && std::isdigit(static_cast<unsigned char>(lower[dpos]))) {
+                    is_step = true;
+                }
+            }
+        }
+        // Pattern: "- Step N" or "* Step N" (bulleted step list)
+        if (!is_step && trimmed.size() > 2 && (trimmed[0] == '-' || trimmed[0] == '*') &&
+            trimmed[1] == ' ') {
+            std::string rest = trimmed.substr(2);
+            size_t rs = rest.find_first_not_of(" \t");
+            if (rs != std::string::npos) {
+                std::string rl = rest.substr(rs, 10);
+                std::transform(rl.begin(), rl.end(), rl.begin(), ::tolower);
+                if ((rl.substr(0, 5) == "step " || rl.substr(0, 6) == "phase ") &&
+                    rl.size() > 6) {
+                    size_t dpos = (rl[0] == 's') ? 5 : 6;
+                    if (dpos < rl.size() && std::isdigit(static_cast<unsigned char>(rl[dpos]))) {
+                        is_step = true;
+                    }
+                }
+            }
+        }
+        if (is_step) {
+            std::unordered_set<std::string> kw;
+            extractKeywordsLocal(trimmed, kw);
+            if (!kw.empty()) {
+                steps.push_back(std::move(kw));
+            }
+        }
+    }
+    // Require at least 2 steps to constitute a "plan"
+    if (steps.size() < 2) steps.clear();
+    return steps;
+}
+
+// Negation/reversal markers — words that indicate contradictory intent
+static bool hasNegationMarker(const std::unordered_set<std::string>& keywords) {
+    static const std::unordered_set<std::string> negation_words = {
+        "never", "stop", "skip", "remove", "disable", "avoid", "ignore",
+        "cancel", "delete", "drop", "exclude", "reject", "undo", "revert",
+        "without", "instead", "opposite", "contrary"
+    };
+    for (const auto& kw : keywords) {
+        if (negation_words.count(kw)) return true;
+    }
+    return false;
+}
+
+// Extract entity mentions from response keywords.
+// Entities are keywords that look like identifiers: longer than 4 chars and not
+// common stop words. Returns a map of entity → context keywords (other keywords
+// in the same response that co-occur, providing entity "context").
+static std::unordered_map<std::string, std::unordered_set<std::string>>
+extractEntityContext(const std::unordered_set<std::string>& response_keywords) {
+    // Stop words to exclude from entity detection (common function words >3 chars)
+    static const std::unordered_set<std::string> stop_words = {
+        "this", "that", "with", "from", "have", "will", "been", "were", "they",
+        "them", "then", "than", "what", "when", "where", "which", "while",
+        "about", "after", "again", "could", "would", "should", "their", "there",
+        "these", "those", "being", "other", "because", "between", "through",
+        "before", "during", "under", "above", "each", "every", "into", "over",
+        "some", "more", "most", "also", "just", "only", "very", "much", "such",
+        "here", "does", "done", "make", "made", "like", "true", "false", "null",
+        "none", "return", "function", "error", "value", "string", "number"
+    };
+    std::unordered_map<std::string, std::unordered_set<std::string>> result;
+    // Identify entity-like keywords (longer, not stop words)
+    std::vector<std::string> entities;
+    std::vector<std::string> context_words;
+    for (const auto& kw : response_keywords) {
+        if (kw.size() > 4 && !stop_words.count(kw)) {
+            entities.push_back(kw);
+        }
+        context_words.push_back(kw);
+    }
+    // Each entity gets all other keywords as context
+    for (const auto& entity : entities) {
+        auto& ctx = result[entity];
+        for (const auto& cw : context_words) {
+            if (cw != entity) ctx.insert(cw);
+        }
+    }
+    return result;
+}
+
 // ============================================================================
 // BehavioralSequenceDetector
 // ============================================================================
@@ -1037,6 +1166,43 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
+    // Signal 12: Context growth — detect prompt bloat (input tokens exceeding baseline)
+    // As context grows, high-signal tokens get diluted, degrading all other signals.
+    if (config_->signals.context_growth) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && ev.input_tokens > 0) {
+                state.input_tokens_history.push_back(ev.input_tokens);
+                if (static_cast<int>(state.input_tokens_history.size()) >
+                    config_->thresholds.coherence_history_size) {
+                    state.input_tokens_history.pop_front();
+                }
+            }
+        }
+        // Set baseline mean when adaptive baseline completes (or after enough history)
+        if (state.input_tokens_baseline_mean < 0.0 &&
+            (state.baseline_complete || static_cast<int>(state.input_tokens_history.size()) >=
+             std::max(3, config_->adaptive_baseline_window))) {
+            if (!state.input_tokens_history.empty()) {
+                double sum = 0.0;
+                for (int t : state.input_tokens_history) sum += t;
+                state.input_tokens_baseline_mean = sum / static_cast<double>(state.input_tokens_history.size());
+            }
+        }
+        // Fire when current input tokens exceed baseline by factor
+        if (state.input_tokens_baseline_mean > 0.0 && !state.input_tokens_history.empty()) {
+            int current = state.input_tokens_history.back();
+            if (static_cast<double>(current) >
+                state.input_tokens_baseline_mean * config_->thresholds.context_growth_factor) {
+                state.context_growth_count++;
+                if (!in_baseline) {
+                    state.coherence_score -= penalty(config_->weights.context_growth,
+                                                      state.context_growth_count);
+                }
+                state.signals_fired_this_turn++;
+            }
+        }
+    }
+
     // Signal 10: Semantic stability (F19) — topic shift detection via Jaccard similarity
     if (config_->signals.semantic_stability) {
         for (const auto& ev : turn_events) {
@@ -1096,6 +1262,315 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 break;
             }
         }
+    }
+
+    // Signal 13: Instruction recall — check if agent references earlier user instructions
+    if (config_->signals.instruction_recall && !state.instruction_keywords.empty()) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                int found = 0;
+                for (const auto& kw : state.instruction_keywords) {
+                    if (ev.content_keywords.count(kw)) found++;
+                }
+                double recall = static_cast<double>(found) /
+                                static_cast<double>(state.instruction_keywords.size());
+                if (recall < config_->thresholds.instruction_recall_min) {
+                    state.instruction_recall_count++;
+                    if (!in_baseline) {
+                        state.coherence_score -= penalty(config_->weights.instruction_recall,
+                                                          state.instruction_recall_count);
+                    }
+                    state.signals_fired_this_turn++;
+                }
+                break;
+            }
+        }
+    }
+
+    // Signal 14: Plan drift — detect divergence from stated multi-step plan
+    // Plan steps are extracted by extractPlanFromResponse() called from agent_impl.cpp.
+    // Here we only check which step the current response addresses.
+    if (config_->signals.plan_drift && !state.plan_step_keywords.empty()) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                {
+                    // Find the step with highest keyword overlap
+                    int best_step = -1;
+                    double best_overlap = 0.0;
+                    for (size_t i = 0; i < state.plan_step_keywords.size(); i++) {
+                        const auto& step_kw = state.plan_step_keywords[i];
+                        if (step_kw.empty()) continue;
+                        int found = 0;
+                        for (const auto& kw : step_kw) {
+                            if (ev.content_keywords.count(kw)) found++;
+                        }
+                        double overlap = static_cast<double>(found) /
+                                         static_cast<double>(step_kw.size());
+                        if (overlap > best_overlap) {
+                            best_overlap = overlap;
+                            best_step = static_cast<int>(i);
+                        }
+                    }
+
+                    bool drifted = false;
+                    if (best_overlap >= config_->thresholds.plan_step_overlap_min && best_step >= 0) {
+                        // Regression: went back to an earlier step
+                        if (best_step < state.plan_last_step_matched) {
+                            drifted = true;
+                        }
+                        // Skip: jumped forward by more than 1 step
+                        if (best_step > state.plan_last_step_matched + 1 &&
+                            state.plan_last_step_matched >= 0) {
+                            drifted = true;
+                        }
+                        state.plan_last_step_matched = best_step;
+                    } else if (state.plan_last_step_matched >= 0) {
+                        // No step matched above threshold — agent abandoned plan
+                        drifted = true;
+                    }
+
+                    if (drifted) {
+                        state.plan_drift_count++;
+                        if (!in_baseline) {
+                            state.coherence_score -= penalty(config_->weights.plan_drift,
+                                                              state.plan_drift_count);
+                        }
+                        state.signals_fired_this_turn++;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // Signal 15: Entity consistency — detect contradictory entity-context associations
+    if (config_->signals.entity_consistency) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                auto current_entities = extractEntityContext(ev.content_keywords);
+                bool contradiction_found = false;
+                for (const auto& [entity, current_ctx] : current_entities) {
+                    auto it = state.entity_context.find(entity);
+                    if (it != state.entity_context.end() && !it->second.empty() &&
+                        !current_ctx.empty()) {
+                        // Compute Jaccard between historical and current context
+                        size_t intersection = 0;
+                        for (const auto& kw : current_ctx) {
+                            if (it->second.count(kw)) intersection++;
+                        }
+                        size_t union_size = it->second.size() + current_ctx.size() - intersection;
+                        double overlap = union_size > 0 ?
+                            static_cast<double>(intersection) / static_cast<double>(union_size) : 1.0;
+                        if (overlap < config_->thresholds.entity_context_min_overlap) {
+                            contradiction_found = true;
+                            break;
+                        }
+                    }
+                    // Merge current context into historical (accumulate, don't replace)
+                    auto& hist = state.entity_context[entity];
+                    for (const auto& kw : current_ctx) hist.insert(kw);
+                }
+                if (contradiction_found) {
+                    state.entity_consistency_count++;
+                    if (!in_baseline) {
+                        state.coherence_score -= penalty(config_->weights.entity_consistency,
+                                                          state.entity_consistency_count);
+                    }
+                    state.signals_fired_this_turn++;
+                }
+                break;
+            }
+        }
+    }
+
+    // Signal 16: Instruction conflict — detect contradictory user instructions
+    // Checks if the latest instruction in the history conflicts with any prior one.
+    // Conflict = high topic keyword overlap + negation marker present.
+    if (config_->signals.instruction_conflict && state.instruction_history.size() >= 2) {
+        const auto& latest = state.instruction_history.back();
+        bool conflict_found = false;
+        // Check latest against all prior instructions in window
+        for (size_t i = 0; i + 1 < state.instruction_history.size(); i++) {
+            const auto& prior = state.instruction_history[i];
+            if (prior.empty() || latest.empty()) continue;
+            // Compute topic overlap (Jaccard)
+            size_t intersection = 0;
+            for (const auto& kw : latest) {
+                if (prior.count(kw)) intersection++;
+            }
+            size_t union_size = prior.size() + latest.size() - intersection;
+            double overlap = union_size > 0 ?
+                static_cast<double>(intersection) / static_cast<double>(union_size) : 0.0;
+            // High topic overlap + negation marker = contradiction
+            if (overlap >= config_->thresholds.instruction_conflict_topic_overlap &&
+                (hasNegationMarker(latest) || hasNegationMarker(prior))) {
+                conflict_found = true;
+                break;
+            }
+        }
+        if (conflict_found) {
+            state.instruction_conflict_count++;
+            if (!in_baseline) {
+                state.coherence_score -= penalty(config_->weights.instruction_conflict,
+                                                  state.instruction_conflict_count);
+            }
+            state.signals_fired_this_turn++;
+        }
+    }
+
+    // Signal 17: Persona fingerprint — detect linguistic style shifts
+    if (config_->signals.persona_fingerprint) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                int kw_count = static_cast<int>(ev.content_keywords.size());
+                state.response_keyword_counts.push_back(kw_count);
+                // Use same window as coherence history
+                int window = config_->thresholds.thinking_history_window;
+                while (static_cast<int>(state.response_keyword_counts.size()) > window)
+                    state.response_keyword_counts.pop_front();
+
+                // Establish baseline when adaptive baseline completes
+                if (state.baseline_complete && state.persona_baseline_mean < 0.0 &&
+                    state.response_keyword_counts.size() >= 3) {
+                    double sum = 0, sq_sum = 0;
+                    for (int c : state.response_keyword_counts) {
+                        sum += c;
+                        sq_sum += static_cast<double>(c) * c;
+                    }
+                    double n = static_cast<double>(state.response_keyword_counts.size());
+                    state.persona_baseline_mean = sum / n;
+                    state.persona_baseline_stddev = std::sqrt(
+                        std::max(0.0, sq_sum / n - (sum / n) * (sum / n)));
+                    if (state.persona_baseline_stddev < 1.0)
+                        state.persona_baseline_stddev = 1.0;  // floor to prevent zero-div
+                }
+
+                // Fire when current deviates from baseline by > factor * stddev
+                if (state.persona_baseline_mean >= 0.0) {
+                    double deviation = std::abs(static_cast<double>(kw_count) -
+                                                state.persona_baseline_mean);
+                    if (deviation > config_->thresholds.persona_deviation_factor *
+                                    state.persona_baseline_stddev) {
+                        state.persona_drift_count++;
+                        if (!in_baseline) {
+                            state.coherence_score -= penalty(config_->weights.persona_fingerprint,
+                                                              state.persona_drift_count);
+                        }
+                        state.signals_fired_this_turn++;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // Signal 18: Tool chain integrity — detect tool result misrepresentation
+    // Compares tool result keywords stored by recordToolResult() against response keywords.
+    // If agent references a tool but its response keywords have low overlap with actual
+    // tool results, the agent may be fabricating or misremembering tool output.
+    if (config_->signals.tool_chain_integrity && !state.tool_result_keywords.empty()) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                // Check each tool's result keywords against response
+                bool misrepresented = false;
+                for (const auto& [tool_name, result_kw] : state.tool_result_keywords) {
+                    if (result_kw.empty()) continue;
+                    // Only check if the response mentions the tool name
+                    if (!ev.content_keywords.count(tool_name)) continue;
+                    // Compute recall: how many result keywords appear in response
+                    int found = 0;
+                    for (const auto& kw : result_kw) {
+                        if (ev.content_keywords.count(kw)) found++;
+                    }
+                    double recall = static_cast<double>(found) /
+                                    static_cast<double>(result_kw.size());
+                    if (recall < config_->thresholds.tool_result_recall_min) {
+                        misrepresented = true;
+                        break;
+                    }
+                }
+                if (misrepresented) {
+                    state.tool_integrity_count++;
+                    if (!in_baseline) {
+                        state.coherence_score -= penalty(config_->weights.tool_chain_integrity,
+                                                          state.tool_integrity_count);
+                    }
+                    state.signals_fired_this_turn++;
+                }
+                break;
+            }
+        }
+    }
+
+    // Signal 19: Claim-result reconciliation — detect tool outcome misrepresentation.
+    // Checks whether agent response claims success/error that contradicts actual tool outcome.
+    // Unlike Signal 18 (keyword recall), this detects STATUS misrepresentation:
+    // agent says "successfully updated" when tool returned an error.
+    if (config_->signals.claim_result_reconciliation && !state.tool_last_outcome.empty()) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+                bool mismatch_detected = false;
+                int tools_checked = 0;
+                int tools_matched = 0;
+
+                static const std::vector<std::string> success_words = {
+                    "success", "succeeded", "completed", "done", "created",
+                    "wrote", "saved", "passed", "found", "returned", "worked"
+                };
+                static const std::vector<std::string> failure_words = {
+                    "error", "failed", "failure", "exception", "unable",
+                    "could", "cannot", "denied", "blocked", "timeout"
+                };
+
+                for (const auto& [tool_name, succeeded] : state.tool_last_outcome) {
+                    // Only check if response mentions the tool
+                    std::string tool_lower = tool_name;
+                    for (auto& c : tool_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    if (!ev.content_keywords.count(tool_lower)) continue;
+                    tools_checked++;
+
+                    bool claims_success = false;
+                    bool claims_failure = false;
+                    for (const auto& w : success_words) {
+                        if (ev.content_keywords.count(w)) { claims_success = true; break; }
+                    }
+                    for (const auto& w : failure_words) {
+                        if (ev.content_keywords.count(w)) { claims_failure = true; break; }
+                    }
+
+                    // Mismatch: claims success but tool failed (and no failure words),
+                    // OR claims failure but tool succeeded (and no success words).
+                    // Ambiguous cases (both or neither) do NOT fire.
+                    if ((claims_success && !succeeded && !claims_failure) ||
+                        (claims_failure && succeeded && !claims_success)) {
+                        mismatch_detected = true;
+                    } else {
+                        tools_matched++;
+                    }
+                }
+
+                // Track rolling accuracy
+                if (tools_checked > 0) {
+                    double accuracy = static_cast<double>(tools_matched) /
+                                      static_cast<double>(tools_checked);
+                    state.claim_accuracy_history.push_back(accuracy);
+                    while (state.claim_accuracy_history.size() > 20)
+                        state.claim_accuracy_history.pop_front();
+                }
+
+                if (mismatch_detected) {
+                    state.claim_result_mismatch_count++;
+                    if (!in_baseline) {
+                        state.coherence_score -= penalty(config_->weights.claim_result_reconciliation,
+                                                          state.claim_result_mismatch_count);
+                    }
+                    state.signals_fired_this_turn++;
+                }
+                break;
+            }
+        }
+        // Clear tool outcomes after reconciliation (per-turn check, not cumulative)
+        state.tool_last_outcome.clear();
     }
 
     // F15: Natural healing — proportional to signal cleanliness.
@@ -1234,6 +1709,51 @@ void ContextDriftAnalyzer::initializeMandateKeywords(
     int handle_id, const std::unordered_set<std::string>& keywords) {
     std::lock_guard<std::mutex> lock(mutex_);
     drift_states_[handle_id].mandate_keywords = keywords;
+}
+
+void ContextDriftAnalyzer::addInstructionKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    for (const auto& kw : keywords) {
+        state.instruction_keywords.insert(kw);
+    }
+    // Also store per-turn keyword set for instruction conflict detection
+    if (config_ && config_->signals.instruction_conflict && !keywords.empty()) {
+        state.instruction_history.push_back(keywords);
+        int window = config_->thresholds.instruction_conflict_window;
+        while (static_cast<int>(state.instruction_history.size()) > window) {
+            state.instruction_history.pop_front();
+        }
+    }
+}
+
+void ContextDriftAnalyzer::extractPlanFromResponse(
+    int handle_id, const std::string& response_text) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    if (state.plan_extracted) return;  // only attempt once
+    state.plan_extracted = true;
+    auto steps = extractPlanSteps(response_text);
+    if (!steps.empty()) {
+        state.plan_step_keywords = std::move(steps);
+    }
+}
+
+void ContextDriftAnalyzer::recordToolResult(
+    int handle_id, const std::string& tool_name,
+    const std::unordered_set<std::string>& result_keywords) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    // Store latest result keywords per tool (replace, don't merge — results are per-call)
+    state.tool_result_keywords[tool_name] = result_keywords;
+}
+
+void ContextDriftAnalyzer::recordToolOutcome(
+    int handle_id, const std::string& tool_name, bool success) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    state.tool_last_outcome[tool_name] = success;
 }
 
 } // namespace governance

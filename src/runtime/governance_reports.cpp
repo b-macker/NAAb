@@ -23,6 +23,21 @@
 #endif
 #include <fmt/core.h>
 
+// Helper: checked fwrite with failure counter (warns once on first failure)
+static bool checkedWrite(FILE* fp, const std::string& line,
+                         std::atomic<int>& failure_counter) {
+    size_t written = fwrite(line.c_str(), 1, line.size(), fp);
+    if (written != line.size()) {
+        int prev = failure_counter.fetch_add(1, std::memory_order_relaxed);
+        if (prev == 0) {
+            fprintf(stderr, "[governance] WARNING: telemetry write failed "
+                "(wrote %zu/%zu bytes)\n", written, line.size());
+        }
+        return false;
+    }
+    return true;
+}
+
 // Forward declarations for symbols defined in other governance translation units
 namespace naab {
 std::pair<std::vector<std::string>, std::vector<std::string>>
@@ -159,6 +174,68 @@ std::string GovernanceEngine::computeHash(const std::string& data,
         return security::CryptoUtils::hmacSha256(data, te.hmac_key);
     }
     return security::CryptoUtils::sha256(data);
+}
+
+int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
+    const std::string& hmac_key) {
+    std::ifstream ifs(filepath);
+    if (!ifs.is_open()) {
+        fprintf(stderr, "Error: cannot open %s\n", filepath.c_str());
+        return 1;
+    }
+    std::string line;
+    int event_num = 0;
+    int chained_events = 0;
+    std::string expected_prev_hash;
+    int breaks = 0;
+    while (std::getline(ifs, line)) {
+        if (line.empty()) continue;
+        event_num++;
+        try {
+            auto ev = nlohmann::json::parse(line);
+            if (!ev.contains("hash") || !ev.contains("prev_hash")) continue;
+            chained_events++;
+            std::string stored_hash = ev["hash"].get<std::string>();
+            std::string prev_hash = ev["prev_hash"].get<std::string>();
+            if (!expected_prev_hash.empty() && prev_hash != expected_prev_hash) {
+                fprintf(stderr, "BREAK at event %d: prev_hash mismatch\n"
+                    "  expected: %s\n  got:      %s\n", event_num,
+                    expected_prev_hash.c_str(), prev_hash.c_str());
+                breaks++;
+            }
+            auto ev_copy = ev;
+            ev_copy.erase("hash");
+            std::string recomputed;
+            if (!hmac_key.empty())
+                recomputed = security::CryptoUtils::hmacSha256(ev_copy.dump(), hmac_key);
+            else
+                recomputed = security::CryptoUtils::sha256(ev_copy.dump());
+            if (recomputed != stored_hash) {
+                fprintf(stderr, "TAMPER at event %d: hash mismatch\n"
+                    "  stored:     %s\n  recomputed: %s\n", event_num,
+                    stored_hash.c_str(), recomputed.c_str());
+                breaks++;
+            }
+            expected_prev_hash = stored_hash;
+        } catch (const nlohmann::json::parse_error&) {
+            fprintf(stderr, "CORRUPT at event %d: invalid JSON\n", event_num);
+            breaks++;
+        }
+    }
+    if (chained_events == 0) {
+        fprintf(stdout, "No chained events found in %s (%d lines read)\n",
+                filepath.c_str(), event_num);
+        return 0;
+    }
+    if (breaks == 0) {
+        fprintf(stdout, "Chain verified: %d chained events (%d total lines), no breaks\n",
+                chained_events, event_num);
+        return 0;
+    } else {
+        fprintf(stderr, "Chain BROKEN: %d break(s) in %d chained events (%d total lines)\n",
+                breaks, chained_events, event_num);
+        return 1;
+    }
 }
 
 void GovernanceEngine::emitAttestation(const std::string& action_type,
@@ -298,7 +375,7 @@ void GovernanceEngine::emitRefusalAttestation(
     }
 
     std::string line = ev.dump() + "\n";
-    fwrite(line.c_str(), 1, line.size(), fp.get());
+    checkedWrite(fp.get(), line, telemetry_write_failures_);
 
     // Forward to SIEM/webhook if configured
     {
@@ -877,6 +954,7 @@ void GovernanceEngine::writeTelemetry() const {
     // Fix 4B: opt-in deduplication of governance check entries
     std::unordered_set<std::string> seen_keys;
     size_t dedup_count = 0;
+    size_t events_written = 0;
 
     for (const auto& r : check_results_) {
         // Fix 4B: skip duplicate (rule_name, file, line) entries
@@ -928,7 +1006,8 @@ void GovernanceEngine::writeTelemetry() const {
         }
 
         std::string line = ev.dump() + "\n";
-        fwrite(line.c_str(), 1, line.size(), fp.get());
+        if (checkedWrite(fp.get(), line, telemetry_write_failures_))
+            events_written++;
 
         // C2: local shared_ptr copy prevents use-after-free during reload/destruction
         {
@@ -960,7 +1039,8 @@ void GovernanceEngine::writeTelemetry() const {
             summary["hash"] = last_telemetry_hash_;
         }
         std::string sline = summary.dump() + "\n";
-        fwrite(sline.c_str(), 1, sline.size(), fp.get());
+        if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
+            events_written++;
     }
 
     // Fix 5B: emit end-of-run health warnings (catches instrumentation failures
@@ -991,7 +1071,8 @@ void GovernanceEngine::writeTelemetry() const {
             snap["hash"] = last_telemetry_hash_;
         }
         std::string sline = snap.dump() + "\n";
-        fwrite(sline.c_str(), 1, sline.size(), fp.get());
+        if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
+            events_written++;
         {
             std::shared_ptr<TelemetryForwarder> fwd;
             { std::lock_guard<std::mutex> lock(telemetry_fwd_mutex_); fwd = telemetry_forwarder_; }
@@ -1001,9 +1082,14 @@ void GovernanceEngine::writeTelemetry() const {
 
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
-    if (!check_results_.empty()) {
-        fprintf(stderr, "[governance] Telemetry: %zu events written to %s\n",
-                check_results_.size(), rules().telemetry_output.output_file.c_str());
+    if (events_written > 0) {
+        int failures = telemetry_write_failures_.load(std::memory_order_relaxed);
+        if (failures > 0)
+            fprintf(stderr, "[governance] Telemetry: %zu events written to %s (%d write failures)\n",
+                    events_written, rules().telemetry_output.output_file.c_str(), failures);
+        else
+            fprintf(stderr, "[governance] Telemetry: %zu events written to %s\n",
+                    events_written, rules().telemetry_output.output_file.c_str());
     }
 }
 
@@ -1061,7 +1147,7 @@ void GovernanceEngine::writeAgentTelemetry(
     }
 
     std::string line = ev.dump() + "\n";
-    fwrite(line.c_str(), 1, line.size(), fp.get());
+    checkedWrite(fp.get(), line, telemetry_write_failures_);
 
     // C2: local shared_ptr copy prevents use-after-free during reload/destruction
     {
@@ -1095,7 +1181,7 @@ void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
 #endif
 
     std::string line = json_line + "\n";
-    fwrite(line.c_str(), 1, line.size(), fp.get());
+    checkedWrite(fp.get(), line, telemetry_write_failures_);
 }
 
 bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {

@@ -2666,6 +2666,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("thinking_history_window") && th["thinking_history_window"].is_number_integer()) cfg.thresholds.thinking_history_window = std::max(2, th["thinking_history_window"].get<int>());
             if (th.contains("semantic_stability_min_overlap") && th["semantic_stability_min_overlap"].is_number()) cfg.thresholds.semantic_stability_min_overlap = std::max(0.0, std::min(1.0, th["semantic_stability_min_overlap"].get<double>()));
             if (th.contains("mandate_alignment_min") && th["mandate_alignment_min"].is_number()) cfg.thresholds.mandate_alignment_min = std::max(0.0, std::min(1.0, th["mandate_alignment_min"].get<double>()));
+            if (th.contains("context_growth_factor") && th["context_growth_factor"].is_number()) cfg.thresholds.context_growth_factor = std::max(1.5, th["context_growth_factor"].get<double>());
+            if (th.contains("instruction_recall_min") && th["instruction_recall_min"].is_number()) cfg.thresholds.instruction_recall_min = std::max(0.0, std::min(1.0, th["instruction_recall_min"].get<double>()));
+            if (th.contains("plan_step_overlap_min") && th["plan_step_overlap_min"].is_number()) cfg.thresholds.plan_step_overlap_min = std::max(0.0, std::min(1.0, th["plan_step_overlap_min"].get<double>()));
+            if (th.contains("entity_context_min_overlap") && th["entity_context_min_overlap"].is_number()) cfg.thresholds.entity_context_min_overlap = std::max(0.0, std::min(1.0, th["entity_context_min_overlap"].get<double>()));
+            if (th.contains("instruction_conflict_topic_overlap") && th["instruction_conflict_topic_overlap"].is_number()) cfg.thresholds.instruction_conflict_topic_overlap = std::max(0.0, std::min(1.0, th["instruction_conflict_topic_overlap"].get<double>()));
+            if (th.contains("instruction_conflict_window") && th["instruction_conflict_window"].is_number_integer()) cfg.thresholds.instruction_conflict_window = std::max(2, th["instruction_conflict_window"].get<int>());
+            if (th.contains("persona_deviation_factor") && th["persona_deviation_factor"].is_number()) cfg.thresholds.persona_deviation_factor = std::max(1.0, th["persona_deviation_factor"].get<double>());
+            if (th.contains("tool_result_recall_min") && th["tool_result_recall_min"].is_number()) cfg.thresholds.tool_result_recall_min = std::max(0.0, std::min(1.0, th["tool_result_recall_min"].get<double>()));
+            if (th.contains("claim_accuracy_min") && th["claim_accuracy_min"].is_number()) cfg.thresholds.claim_accuracy_min = std::max(0.0, std::min(1.0, th["claim_accuracy_min"].get<double>()));
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
@@ -2681,6 +2690,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("mandate_alignment") && sig["mandate_alignment"].is_boolean()) cfg.signals.mandate_alignment = sig["mandate_alignment"].get<bool>();
             if (sig.contains("response_quality") && sig["response_quality"].is_boolean()) cfg.signals.response_quality = sig["response_quality"].get<bool>();
             if (sig.contains("thinking_collapse") && sig["thinking_collapse"].is_boolean()) cfg.signals.thinking_collapse = sig["thinking_collapse"].get<bool>();
+            if (sig.contains("context_growth") && sig["context_growth"].is_boolean()) cfg.signals.context_growth = sig["context_growth"].get<bool>();
+            if (sig.contains("instruction_recall") && sig["instruction_recall"].is_boolean()) cfg.signals.instruction_recall = sig["instruction_recall"].get<bool>();
+            if (sig.contains("plan_drift") && sig["plan_drift"].is_boolean()) cfg.signals.plan_drift = sig["plan_drift"].get<bool>();
+            if (sig.contains("entity_consistency") && sig["entity_consistency"].is_boolean()) cfg.signals.entity_consistency = sig["entity_consistency"].get<bool>();
+            if (sig.contains("instruction_conflict") && sig["instruction_conflict"].is_boolean()) cfg.signals.instruction_conflict = sig["instruction_conflict"].get<bool>();
+            if (sig.contains("persona_fingerprint") && sig["persona_fingerprint"].is_boolean()) cfg.signals.persona_fingerprint = sig["persona_fingerprint"].get<bool>();
+            if (sig.contains("tool_chain_integrity") && sig["tool_chain_integrity"].is_boolean()) cfg.signals.tool_chain_integrity = sig["tool_chain_integrity"].get<bool>();
+            if (sig.contains("claim_result_reconciliation") && sig["claim_result_reconciliation"].is_boolean()) cfg.signals.claim_result_reconciliation = sig["claim_result_reconciliation"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -2696,6 +2713,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("mandate_alignment") && w["mandate_alignment"].is_number()) cfg.weights.mandate_alignment = w["mandate_alignment"].get<double>();
             if (w.contains("response_quality") && w["response_quality"].is_number()) cfg.weights.response_quality = w["response_quality"].get<double>();
             if (w.contains("thinking_collapse") && w["thinking_collapse"].is_number()) cfg.weights.thinking_collapse = w["thinking_collapse"].get<double>();
+            if (w.contains("context_growth") && w["context_growth"].is_number()) cfg.weights.context_growth = w["context_growth"].get<double>();
+            if (w.contains("instruction_recall") && w["instruction_recall"].is_number()) cfg.weights.instruction_recall = w["instruction_recall"].get<double>();
+            if (w.contains("plan_drift") && w["plan_drift"].is_number()) cfg.weights.plan_drift = w["plan_drift"].get<double>();
+            if (w.contains("entity_consistency") && w["entity_consistency"].is_number()) cfg.weights.entity_consistency = w["entity_consistency"].get<double>();
+            if (w.contains("instruction_conflict") && w["instruction_conflict"].is_number()) cfg.weights.instruction_conflict = w["instruction_conflict"].get<double>();
+            if (w.contains("persona_fingerprint") && w["persona_fingerprint"].is_number()) cfg.weights.persona_fingerprint = w["persona_fingerprint"].get<double>();
+            if (w.contains("tool_chain_integrity") && w["tool_chain_integrity"].is_number()) cfg.weights.tool_chain_integrity = w["tool_chain_integrity"].get<double>();
+            if (w.contains("claim_result_reconciliation") && w["claim_result_reconciliation"].is_number()) cfg.weights.claim_result_reconciliation = w["claim_result_reconciliation"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -2794,6 +2819,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
             cfg.step_up_keyword_threshold = val;
         }
+        if (cbj.contains("step_up_contextual") && cbj["step_up_contextual"].is_boolean()) cfg.step_up_contextual = cbj["step_up_contextual"].get<bool>();
+        if (cbj.contains("step_up_contextual_threshold") && cbj["step_up_contextual_threshold"].is_number()) {
+            cfg.step_up_contextual_threshold = std::max(0.0, std::min(1.0, cbj["step_up_contextual_threshold"].get<double>()));
+        }
         parseRationale(cbj, cfg.rationale);
     }
 
@@ -2881,12 +2910,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     }
 
     // --- Post-parse warnings ---
-    // Circuit breaker without reality checkpoint: graduated response works (composite
-    // pressure + level updates run independently) but checkpoint enforcement is disabled.
-    // Warn so operators know they're missing the blocking intervention layer.
+    // Reality checkpoint is enabled by default. If explicitly disabled while circuit
+    // breaker is active, warn that the blocking intervention layer is missing.
     if (rules_.circuit_breaker.enabled && !rules_.context_drift.reality_checkpoint.enabled) {
-        fprintf(stderr, "[governance] Warning: circuit_breaker enabled without reality_checkpoint — "
-                        "governance levels will update but checkpoint enforcement is inactive\n");
+        fprintf(stderr, "[governance] Note: reality_checkpoint explicitly disabled — "
+                        "circuit breaker levels will update but checkpoint enforcement is inactive\n");
     }
 }
 
