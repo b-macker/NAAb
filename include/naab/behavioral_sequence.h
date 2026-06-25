@@ -159,6 +159,14 @@ struct DriftState {
     int claim_result_mismatch_count = 0;                      // turns where agent misrepresented tool outcome
     std::deque<double> claim_accuracy_history;                 // rolling window of per-turn accuracy (size 20)
 
+    // Escalation effectiveness tracking — measure whether level changes improve behavior
+    int escalation_turn = -1;                      // turn when last escalation occurred (-1 = never)
+    int escalation_from_level = 0;                 // governance level before escalation
+    int escalation_to_level = 0;                   // governance level after escalation
+    double escalation_coherence_at = 0.0;          // coherence snapshot at escalation moment
+    double post_escalation_coherence_sum = 0.0;    // sum of coherence readings in window
+    int post_escalation_turns_counted = 0;         // turns counted in effectiveness window
+
     // Temporal trust decay — trust erodes when not actively reinforced
     std::chrono::steady_clock::time_point last_activity_time = std::chrono::steady_clock::now();
 
@@ -304,6 +312,9 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Record governance level escalation for effectiveness tracking
+    void recordEscalation(int handle_id, int from_level, int to_level);
 
     void reset();
 

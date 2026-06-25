@@ -1490,6 +1490,18 @@ else
     echo "  test_d1_reconciliation.sh: not found, skipping"
 fi
 
+ESC_EFF_SCRIPT="tests/governance_v4/test_escalation_effectiveness.sh"
+if [ -f "$ESC_EFF_SCRIPT" ]; then
+    if bash "$ESC_EFF_SCRIPT" 2>&1; then
+        echo "  test_escalation_effectiveness.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_escalation_effectiveness.sh")
+    fi
+else
+    echo "  test_escalation_effectiveness.sh: not found, skipping"
+fi
+
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
     # Canary test injects/reverts source files — skip when working tree is dirty

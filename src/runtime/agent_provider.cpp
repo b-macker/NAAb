@@ -674,7 +674,7 @@ ProviderResult callAgentWithTools(
                         } else if (block.contains("type") && block["type"] == "tool_result") {
                             // User's function response → Gemini functionResponse
                             json fr_part;
-                            fr_part["functionResponse"]["name"] = block.value("tool_use_id", "");
+                            fr_part["functionResponse"]["name"] = block.value("name", block.value("tool_use_id", ""));
                             json resp_content;
                             resp_content["result"] = block.value("content", "");
                             fr_part["functionResponse"]["response"] = resp_content;

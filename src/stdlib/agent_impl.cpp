@@ -479,6 +479,19 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             } else {
                 state["mandate_alignment"] = NaabVal::makeDouble(0.0);
             }
+            // Escalation effectiveness tracking
+            state["escalation_turn"] = NaabVal::makeInt(drift_opt->escalation_turn);
+            state["escalation_from_level"] = NaabVal::makeInt(drift_opt->escalation_from_level);
+            state["escalation_to_level"] = NaabVal::makeInt(drift_opt->escalation_to_level);
+            if (drift_opt->escalation_turn >= 0) {
+                int eff_window = ge->getRules().context_drift.escalation_effectiveness_window;
+                if (eff_window > 0 && drift_opt->post_escalation_turns_counted >= eff_window) {
+                    double mean = drift_opt->post_escalation_coherence_sum /
+                                  drift_opt->post_escalation_turns_counted;
+                    state["escalation_effectiveness"] = NaabVal::makeDouble(
+                        mean - drift_opt->escalation_coherence_at);
+                }
+            }
         } else {
             state["coherence"] = NaabVal::makeDouble(1.0);  // fresh agent
             state["pipeline_depth"] = NaabVal::makeInt(0);
@@ -494,6 +507,9 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["claim_mismatch_count"] = NaabVal::makeInt(0);
             state["claim_accuracy"] = NaabVal::makeDouble(1.0);
             state["mandate_alignment"] = NaabVal::makeDouble(0.0);
+            state["escalation_turn"] = NaabVal::makeInt(-1);
+            state["escalation_from_level"] = NaabVal::makeInt(0);
+            state["escalation_to_level"] = NaabVal::makeInt(0);
         }
 
         // Risk budget remaining (getRemainingBudget() is public, const)
@@ -1509,13 +1525,34 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             }
                         }
 
-                        // Build challenge message
+                        // Build challenge message with conversation history.
+                        // History gives the model context to answer contextual
+                        // questions (tool recall, plan steps, instructions, entities).
+                        // System prompt is NOT included here — callAgentWithStatus
+                        // sends it via config (Gemini: systemInstruction, Anthropic:
+                        // "system" field). Including it would double-send.
                         json challenge_msgs = json::array();
-                        if (!config->system_prompt.empty()) {
-                            json sys_msg;
-                            sys_msg["role"] = "system";
-                            sys_msg["content"] = config->system_prompt;
-                            challenge_msgs.push_back(sys_msg);
+                        size_t history_message_count = 0;
+                        {
+                            auto hist_it = handle.find("messages");
+                            if (hist_it != handle.end() && hist_it->second.isList()) {
+                                auto& hlist = hist_it->second.asList();
+                                for (auto& hmsg : hlist) {
+                                    if (hmsg.isDict()) {
+                                        auto& hd = hmsg.asDict();
+                                        auto hr_it = hd.find("role");
+                                        auto hc_it = hd.find("content");
+                                        if (hr_it != hd.end() && hr_it->second.isString() &&
+                                            hc_it != hd.end() && hc_it->second.isString()) {
+                                            json hm;
+                                            hm["role"] = hr_it->second.asString();
+                                            hm["content"] = hc_it->second.asString();
+                                            challenge_msgs.push_back(hm);
+                                        }
+                                    }
+                                }
+                                history_message_count = challenge_msgs.size();
+                            }
                         }
                         json challenge_user;
                         challenge_user["role"] = "user";
@@ -1623,7 +1660,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"challenge_type", challenge_type},
                                 {"lease_expired", lease_expired},
                                 {"coherence_ok", coherence_ok},
-                                {"response_length", static_cast<int>(challenge_result.response.content.size())}
+                                {"response_length", static_cast<int>(challenge_result.response.content.size())},
+                                {"history_messages", static_cast<int>(history_message_count)}
                             };
                         }
 
@@ -1637,7 +1675,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"output_tokens", std::to_string(challenge_result.response.output_tokens)},
                                 {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
-                                {"context_prompts", std::to_string(recent_prompts.size())}
+                                {"context_prompts", std::to_string(recent_prompts.size())},
+                                {"history_messages", std::to_string(history_message_count)}
                             });
                         } else {
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_FAIL", {
@@ -1648,7 +1687,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"output_tokens", std::to_string(challenge_result.response.output_tokens)},
                                 {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
-                                {"context_prompts", std::to_string(recent_prompts.size())}
+                                {"context_prompts", std::to_string(recent_prompts.size())},
+                                {"history_messages", std::to_string(history_message_count)}
                             });
                             throw governance::GovernanceHardError(
                                 "Agent error: Step-up challenge failed\n\n"
@@ -2471,6 +2511,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 json result_block;
                 result_block["type"] = "tool_result";
                 result_block["tool_use_id"] = tc.id;
+                result_block["name"] = tc.name;  // Gemini functionResponse needs function name
                 result_block["content"] = tool_result_str;
                 if (!tool_success) result_block["is_error"] = true;
                 tool_result_blocks.push_back(result_block);
@@ -3163,6 +3204,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
                 char rcoh[32];
                 snprintf(rcoh, sizeof(rcoh), "%.4f", drift_state->coherence_score);
+                // Escalation effectiveness for telemetry
+                std::string esc_eff_str = "N/A";
+                if (drift_state->escalation_turn >= 0) {
+                    int eff_w = gov_engine->getRules().context_drift.escalation_effectiveness_window;
+                    if (eff_w > 0 && drift_state->post_escalation_turns_counted >= eff_w) {
+                        double eff_mean = drift_state->post_escalation_coherence_sum /
+                                          drift_state->post_escalation_turns_counted;
+                        char eff_buf[32];
+                        snprintf(eff_buf, sizeof(eff_buf), "%.4f",
+                                 eff_mean - drift_state->escalation_coherence_at);
+                        esc_eff_str = eff_buf;
+                    }
+                }
                 gov_engine->writeAgentTelemetry("RECONCILIATION_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
                     {"turn",                   std::to_string(current_turn)},
@@ -3173,18 +3227,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"plan_drift_count",       std::to_string(drift_state->plan_drift_count)},
                     {"entity_consistency_count", std::to_string(drift_state->entity_consistency_count)},
                     {"coherence",              rcoh},
-                    {"signals_fired",          std::to_string(drift_state->signals_fired_this_turn)}
+                    {"signals_fired",          std::to_string(drift_state->signals_fired_this_turn)},
+                    {"escalation_effectiveness", esc_eff_str}
                 });
             }
             // GOVERNANCE_LEVEL_CHANGE: only when level transitions
             if (level_after != level_before) {
                 const char* from_str = (level_before >= 0 && level_before <= 3)
                     ? level_names[level_before] : "unknown";
+                char esc_coh[32];
+                snprintf(esc_coh, sizeof(esc_coh), "%.4f",
+                         drift_state ? drift_state->coherence_score : 0.0);
                 gov_engine->writeAgentTelemetry("GOVERNANCE_LEVEL_CHANGE", {
                     {"handle_id",  std::to_string(handle_id)},
                     {"turn",       std::to_string(current_turn)},
                     {"from_level", from_str},
-                    {"to_level",   level_str}
+                    {"to_level",   level_str},
+                    {"coherence_at_escalation", esc_coh}
                 });
             }
         }
@@ -3358,6 +3417,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 for (double v : drift_st->mandate_alignment_history) ma_sum += v;
                 double ma_mean = ma_sum / static_cast<double>(drift_st->mandate_alignment_history.size());
                 sem["mandate_alignment"] = NaabVal::makeDouble(ma_mean);
+            }
+            // Escalation effectiveness tracking
+            sem["escalation_turn"] = NaabVal::makeInt(drift_st->escalation_turn);
+            sem["escalation_from_level"] = NaabVal::makeInt(drift_st->escalation_from_level);
+            sem["escalation_to_level"] = NaabVal::makeInt(drift_st->escalation_to_level);
+            if (drift_st->escalation_turn >= 0) {
+                int eff_window = gov_engine->getRules().context_drift.escalation_effectiveness_window;
+                if (eff_window > 0 && drift_st->post_escalation_turns_counted >= eff_window) {
+                    double eff_mean = drift_st->post_escalation_coherence_sum /
+                                      drift_st->post_escalation_turns_counted;
+                    sem["escalation_effectiveness"] = NaabVal::makeDouble(
+                        eff_mean - drift_st->escalation_coherence_at);
+                }
             }
             result["semantic"] = NaabVal::makeDict(std::move(sem));
         }

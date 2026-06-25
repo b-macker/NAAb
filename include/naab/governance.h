@@ -1311,6 +1311,8 @@ struct ContextDriftConfig {
     bool adaptive_baseline_enabled = false;
     int adaptive_baseline_window = 5;           // turns to observe before penalizing
     double adaptive_baseline_sensitivity = 2.0; // k*stddev threshold above mean
+    // Escalation effectiveness — measure post-escalation coherence over a window
+    int escalation_effectiveness_window = 5;     // turns after escalation to measure effectiveness
     struct Signals {
         bool repeated_failures = true;
         bool circular_actions = true;
@@ -2901,6 +2903,9 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Record governance level escalation for effectiveness tracking
+    void recordEscalation(int handle_id, int from_level, int to_level);
 
     // Reality checkpoint: get pressure data for response dict
     struct CheckpointData {

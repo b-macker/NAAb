@@ -1583,6 +1583,13 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Clamp coherence score to [0.0, 1.0]
     state.coherence_score = std::max(0.0, std::min(1.0, state.coherence_score));
 
+    // Escalation effectiveness: accumulate post-escalation coherence readings
+    if (state.escalation_turn >= 0 &&
+        state.post_escalation_turns_counted < config_->escalation_effectiveness_window) {
+        state.post_escalation_coherence_sum += state.coherence_score;
+        state.post_escalation_turns_counted++;
+    }
+
     // Track coherence history for velocity/acceleration computation
     state.coherence_history.push_back(state.coherence_score);
     if (static_cast<int>(state.coherence_history.size()) > config_->thresholds.coherence_history_size) {
@@ -1754,6 +1761,20 @@ void ContextDriftAnalyzer::recordToolOutcome(
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     state.tool_last_outcome[tool_name] = success;
+}
+
+void ContextDriftAnalyzer::recordEscalation(
+    int handle_id, int from_level, int to_level) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    if (it != drift_states_.end()) {
+        it->second.escalation_turn = it->second.last_checked_turn;
+        it->second.escalation_from_level = from_level;
+        it->second.escalation_to_level = to_level;
+        it->second.escalation_coherence_at = it->second.coherence_score;
+        it->second.post_escalation_coherence_sum = 0.0;
+        it->second.post_escalation_turns_counted = 0;
+    }
 }
 
 } // namespace governance

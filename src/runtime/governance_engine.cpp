@@ -2836,6 +2836,19 @@ void GovernanceEngine::printDashboard() const {
                 }
                 fprintf(stderr, "\n");
             }
+            if (state->escalation_turn >= 0) {
+                fprintf(stderr, "Escalation: level %d->%d at turn %d",
+                        state->escalation_from_level, state->escalation_to_level,
+                        state->escalation_turn);
+                int eff_w = rules().context_drift.escalation_effectiveness_window;
+                if (eff_w > 0 && state->post_escalation_turns_counted >= eff_w) {
+                    double eff_mean = state->post_escalation_coherence_sum /
+                                      state->post_escalation_turns_counted;
+                    double eff = eff_mean - state->escalation_coherence_at;
+                    fprintf(stderr, ", effectiveness=%+.2f (%d-turn window)", eff, eff_w);
+                }
+                fprintf(stderr, "\n");
+            }
         } else {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
@@ -6873,8 +6886,12 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 int prev_level = governance_level_.load(std::memory_order_relaxed);
                 if (level != prev_level) {
                     governance_epoch_++;
-                    std::lock_guard<std::mutex> lock(results_mutex_);
-                    decayAdvisoryHistory();
+                    {
+                        std::lock_guard<std::mutex> lock(results_mutex_);
+                        decayAdvisoryHistory();
+                    }
+                    // Record escalation for effectiveness tracking
+                    drift_analyzer_.recordEscalation(state->handle_id, prev_level, level);
                 }
                 governance_level_.store(level, std::memory_order_relaxed);
             }
@@ -6947,6 +6964,11 @@ void GovernanceEngine::recordToolResult(
 void GovernanceEngine::recordToolOutcome(
     int handle_id, const std::string& tool_name, bool success) {
     drift_analyzer_.recordToolOutcome(handle_id, tool_name, success);
+}
+
+void GovernanceEngine::recordEscalation(
+    int handle_id, int from_level, int to_level) {
+    drift_analyzer_.recordEscalation(handle_id, from_level, to_level);
 }
 
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(

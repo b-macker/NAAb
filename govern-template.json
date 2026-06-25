@@ -1732,6 +1732,7 @@
     "adaptive_baseline_enabled": false,
     "adaptive_baseline_window": 5,
     "adaptive_baseline_sensitivity": 2.0,
+    "escalation_effectiveness_window": 5,
     "signals": {
       "circular_actions": true,
       "repeated_failures": true,
