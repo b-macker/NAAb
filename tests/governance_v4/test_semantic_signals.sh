@@ -13,7 +13,7 @@
 #   response keyword sets. Fires when overlap < threshold.
 # - Signal 11 (mandate_alignment): Rolling-window check of system_prompt
 #   keyword presence in response. Fires when mean < threshold.
-# - Both signals default to OFF. Only fire when explicitly enabled.
+# - Both signals default to ON (all CDD signals enabled by default).
 # - Keywords extracted from agent_resp.content in agent_impl.cpp:2654
 # - Keywords passed through emitEvent → RuntimeEvent → recordTurn
 # ============================================================
@@ -132,7 +132,7 @@ else
     fail "A01" "Config parsing failed" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -3)"
 fi
 
-# A02: Semantic signals default to OFF — governance.health() works without them
+# A02: Semantic signals work with default config — governance.health() works without explicit signal config
 WORKDIR=$(setup_workdir)
 cat > "$WORKDIR/govern.json" << 'GOVEOF'
 {
@@ -161,7 +161,7 @@ NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
 if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
-    pass "A02" "Semantic signals default OFF — no impact on existing behavior"
+    pass "A02" "Semantic signals work with default config — no impact on existing behavior"
 else
     fail "A02" "Default config broken" "exit=$EXIT_CODE"
 fi
