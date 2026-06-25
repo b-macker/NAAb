@@ -1,0 +1,108 @@
+import "models.naab" as models
+
+use agent
+use json
+
+export fn analyze_event_patterns(events, window_size) {
+    if events == null { return {"patterns": [], "recurring_count": 0, "novel_count": 0, "recommendations": []} }
+    let patterns = <<python[events, window_size]
+from collections import Counter
+if not events or window_size <= 0:
+    result = {"patterns": [], "recurring": 0, "novel": 0, "recs": []}
+else:
+    messages = [e.get("message", "") for e in events]
+    counts = Counter(messages)
+    patterns = [msg for msg, count in counts.items() if count > 1]
+    recurring = sum(1 for msg, count in counts.items() if count > 1)
+    novel = sum(1 for msg, count in counts.items() if count == 1)
+    result = {"patterns": patterns, "recurring": recurring, "novel": novel, "recs": []}
+result
+    >>
+    return {
+        "patterns": patterns.get("patterns") ?? [],
+        "recurring_count": patterns.get("recurring") ?? 0,
+        "novel_count": patterns.get("novel") ?? 0,
+        "recommendations": patterns.get("recs") ?? []
+    }
+}
+
+export fn analyze_anomalies(events, baseline) {
+    if events == null { return {"anomalies": [], "baseline": baseline ?? 0.0, "deviations": 0, "risk_score": 0.0} }
+    let anom = <<python[events, baseline]
+if not events or baseline <= 0:
+    result = {"anomalies": [], "baseline": baseline or 0, "devs": 0, "risk": 0}
+else:
+    count = len(events)
+    dev_threshold = baseline * 1.5
+    devs = 1 if count > dev_threshold else 0
+    risk = 0.3 if devs else 0
+    result = {"anomalies": [], "baseline": baseline, "devs": devs, "risk": risk}
+result
+    >>
+    return {
+        "anomalies": anom.get("anomalies") ?? [],
+        "baseline": anom.get("baseline") ?? 0.0,
+        "deviations": anom.get("devs") ?? 0,
+        "risk_score": anom.get("risk") ?? 0.0
+    }
+}
+
+export fn check_agent_available(config_name) {
+    if config_name == null { return {"available": false, "reason": "no config name"} }
+    let check = agent.check(config_name)
+    let available = check.get("valid") == true
+    let reason = if available { "agent configured" } else { check.get("error") ?? "unknown error" }
+    return {"available": available, "reason": reason}
+}
+
+export fn generate_interpretation_prompt(incident, events) {
+    if incident == null { return "" }
+    let prompt = "Analyze incident " + incident.id + ": " + incident.title + ". "
+    if events != null && len(events) > 0 {
+        prompt = prompt + "Related events: " + string(len(events)) + ". "
+    }
+    return prompt
+}
+
+export fn interpret_incident(incident, context_events) {
+    if incident == null {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": "no incident",
+            "suggested_actions": []
+        }
+    }
+    let pre = check_agent_available("incident_analyst")
+    if pre.get("available") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": pre.get("reason"),
+            "suggested_actions": []
+        }
+    }
+    try {
+        let handle = agent.create("incident_analyst")
+        let prompt = generate_interpretation_prompt(incident, context_events)
+        let resp = agent.send(handle, prompt)
+        let content = resp.get("content") ?? ""
+        return {
+            "interpretation": content,
+            "confidence": 1,
+            "reasoning": "agent analysis",
+            "suggested_actions": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "suggested_actions": []
+        }
+    }
+}
+
+main {
+    print("analyzer module loaded")
+}

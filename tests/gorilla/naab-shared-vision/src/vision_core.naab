@@ -1,0 +1,32 @@
+use agent
+use string
+use file
+use json
+use codegen
+
+export fn get_granular_artifact(handle, prompt) {
+    let res = agent.send(handle, prompt)
+    let content = ""
+    if typeof(res) == "dict" {
+        content = res.get("content") ?? ""
+    } else {
+        content = string(res)
+    }
+    // Clean markdown
+    content = string.replace(content, "```python", "")
+    content = string.replace(content, "```", "")
+    return string.trim(content)
+}
+
+export fn verify_vision(current_artifact, initial_spec) {
+    try {
+        let drift_check = <<python[current_artifact, initial_spec]
+import difflib
+ratio = difflib.SequenceMatcher(None, current_artifact, initial_spec).ratio()
+{"drift": 1.0 - ratio}
+>>
+        return drift_check.get("drift") ?? 0.0
+    } catch (e) {
+        return 1.0
+    }
+}

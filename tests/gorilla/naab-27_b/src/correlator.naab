@@ -1,0 +1,174 @@
+import "models.naab" as models
+
+use time
+
+export fn correlate_events(events, time_window_seconds) {
+    if events == null { return {groups: [], ungrouped: [], correlation_count: 0} }
+
+    let groups = <<python[events, time_window_seconds]
+from collections import defaultdict
+
+groups = defaultdict(list)
+base_time = events[0]["timestamp"] if events else 0
+
+for event in events:
+    ts = event.get("timestamp", 0)
+    source = event.get("source", "unknown")
+    category = event.get("category", -1)
+
+    key = (source, category)
+    window = (ts - base_time) // time_window_seconds
+    group_id = str(key) + "_" + str(window)
+
+    groups[group_id].append(event)
+
+result = list(groups.values())
+result
+    >>
+
+    let ungrouped = []
+    let correlation_count = len(groups)
+
+    return {groups: groups, ungrouped: ungrouped, correlation_count: correlation_count}
+}
+
+export fn detect_incident(event_group, threshold) {
+    if event_group == null { return {is_incident: false, incident: null, evidence: []} }
+
+    let total_severity = 0
+    let critical_count = 0
+    let evidence = []
+
+    for i in 0..len(event_group) {
+        let e = event_group[i]
+        total_severity = total_severity + e.get("severity", 0)
+        if e.get("severity", 0) <= 1 {
+            critical_count = critical_count + 1
+        }
+        evidence = evidence + [e.get("id", "")]
+    }
+
+    let avg_severity = if len(event_group) > 0 { total_severity / len(event_group) } else { 0 }
+
+    let is_incident = len(event_group) >= threshold || critical_count >= 2
+
+    let priority = match int(avg_severity) {
+        0 => 0,
+        1 => 1,
+        2 => 2,
+        3 => 3,
+        4 => 4,
+        _ => 4
+    }
+
+    let incident = if is_incident {
+        new models.Incident {
+            id: string(time.now()),
+            title: "Incident from event group",
+            status: 0,
+            severity: int(avg_severity),
+            priority: priority,
+            events: event_group,
+            created_at: time.now(),
+            updated_at: time.now(),
+            acknowledged_by: "",
+            resolved_at: 0,
+            tags: [],
+            root_cause: ""
+        }
+    } else {
+        null
+    }
+
+    return {is_incident: is_incident, incident: incident, evidence: evidence}
+}
+
+export fn find_related_events(events, event, max_depth) {
+    if event == null || events == null { return [] }
+
+    let related = []
+    let visited = {}
+
+    fn find_recursive(current_event, depth) {
+        if depth <= 0 { return [] }
+
+        let event_id = current_event.get("id", "")
+        if visited.get(event_id) == true { return [] }
+
+        visited.put(event_id, true)
+        let results = [current_event]
+
+        let source = current_event.get("source", "")
+        let category = current_event.get("category", -1)
+
+        for i in 0..len(events) {
+            let e = events[i]
+            let e_source = e.get("source", "")
+            let e_category = e.get("category", -1)
+            let e_id = e.get("id", "")
+
+            if visited.get(e_id) != true && (e_source == source || e_category == category) {
+                let recursive_results = find_recursive(e, depth - 1)
+                for j in 0..len(recursive_results) {
+                    results = results + [recursive_results[j]]
+                }
+            }
+        }
+
+        return results
+    }
+
+    return find_recursive(event, max_depth)
+}
+
+export fn merge_incidents(incident_a, incident_b) {
+    if incident_a == null && incident_b == null { return {merged_incident: null, source_count: 0, combined_events: []} }
+    if incident_a == null { return {merged_incident: incident_b, source_count: 1, combined_events: incident_b.get("events", [])} }
+    if incident_b == null { return {merged_incident: incident_a, source_count: 1, combined_events: incident_a.get("events", [])} }
+
+    let combined_events = incident_a.get("events", []) + incident_b.get("events", [])
+    let higher_severity = if incident_a.get("severity", 0) > incident_b.get("severity", 0) { incident_a.get("severity", 0) } else { incident_b.get("severity", 0) }
+
+    let merged = new models.Incident {
+        id: incident_a.get("id", ""),
+        title: incident_a.get("title", "") + " + " + incident_b.get("title", ""),
+        status: incident_a.get("status", 0),
+        severity: higher_severity,
+        priority: incident_a.get("priority", 0),
+        events: combined_events,
+        created_at: incident_a.get("created_at", time.now()),
+        updated_at: time.now(),
+        acknowledged_by: incident_a.get("acknowledged_by", ""),
+        resolved_at: incident_a.get("resolved_at", 0),
+        tags: incident_a.get("tags", []),
+        root_cause: incident_a.get("root_cause", "")
+    }
+
+    merged = merged |> (fn(m) { let e = combined_events; m })
+
+    return {merged_incident: merged, source_count: 2, combined_events: combined_events}
+}
+
+export fn deduplicate_events(events) {
+    if events == null { return {unique_events: [], duplicate_count: 0, dedup_map: {}} }
+
+    let seen_hashes = <<javascript[events]
+const hashes = {};
+const unique = [];
+let duplicates = 0;
+
+events.forEach(event => {
+    const key = event.message + "_" + event.source + "_" + Math.floor(event.timestamp / 60);
+    if (!hashes[key]) {
+        hashes[key] = true;
+        unique.push(event);
+    } else {
+        duplicates++;
+    }
+});
+
+{unique: unique, duplicates: duplicates, hashes: hashes}
+    >>
+
+    return {unique_events: seen_hashes.get("unique"), duplicate_count: seen_hashes.get("duplicates"), dedup_map: seen_hashes.get("hashes")}
+}

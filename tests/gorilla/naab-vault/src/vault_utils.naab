@@ -1,0 +1,56 @@
+use agent
+use string
+use array
+use json
+use codegen
+use regex
+use file
+
+export fn extract_clean_code(response, language) {
+    let content = ""
+    if typeof(response) == "dict" {
+        content = response.get("content") ?? ""
+    } else {
+        content = string(response)
+    }
+
+    // New Strategy: Split by backticks and take the part that looks like code
+    let parts = string.split(content, "```")
+    if array.length(parts) > 1 {
+        // Take the second part (the code block)
+        let block = parts[1]
+        // Strip language identifier
+        block = string.replace(block, language, "")
+        block = string.replace(block, "python", "")
+        block = string.replace(block, "javascript", "")
+        return string.trim(block)
+    }
+
+    return string.trim(content)
+}
+
+export fn governed_request(handle, prompt, language, max_retries) {
+    let attempts = 0
+    let current_prompt = prompt
+    
+    while attempts < max_retries {
+        print("  [Step] Dispatching to agent (Attempt " + string(attempts + 1) + ")...")
+        let raw_res = agent.send(handle, current_prompt)
+        let code = extract_clean_code(raw_res, language)
+        
+        file.write("partial_" + language + "_v" + string(attempts) + ".txt", code)
+
+        try {
+            print("  [Step] Governing " + language + " content...")
+            // Test execution with empty args
+            let result = codegen.run_with_args(language, code, {})
+            return { "success": true, "code": code, "output": result }
+        } catch (e) {
+            attempts = attempts + 1
+            print("  [RETRYING] Governance/Runtime Block: " + e)
+            current_prompt = "Your previous code failed security/runtime checks: " + e + 
+                             "\n\nPlease rewrite. Output ONLY the code inside backticks. " + prompt
+        }
+    }
+    return { "success": false, "error": "Exhausted all retries" }
+}

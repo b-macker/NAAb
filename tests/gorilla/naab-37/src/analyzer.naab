@@ -1,0 +1,80 @@
+use string
+use array
+import "models.naab" as models
+
+// Analyze a single incident and return analysis dict
+export fn analyze_incident(incident) {
+    let category = "unknown"
+    let severity_score = 0
+    let keywords_found = []
+    let recommendation = "investigate"
+
+    try {
+        let msg = incident.get("message")
+        if msg == null {
+            msg = ""
+        }
+
+        // Classify by keywords
+        if string.contains(msg, "auth") || string.contains(msg, "login") {
+            category = "authentication"
+            severity_score = 7
+            keywords_found = ["auth", "login"]
+        } else if string.contains(msg, "port") || string.contains(msg, "scan") {
+            category = "reconnaissance"
+            severity_score = 5
+            keywords_found = ["port", "scan"]
+        } else if string.contains(msg, "malware") || string.contains(msg, "trojan") {
+            category = "malware"
+            severity_score = 9
+            keywords_found = ["malware", "trojan"]
+        } else if string.contains(msg, "SQL") || string.contains(msg, "inject") {
+            category = "injection"
+            severity_score = 8
+            keywords_found = ["SQL", "inject"]
+        }
+
+        // Use Python polyglot to compute word count
+        let word_count_str = <<python[msg]
+len(msg.split())
+        >>
+        let word_count = int(string.trim(string(word_count_str)))
+
+        // Adjust severity based on message length
+        if word_count > 50 {
+            severity_score = severity_score + 1
+        }
+
+        // Set recommendation based on severity
+        if severity_score >= 8 {
+            recommendation = "isolate immediately"
+        } else if severity_score >= 6 {
+            recommendation = "escalate to security team"
+        } else {
+            recommendation = "monitor closely"
+        }
+    } catch (e) {
+        recommendation = "analysis failed, escalate"
+    }
+
+    return {
+        "category": category,
+        "severity_score": severity_score,
+        "keywords_found": keywords_found,
+        "recommendation": recommendation
+    }
+}
+
+// Batch analysis of multiple incidents
+export fn analyze_batch_async(incidents) {
+    let results = []
+    let i = 0
+
+    for incident in incidents {
+        let analysis = analyze_incident(incident)
+        results.push(analysis)
+        i = i + 1
+    }
+
+    return results
+}

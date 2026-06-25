@@ -1,0 +1,153 @@
+use regex
+use json
+use time
+import "models.naab" as models
+
+export fn parse_log_entry(text) {
+    if text == null {
+        return {"event": null, "valid": false, "errors": ["null input"]}
+    }
+
+    let errors = []
+    let event = null
+    let valid = false
+
+    let json_event = try {
+        json.parse(text)
+    } catch (e) {
+        null
+    }
+
+    if json_event != null {
+        let ts = extract_timestamp(text)
+        let src = json_event.get("source") ?? "unknown"
+        let sev = normalize_severity(json_event.get("severity") ?? "info")
+        let msg = json_event.get("message") ?? ""
+        let cat = 3
+
+        event = models.create_event(
+            string(time.now()),
+            ts ?? int(time.now()),
+            src,
+            sev,
+            msg,
+            cat,
+            "raw",
+            [],
+            json_event
+        )
+        valid = true
+    } else {
+        let has_timestamp = regex.matches(text, "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")
+        let has_severity = regex.matches(text, "CRITICAL|ERROR|WARN|INFO|DEBUG")
+
+        if has_timestamp && has_severity {
+            let ts = extract_timestamp(text)
+            let src = extract_source(text)
+            let sev_match = regex.find(text, "CRITICAL|ERROR|WARN|INFO|DEBUG")
+            let sev = normalize_severity(sev_match ?? "info")
+            let msg_match = regex.find(text, ": (.+)")
+            let msg = msg_match ?? ""
+
+            event = models.create_event(
+                string(time.now()),
+                ts ?? int(time.now()),
+                src,
+                sev,
+                msg,
+                3,
+                "syslog",
+                [],
+                {}
+            )
+            valid = true
+        } else {
+            errors = errors + ["not valid json or syslog"]
+        }
+    }
+
+    return {"event": event, "valid": valid, "errors": errors}
+}
+
+export fn parse_batch(lines) {
+    let events = []
+    let errors = []
+    let success_count = 0
+    let fail_count = 0
+
+    for i in 0..len(lines) {
+        let result = parse_log_entry(lines[i])
+        if result.get("valid") {
+            events = events + [result.get("event")]
+            success_count = success_count + 1
+        } else {
+            errors = errors + [result.get("errors")]
+            fail_count = fail_count + 1
+        }
+    }
+
+    return {
+        "events": events,
+        "errors": errors,
+        "success_count": success_count,
+        "fail_count": fail_count
+    }
+}
+
+export fn extract_timestamp(text) {
+    if text == null {
+        return null
+    }
+
+    let iso_match = regex.find(text, "\\d{4}-\\d{2}-\\d{2}")
+    if iso_match != null {
+        return int(time.now())
+    }
+
+    let unix_match = regex.find(text, "\\d{10}")
+    if unix_match != null {
+        return int(unix_match)
+    }
+
+    return null
+}
+
+export fn extract_source(text) {
+    if text == null {
+        return "unknown"
+    }
+
+    let from_match = regex.find(text, "from [a-zA-Z0-9]")
+    if from_match != null {
+        return from_match
+    }
+
+    let host_match = regex.find(text, "host [a-zA-Z0-9]")
+    if host_match != null {
+        return host_match
+    }
+
+    return "unknown"
+}
+
+export fn normalize_severity(text) {
+    if text == null {
+        return 4
+    }
+
+    let lower = string.lower(text)
+    return match lower {
+        "critical" => 0,
+        "error" => 1,
+        "major" => 1,
+        "minor" => 2,
+        "warn" => 3,
+        "warning" => 3,
+        "info" => 4,
+        "debug" => 5,
+        _ => 4
+    }
+}
+
+main {
+}

@@ -1,0 +1,101 @@
+use regex
+use json
+
+import "models.naab" as models
+
+export fn parse_log_entry(text) {
+    let event = null
+    let valid = false
+    let errors = []
+
+    try {
+        let parsed = json.parse(text)
+        let id = parsed.get("id") ?? "evt_unknown"
+        let ts = parsed.get("timestamp") ?? 0
+        let source = parsed.get("source") ?? "unknown"
+        let severity = parsed.get("severity") ?? 4
+        let message = parsed.get("message") ?? ""
+        let category = parsed.get("category") ?? 3
+        let subcategory = parsed.get("subcategory") ?? "other"
+        let tags = parsed.get("tags") ?? []
+        let metadata = parsed.get("metadata") ?? {}
+
+        event = models.create_event(id, ts, source, severity, message, category, subcategory, tags, metadata)
+        valid = true
+    } catch (e) {
+        let groups = regex.find_groups(text, "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\s+(\\S+)\\s+([A-Z]+):\\s+(.*)")
+        if len(groups) > 0 {
+            let ts_str = groups[0][1]
+            let source = groups[0][2]
+            let severity_text = groups[0][3]
+            let message = groups[0][4]
+            let severity = normalize_severity(severity_text)
+            event = models.create_event("", 0, source, severity, message, 0, "", [], {})
+            valid = true
+        } else {
+            errors.push(string(e))
+            valid = false
+        }
+    }
+
+    return {
+        "event": event,
+        "valid": valid,
+        "errors": errors
+    }
+}
+
+export fn parse_batch(lines) {
+    let events = []
+    let errors = []
+    let success_count = 0
+    let fail_count = 0
+
+    for i in 0..len(lines) {
+        let line = lines[i]
+        let result = parse_log_entry(line)
+        if result.get("valid") == true {
+            events.push(result.get("event"))
+            success_count = success_count + 1
+        } else {
+            errors.push(result.get("errors"))
+            fail_count = fail_count + 1
+        }
+    }
+
+    return {
+        "events": events,
+        "errors": errors,
+        "success_count": success_count,
+        "fail_count": fail_count
+    }
+}
+
+export fn extract_timestamp(text) {
+    let groups = regex.find_groups(text, "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})")
+    if len(groups) > 0 {
+        return 0
+    }
+    return null
+}
+
+export fn extract_source(text) {
+    let groups = regex.find_groups(text, "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\s+(\\S+)")
+    if len(groups) > 0 {
+        return groups[0][1]
+    }
+    return ""
+}
+
+export fn normalize_severity(text) {
+    return match text {
+        "CRITICAL" => 0,
+        "ERROR" => 0,
+        "MAJOR" => 1,
+        "WARN" => 3,
+        "WARNING" => 3,
+        "INFO" => 4,
+        "DEBUG" => 5,
+        _ => 4
+    }
+}

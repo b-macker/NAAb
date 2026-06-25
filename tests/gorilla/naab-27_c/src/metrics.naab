@@ -1,0 +1,117 @@
+use math
+use time
+import "models.naab" as models
+
+export fn compute_severity_distribution(events) {
+    let distribution = <<python[events]
+from collections import Counter
+import math
+severities = [e.get("severity", 4) for e in events]
+sev_counts = Counter(severities)
+total = len(events)
+dominant = max(sev_counts.items(), key=lambda x: x[1])[0] if severities else 4
+counts_dict = {str(k): v for k, v in sev_counts.items()}
+result = {
+    "distribution": counts_dict,
+    "total": total,
+    "dominant_severity": dominant,
+    "entropy": 0.0 if not severities else -sum((c/total)*math.log2(c/total) for c in sev_counts.values() if c > 0)
+}
+result
+    >>
+
+    return distribution
+}
+
+export fn compute_alert_statistics(alerts, incidents) {
+    let safe_incidents = if incidents == null { [] } else { incidents }
+
+    let stats = <<python[alerts, safe_incidents]
+from collections import defaultdict
+response_times = []
+severities = defaultdict(int)
+for alert in alerts:
+    sev = alert.get("severity", 3)
+    severities[sev] += 1
+escalation_rate = len([a for a in alerts if a.get("state") >= 2]) / len(alerts) if alerts else 0
+sev_dict = {str(k): v for k, v in severities.items()}
+result = {
+    "total_alerts": len(alerts),
+    "by_severity": sev_dict,
+    "by_category": {},
+    "avg_response_time": sum([i.get("updated_at", 0) - i.get("created_at", 0) for i in safe_incidents]) / len(safe_incidents) if safe_incidents else 0,
+    "escalation_rate": escalation_rate
+}
+result
+    >>
+
+    return stats
+}
+
+export fn compute_event_frequency(events, window_seconds) {
+    let freq = <<python[events, window_seconds]
+events_per_minute = len(events) / (window_seconds / 60.0) if window_seconds > 0 else 0
+peak_rate = events_per_minute
+avg_rate = events_per_minute
+burst_windows = 1 if len(events) > 10 else 0
+result = {
+    "events_per_minute": events_per_minute,
+    "peak_rate": peak_rate,
+    "avg_rate": avg_rate,
+    "burst_windows": burst_windows
+}
+result
+    >>
+
+    return freq
+}
+
+export fn calculate_sla_compliance(incidents, sla_targets) {
+    let compliance = <<python[incidents, sla_targets]
+compliant_count = 0
+violations = []
+total = len(incidents)
+for incident in incidents:
+    if incident.get("resolved_at", 0) > 0:
+        resolution_time = incident.get("resolved_at", 0) - incident.get("created_at", 0)
+        sla_target = sla_targets.get(incident.get("severity", 3), 3600)
+        if resolution_time <= sla_target:
+            compliant_count += 1
+        else:
+            violations.append(incident.get("id"))
+result = {
+    "compliant": compliant_count,
+    "compliance_rate": compliant_count / total if total > 0 else 0,
+    "violations": violations,
+    "by_priority": {}
+}
+result
+    >>
+
+    return compliance
+}
+
+export fn calculate_mttr(incidents) {
+    let mttr = <<python[incidents]
+resolved_incidents = [i for i in incidents if i.get("resolved_at", 0) > 0]
+if resolved_incidents:
+    resolution_times = [i.get("resolved_at", 0) - i.get("created_at", 0) for i in resolved_incidents]
+    mttr_seconds = sum(resolution_times) / len(resolution_times)
+    mttr_minutes = mttr_seconds / 60.0
+else:
+    mttr_seconds = 0
+    mttr_minutes = 0
+result = {
+    "mttr_seconds": mttr_seconds,
+    "mttr_minutes": mttr_minutes,
+    "by_severity": {},
+    "trend": 0
+}
+result
+    >>
+
+    return mttr
+}
+
+main {
+}

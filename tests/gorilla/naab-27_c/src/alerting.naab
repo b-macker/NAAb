@@ -1,0 +1,188 @@
+use time
+use uuid
+import "models.naab" as models
+
+export fn evaluate_alert_rule(rule, events, current_state) {
+    if len(events) == 0 {
+        return {"triggered": false, "alert": null, "rule_id": rule.id, "severity": rule.severity}
+    }
+
+    let field = rule.condition_field
+    let threshold = rule.threshold_value
+    let direction = rule.direction
+
+    let max_value = 0
+    for i in 0..len(events) {
+        let val = events[i].get(field) ?? 0
+        if int(val) > max_value {
+            max_value = int(val)
+        }
+    }
+
+    let triggered = match direction {
+        0 => max_value > threshold,
+        1 => max_value < threshold,
+        2 => max_value == threshold,
+        3 => true,
+        _ => false
+    }
+
+    let alert = null
+    if triggered {
+        alert = models.create_alert(
+            uuid.v4(),
+            rule.id,
+            rule.severity,
+            "Alert: " + rule.name + " triggered",
+            []
+        )
+    }
+
+    return {
+        "triggered": triggered,
+        "alert": alert,
+        "rule_id": rule.id,
+        "severity": rule.severity
+    }
+}
+
+export fn check_threshold(value, threshold, direction) {
+    let val = int(value)
+    let thresh = int(threshold)
+
+    let exceeded = match direction {
+        0 => val > thresh,
+        1 => val < thresh,
+        2 => val == thresh,
+        _ => false
+    }
+
+    return {
+        "exceeded": exceeded,
+        "current_value": val,
+        "threshold": thresh,
+        "direction": direction
+    }
+}
+
+export fn build_alert_chain(alerts, incidents) {
+    let chain = <<javascript[alerts, incidents] -> JSON
+    const chain = [];
+    const rootCauses = new Set();
+    let maxDepth = 0;
+    for (const alert of alerts) {
+        const relatedIncidents = incidents.filter(inc =>
+            inc.events && inc.events.some(evt => alert.event_ids && alert.event_ids.includes(evt.id))
+        );
+        chain.push({
+            alert_id: alert.id,
+            incidents: relatedIncidents.map(i => i.id)
+        });
+        relatedIncidents.forEach(inc => rootCauses.add(inc.root_cause));
+        if (relatedIncidents.length > maxDepth) maxDepth = relatedIncidents.length;
+    }
+    const result = {
+        "chain": chain,
+        "root_cause": rootCauses.size > 0 ? Array.from(rootCauses)[0] : "unknown",
+        "affected_services": Array.from(rootCauses),
+        "depth": maxDepth
+    };
+    result
+    >>
+
+    return chain
+}
+
+export fn escalate_alert(alert, incidents, escalation_rules) {
+    let escalated = false
+    let new_priority = 4
+    let notification_targets = ["log"]
+    let reason = "No escalation needed"
+
+    if alert.severity == 0 {
+        escalated = true
+        new_priority = 0
+        notification_targets = ["pagerduty", "slack", "email"]
+        reason = "Critical severity detected"
+    } else if alert.severity == 1 {
+        escalated = true
+        new_priority = 1
+        notification_targets = ["slack", "email"]
+        reason = "Major severity detected"
+    }
+
+    return {
+        "escalated": escalated,
+        "new_priority": new_priority,
+        "notification_targets": notification_targets,
+        "reason": reason
+    }
+}
+
+export fn acknowledge_incident(incident, owner) {
+    let ack = new models.Incident {
+        id: incident.id,
+        title: incident.title,
+        status: 1,
+        severity: incident.severity,
+        priority: incident.priority,
+        events: incident.events,
+        created_at: incident.created_at,
+        updated_at: time.now(),
+        acknowledged_by: owner,
+        resolved_at: incident.resolved_at,
+        tags: incident.tags,
+        root_cause: incident.root_cause
+    }
+
+    return {"incident": ack, "acknowledged_at": time.now(), "owner": owner}
+}
+
+export fn resolve_incident(incident, resolution_note) {
+    let resolved_time = time.now() - incident.created_at
+    let resolved = new models.Incident {
+        id: incident.id,
+        title: incident.title,
+        status: 4,
+        severity: incident.severity,
+        priority: incident.priority,
+        events: incident.events,
+        created_at: incident.created_at,
+        updated_at: time.now(),
+        acknowledged_by: incident.acknowledged_by,
+        resolved_at: time.now(),
+        tags: incident.tags,
+        root_cause: resolution_note
+    }
+
+    return {
+        "incident": resolved,
+        "resolved_at": time.now(),
+        "resolution_time_seconds": resolved_time
+    }
+}
+
+export fn get_active_incidents(incidents) {
+    let active = []
+    for i in 0..len(incidents) {
+        let status = incidents[i].status
+        if status != 4 && status != 5 {
+            active = active + [incidents[i]]
+        }
+    }
+    return active
+}
+
+export fn filter_events_by_time_range(events, start_time, end_time) {
+    let filtered = []
+    for i in 0..len(events) {
+        let ts = events[i].timestamp
+        if ts >= start_time && ts <= end_time {
+            filtered = filtered + [events[i]]
+        }
+    }
+    return filtered
+}
+
+main {
+}

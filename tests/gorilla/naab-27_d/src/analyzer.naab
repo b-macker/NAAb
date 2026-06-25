@@ -1,0 +1,170 @@
+// Anomaly Detection & Agent Interpretation
+use agent
+use json
+import "models.naab" as models
+
+export fn analyze_event_patterns(events, window_size) {
+    if len(events) == 0 {
+        return {
+            "patterns": [],
+            "recurring_count": 0,
+            "novel_count": 0,
+            "recommendations": []
+        }
+    }
+
+    let result = <<python[events, window_size] -> JSON
+from collections import Counter
+
+message_counter = Counter(e["message"] for e in events if "message" in e)
+source_counter = Counter(e["source"] for e in events if "source" in e)
+
+patterns = []
+for msg, count in message_counter.most_common(5):
+    if count > 1:
+        patterns.append({"message": msg, "frequency": count})
+
+recurring_patterns = [p for p in patterns if p["frequency"] > 1]
+novel_count = len([e for e in events if message_counter.get(e.get("message", "")) == 1])
+
+recommendations = []
+if len(recurring_patterns) > 3:
+    recommendations.append("High message repetition - consider deduplication")
+
+{
+    "patterns": patterns,
+    "recurring_count": len(recurring_patterns),
+    "novel_count": novel_count,
+    "recommendations": recommendations
+}
+    >>
+
+    if result == null {
+        return {
+            "patterns": [],
+            "recurring_count": 0,
+            "novel_count": len(events),
+            "recommendations": []
+        }
+    }
+
+    return result
+}
+
+export fn analyze_anomalies(events, baseline) {
+    if len(events) == 0 {
+        return {
+            "anomalies": [],
+            "baseline": baseline,
+            "deviations": [],
+            "risk_score": 0.0
+        }
+    }
+
+    let anomaly_data = <<python[events, baseline] -> JSON
+anomalies = []
+deviations = []
+
+baseline_rate = baseline.get("event_rate", 10) if baseline else 10
+baseline_severity = baseline.get("avg_severity", 3) if baseline else 3
+
+current_rates = {}
+severity_sum = 0
+
+for event in events:
+    src = event.get("source", "unknown")
+    if src not in current_rates:
+        current_rates[src] = 0
+    current_rates[src] += 1
+    severity_sum += event.get("severity", 3)
+
+current_avg_severity = severity_sum / len(events) if events else 0
+
+for src, rate in current_rates.items():
+    if rate > baseline_rate * 1.5:
+        anomalies.append({"source": src, "rate": rate, "baseline": baseline_rate})
+        deviations.append({"source": src, "deviation_percent": ((rate - baseline_rate) / baseline_rate * 100) if baseline_rate > 0 else 0})
+
+risk_score = 0.0
+if len(anomalies) > 0:
+    risk_score = min(0.9, len(anomalies) * 0.1)
+
+{
+    "anomalies": anomalies,
+    "baseline": baseline,
+    "deviations": deviations,
+    "risk_score": risk_score
+}
+    >>
+
+    if anomaly_data == null {
+        return {
+            "anomalies": [],
+            "baseline": baseline,
+            "deviations": [],
+            "risk_score": 0.0
+        }
+    }
+
+    return anomaly_data
+}
+
+export fn check_agent_available(config_name) {
+    let check = agent.check(config_name)
+    let valid = check.get("valid") == true
+    let reason = if valid {
+        "agent configured"
+    } else {
+        check.get("error") ?? "unknown"
+    }
+
+    return {
+        "available": valid,
+        "reason": reason
+    }
+}
+
+export fn interpret_incident(incident, context_events) {
+    let pre = check_agent_available("incident_analyst")
+    if pre.get("available") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": pre.get("reason"),
+            "suggested_actions": []
+        }
+    }
+
+    try {
+        let handle = agent.create("incident_analyst")
+        let prompt = generate_interpretation_prompt(incident, context_events)
+        let resp = agent.send(handle, prompt)
+        let content = resp.get("content") ?? ""
+
+        return {
+            "interpretation": content,
+            "confidence": 1,
+            "reasoning": "agent analysis",
+            "suggested_actions": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "suggested_actions": []
+        }
+    }
+}
+
+export fn generate_interpretation_prompt(incident, events) {
+    let event_summaries = ""
+    for i in 0..len(events) {
+        let e = events[i]
+        event_summaries = event_summaries + "- " + e.message + "\n"
+    }
+
+    let prompt = "Analyze this incident:\n\nIncident ID: " + incident.id + "\nTitle: " + incident.title + "\nSeverity: " + string(incident.severity) + "\n\nContext Events:\n" + event_summaries + "\n\nProvide brief analysis and recommendations."
+
+    return prompt
+}

@@ -1,0 +1,663 @@
+import "models.naab" as models
+import "parser.naab" as parser
+import "classifier.naab" as classifier
+import "correlator.naab" as correlator
+import "alerting.naab" as alerting
+import "metrics.naab" as metrics
+import "timeline.naab" as timeline
+import "storage.naab" as storage
+import "exporter.naab" as exporter
+import "reports.naab" as reports
+import "analyzer.naab" as analyzer
+import "validators.naab" as validators
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let evt = models.create_event("e1", 1000, "host1", 1, "test message", 0, "test", [], {})
+    if evt.id == "e1" && evt.severity == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let inc = models.create_incident("i1", "Test Incident", 1, 0, [])
+    if inc.id == "i1" && inc.status == 0 { passed = passed + 1 }
+
+    total = total + 1
+    if models.severity_label(0) == "Critical" { passed = passed + 1 }
+
+    total = total + 1
+    if models.severity_label(1) == "Major" { passed = passed + 1 }
+
+    total = total + 1
+    if models.severity_label(5) == "Debug" { passed = passed + 1 }
+
+    total = total + 1
+    if models.event_type_label(0) == "Security" { passed = passed + 1 }
+
+    total = total + 1
+    if models.event_type_label(4) == "Network" { passed = passed + 1 }
+
+    total = total + 1
+    if models.status_label(0) == "Open" { passed = passed + 1 }
+
+    total = total + 1
+    if models.status_label(4) == "Resolved" { passed = passed + 1 }
+
+    total = total + 1
+    if models.priority_label(0) == "P1" { passed = passed + 1 }
+
+    total = total + 1
+    if models.alert_state_label(1) == "Firing" { passed = passed + 1 }
+
+    total = total + 1
+    let rule = models.create_alert_rule("r1", "Test Rule", "severity", 3, 0, 0, 60, [])
+    if rule.enabled == true && rule.cooldown_seconds == 60 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_parser() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let json_log = "{\"source\": \"host1\", \"severity\": \"ERROR\", \"message\": \"test error\"}"
+    let parsed = parser.parse_log_entry(json_log)
+    if parsed.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let syslog = "2024-01-15T10:30:00 server1 ERROR: connection failed"
+    let syslog_parsed = parser.parse_log_entry(syslog)
+    if syslog_parsed.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let norm_sev = parser.normalize_severity("CRITICAL")
+    if norm_sev == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let norm_warn = parser.normalize_severity("WARN")
+    if norm_warn == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let src = parser.extract_source("2024-01-15 host123 error")
+    if src != "unknown" { passed = passed + 1 }
+
+    total = total + 1
+    let ts = parser.extract_timestamp("2024-01-15T10:30:00 test")
+    if ts != null { passed = passed + 1 }
+
+    total = total + 1
+    let batch_logs = [json_log, syslog]
+    let batch = parser.parse_batch(batch_logs)
+    if batch.get("success_count") >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let bad_log = "invalid data"
+    let bad_parsed = parser.parse_log_entry(bad_log)
+    if bad_parsed.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let null_result = parser.parse_log_entry(null)
+    if null_result.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let norm_unknown = parser.normalize_severity("UNKNOWN_TYPE")
+    if norm_unknown == 4 { passed = passed + 1 }
+
+    total = total + 1
+    let norm_debug = parser.normalize_severity("DEBUG")
+    if norm_debug == 5 { passed = passed + 1 }
+
+    total = total + 1
+    let norm_error = parser.normalize_severity("ERROR")
+    if norm_error == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_classifier() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let auth_event = models.create_event("e1", 1000, "host1", 0, "authentication failed for user admin", 0, "auth", [], {})
+    let auth_class = classifier.classify_event(auth_event)
+    if auth_class.get("category") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let perf_event = models.create_event("e2", 1001, "host2", 1, "high cpu usage detected", 1, "perf", [], {})
+    let perf_class = classifier.classify_event(perf_event)
+    if perf_class.get("category") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let keywords = classifier.extract_keywords("authentication failed and access denied")
+    if len(keywords) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let conf = classifier.calculate_confidence(auth_event, 0)
+    if conf > 0.0 { passed = passed + 1 }
+
+    total = total + 1
+    let is_sec = classifier.is_security_event(auth_event)
+    if is_sec == true { passed = passed + 1 }
+
+    total = total + 1
+    let batch_events = [auth_event, perf_event]
+    let batch_class = classifier.batch_classify(batch_events)
+    if batch_class.get("total") == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let net_event = models.create_event("e3", 1002, "host3", 1, "network connection timeout", 4, "net", [], {})
+    let net_class = classifier.classify_event(net_event)
+    if net_class.get("category") == 4 { passed = passed + 1 }
+
+    total = total + 1
+    let db_event = models.create_event("e4", 1003, "db1", 1, "database query failed", 5, "db", [], {})
+    let db_class = classifier.classify_event(db_event)
+    if db_class.get("category") == 5 { passed = passed + 1 }
+
+    total = total + 1
+    let no_keywords_event = models.create_event("e5", 1004, "host5", 4, "all is well", 3, "info", [], {})
+    let no_kw = classifier.extract_keywords(no_keywords_event.message)
+    if len(no_kw) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let conf_zero = classifier.calculate_confidence(no_keywords_event, 3)
+    if conf_zero >= 0.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_correlator() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let e1 = models.create_event("e1", 1000, "host1", 0, "error 1", 0, "s", [], {})
+    let e2 = models.create_event("e2", 1010, "host1", 0, "error 2", 0, "s", [], {})
+    let events = [e1, e2]
+    let corr = correlator.correlate_events(events, 60)
+    if corr.get("correlation_count") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let group = [e1, e2]
+    let detect = correlator.detect_incident(group, 3)
+    if detect.get("is_incident") == false || detect.get("is_incident") == true { passed = passed + 1 }
+
+    total = total + 1
+    let related = correlator.find_related_events(events, e1, 2)
+    if len(related) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let inc1 = models.create_incident("i1", "Incident 1", 1, 0, [e1])
+    let inc2 = models.create_incident("i2", "Incident 2", 0, 1, [e2])
+    let merged = correlator.merge_incidents(inc1, inc2)
+    if merged.get("source_count") == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let dedup = correlator.deduplicate_events(events)
+    if dedup.get("duplicate_count") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_corr = correlator.correlate_events([], 60)
+    if empty_corr.get("correlation_count") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_detect = correlator.detect_incident([], 3)
+    if empty_detect.get("is_incident") == false { passed = passed + 1 }
+
+    total = total + 1
+    let deep_related = correlator.find_related_events(events, e1, 0)
+    if len(deep_related) == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let single_dedup = correlator.deduplicate_events([e1])
+    if single_dedup.get("duplicate_count") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let same_event = correlator.find_related_events([e1], e1, 1)
+    if len(same_event) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let multi_related = correlator.find_related_events(events, e2, 5)
+    if len(multi_related) >= 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_alerting() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let rule = models.create_alert_rule("r1", "High Severity", "severity", 1, 0, 0, 60, ["team"])
+    let test_events = [
+        models.create_event("e1", 1000, "h1", 0, "error", 0, "s", [], {})
+    ]
+    let eval = alerting.evaluate_alert_rule(rule, test_events, {})
+    if eval.get("triggered") == false || eval.get("triggered") == true { passed = passed + 1 }
+
+    total = total + 1
+    let thresh = alerting.check_threshold(5, 3, 0)
+    if thresh.get("exceeded") == true { passed = passed + 1 }
+
+    total = total + 1
+    let alert = models.create_alert("a1", "r1", 0, "Alert triggered", ["e1"])
+    let chain = alerting.build_alert_chain([alert], [])
+    if chain.get("depth") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let escalated = alerting.escalate_alert(alert, [], [])
+    if escalated.get("escalated") == true { passed = passed + 1 }
+
+    total = total + 1
+    let inc = models.create_incident("i1", "Test", 0, 0, [])
+    let ack = alerting.acknowledge_incident(inc, "user1")
+    if ack.get("owner") == "user1" { passed = passed + 1 }
+
+    total = total + 1
+    let resolved = alerting.resolve_incident(inc, "fixed")
+    if resolved.get("resolution_time_seconds") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let active = alerting.get_active_incidents([inc])
+    if len(active) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let filtered = alerting.filter_events_by_time_range(test_events, 900, 1100)
+    if len(filtered) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let below_thresh = alerting.check_threshold(2, 5, 1)
+    if below_thresh.get("exceeded") == true { passed = passed + 1 }
+
+    total = total + 1
+    let equal_thresh = alerting.check_threshold(5, 5, 2)
+    if equal_thresh.get("exceeded") == true { passed = passed + 1 }
+
+    total = total + 1
+    let empty_eval = alerting.evaluate_alert_rule(rule, [], {})
+    if empty_eval.get("triggered") == false { passed = passed + 1 }
+
+    total = total + 1
+    let low_alert = models.create_alert("a2", "r2", 4, "Low priority", [])
+    let not_escalated = alerting.escalate_alert(low_alert, [], [])
+    if not_escalated.get("escalated") == false { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_metrics() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let events = [
+        models.create_event("e1", 1000, "h1", 0, "critical", 0, "s", [], {}),
+        models.create_event("e2", 1010, "h2", 1, "major", 0, "s", [], {})
+    ]
+    let dist = metrics.compute_severity_distribution(events)
+    if dist.get("total") == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let alerts = [models.create_alert("a1", "r1", 0, "test", [])]
+    let alert_stats = metrics.compute_alert_statistics(alerts, [])
+    if alert_stats.get("total_alerts") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let freq = metrics.compute_event_frequency(events, 60)
+    if freq.get("events_per_minute") > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let incidents = [models.create_incident("i1", "Test", 1, 0, events)]
+    let sla = metrics.calculate_sla_compliance(incidents, {0: 3600})
+    if sla.get("compliance_rate") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let mttr = metrics.calculate_mttr(incidents)
+    if mttr.get("mttr_seconds") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_dist = metrics.compute_severity_distribution([])
+    if empty_dist.get("total") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_freq = metrics.compute_event_frequency([], 60)
+    if empty_freq.get("events_per_minute") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_sla = metrics.calculate_sla_compliance([], {})
+    if empty_sla.get("compliance_rate") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_mttr = metrics.calculate_mttr([])
+    if empty_mttr.get("mttr_seconds") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let single_freq = metrics.compute_event_frequency([events[0]], 120)
+    if single_freq.get("events_per_minute") > 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_timeline() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let events = [
+        models.create_event("e1", 1000, "h1", 0, "error", 0, "s", [], {}),
+        models.create_event("e2", 1010, "h2", 1, "warning", 1, "s", [], {})
+    ]
+    let incidents = [models.create_incident("i1", "Test", 1, 0, [])]
+    let tl = timeline.generate_timeline(events, incidents)
+    if len(tl.get("entries")) > 0 { passed = passed + 1 }
+
+    total = total + 1
+    let anomaly = timeline.detect_anomaly_window(tl.get("entries"), 1, 2)
+    if anomaly.get("is_anomalous") == false || anomaly.get("is_anomalous") == true { passed = passed + 1 }
+
+    total = total + 1
+    let gaps = timeline.find_gaps(tl.get("entries"), 100)
+    if len(gaps) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let compressed = timeline.compress_timeline(tl.get("entries"), 30)
+    if len(compressed) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let window = timeline.get_window_events(events, 1005, 20)
+    if len(window) >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_tl = timeline.generate_timeline([], [])
+    if empty_tl.get("duration_seconds") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_anomaly = timeline.detect_anomaly_window([], 1, 2)
+    if empty_anomaly.get("is_anomalous") == false { passed = passed + 1 }
+
+    total = total + 1
+    let empty_gaps = timeline.find_gaps([], 100)
+    if len(empty_gaps) == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_window = timeline.get_window_events([], 1000, 100)
+    if len(empty_window) == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let single_compress = timeline.compress_timeline([tl.get("entries")[0]], 60)
+    if len(single_compress) >= 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_storage() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let store = []
+    let event = models.create_event("e1", 1000, "h1", 0, "error", 0, "s", [], {})
+    let stored = storage.store_event(store, event)
+    if stored.get("success") == true { passed = passed + 1 }
+
+    total = total + 1
+    let query = storage.query_events(stored.get("store"), {"source": "h1"})
+    if query.get("filtered") >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let indexed = storage.build_event_index(stored.get("store"))
+    if indexed.get("by_source") != null { passed = passed + 1 }
+
+    total = total + 1
+    let counted = storage.count_events_by_source(stored.get("store"))
+    if counted.get("h1") >= 1 { passed = passed + 1 }
+
+    total = total + 1
+    let retrieved = storage.get_event_by_id(stored.get("store"), "e1")
+    if retrieved != null && retrieved.id == "e1" { passed = passed + 1 }
+
+    total = total + 1
+    let deleted = storage.delete_events_before(stored.get("store"), 2000)
+    if deleted.get("deleted_count") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_query = storage.query_events([], {})
+    if empty_query.get("total") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_index = storage.build_event_index([])
+    if empty_index != null { passed = passed + 1 }
+
+    total = total + 1
+    let empty_count = storage.count_events_by_source([])
+    if empty_count.size() == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let not_found = storage.get_event_by_id(stored.get("store"), "nonexistent")
+    if not_found == null { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_exporter() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let events = [models.create_event("e1", 1000, "h1", 0, "error", 0, "s", [], {})]
+    let csv = exporter.export_events_csv(events)
+    if csv.get("row_count") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let incidents = [models.create_incident("i1", "Test", 1, 0, [])]
+    let json_exp = exporter.export_incidents_json(incidents)
+    if json_exp.get("incident_count") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let formatted_event = exporter.format_event(events[0])
+    if string.contains(formatted_event, "CRITICAL") { passed = passed + 1 }
+
+    total = total + 1
+    let formatted_incident = exporter.format_incident(incidents[0])
+    if string.contains(formatted_incident, "Test") { passed = passed + 1 }
+
+    total = total + 1
+    let alert = models.create_alert("a1", "r1", 0, "test", [])
+    let formatted_alert = exporter.format_alert(alert)
+    if string.contains(formatted_alert, "Critical") { passed = passed + 1 }
+
+    total = total + 1
+    let empty_csv = exporter.export_events_csv([])
+    if empty_csv.get("row_count") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_json = exporter.export_incidents_json([])
+    if empty_json.get("incident_count") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let major_event = models.create_event("e2", 1001, "h2", 1, "major error", 0, "s", [], {})
+    let formatted_major = exporter.format_event(major_event)
+    if string.contains(formatted_major, "MAJOR") { passed = passed + 1 }
+
+    total = total + 1
+    let low_alert = models.create_alert("a2", "r2", 4, "info", [])
+    let formatted_info = exporter.format_alert(low_alert)
+    if string.contains(formatted_info, "Info") { passed = passed + 1 }
+
+    total = total + 1
+    let write_test = exporter.write_export_to_file("test content", "test.txt")
+    if write_test.get("success") == true || write_test.get("success") == false { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_reports() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let events = [models.create_event("e1", 1000, "h1", 0, "error", 0, "s", [], {})]
+    let incidents = [models.create_incident("i1", "Test", 1, 0, [])]
+    let alerts = [models.create_alert("a1", "r1", 0, "test", [])]
+    let summary = reports.generate_summary_report(events, incidents, alerts)
+    if string.contains(summary.get("report_text"), "SUMMARY") { passed = passed + 1 }
+
+    total = total + 1
+    let detail = reports.generate_detail_report(events, incidents, alerts, {})
+    if string.contains(detail.get("report_text"), "DETAIL") { passed = passed + 1 }
+
+    total = total + 1
+    let ranked = reports.rank_incidents_by_severity(incidents)
+    if len(ranked) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_summary = reports.generate_summary_report([], [], [])
+    if empty_summary.get("report_text") != null { passed = passed + 1 }
+
+    total = total + 1
+    let empty_detail = reports.generate_detail_report([], [], [], {})
+    if empty_detail.get("event_count") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_rank = reports.rank_incidents_by_severity([])
+    if len(empty_rank) == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let critical_incident = models.create_incident("i2", "Critical", 0, 0, [])
+    let multi_ranked = reports.rank_incidents_by_severity([incidents[0], critical_incident])
+    if len(multi_ranked) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let summary_hash = summary.get("hash")
+    if summary_hash != null { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_analyzer() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let events = [
+        models.create_event("e1", 1000, "h1", 0, "authentication failed", 0, "s", [], {}),
+        models.create_event("e2", 1010, "h1", 0, "authentication failed", 0, "s", [], {})
+    ]
+    let patterns = analyzer.analyze_event_patterns(events, 60)
+    if patterns.get("recurring_count") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let anomalies = analyzer.analyze_anomalies(events, 1)
+    if anomalies.get("risk_score") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let agent_check = analyzer.check_agent_available("incident_analyst")
+    if agent_check.get("available") == false || agent_check.get("available") == true { passed = passed + 1 }
+
+    total = total + 1
+    let incident = models.create_incident("i1", "Test", 0, 0, events)
+    let interp = analyzer.interpret_incident(incident, events)
+    if interp.get("confidence") >= 0 { passed = passed + 1 }
+
+    total = total + 1
+    let prompt = analyzer.generate_interpretation_prompt(incident, events)
+    if string.contains(prompt, "Analyze") { passed = passed + 1 }
+
+    total = total + 1
+    let empty_patterns = analyzer.analyze_event_patterns([], 60)
+    if empty_patterns.get("recurring_count") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let empty_anomalies = analyzer.analyze_anomalies([], 1)
+    if empty_anomalies.get("risk_score") == 0 { passed = passed + 1 }
+
+    total = total + 1
+    let single_pattern = analyzer.analyze_event_patterns([events[0]], 120)
+    if single_pattern.get("novel_count") >= 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_validators() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let sanitized = validators.sanitize_string("test<script>alert</script>")
+    if !string.contains(sanitized, "<") { passed = passed + 1 }
+
+    total = total + 1
+    let log_line = "line with \u001b[31mANSI\u001b[0m codes"
+    let sanitized_log = validators.sanitize_log_line(log_line)
+    if !string.contains(sanitized_log, "\u001b") { passed = passed + 1 }
+
+    total = total + 1
+    let event_dict = {"id": "e1", "timestamp": 1000, "source": "h1", "severity": 0, "message": "test"}
+    let valid = validators.validate_event_schema(event_dict)
+    if valid.get("valid") == true { passed = passed + 1 }
+
+    total = total + 1
+    let email_valid = validators.validate_email_address("test@example.com")
+    if email_valid == true { passed = passed + 1 }
+
+    total = total + 1
+    let ts_valid = validators.validate_timestamp(1000)
+    if ts_valid == true { passed = passed + 1 }
+
+    total = total + 1
+    let bad_schema = {"id": "e1"}
+    let invalid = validators.validate_event_schema(bad_schema)
+    if invalid.get("valid") == false { passed = passed + 1 }
+
+    total = total + 1
+    let bad_email = validators.validate_email_address("not-an-email")
+    if bad_email == false { passed = passed + 1 }
+
+    total = total + 1
+    let bad_ts = validators.validate_timestamp(-1)
+    if bad_ts == false { passed = passed + 1 }
+
+    total = total + 1
+    let null_sanitize = validators.sanitize_string(null)
+    if null_sanitize == "" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let test_suites = [
+        ["test_models", test_models()],
+        ["test_parser", test_parser()],
+        ["test_classifier", test_classifier()],
+        ["test_correlator", test_correlator()],
+        ["test_alerting", test_alerting()],
+        ["test_metrics", test_metrics()],
+        ["test_timeline", test_timeline()],
+        ["test_storage", test_storage()],
+        ["test_exporter", test_exporter()],
+        ["test_reports", test_reports()],
+        ["test_analyzer", test_analyzer()],
+        ["test_validators", test_validators()]
+    ]
+
+    let total_passed = 0
+    let total_tests = 0
+
+    for i in 0..len(test_suites) {
+        let suite = test_suites[i]
+        let name = suite[0]
+        let results = suite[1]
+        let passed = results[0]
+        let total = results[1]
+
+        total_passed = total_passed + passed
+        total_tests = total_tests + total
+
+        print(name + ": " + string(passed) + "/" + string(total))
+    }
+
+    print("\nTOTAL: " + string(total_passed) + "/" + string(total_tests))
+}

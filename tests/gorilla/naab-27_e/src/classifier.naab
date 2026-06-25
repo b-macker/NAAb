@@ -1,0 +1,129 @@
+import "models.naab" as models
+
+use regex
+use string
+
+export fn extract_keywords(message) {
+    if message == null { return [] }
+    let words = string.split(string.lower(message), " ")
+    let keywords = []
+    for word in words {
+        if len(word) > 3 && !regex.matches(word, "^(the|and|or|is|in|at|to|a|an)$") {
+            keywords.push(word)
+        }
+    }
+    return keywords
+}
+
+export fn calculate_confidence(event, category) {
+    if event == null || category == null { return 0.0 }
+    let msg = string.lower(event.message)
+    let keywords = extract_keywords(msg)
+    if len(keywords) == 0 { return 0.0 }
+    let category_name = string.lower(models.event_type_label(category))
+    let matches = 0
+    for keyword in keywords {
+        if string.contains(msg, keyword) {
+            matches = matches + 1
+        }
+    }
+    return float(matches) / float(len(keywords))
+}
+
+export fn is_security_event(event) {
+    if event == null { return false }
+    let msg = string.lower(event.message)
+    return string.contains(msg, "auth") || string.contains(msg, "access denied") ||
+           string.contains(msg, "permission") || string.contains(msg, "unauthorized")
+}
+
+fn determine_category_type(msg) {
+    if is_security_event(models.create_event("temp", 0, "", 0, msg, 0, "", [], {})) {
+        return "security"
+    } else if string.contains(msg, "cpu") || string.contains(msg, "memory") || string.contains(msg, "disk") {
+        return "performance"
+    } else if string.contains(msg, "network") || string.contains(msg, "connection") {
+        return "network"
+    } else if string.contains(msg, "database") || string.contains(msg, "query") {
+        return "database"
+    } else if string.contains(msg, "server") || string.contains(msg, "host") {
+        return "infrastructure"
+    }
+    return "application"
+}
+
+export fn classify_event(event) {
+    if event == null { return {"category": -1, "subcategory": "", "confidence": 0.0, "tags": []} }
+    let msg = string.lower(event.message)
+    let cat_type = determine_category_type(msg)
+
+    let result = match cat_type {
+        "security" => {
+            "category": models.EventCategory.Security,
+            "subcategory": "authentication",
+            "confidence": 0.9,
+            "tags": ["security"]
+        },
+        "performance" => {
+            "category": models.EventCategory.Performance,
+            "subcategory": "resource",
+            "confidence": 0.8,
+            "tags": ["performance"]
+        },
+        "network" => {
+            "category": models.EventCategory.Network,
+            "subcategory": "connectivity",
+            "confidence": 0.8,
+            "tags": ["network"]
+        },
+        "database" => {
+            "category": models.EventCategory.Database,
+            "subcategory": "query",
+            "confidence": 0.8,
+            "tags": ["database"]
+        },
+        "infrastructure" => {
+            "category": models.EventCategory.Infrastructure,
+            "subcategory": "host",
+            "confidence": 0.7,
+            "tags": ["infrastructure"]
+        },
+        _ => {
+            "category": models.EventCategory.Application,
+            "subcategory": "general",
+            "confidence": 0.5,
+            "tags": []
+        }
+    }
+
+    return result
+}
+
+export fn batch_classify(events) {
+    if events == null { return {"results": [], "total": 0, "classified_count": 0, "unknown_count": 0} }
+    let results = []
+    let classified = 0
+    let unknown = 0
+    let total = len(events)
+
+    for event in events {
+        let result = classify_event(event)
+        results.push(result)
+        if result.get("confidence") ?? 0.0 > 0.5 {
+            classified = classified + 1
+        } else {
+            unknown = unknown + 1
+        }
+    }
+
+    return {
+        "results": results,
+        "total": total,
+        "classified_count": classified,
+        "unknown_count": unknown
+    }
+}
+
+main {
+    print("classifier module loaded")
+}

@@ -1,0 +1,78 @@
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "filesystem": {
+      "level": "restricted",
+      "read_allowlist": [ "src/*", "govern.json", "proposals/*", "vault/*" ],
+      "write_allowlist": [ "proposals/*", "vault/*", "report.json", "audit.log" ]
+    },
+    "network": { "enabled": false },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": [ "rm", "sudo" ],
+      "allowed_commands": [ "python3", "node", "ls", "date" ]
+    }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [ "python", "javascript" ]
+  },
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "code_injection": { "level": "hard" }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": [
+      {
+        "name": "unauthorized_execution",
+        "sequence": [ "CODEGEN_EXEC" ],
+        "max_gap": 0,
+        "level": "advisory",
+        "rationale": "Tracking individual execution events."
+      },
+      {
+        "name": "dao_lifecycle",
+        "sequence": [ "AGENT_SEND", "AGENT_SEND", "AGENT_SEND", "CODEGEN_EXEC" ],
+        "max_gap": 5,
+        "level": "advisory",
+        "rationale": "Verified DAO Flow: Propose -> Review -> Approve -> Execute"
+      }
+    ]
+  },
+  "context_drift": {
+    "enabled": true,
+    "coherence_threshold": 0.1,
+    "reality_checkpoint": { "enabled": true }
+  },
+  "agent_dispatch": {
+    "hard_stop": {
+      "max_calls_per_run": 50,
+      "max_tokens_per_run": 40000
+    }
+  },
+  "agents": {
+    "proposer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are a DAO Proposer. Generate code for new features. Output ONLY raw code.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "reviewer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are a Security Reviewer. Audit the provided code. If safe, output 'SAFE'. If dangerous, output 'BLOCKED' and explain why.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "approver": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are the final DAO Approver. If both Proposer and Reviewer have completed their turns, output 'APPROVED'.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    }
+  }
+}

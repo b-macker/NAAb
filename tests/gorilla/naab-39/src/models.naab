@@ -1,0 +1,16 @@
+export fn make_task(id, description, inputs) {
+  return {
+    "id": id,
+    "description": description,
+    "inputs": inputs
+  }
+}
+
+export fn make_result(task_id, code, output, success) {
+  return {
+    "task_id": task_id,
+    "code": code,
+    "output": output,
+    "success": success
+  }
+}

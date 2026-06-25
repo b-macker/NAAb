@@ -1,0 +1,39 @@
+use agent
+use crypto
+use string
+use json
+use codegen
+
+export fn get_agent_content(handle, prompt) {
+    let res = agent.send(handle, prompt)
+    let content = ""
+    if typeof(res) == "dict" {
+        content = res.get("content") ?? ""
+    } else {
+        content = string(res)
+    }
+    // Clean markdown
+    content = string.replace(content, "```python", "")
+    content = string.replace(content, "```javascript", "")
+    content = string.replace(content, "```js", "")
+    content = string.replace(content, "```", "")
+    return string.trim(content)
+}
+
+export fn validate_and_execute(language, code, inputs) {
+    print("  [Security Gate] Performing syntactic validation...")
+    
+    // NAAb can perform deep inspection before execution
+    let combined = language + ":" + code
+    let hash = crypto.sha256(combined)
+    print("  [Integrity] Code Hash: " + hash)
+
+    try {
+        print("  [Execution] Attempting governed " + language + " run...")
+        let result = codegen.run_with_args(language, code, inputs)
+        return { "success": true, "output": result, "hash": hash }
+    } catch (e) {
+        print("  [GOVERNANCE HARD BLOCK] " + e)
+        return { "success": false, "error": e, "hash": hash }
+    }
+}

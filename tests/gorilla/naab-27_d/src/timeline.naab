@@ -1,0 +1,172 @@
+// Time-Based Event Sequencing
+use time
+import "models.naab" as models
+
+export fn generate_timeline(events, incidents) {
+    if len(events) == 0 && len(incidents) == 0 {
+        return {
+            "entries": [],
+            "start_time": 0,
+            "end_time": 0,
+            "duration_seconds": 0
+        }
+    }
+
+    let entries = []
+
+    for i in 0..len(events) {
+        let e = events[i]
+        entries = entries + [models.create_timeline_entry(e.timestamp, e.id, e.message, e.severity, e.source)]
+    }
+
+    for i in 0..len(incidents) {
+        let inc = incidents[i]
+        let desc = "Incident " + inc.id + " created"
+        entries = entries + [models.create_timeline_entry(inc.created_at, inc.id, desc, inc.severity, "incident")]
+        if inc.resolved_at > 0 {
+            let res_desc = "Incident " + inc.id + " resolved"
+            entries = entries + [models.create_timeline_entry(inc.resolved_at, inc.id, res_desc, inc.severity, "incident")]
+        }
+    }
+
+    let sorted_entries = entries |> fn(ents) {
+        return array.sort(ents, fn(a, b) { return a.timestamp - b.timestamp })
+    }
+
+    let start_time = if len(sorted_entries) > 0 { sorted_entries[0].timestamp } else { 0 }
+    let end_time = if len(sorted_entries) > 0 { sorted_entries[len(sorted_entries) - 1].timestamp } else { 0 }
+    let duration = end_time - start_time
+
+    return {
+        "entries": sorted_entries,
+        "start_time": start_time,
+        "end_time": end_time,
+        "duration_seconds": duration
+    }
+}
+
+export fn detect_anomaly_window(timeline_entries, baseline_rate, deviation_factor) {
+    if len(timeline_entries) == 0 {
+        return {
+            "is_anomalous": false,
+            "window_stats": {},
+            "threshold_breaches": []
+        }
+    }
+
+    let threshold = baseline_rate * deviation_factor
+    let window_size = 60
+
+    let window_counts = {}
+    for i in 0..len(timeline_entries) {
+        let entry = timeline_entries[i]
+        let window_id = entry.timestamp / window_size
+        let key = string(window_id)
+        if window_counts.has(key) {
+            window_counts[key] = window_counts.get(key) + 1
+        } else {
+            window_counts[key] = 1
+        }
+    }
+
+    let breaches = []
+    for key in window_counts.keys() {
+        let count = window_counts.get(key)
+        if count > int(threshold) {
+            breaches = breaches + [{ "window_id": key, "count": count, "threshold": int(threshold) }]
+        }
+    }
+
+    let is_anomalous = len(breaches) > 0
+
+    return {
+        "is_anomalous": is_anomalous,
+        "window_stats": window_counts,
+        "threshold_breaches": breaches
+    }
+}
+
+export fn find_gaps(timeline_entries, max_gap_seconds) {
+    if len(timeline_entries) < 2 {
+        return []
+    }
+
+    let gaps = []
+    let sorted = array.sort(timeline_entries, fn(a, b) { return a.timestamp - b.timestamp })
+
+    for i in 0..len(sorted) - 1 {
+        let current = sorted[i]
+        let next = sorted[i + 1]
+        let gap = next.timestamp - current.timestamp
+
+        if gap > max_gap_seconds {
+            gaps = gaps + [{
+                "start_time": current.timestamp,
+                "end_time": next.timestamp,
+                "gap_seconds": gap
+            }]
+        }
+    }
+
+    return gaps
+}
+
+export fn compress_timeline(entries, merge_window_seconds) {
+    if len(entries) == 0 {
+        return []
+    }
+
+    let sorted = array.sort(entries, fn(a, b) { return a.timestamp - b.timestamp })
+    let compressed = []
+    let current_window_start = sorted[0].timestamp
+    let window_entries = [sorted[0]]
+
+    for i in 1..len(sorted) {
+        let entry = sorted[i]
+        let window_elapsed = entry.timestamp - current_window_start
+
+        if window_elapsed > merge_window_seconds {
+            let summary = models.create_timeline_entry(
+                current_window_start,
+                "merged-" + string(current_window_start),
+                string(len(window_entries)) + " events",
+                if len(window_entries) > 0 { window_entries[0].severity } else { 5 },
+                "compressed"
+            )
+            compressed = compressed + [summary]
+            current_window_start = entry.timestamp
+            window_entries = [entry]
+        } else {
+            window_entries = window_entries + [entry]
+        }
+    }
+
+    if len(window_entries) > 0 {
+        let final_summary = models.create_timeline_entry(
+            current_window_start,
+            "merged-" + string(current_window_start),
+            string(len(window_entries)) + " events",
+            if len(window_entries) > 0 { window_entries[0].severity } else { 5 },
+            "compressed"
+        )
+        compressed = compressed + [final_summary]
+    }
+
+    return compressed
+}
+
+export fn get_window_events(events, center_time, window_seconds) {
+    let half_window = window_seconds / 2
+    let start_time = center_time - half_window
+    let end_time = center_time + half_window
+    let windowed = []
+
+    for i in 0..len(events) {
+        let e = events[i]
+        if e.timestamp >= start_time && e.timestamp <= end_time {
+            windowed = windowed + [e]
+        }
+    }
+
+    return windowed
+}

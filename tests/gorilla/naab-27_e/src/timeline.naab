@@ -1,0 +1,112 @@
+import "models.naab" as models
+
+use time
+
+fn sort_timeline_entries(entries) {
+    let sorted = []
+    for i in 0..len(entries) {
+        let min_idx = i
+        for j in i..len(entries) {
+            if entries[j].timestamp < entries[min_idx].timestamp {
+                min_idx = j
+            }
+        }
+        if min_idx != i {
+            let tmp = entries[i]
+            entries[i] = entries[min_idx]
+            entries[min_idx] = tmp
+        }
+    }
+    return entries
+}
+
+fn convert_to_entries(events) {
+    let entries = []
+    for event in events {
+        let entry = models.create_timeline_entry(event.timestamp, event.id, event.message, event.severity, event.source)
+        entries.push(entry)
+    }
+    return entries
+}
+
+export fn generate_timeline(events, incidents) {
+    if events == null { return {"entries": [], "start_time": 0, "end_time": 0, "duration_seconds": 0} }
+    let sorted_entries = events |> convert_to_entries |> sort_timeline_entries
+    let start = if len(sorted_entries) > 0 { sorted_entries[0].timestamp } else { 0 }
+    let end = if len(sorted_entries) > 0 { sorted_entries[len(sorted_entries) - 1].timestamp } else { 0 }
+    let duration = end - start
+    return {
+        "entries": sorted_entries,
+        "start_time": start,
+        "end_time": end,
+        "duration_seconds": duration
+    }
+}
+
+export fn detect_anomaly_window(timeline_entries, baseline_rate, deviation_factor) {
+    if timeline_entries == null || baseline_rate <= 0.0 { return {"is_anomalous": false, "window_stats": {}, "threshold_breaches": 0} }
+    let threshold = baseline_rate * deviation_factor
+    let count = len(timeline_entries)
+    let is_anomalous = float(count) > threshold
+    return {
+        "is_anomalous": is_anomalous,
+        "window_stats": {"rate": float(count), "threshold": threshold},
+        "threshold_breaches": if is_anomalous { 1 } else { 0 }
+    }
+}
+
+export fn find_gaps(timeline_entries, max_gap_seconds) {
+    if timeline_entries == null || len(timeline_entries) < 2 { return [] }
+    let gaps = []
+    for i in 0..len(timeline_entries) - 1 {
+        let gap = timeline_entries[i + 1].timestamp - timeline_entries[i].timestamp
+        if gap > max_gap_seconds {
+            gaps.push({"start": timeline_entries[i].timestamp, "end": timeline_entries[i + 1].timestamp, "duration": gap})
+        }
+    }
+    return gaps
+}
+
+export fn compress_timeline(entries, merge_window_seconds) {
+    if entries == null || len(entries) == 0 { return [] }
+    if merge_window_seconds <= 0 { return entries }
+    let compressed = []
+    let current_window = null
+    let window_count = 0
+    for entry in entries {
+        if current_window == null {
+            current_window = entry
+            window_count = 1
+        } else {
+            if entry.timestamp - current_window.timestamp <= merge_window_seconds {
+                window_count = window_count + 1
+            } else {
+                let merged = current_window
+                compressed.push(merged)
+                current_window = entry
+                window_count = 1
+            }
+        }
+    }
+    if current_window != null {
+        compressed.push(current_window)
+    }
+    return compressed
+}
+
+export fn get_window_events(events, center_time, window_seconds) {
+    if events == null { return [] }
+    let start = center_time - window_seconds
+    let end = center_time + window_seconds
+    let windowed = []
+    for event in events {
+        if event.timestamp >= start && event.timestamp <= end {
+            windowed.push(event)
+        }
+    }
+    return windowed
+}
+
+main {
+    print("timeline module loaded")
+}

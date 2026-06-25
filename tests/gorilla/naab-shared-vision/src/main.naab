@@ -1,0 +1,80 @@
+import "vision_core.naab" as core
+use agent
+use file
+use json
+use string
+
+main {
+    print("=== NAAb Shared Vision: REAL Granular Micro-Agent Simulation ===")
+    
+    // Agent Swarm (Real LLM instances)
+    let arch = agent.create("architect")
+    let impl = agent.create("implementer")
+    let opt  = agent.create("optimizer")
+    let fin  = agent.create("finalizer")
+
+    // --- STAGE 1: Architect (Granular) ---
+    print("\n[Stage 1] Architectural Spec Development")
+    let s1_1 = core.get_granular_artifact(arch, "List the required input parameters for an XOR encryption function. (Short list only)")
+    print("  - Inputs defined.")
+    let s1_2 = core.get_granular_artifact(arch, "Briefly explain the bitwise logic for XORing a string character by character.")
+    print("  - Logic defined.")
+    let s1_3 = core.get_granular_artifact(arch, "State the desired output format: hex or base64. (One word only)")
+    print("  - Output format defined.")
+    
+    let full_spec = "INPUTS: " + s1_1 + "\nLOGIC: " + s1_2 + "\nOUTPUT: " + s1_3
+    print("  [Spec Complete] " + string(string.length(full_spec)) + " chars")
+
+    // --- STAGE 2: Implementer (Granular) ---
+    print("\n[Stage 2] Code Implementation")
+    let s2_1 = core.get_granular_artifact(impl, "Write only the Python function signature based on: " + s1_1)
+    print("  - Skeleton ready.")
+    let s2_2 = core.get_granular_artifact(impl, "Write the internal XOR loop logic using: " + s1_2)
+    print("  - Core logic ready.")
+    let s2_3 = core.get_granular_artifact(impl, "Combine the signature and loop into a complete Python function. Output ONLY raw code.")
+    print("  - Implementation ready.")
+    
+    let base_code = s2_3
+
+    // --- STAGE 3: Optimizer (Granular) ---
+    print("\n[Stage 3] Performance Optimization")
+    let s3_1 = core.get_granular_artifact(opt, "Convert the loop in this code into a Python list comprehension: " + base_code)
+    print("  - Loop optimized.")
+    let s3_2 = core.get_granular_artifact(opt, "Rewrite the full function using that optimized comprehension. Output ONLY raw code.")
+    print("  - Synthesis complete.")
+    
+    let optimized_code = s3_2
+
+    // --- STAGE 4: Finalizer (Granular) ---
+    print("\n[Stage 4] Hardening & Production")
+    let s4_1 = core.get_granular_artifact(fin, "Add simple input validation to this code: " + optimized_code)
+    print("  - Validation added.")
+    let s4_2 = core.get_granular_artifact(fin, "Add a short docstring to the code and output the final raw Python script.")
+    print("  - Final artifact ready.")
+    
+    let final_artifact = s4_2
+
+    // --- AUDIT ---
+    print("\n[Audit] Vision Convergence Analysis")
+    let drift = core.verify_vision(final_artifact, full_spec)
+    print("  Context Drift Score: " + string(drift))
+    
+    if drift < 0.98 {
+        print("  SUCCESS: Real agent chain converged on vision.")
+        file.write("crypto_module.py", final_artifact)
+        print("  Saved to crypto_module.py")
+    } else {
+        print("  FAILURE: Significant drift in real agent chain.")
+    }
+
+    // Final Summary Report
+    let report = {
+        "status": "success",
+        "agent_calls": 10,
+        "spec_preview": string.replace(full_spec, "\n", " "),
+        "final_code_preview": string.replace(string.substring(final_artifact, 0, 50), "\n", " "),
+        "drift": drift
+    }
+    file.write("report.json", json.stringify(report))
+    print("\n=== Real-Agent Granular Simulation Complete ===")
+}

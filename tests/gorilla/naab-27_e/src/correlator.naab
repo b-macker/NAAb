@@ -1,0 +1,106 @@
+import "models.naab" as models
+
+use time
+
+export fn find_related_events(events, event, max_depth) {
+    if events == null || event == null { return [] }
+    if max_depth <= 0 { return [event] }
+    let related = [event]
+    for other in events {
+        if other.id != event.id {
+            if other.source == event.source || other.category == event.category {
+                let sub_related = find_related_events(events, other, max_depth - 1)
+                for r in sub_related {
+                    if r.id != event.id {
+                        related.push(r)
+                    }
+                }
+            }
+        }
+    }
+    return related
+}
+
+export fn correlate_events(events, time_window_seconds) {
+    if events == null { return {"groups": [], "ungrouped": [], "correlation_count": 0} }
+    let groups = <<python[events, time_window_seconds]
+from itertools import groupby
+result = []
+sorted_events = sorted(events, key=lambda e: (e.get("source"), e.get("timestamp")))
+for key, group in groupby(sorted_events, key=lambda e: e.get("source")):
+    group_list = list(group)
+    if len(group_list) > 1:
+        result.append(group_list)
+result
+    >>
+    let ungrouped = []
+    let count = if groups != null { len(groups) } else { 0 }
+    return {"groups": groups, "ungrouped": ungrouped, "correlation_count": count}
+}
+
+export fn detect_incident(event_group, threshold) {
+    if event_group == null { return {"is_incident": false, "incident": null, "evidence": []} }
+    if len(event_group) == 0 { return {"is_incident": false, "incident": null, "evidence": []} }
+    let max_severity = 0
+    let sev_count = 0
+    for event in event_group {
+        if event.severity > max_severity { max_severity = event.severity }
+        if event.severity >= threshold { sev_count = sev_count + 1 }
+    }
+    let is_incident = sev_count > 0 || max_severity >= threshold
+    let incident_obj = if is_incident { models.create_incident(uuid.v4(), "Correlated Event Group", max_severity, models.AlertPriority.P3, event_group) } else { null }
+    let match_result = match is_incident { true => {"is_incident": true, "incident": incident_obj, "evidence": event_group}, false => {"is_incident": false, "incident": null, "evidence": event_group}, _ => {"is_incident": false, "incident": null, "evidence": event_group} }
+    return match_result
+}
+
+use uuid
+
+export fn deduplicate_events(events) {
+    if events == null { return {"unique_events": [], "duplicate_count": 0, "dedup_map": {}} }
+    let unique = <<javascript[events]
+    const seen = new Set();
+    const unique_arr = [];
+    const dup_map = {};
+    for (const event of events) {
+        const key = event.message + "|" + event.source + "|" + event.timestamp;
+        if (!seen.has(key)) {
+            seen.add(key);
+            unique_arr.push(event);
+        } else {
+            dup_map[event.id] = key;
+        }
+    }
+    {unique: unique_arr, dups: Object.keys(dup_map).length, map: dup_map}
+    >>
+    return {
+        "unique_events": unique.get("unique") ?? [],
+        "duplicate_count": unique.get("dups") ?? 0,
+        "dedup_map": unique.get("map") ?? {}
+    }
+}
+
+fn apply_merge_logic(data) {
+    let incident_a = data.get("a")
+    let incident_b = data.get("b")
+    let combined = incident_a.events ?? [] + (incident_b.events ?? [])
+    incident_a["severity"] = if incident_b.severity > incident_a.severity { incident_b.severity } else { incident_a.severity }
+    incident_a["priority"] = if incident_b.priority > incident_a.priority { incident_b.priority } else { incident_a.priority }
+    incident_a["events"] = combined
+    incident_a["updated_at"] = time.now()
+    return {"merged": incident_a, "count": len(combined), "events": combined}
+}
+
+export fn merge_incidents(incident_a, incident_b) {
+    if incident_a == null || incident_b == null { return {"merged_incident": null, "source_count": 0, "combined_events": []} }
+    let data = {"a": incident_a, "b": incident_b}
+    let result = data |> apply_merge_logic
+    return {
+        "merged_incident": result.get("merged"),
+        "source_count": result.get("count"),
+        "combined_events": result.get("events")
+    }
+}
+
+main {
+    print("correlator module loaded")
+}

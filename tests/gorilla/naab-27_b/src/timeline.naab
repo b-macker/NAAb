@@ -1,0 +1,143 @@
+import "models.naab" as models
+
+export fn generate_timeline(events, incidents) {
+    if events == null { return {entries: [], start_time: 0, end_time: 0, duration_seconds: 0} }
+
+    let event_entries = events |> (fn(evs) {
+        let results = []
+        for i in 0..len(evs) {
+            let e = evs[i]
+            let entry = new models.TimelineEntry {
+                timestamp: e.get("timestamp", 0),
+                event_id: e.get("id", ""),
+                description: e.get("message", ""),
+                severity: e.get("severity", 4),
+                source: e.get("source", "")
+            }
+            results = results + [entry]
+        }
+        results
+    })
+
+    let sorted_entries = event_entries |> (fn(entries) {
+        if len(entries) == 0 { return [] }
+        for i in 0..len(entries) {
+            for j in 0..len(entries) - 1 - i {
+                if entries[j].timestamp > entries[j + 1].timestamp {
+                    let tmp = entries[j]
+                    entries[j] = entries[j + 1]
+                    entries[j + 1] = tmp
+                }
+            }
+        }
+        entries
+    })
+
+    let start = if len(sorted_entries) > 0 { sorted_entries[0].timestamp } else { 0 }
+    let end = if len(sorted_entries) > 0 { sorted_entries[len(sorted_entries) - 1].timestamp } else { 0 }
+    let duration = end - start
+
+    return {entries: sorted_entries, start_time: start, end_time: end, duration_seconds: duration}
+}
+
+export fn detect_anomaly_window(timeline_entries, baseline_rate, deviation_factor) {
+    if timeline_entries == null { return {is_anomalous: false, window_stats: {}, threshold_breaches: []} }
+
+    let window_size = 60
+    let windows = {}
+
+    for i in 0..len(timeline_entries) {
+        let entry = timeline_entries[i]
+        let ts = entry.timestamp
+        let window_id = ts / window_size
+
+        if windows.get(window_id) == null {
+            windows.put(window_id, 0)
+        }
+        let count = windows.get(window_id)
+        windows.put(window_id, count + 1)
+    }
+
+    let threshold = baseline_rate * deviation_factor
+    let breaches = []
+
+    for i in 0..len(timeline_entries) {
+        let entry = timeline_entries[i]
+        let ts = entry.timestamp
+        let window_id = ts / window_size
+        let count = windows.get(window_id)
+
+        if count > threshold {
+            breaches = breaches + [window_id]
+        }
+    }
+
+    let is_anomalous = len(breaches) > 0
+
+    return {is_anomalous: is_anomalous, window_stats: windows, threshold_breaches: breaches}
+}
+
+export fn find_gaps(timeline_entries, max_gap_seconds) {
+    if timeline_entries == null { return [] }
+
+    let gaps = []
+
+    for i in 0..len(timeline_entries) - 1 {
+        let current = timeline_entries[i]
+        let next = timeline_entries[i + 1]
+
+        let gap = next.timestamp - current.timestamp
+        if gap > max_gap_seconds {
+            gaps = gaps + [{start: current.timestamp, end: next.timestamp, duration: gap}]
+        }
+    }
+
+    return gaps
+}
+
+export fn compress_timeline(entries, merge_window_seconds) {
+    if entries == null { return [] }
+
+    let compressed = []
+    let current_window = null
+    let current_entry = null
+
+    for i in 0..len(entries) {
+        let entry = entries[i]
+        let ts = entry.timestamp
+        let window_id = ts / merge_window_seconds
+
+        if current_window == null || window_id != current_window {
+            if current_entry != null {
+                compressed = compressed + [current_entry]
+            }
+            current_window = window_id
+            current_entry = entry
+        }
+    }
+
+    if current_entry != null {
+        compressed = compressed + [current_entry]
+    }
+
+    return compressed
+}
+
+export fn get_window_events(events, center_time, window_seconds) {
+    if events == null { return [] }
+
+    let half_window = window_seconds / 2
+    let start = center_time - half_window
+    let end = center_time + half_window
+
+    let windowed = []
+    for i in 0..len(events) {
+        let e = events[i]
+        let ts = e.get("timestamp", 0)
+        if ts >= start && ts <= end {
+            windowed = windowed + [e]
+        }
+    }
+
+    return windowed
+}

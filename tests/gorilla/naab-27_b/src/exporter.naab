@@ -1,0 +1,113 @@
+import "validators.naab" as validators
+
+use crypto
+use file
+
+export fn export_events_csv(events) {
+    if events == null { return {csv_text: "", row_count: 0, columns: []} }
+
+    let columns = ["id", "timestamp", "source", "severity", "message", "category"]
+
+    let csv_lines = events |> (fn(evs) {
+        let lines = [string.join(columns, ",")]
+        for i in 0..len(evs) {
+            let e = evs[i]
+            let row = string(e.get("id", "")) + "," + string(e.get("timestamp", "")) + "," + string(e.get("source", "")) + "," + string(e.get("severity", "")) + "," + string(e.get("message", "")) + "," + string(e.get("category", ""))
+            lines = lines + [row]
+        }
+        string.join(lines, "\n")
+    })
+
+    return {csv_text: csv_lines, row_count: len(events), columns: columns}
+}
+
+export fn export_incidents_json(incidents) {
+    if incidents == null { return {json_text: "", incident_count: 0, hash: ""} }
+
+    let json_output = <<javascript[incidents]
+const data = {
+    incidents: incidents,
+    count: incidents.length,
+    exported_at: new Date().toISOString()
+};
+
+JSON.stringify(data)
+    >>
+
+    let hash = crypto.sha256(json_output)
+
+    return {json_text: json_output, incident_count: len(incidents), hash: hash}
+}
+
+export fn write_export_to_file(content, filepath) {
+    if content == null { return {success: false, path: filepath, bytes_written: 0} }
+
+    let sanitized = validators.sanitize_string(content)
+    let result = {success: false, path: filepath, bytes_written: 0}
+
+    try {
+        file.write(filepath, sanitized)
+        result = {success: true, path: filepath, bytes_written: len(sanitized)}
+    } catch (e) {
+        result = {success: false, path: filepath, bytes_written: 0}
+    }
+
+    return result
+}
+
+export fn format_event(event) {
+    if event == null { return "" }
+
+    let severity_prefix = match event.get("severity", 4) {
+        0 => "[CRITICAL] ",
+        1 => "[ERROR] ",
+        2 => "[WARNING] ",
+        3 => "[WARN] ",
+        4 => "[INFO] ",
+        5 => "[DEBUG] ",
+        _ => "[UNKNOWN] "
+    }
+
+    let formatted = severity_prefix + event.get("source", "unknown") + ": " + event.get("message", "") |> (fn(f) {
+        string.trim(f)
+    })
+
+    return formatted
+}
+
+export fn format_incident(incident) {
+    if incident == null { return "" }
+
+    let status_prefix = match incident.get("status", 0) {
+        0 => "[OPEN] ",
+        1 => "[ACK] ",
+        2 => "[INVESTIGATING] ",
+        3 => "[MITIGATING] ",
+        4 => "[RESOLVED] ",
+        5 => "[CLOSED] ",
+        _ => "[UNKNOWN] "
+    }
+
+    let formatted = status_prefix + incident.get("title", "") + " (Events: " + string(len(incident.get("events", []))) + ")"
+
+    return formatted
+}
+
+export fn format_alert(alert) {
+    if alert == null { return "" }
+
+    let severity_label = match alert.get("severity", 0) {
+        0 => "CRITICAL",
+        1 => "MAJOR",
+        2 => "MINOR",
+        3 => "WARNING",
+        4 => "INFO",
+        _ => "UNKNOWN"
+    }
+
+    let formatted = "[" + severity_label + "] " + alert.get("message", "") + " (Rule: " + alert.get("rule_id", "") + ")" |> (fn(f) {
+        string.trim(f)
+    })
+
+    return formatted
+}

@@ -1,0 +1,109 @@
+use agent
+
+import "models.naab" as models
+
+export fn analyze_event_patterns(events, window_size) {
+    let patterns = <<python[events, window_size] -> JSON
+from collections import Counter
+import json
+
+message_patterns = [e.get("message", "")[:window_size] for e in events]
+pattern_counts = Counter(message_patterns)
+
+patterns = list(pattern_counts.items())
+recurring_count = len([p for p in pattern_counts.values() if p > 1])
+novel_count = len([p for p in pattern_counts.values() if p == 1])
+
+print(json.dumps({
+    "patterns": patterns,
+    "recurring_count": recurring_count,
+    "novel_count": novel_count,
+    "recommendations": []
+}))
+    >>
+    return patterns
+}
+
+export fn analyze_anomalies(events, baseline) {
+    let anomalies = <<python[events, baseline] -> JSON
+import json
+
+anomalies_list = []
+deviations = []
+risk_score = 0
+
+for event in events:
+    severity = event.get("severity", 0)
+    if severity > baseline:
+        anomalies_list.append(event.get("id"))
+        deviations.append(severity - baseline)
+        risk_score = risk_score + 1
+
+print(json.dumps({
+    "anomalies": anomalies_list,
+    "baseline": baseline,
+    "deviations": deviations,
+    "risk_score": risk_score
+}))
+    >>
+    return anomalies
+}
+
+export fn check_agent_available(config_name) {
+    let check = agent.check(config_name)
+    let available = check.get("valid") == true
+    let reason = if available { "agent configured" } else { check.get("error") ?? "unknown" }
+
+    return {
+        "available": available,
+        "reason": reason
+    }
+}
+
+export fn interpret_incident(incident, context_events) {
+    let pre = check_agent_available("incident_analyst")
+
+    if pre.get("available") != true {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": pre.get("reason"),
+            "suggested_actions": []
+        }
+    }
+
+    try {
+        let handle = agent.create("incident_analyst")
+        let prompt = generate_interpretation_prompt(incident, context_events)
+        let resp = agent.send(handle, prompt)
+        let content = resp.get("content") ?? ""
+
+        return {
+            "interpretation": content,
+            "confidence": 1,
+            "reasoning": "agent analysis",
+            "suggested_actions": []
+        }
+    } catch (e) {
+        return {
+            "interpretation": "unavailable",
+            "confidence": 0,
+            "reasoning": string(e),
+            "suggested_actions": []
+        }
+    }
+}
+
+export fn generate_interpretation_prompt(incident, events) {
+    let title = incident.get("title") ?? ""
+    let severity = incident.get("severity") ?? 0
+    let status = incident.get("status") ?? 0
+    let event_count = len(events)
+
+    let prompt = "Analyze this incident: " + title + "\n"
+    prompt = prompt + "Severity: " + models.severity_label(severity) + "\n"
+    prompt = prompt + "Status: " + models.status_label(status) + "\n"
+    prompt = prompt + "Related events: " + string(event_count) + "\n"
+
+    return prompt
+}

@@ -1,0 +1,144 @@
+import "models.naab" as models
+
+export fn correlate_events(events, time_window_seconds) {
+    let groups = <<python[events, time_window_seconds] -> JSON
+from collections import defaultdict
+import json
+
+groups = defaultdict(list)
+ungrouped = []
+
+for event in events:
+    key = (event.get("source"), event.get("category"))
+    groups[key].append(event)
+
+result_groups = list(groups.values())
+correlation_count = len([g for g in result_groups if len(g) > 1])
+
+print(json.dumps({
+    "groups": result_groups,
+    "ungrouped": ungrouped,
+    "correlation_count": correlation_count
+}))
+    >>
+    return groups
+}
+
+export fn detect_incident(event_group, threshold) {
+    let is_incident = false
+    let incident = null
+    let evidence = []
+
+    if len(event_group) == 0 {
+        return {
+            "is_incident": is_incident,
+            "incident": incident,
+            "evidence": evidence
+        }
+    }
+
+    let max_severity = 0
+    let total_severity = 0
+    for i in 0..len(event_group) {
+        let event = event_group[i]
+        let sev = event.get("severity") ?? 0
+        if sev > max_severity {
+            max_severity = sev
+        }
+        total_severity = total_severity + sev
+    }
+
+    is_incident = match max_severity {
+        0 => true,
+        1 => true,
+        _ => false
+    }
+
+    if is_incident {
+        incident = models.create_incident("", "Incident from events", max_severity, 0, event_group)
+        evidence = event_group
+    }
+
+    return {
+        "is_incident": is_incident,
+        "incident": incident,
+        "evidence": evidence
+    }
+}
+
+export fn find_related_events(events, event, max_depth) {
+    if max_depth <= 0 {
+        return []
+    }
+
+    let related = []
+    let source = event.get("source")
+    let category = event.get("category")
+
+    for i in 0..len(events) {
+        let e = events[i]
+        let e_source = e.get("source")
+        let e_category = e.get("category")
+
+        if e_source == source || e_category == category {
+            if e.get("id") != event.get("id") {
+                related.push(e)
+                let deeper = find_related_events(events, e, max_depth - 1)
+                for j in 0..len(deeper) {
+                    related.push(deeper[j])
+                }
+            }
+        }
+    }
+
+    return related
+}
+
+export fn merge_incidents(incident_a, incident_b) {
+    let events_a = incident_a.get("events") ?? []
+    let events_b = incident_b.get("events") ?? []
+    let combined_events = events_a + events_b
+
+    let severity_a = incident_a.get("severity") ?? 0
+    let severity_b = incident_b.get("severity") ?? 0
+    let max_severity = if severity_a > severity_b { severity_a } else { severity_b }
+
+    let merged = incident_a
+    merged["events"] = combined_events
+    merged["severity"] = max_severity
+
+    return {
+        "merged_incident": merged,
+        "source_count": 2,
+        "combined_events": len(combined_events)
+    }
+}
+
+export fn deduplicate_events(events) {
+    let unique = <<javascript[events]
+const seen = new Set();
+const unique_events = [];
+const dedup_map = {};
+
+for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    const msg = event.get ? event.get("message") : "";
+    const src = event.get ? event.get("source") : "";
+    const key = msg + "|" + src;
+    if (!seen.has(key)) {
+        seen.add(key);
+        unique_events.push(event);
+        const eid = event.get ? event.get("id") : "";
+        dedup_map[eid] = true;
+    }
+}
+
+const result = {
+    "unique_events": unique_events,
+    "duplicate_count": events.length - unique_events.length,
+    "dedup_map": dedup_map
+};
+result
+    >>
+    return unique
+}

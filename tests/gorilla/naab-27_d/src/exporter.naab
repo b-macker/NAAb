@@ -1,0 +1,134 @@
+// Export & File Output (Taint Sink)
+use json
+use crypto
+use file
+use csv
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn export_events_csv(events) {
+    if len(events) == 0 {
+        return { "csv_text": "", "row_count": 0, "columns": [] }
+    }
+
+    let rows = events |> fn(evts) {
+        let r = [["id", "timestamp", "source", "severity", "message", "category", "subcategory"]]
+        for i in 0..len(evts) {
+            let e = evts[i]
+            let row = [e.id, string(e.timestamp), e.source, string(e.severity), e.message, string(e.category), e.subcategory]
+            r = r + [row]
+        }
+        return r
+    }
+
+    let csv_text = csv.stringify(rows)
+
+    return {
+        "csv_text": csv_text,
+        "row_count": len(events),
+        "columns": ["id", "timestamp", "source", "severity", "message", "category", "subcategory"]
+    }
+}
+
+export fn export_incidents_json(incidents) {
+    let export_data = <<javascript[incidents]
+const incs_array = [];
+for (let i = 0; i < incidents.length; i++) {
+    const inc = incidents[i];
+    incs_array.push({
+        id: inc.id,
+        title: inc.title,
+        status: inc.status,
+        severity: inc.severity,
+        priority: inc.priority,
+        created_at: inc.created_at,
+        resolved_at: inc.resolved_at,
+        root_cause: inc.root_cause
+    });
+}
+
+const data = {
+    incidents: incs_array,
+    count: incidents.length,
+    exported_at: Math.floor(Date.now() / 1000)
+};
+
+JSON.stringify(data, null, 2)
+    >>
+
+    let hash = crypto.sha256(export_data)
+
+    return {
+        "json_text": export_data,
+        "incident_count": len(incidents),
+        "hash": hash
+    }
+}
+
+export fn write_export_to_file(content, filepath) {
+    let success = false
+    let bytes_written = 0
+
+    try {
+        let sanitized = validators.sanitize_string(content)
+        file.write(filepath, sanitized)
+        success = true
+        bytes_written = len(sanitized)
+    } catch (e) {
+        success = false
+        bytes_written = 0
+    }
+
+    return {
+        "success": success,
+        "path": filepath,
+        "bytes_written": bytes_written
+    }
+}
+
+export fn format_event(event) {
+    let sev_label = match event.severity {
+        0 => "[CRITICAL]",
+        1 => "[MAJOR]",
+        2 => "[MINOR]",
+        3 => "[WARNING]",
+        4 => "[INFO]",
+        5 => "[DEBUG]",
+        _ => "[UNKNOWN]"
+    }
+
+    let formatted = sev_label + " " + event.source + " - " + event.message
+
+    return formatted |> fn(f) { return f }
+}
+
+export fn format_incident(incident) {
+    let status_label = match incident.status {
+        0 => "Open",
+        1 => "Acknowledged",
+        2 => "Investigating",
+        3 => "Mitigating",
+        4 => "Resolved",
+        5 => "Closed",
+        _ => "Unknown"
+    }
+
+    let formatted = "Incident " + incident.id + " (" + status_label + "): " + incident.title
+
+    return formatted
+}
+
+export fn format_alert(alert) {
+    let state_label = match alert.state {
+        0 => "Pending",
+        1 => "Firing",
+        2 => "Acknowledged",
+        3 => "Silenced",
+        4 => "Resolved",
+        _ => "Unknown"
+    }
+
+    let formatted = "[" + state_label + "] Alert " + alert.id + ": " + alert.message
+
+    return formatted |> fn(f) { return f }
+}

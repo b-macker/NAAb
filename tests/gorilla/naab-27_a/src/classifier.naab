@@ -1,0 +1,115 @@
+use regex
+use string
+
+export fn classify_event(event) {
+    let message = event.message
+    let category = 0
+    let subcategory = ""
+    let confidence = 0.0
+    let tags = []
+
+    if regex.search(message, "auth|login|permission|denied|failed") {
+        category = 0
+        subcategory = "authentication"
+        confidence = 0.9
+        tags = ["auth", "security"]
+    } else if regex.search(message, "cpu|memory|disk|latency|timeout") {
+        category = 1
+        subcategory = "resource"
+        confidence = 0.85
+        tags = ["performance"]
+    } else if regex.search(message, "server|network|connection|unreachable") {
+        category = 2
+        subcategory = "connectivity"
+        confidence = 0.8
+        tags = ["infrastructure"]
+    } else if regex.search(message, "error|exception|crash|fatal") {
+        category = 3
+        subcategory = "error"
+        confidence = 0.75
+        tags = ["application"]
+    } else if regex.search(message, "packet|bandwidth|routing|port") {
+        category = 4
+        subcategory = "traffic"
+        confidence = 0.7
+        tags = ["network"]
+    } else if regex.search(message, "query|database|sql|transaction") {
+        category = 5
+        subcategory = "query"
+        confidence = 0.8
+        tags = ["database"]
+    } else {
+        category = 3
+        subcategory = "unknown"
+        confidence = 0.5
+        tags = []
+    }
+
+    return {
+        "category": category,
+        "subcategory": subcategory,
+        "confidence": confidence,
+        "tags": tags
+    }
+}
+
+export fn batch_classify(events) {
+    let results = []
+    let classified_count = 0
+    let unknown_count = 0
+
+    for i in 0..len(events) {
+        let event = events[i]
+        let classification = classify_event(event)
+        results.push(classification)
+        if classification.get("confidence") > 0.5 {
+            classified_count = classified_count + 1
+        } else {
+            unknown_count = unknown_count + 1
+        }
+    }
+
+    return {
+        "results": results,
+        "total": len(events),
+        "classified_count": classified_count,
+        "unknown_count": unknown_count
+    }
+}
+
+export fn extract_keywords(message) {
+    if message == null {
+        return []
+    }
+    let words = string.split(message, " ")
+    let keywords = []
+    for i in 0..len(words) {
+        let word = words[i]
+        if len(word) > 4 {
+            keywords.push(string.lower(word))
+        }
+    }
+    return keywords
+}
+
+export fn calculate_confidence(event, category) {
+    let keywords = extract_keywords(event.message)
+    let match_count = 0
+    for i in 0..len(keywords) {
+        let keyword = keywords[i]
+        if regex.search(event.message, keyword) {
+            match_count = match_count + 1
+        }
+    }
+    if len(keywords) == 0 {
+        return 0.0
+    }
+    return float(match_count) / float(len(keywords))
+}
+
+export fn is_security_event(event) {
+    if event == null {
+        return false
+    }
+    return regex.search(event.message, "auth|login|permission|denied|security|access")
+}

@@ -1,0 +1,122 @@
+// Event Classification
+use string
+
+export fn classify_event(event) {
+    let msg_lower = string.lower(event.message)
+
+    let classification = match true {
+        string.contains(msg_lower, "auth") || string.contains(msg_lower, "permission") || string.contains(msg_lower, "denied") => {
+            "category": 0,
+            "subcategory": "Authentication",
+            "tags": ["security", "auth"],
+            "confidence": 0.9
+        },
+        string.contains(msg_lower, "cpu") || string.contains(msg_lower, "memory") || string.contains(msg_lower, "latency") => {
+            "category": 1,
+            "subcategory": "Performance",
+            "tags": ["performance", "resource"],
+            "confidence": 0.85
+        },
+        string.contains(msg_lower, "disk") || string.contains(msg_lower, "storage") || string.contains(msg_lower, "capacity") => {
+            "category": 2,
+            "subcategory": "Infrastructure",
+            "tags": ["infrastructure", "storage"],
+            "confidence": 0.8
+        },
+        string.contains(msg_lower, "error") || string.contains(msg_lower, "exception") || string.contains(msg_lower, "failed") => {
+            "category": 3,
+            "subcategory": "Application",
+            "tags": ["application", "error"],
+            "confidence": 0.75
+        },
+        string.contains(msg_lower, "packet") || string.contains(msg_lower, "timeout") || string.contains(msg_lower, "connection") => {
+            "category": 4,
+            "subcategory": "Network",
+            "tags": ["network", "connectivity"],
+            "confidence": 0.8
+        },
+        string.contains(msg_lower, "query") || string.contains(msg_lower, "database") || string.contains(msg_lower, "db") => {
+            "category": 5,
+            "subcategory": "Database",
+            "tags": ["database", "query"],
+            "confidence": 0.85
+        },
+        _ => {
+            "category": 3,
+            "subcategory": "",
+            "tags": [],
+            "confidence": calculate_confidence(event, 3)
+        }
+    }
+
+    return classification
+}
+
+export fn batch_classify(events) {
+    let results = []
+    let classified_count = 0
+    let unknown_count = 0
+
+    for i in 0..len(events) {
+        let result = classify_event(events[i])
+        results = results + [result]
+        if result.get("confidence") > 0.6 {
+            classified_count = classified_count + 1
+        } else {
+            unknown_count = unknown_count + 1
+        }
+    }
+
+    return {
+        "results": results,
+        "total": len(events),
+        "classified_count": classified_count,
+        "unknown_count": unknown_count
+    }
+}
+
+export fn extract_keywords(message) {
+    if message == null || message == "" {
+        return []
+    }
+
+    let lower_msg = string.lower(message)
+    let words = string.split(lower_msg, " ")
+    let keywords = []
+
+    for i in 0..len(words) {
+        let w = words[i]
+        let len_w = len(w)
+        if len_w > 3 && len_w < 20 {
+            keywords = keywords + [w]
+        }
+    }
+
+    return keywords
+}
+
+export fn calculate_confidence(event, category) {
+    let keywords = extract_keywords(event.message)
+    let keyword_count = len(keywords)
+
+    if keyword_count > 5 {
+        return 0.8
+    } else if keyword_count > 3 {
+        return 0.6
+    } else {
+        return 0.4
+    }
+}
+
+export fn is_security_event(event) {
+    let lower_msg = string.lower(event.message)
+    let auth_patterns = ["auth", "permission", "denied", "access", "credential", "breach", "exploit", "malware", "suspicious", "unauthorized"]
+
+    for i in 0..len(auth_patterns) {
+        if string.contains(lower_msg, auth_patterns[i]) {
+            return true
+        }
+    }
+
+    return false
+}

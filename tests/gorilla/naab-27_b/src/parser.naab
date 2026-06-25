@@ -1,0 +1,150 @@
+import "models.naab" as models
+
+use regex
+use json
+use time
+
+export fn parse_log_entry(text) {
+    if text == null { return {event: null, valid: false, errors: ["Text is null"]} }
+
+    let errors = []
+    let event = null
+
+    let parsed = try {
+        json.parse(text)
+    } catch (e) {
+        null
+    }
+
+    if parsed != null {
+        let id_val = parsed.get("id")
+        let ts_val = parsed.get("timestamp")
+        let src_val = parsed.get("source")
+        let sev_val = parsed.get("severity")
+        let msg_val = parsed.get("message")
+
+        if id_val != null && ts_val != null && src_val != null && sev_val != null && msg_val != null {
+            let cat_val = parsed.get("category")
+            let category_int = if cat_val != null { int(cat_val) } else { 3 }
+
+            let subcat_val = parsed.get("subcategory")
+            let subcategory_str = if subcat_val != null { string(subcat_val) } else { "" }
+
+            let tags_val = parsed.get("tags")
+            let tags_array = if tags_val != null { tags_val } else { [] }
+
+            let meta_val = parsed.get("metadata")
+            let metadata_dict = if meta_val != null { meta_val } else { {} }
+
+            event = new models.Event {
+                id: string(id_val),
+                timestamp: int(ts_val),
+                source: string(src_val),
+                severity: int(sev_val),
+                message: string(msg_val),
+                category: category_int,
+                subcategory: subcategory_str,
+                tags: tags_array,
+                metadata: metadata_dict
+            }
+            return {event: event, valid: true, errors: []}
+        } else {
+            errors = errors + ["JSON missing required fields"]
+        }
+    } else {
+        let match_result = regex.search(text, "^\\[([^\\]]+)\\]\\s+([^\\s]+)\\s+([A-Z]+):\\s+(.*)$")
+        if match_result != null {
+            let ts = extract_timestamp(match_result)
+            let src = string(match_result)
+            let sev = normalize_severity(match_result)
+            event = new models.Event {
+                id: string(time.now()),
+                timestamp: ts,
+                source: src,
+                severity: sev,
+                message: match_result,
+                category: 3,
+                subcategory: "",
+                tags: [],
+                metadata: {}
+            }
+            return {event: event, valid: true, errors: []}
+        } else {
+            errors = errors + ["Failed to parse as JSON or syslog format"]
+        }
+    }
+
+    return {event: event, valid: false, errors: errors}
+}
+
+export fn parse_batch(lines) {
+    let events = []
+    let errors = []
+    let success_count = 0
+    let fail_count = 0
+
+    for i in 0..len(lines) {
+        let line = lines[i]
+        let result = parse_log_entry(line)
+        if result.get("valid") == true {
+            events = events + [result.get("event")]
+            success_count = success_count + 1
+        } else {
+            errors = errors + [result.get("errors")]
+            fail_count = fail_count + 1
+        }
+    }
+
+    return {events: events, errors: errors, success_count: success_count, fail_count: fail_count}
+}
+
+export fn extract_timestamp(text) {
+    if text == null { return 0 }
+
+    let iso_match = regex.search(text, "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")
+    if iso_match != null {
+        return int(time.now())
+    }
+
+    let unix_match = regex.search(text, "\\d{10}")
+    if unix_match != null {
+        return int(unix_match)
+    }
+
+    return int(time.now())
+}
+
+export fn extract_source(text) {
+    if text == null { return "" }
+
+    let match_result = regex.search(text, "([a-zA-Z0-9\\-\\.]+)")
+    if match_result != null {
+        return string(match_result)
+    }
+
+    return "unknown"
+}
+
+export fn normalize_severity(text) {
+    if text == null { return 4 }
+
+    let upper = string.upper(text)
+
+    if string.contains(upper, "CRITICAL") || string.contains(upper, "FATAL") || string.contains(upper, "EMERGENCY") {
+        return 0
+    }
+    if string.contains(upper, "ERROR") || string.contains(upper, "ALERT") {
+        return 1
+    }
+    if string.contains(upper, "WARNING") || string.contains(upper, "WARN") {
+        return 3
+    }
+    if string.contains(upper, "INFO") {
+        return 4
+    }
+    if string.contains(upper, "DEBUG") || string.contains(upper, "TRACE") {
+        return 5
+    }
+
+    return 4
+}

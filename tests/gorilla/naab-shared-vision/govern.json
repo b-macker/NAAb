@@ -1,0 +1,97 @@
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "filesystem": {
+      "level": "restricted",
+      "read_allowlist": [ "src/*", "govern.json" ],
+      "write_allowlist": [ "crypto_module.py", "report.json", "vision_audit.log" ]
+    },
+    "network": { "enabled": false },
+    "shell": { "enabled": false }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [ "python" ]
+  },
+  "limits": {
+    "timeout": { "global": 1800, "per_block": 60 }
+  },
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "code_injection": { "level": "hard" }
+  },
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": [
+      {
+        "name": "collaborative_convergence",
+        "sequence": [ "AGENT_SEND", "AGENT_SEND", "AGENT_SEND", "AGENT_SEND", "FILE_WRITE" ],
+        "max_gap": 0,
+        "level": "advisory"
+      }
+    ]
+  },
+  "agents": {
+    "architect": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "retry": {
+        "max_attempts": 5,
+        "backoff_ms": 2000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "key_rotation": true
+      },
+      "system_prompt": "You are the Architect. Define the mathematical requirements for a simple XOR-based encryption module.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "implementer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK6", "GK5", "GK4", "GK3", "GK2", "GK1" ],
+      "retry": {
+        "max_attempts": 5,
+        "backoff_ms": 2000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "key_rotation": true
+      },
+      "system_prompt": "You are the Implementer. Write Python code based on the Architect's requirements. Output ONLY raw code.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "optimizer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK2", "GK4", "GK6", "GK1", "GK3", "GK5" ],
+      "retry": {
+        "max_attempts": 5,
+        "backoff_ms": 2000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "key_rotation": true
+      },
+      "system_prompt": "You are the Optimizer. Refine the provided Python code for efficiency. Output ONLY raw code.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "finalizer": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK5", "GK3", "GK1", "GK6", "GK4", "GK2" ],
+      "retry": {
+        "max_attempts": 5,
+        "backoff_ms": 2000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "key_rotation": true
+      },
+      "system_prompt": "You are the Finalizer. Add error handling and docstrings to the final code. Output ONLY raw code.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    }
+  }
+}

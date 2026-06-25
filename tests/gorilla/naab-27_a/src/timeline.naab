@@ -1,0 +1,148 @@
+import "models.naab" as models
+
+export fn generate_timeline(events, incidents) {
+    let sorted_events = events |> sort_by_timestamp
+    let entries = sorted_events |> events_to_entries |> add_incident_entries
+
+    let start_time = 0
+    let end_time = 0
+    if len(entries) > 0 {
+        start_time = entries[0].get("timestamp")
+        end_time = entries[len(entries) - 1].get("timestamp")
+    }
+
+    let duration = if end_time > start_time { end_time - start_time } else { 0 }
+
+    return {
+        "entries": entries,
+        "start_time": start_time,
+        "end_time": end_time,
+        "duration_seconds": duration
+    }
+}
+
+fn sort_by_timestamp(events) {
+    let sorted = events
+    for i in 0..len(sorted) {
+        for j in i..len(sorted) {
+            let a = sorted[i]
+            let b = sorted[j]
+            if a.get("timestamp") > b.get("timestamp") {
+                let tmp = sorted[i]
+                sorted[i] = sorted[j]
+                sorted[j] = tmp
+            }
+        }
+    }
+    return sorted
+}
+
+fn events_to_entries(events) {
+    let entries = []
+    for i in 0..len(events) {
+        let event = events[i]
+        let entry = models.create_timeline_entry(
+            event.get("timestamp"),
+            event.get("id"),
+            event.get("message"),
+            event.get("severity"),
+            event.get("source")
+        )
+        entries.push(entry)
+    }
+    return entries
+}
+
+fn add_incident_entries(entries) {
+    return entries
+}
+
+export fn detect_anomaly_window(timeline_entries, baseline_rate, deviation_factor) {
+    let is_anomalous = false
+    let window_stats = {}
+    let threshold_breaches = 0
+
+    if len(timeline_entries) > 0 {
+        let threshold = baseline_rate * deviation_factor
+        let current_count = len(timeline_entries)
+        if float(current_count) > threshold {
+            is_anomalous = true
+            threshold_breaches = threshold_breaches + 1
+        }
+    }
+
+    return {
+        "is_anomalous": is_anomalous,
+        "window_stats": window_stats,
+        "threshold_breaches": threshold_breaches
+    }
+}
+
+export fn find_gaps(timeline_entries, max_gap_seconds) {
+    let gaps = []
+    if len(timeline_entries) < 2 {
+        return gaps
+    }
+
+    for i in 0..len(timeline_entries) - 1 {
+        let current = timeline_entries[i]
+        let next = timeline_entries[i + 1]
+        let current_ts = current.get("timestamp")
+        let next_ts = next.get("timestamp")
+        let gap = next_ts - current_ts
+
+        if gap > max_gap_seconds {
+            gaps.push({
+                "start": current_ts,
+                "end": next_ts,
+                "duration": gap
+            })
+        }
+    }
+
+    return gaps
+}
+
+export fn compress_timeline(entries, merge_window_seconds) {
+    if len(entries) == 0 {
+        return []
+    }
+
+    let compressed = []
+    let current_window = entries[0].get("timestamp") / merge_window_seconds
+    let window_entries = []
+
+    for i in 0..len(entries) {
+        let entry = entries[i]
+        let window = entry.get("timestamp") / merge_window_seconds
+
+        if window == current_window {
+            window_entries.push(entry)
+        } else {
+            compressed.push(window_entries[0])
+            current_window = window
+            window_entries = [entry]
+        }
+    }
+
+    if len(window_entries) > 0 {
+        compressed.push(window_entries[0])
+    }
+
+    return compressed
+}
+
+export fn get_window_events(events, center_time, window_seconds) {
+    let result = []
+    let half_window = window_seconds / 2
+
+    for i in 0..len(events) {
+        let event = events[i]
+        let ts = event.get("timestamp")
+        if ts >= center_time - half_window && ts <= center_time + half_window {
+            result.push(event)
+        }
+    }
+
+    return result
+}

@@ -1,0 +1,21 @@
+use codegen
+use json
+
+main {
+    print("--- Probing Codegen JS Error Behavior ---")
+    
+    let broken_js = "function test() { return (/** missing closing bracket */"
+    
+    try {
+        let res = codegen.run_with_args("javascript", broken_js, {})
+        print("Result Type: " + typeof(res))
+        print("Result Dict: " + json.stringify(res))
+        
+        if typeof(res) == "dict" {
+            print("Exit Code: " + string(res.get("exit_code")))
+            print("Output Length: " + string(string.length(string(res.get("output")))))
+        }
+    } catch (e) {
+        print("Caught Exception: " + e)
+    }
+}

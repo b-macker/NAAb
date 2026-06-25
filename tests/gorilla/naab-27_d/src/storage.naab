@@ -1,0 +1,173 @@
+// In-Memory Event Store
+use uuid
+import "models.naab" as models
+
+export fn store_event(store, event) {
+    if store == null {
+        store = { "events": [], "count": 0 }
+    }
+
+    let events = store.get("events") ?? []
+    events = events + [event]
+
+    store = {
+        "events": events,
+        "count": len(events)
+    }
+
+    return {
+        "store": store,
+        "success": true,
+        "event_id": event.id
+    }
+}
+
+export fn query_events(store, filters) {
+    if store == null {
+        return { "results": [], "total": 0, "filtered": 0 }
+    }
+
+    let events = store.get("events") ?? []
+    let results = []
+
+    for i in 0..len(events) {
+        let e = events[i]
+        let matches = true
+
+        if filters.has("source") && e.source != filters.get("source") {
+            matches = false
+        }
+
+        if filters.has("severity") && e.severity != filters.get("severity") {
+            matches = false
+        }
+
+        if filters.has("category") && e.category != filters.get("category") {
+            matches = false
+        }
+
+        if filters.has("time_range") {
+            let tr = filters.get("time_range")
+            if e.timestamp < tr.get("start") || e.timestamp > tr.get("end") {
+                matches = false
+            }
+        }
+
+        if matches {
+            results = results + [e]
+        }
+    }
+
+    return {
+        "results": results,
+        "total": len(events),
+        "filtered": len(results)
+    }
+}
+
+export fn build_event_index(events) {
+    let processor = fn(evts) {
+        return <<javascript[evts]
+const by_source = {};
+const by_severity = {};
+const by_category = {};
+const by_hour = {};
+
+for (let i = 0; i < evts.length; i++) {
+    const evt = evts[i];
+    const src = evt.source || "unknown";
+    const sev = evt.severity || 3;
+    const cat = evt.category || 3;
+    const hour = Math.floor(evt.timestamp / 3600);
+
+    if (!by_source[src]) by_source[src] = [];
+    by_source[src].push(evt.id);
+
+    if (!by_severity[sev]) by_severity[sev] = [];
+    by_severity[sev].push(evt.id);
+
+    if (!by_category[cat]) by_category[cat] = [];
+    by_category[cat].push(evt.id);
+
+    if (!by_hour[hour]) by_hour[hour] = [];
+    by_hour[hour].push(evt.id);
+}
+
+const result = {
+    by_source: by_source,
+    by_severity: by_severity,
+    by_category: by_category,
+    by_hour: by_hour
+};
+result
+        >>
+    }
+
+    let indexed = events |> processor
+
+    if indexed == null {
+        return { "by_source": {}, "by_severity": {}, "by_category": {}, "by_hour": {} }
+    }
+
+    return indexed
+}
+
+export fn count_events_by_source(events) {
+    let counts = {}
+
+    for i in 0..len(events) {
+        let e = events[i]
+        let src = e.source ?? "unknown"
+        if counts.has(src) {
+            counts[src] = counts.get(src) + 1
+        } else {
+            counts[src] = 1
+        }
+    }
+
+    return counts |> fn(c) { return c }
+}
+
+export fn get_event_by_id(store, event_id) {
+    if store == null {
+        return null
+    }
+
+    let events = store.get("events") ?? []
+
+    for i in 0..len(events) {
+        if events[i].id == event_id {
+            return events[i]
+        }
+    }
+
+    return null
+}
+
+export fn delete_events_before(store, cutoff_time) {
+    if store == null {
+        return { "store": store, "deleted_count": 0 }
+    }
+
+    let events = store.get("events") ?? []
+    let kept = []
+    let deleted_count = 0
+
+    for i in 0..len(events) {
+        if events[i].timestamp >= cutoff_time {
+            kept = kept + [events[i]]
+        } else {
+            deleted_count = deleted_count + 1
+        }
+    }
+
+    let updated_store = {
+        "events": kept,
+        "count": len(kept)
+    }
+
+    return {
+        "store": updated_store,
+        "deleted_count": deleted_count
+    }
+}

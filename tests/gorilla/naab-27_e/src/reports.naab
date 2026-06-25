@@ -1,0 +1,70 @@
+import "models.naab" as models
+import "validators.naab" as validators
+
+use json
+use crypto
+use time
+
+fn rank_by_severity_internal(incidents) {
+    let ranked = []
+    for i in incidents {
+        ranked.push(i)
+    }
+    for i in 0..len(ranked) - 1 {
+        for j in i..len(ranked) {
+            if ranked[j].severity > ranked[i].severity {
+                let tmp = ranked[i]
+                ranked[i] = ranked[j]
+                ranked[j] = tmp
+            }
+        }
+    }
+    return ranked
+}
+
+export fn rank_incidents_by_severity(incidents) {
+    if incidents == null { return [] }
+    return incidents |> rank_by_severity_internal
+}
+
+export fn generate_summary_report(events, incidents, alerts) {
+    if events == null { events = [] }
+    if incidents == null { incidents = [] }
+    if alerts == null { alerts = [] }
+    let text = "SUMMARY REPORT\n"
+    text = text + "Events: " + string(len(events)) + "\n"
+    text = text + "Incidents: " + string(len(incidents)) + "\n"
+    text = text + "Alerts: " + string(len(alerts)) + "\n"
+    let hash = crypto.sha256(text)
+    let sections = ["events", "incidents", "alerts"]
+    return {
+        "report_text": text,
+        "hash": hash,
+        "sections": sections
+    }
+}
+
+export fn generate_detail_report(events, incidents, alerts, metrics_data) {
+    if events == null { events = [] }
+    if incidents == null { incidents = [] }
+    if alerts == null { alerts = [] }
+    if metrics_data == null { metrics_data = {} }
+    let text = "DETAILED REPORT\n"
+    text = text + "Total Events: " + string(len(events)) + "\n"
+    text = text + "Total Incidents: " + string(len(incidents)) + "\n"
+    text = text + "Total Alerts: " + string(len(alerts)) + "\n"
+    for inc in incidents {
+        text = text + "- Incident " + inc.id + ": " + inc.title + "\n"
+    }
+    let hash = crypto.sha256(text)
+    return {
+        "report_text": text,
+        "hash": hash,
+        "event_count": len(events),
+        "incident_count": len(incidents)
+    }
+}
+
+main {
+    print("reports module loaded")
+}

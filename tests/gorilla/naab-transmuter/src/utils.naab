@@ -1,0 +1,46 @@
+use agent
+use string
+use codegen
+use json
+use file
+
+export fn clean_code(response, language) {
+    let content = ""
+    if typeof(response) == "dict" {
+        content = response.get("content") ?? ""
+    } else {
+        content = string(response)
+    }
+    
+    // Split strategy (robust)
+    let parts = string.split(content, "```")
+    if array.length(parts) > 1 {
+        let block = parts[1]
+        block = string.replace(block, language, "")
+        block = string.replace(block, "python", "")
+        block = string.replace(block, "javascript", "")
+        block = string.replace(block, "js", "")
+        block = string.replace(block, "shell", "")
+        return string.trim(block)
+    }
+    return string.trim(content)
+}
+
+export fn run_governed(language, code, inputs) {
+    print("  [Governed Run] Executing " + language + " code...")
+    try {
+        let result = codegen.run_with_args(language, code, inputs)
+        
+        if typeof(result) == "dict" {
+            // Check for both runtime errors and the JS executor bug (phantom completion)
+            if result.get("exit_code") != 0 || (language == "javascript" && string.length(string(result.get("output"))) == 0 && string.length(string(result.get("stderr"))) > 0) {
+                let err = result.get("stderr") ?? result.get("output")
+                throw "Execution Failed: " + string(err)
+            }
+            return { "success": true, "output": result.get("output") }
+        }
+        return { "success": true, "output": result }
+    } catch (e) {
+        return { "success": false, "error": e }
+    }
+}

@@ -1,0 +1,217 @@
+export enum EventSeverity { Critical, Major, Minor, Warning, Info, Debug }
+export enum EventCategory { Security, Performance, Infrastructure, Application, Network, Database }
+export enum IncidentStatus { Open, Acknowledged, Investigating, Mitigating, Resolved, Closed }
+export enum AlertPriority { P1, P2, P3, P4, P5 }
+export enum AlertState { Pending, Firing, Acknowledged, Silenced, Resolved }
+export enum ThresholdDirection { Above, Below, Equal, Change }
+
+export struct Event {
+    id: string
+    timestamp: int
+    source: string
+    severity: int
+    message: string
+    category: int
+    subcategory: string
+    tags: array
+    metadata: dict
+}
+
+export struct Incident {
+    id: string
+    title: string
+    status: int
+    severity: int
+    priority: int
+    events: array
+    created_at: int
+    updated_at: int
+    acknowledged_by: string
+    resolved_at: int
+    tags: array
+    root_cause: string
+}
+
+export struct AlertRule {
+    id: string
+    name: string
+    condition_field: string
+    threshold_value: int
+    direction: int
+    severity: int
+    cooldown_seconds: int
+    notification_targets: array
+    enabled: bool
+}
+
+export struct Alert {
+    id: string
+    rule_id: string
+    severity: int
+    message: string
+    triggered_at: int
+    acknowledged_at: int
+    state: int
+    event_ids: array
+}
+
+export struct TimelineEntry {
+    timestamp: int
+    event_id: string
+    description: string
+    severity: int
+    source: string
+}
+
+export struct ExportResult {
+    format: string
+    row_count: int
+    hash: string
+    content: string
+}
+
+use time
+
+export fn create_event(id, timestamp, source, severity, message, category, subcategory, tags, metadata) {
+    return new Event {
+        "id": id,
+        "timestamp": timestamp,
+        "source": source,
+        "severity": severity,
+        "message": message,
+        "category": category,
+        "subcategory": subcategory,
+        "tags": tags,
+        "metadata": metadata
+    }
+}
+
+export fn create_incident(id, title, severity, priority, events) {
+    return new Incident {
+        "id": id,
+        "title": title,
+        "status": IncidentStatus.Open,
+        "severity": severity,
+        "priority": priority,
+        "events": events,
+        "created_at": time.now(),
+        "updated_at": time.now(),
+        "acknowledged_by": "",
+        "resolved_at": 0,
+        "tags": [],
+        "root_cause": ""
+    }
+}
+
+export fn create_alert_rule(id, name, condition_field, threshold_value, direction, severity, cooldown_seconds, targets) {
+    return new AlertRule {
+        "id": id,
+        "name": name,
+        "condition_field": condition_field,
+        "threshold_value": threshold_value,
+        "direction": direction,
+        "severity": severity,
+        "cooldown_seconds": cooldown_seconds,
+        "notification_targets": targets,
+        "enabled": true
+    }
+}
+
+export fn create_alert(id, rule_id, severity, message, event_ids) {
+    return new Alert {
+        "id": id,
+        "rule_id": rule_id,
+        "severity": severity,
+        "message": message,
+        "triggered_at": time.now(),
+        "acknowledged_at": 0,
+        "state": AlertState.Pending,
+        "event_ids": event_ids
+    }
+}
+
+export fn create_timeline_entry(timestamp, event_id, description, severity, source) {
+    return new TimelineEntry {
+        "timestamp": timestamp,
+        "event_id": event_id,
+        "description": description,
+        "severity": severity,
+        "source": source
+    }
+}
+
+export fn severity_label(sev) {
+    return match sev {
+        EventSeverity.Critical => "Critical",
+        EventSeverity.Major => "Major",
+        EventSeverity.Minor => "Minor",
+        EventSeverity.Warning => "Warning",
+        EventSeverity.Info => "Info",
+        EventSeverity.Debug => "Debug",
+        _ => "Unknown"
+    }
+}
+
+export fn event_type_label(cat) {
+    return match cat {
+        EventCategory.Security => "Security",
+        EventCategory.Performance => "Performance",
+        EventCategory.Infrastructure => "Infrastructure",
+        EventCategory.Application => "Application",
+        EventCategory.Network => "Network",
+        EventCategory.Database => "Database",
+        _ => "Unknown"
+    }
+}
+
+export fn category_label(cat) {
+    return event_type_label(cat)
+}
+
+export fn status_label(status) {
+    return match status {
+        IncidentStatus.Open => "Open",
+        IncidentStatus.Acknowledged => "Acknowledged",
+        IncidentStatus.Investigating => "Investigating",
+        IncidentStatus.Mitigating => "Mitigating",
+        IncidentStatus.Resolved => "Resolved",
+        IncidentStatus.Closed => "Closed",
+        _ => "Unknown"
+    }
+}
+
+export fn priority_label(pri) {
+    return match pri {
+        AlertPriority.P1 => "P1",
+        AlertPriority.P2 => "P2",
+        AlertPriority.P3 => "P3",
+        AlertPriority.P4 => "P4",
+        AlertPriority.P5 => "P5",
+        _ => "Unknown"
+    }
+}
+
+export fn alert_state_label(state) {
+    return match state {
+        AlertState.Pending => "Pending",
+        AlertState.Firing => "Firing",
+        AlertState.Acknowledged => "Acknowledged",
+        AlertState.Silenced => "Silenced",
+        AlertState.Resolved => "Resolved",
+        _ => "Unknown"
+    }
+}
+
+export fn direction_label(dir) {
+    return match dir {
+        ThresholdDirection.Above => "Above",
+        ThresholdDirection.Below => "Below",
+        ThresholdDirection.Equal => "Equal",
+        ThresholdDirection.Change => "Change",
+        _ => "Unknown"
+    }
+}
+
+main {
+    print("models module loaded")
+}

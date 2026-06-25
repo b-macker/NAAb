@@ -1,0 +1,66 @@
+import "utils.naab" as u
+use agent
+use file
+use json
+use string
+
+// Governed function for the Data Architect (Contracted)
+export fn get_schema(handle, prompt) {
+    print("  [Contract Gate] Architect is designing schema...")
+    let res = agent.send(handle, prompt)
+    return u.clean_code(res, "json")
+}
+
+main {
+    print("=== NAAb Data Transmuter: Fully Governed Pipeline ===")
+    
+    // Create Agent Handles
+    let arch = agent.create("data_architect")
+    let py_dev = agent.create("python_transmuter")
+    let js_dev = agent.create("js_validator")
+
+    // --- Stage 0: Create Legacy Data ---
+    print("\n[Stage 0] Generating Legacy CSV Data...")
+    let legacy_csv = "id,name,value\n1,SensorA,100\n2,SensorB,200\n3,SensorC,INVALID"
+    file.write("legacy_data.csv", legacy_csv)
+    // legacy_data.csv is now a TAINTED source according to govern.json
+
+    // --- Stage 1: Contracted Architecture ---
+    print("\n[Stage 1] Data Architect: Design Schema")
+    let schema = get_schema(arch, "Design a JSON schema for sensors. Fields: id (int), name (string), value (int). Output only the JSON.")
+    print("  Schema successfully validated by Contract Gate.")
+    file.write("schema.json", schema)
+
+    // --- Stage 2: Python Transmutation ---
+    print("\n[Stage 2] Python Dev: CSV to JSON Extraction")
+    let py_code = u.clean_code(agent.send(py_dev, "Write a Python script. It must read 'legacy_data.csv' using the 'csv' module, convert rows to a list of dicts based on schema: " + schema + ", and PRINT the resulting JSON. Handle non-int values in 'value' by setting them to 0."), "python")
+    
+    // legacy_data.csv is the input
+    let py_res = u.run_governed("python", py_code, { "csv_path": "legacy_data.csv" })
+    
+    if !py_res.get("success") {
+        print("  CRITICAL: Python Transmutation Failed: " + string(py_res.get("error")))
+        return
+    }
+    let transmuted_json = py_res.get("output")
+    print("  Data Transmuted (Taint Tracked).")
+
+    // --- Stage 3: JS Validation ---
+    print("\n[Stage 3] JS Dev: Strict Schema Validation")
+    let js_code = u.clean_code(agent.send(js_dev, "Write a Node.js script. It must validate that the provided 'transmuted_data' (array) matches the 'schema' (object). Print 'VALID' or 'INVALID'. Schema: " + schema), "javascript")
+    
+    let js_res = u.run_governed("javascript", js_code, { "transmuted_data": json.parse(transmuted_json), "schema": json.parse(schema) })
+    
+    if !js_res.get("success") {
+        print("  CRITICAL: JS Validation Failed: " + string(js_res.get("error")))
+        return
+    }
+    print("  Validation Output: " + string(js_res.get("output")))
+
+    // --- Stage 4: Final Deployment (Sinking Tainted Data) ---
+    print("\n[Stage 4] Committing Transmuted Data to Disk")
+    // This file.write will only succeed if the engine allows tainted data to flow into this sink.
+    file.write("transmuted.json", transmuted_json)
+    
+    print("\n=== Data Transmuter Pipeline Complete ===")
+}

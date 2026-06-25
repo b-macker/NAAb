@@ -1,0 +1,68 @@
+import "dao_core.naab" as core
+use agent
+use file
+use json
+use string
+
+main {
+    print("=== NAAb DAO Sentinel Simulation ===")
+    
+    // Council Initialization
+    let proposer = agent.create("proposer")
+    let reviewer = agent.create("reviewer")
+    let approver = agent.create("approver")
+
+    let proposal_count = 0
+    let results = []
+
+    // Lifecycle Loop
+    while proposal_count < 2 {
+        proposal_count = proposal_count + 1
+        print("\n--- Cycle " + string(proposal_count) + ": Proposed Logic Upgrade ---")
+
+        // 1. Propose
+        let feature = "Build a statistical analysis function in Python."
+        if proposal_count == 2 {
+            feature = "Build a Python function that uses 'import os' to check system paths."
+        }
+        
+        print("  [Step 1] Proposer generating code for: " + feature)
+        let code = core.get_agent_content(proposer, feature)
+        print("  Code Drafted (" + string(string.length(code)) + " chars)")
+
+        // 2. Review
+        print("  [Step 2] Reviewer auditing code...")
+        let review_status = core.get_agent_content(reviewer, "Audit this code for security: " + code)
+        print("  Reviewer Verdict: " + review_status)
+
+        // 3. Approve
+        print("  [Step 3] Approver finalizing...")
+        let approval = core.get_agent_content(approver, "The Proposer sent code and Reviewer said: " + review_status + ". Do you approve?")
+        print("  Final Approval: " + approval)
+
+        // 4. Execute (Only if approved)
+        if string.contains(string.upper(approval), "APPROVED") {
+            print("  [Step 4] Lifecycle Authorized. Executing...")
+            let exec_res = core.validate_and_execute("python", code, {})
+            array.push(results, {
+                "cycle": proposal_count,
+                "code": code,
+                "review": review_status,
+                "success": exec_res.get("success")
+            })
+        } else {
+            print("  [Step 4] Execution Denied by DAO Approver.")
+            array.push(results, {
+                "cycle": proposal_count,
+                "code": code,
+                "review": review_status,
+                "success": false,
+                "reason": "DAO Veto"
+            })
+        }
+    }
+
+    print("\n=== DAO Cycle Complete ===")
+    file.write("report.json", json.stringify(results))
+    print("Full audit report written to report.json")
+}

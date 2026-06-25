@@ -1,0 +1,112 @@
+use json
+use crypto
+use file
+use csv
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn export_events_csv(events) {
+    let csv_result = events |> fn(evts) {
+        let rows = []
+        for i in 0..len(evts) {
+            let evt = evts[i]
+            let row = evt.id + "," + string(evt.timestamp) + "," + evt.source + "," + string(evt.severity) + "," + evt.message
+            rows = rows + [row]
+        }
+
+        let csv_text = ""
+        for i in 0..len(rows) {
+            csv_text = csv_text + rows[i] + "\n"
+        }
+
+        return {
+            "csv_text": csv_text,
+            "row_count": len(rows),
+            "columns": ["id", "timestamp", "source", "severity", "message"]
+        }
+    }
+
+    return csv_result
+}
+
+export fn export_incidents_json(incidents) {
+    let json_result = <<javascript[incidents] -> JSON
+    const data = {
+        incidents: incidents,
+        count: incidents.length,
+        exported_at: new Date().toISOString()
+    };
+    const hashable = JSON.stringify(data);
+    const result = {
+        "json_text": JSON.stringify(data, null, 2),
+        "incident_count": incidents.length,
+        "hash": hashable.substring(0, 16)
+    };
+    result
+    >>
+
+    return json_result
+}
+
+export fn write_export_to_file(content, filepath) {
+    let success = false
+    let bytes_written = 0
+
+    try {
+        let cleaned = validators.sanitize_string(content)
+        file.write(filepath, cleaned)
+        success = true
+        bytes_written = len(cleaned)
+    } catch (e) {
+        success = false
+    }
+
+    return {"success": success, "path": filepath, "bytes_written": bytes_written}
+}
+
+export fn format_event(event) {
+    let formatted = event |> fn(evt) {
+        let prefix = match evt.severity {
+            0 => "[CRITICAL]",
+            1 => "[MAJOR]",
+            2 => "[MINOR]",
+            3 => "[WARN]",
+            4 => "[INFO]",
+            5 => "[DEBUG]",
+            _ => "[UNKNOWN]"
+        }
+
+        let result = prefix + " " + evt.source + ": " + evt.message
+        return result
+    }
+
+    return formatted
+}
+
+export fn format_incident(incident) {
+    let status = match incident.status {
+        0 => "Open",
+        1 => "Acknowledged",
+        2 => "Investigating",
+        3 => "Mitigating",
+        4 => "Resolved",
+        5 => "Closed",
+        _ => "Unknown"
+    }
+
+    let formatted = "Incident " + incident.id + " [" + status + "]: " + incident.title
+
+    return formatted
+}
+
+export fn format_alert(alert) {
+    let formatted = alert |> fn(a) {
+        let severity_label = models.severity_label(a.severity)
+        let result = "[" + severity_label + "] Alert " + a.id + ": " + a.message
+        return result
+    }
+    return formatted
+}
+
+main {
+}

@@ -1,0 +1,199 @@
+
+export fn compute_severity_distribution(events) {
+    if events == null { return {distribution: {}, total: 0, dominant_severity: 0, entropy: 0.0} }
+
+    let distribution = <<python[events]
+from collections import Counter
+import math
+
+severities = [event.get("severity", 4) for event in events]
+counts = Counter(severities)
+
+total = len(events)
+entropy = 0.0
+if total > 0:
+    for count in counts.values():
+        p = count / total
+        if p > 0:
+            entropy -= p * math.log2(p)
+
+dist_dict = {str(k): v for k, v in sorted(counts.items())}
+
+{
+    "distribution": dist_dict,
+    "total": total,
+    "dominant_severity": max(counts, key=counts.get) if counts else 0,
+    "entropy": entropy
+}
+    >>
+
+    return {
+        distribution: distribution.get("distribution"),
+        total: distribution.get("total"),
+        dominant_severity: distribution.get("dominant_severity"),
+        entropy: float(distribution.get("entropy"))
+    }
+}
+
+export fn compute_alert_statistics(alerts, incidents) {
+    if alerts == null { return {total_alerts: 0, by_severity: {}, by_category: {}, avg_response_time: 0.0, escalation_rate: 0.0} }
+
+    let stats = <<python[alerts, incidents]
+from collections import Counter
+
+total = len(alerts)
+severities = [a.get("severity", 0) for a in alerts]
+sev_counter = Counter(severities)
+
+by_sev = {str(k): v for k, v in sorted(sev_counter.items())}
+by_cat = {"alerts": total, "incidents": len(incidents)}
+
+escalated = sum(1 for a in alerts if a.get("state", 0) == 1)
+escalation_rate = (escalated / total) if total > 0 else 0.0
+
+response_times = []
+for alert in alerts:
+    triggered = alert.get("triggered_at", 0)
+    acked = alert.get("acknowledged_at", 0)
+    if acked > triggered and triggered > 0:
+        response_times.append(acked - triggered)
+
+avg_response = sum(response_times) / len(response_times) if response_times else 0
+
+{
+    "total_alerts": total,
+    "by_severity": by_sev,
+    "by_category": by_cat,
+    "avg_response_time": avg_response,
+    "escalation_rate": escalation_rate
+}
+    >>
+
+    return {
+        total_alerts: stats.get("total_alerts"),
+        by_severity: stats.get("by_severity"),
+        by_category: stats.get("by_category"),
+        avg_response_time: float(stats.get("avg_response_time")),
+        escalation_rate: float(stats.get("escalation_rate"))
+    }
+}
+
+export fn compute_event_frequency(events, window_seconds) {
+    if events == null { return {events_per_minute: 0.0, peak_rate: 0.0, avg_rate: 0.0, burst_windows: []} }
+
+    let freq = <<python[events, window_seconds]
+if not events:
+    freq_dict = {}
+else:
+    freq_dict = {}
+    for event in events:
+        ts = event.get("timestamp", 0)
+        window = ts // window_seconds
+        freq_dict[window] = freq_dict.get(window, 0) + 1
+
+rates = list(freq_dict.values()) if freq_dict else [0]
+total = sum(rates)
+duration = (max(freq_dict.keys()) - min(freq_dict.keys()) + 1) * window_seconds if freq_dict else 1
+
+events_per_min = (total / (duration / 60.0)) if duration > 0 else 0
+peak = max(rates) if rates else 0
+avg = (total / len(rates)) if rates else 0
+
+bursts = [k for k, v in freq_dict.items() if v > (avg * 1.5)]
+
+{
+    "events_per_minute": events_per_min,
+    "peak_rate": peak,
+    "avg_rate": avg,
+    "burst_windows": bursts
+}
+    >>
+
+    return {
+        events_per_minute: float(freq.get("events_per_minute")),
+        peak_rate: float(freq.get("peak_rate")),
+        avg_rate: float(freq.get("avg_rate")),
+        burst_windows: freq.get("burst_windows")
+    }
+}
+
+export fn calculate_sla_compliance(incidents, sla_targets) {
+    if incidents == null { return {compliant: true, compliance_rate: 1.0, violations: [], by_priority: {}} }
+
+    let compliance = <<python[incidents, sla_targets]
+violations = []
+by_priority = {}
+
+for incident in incidents:
+    created = incident.get("created_at", 0)
+    resolved = incident.get("resolved_at", 0)
+    priority = incident.get("priority", 4)
+
+    if resolved > 0 and created > 0:
+        time_to_resolve = resolved - created
+        sla_limit = sla_targets.get(priority, 3600)
+
+        by_priority[priority] = by_priority.get(priority, 0) + 1
+        if time_to_resolve > sla_limit:
+            violations.append(incident.get("id", ""))
+
+total = len(incidents)
+compliant_count = total - len(violations)
+rate = (compliant_count / total) if total > 0 else 1.0
+
+{
+    "compliant": len(violations) == 0,
+    "compliance_rate": rate,
+    "violations": violations,
+    "by_priority": by_priority
+}
+    >>
+
+    return {
+        compliant: compliance.get("compliant"),
+        compliance_rate: float(compliance.get("compliance_rate")),
+        violations: compliance.get("violations"),
+        by_priority: compliance.get("by_priority")
+    }
+}
+
+export fn calculate_mttr(incidents) {
+    if incidents == null { return {mttr_seconds: 0, mttr_minutes: 0.0, by_severity: {}, trend: []} }
+
+    let mttr = <<python[incidents]
+resolved_times = []
+by_sev = {}
+
+for incident in incidents:
+    created = incident.get("created_at", 0)
+    resolved = incident.get("resolved_at", 0)
+
+    if resolved > 0 and created > 0:
+        time_to_resolve = resolved - created
+        severity = incident.get("severity", 0)
+        resolved_times.append(time_to_resolve)
+
+        if severity not in by_sev:
+            by_sev[severity] = []
+        by_sev[severity].append(time_to_resolve)
+
+avg_mttr = sum(resolved_times) / len(resolved_times) if resolved_times else 0
+
+by_sev_avg = {str(k): sum(v) // len(v) for k, v in by_sev.items()}
+trend = sorted(resolved_times) if resolved_times else []
+
+{
+    "mttr_seconds": int(avg_mttr),
+    "mttr_minutes": avg_mttr / 60.0,
+    "by_severity": by_sev_avg,
+    "trend": trend
+}
+    >>
+
+    return {
+        mttr_seconds: mttr.get("mttr_seconds"),
+        mttr_minutes: float(mttr.get("mttr_minutes")),
+        by_severity: mttr.get("by_severity"),
+        trend: mttr.get("trend")
+    }
+}

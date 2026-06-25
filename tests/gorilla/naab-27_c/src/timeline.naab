@@ -1,0 +1,131 @@
+use time
+import "models.naab" as models
+
+export fn generate_timeline(events, incidents) {
+    let evt_entries = events |> fn(evts) {
+        let result = []
+        for i in 0..len(evts) {
+            let evt = evts[i]
+            let entry = models.create_timeline_entry(
+                evt.timestamp,
+                evt.id,
+                evt.message,
+                evt.severity,
+                evt.source
+            )
+            result = result + [entry]
+        }
+        return result
+    }
+
+    let inc_entries = incidents |> fn(incs) {
+        let result = []
+        for i in 0..len(incs) {
+            let inc = incs[i]
+            let entry = models.create_timeline_entry(
+                inc.created_at,
+                inc.id,
+                "Incident: " + inc.title,
+                inc.severity,
+                "incident"
+            )
+            result = result + [entry]
+        }
+        return result
+    }
+
+    let all_entries = evt_entries + inc_entries
+    let start_time = if len(all_entries) > 0 { all_entries[0].timestamp } else { int(time.now()) }
+    let end_time = if len(all_entries) > 0 { all_entries[len(all_entries) - 1].timestamp } else { int(time.now()) }
+    let duration = end_time - start_time
+
+    return {
+        "entries": all_entries,
+        "start_time": start_time,
+        "end_time": end_time,
+        "duration_seconds": duration
+    }
+}
+
+export fn detect_anomaly_window(timeline_entries, baseline_rate, deviation_factor) {
+    if len(timeline_entries) == 0 {
+        return {"is_anomalous": false, "window_stats": {}, "threshold_breaches": []}
+    }
+
+    let threshold = baseline_rate * deviation_factor
+    let current_rate = float(len(timeline_entries)) / 10.0
+    let is_anomalous = current_rate > threshold
+
+    return {
+        "is_anomalous": is_anomalous,
+        "window_stats": {"rate": current_rate, "baseline": baseline_rate},
+        "threshold_breaches": if is_anomalous { [{"time": int(time.now()), "rate": current_rate}] } else { [] }
+    }
+}
+
+export fn find_gaps(timeline_entries, max_gap_seconds) {
+    let gaps = []
+
+    for i in 0..len(timeline_entries) - 1 {
+        let current = timeline_entries[i]
+        let next = timeline_entries[i + 1]
+        let gap = next.timestamp - current.timestamp
+
+        if gap > max_gap_seconds {
+            gaps = gaps + [{
+                "start_time": current.timestamp,
+                "end_time": next.timestamp,
+                "gap_seconds": gap
+            }]
+        }
+    }
+
+    return gaps
+}
+
+export fn compress_timeline(entries, merge_window_seconds) {
+    let compressed = []
+    let i = 0
+
+    while i < len(entries) {
+        let window_end = entries[i].timestamp + merge_window_seconds
+        let window_entries = []
+
+        let j = i
+        while j < len(entries) && entries[j].timestamp <= window_end {
+            window_entries = window_entries + [entries[j]]
+            j = j + 1
+        }
+
+        let summary = models.create_timeline_entry(
+            entries[i].timestamp,
+            "batch-" + string(i),
+            "Summary: " + string(len(window_entries)) + " events",
+            entries[i].severity,
+            "batch"
+        )
+
+        compressed = compressed + [summary]
+        i = j
+    }
+
+    return compressed
+}
+
+export fn get_window_events(events, center_time, window_seconds) {
+    let start = center_time - window_seconds / 2
+    let end = center_time + window_seconds / 2
+    let result = []
+
+    for i in 0..len(events) {
+        let ts = events[i].timestamp
+        if ts >= start && ts <= end {
+            result = result + [events[i]]
+        }
+    }
+
+    return result
+}
+
+main {
+}

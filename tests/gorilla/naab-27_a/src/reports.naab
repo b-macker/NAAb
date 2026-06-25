@@ -1,0 +1,70 @@
+use crypto
+
+export fn generate_summary_report(events, incidents, alerts) {
+    let total_events = len(events)
+    let total_incidents = len(incidents)
+    let total_alerts = len(alerts)
+
+    let critical_count = 0
+    for i in 0..len(incidents) {
+        let inc = incidents[i]
+        if inc.get("severity") == 0 {
+            critical_count = critical_count + 1
+        }
+    }
+
+    let report_text = "Event Processing Summary\n"
+    report_text = report_text + "========================\n"
+    report_text = report_text + "Total Events: " + string(total_events) + "\n"
+    report_text = report_text + "Total Incidents: " + string(total_incidents) + "\n"
+    report_text = report_text + "Total Alerts: " + string(total_alerts) + "\n"
+    report_text = report_text + "Critical Incidents: " + string(critical_count) + "\n"
+
+    let hash = crypto.sha256(report_text)
+
+    return {
+        "report_text": report_text,
+        "hash": hash,
+        "sections": ["summary", "metrics", "incidents"]
+    }
+}
+
+export fn generate_detail_report(events, incidents, alerts, metrics_data) {
+    let report_text = "Detailed Operational Report\n"
+    report_text = report_text + "===========================\n"
+    report_text = report_text + "Events Processed: " + string(len(events)) + "\n"
+    report_text = report_text + "Incidents Created: " + string(len(incidents)) + "\n"
+    report_text = report_text + "Alerts Triggered: " + string(len(alerts)) + "\n"
+
+    let hash = crypto.sha256(report_text)
+
+    return {
+        "report_text": report_text,
+        "hash": hash,
+        "event_count": len(events),
+        "incident_count": len(incidents)
+    }
+}
+
+export fn rank_incidents_by_severity(incidents) {
+    let sorted = incidents
+
+    for i in 0..len(sorted) {
+        for j in i..len(sorted) {
+            let a = sorted[i]
+            let b = sorted[j]
+            let a_severity = a.get("severity") ?? 0
+            let b_severity = b.get("severity") ?? 0
+            let a_priority = a.get("priority") ?? 0
+            let b_priority = b.get("priority") ?? 0
+
+            if a_severity > b_severity || (a_severity == b_severity && a_priority > b_priority) {
+                let tmp = sorted[i]
+                sorted[i] = sorted[j]
+                sorted[j] = tmp
+            }
+        }
+    }
+
+    return sorted
+}

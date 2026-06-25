@@ -1,0 +1,71 @@
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "prerequisites": {
+    "enabled": true,
+    "checks": [
+      { "type": "command", "name": "python3", "required": "exists", "level": "hard" },
+      { "type": "command", "name": "node", "required": "exists", "level": "hard" }
+    ]
+  },
+  "capabilities": {
+    "filesystem": {
+      "level": "restricted",
+      "read_allowlist": [ "src/*", "govern.json", "legacy_data.csv" ],
+      "write_allowlist": [ "transmuted.json", "audit.log", "report.json", "schema.json" ]
+    },
+    "network": { "enabled": false },
+    "shell": {
+      "enabled": true,
+      "allowed_commands": [ "python3", "node", "ls", "shasum" ]
+    }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [ "python", "javascript", "shell" ],
+    "allow_tainted_code": true
+  },
+  "taint_tracking": {
+    "enabled": true,
+    "lineage": true,
+    "level": "hard",
+    "sources": [ "file.read", "legacy_data.csv" ],
+    "sinks": [ "file.write" ]
+  },
+  "contracts": {
+    "level": "hard",
+    "functions": {
+      "main.get_schema": {
+        "return_type": "string",
+        "return_matches": "^\\s*\\{\\s*\"type\"\\s*:\\s*\"object\".*\\}\\s*$",
+        "rationale": "Forces the architect to return a valid JSON object schema starting with type:object."
+      }
+    }
+  },
+  "limits": {
+    "timeout": { "global": 300, "per_block": 30 }
+  },
+  "agents": {
+    "data_architect": {
+      "provider": "gemini", "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "timeout_seconds": 30,
+      "system_prompt": "You are a Data Architect. Design JSON schemas. Output ONLY the raw JSON schema string. Start with { \"type\": \"object\" }.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "python_transmuter": {
+      "provider": "gemini", "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK6", "GK5", "GK4", "GK3", "GK2", "GK1" ],
+      "timeout_seconds": 30,
+      "system_prompt": "You are a Python Dev. Write a script to convert CSV to JSON. Output ONLY raw Python code.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "js_validator": {
+      "provider": "gemini", "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK2", "GK4", "GK6", "GK1", "GK3", "GK5" ],
+      "timeout_seconds": 30,
+      "system_prompt": "You are a Node.js Validator. Write a script to validate JSON against a schema. Output ONLY raw JS code.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    }
+  }
+}

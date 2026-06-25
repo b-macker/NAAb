@@ -1,0 +1,113 @@
+use regex
+use string
+
+export fn classify_event(event) {
+    let msg = string.lower(event.message)
+    let src = string.lower(event.source)
+
+    let category = match true {
+        string.contains(msg, "auth") || string.contains(msg, "login") || string.contains(msg, "password") || string.contains(msg, "unauthorized") => 0,
+        string.contains(msg, "cpu") || string.contains(msg, "memory") || string.contains(msg, "latency") => 1,
+        string.contains(msg, "server") || string.contains(msg, "deployment") || string.contains(msg, "restart") => 2,
+        string.contains(msg, "service") || string.contains(msg, "application") => 3,
+        string.contains(msg, "network") || string.contains(msg, "eth") => 4,
+        string.contains(msg, "database") || string.contains(msg, "query") || string.contains(msg, "pool") => 5,
+        _ => 3
+    }
+
+    let subcategory = if category == 0 {
+        "authentication"
+    } else if category == 1 {
+        "resource"
+    } else if category == 4 {
+        "connectivity"
+    } else if category == 5 {
+        "storage"
+    } else {
+        "operational"
+    }
+
+    let tags = extract_keywords(msg)
+    let confidence = calculate_confidence(event, category)
+
+    return {
+        "category": category,
+        "subcategory": subcategory,
+        "confidence": confidence,
+        "tags": tags
+    }
+}
+
+export fn batch_classify(events) {
+    let results = []
+    let classified_count = 0
+    let unknown_count = 0
+
+    for i in 0..len(events) {
+        let result = classify_event(events[i])
+        results = results + [result]
+        classified_count = classified_count + 1
+    }
+
+    return {
+        "results": results,
+        "total": len(events),
+        "classified_count": classified_count,
+        "unknown_count": unknown_count
+    }
+}
+
+export fn extract_keywords(message) {
+    if message == null {
+        return []
+    }
+
+    let keywords = []
+    let lower_msg = string.lower(message)
+
+    let security_words = ["auth", "login", "password", "permission", "access", "denied", "unauthorized"]
+    for i in 0..len(security_words) {
+        if string.contains(lower_msg, security_words[i]) {
+            keywords = keywords + [security_words[i]]
+        }
+    }
+
+    let perf_words = ["cpu", "memory", "disk", "load", "latency", "timeout", "slow"]
+    for i in 0..len(perf_words) {
+        if string.contains(lower_msg, perf_words[i]) {
+            keywords = keywords + [perf_words[i]]
+        }
+    }
+
+    let net_words = ["network", "connection", "firewall", "packet", "interface", "ping"]
+    for i in 0..len(net_words) {
+        if string.contains(lower_msg, net_words[i]) {
+            keywords = keywords + [net_words[i]]
+        }
+    }
+
+    return keywords
+}
+
+export fn calculate_confidence(event, category) {
+    let msg = string.lower(event.message)
+    let keywords = extract_keywords(msg)
+    let base_confidence = float(len(keywords)) / 10.0
+
+    if base_confidence > 1.0 {
+        return 1.0
+    }
+    if base_confidence < 0.0 {
+        return 0.0
+    }
+
+    return base_confidence
+}
+
+export fn is_security_event(event) {
+    let msg = string.lower(event.message)
+    return regex.matches(msg, "auth") || regex.matches(msg, "password") || regex.matches(msg, "breach") || regex.matches(msg, "vulnerability")
+}
+
+main {
+}

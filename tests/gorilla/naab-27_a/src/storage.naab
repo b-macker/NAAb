@@ -1,0 +1,122 @@
+export fn store_event(store, event) {
+    let new_store = store
+    new_store.push(event)
+    return {
+        "store": new_store,
+        "success": true,
+        "event_id": event.get("id")
+    }
+}
+
+export fn query_events(store, filters) {
+    let results = []
+    let total = 0
+
+    for i in 0..len(store) {
+        let event = store[i]
+        let matches = true
+
+        let filter_source = filters.get("source")
+        if filter_source != null && event.get("source") != filter_source {
+            matches = false
+        }
+
+        let filter_severity = filters.get("severity")
+        if filter_severity != null && event.get("severity") != filter_severity {
+            matches = false
+        }
+
+        if matches {
+            results.push(event)
+            total = total + 1
+        }
+    }
+
+    return {
+        "results": results,
+        "total": total,
+        "filtered": len(results)
+    }
+}
+
+export fn build_event_index(events) {
+    let index = <<javascript[events]
+const by_source = {};
+const by_severity = {};
+const by_category = {};
+const by_hour = {};
+
+for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    const source = event.get ? event.get("source") : "";
+    const severity = event.get ? event.get("severity") : 0;
+    const category = event.get ? event.get("category") : 0;
+    const timestamp = event.get ? event.get("timestamp") : 0;
+    const hour = Math.floor(timestamp / 3600);
+
+    if (!by_source[source]) by_source[source] = [];
+    by_source[source].push(event);
+
+    if (!by_severity[severity]) by_severity[severity] = [];
+    by_severity[severity].push(event);
+
+    if (!by_category[category]) by_category[category] = [];
+    by_category[category].push(event);
+
+    if (!by_hour[hour]) by_hour[hour] = [];
+    by_hour[hour].push(event);
+}
+
+const result = {
+    "by_source": by_source,
+    "by_severity": by_severity,
+    "by_category": by_category,
+    "by_hour": by_hour
+};
+result
+    >>
+    return index
+}
+
+export fn count_events_by_source(events) {
+    let counts = {}
+
+    for i in 0..len(events) {
+        let event = events[i]
+        let source = event.get("source")
+        let current = counts.get(source) ?? 0
+        counts[source] = current + 1
+    }
+
+    return counts
+}
+
+export fn get_event_by_id(store, event_id) {
+    for i in 0..len(store) {
+        let event = store[i]
+        if event.get("id") == event_id {
+            return event
+        }
+    }
+    return null
+}
+
+export fn delete_events_before(store, cutoff_time) {
+    let new_store = []
+    let deleted_count = 0
+
+    for i in 0..len(store) {
+        let event = store[i]
+        let ts = event.get("timestamp")
+        if ts >= cutoff_time {
+            new_store.push(event)
+        } else {
+            deleted_count = deleted_count + 1
+        }
+    }
+
+    return {
+        "store": new_store,
+        "deleted_count": deleted_count
+    }
+}

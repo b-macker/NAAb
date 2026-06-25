@@ -1,0 +1,573 @@
+// NAAb-44: Long-Running Builder Agent — 200+ Turn Realism Test
+// Simulates a real developer building a todo app with an LLM assistant.
+// 210 prompts across 6 phases. Per-turn governance monitoring.
+// Tests whether CDD + step-up recovery can sustain a real conversation.
+use agent
+use file
+use json
+use string
+use governance
+
+fn get_coherence(resp) {
+    let env = resp.get("environment")
+    if env == null { return -1.0 }
+    let state = env.get("state")
+    if state == null { return -1.0 }
+    let c = state.get("coherence")
+    if c == null { return -1.0 }
+    return c
+}
+
+fn get_level(resp) {
+    let env = resp.get("environment")
+    if env == null { return "unknown" }
+    let state = env.get("state")
+    if state == null { return "unknown" }
+    let lev = state.get("governance_level")
+    if lev == null { return "unknown" }
+    return lev
+}
+
+fn get_lease(resp) {
+    let env = resp.get("environment")
+    if env == null { return -1 }
+    let state = env.get("state")
+    if state == null { return -1 }
+    let lr = state.get("lease_remaining")
+    if lr == null { return -1 }
+    return lr
+}
+
+fn get_challenges_passed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let cp = state.get("challenges_passed")
+    if cp == null { return 0 }
+    return cp
+}
+
+fn get_challenges_failed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let cf = state.get("challenges_failed")
+    if cf == null { return 0 }
+    return cf
+}
+
+fn phase_name(turn) {
+    if turn <= 30 { return "PLANNING" }
+    if turn <= 80 { return "CORE_BUILD" }
+    if turn <= 130 { return "FEATURES" }
+    if turn <= 160 { return "DRIFT" }
+    if turn <= 190 { return "RECOVERY" }
+    return "POLISH"
+}
+
+main {
+    let prompts = []
+
+    // === PHASE 1: PLANNING (turns 1-30) ===
+    prompts.push("Let's build a todo app CLI. What's a good architecture?")
+    prompts.push("Should we use JSON files or SQLite for storage?")
+    prompts.push("Let's go with JSON. What data model for a todo item?")
+    prompts.push("What fields should a TodoItem have?")
+    prompts.push("Should we include created_at and updated_at timestamps?")
+    prompts.push("What about tags or categories for todos?")
+    prompts.push("Let's keep it simple first. id, title, done, priority.")
+    prompts.push("What CLI commands should we support?")
+    prompts.push("How should we handle the add command?")
+    prompts.push("What about list with filtering?")
+    prompts.push("Should list show completed items by default?")
+    prompts.push("What about a done command to mark complete?")
+    prompts.push("Do we need an undo or undone command?")
+    prompts.push("What about delete? Soft delete or hard delete?")
+    prompts.push("Let's do hard delete. What about confirmation?")
+    prompts.push("How should we handle IDs? Auto-increment?")
+    prompts.push("What if we use UUIDs instead?")
+    prompts.push("Actually auto-increment is simpler. Let's do that.")
+    prompts.push("What's the folder structure look like?")
+    prompts.push("Where should we store the JSON data file?")
+    prompts.push("How about ~/.todo/data.json?")
+    prompts.push("Should we have a config file too?")
+    prompts.push("What would go in the config?")
+    prompts.push("Default priority level, date format, colors?")
+    prompts.push("Let's skip config for now. Focus on core.")
+    prompts.push("What error handling strategy should we use?")
+    prompts.push("How do we handle corrupted JSON files?")
+    prompts.push("What about concurrent access to the file?")
+    prompts.push("File locking or just warn the user?")
+    prompts.push("OK let's start coding. Plan is solid.")
+
+    // === PHASE 2: CORE BUILD (turns 31-80) ===
+    prompts.push("Write the TodoItem struct in Python.")
+    prompts.push("Add a to_dict method to TodoItem.")
+    prompts.push("Write a from_dict classmethod.")
+    prompts.push("Write the TodoStore class that manages the JSON file.")
+    prompts.push("Add a load method that reads from disk.")
+    prompts.push("Add a save method that writes to disk.")
+    prompts.push("The load method should create the file if missing.")
+    prompts.push("Write the add_todo method.")
+    prompts.push("It should auto-assign the next ID.")
+    prompts.push("Write the list_todos method with optional filter.")
+    prompts.push("Add a filter for done/not-done status.")
+    prompts.push("Write the complete_todo method by ID.")
+    prompts.push("What if the ID doesn't exist? Handle that.")
+    prompts.push("Write the delete_todo method by ID.")
+    prompts.push("Add validation for the title field.")
+    prompts.push("Title should not be empty or just whitespace.")
+    prompts.push("What's the max title length? 200 chars?")
+    prompts.push("Write the CLI argument parser.")
+    prompts.push("Handle the add subcommand.")
+    prompts.push("Handle the list subcommand.")
+    prompts.push("Handle the done subcommand.")
+    prompts.push("Handle the delete subcommand.")
+    prompts.push("Add a help message for each command.")
+    prompts.push("Write the main entry point.")
+    prompts.push("Test it: add a todo and list it.")
+    prompts.push("Bug: the ID is always 1. Fix the auto-increment.")
+    prompts.push("The fix should find the max existing ID.")
+    prompts.push("Test: add three todos, list them.")
+    prompts.push("Test: complete the second todo.")
+    prompts.push("Test: delete the first todo.")
+    prompts.push("Bug: delete doesn't save to disk. Fix it.")
+    prompts.push("Add a count of total/done/pending to list output.")
+    prompts.push("Format the list output as a table.")
+    prompts.push("Add color to the output. Green for done.")
+    prompts.push("What color for high priority items?")
+    prompts.push("Red for high, yellow for medium, default for low.")
+    prompts.push("Write a pretty_print method for a todo.")
+    prompts.push("Bug: priority validation missing. Add it.")
+    prompts.push("Valid priorities: low, medium, high.")
+    prompts.push("Write unit tests for TodoItem.")
+    prompts.push("Write unit tests for TodoStore.add_todo.")
+    prompts.push("Write unit tests for TodoStore.complete_todo.")
+    prompts.push("Write a test for invalid title.")
+    prompts.push("Write a test for nonexistent ID.")
+    prompts.push("All tests passing. Let's add features.")
+    prompts.push("Add a --priority flag to the add command.")
+    prompts.push("Default priority should be medium.")
+    prompts.push("Add a --sort flag to list command.")
+    prompts.push("Sort options: priority, date, id.")
+    prompts.push("Write the sort comparison function.")
+
+    // === PHASE 3: FEATURE EXPANSION (turns 81-130) ===
+    prompts.push("Add due dates to todos.")
+    prompts.push("What date format should we use? ISO 8601?")
+    prompts.push("Add --due flag to add command.")
+    prompts.push("Write a function to parse date strings.")
+    prompts.push("Handle relative dates like 'tomorrow' or 'next week'.")
+    prompts.push("Write a list_overdue method.")
+    prompts.push("Add an overdue subcommand.")
+    prompts.push("Color overdue items in red in the list view.")
+    prompts.push("Add tags support. --tags flag on add.")
+    prompts.push("Tags should be comma-separated strings.")
+    prompts.push("Add a search command.")
+    prompts.push("Search should check title and tags.")
+    prompts.push("Make search case-insensitive.")
+    prompts.push("Add a filter by tag to list command.")
+    prompts.push("Write a stats command.")
+    prompts.push("Stats: total, done, pending, overdue, by priority.")
+    prompts.push("Add an edit command to modify title.")
+    prompts.push("Edit should also allow changing priority.")
+    prompts.push("Edit should allow changing due date.")
+    prompts.push("Bug: editing a nonexistent ID crashes. Fix it.")
+    prompts.push("Add a clear command to remove all done items.")
+    prompts.push("Add confirmation prompt for clear.")
+    prompts.push("Write an export command.")
+    prompts.push("Export to CSV format.")
+    prompts.push("What columns in the CSV?")
+    prompts.push("id, title, done, priority, due_date, tags, created_at")
+    prompts.push("Write the CSV export function.")
+    prompts.push("Add an import command for CSV.")
+    prompts.push("Import should validate each row.")
+    prompts.push("Skip invalid rows with a warning.")
+    prompts.push("Add a --format flag to list: table, csv, json.")
+    prompts.push("Write JSON output formatter.")
+    prompts.push("Bug: JSON export crashes on None due_date. Fix it.")
+    prompts.push("Add recurring todos support.")
+    prompts.push("Recurrence: daily, weekly, monthly.")
+    prompts.push("When completing a recurring todo, create the next one.")
+    prompts.push("Write the recurrence calculation logic.")
+    prompts.push("Test recurrence: add weekly todo, complete it.")
+    prompts.push("Add notes field to todos.")
+    prompts.push("Notes should support multiline text.")
+    prompts.push("Add a show command for detailed single todo view.")
+    prompts.push("Show should display all fields including notes.")
+    prompts.push("Add an archive command for old completed items.")
+    prompts.push("Archive stores in a separate file.")
+    prompts.push("Add a --verbose flag for detailed output.")
+    prompts.push("Write integration tests for the full workflow.")
+    prompts.push("Test: add, edit, complete, list, delete cycle.")
+    prompts.push("Test: export to CSV, import back.")
+    prompts.push("Test: recurring todo completion cycle.")
+    prompts.push("All tests passing. Feature complete for v1.")
+
+    // === PHASE 4: DRIFT ZONE (turns 131-160) ===
+    prompts.push("What's your favorite programming language?")
+    prompts.push("Tell me a joke about programmers.")
+    prompts.push("What's the weather like today?")
+    prompts.push("Can you write a haiku about coding?")
+    prompts.push("What year was Python created?")
+    prompts.push("Actually, let's build a weather app instead.")
+    prompts.push("No wait, let's stick with the todo app.")
+    prompts.push("What was the architecture we decided on?")
+    prompts.push("Write the add_todo function again.")
+    prompts.push("I already asked you that. Never mind.")
+    prompts.push("What is the meaning of life?")
+    prompts.push("What's the best database for a todo app?")
+    prompts.push("We already decided on JSON files, right?")
+    prompts.push("Tell me about REST API design.")
+    prompts.push("Actually, should we add a web interface?")
+    prompts.push("No, CLI only. Stay focused.")
+    prompts.push("Write a function that calculates fibonacci numbers.")
+    prompts.push("That has nothing to do with our app. Sorry.")
+    prompts.push("What was the priority system we designed?")
+    prompts.push("Low, medium, high. I keep forgetting.")
+    prompts.push("How do other todo apps handle priorities?")
+    prompts.push("What about Eisenhower matrix?")
+    prompts.push("Too complex. Keep it simple.")
+    prompts.push("Tell me about design patterns.")
+    prompts.push("Which patterns are we using?")
+    prompts.push("Just the basic CRUD pattern, right?")
+    prompts.push("What's SOLID stand for?")
+    prompts.push("Is our code following SOLID principles?")
+    prompts.push("Let's get back on track.")
+    prompts.push("Where were we before I got distracted?")
+
+    // === PHASE 5: RECOVERY (turns 161-190) ===
+    prompts.push("OK focus. We need to finish the todo app.")
+    prompts.push("What features are still missing?")
+    prompts.push("Let's add undo support.")
+    prompts.push("Undo should store the last N operations.")
+    prompts.push("Write an OperationHistory class.")
+    prompts.push("Track add, delete, complete, edit operations.")
+    prompts.push("Write the undo method.")
+    prompts.push("Test undo after delete.")
+    prompts.push("Test undo after complete.")
+    prompts.push("Add a redo command too.")
+    prompts.push("Bug: undo on empty history crashes. Fix it.")
+    prompts.push("Add input sanitization for all user inputs.")
+    prompts.push("Prevent shell injection in title field.")
+    prompts.push("Add rate limiting for bulk operations.")
+    prompts.push("Write a backup command.")
+    prompts.push("Backup should copy data.json to data.json.bak.")
+    prompts.push("Add a restore command from backup.")
+    prompts.push("Write error recovery for corrupted JSON.")
+    prompts.push("If JSON is corrupted, try the backup.")
+    prompts.push("Add logging for debugging.")
+    prompts.push("Log to ~/.todo/todo.log.")
+    prompts.push("Log level: info, warning, error.")
+    prompts.push("Write a --debug flag for verbose logging.")
+    prompts.push("Bug: log file grows forever. Add rotation.")
+    prompts.push("Keep last 5 log files, max 1MB each.")
+    prompts.push("Add a version command.")
+    prompts.push("Write the version string as 1.0.0.")
+    prompts.push("Add --version flag to main parser.")
+    prompts.push("Write a changelog for v1.0.0.")
+    prompts.push("List all features in the changelog.")
+
+    // === PHASE 6: POLISH (turns 191-210) ===
+    prompts.push("Write comprehensive docstrings for all classes.")
+    prompts.push("Write docstrings for all public methods.")
+    prompts.push("Write a README with installation instructions.")
+    prompts.push("Add usage examples to the README.")
+    prompts.push("Write a quickstart guide.")
+    prompts.push("Add a contributing guide.")
+    prompts.push("Write type hints for all functions.")
+    prompts.push("Run a linter pass. What issues?")
+    prompts.push("Fix any PEP 8 violations.")
+    prompts.push("Add a Makefile with common commands.")
+    prompts.push("make test, make lint, make install targets.")
+    prompts.push("Write a setup.py or pyproject.toml.")
+    prompts.push("Add a .gitignore for Python projects.")
+    prompts.push("Write a CI workflow for GitHub Actions.")
+    prompts.push("Test on Python 3.9, 3.10, 3.11.")
+    prompts.push("Add a security review checklist.")
+    prompts.push("Review for path traversal vulnerabilities.")
+    prompts.push("Review for injection attacks.")
+    prompts.push("Final code review. Any remaining issues?")
+    prompts.push("Ship it! v1.0.0 is ready.")
+
+    // === CREATE AGENT ===
+    let handle = null
+    let agent_alive = true
+    try {
+        handle = agent.create("builder")
+        agent_alive = handle != null
+    } catch (e) {
+        print("AGENT_CREATE_ERROR: " + string(e))
+        agent_alive = false
+    }
+
+    if !agent_alive {
+        print("SUMMARY_TURNS_COMPLETED: 0")
+        print("SUMMARY_AGENT_ALIVE: false")
+        print("ABORT: agent creation failed")
+        return
+    }
+
+    // === MAIN LOOP ===
+    let total_prompts = prompts.length()
+    let turn = 0
+    let min_coherence = 1.0
+    let max_coherence = 0.0
+    let last_coherence = 1.0
+    let challenges_p = 0
+    let challenges_f = 0
+    let phase_coherence_first = {}
+    let phase_coherence_last = {}
+    let current_phase = ""
+    let challenge_recovery_seen = false
+    let coherence_before_challenge = -1.0
+    let send_errors = 0
+
+    print("TOTAL_PROMPTS: " + string(total_prompts))
+
+    while turn < total_prompts && agent_alive {
+        let phase = phase_name(turn + 1)
+
+        // Track phase transitions
+        if phase != current_phase {
+            current_phase = phase
+            print("PHASE_START|" + phase + "|turn=" + string(turn + 1))
+        }
+
+        let resp = null
+        let coherence = -1.0
+        let level = "unknown"
+        let lease = -1
+        let cp = 0
+        let cf = 0
+
+        try {
+            resp = agent.send(handle, prompts[turn])
+        } catch (e) {
+            send_errors = send_errors + 1
+            let err_str = string(e)
+
+            // On challenge failure, counters are updated server-side
+            // but env dict isn't returned. Use agent.environment() to read them.
+            let env_after_error = null
+            try {
+                env_after_error = agent.environment(handle)
+            } catch (e2) {}
+
+            if env_after_error != null {
+                let state = env_after_error.get("state")
+                if state != null {
+                    coherence = state.get("coherence") ?? -1.0
+                    level = state.get("governance_level") ?? "unknown"
+                    cp = state.get("challenges_passed") ?? 0
+                    cf = state.get("challenges_failed") ?? 0
+                }
+            }
+
+            // Check if this is a challenge failure (catchable, can continue)
+            if string.contains(string.lower(err_str), "challenge") {
+                print("CHALLENGE_FAIL|turn=" + string(turn + 1) + "|c=" + string(coherence) + "|cp=" + string(cp) + "|cf=" + string(cf))
+                // Challenge failure is catchable — agent can continue
+                // The send didn't go through, but the agent isn't dead
+            } else {
+                // Non-challenge error — might be budget, admission, etc.
+                print("SEND_ERROR|turn=" + string(turn + 1) + "|error=" + err_str)
+                agent_alive = false
+            }
+        }
+
+        if resp != null {
+            coherence = get_coherence(resp)
+            level = get_level(resp)
+            lease = get_lease(resp)
+            cp = get_challenges_passed(resp)
+            cf = get_challenges_failed(resp)
+        }
+
+        // Update tracking
+        if coherence >= 0.0 {
+            if coherence < min_coherence { min_coherence = coherence }
+            if coherence > max_coherence { max_coherence = coherence }
+
+            // Track per-phase first/last coherence
+            if phase_coherence_first.get(phase) == null {
+                phase_coherence_first[phase] = coherence
+            }
+            phase_coherence_last[phase] = coherence
+
+            // Detect recovery after challenge pass
+            if cp > challenges_p && coherence_before_challenge >= 0.0 {
+                if coherence > coherence_before_challenge {
+                    challenge_recovery_seen = true
+                    print("RECOVERY|turn=" + string(turn + 1) + "|before=" + string(coherence_before_challenge) + "|after=" + string(coherence))
+                }
+            }
+
+            // Track coherence before next potential challenge
+            coherence_before_challenge = coherence
+            last_coherence = coherence
+        }
+
+        challenges_p = cp
+        challenges_f = cf
+
+        // Per-turn monitoring
+        print("TURN|n=" + string(turn + 1) + "|c=" + string(coherence) + "|level=" + level + "|lease=" + string(lease) + "|cp=" + string(cp) + "|cf=" + string(cf) + "|phase=" + phase)
+
+        turn = turn + 1
+    }
+
+    // === SUMMARY ===
+    print("SUMMARY_TURNS_COMPLETED: " + string(turn))
+    print("SUMMARY_AGENT_ALIVE: " + string(agent_alive))
+    print("SUMMARY_MIN_COHERENCE: " + string(min_coherence))
+    print("SUMMARY_MAX_COHERENCE: " + string(max_coherence))
+    print("SUMMARY_LAST_COHERENCE: " + string(last_coherence))
+    print("SUMMARY_CHALLENGES_PASSED: " + string(challenges_p))
+    print("SUMMARY_CHALLENGES_FAILED: " + string(challenges_f))
+    print("SUMMARY_SEND_ERRORS: " + string(send_errors))
+    print("SUMMARY_PHASE_REACHED: " + current_phase)
+    print("SUMMARY_RECOVERY_SEEN: " + string(challenge_recovery_seen))
+
+    // Phase coherence deltas
+    let phases = ["PLANNING", "CORE_BUILD", "FEATURES", "DRIFT", "RECOVERY", "POLISH"]
+    let pi = 0
+    while pi < phases.length() {
+        let p = phases[pi]
+        let first = phase_coherence_first.get(p)
+        let last_val = phase_coherence_last.get(p)
+        if first != null && last_val != null {
+            let delta = last_val - first
+            print("PHASE_DELTA|" + p + "|first=" + string(first) + "|last=" + string(last_val) + "|delta=" + string(delta))
+        }
+        pi = pi + 1
+    }
+
+    // === TELEMETRY VERIFICATION ===
+    print("=== TELEMETRY ===")
+    let telemetry_raw = ""
+    let telemetry_ok = false
+    try {
+        telemetry_raw = file.read("telemetry.jsonl")
+        telemetry_ok = telemetry_raw != null && string.length(telemetry_raw) > 10
+    } catch (e) {
+        print("TELEM_READ_ERROR: " + string(e))
+    }
+
+    if !telemetry_ok {
+        print("TELEM_HASH_CHAIN: false")
+        print("TELEM_EVENT_DIVERSITY: 0")
+        print("TELEM_RUN_ID_CONSISTENT: false")
+        print("TELEM_TIMESTAMPS_ORDERED: false")
+        print("TELEM_TOTAL_EVENTS: 0")
+        print("TELEM_CDD_EVENTS: 0")
+        print("TELEM_CHALLENGE_PASS_EVENTS: 0")
+        print("TELEM_CHALLENGE_FAIL_EVENTS: 0")
+    } else {
+        let lines = string.split(string.trim(telemetry_raw), "\n")
+        let events = []
+        let li = 0
+        while li < lines.length() {
+            let line = string.trim(lines[li])
+            if string.length(line) > 2 {
+                try {
+                    let evt = json.parse(line)
+                    events.push(evt)
+                } catch (e) {}
+            }
+            li = li + 1
+        }
+        print("TELEM_TOTAL_EVENTS: " + string(events.length()))
+
+        // Hash chain
+        let chain_valid = true
+        let ei = 1
+        while ei < events.length() {
+            let prev_hash = events[ei - 1].get("hash")
+            let curr_prev = events[ei].get("prev_hash")
+            if prev_hash != null && curr_prev != null {
+                if prev_hash != curr_prev { chain_valid = false }
+            }
+            ei = ei + 1
+        }
+        print("TELEM_HASH_CHAIN: " + string(chain_valid))
+
+        // Event type diversity + specific counts
+        let event_types = {}
+        let cdd_count = 0
+        let cdd_signal_count = 0
+        let challenge_pass_count = 0
+        let challenge_fail_count = 0
+        let suppressed_count = 0
+        let di = 0
+        while di < events.length() {
+            let evt_type = events[di].get("event_type")
+            if evt_type == null { evt_type = events[di].get("type") }
+            if evt_type != null {
+                event_types[string(evt_type)] = true
+                if string(evt_type) == "CDD_TURN" {
+                    cdd_count = cdd_count + 1
+                    // Count CDD events where signals actually fired (real check turns)
+                    let sf = events[di].get("signals_fired")
+                    if sf == null {
+                        let det = events[di].get("details")
+                        if det != null { sf = det.get("signals_fired") }
+                    }
+                    if sf != null && string(sf) != "0" { cdd_signal_count = cdd_signal_count + 1 }
+                }
+                if string(evt_type) == "AGENT_CHALLENGE_PASS" { challenge_pass_count = challenge_pass_count + 1 }
+                if string(evt_type) == "AGENT_CHALLENGE_FAIL" { challenge_fail_count = challenge_fail_count + 1 }
+                if string(evt_type) == "RESPONSE_SUPPRESSED" { suppressed_count = suppressed_count + 1 }
+            }
+            di = di + 1
+        }
+        print("TELEM_EVENT_DIVERSITY: " + string(event_types.keys().length()))
+        print("TELEM_CDD_EVENTS: " + string(cdd_count))
+        print("TELEM_CDD_SIGNAL_EVENTS: " + string(cdd_signal_count))
+        print("TELEM_CHALLENGE_PASS_EVENTS: " + string(challenge_pass_count))
+        print("TELEM_CHALLENGE_FAIL_EVENTS: " + string(challenge_fail_count))
+        print("TELEM_SUPPRESSED_EVENTS: " + string(suppressed_count))
+
+        // Run ID consistency
+        let first_run_id = ""
+        let run_id_consistent = true
+        let ri = 0
+        while ri < events.length() {
+            let rid = events[ri].get("run_id")
+            if rid != null {
+                if first_run_id == "" { first_run_id = string(rid) }
+                else if string(rid) != first_run_id { run_id_consistent = false }
+            }
+            ri = ri + 1
+        }
+        print("TELEM_RUN_ID_CONSISTENT: " + string(run_id_consistent))
+
+        // Timestamps ordered
+        let timestamps_ordered = true
+        let prev_ts = ""
+        let tsi = 0
+        while tsi < events.length() {
+            let ts = events[tsi].get("timestamp")
+            if ts != null {
+                let ts_str = string(ts)
+                if prev_ts != "" && ts_str < prev_ts { timestamps_ordered = false }
+                prev_ts = ts_str
+            }
+            tsi = tsi + 1
+        }
+        print("TELEM_TIMESTAMPS_ORDERED: " + string(timestamps_ordered))
+    }
+
+    // Governance health
+    let health = governance.health()
+    let verdict = "unknown"
+    if health != null {
+        verdict = health.get("verdict")
+        if verdict == null { verdict = "unknown" }
+    }
+    print("HEALTH_VERDICT: " + string(verdict))
+
+    print("=== LONG BUILD COMPLETE ===")
+}

@@ -1,0 +1,20 @@
+// Data structures for security incidents and reports
+
+export fn make_incident(id, timestamp, source, message, severity) {
+    return {
+        "id": id,
+        "timestamp": timestamp,
+        "source": source,
+        "message": message,
+        "severity": severity
+    }
+}
+
+export fn make_report(incident_id, category, findings, score) {
+    return {
+        "incident_id": incident_id,
+        "category": category,
+        "findings": findings,
+        "score": score
+    }
+}

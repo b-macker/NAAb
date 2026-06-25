@@ -1,0 +1,108 @@
+use uuid
+import "models.naab" as models
+
+export fn store_event(store, event) {
+    let new_store = store + [event]
+    return {"store": new_store, "success": true, "event_id": event.id}
+}
+
+export fn query_events(store, filters) {
+    let results = []
+
+    for i in 0..len(store) {
+        let evt = store[i]
+        let is_match = true
+
+        if filters.get("source") != null && evt.source != filters.get("source") {
+            is_match = false
+        }
+
+        if filters.get("severity") != null && evt.severity != filters.get("severity") {
+            is_match = false
+        }
+
+        if filters.get("category") != null && evt.category != filters.get("category") {
+            is_match = false
+        }
+
+        if is_match {
+            results = results + [evt]
+        }
+    }
+
+    return {
+        "results": results,
+        "total": len(store),
+        "filtered": len(results)
+    }
+}
+
+export fn build_event_index(events) {
+    let index = events |> fn(evts) {
+        let result = <<javascript[evts] -> JSON
+        const bySource = {};
+        const bySeverity = {};
+        const byCategory = {};
+        const byHour = {};
+        for (const evt of evts) {
+            if (!bySource[evt.source]) bySource[evt.source] = [];
+            bySource[evt.source].push(evt.id);
+            if (!bySeverity[evt.severity]) bySeverity[evt.severity] = [];
+            bySeverity[evt.severity].push(evt.id);
+            if (!byCategory[evt.category]) byCategory[evt.category] = [];
+            byCategory[evt.category].push(evt.id);
+        }
+        const finalResult = {
+            "by_source": bySource,
+            "by_severity": bySeverity,
+            "by_category": byCategory,
+            "by_hour": byHour
+        };
+        finalResult
+        >>
+        return result
+    }
+
+    return index
+}
+
+export fn count_events_by_source(events) {
+    let counts = events |> fn(evts) {
+        let result = {}
+        for i in 0..len(evts) {
+            let src = evts[i].source
+            let current = result.get(src) ?? 0
+            result.put(src, current + 1)
+        }
+        return result
+    }
+
+    return counts
+}
+
+export fn get_event_by_id(store, event_id) {
+    for i in 0..len(store) {
+        if store[i].id == event_id {
+            return store[i]
+        }
+    }
+    return null
+}
+
+export fn delete_events_before(store, cutoff_time) {
+    let filtered = []
+    let deleted = 0
+
+    for i in 0..len(store) {
+        if store[i].timestamp >= cutoff_time {
+            filtered = filtered + [store[i]]
+        } else {
+            deleted = deleted + 1
+        }
+    }
+
+    return {"store": filtered, "deleted_count": deleted}
+}
+
+main {
+}

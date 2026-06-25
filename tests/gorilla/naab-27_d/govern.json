@@ -1,0 +1,574 @@
+{
+    "version": "6.0",
+    "mode": "enforce",
+
+    "languages": {
+        "allowed": ["python", "javascript", "shell"],
+        "blocked": ["rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
+        "require_explicit": true
+    },
+
+    "capabilities": {
+        "network": { "enabled": true },
+        "filesystem": { "mode": "read_write" },
+        "shell": {
+            "enabled": true,
+            "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "mkfs", "dd", "kill"]
+        },
+        "env": { "enabled": true }
+    },
+
+    "trust": {
+        "max_signature_age_days": 90,
+        "require_fresh_signature": false,
+        "stale_signature_level": "advisory",
+        "check_key_expiry": true,
+        "check_revocation": true
+    },
+
+    "prerequisites": {
+        "enabled": true,
+        "checks": [
+            { "type": "python_version", "name": "python3", "required": ">=3.10", "level": "advisory" },
+            { "type": "tool", "name": "jq", "required": "exists", "level": "advisory" }
+        ]
+    },
+
+    "contradiction_detection": {
+        "enabled": true,
+        "max_level": "advisory"
+    },
+
+    "requirements": {
+        "main_block": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "variable_binding": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "naming_conventions": {
+            "enabled": true,
+            "level": "soft",
+            "variables": "snake_case",
+            "functions": "snake_case",
+            "constants": "UPPER_SNAKE_CASE"
+        }
+    },
+
+    "restrictions": {
+        "dangerous_calls": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "shell_injection": {
+            "enabled": true,
+            "level": "hard"
+        }
+    },
+
+    "taint_tracking": {
+        "enabled": true,
+        "sources": ["env.get", "polyglot_output", "file.read", "io.read_line"],
+        "sinks": ["file.write", "file.append"],
+        "sanitizers": ["sanitize_", "validate_", "int(", "float("]
+    },
+
+    "code_quality": {
+        "no_secrets": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_placeholders": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "no_hardcoded_results": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_temporary_code": {
+            "enabled": true,
+            "level": "soft"
+        },
+        "no_simulation_markers": {
+            "enabled": true,
+            "level": "hard"
+        },
+        "complexity_floor": {
+            "enabled": true,
+            "level": "soft",
+            "min_lines_for_check": 6,
+            "rules": [
+                {
+                    "names": ["test_"],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "compute_severity_distribution",
+                        "compute_alert_statistics",
+                        "compute_event_frequency",
+                        "analyze_event_patterns",
+                        "analyze_anomalies",
+                        "calculate_sla_compliance",
+                        "calculate_mttr",
+                        "process_event_batch"
+                    ],
+                    "min_score": 20,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "parse_log_entry",
+                        "classify_event",
+                        "correlate_events",
+                        "detect_incident",
+                        "evaluate_alert_rule",
+                        "generate_timeline",
+                        "build_event_index",
+                        "generate_summary_report",
+                        "generate_detail_report",
+                        "build_alert_chain",
+                        "merge_incidents",
+                        "export_events_csv",
+                        "export_incidents_json",
+                        "detect_anomaly_window"
+                    ],
+                    "min_score": 15,
+                    "require_branching_or_loops": true
+                },
+                {
+                    "names": [
+                        "severity_label",
+                        "event_type_label",
+                        "status_label",
+                        "priority_label",
+                        "category_label"
+                    ],
+                    "min_score": 0,
+                    "require_branching_or_loops": false
+                },
+                {
+                    "names": [
+                        "create_",
+                        "open_",
+                        "close_",
+                        "get_",
+                        "register_",
+                        "update_",
+                        "validate_",
+                        "sanitize_",
+                        "export_",
+                        "write_",
+                        "parse_",
+                        "check_",
+                        "format_",
+                        "add_",
+                        "remove_",
+                        "find_",
+                        "is_",
+                        "has_",
+                        "count_",
+                        "generate_interpretation_prompt",
+                        "main"
+                    ],
+                    "min_score": 3,
+                    "require_branching_or_loops": false
+                }
+            ]
+        }
+    },
+
+    "contracts": {
+        "level": "soft",
+        "functions": {
+            "parse_log_entry": {
+                "return_type": "dict",
+                "return_keys": ["event", "valid", "errors"],
+                "must_contain": ["try {", "regex"]
+            },
+            "classify_event": {
+                "return_type": "dict",
+                "return_keys": ["category", "subcategory", "confidence", "tags"],
+                "must_contain": ["match "],
+                "must_differentiate": [
+                    {
+                        "a": {"id": "evt-1", "timestamp": 1000, "source": "auth-svc", "severity": 0, "message": "Authentication failure from 10.0.0.1", "category": 0, "subcategory": "", "tags": [], "metadata": {}},
+                        "b": {"id": "evt-2", "timestamp": 1000, "source": "disk-mon", "severity": 2, "message": "Disk usage at 95% on /dev/sda1", "category": 2, "subcategory": "", "tags": [], "metadata": {}},
+                        "key": "category"
+                    },
+                    {
+                        "a": {"id": "evt-3", "timestamp": 1000, "source": "app-svc", "severity": 1, "message": "Database connection pool exhausted", "category": 5, "subcategory": "", "tags": [], "metadata": {}},
+                        "b": {"id": "evt-4", "timestamp": 1000, "source": "net-mon", "severity": 3, "message": "Network latency spike on eth0", "category": 4, "subcategory": "", "tags": [], "metadata": {}},
+                        "key": "category"
+                    }
+                ]
+            },
+            "correlate_events": {
+                "return_type": "dict",
+                "return_keys": ["groups", "ungrouped", "correlation_count"],
+                "must_call": ["<<python"]
+            },
+            "detect_incident": {
+                "return_type": "dict",
+                "return_keys": ["is_incident", "incident", "evidence"],
+                "must_contain": ["match "]
+            },
+            "evaluate_alert_rule": {
+                "return_type": "dict",
+                "return_keys": ["triggered", "alert", "rule_id", "severity"],
+                "must_contain": ["match "]
+            },
+            "check_threshold": {
+                "return_type": "dict",
+                "return_keys": ["exceeded", "current_value", "threshold", "direction"]
+            },
+            "normalize_severity": {
+                "must_produce": [
+                    {"args": ["CRITICAL"], "expect": 0},
+                    {"args": ["ERROR"], "expect": 1},
+                    {"args": ["MAJOR"], "expect": 1},
+                    {"args": ["WARNING"], "expect": 3},
+                    {"args": ["WARN"], "expect": 3},
+                    {"args": ["INFO"], "expect": 4},
+                    {"args": ["DEBUG"], "expect": 5}
+                ]
+            },
+            "is_security_event": {
+                "must_handle_case": [
+                    {
+                        "inputs": [
+                            {"id": "e1", "timestamp": 1000, "source": "auth", "severity": 0, "message": "Authentication failure", "category": 0, "subcategory": "", "tags": [], "metadata": {}},
+                            {"id": "e2", "timestamp": 1000, "source": "auth", "severity": 0, "message": "AUTHENTICATION FAILURE", "category": 0, "subcategory": "", "tags": [], "metadata": {}},
+                            {"id": "e3", "timestamp": 1000, "source": "auth", "severity": 0, "message": "authentication failure", "category": 0, "subcategory": "", "tags": [], "metadata": {}}
+                        ],
+                        "expect": "consistent"
+                    },
+                    {
+                        "inputs": [
+                            {"id": "e4", "timestamp": 1000, "source": "fw", "severity": 1, "message": "Access denied from 192.168.1.1", "category": 0, "subcategory": "", "tags": [], "metadata": {}},
+                            {"id": "e5", "timestamp": 1000, "source": "fw", "severity": 1, "message": "ACCESS DENIED from 192.168.1.1", "category": 0, "subcategory": "", "tags": [], "metadata": {}}
+                        ],
+                        "expect": "consistent"
+                    }
+                ]
+            },
+            "compute_severity_distribution": {
+                "return_type": "dict",
+                "return_keys": ["distribution", "total", "dominant_severity", "entropy"],
+                "must_call": ["<<python"]
+            },
+            "compute_alert_statistics": {
+                "return_type": "dict",
+                "return_keys": ["total_alerts", "by_severity", "by_category", "avg_response_time", "escalation_rate"],
+                "must_call": ["<<python"],
+                "must_vary": [
+                    {
+                        "key": "escalation_rate",
+                        "across": "alerts"
+                    },
+                    {
+                        "key": "total_alerts",
+                        "across": "alerts"
+                    }
+                ]
+            },
+            "compute_event_frequency": {
+                "return_type": "dict",
+                "return_keys": ["events_per_minute", "peak_rate", "avg_rate", "burst_windows"],
+                "must_call": ["<<python"],
+                "must_derive_from": {
+                    "events_per_minute": ["events"],
+                    "peak_rate": ["events"]
+                }
+            },
+            "generate_timeline": {
+                "return_type": "dict",
+                "return_keys": ["entries", "start_time", "end_time", "duration_seconds"],
+                "must_contain": ["|>"]
+            },
+            "generate_summary_report": {
+                "return_type": "dict",
+                "return_keys": ["report_text", "hash", "sections"],
+                "return_keys_non_empty": true
+            },
+            "generate_detail_report": {
+                "return_type": "dict",
+                "return_keys": ["report_text", "hash", "event_count", "incident_count"]
+            },
+            "build_event_index": {
+                "return_type": "dict",
+                "return_keys": ["by_source", "by_severity", "by_category", "by_hour"],
+                "must_contain": ["|>"],
+                "must_call": ["<<javascript"]
+            },
+            "store_event": {
+                "return_type": "dict",
+                "return_keys": ["store", "success", "event_id"]
+            },
+            "query_events": {
+                "return_type": "dict",
+                "return_keys": ["results", "total", "filtered"]
+            },
+            "export_events_csv": {
+                "return_type": "dict",
+                "return_keys": ["csv_text", "row_count", "columns"],
+                "must_contain": ["|>"]
+            },
+            "export_incidents_json": {
+                "return_type": "dict",
+                "return_keys": ["json_text", "incident_count", "hash"],
+                "must_call": ["<<javascript"]
+            },
+            "write_export_to_file": {
+                "return_type": "dict",
+                "return_keys": ["success", "path", "bytes_written"],
+                "must_contain": ["try {", "sanitize"]
+            },
+            "analyze_event_patterns": {
+                "return_type": "dict",
+                "return_keys": ["patterns", "recurring_count", "novel_count", "recommendations"],
+                "must_call": ["<<python"]
+            },
+            "analyze_anomalies": {
+                "return_type": "dict",
+                "return_keys": ["anomalies", "baseline", "deviations", "risk_score"],
+                "must_call": ["<<python"]
+            },
+            "detect_anomaly_window": {
+                "return_type": "dict",
+                "return_keys": ["is_anomalous", "window_stats", "threshold_breaches"]
+            },
+            "build_alert_chain": {
+                "return_type": "dict",
+                "return_keys": ["chain", "root_cause", "affected_services", "depth"],
+                "must_call": ["<<javascript"]
+            },
+            "merge_incidents": {
+                "return_type": "dict",
+                "return_keys": ["merged_incident", "source_count", "combined_events"],
+                "must_contain": ["|>"]
+            },
+            "calculate_sla_compliance": {
+                "return_type": "dict",
+                "return_keys": ["compliant", "compliance_rate", "violations", "by_priority"],
+                "must_call": ["<<python"],
+                "must_satisfy": [
+                    "result.compliance_rate >= 0",
+                    "result.compliance_rate <= 1"
+                ],
+                "must_satisfy_args": [
+                    {
+                        "args": [
+                            [
+                                {"id": "inc-1", "title": "Outage", "status": 5, "severity": 0, "priority": 0, "events": [], "created_at": 1000, "updated_at": 1500, "acknowledged_by": "ops", "resolved_at": 1500, "tags": [], "root_cause": "disk"}
+                            ],
+                            {"P1": 3600, "P2": 7200, "P3": 14400, "P4": 28800, "P5": 86400}
+                        ]
+                    }
+                ]
+            },
+            "calculate_mttr": {
+                "return_type": "dict",
+                "return_keys": ["mttr_seconds", "mttr_minutes", "by_severity", "trend"],
+                "must_call": ["<<python"]
+            },
+            "process_event_batch": {
+                "return_type": "dict",
+                "return_keys": ["processed", "failed", "new_incidents", "alerts_triggered"],
+                "must_call": ["parse_log_entry"]
+            },
+            "format_event": {
+                "return_type": "string",
+                "must_contain": ["match ", "|>"]
+            },
+            "format_incident": {
+                "return_type": "string",
+                "must_contain": ["match "]
+            },
+            "format_alert": {
+                "return_type": "string",
+                "must_contain": ["|>"]
+            },
+            "rank_incidents_by_severity": {
+                "return_type": "array",
+                "must_contain": ["|>"]
+            },
+            "count_events_by_source": {
+                "return_type": "dict",
+                "must_contain": ["|>"]
+            },
+            "find_related_events": {
+                "return_type": "array",
+                "must_contain": ["find_related_events"]
+            },
+            "escalate_alert": {
+                "return_type": "dict",
+                "return_keys": ["escalated", "new_priority", "notification_targets", "reason"],
+                "return_keys_non_empty": true
+            },
+            "acknowledge_incident": {
+                "return_type": "dict",
+                "return_keys": ["incident", "acknowledged_at", "owner"]
+            },
+            "resolve_incident": {
+                "return_type": "dict",
+                "return_keys": ["incident", "resolved_at", "resolution_time_seconds"]
+            },
+            "validate_event_schema": {
+                "return_type": "dict",
+                "return_keys": ["valid", "errors"]
+            },
+            "check_agent_available": {
+                "return_type": "dict",
+                "return_keys": ["available", "reason"]
+            },
+            "interpret_incident": {
+                "return_type": "dict",
+                "return_keys": ["interpretation", "confidence", "reasoning", "suggested_actions"],
+                "must_contain": ["try {"]
+            },
+            "batch_classify": {
+                "return_type": "dict",
+                "return_keys": ["results", "total", "classified_count", "unknown_count"],
+                "must_call": ["classify_event"]
+            },
+            "deduplicate_events": {
+                "return_type": "dict",
+                "return_keys": ["unique_events", "duplicate_count", "dedup_map"],
+                "must_call": ["<<javascript"]
+            },
+            "filter_events_by_time_range": {
+                "return_type": "array"
+            },
+            "get_active_incidents": {
+                "return_type": "array"
+            }
+        }
+    },
+
+    "scanner": {
+        "version": "1.0",
+        "mode": "enforce",
+        "redundancy": {
+            "generic_variable_names": { "enabled": true, "level": "soft" },
+            "single_use_variable": { "enabled": true, "level": "soft" },
+            "over_abstraction": { "enabled": true, "level": "soft" },
+            "apologetic_comments": { "enabled": true, "level": "soft" },
+            "placeholder_code": { "enabled": true, "level": "soft" },
+            "gaming_comments": { "enabled": true, "level": "soft" },
+            "obvious_comments": { "enabled": true, "level": "soft" },
+            "decorative_separators": { "enabled": true, "level": "advisory" },
+            "missing_imports": { "enabled": true, "level": "hard" }
+        },
+        "code_quality": {
+            "empty_catch": { "enabled": true, "level": "hard" },
+            "dead_conditional": { "enabled": true, "level": "hard" },
+            "dead_code_after_return": { "enabled": true, "level": "soft" },
+            "recursive_no_base_case": { "enabled": true, "level": "soft" },
+            "magic_numbers": {
+                "enabled": true,
+                "level": "soft",
+                "allowed": [
+                    0, 1, -1, 2, 3, 4, 5, 10, 15, 20, 24, 25, 30, 50, 60, 75, 80, 90, 100,
+                    300, 500, 1000, 3600, 86400,
+                    0.0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0
+                ]
+            },
+            "complex_boolean_expr": { "enabled": true, "level": "soft", "max_operators": 4 },
+            "magic_strings": { "enabled": true, "level": "soft" },
+            "god_functions": { "enabled": true, "level": "soft", "max_lines": 80 },
+            "deep_nesting": { "enabled": true, "level": "soft", "max_depth": 4 }
+        },
+        "complexity": {
+            "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+            "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+        },
+        "style": {
+            "long_lines": { "enabled": true, "level": "soft", "max": 120 }
+        },
+        "lang_rules": {
+            "naab": {
+                "value_semantics_bug": { "enabled": true, "level": "hard" },
+                "missing_null_check": { "enabled": true, "level": "hard" },
+                "dict_bracket_access": { "enabled": true, "level": "hard" },
+                "python_return_in_block": { "enabled": true, "level": "hard" },
+                "top_level_let": { "enabled": true, "level": "hard" },
+                "json_double_encode": { "enabled": true, "level": "soft" },
+                "arrow_lambda": { "enabled": true, "level": "hard" }
+            }
+        }
+    },
+
+    "agents": {
+        "incident_analyst": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK1",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.5,
+            "timeout_seconds": 120,
+            "system_prompt": "You are an incident response analyst. Analyze system events and incidents to identify root causes, assess impact, and suggest remediation actions. Be concise and precise."
+        },
+        "incident_analyst_b1": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK2",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.5,
+            "timeout_seconds": 120,
+            "system_prompt": "You are an incident response analyst. Analyze system events and incidents to identify root causes, assess impact, and suggest remediation actions. Be concise and precise."
+        },
+        "incident_analyst_b2": {
+            "provider": "gemini",
+            "model": "gemma-4-31b-it",
+            "api_key_env": "GK3",
+            "max_tokens": 512,
+            "max_turns": 5,
+            "max_total_tokens": 8000,
+            "temperature": 0.5,
+            "timeout_seconds": 120,
+            "system_prompt": "You are an incident response analyst. Analyze system events and incidents to identify root causes, assess impact, and suggest remediation actions. Be concise and precise."
+        }
+    },
+
+    "agent_dispatch": {
+        "max_concurrent": 3,
+        "pool_size": 3,
+        "pool_queue_max": 10
+    },
+
+    "scoring": {
+        "enabled": true,
+        "default_weight": 1.0,
+        "green_threshold": 0,
+        "yellow_threshold": 15,
+        "red_threshold": 30,
+        "threshold_mode": "cumulative"
+    },
+
+    "limits": {
+        "execution": {
+            "call_depth": 100,
+            "loop_iterations": 200000,
+            "polyglot_blocks": 50,
+            "timeout_seconds": 300
+        },
+        "code": {
+            "max_lines_per_block": 60,
+            "max_functions": 150,
+            "max_nesting_depth": 5
+        }
+    },
+
+    "security": {
+        "sandbox_level": "unrestricted"
+    }
+}

@@ -1,0 +1,159 @@
+use time
+use uuid
+
+import "models.naab" as models
+
+export fn evaluate_alert_rule(rule, events, current_state) {
+    let threshold_value = rule.get("threshold_value") ?? 0
+    let direction = rule.get("direction") ?? 0
+    let event_count = len(events)
+
+    let triggered = match direction {
+        0 => event_count > threshold_value,
+        1 => event_count < threshold_value,
+        2 => event_count == threshold_value,
+        _ => false
+    }
+
+    let alert = null
+    let rule_id = rule.get("id") ?? ""
+    let severity = rule.get("severity") ?? 0
+
+    if triggered {
+        let event_ids = []
+        for i in 0..len(events) {
+            event_ids.push(events[i].get("id"))
+        }
+        alert = models.create_alert(uuid.v4(), rule_id, severity, "Alert triggered", event_ids)
+    }
+
+    return {
+        "triggered": triggered,
+        "alert": alert,
+        "rule_id": rule_id,
+        "severity": severity
+    }
+}
+
+export fn check_threshold(value, threshold, direction) {
+    let exceeded = match direction {
+        0 => value > threshold,
+        1 => value < threshold,
+        2 => value == threshold,
+        _ => false
+    }
+
+    return {
+        "exceeded": exceeded,
+        "current_value": value,
+        "threshold": threshold,
+        "direction": direction
+    }
+}
+
+export fn build_alert_chain(alerts, incidents) {
+    let chain = <<javascript[alerts, incidents]
+const chain_arr = [];
+let root_cause = "unknown";
+const affected_services = [];
+let depth = 0;
+
+for (let i = 0; i < alerts.length; i++) {
+    const alert = alerts[i];
+    const rule_id = alert.get ? alert.get("rule_id") : "";
+    const sev = alert.get ? alert.get("severity") : 0;
+    chain_arr.push({rule_id: rule_id, severity: sev});
+    depth = depth + 1;
+
+    for (let j = 0; j < incidents.length; j++) {
+        const incident = incidents[j];
+        const src = incident.get ? incident.get("source") : "unknown";
+        if (!affected_services.includes(src)) {
+            affected_services.push(src);
+        }
+    }
+}
+
+const result = {
+    "chain": chain_arr,
+    "root_cause": root_cause,
+    "affected_services": affected_services,
+    "depth": depth
+};
+result
+    >>
+    return chain
+}
+
+export fn escalate_alert(alert, incidents, escalation_rules) {
+    let current_priority = alert.get("severity") ?? 0
+    let new_priority = current_priority
+    let notification_targets = ["on-call@example.com"]
+    let reason = "Standard escalation"
+
+    if len(incidents) > 0 {
+        new_priority = 0
+        reason = "Multi-incident correlation"
+        notification_targets = ["team@example.com", "incident-commander@example.com"]
+    }
+
+    return {
+        "escalated": new_priority > current_priority,
+        "new_priority": new_priority,
+        "notification_targets": notification_targets,
+        "reason": reason
+    }
+}
+
+export fn acknowledge_incident(incident, owner) {
+    let updated = incident
+    updated["status"] = 1
+    updated["acknowledged_by"] = owner
+    updated["acknowledged_at"] = time.now()
+    return {
+        "incident": updated,
+        "acknowledged_at": time.now(),
+        "owner": owner
+    }
+}
+
+export fn resolve_incident(incident, resolution_note) {
+    let updated = incident
+    let now = time.now()
+    let created_at = incident.get("created_at") ?? now
+    let resolution_time = now - created_at
+
+    updated["status"] = 4
+    updated["resolved_at"] = now
+    updated["root_cause"] = resolution_note
+
+    return {
+        "incident": updated,
+        "resolved_at": now,
+        "resolution_time_seconds": resolution_time
+    }
+}
+
+export fn get_active_incidents(incidents) {
+    let active = []
+    for i in 0..len(incidents) {
+        let inc = incidents[i]
+        let status = inc.get("status") ?? 0
+        if status < 4 {
+            active.push(inc)
+        }
+    }
+    return active
+}
+
+export fn filter_events_by_time_range(events, start_time, end_time) {
+    let filtered = []
+    for i in 0..len(events) {
+        let event = events[i]
+        let ts = event.get("timestamp") ?? 0
+        if ts >= start_time && ts <= end_time {
+            filtered.push(event)
+        }
+    }
+    return filtered
+}

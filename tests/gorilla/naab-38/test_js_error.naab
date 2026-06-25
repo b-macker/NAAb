@@ -1,0 +1,13 @@
+use codegen
+main {
+  let r = codegen.run("javascript", "this is not valid js;;;;;")
+  let exit_code = r.get("exit_code")
+  print("exit_code: " + exit_code)
+  let stderr_val = r.get("stderr")
+  if stderr_val {
+    print("stderr captured: YES")
+    print("stderr length: " + stderr_val.length())
+  } else {
+    print("stderr: (empty or null)")
+  }
+}

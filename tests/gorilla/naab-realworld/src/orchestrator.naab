@@ -1,0 +1,56 @@
+use agent
+use string
+use codegen
+use json
+use file
+
+export fn get_code(agent_handle, prompt) {
+    let response = agent.send(agent_handle, prompt)
+    let code = ""
+    if typeof(response) == "dict" {
+        code = response.get("content") ?? ""
+    } else {
+        code = string(response)
+    }
+    // Deep-clean: strip markdown code blocks if agent included them
+    code = string.replace(code, "```python", "")
+    code = string.replace(code, "```javascript", "")
+    code = string.replace(code, "```js", "")
+    code = string.replace(code, "```", "")
+    return string.trim(code)
+}
+
+export fn governed_run(language, code, inputs, agent_handle, original_prompt) {
+    let attempts = 0
+    let max_retries = 3
+    let current_code = code
+
+    while attempts < max_retries {
+        try {
+            print("  [Attempt " + string(attempts + 1) + "] Executing " + language + "...")
+            let result = codegen.run_with_args(language, current_code, inputs)
+            
+            // Check if result is a dict (from codegen) and handle correctly
+            if typeof(result) == "dict" {
+                if result.get("exit_code") != 0 {
+                    throw "Runtime Error (Exit " + string(result.get("exit_code")) + "): " + string(result.get("output"))
+                }
+                return { "success": true, "output": result.get("output") }
+            }
+            return { "success": true, "output": result }
+        } catch (e) {
+            attempts = attempts + 1
+            print("  [EXECUTION/GOV BLOCK] " + language + " code failed.")
+            print("  Reason: " + e)
+            
+            if attempts < max_retries {
+                print("  Requesting agent to readjust code based on error...")
+                let fix_prompt = "Your previous code failed: " + e + 
+                                 "\n\nPlease rewrite the code to be compliant. Ensure no markdown formatting. " + original_prompt
+                current_code = get_code(agent_handle, fix_prompt)
+            } else {
+                return { "success": false, "error": e }
+            }
+        }
+    }
+}

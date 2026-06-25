@@ -1,0 +1,94 @@
+// Report Generation
+use json
+use crypto
+use time
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn generate_summary_report(events, incidents, alerts) {
+    let critical_count = 0
+    let active_incidents = 0
+
+    for i in 0..len(events) {
+        if events[i].severity == 0 {
+            critical_count = critical_count + 1
+        }
+    }
+
+    for i in 0..len(incidents) {
+        if incidents[i].status < 4 {
+            active_incidents = active_incidents + 1
+        }
+    }
+
+    let report_parts = []
+    report_parts = report_parts + ["=== EVENT PROCESSING SUMMARY REPORT ==="]
+    report_parts = report_parts + ["Total Events: " + string(len(events))]
+    report_parts = report_parts + ["Critical Events: " + string(critical_count)]
+    report_parts = report_parts + ["Total Incidents: " + string(len(incidents))]
+    report_parts = report_parts + ["Active Incidents: " + string(active_incidents)]
+    report_parts = report_parts + ["Total Alerts: " + string(len(alerts))]
+
+    let report_text = ""
+    for i in 0..len(report_parts) {
+        report_text = report_text + report_parts[i] + "\n"
+    }
+
+    let hash = crypto.sha256(report_text)
+
+    return {
+        "report_text": report_text,
+        "hash": hash,
+        "sections": ["summary", "events", "incidents", "alerts"]
+    }
+}
+
+export fn generate_detail_report(events, incidents, alerts, metrics_data) {
+    let parts = []
+    parts = parts + ["=== DETAILED OPERATIONAL REPORT ==="]
+    parts = parts + ["Generated at: " + string(time.now())]
+    parts = parts + [""]
+    parts = parts + ["EVENTS SECTION"]
+    parts = parts + ["Total Events: " + string(len(events))]
+    parts = parts + [""]
+    parts = parts + ["INCIDENTS SECTION"]
+    parts = parts + ["Total Incidents: " + string(len(incidents))]
+
+    for i in 0..len(incidents) {
+        let inc = incidents[i]
+        parts = parts + ["  - " + inc.id + ": " + inc.title]
+    }
+
+    parts = parts + [""]
+    parts = parts + ["ALERTS SECTION"]
+    parts = parts + ["Total Alerts: " + string(len(alerts))]
+    parts = parts + [""]
+    parts = parts + ["METRICS SECTION"]
+    parts = parts + ["Metrics data included in payload"]
+
+    let report_text = ""
+    for i in 0..len(parts) {
+        report_text = report_text + parts[i] + "\n"
+    }
+
+    let hash = crypto.sha256(report_text)
+
+    return {
+        "report_text": report_text,
+        "hash": hash,
+        "event_count": len(events),
+        "incident_count": len(incidents)
+    }
+}
+
+export fn rank_incidents_by_severity(incidents) {
+    let ranked = array.sort(incidents, fn(a, b) {
+        let sev_diff = b.severity - a.severity
+        if sev_diff == 0 {
+            return b.priority - a.priority
+        }
+        return sev_diff
+    })
+
+    return ranked |> fn(r) { return r }
+}

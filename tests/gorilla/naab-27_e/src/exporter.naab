@@ -1,0 +1,110 @@
+import "models.naab" as models
+import "validators.naab" as validators
+
+use json
+use crypto
+use file
+use csv
+
+fn apply_severity_prefix(event) {
+    let sev_label = models.severity_label(event.severity)
+    return "[" + sev_label + "] " + event.source + ": " + event.message
+}
+
+export fn format_event(event) {
+    if event == null { return "" }
+    let formatted = match event.severity {
+        models.EventSeverity.Critical => "[CRITICAL] " + event.source + ": " + event.message,
+        models.EventSeverity.Major => "[MAJOR] " + event.source + ": " + event.message,
+        models.EventSeverity.Minor => "[MINOR] " + event.source + ": " + event.message,
+        models.EventSeverity.Warning => "[WARNING] " + event.source + ": " + event.message,
+        models.EventSeverity.Info => "[INFO] " + event.source + ": " + event.message,
+        models.EventSeverity.Debug => "[DEBUG] " + event.source + ": " + event.message,
+        _ => "[UNKNOWN] " + event.source + ": " + event.message
+    }
+    return event |> apply_severity_prefix
+}
+
+export fn format_incident(incident) {
+    if incident == null { return "" }
+    let status_label = models.status_label(incident.status)
+    let sev_label = models.severity_label(incident.severity)
+    let formatted = match incident.status {
+        models.IncidentStatus.Open => "[OPEN] " + sev_label + ": " + incident.title,
+        models.IncidentStatus.Acknowledged => "[ACK] " + sev_label + ": " + incident.title,
+        models.IncidentStatus.Investigating => "[INVESTIGATING] " + sev_label + ": " + incident.title,
+        models.IncidentStatus.Mitigating => "[MITIGATING] " + sev_label + ": " + incident.title,
+        models.IncidentStatus.Resolved => "[RESOLVED] " + sev_label + ": " + incident.title,
+        models.IncidentStatus.Closed => "[CLOSED] " + sev_label + ": " + incident.title,
+        _ => "[UNKNOWN] " + sev_label + ": " + incident.title
+    }
+    return formatted
+}
+
+fn apply_alert_format(alert) {
+    let sev_label = models.severity_label(alert.severity)
+    let state_label = models.alert_state_label(alert.state)
+    return "[" + sev_label + "] " + state_label + ": " + alert.message
+}
+
+export fn format_alert(alert) {
+    if alert == null { return "" }
+    return alert |> apply_alert_format
+}
+
+fn build_csv_lines(events) {
+    let lines = ["id,timestamp,source,severity,message,category"]
+    for event in events {
+        let line = event.id + "," + string(event.timestamp) + "," + event.source + "," + string(event.severity) + "," + event.message + "," + string(event.category)
+        lines.push(line)
+    }
+    return lines
+}
+
+fn join_csv_content(lines) {
+    let csv_content = ""
+    for l in lines {
+        csv_content = csv_content + l + "\n"
+    }
+    return csv_content
+}
+
+export fn export_events_csv(events) {
+    if events == null { return {"csv_text": "", "row_count": 0, "columns": []} }
+    let csv_content = events |> build_csv_lines |> join_csv_content
+    return {
+        "csv_text": csv_content,
+        "row_count": len(events),
+        "columns": ["id", "timestamp", "source", "severity", "message", "category"]
+    }
+}
+
+export fn export_incidents_json(incidents) {
+    if incidents == null { return {"json_text": "{}", "incident_count": 0, "hash": ""} }
+    let json_str = <<javascript[incidents]
+    const result = {incidents: incidents};
+    JSON.stringify(result)
+    >>
+    let hash = crypto.sha256(json_str)
+    return {
+        "json_text": json_str,
+        "incident_count": len(incidents),
+        "hash": hash
+    }
+}
+
+export fn write_export_to_file(content, filepath) {
+    if content == null || filepath == null { return {"success": false, "path": filepath ?? "", "bytes_written": 0} }
+    try {
+        let sanitized = validators.sanitize_string(content)
+        file.write(filepath, sanitized)
+        let written = len(sanitized)
+        return {"success": true, "path": filepath, "bytes_written": written}
+    } catch (e) {
+        return {"success": false, "path": filepath, "bytes_written": 0}
+    }
+}
+
+main {
+    print("exporter module loaded")
+}

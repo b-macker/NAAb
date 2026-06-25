@@ -1,0 +1,60 @@
+{
+  "mode": "enforce",
+  "security": {
+    "sandbox_level": "elevated"
+  },
+  "capabilities": {
+    "filesystem": {
+      "level": "restricted",
+      "read_allowlist": [ "src/*", "govern.json", "generated_script.py" ],
+      "write_allowlist": [ "report.json", "generated_script.py" ]
+    },
+    "network": { "enabled": false },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": [ "rm", "curl", "wget", "chmod", "sudo", "sh", "bash" ],
+      "allowed_commands": [ "python3", "naab-lang", "ls" ]
+    }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [ "python" ]
+  },
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "code_injection": { "level": "hard" }
+  },
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": [
+      {
+        "name": "autonomous_coding",
+        "sequence": [ "AGENT_SEND", "CODEGEN_EXEC" ],
+        "max_gap": 2,
+        "level": "advisory"
+      },
+      {
+        "name": "file_to_execution",
+        "sequence": [ "FILE_WRITE", "PROCESS_EXEC" ],
+        "max_gap": 2,
+        "level": "advisory",
+        "rationale": "Tracking agents that write and then immediately execute files."
+      }
+    ]
+  },
+  "agents": {
+    "coder": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "max_turns": 10,
+      "risk_budget": 50,
+      "system_prompt": "You are a Python coding assistant. Generate clean, efficient Python code that solves the user's task. Output ONLY the raw Python code without markdown formatting or explanation.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    }
+  }
+}

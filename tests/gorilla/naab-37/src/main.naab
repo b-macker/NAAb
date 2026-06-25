@@ -1,0 +1,109 @@
+use string
+use array
+use json
+
+import "models.naab" as models
+import "validators.naab" as validators
+import "analyzer.naab" as analyzer
+
+main {
+    // Create test incidents with realistic security data
+    let incident1 = models.make_incident(
+        "INC-001",
+        "2026-06-08T10:15:00Z",
+        "auth_service",
+        "failed authentication attempt from 192.168.1.100 invalid credentials provided",
+        "medium"
+    )
+
+    let incident2 = models.make_incident(
+        "INC-002",
+        "2026-06-08T10:20:00Z",
+        "network_monitor",
+        "port scan detected on internal network scanning ports 22 80 443 3306",
+        "high"
+    )
+
+    let incident3 = models.make_incident(
+        "INC-003",
+        "2026-06-08T10:25:00Z",
+        "endpoint_detection",
+        "malware detected trojan dropper identified in user downloads",
+        "critical"
+    )
+
+    let incident4 = models.make_incident(
+        "INC-004",
+        "2026-06-08T10:30:00Z",
+        "web_app_firewall",
+        "SQL injection attempt detected in login form parameter username",
+        "critical"
+    )
+
+    let incident5 = models.make_incident(
+        "INC-005",
+        "2026-06-08T10:35:00Z",
+        "access_logs",
+        "suspicious login from unusual geographic location attempt blocked",
+        "medium"
+    )
+
+    // Collect all incidents
+    let all_incidents = []
+    all_incidents.push(incident1)
+    all_incidents.push(incident2)
+    all_incidents.push(incident3)
+    all_incidents.push(incident4)
+    all_incidents.push(incident5)
+
+    // Sequential analysis of first incident
+    print("=== Sequential Analysis ===")
+    let first_analysis = analyzer.analyze_incident(incident1)
+    print("Incident INC-001 Analysis:")
+    print("  Category: " + first_analysis.get("category"))
+    print("  Severity Score: " + string(first_analysis.get("severity_score")))
+    print("  Recommendation: " + first_analysis.get("recommendation"))
+    print("")
+
+    // Async batch analysis of remaining incidents
+    print("=== Batch Async Analysis ===")
+    let remaining = []
+    let idx = 1
+    for i in 1..len(all_incidents) {
+        remaining.push(all_incidents[i])
+    }
+
+    try {
+        let batch_results = analyzer.analyze_batch_async(remaining)
+
+        let result_idx = 0
+        for result in batch_results {
+            let incident = remaining[result_idx]
+            let incident_id = incident.get("id")
+            let category = result.get("category")
+            let score = result.get("severity_score")
+            let recommendation = result.get("recommendation")
+
+            // Validate and sanitize output
+            let report = models.make_report(incident_id, category, "", score)
+            if validators.validate_report(report) {
+                let safe_category = validators.sanitize_string(category)
+                let safe_rec = validators.sanitize_string(recommendation)
+                print("Incident " + incident_id + " Analysis:")
+                print("  Category: " + safe_category)
+                print("  Severity Score: " + string(score))
+                print("  Recommendation: " + safe_rec)
+            }
+
+            result_idx = result_idx + 1
+            print("")
+        }
+    } catch (e) {
+        print("Error during batch analysis: " + string(e))
+    }
+
+    // Summary
+    print("=== Summary ===")
+    print("Total incidents processed: " + string(len(all_incidents)))
+    print("Analysis complete")
+}

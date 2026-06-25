@@ -1,0 +1,37 @@
+use string
+
+// Sanitize string by removing control characters and dangerous patterns
+export fn sanitize_string(s) {
+    if s == null {
+        return ""
+    }
+    let result = string.trim(s)
+    result = string.replace(result, "\n", " ")
+    result = string.replace(result, "\r", " ")
+    result = string.replace(result, "\t", " ")
+    result = string.replace(result, "<", "")
+    result = string.replace(result, ">", "")
+    return result
+}
+
+// Validate that a report has all required keys
+export fn validate_report(report) {
+    if report == null {
+        return false
+    }
+    let has_incident = report.get("incident_id") != null
+    let has_category = report.get("category") != null
+    let has_findings = report.get("findings") != null
+    let has_score = report.get("score") != null
+    return has_incident && has_category && has_findings && has_score
+}
+
+// Prepare output text for safe display
+export fn sanitize_output(text) {
+    if text == null {
+        return ""
+    }
+    let result = string.trim(text)
+    result = string.replace(result, "\x00", "")
+    return result
+}

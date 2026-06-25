@@ -1,0 +1,40 @@
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "filesystem": {
+      "level": "restricted",
+      "read_allowlist": [ "src/*", "govern.json", "audit.log" ],
+      "write_allowlist": [ "vault_cli.js", "vault_backend.py", "audit.log", "report.json" ]
+    },
+    "network": { "enabled": false },
+    "shell": {
+      "enabled": true,
+      "allowed_commands": [ "python3", "node", "ls" ]
+    }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [ "python", "javascript" ]
+  },
+  "agents": {
+    "architect": {
+      "provider": "gemini", "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are an Architect. Design a Python --encrypt flag.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "py_dev": {
+      "provider": "gemini", "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK6", "GK5", "GK4", "GK3", "GK2", "GK1" ],
+      "system_prompt": "You are a Python Dev. Use base64.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "js_dev": {
+      "provider": "gemini", "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK2", "GK4", "GK6", "GK1", "GK3", "GK5" ],
+      "system_prompt": "You are a Node Dev. Use spawn.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    }
+  }
+}

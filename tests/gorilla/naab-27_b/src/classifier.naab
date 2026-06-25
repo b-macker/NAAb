@@ -1,0 +1,88 @@
+use string
+
+export fn classify_event(event) {
+    if event == null { return {category: 3, subcategory: "", confidence: 0.0, tags: []} }
+
+    let msg = string.lower(event.message)
+
+    let classification = match true {
+        string.contains(msg, "auth") || string.contains(msg, "unauthorized") || string.contains(msg, "permission") => {category: 0, subcat: "authentication", conf: 0.9},
+        string.contains(msg, "cpu") || string.contains(msg, "memory") || string.contains(msg, "latency") || string.contains(msg, "timeout") => {category: 1, subcat: "resource_usage", conf: 0.85},
+        string.contains(msg, "disk") || string.contains(msg, "storage") || string.contains(msg, "filesystem") => {category: 2, subcat: "storage", conf: 0.8},
+        string.contains(msg, "error") || string.contains(msg, "exception") => {category: 3, subcat: "runtime", conf: 0.7},
+        string.contains(msg, "network") || string.contains(msg, "connection") || string.contains(msg, "dns") => {category: 4, subcat: "connectivity", conf: 0.75},
+        string.contains(msg, "database") || string.contains(msg, "query") || string.contains(msg, "table") => {category: 5, subcat: "data", conf: 0.8},
+        _ => {category: 3, subcat: "", conf: 0.5}
+    }
+
+    let keywords = extract_keywords(msg)
+    let tags = []
+    for i in 0..len(keywords) {
+        tags = tags + [keywords[i]]
+    }
+
+    return {category: classification.get("category"), subcategory: classification.get("subcat"), confidence: classification.get("conf"), tags: tags}
+}
+
+export fn batch_classify(events) {
+    let results = []
+    let classified_count = 0
+    let unknown_count = 0
+
+    for i in 0..len(events) {
+        let e = events[i]
+        let classification = classify_event(e)
+        results = results + [classification]
+        if classification.get("confidence") > 0.5 {
+            classified_count = classified_count + 1
+        } else {
+            unknown_count = unknown_count + 1
+        }
+    }
+
+    return {results: results, total: len(events), classified_count: classified_count, unknown_count: unknown_count}
+}
+
+export fn extract_keywords(message) {
+    if message == null { return [] }
+
+    let keywords = []
+    let words = string.split(message, " ")
+
+    for i in 0..len(words) {
+        let w = words[i]
+        if len(w) > 3 {
+            keywords = keywords + [w]
+        }
+    }
+
+    return keywords
+}
+
+export fn calculate_confidence(event, category) {
+    if event == null { return 0.0 }
+
+    let msg = string.lower(event.message)
+    let confidence = 0.5
+
+    if category == 0 {
+        if string.contains(msg, "auth") { confidence = 0.95 }
+    }
+    else if category == 1 {
+        if string.contains(msg, "cpu") || string.contains(msg, "memory") { confidence = 0.9 }
+    }
+    else if category == 2 {
+        if string.contains(msg, "disk") { confidence = 0.85 }
+    }
+
+    return confidence
+}
+
+export fn is_security_event(event) {
+    if event == null { return false }
+
+    let msg = string.lower(event.message)
+    let is_security = string.contains(msg, "auth") || string.contains(msg, "unauthorized") || string.contains(msg, "permission") || string.contains(msg, "access denied") || string.contains(msg, "invalid credential")
+
+    return is_security
+}

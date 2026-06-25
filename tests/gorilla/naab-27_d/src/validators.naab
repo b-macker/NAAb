@@ -1,0 +1,63 @@
+// Sanitization & Validation Functions
+use regex
+use validate
+import "models.naab" as models
+
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+    let s = string.trim(input)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+    let cleaned = regex.replace(line, "\u001b\\[[0-9;]*m", "")
+    return sanitize_string(cleaned)
+}
+
+export fn validate_event_schema(event_dict) {
+    let errors = []
+
+    if !event_dict.has("id") || event_dict.get("id") == null {
+        errors = errors + ["Missing required field: id"]
+    }
+
+    if !event_dict.has("timestamp") || event_dict.get("timestamp") == null {
+        errors = errors + ["Missing required field: timestamp"]
+    }
+
+    if !event_dict.has("source") || event_dict.get("source") == null {
+        errors = errors + ["Missing required field: source"]
+    }
+
+    if !event_dict.has("severity") || event_dict.get("severity") == null {
+        errors = errors + ["Missing required field: severity"]
+    }
+
+    if !event_dict.has("message") || event_dict.get("message") == null {
+        errors = errors + ["Missing required field: message"]
+    }
+
+    let valid = len(errors) == 0
+    return { "valid": valid, "errors": errors }
+}
+
+export fn validate_email_address(email) {
+    return validate.email(email)
+}
+
+export fn validate_timestamp(ts) {
+    if ts == null {
+        return false
+    }
+    if !validate.is_int(ts) {
+        return false
+    }
+    return ts > 0
+}

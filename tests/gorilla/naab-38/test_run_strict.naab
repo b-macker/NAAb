@@ -1,0 +1,33 @@
+use codegen
+
+main {
+    // Test 1: Successful execution (should return dict)
+    print("Test 1: run_strict with successful code")
+    let r = codegen.run_strict("python", "print('hello'); 42")
+    print(r.get("output"))
+    print(r.get("exit_code"))
+    print("")
+
+    // Test 2: Successful execution with args
+    print("Test 2: run_strict with args dict")
+    let r2 = codegen.run_strict("python", "x = 5; y = 10; x + y", {"x": 3, "y": 7})
+    print(r2.get("output"))
+    print(r2.get("exit_code"))
+    print("")
+
+    // Test 3: Failed execution (should throw)
+    print("Test 3: run_strict with syntax error (should throw)")
+    try {
+        let r3 = codegen.run_strict("python", "this is not valid python!!!")
+        print("ERROR: Should have thrown!")
+    } catch (e) {
+        print("Caught exception as expected")
+    }
+    print("")
+
+    // Test 4: Verify run_with_args still works (doesn't throw)
+    print("Test 4: run_with_args with same syntax error (should NOT throw)")
+    let r4 = codegen.run_with_args("python", "this is not valid python!!!", {})
+    print("exit_code:", r4.get("exit_code"))
+    print("Has stderr:", r4.has("stderr"))
+}

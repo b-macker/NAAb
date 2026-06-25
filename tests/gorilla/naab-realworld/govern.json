@@ -1,0 +1,64 @@
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "capabilities": {
+    "filesystem": {
+      "level": "restricted",
+      "read_allowlist": [ "src/*", "govern.json", "input.csv", "output.json", "audit.log" ],
+      "write_allowlist": [ "output.json", "audit.log", "report.json" ]
+    },
+    "network": { "enabled": false },
+    "shell": {
+      "enabled": true,
+      "blocked_commands": [ "rm", "sudo", "chmod" ],
+      "allowed_commands": [ "python3", "node", "ls", "date", "uptime" ]
+    }
+  },
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": [ "python", "javascript", "shell" ]
+  },
+  "restrictions": {
+    "dangerous_calls": { "level": "hard" },
+    "code_injection": { "level": "hard" },
+    "shell_injection": { "level": "hard" }
+  },
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_placeholders": { "level": "hard" }
+  },
+  "behavioral_sequences": {
+    "enabled": true,
+    "patterns": [
+      {
+        "name": "cross_language_handoff",
+        "sequence": [ "CODEGEN_EXEC", "CODEGEN_EXEC" ],
+        "max_gap": 1,
+        "level": "advisory"
+      }
+    ]
+  },
+  "agents": {
+    "architect": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are a Lead Architect. Coordinate the Python, JS, and Shell specialists to build a data pipeline. You provide logic and structure.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "python_dev": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are a Python Specialist. Output ONLY raw Python code. Task: Process CSV data and calculate averages.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    },
+    "js_dev": {
+      "provider": "gemini",
+      "model": "gemma-4-31b-it",
+      "api_key_env": [ "GK1", "GK2", "GK3", "GK4", "GK5", "GK6" ],
+      "system_prompt": "You are a JavaScript Specialist. Output ONLY raw JS. Task: Convert dictionaries to pretty-printed JSON.",
+      "allowed_actions": [ "AGENT_SEND" ]
+    }
+  }
+}

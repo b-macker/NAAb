@@ -1,0 +1,159 @@
+export fn compute_severity_distribution(events) {
+    let dist = <<python[events] -> JSON
+from collections import Counter
+import json
+import math
+
+severities = [e.get("severity", 0) for e in events]
+counter = Counter(severities)
+distribution = dict(counter)
+
+total = len(events)
+dominant_severity = max(severities) if severities else 0
+
+if total > 0:
+    probs = [count / total for count in counter.values()]
+    entropy = -sum(p * math.log2(p + 1e-10) for p in probs)
+else:
+    entropy = 0
+
+print(json.dumps({
+    "distribution": distribution,
+    "total": total,
+    "dominant_severity": dominant_severity,
+    "entropy": entropy
+}))
+    >>
+    return dist
+}
+
+export fn compute_alert_statistics(alerts, incidents) {
+    let stats = <<python[alerts, incidents] -> JSON
+severity_count = {}
+category_count = {}
+response_times = []
+total_alerts = len(alerts)
+
+for alert in alerts:
+    sev = alert.get("severity", 0)
+    severity_count[sev] = severity_count.get(sev, 0) + 1
+
+for incident in incidents:
+    resolved_at = incident.get("resolved_at", 0)
+    created_at = incident.get("created_at", 0)
+    if resolved_at > 0 and created_at > 0:
+        response_times.append(resolved_at - created_at)
+
+avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+escalation_rate = 0.1
+
+print(json.dumps({
+    "total_alerts": total_alerts,
+    "by_severity": severity_count,
+    "by_category": category_count,
+    "avg_response_time": avg_response_time,
+    "escalation_rate": escalation_rate
+}))
+    >>
+    return stats
+}
+
+export fn compute_event_frequency(events, window_seconds) {
+    let freq = <<python[events, window_seconds] -> JSON
+events_per_minute = 0
+peak_rate = 0
+avg_rate = 0
+burst_windows = []
+
+if events:
+    timestamps = [e.get("timestamp", 0) for e in events]
+    min_ts = min(timestamps) if timestamps else 0
+    max_ts = max(timestamps) if timestamps else 0
+    duration = max_ts - min_ts if max_ts > min_ts else 1
+
+    total_minutes = duration / 60.0 if duration > 0 else 1
+    events_per_minute = len(events) / total_minutes
+
+    window_counts = {}
+    for ts in timestamps:
+        window = int(ts / window_seconds) * window_seconds
+        window_counts[window] = window_counts.get(window, 0) + 1
+
+    peak_rate = max(window_counts.values()) if window_counts else 0
+    avg_rate = sum(window_counts.values()) / len(window_counts) if window_counts else 0
+
+    burst_windows = [w for w, count in window_counts.items() if count > avg_rate * 1.5]
+
+print(json.dumps({
+    "events_per_minute": events_per_minute,
+    "peak_rate": peak_rate,
+    "avg_rate": avg_rate,
+    "burst_windows": burst_windows
+}))
+    >>
+    return freq
+}
+
+export fn calculate_sla_compliance(incidents, sla_targets) {
+    let compliance = <<python[incidents, sla_targets] -> JSON
+compliant_count = 0
+violations = []
+
+for incident in incidents:
+    resolved_at = incident.get("resolved_at", 0)
+    created_at = incident.get("created_at", 0)
+    severity = incident.get("severity", 0)
+
+    if resolved_at > 0 and created_at > 0:
+        resolution_time = resolved_at - created_at
+        target_time = sla_targets.get(severity, 86400)
+
+        if resolution_time <= target_time:
+            compliant_count += 1
+        else:
+            violations.append(incident.get("id"))
+
+total = len(incidents)
+compliance_rate = compliant_count / total if total > 0 else 0
+
+by_priority = {}
+
+print(json.dumps({
+    "compliant": compliant_count,
+    "compliance_rate": compliance_rate,
+    "violations": violations,
+    "by_priority": by_priority
+}))
+    >>
+    return compliance
+}
+
+export fn calculate_mttr(incidents) {
+    let mttr = <<python[incidents] -> JSON
+resolution_times = []
+
+for incident in incidents:
+    resolved_at = incident.get("resolved_at", 0)
+    created_at = incident.get("created_at", 0)
+
+    if resolved_at > 0 and created_at > 0:
+        resolution_times.append(resolved_at - created_at)
+
+mttr_seconds = 0
+mttr_minutes = 0
+if resolution_times:
+    mttr_seconds = sum(resolution_times) / len(resolution_times)
+    mttr_minutes = mttr_seconds / 60.0
+
+by_severity = {}
+trend = []
+
+print(json.dumps({
+    "mttr_seconds": mttr_seconds,
+    "mttr_minutes": mttr_minutes,
+    "by_severity": by_severity,
+    "trend": trend
+}))
+    >>
+    return mttr
+}

@@ -1,0 +1,163 @@
+// Event Correlation & Incident Detection
+use time
+import "models.naab" as models
+
+export fn correlate_events(events, time_window_seconds) {
+    if len(events) == 0 {
+        return { "groups": [], "ungrouped": [], "correlation_count": 0 }
+    }
+
+    let result = <<python[events, time_window_seconds] -> JSON
+from collections import defaultdict
+
+groups = defaultdict(list)
+for event in events:
+    key = (event["source"], event["category"])
+    groups[key].append(event)
+
+grouped = []
+ungrouped = []
+
+for key, group in groups.items():
+    if len(group) > 1:
+        grouped.append(group)
+    else:
+        ungrouped.extend(group)
+
+{
+    "groups": grouped,
+    "ungrouped": ungrouped,
+    "correlation_count": len(grouped)
+}
+    >>
+
+    if result == null {
+        return { "groups": [], "ungrouped": events, "correlation_count": 0 }
+    }
+
+    return result
+}
+
+export fn detect_incident(event_group, threshold) {
+    if len(event_group) == 0 {
+        return { "is_incident": false, "incident": null, "evidence": [] }
+    }
+
+    let severity_sum = 0
+    let max_severity = 0
+
+    for i in 0..len(event_group) {
+        let e = event_group[i]
+        severity_sum = severity_sum + e.severity
+        if e.severity > max_severity {
+            max_severity = e.severity
+        }
+    }
+
+    let avg_severity = severity_sum / len(event_group)
+    let is_incident = match max_severity {
+        0 => true,
+        1 => true,
+        2 => len(event_group) > threshold,
+        _ => false
+    }
+
+    let incident = null
+    if is_incident {
+        incident = models.create_incident("inc-" + string(time.now()), "Incident from " + string(len(event_group)) + " events", max_severity, 0, event_group)
+    }
+
+    return {
+        "is_incident": is_incident,
+        "incident": incident,
+        "evidence": event_group
+    }
+}
+
+export fn find_related_events(events, event, max_depth) {
+    if max_depth <= 0 || len(events) == 0 {
+        return []
+    }
+
+    let related = [event]
+    let i = 0
+    while i < len(events) {
+        let e = events[i]
+        if e.id != event.id && (e.source == event.source || e.category == event.category) {
+            related = related + [e]
+            let deeper = find_related_events(events, e, max_depth - 1)
+            for j in 0..len(deeper) {
+                let d = deeper[j]
+                let already_has = false
+                for k in 0..len(related) {
+                    if related[k].id == d.id {
+                        already_has = true
+                    }
+                }
+                if !already_has {
+                    related = related + [d]
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    return related
+}
+
+export fn merge_incidents(incident_a, incident_b) {
+    let combined_events = incident_a.events + incident_b.events
+    let merged_severity = if incident_a.severity > incident_b.severity { incident_a.severity } else { incident_b.severity }
+    let merged_priority = if incident_a.priority > incident_b.priority { incident_a.priority } else { incident_b.priority }
+
+    let merged = models.create_incident(incident_a.id, incident_a.title + " + " + incident_b.title, merged_severity, merged_priority, combined_events)
+    merged = new Incident {
+        id: merged.id,
+        title: merged.title,
+        status: merged.status,
+        severity: merged.severity,
+        priority: merged.priority,
+        events: combined_events |> fn(evts) { return array.reverse(array.sort(evts, fn(a, b) { return a.timestamp - b.timestamp })) },
+        created_at: merged.created_at,
+        updated_at: time.now(),
+        acknowledged_by: merged.acknowledged_by,
+        resolved_at: merged.resolved_at,
+        tags: merged.tags,
+        root_cause: merged.root_cause
+    }
+
+    return {
+        "merged_incident": merged,
+        "source_count": 2,
+        "combined_events": len(combined_events)
+    }
+}
+
+export fn deduplicate_events(events) {
+    let unique_map = <<javascript[events]
+const seen = new Set();
+const deduped = [];
+
+for (let i = 0; i < events.length; i++) {
+    const evt = events[i];
+    const key = evt.source + "|" + evt.message + "|" + evt.timestamp;
+    if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(evt);
+    }
+}
+
+const result = {
+    unique_events: deduped,
+    duplicate_count: events.length - deduped.length,
+    dedup_map: {}
+};
+result
+    >>
+
+    if unique_map == null {
+        return { "unique_events": events, "duplicate_count": 0, "dedup_map": {} }
+    }
+
+    return unique_map
+}

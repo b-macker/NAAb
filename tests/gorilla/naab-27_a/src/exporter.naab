@@ -1,0 +1,97 @@
+use crypto
+use file
+
+import "models.naab" as models
+import "validators.naab" as validators
+
+export fn export_events_csv(events) {
+    let rows = []
+
+    for i in 0..len(events) {
+        let event = events[i]
+        let row = format_event(event)
+        rows.push(row)
+    }
+
+    let csv_text = ""
+    for i in 0..len(rows) {
+        csv_text = csv_text + rows[i] + "\n"
+    }
+
+    return {
+        "csv_text": csv_text,
+        "row_count": len(rows),
+        "columns": ["id", "timestamp", "source", "severity", "message"]
+    }
+}
+
+export fn export_incidents_json(incidents) {
+    let json_text = <<javascript[incidents]
+const result = {
+    incidents: incidents,
+    count: incidents.length,
+    exported_at: new Date().toISOString()
+};
+
+JSON.stringify(result)
+    >>
+
+    let hash = crypto.sha256(json_text)
+
+    return {
+        "json_text": json_text,
+        "incident_count": len(incidents),
+        "hash": hash
+    }
+}
+
+export fn write_export_to_file(content, filepath) {
+    let sanitized = validators.sanitize_string(content)
+    let bytes_written = 0
+
+    try {
+        file.write(filepath, sanitized)
+        bytes_written = len(sanitized)
+        return {
+            "success": true,
+            "path": filepath,
+            "bytes_written": bytes_written
+        }
+    } catch (e) {
+        return {
+            "success": false,
+            "path": filepath,
+            "bytes_written": bytes_written
+        }
+    }
+}
+
+export fn format_event(event) {
+    let severity_label = models.severity_label(event.get("severity"))
+    let category_label = models.event_type_label(event.get("category"))
+    let source = event.get("source")
+    let message = event.get("message")
+    let timestamp = event.get("timestamp")
+
+    let formatted = severity_label + "|" + category_label + "|" + source + "|" + message + "|" + string(timestamp)
+    return formatted
+}
+
+export fn format_incident(incident) {
+    let status_label = models.status_label(incident.get("status"))
+    let severity_label = models.severity_label(incident.get("severity"))
+    let priority_label = models.priority_label(incident.get("priority"))
+    let title = incident.get("title")
+
+    let formatted = "[" + status_label + "] " + severity_label + " / " + priority_label + " - " + title
+    return formatted
+}
+
+export fn format_alert(alert) {
+    let state_label = models.alert_state_label(alert.get("state"))
+    let severity_label = models.severity_label(alert.get("severity"))
+    let message = alert.get("message")
+
+    let formatted = state_label + " [" + severity_label + "] " + message
+    return formatted
+}

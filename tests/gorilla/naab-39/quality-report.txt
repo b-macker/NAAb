@@ -1,0 +1,28 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: auto
+Issues: 2 (0 hard, 2 soft, 0 advisory)
+
+----------------------------------------------------
+
+  generated_script.py (2 issues)
+
+  ! Line 2 [SOFT] style.debug_leftovers
+     Debug output in production code
+     -> print('Safe Execution')
+     Fix: Remove debug statement
+
+  ! Line 2 [SOFT] style.missing_final_newline
+     File does not end with newline
+     -> EOF
+     Fix: Add newline at end
+
+----------------------------------------------------
+
+Summary by Category:
+  style                  2 issues (0 hard, 2 soft, 0 advisory)
+
+====================================================

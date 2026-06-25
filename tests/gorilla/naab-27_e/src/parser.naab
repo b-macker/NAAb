@@ -1,0 +1,100 @@
+import "models.naab" as models
+
+use regex
+use json
+use time
+
+export fn extract_timestamp(text) {
+    if text == null { return null }
+    let iso_match = regex.search(text, "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")
+    if iso_match != null { return int(time.now()) }
+    let unix_match = regex.search(text, "^\\d{10,13}")
+    if unix_match != null { return int(unix_match) }
+    return null
+}
+
+export fn extract_source(text) {
+    if text == null { return "" }
+    let match = regex.search(text, "source[=:\\s]+([\\w.-]+)")
+    if match != null { return match }
+    let parts = string.split(text, " ")
+    if len(parts) > 1 { return parts[1] }
+    return "unknown"
+}
+
+export fn normalize_severity(text) {
+    if text == null { return models.EventSeverity.Info }
+    let lower = string.lower(text)
+    return match lower {
+        "critical" => models.EventSeverity.Critical,
+        "error" => models.EventSeverity.Major,
+        "major" => models.EventSeverity.Major,
+        "warn" => models.EventSeverity.Warning,
+        "warning" => models.EventSeverity.Warning,
+        "info" => models.EventSeverity.Info,
+        "debug" => models.EventSeverity.Debug,
+        _ => models.EventSeverity.Info
+    }
+}
+
+export fn parse_log_entry(text) {
+    if text == null { return {"event": null, "valid": false, "errors": ["null input"]} }
+    let errors = []
+    let event = null
+    try {
+        let parsed = json.parse(text)
+        if parsed != null {
+            let id = parsed.get("id") ?? uuid.v4()
+            let ts = parsed.get("timestamp") ?? time.now()
+            let src = parsed.get("source") ?? "unknown"
+            let sev = parsed.get("severity") ?? models.EventSeverity.Info
+            let msg = parsed.get("message") ?? text
+            let cat = parsed.get("category") ?? models.EventCategory.Application
+            let subcat = parsed.get("subcategory") ?? ""
+            let tags = parsed.get("tags") ?? []
+            let meta = parsed.get("metadata") ?? {}
+            event = models.create_event(id, ts, src, sev, msg, cat, subcat, tags, meta)
+        }
+    } catch (e) {
+        let syslog_match = regex.search(text, "^([\\w]+)\\s+([\\w.-]+)\\s+([\\w]+):\\s+(.*)")
+        if syslog_match != null {
+            let ts = extract_timestamp(text) ?? time.now()
+            let src = extract_source(text)
+            let sev = normalize_severity(regex.search(text, "ERROR|WARN|CRITICAL|FATAL|INFO|DEBUG"))
+            let msg = text
+            event = models.create_event(uuid.v4(), ts, src, sev, msg, models.EventCategory.Application, "", [], {})
+        } else {
+            errors.push(string(e))
+        }
+    }
+    return {"event": event, "valid": event != null, "errors": errors}
+}
+
+use uuid
+
+export fn parse_batch(lines) {
+    let events = []
+    let errors = []
+    let success_count = 0
+    let fail_count = 0
+    for line in lines {
+        let result = parse_log_entry(line)
+        if result.get("valid") == true {
+            events.push(result.get("event"))
+            success_count = success_count + 1
+        } else {
+            errors.push(result.get("errors"))
+            fail_count = fail_count + 1
+        }
+    }
+    return {
+        "events": events,
+        "errors": errors,
+        "success_count": success_count,
+        "fail_count": fail_count
+    }
+}
+
+main {
+    print("parser module loaded")
+}

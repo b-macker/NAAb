@@ -1,0 +1,48 @@
+use agent
+use string
+use json
+
+export fn get_batch_content(responses) {
+    let cleaned = []
+    for res in responses {
+        let content = ""
+        if typeof(res) == "dict" {
+            content = res.get("content") ?? ""
+        } else {
+            content = string(res)
+        }
+        // Clean markdown
+        content = string.replace(content, "```python", "")
+        content = string.replace(content, "```javascript", "")
+        content = string.replace(content, "```js", "")
+        content = string.replace(content, "```html", "")
+        content = string.replace(content, "```css", "")
+        content = string.replace(content, "```", "")
+        array.push(cleaned, string.trim(content))
+    }
+    return cleaned
+}
+
+export fn summarize_system(ui, logic, db) {
+    print("  [Integrator] Synthesizing parallel components...")
+    
+    // We use a polyglot block to perform a "System Compatibility Check"
+    // This pushes governance to handle a large amount of concurrent tainted data.
+    try {
+        let compatibility = <<python[ui, logic, db]
+import re
+# Heuristic check: does the backend provide the endpoints the UI needs?
+# and does the DB schema match the logic's requirements?
+issues = []
+if "fetch" not in ui and "axios" not in ui:
+    issues.append("UI has no data-fetching logic.")
+if "def" not in logic:
+    issues.append("Logic backend has no functions.")
+
+{"score": 1.0 - (len(issues) * 0.2), "issues": issues}
+>>
+        return compatibility
+    } catch (e) {
+        return { "score": 0, "error": e }
+    }
+}

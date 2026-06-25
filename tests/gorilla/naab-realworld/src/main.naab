@@ -1,0 +1,61 @@
+import "orchestrator.naab" as orch
+use agent
+use file
+use json
+
+main {
+    print("=== NAAb Real-World Multi-Agent Pipeline Simulation ===")
+    
+    // Setup agents
+    let py_dev = agent.create("python_dev")
+    let js_dev = agent.create("js_dev")
+
+    // Step 0: Mock input data
+    let csv_data = "id,value\n1,10\n2,20\n3,30\n4,40\n5,50"
+    file.write("input.csv", csv_data)
+    print("  Created input.csv")
+
+    // Step 1: Python Specialist - Data Processing
+    // I am deliberately providing a prompt that might tempt the agent to use 'import os'
+    print("\n[Phase 1] Python Specialist: Calculating Averages")
+    let py_prompt = "Read 'input.csv', calculate the average of the 'value' column, and return a dictionary like {'avg': X}. Use standard libraries only."
+    let py_code = orch.get_code(py_dev, py_prompt)
+    let py_res = orch.governed_run("python", py_code, {}, py_dev, py_prompt)
+
+    if !py_res.get("success") {
+        print("Pipeline failed at Python stage.")
+        return
+    }
+    let processed_data = py_res.get("output")
+    print("  Python Result: " + json.stringify(processed_data))
+
+    // Step 2: JS Specialist - Formatting
+    print("\n[Phase 2] JS Specialist: Formatting Output")
+    let js_prompt = "Take the provided dictionary and return a pretty-printed JSON string. Input variable is 'data'."
+    let js_code = orch.get_code(js_dev, js_prompt)
+    let js_res = orch.governed_run("javascript", js_code, {"data": processed_data}, js_dev, js_prompt)
+
+    if !js_res.get("success") {
+        print("Pipeline failed at JS stage.")
+        return
+    }
+    let final_json = js_res.get("output")
+    file.write("output.json", string(final_json))
+    print("  Created output.json")
+
+    // Step 3: Shell Audit (Governed process.run)
+    print("\n[Phase 3] System Audit (Shell)")
+    try {
+        let audit = <<shell
+date
+uptime
+ls -l input.csv output.json
+>>
+        file.write("audit.log", audit)
+        print("  Created audit.log")
+    } catch (e) {
+        print("  Audit Failed: " + e)
+    }
+
+    print("\n=== Pipeline Complete ===")
+}

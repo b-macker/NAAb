@@ -1,0 +1,140 @@
+import "models.naab" as models
+
+use agent
+
+export fn analyze_event_patterns(events, window_size) {
+    if events == null { return {patterns: {}, recurring_count: 0, novel_count: 0, recommendations: []} }
+
+    let patterns = <<python[events, window_size]
+from collections import Counter
+
+message_patterns = Counter()
+source_patterns = Counter()
+
+for event in events:
+    msg = event.get("message", "")
+    source = event.get("source", "unknown")
+
+    message_patterns[msg] += 1
+    source_patterns[source] += 1
+
+recurring = sum(1 for count in message_patterns.values() if count > 1)
+novel = sum(1 for count in message_patterns.values() if count == 1)
+
+recommendations = []
+if recurring > 5:
+    recommendations.append("Consider setting up alerts for recurring patterns")
+
+{
+    "patterns": dict(message_patterns),
+    "recurring_count": recurring,
+    "novel_count": novel,
+    "recommendations": recommendations
+}
+    >>
+
+    return {
+        patterns: patterns.get("patterns"),
+        recurring_count: patterns.get("recurring_count"),
+        novel_count: patterns.get("novel_count"),
+        recommendations: patterns.get("recommendations")
+    }
+}
+
+export fn analyze_anomalies(events, baseline) {
+    if events == null { return {anomalies: [], baseline: baseline, deviations: 0, risk_score: 0.0} }
+
+    let analysis = <<python[events, baseline]
+anomalies = []
+deviations = 0
+
+for event in events:
+    severity = event.get("severity", 4)
+
+    if baseline.get(severity, 0) == 0:
+        anomalies.append(event.get("id", ""))
+        deviations += 1
+
+risk_score = min(100.0, (deviations / max(1, len(events))) * 100)
+
+{
+    "anomalies": anomalies,
+    "baseline": baseline,
+    "deviations": deviations,
+    "risk_score": risk_score
+}
+    >>
+
+    return {
+        anomalies: analysis.get("anomalies"),
+        baseline: analysis.get("baseline"),
+        deviations: analysis.get("deviations"),
+        risk_score: float(analysis.get("risk_score"))
+    }
+}
+
+export fn check_agent_available(config_name) {
+    let check = agent.check(config_name)
+    let available = check.get("valid") == true
+    let reason = if available { "agent configured" } else { check.get("error") ?? "unknown" }
+
+    return {available: available, reason: reason}
+}
+
+export fn interpret_incident(incident, context_events) {
+    if incident == null {
+        return {
+            interpretation: "unavailable",
+            confidence: 0.0,
+            reasoning: "incident is null",
+            suggested_actions: []
+        }
+    }
+
+    let pre = check_agent_available("incident_analyst")
+    if pre.get("available") != true {
+        return {
+            interpretation: "unavailable",
+            confidence: 0.0,
+            reasoning: pre.get("reason"),
+            suggested_actions: []
+        }
+    }
+
+    let result = {interpretation: "unavailable", confidence: 0.0, reasoning: "error", suggested_actions: []}
+
+    try {
+        let handle = agent.create("incident_analyst")
+        let prompt = generate_interpretation_prompt(incident, context_events)
+        let resp = agent.send(handle, prompt)
+        let content = resp.get("content") ?? ""
+
+        result = {
+            interpretation: content,
+            confidence: 0.9,
+            reasoning: "agent analysis",
+            suggested_actions: []
+        }
+    } catch (e) {
+        result = {
+            interpretation: "unavailable",
+            confidence: 0.0,
+            reasoning: string(e),
+            suggested_actions: []
+        }
+    }
+
+    return result
+}
+
+export fn generate_interpretation_prompt(incident, events) {
+    if incident == null { return "" }
+
+    let title = incident.get("title", "Unknown incident")
+    let severity = models.severity_label(incident.get("severity", 4))
+    let event_count = len(events)
+
+    let prompt = "Analyze this incident: " + title + " (Severity: " + severity + ", Related events: " + string(event_count) + "). What might be the root cause and recommended actions?"
+
+    return prompt
+}

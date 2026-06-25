@@ -1,0 +1,124 @@
+import "models.naab" as models
+
+use crypto
+use time
+
+export fn generate_summary_report(events, incidents, alerts) {
+    if events == null { events = [] }
+    if incidents == null { incidents = [] }
+    if alerts == null { alerts = [] }
+
+    let event_count = len(events)
+    let incident_count = len(incidents)
+    let alert_count = len(alerts)
+
+    let report_lines = [
+        "=== OPERATIONAL SUMMARY REPORT ===",
+        "Generated: " + string(time.now()),
+        "",
+        "Event Summary:",
+        "  Total Events: " + string(event_count),
+        "  Total Incidents: " + string(incident_count),
+        "  Total Alerts: " + string(alert_count),
+        "",
+        "Critical Metrics:",
+        "  Unresolved Incidents: " + string(incident_count),
+        "  Pending Alerts: " + string(alert_count),
+        "",
+        "=== END REPORT ==="
+    ]
+
+    let report_text = string.join(report_lines, "\n")
+    let hash = crypto.sha256(report_text)
+
+    let sections = [
+        "summary",
+        "metrics",
+        "incidents",
+        "alerts"
+    ]
+
+    return {report_text: report_text, hash: hash, sections: sections}
+}
+
+export fn generate_detail_report(events, incidents, alerts, metrics_data) {
+    if events == null { events = [] }
+    if incidents == null { incidents = [] }
+    if alerts == null { alerts = [] }
+    if metrics_data == null { metrics_data = {} }
+
+    let event_count = len(events)
+    let incident_count = len(incidents)
+    let alert_count = len(alerts)
+
+    let report_lines = [
+        "=== DETAILED OPERATIONAL REPORT ===",
+        "Generated: " + string(time.now()),
+        "",
+        "EVENT DETAILS (" + string(event_count) + " total)",
+        "---"
+    ]
+
+    for i in 0..len(events) {
+        let e = events[i]
+        if i < 10 {
+            report_lines = report_lines + [
+                "  Event " + string(i + 1) + ": " + e.get("message", "") + " (Source: " + e.get("source", "") + ")"
+            ]
+        }
+    }
+
+    report_lines = report_lines + [
+        "",
+        "INCIDENT DETAILS (" + string(incident_count) + " total)",
+        "---"
+    ]
+
+    for i in 0..len(incidents) {
+        let inc = incidents[i]
+        if i < 10 {
+            report_lines = report_lines + [
+                "  Incident " + string(i + 1) + ": " + inc.get("title", "") + " (Status: " + models.status_label(inc.get("status", 0)) + ")"
+            ]
+        }
+    }
+
+    report_lines = report_lines + [
+        "",
+        "ALERT DETAILS (" + string(alert_count) + " total)",
+        "---",
+        "  See metrics for detailed alert analysis",
+        "",
+        "=== END REPORT ==="
+    ]
+
+    let report_text = string.join(report_lines, "\n")
+    let hash = crypto.sha256(report_text)
+
+    return {report_text: report_text, hash: hash, event_count: event_count, incident_count: incident_count}
+}
+
+export fn rank_incidents_by_severity(incidents) {
+    if incidents == null { return [] }
+
+    let ranked = incidents |> (fn(incs) {
+        let result = incs
+        for i in 0..len(result) {
+            for j in 0..len(result) - 1 - i {
+                let sev_j = result[j].get("severity", 0)
+                let sev_j1 = result[j + 1].get("severity", 0)
+                let pri_j = result[j].get("priority", 0)
+                let pri_j1 = result[j + 1].get("priority", 0)
+
+                if sev_j > sev_j1 || (sev_j == sev_j1 && pri_j > pri_j1) {
+                    let tmp = result[j]
+                    result[j] = result[j + 1]
+                    result[j + 1] = tmp
+                }
+            }
+        }
+        result
+    })
+
+    return ranked
+}

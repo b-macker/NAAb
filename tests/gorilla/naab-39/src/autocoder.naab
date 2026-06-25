@@ -1,0 +1,64 @@
+use agent
+use codegen
+use string
+use json
+use process
+use file
+
+export fn prompt_coder(handle, task_desc) {
+  print("  Requesting code for: " + task_desc)
+  let response = agent.send(handle, task_desc)
+  let code = ""
+  if typeof(response) == "dict" {
+    code = response.get("content") ?? ""
+  } else {
+    code = string(response)
+  }
+  return string.trim(code)
+}
+
+export fn scan_and_run_python(filename, code) {
+  print("  Writing code to " + filename + "...")
+  file.write(filename, code)
+
+  print("  Scanning file via NAAb CLI...")
+  // We call the naab-lang --scan utility to apply static governance rules to the file
+  let naab_path = "/data/data/com.termux/files/home/.naab/language/build/naab-lang"
+  let scan_res = process.run(naab_path, ["--scan", filename])
+  
+  if scan_res.get("exit_code") != 0 {
+    print("  SCAN FAILED (Exit " + string(scan_res.get("exit_code")) + ")")
+    return { "success": false, "error": "Governance Scan Failed" }
+  }
+  
+  print("  SCAN PASSED. Executing governed process...")
+  // The execution is still governed by the sandbox (resource limits, no network, etc.)
+  let run_res = process.run("python3", [filename])
+  return { 
+    "success": run_res.get("exit_code") == 0, 
+    "output": run_res.get("stdout"),
+    "error": run_res.get("stderr")
+  }
+}
+
+export fn execute_python(code, inputs) {
+  print("  Executing Python block...")
+  try {
+    let result = codegen.run_with_args("python", code, inputs)
+    return { "success": true, "output": result }
+  } catch (e) {
+    print("  Execution Error: " + e)
+    return { "success": false, "output": e }
+  }
+}
+
+export fn execute_javascript(code, inputs) {
+  print("  Attempting Javascript (should be blocked by governance)...")
+  try {
+    let result = codegen.run_with_args("javascript", code, inputs)
+    return { "success": true, "output": result }
+  } catch (e) {
+    print("  Governance Blocked JS: " + e)
+    return { "success": false, "output": e }
+  }
+}

@@ -1,0 +1,68 @@
+use regex
+use validate
+import "models.naab" as models
+
+export fn sanitize_string(input) {
+    if input == null {
+        return ""
+    }
+    let s = string.trim(input)
+    s = string.replace(s, "<", "")
+    s = string.replace(s, ">", "")
+    return s
+}
+
+export fn sanitize_log_line(line) {
+    if line == null {
+        return ""
+    }
+    let cleaned = regex.replace(line, "\u001b\\[[0-9;]*m", "")
+    return sanitize_string(cleaned)
+}
+
+export fn validate_event_schema(event_dict) {
+    let errors = []
+    let valid = true
+
+    if !event_dict.get("id") {
+        errors = errors + ["missing: id"]
+        valid = false
+    }
+
+    if !event_dict.get("timestamp") {
+        errors = errors + ["missing: timestamp"]
+        valid = false
+    }
+
+    if !event_dict.get("source") {
+        errors = errors + ["missing: source"]
+        valid = false
+    }
+
+    if event_dict.get("severity") == null {
+        errors = errors + ["missing: severity"]
+        valid = false
+    }
+
+    if !event_dict.get("message") {
+        errors = errors + ["missing: message"]
+        valid = false
+    }
+
+    return {"valid": valid, "errors": errors}
+}
+
+export fn validate_email_address(email) {
+    return validate.email(email)
+}
+
+export fn validate_timestamp(ts) {
+    if ts == null {
+        return false
+    }
+    let t = int(ts)
+    return t > 0
+}
+
+main {
+}

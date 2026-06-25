@@ -1,0 +1,30 @@
+import "vault_utils.naab" as v
+use agent
+use file
+use json
+
+main {
+    print("=== NAAb Secure Vault: MINIMAL Real Agent Pipeline ===")
+    
+    let arch = agent.create("architect")
+    let py_dev = agent.create("py_dev")
+    let js_dev = agent.create("js_dev")
+
+    print("\n[Step 1] Architect Design")
+    let flag = v.extract_clean_code(agent.send(arch, "Return only the string '--encrypt'."), "text")
+    print("  Flag: " + flag)
+
+    print("\n[Step 2] Python Backend")
+    let py_res = v.governed_request(py_dev, "Write a Python script that takes a string via '" + flag + "' and base64 encodes it.", "python", 2)
+    if py_res.get("success") {
+        file.write("vault_backend.py", py_res.get("code"))
+    }
+
+    print("\n[Step 3] Node CLI")
+    let js_res = v.governed_request(js_dev, "Write a Node.js script that spawns 'python3 vault_backend.py " + flag + " hello'.", "javascript", 2)
+    if js_res.get("success") {
+        file.write("vault_cli.js", js_res.get("code"))
+    }
+
+    print("\n=== Complete ===")
+}

@@ -1,0 +1,130 @@
+import "models.naab" as models
+
+use uuid
+
+export fn store_event(store, event) {
+    if store == null { store = {"events": []} }
+    if event == null { return {"store": store, "success": false, "event_id": null} }
+    let s = store
+    let events = s.get("events") ?? []
+    events.push(event)
+    s["events"] = events
+    return {"store": s, "success": true, "event_id": event.id}
+}
+
+export fn query_events(store, filters) {
+    if store == null { return {"results": [], "total": 0, "filtered": 0} }
+    let events = store.get("events") ?? []
+    let results = []
+    let total = len(events)
+
+    for event in events {
+        let include = true
+        if filters.get("source") != null {
+            include = include && event.source == filters.get("source")
+        }
+        if filters.get("severity") != null {
+            include = include && event.severity == filters.get("severity")
+        }
+        if filters.get("category") != null {
+            include = include && event.category == filters.get("category")
+        }
+        if include {
+            results.push(event)
+        }
+    }
+
+    return {"results": results, "total": total, "filtered": len(results)}
+}
+
+export fn get_event_by_id(store, event_id) {
+    if store == null || event_id == null { return null }
+    let events = store.get("events") ?? []
+    for event in events {
+        if event.id == event_id {
+            return event
+        }
+    }
+    return null
+}
+
+export fn delete_events_before(store, cutoff_time) {
+    if store == null { return {"store": store, "deleted_count": 0} }
+    let s = store
+    let events = s.get("events") ?? []
+    let remaining = []
+    let deleted = 0
+
+    for event in events {
+        if event.timestamp >= cutoff_time {
+            remaining.push(event)
+        } else {
+            deleted = deleted + 1
+        }
+    }
+
+    s["events"] = remaining
+    return {"store": s, "deleted_count": deleted}
+}
+
+fn aggregate_by_source(events) {
+    let counts = {}
+    for event in events {
+        let src = event.source ?? "unknown"
+        let current = counts.get(src) ?? 0
+        counts[src] = current + 1
+    }
+    return counts
+}
+
+export fn count_events_by_source(events) {
+    if events == null { return {} }
+    return events |> aggregate_by_source
+}
+
+fn index_severity_pairs(events) {
+    let by_sev = {}
+    for event in events {
+        let sev_key = string(event.severity)
+        let sev_arr = by_sev.get(sev_key) ?? []
+        sev_arr.push(event)
+        by_sev[sev_key] = sev_arr
+    }
+    return by_sev
+}
+
+fn index_category_pairs(events) {
+    let by_cat = {}
+    for event in events {
+        let cat_key = string(event.category)
+        let cat_arr = by_cat.get(cat_key) ?? []
+        cat_arr.push(event)
+        by_cat[cat_key] = cat_arr
+    }
+    return by_cat
+}
+
+export fn build_event_index(events) {
+    if events == null { return {"by_source": {}, "by_severity": {}, "by_category": {}, "by_hour": {}} }
+    let by_source = <<javascript[events]
+    const index = {};
+    for (const event of events) {
+        const src = event.source || "unknown";
+        if (!index[src]) index[src] = [];
+        index[src].push(event);
+    }
+    index
+    >>
+    let by_sev = events |> index_severity_pairs
+    let by_cat = events |> index_category_pairs
+    return {
+        "by_source": by_source,
+        "by_severity": by_sev,
+        "by_category": by_cat,
+        "by_hour": {}
+    }
+}
+
+main {
+    print("storage module loaded")
+}
