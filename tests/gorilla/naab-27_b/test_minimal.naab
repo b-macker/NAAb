@@ -1,7 +1,0 @@
-import "src/models.naab" as models
-
-main {
-    let e = models.create_event("e1", 1000, "server1", 0, "critical error", 3, "runtime", [], {})
-    print("Event created")
-    print(e.get("id"))
-}

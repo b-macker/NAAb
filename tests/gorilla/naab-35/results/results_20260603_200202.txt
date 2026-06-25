@@ -1,4 +1,0 @@
-NAAb-35 Results — 20260603_200202
-Pass: 9  Fail: 1  Skip: 0  Total: 10
-Failures:
-  [A10] Initial usage counters non-zero
