@@ -1321,18 +1321,18 @@ struct ContextDriftConfig {
         bool vocabulary_contraction = true;
         bool coherence_velocity = true;       // F1: fire when coherence decaying rapidly
         bool capability_underutilization = false; // F9: fire on sudden late capability use
-        bool semantic_stability = false;       // F19: fire on content topic shift (expensive)
-        bool mandate_alignment = false;        // fire when response drifts from system_prompt keywords
-        bool response_quality = false;         // fire when content/output ratio is low (agent)
-        bool thinking_collapse = false;        // fire when thinking tokens drop >50% from baseline
-        bool context_growth = false;           // fire when input tokens exceed baseline by factor
-        bool instruction_recall = false;       // fire when agent stops referencing earlier user instructions
-        bool plan_drift = false;               // fire when agent diverges from its stated multi-step plan
-        bool entity_consistency = false;       // fire when entity-context associations contradict prior turns
-        bool instruction_conflict = false;     // fire when user instructions contradict prior instructions
-        bool persona_fingerprint = false;      // fire when response style deviates from established baseline
-        bool tool_chain_integrity = false;     // fire when agent misrepresents tool results
-        bool claim_result_reconciliation = false; // fire when agent misrepresents tool success/failure status
+        bool semantic_stability = true;        // F19: fire on content topic shift
+        bool mandate_alignment = true;         // fire when response drifts from system_prompt keywords
+        bool response_quality = true;          // fire when content/output ratio is low (agent)
+        bool thinking_collapse = true;         // fire when thinking tokens drop >50% from baseline
+        bool context_growth = true;            // fire when input tokens exceed baseline by factor
+        bool instruction_recall = true;        // fire when agent stops referencing earlier user instructions
+        bool plan_drift = true;                // fire when agent diverges from its stated multi-step plan
+        bool entity_consistency = true;        // fire when entity-context associations contradict prior turns
+        bool instruction_conflict = true;      // fire when user instructions contradict prior instructions
+        bool persona_fingerprint = true;       // fire when response style deviates from established baseline
+        bool tool_chain_integrity = true;      // fire when agent misrepresents tool results
+        bool claim_result_reconciliation = true; // fire when agent misrepresents tool success/failure status
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.

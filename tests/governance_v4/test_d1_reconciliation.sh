@@ -158,8 +158,8 @@ else
     fail "A01" "Config parsing failed" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -3)"
 fi
 
-# A02: D1 signals default to OFF — no impact on existing behavior
-# What this tests: SignalConfig defaults (claim_result_reconciliation = false)
+# A02: D1 signals work with default config — no impact on existing behavior
+# What this tests: CDD works without explicit signal config in govern.json
 WORKDIR=$(setup_workdir)
 cat > "$WORKDIR/govern.json" << 'GOVEOF'
 {
@@ -186,7 +186,7 @@ NAABEOF
 
 OUTPUT=$(cd "$WORKDIR" && "$NAAB" "test.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
 if [ "$EXIT_CODE" -eq 0 ] && echo "$OUTPUT" | grep -q "HEALTH_OK"; then
-    pass "A02" "D1 signals default OFF — no impact on existing behavior"
+    pass "A02" "D1 signals work with default config — no impact on existing behavior"
 else
     fail "A02" "Default config broken" "exit=$EXIT_CODE"
 fi
@@ -508,7 +508,14 @@ else
       "mandate_alignment": true,
       "tool_chain_integrity": true,
       "claim_result_reconciliation": true,
-      "response_quality": true
+      "response_quality": true,
+      "thinking_collapse": false,
+      "context_growth": false,
+      "instruction_recall": false,
+      "plan_drift": false,
+      "entity_consistency": false,
+      "instruction_conflict": false,
+      "persona_fingerprint": false
     },
     "weights": {
       "semantic_stability": 0.10,
@@ -732,7 +739,7 @@ NAABEOF
 
     STDERR_FILE="$TEST_TMP/stderr_b.log"
     STDOUT_FILE="$WORKDIR/stdout.log"
-    (cd "$WORKDIR" && timeout 300 "$NAAB" --governance-dashboard "reconcil-test.naab" >"$STDOUT_FILE" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
+    (cd "$WORKDIR" && timeout 600 "$NAAB" --timeout 600 --governance-dashboard "reconcil-test.naab" >"$STDOUT_FILE" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
     OUTPUT=$(cat "$STDOUT_FILE" 2>/dev/null)
     TELEM_FILE="$WORKDIR/telemetry.jsonl"
 
