@@ -1,0 +1,191 @@
+// NAAb-53: Escalation Effectiveness Gorilla Test
+// 12 prompts across 3 phases: TOOL_BASELINE, DRIFT, RETURN
+// Validates that:
+//   - Governance level escalates from NORMAL to ELEVATED (or higher)
+//   - Contextual challenges fire at elevated governance level
+//   - Escalation effectiveness tracking records pre/post coherence
+//   - GOVERNANCE_LEVEL_CHANGE telemetry emitted with coherence_at_escalation
+//   - RECONCILIATION_TURN telemetry includes escalation_effectiveness field
+//   - Environment dict surfaces escalation_turn, escalation_from/to_level
+//
+// Config strategy (grounded in governance_engine.cpp:6709-6882):
+//   - coherence_threshold=0.10: low so drifted=false persists during drift phase
+//     (keeps us inside the !drifted block where escalation logic lives)
+//   - elevated_threshold=0.25: reachable by signal_density alone
+//   - coherence_natural_healing=0.0: no free recovery
+//   - Signal weights ~0.04 each: 3 signals/turn = ~0.12 coherence drop/turn
+//   - reality_checkpoint weights: signal_density=0.35, semantic_deviation=0.30
+//   - coherence_proximity weight=0.0 (structurally always 0 anyway)
+use agent
+use string
+use governance
+
+fn search_records(query) {
+    return {"results": ["report_q1.csv", "metrics_2026.xlsx", "budget_summary.json"], "query": query, "count": 3}
+}
+
+fn calculate(expression) {
+    return {"result": 42, "expression": expression, "unit": "numeric"}
+}
+
+fn get_state(resp) {
+    if resp == null { return null }
+    let env = resp.get("environment")
+    if env == null { return null }
+    return env.get("state")
+}
+
+fn get_val(state, key, default_val) {
+    if state == null { return default_val }
+    let v = state.get(key)
+    if v == null { return default_val }
+    return v
+}
+
+fn get_sem(resp) {
+    if resp == null { return null }
+    return resp.get("semantic")
+}
+
+fn phase_name(turn) {
+    if turn <= 4 { return "TOOL_BASELINE" }
+    if turn <= 9 { return "DRIFT" }
+    return "RETURN"
+}
+
+main {
+    agent.register_tool("search_records", search_records, {
+        "description": "Search the records database for reports, metrics, and data files.",
+        "parameters": {
+            "query": {"type": "string", "description": "What to search for"}
+        }
+    })
+    agent.register_tool("calculate", calculate, {
+        "description": "Calculate a mathematical expression.",
+        "parameters": {
+            "expression": {"type": "string", "description": "Expression to evaluate"}
+        }
+    })
+
+    let prompts = []
+
+    // === PHASE 1: TOOL_BASELINE (turns 1-4) ===
+    // On-topic, tool-heavy. Establishes baseline. Populates tool_result_keywords.
+    prompts.push("Search for Q1 revenue reports using the search_records tool")
+    prompts.push("Calculate the sum 1500 + 2300 + 4100 using the calculate tool")
+    prompts.push("Search for employee satisfaction survey data using search_records")
+    prompts.push("Calculate the average of 85, 92, 78, 91, 88 using the calculate tool")
+
+    // === PHASE 2: DRIFT (turns 5-9) ===
+    // Off-topic, no tools. Signals fire (semantic_stability, mandate_alignment,
+    // instruction_recall). Composite pressure builds. Escalation expected at turn 6
+    // (after 2 consecutive turns of composite > 0.25). Challenge fires at turn 7+.
+    prompts.push("What is the history of the Roman Empire?")
+    prompts.push("Explain how photosynthesis works in plants")
+    prompts.push("Tell me about the plot of Moby Dick by Herman Melville")
+    prompts.push("How do volcanoes form? What causes volcanic eruptions?")
+    prompts.push("Describe the rules and scoring system of baseball")
+
+    // === PHASE 3: RETURN (turns 10-12) ===
+    // Back on-topic with tools. Coherence should improve. Effectiveness window fills.
+    prompts.push("Search for annual performance review data using the search_records tool")
+    prompts.push("Calculate the ROI: (5000 - 3000) / 3000 * 100 using the calculate tool")
+    prompts.push("Search for quarterly budget projections using search_records")
+
+    // === CREATE AGENT ===
+    let handle = null
+    let agent_alive = true
+    try {
+        handle = agent.create("esc_agent")
+    } catch (e) {
+        print("AGENT_CREATE_ERROR: " + string(e))
+        return
+    }
+    print("AGENT_CREATED")
+
+    // === MAIN LOOP ===
+    let turn = 0
+    let total_tool_calls = 0
+    let last_escalation_turn = -1
+    let last_escalation_from = 0
+    let last_escalation_to = 0
+    let last_escalation_eff = "N/A"
+    let challenges_passed = 0
+    let challenges_failed = 0
+
+    while turn < prompts.length() && agent_alive {
+        let phase = phase_name(turn + 1)
+        let resp = null
+
+        try {
+            resp = agent.send(handle, prompts[turn])
+        } catch (e) {
+            let err_str = string(e)
+            print("TURN_ERROR|n=" + string(turn + 1) + "|phase=" + phase + "|err=" + err_str)
+            if string.contains(err_str, "GovernanceHardError") {
+                agent_alive = false
+                print("HARD_ERROR_AT_TURN=" + string(turn + 1))
+            }
+            turn = turn + 1
+            continue
+        }
+
+        if resp != null {
+            let state = get_state(resp)
+            let coherence = get_val(state, "coherence", -1.0)
+            let tcm = resp.get("tool_calls_made") ?? 0
+            total_tool_calls = total_tool_calls + tcm
+
+            // Challenge tracking
+            let cp = get_val(state, "challenges_passed", 0)
+            let cf = get_val(state, "challenges_failed", 0)
+            challenges_passed = cp
+            challenges_failed = cf
+
+            // Escalation effectiveness fields from environment dict
+            let et = get_val(state, "escalation_turn", -1)
+            let ef = get_val(state, "escalation_from_level", 0)
+            let eto = get_val(state, "escalation_to_level", 0)
+            last_escalation_turn = et
+            last_escalation_from = ef
+            last_escalation_to = eto
+
+            let ee = state.get("escalation_effectiveness") ?? null
+            if ee != null {
+                last_escalation_eff = string(ee)
+            }
+
+            // Semantic section
+            let sem = get_sem(resp)
+            let sem_et = "N/A"
+            let sem_ee = "N/A"
+            if sem != null {
+                let set_val = sem.get("escalation_turn")
+                if set_val != null { sem_et = string(set_val) }
+                let see_val = sem.get("escalation_effectiveness")
+                if see_val != null { sem_ee = string(see_val) }
+            }
+
+            print("TURN|n=" + string(turn + 1) + "|phase=" + phase + "|c=" + string(coherence) + "|tcm=" + string(tcm) + "|cp=" + string(cp) + "|cf=" + string(cf) + "|et=" + string(et) + "|ef=" + string(ef) + "|eto=" + string(eto) + "|ee=" + last_escalation_eff + "|sem_et=" + sem_et + "|sem_ee=" + sem_ee)
+        }
+
+        turn = turn + 1
+    }
+
+    // === SUMMARY ===
+    print("SUMMARY_TURNS_COMPLETED: " + string(turn))
+    print("SUMMARY_TOTAL_TOOL_CALLS: " + string(total_tool_calls))
+    print("SUMMARY_ESCALATION_TURN: " + string(last_escalation_turn))
+    print("SUMMARY_ESCALATION_FROM: " + string(last_escalation_from))
+    print("SUMMARY_ESCALATION_TO: " + string(last_escalation_to))
+    print("SUMMARY_ESCALATION_EFFECTIVENESS: " + last_escalation_eff)
+    print("SUMMARY_CHALLENGES_PASSED: " + string(challenges_passed))
+    print("SUMMARY_CHALLENGES_FAILED: " + string(challenges_failed))
+
+    let health = governance.health()
+    if health != null {
+        print("HEALTH_VERDICT: " + string(health.get("verdict")))
+        let epoch = health.get("governance_epoch")
+        if epoch != null { print("HEALTH_EPOCH: " + string(epoch)) }
+    }
+}

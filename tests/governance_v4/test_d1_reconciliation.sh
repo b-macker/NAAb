@@ -739,7 +739,7 @@ NAABEOF
 
     STDERR_FILE="$TEST_TMP/stderr_b.log"
     STDOUT_FILE="$WORKDIR/stdout.log"
-    (cd "$WORKDIR" && timeout 600 "$NAAB" --timeout 600 --governance-dashboard "reconcil-test.naab" >"$STDOUT_FILE" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
+    (cd "$WORKDIR" && timeout 300 "$NAAB" --timeout 300 --governance-dashboard "reconcil-test.naab" >"$STDOUT_FILE" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
     OUTPUT=$(cat "$STDOUT_FILE" 2>/dev/null)
     TELEM_FILE="$WORKDIR/telemetry.jsonl"
 
