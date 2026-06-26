@@ -3183,6 +3183,7 @@ private:
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;
     mutable std::mutex telemetry_fwd_mutex_;  // guards pointer swap during reload/destruction
     mutable std::mutex telemetry_hash_mutex_;  // guards last_telemetry_hash_ across concurrent writes
+    mutable std::mutex audit_data_mutex_;  // guards taint_flows_, polyglot_executions_, cross_block_flows_, side_effects_
 
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;

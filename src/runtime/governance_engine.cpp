@@ -5664,6 +5664,7 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
 // ============================================================================
 
 void GovernanceEngine::addPolyglotExecution(const PolyglotExecutionRecord& record) {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     polyglot_executions_.push_back(record);
 
     // Cross-block flow detection: check if any bound_vars were output by a previous block
@@ -5689,11 +5690,13 @@ void GovernanceEngine::addPolyglotExecution(const PolyglotExecutionRecord& recor
 }
 
 void GovernanceEngine::addTaintFlow(const TaintFlowRecord& flow) {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     taint_flows_.push_back(flow);
 }
 
 void GovernanceEngine::addSideEffect(const std::string& type, const std::string& detail,
                                       const std::string& file, int line) {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     side_effects_.push_back({type, detail, file, line});
 }
 
@@ -5710,6 +5713,7 @@ void GovernanceEngine::runPostExecutionAudit() {
 }
 
 void GovernanceEngine::auditPolyglotOutputs() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     for (const auto& rec : polyglot_executions_) {
         if (rec.captured_output.empty()) continue;
 
@@ -5760,6 +5764,7 @@ void GovernanceEngine::auditPolyglotOutputs() {
 }
 
 void GovernanceEngine::auditTaintFlows() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     // Taint flows are already accumulated via addTaintFlow() calls from checkTaintedSink()
     // Pass 2 just records a summary finding
     if (taint_flows_.empty()) return;
@@ -5782,6 +5787,7 @@ void GovernanceEngine::auditTaintFlows() {
 }
 
 void GovernanceEngine::auditDeterminism() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     for (const auto& rec : polyglot_executions_) {
         std::string err = checkDeterminism(rec.language, rec.final_code, rec.source_line);
         if (!err.empty()) {
@@ -5793,6 +5799,7 @@ void GovernanceEngine::auditDeterminism() {
 }
 
 void GovernanceEngine::auditSemanticCorrectness() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     for (const auto& rec : polyglot_executions_) {
         // Empty output check: only meaningful when output was expected to be captured
         // Many executors write to stdout directly (not captured), so this only fires
@@ -5820,6 +5827,7 @@ void GovernanceEngine::auditSemanticCorrectness() {
 }
 
 void GovernanceEngine::auditCrossBlockFlows() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     if (cross_block_flows_.empty()) return;
 
     int unsanitized = 0;
@@ -5995,13 +6003,16 @@ void GovernanceEngine::printValidationReport() {
     }
 
     // Side Effects
-    if (!side_effects_.empty()) {
-        std::map<std::string, int> effect_counts;
-        for (const auto& se : side_effects_) effect_counts[se.type]++;
-        fmt::print(stderr, "\n  Side Effects:\n");
-        for (const auto& [type, count] : effect_counts) {
-            fmt::print(stderr, "    {} {}: {}\n", count, type,
-                       count == 1 ? side_effects_.front().detail : "(multiple)");
+    {
+        std::lock_guard<std::mutex> lock(audit_data_mutex_);
+        if (!side_effects_.empty()) {
+            std::map<std::string, int> effect_counts;
+            for (const auto& se : side_effects_) effect_counts[se.type]++;
+            fmt::print(stderr, "\n  Side Effects:\n");
+            for (const auto& [type, count] : effect_counts) {
+                fmt::print(stderr, "    {} {}: {}\n", count, type,
+                           count == 1 ? side_effects_.front().detail : "(multiple)");
+            }
         }
     }
 

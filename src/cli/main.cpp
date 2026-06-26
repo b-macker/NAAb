@@ -810,7 +810,12 @@ int main(int argc, char** argv) {
             {
                 std::ifstream sf(store_path);
                 if (sf.is_open()) {
-                    try { sf >> store; } catch (...) {}
+                    try { sf >> store; } catch (...) {
+                        fprintf(stderr, "Error: Invalid approvals file: %s\n"
+                            "  Aborting to prevent data loss. Back up and delete the file to recover.\n",
+                            store_path.c_str());
+                        return 1;
+                    }
                 }
             }
             store[rule_name] = token;
@@ -1141,7 +1146,10 @@ int main(int argc, char** argv) {
                 use_vm = false;
             } else if (arg == "--gc-threshold" && i + 1 < argc) {
                 try { gc_threshold = std::stoul(argv[++i]); }
-                catch (...) { gc_threshold = 5000; }
+                catch (const std::exception&) {
+                    fprintf(stderr, "Error: --gc-threshold requires a numeric value\n");
+                    return 1;
+                }
             } else if (arg == "--gc-stats") {
                 gc_stats = true;
             } else if (arg == "--lock") {

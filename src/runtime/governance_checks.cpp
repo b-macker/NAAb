@@ -6799,7 +6799,10 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     }
 
     // Pass 2: Record taint flow for post-execution audit
-    taint_flows_.push_back({var_name, "", sink_type, "BLOCKED", file, line});
+    {
+        std::lock_guard<std::mutex> lock(audit_data_mutex_);
+        taint_flows_.push_back({var_name, "", sink_type, "BLOCKED", file, line});
+    }
 
     // Use "variable 'x'" for real names, omit "variable" for synthetic labels like
     // "argument 0 of 'file.write()'" to produce cleaner error messages
