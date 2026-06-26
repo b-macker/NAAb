@@ -3131,7 +3131,8 @@ private:
 
     // Scoring calibration — operator-driven weight overrides
     mutable std::unordered_map<std::string, ScoringCalibrationEntry> scoring_calibration_;
-    mutable bool scoring_calibration_loaded_ = false;
+    mutable std::atomic<bool> scoring_calibration_loaded_{false};
+    mutable std::mutex calibration_mutex_;  // guards scoring_calibration_ + dirty flag
     bool scoring_calibration_dirty_ = false;
     void loadScoringCalibration() const;
     void saveScoringCalibration() const;

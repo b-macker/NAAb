@@ -2498,6 +2498,7 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_GET_MEMBER): {
                 bool member_obj_taint = governance_ ? peekTaint(0) : false;
+                bool sanitizer_applied = false;
                 interpreter::NaabVal obj = pop();
                 std::string name = READ_CONSTANT(arg).toString();
                 if (obj.isDict()) {
@@ -2547,6 +2548,7 @@ interpreter::NaabVal VM::run() {
                                 peekTaint(0) = true;
                             } else if (governance_->isSanitizer(full_name)) {
                                 peekTaint(0) = false;
+                                sanitizer_applied = true;
                             }
                         }
                     } else if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
@@ -2561,6 +2563,7 @@ interpreter::NaabVal VM::run() {
                                     peekTaint(0) = true;
                                 } else if (governance_->isSanitizer(full_name)) {
                                     peekTaint(0) = false;
+                                    sanitizer_applied = true;
                                 }
                             }
                         } else {
@@ -2589,8 +2592,8 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
                 }
-                // Finding D fix: propagate object taint only if not already set by taint source check
-                if (governance_ && member_obj_taint && !peekTaint(0)) {
+                // Finding D fix: propagate object taint only if not already set by taint source/sanitizer check
+                if (governance_ && member_obj_taint && !peekTaint(0) && !sanitizer_applied) {
                     peekTaint(0) = true;
                 }
             }
