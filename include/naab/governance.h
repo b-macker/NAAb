@@ -3131,7 +3131,8 @@ private:
 
     // Scoring calibration — operator-driven weight overrides
     mutable std::unordered_map<std::string, ScoringCalibrationEntry> scoring_calibration_;
-    mutable bool scoring_calibration_loaded_ = false;
+    mutable std::atomic<bool> scoring_calibration_loaded_{false};
+    mutable std::mutex calibration_mutex_;  // guards scoring_calibration_ + dirty flag
     bool scoring_calibration_dirty_ = false;
     void loadScoringCalibration() const;
     void saveScoringCalibration() const;
@@ -3183,6 +3184,7 @@ private:
     mutable std::shared_ptr<TelemetryForwarder> telemetry_forwarder_;
     mutable std::mutex telemetry_fwd_mutex_;  // guards pointer swap during reload/destruction
     mutable std::mutex telemetry_hash_mutex_;  // guards last_telemetry_hash_ across concurrent writes
+    mutable std::mutex audit_data_mutex_;  // guards taint_flows_, polyglot_executions_, cross_block_flows_, side_effects_
 
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;

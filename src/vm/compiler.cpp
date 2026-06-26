@@ -1755,6 +1755,7 @@ void Compiler::visit(ast::InlineCodeExpr& node) {
         var_names.push_back(interpreter::NaabVal::makeString(v));
     }
     block["bound_vars"] = interpreter::NaabVal::makeList(std::move(var_names));
+    block["__line__"] = interpreter::NaabVal::makeInt(line);
 
     int info_idx = makeConstant(interpreter::NaabVal::makeDict(std::move(block)));
     uint32_t packed = (static_cast<uint32_t>(info_idx) << 8) |

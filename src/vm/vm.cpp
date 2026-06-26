@@ -334,6 +334,7 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
             if (end_val < 0) end_val += len;
             if (start < 0) start = 0;
             if (end_val > len) end_val = len;
+            if (end_val < start) end_val = start;
             return interpreter::NaabVal::makeString(s.substr(start, end_val - start));
         }
         runtimeError("__slice() requires a list or string");
@@ -2458,6 +2459,10 @@ interpreter::NaabVal VM::run() {
                                  idx_val.getTypeName().c_str());
                 }
                 int64_t idx = idx_val.asInt();
+                if (!list.isList()) {
+                    runtimeError("Iterator corruption: expected list, got %s",
+                                 list.getTypeName().c_str());
+                }
                 auto& elems = list.asListConst();
 
                 if (idx >= static_cast<int64_t>(elems.size())) {
@@ -2493,6 +2498,7 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_GET_MEMBER): {
                 bool member_obj_taint = governance_ ? peekTaint(0) : false;
+                bool sanitizer_applied = false;
                 interpreter::NaabVal obj = pop();
                 std::string name = READ_CONSTANT(arg).toString();
                 if (obj.isDict()) {
@@ -2542,6 +2548,7 @@ interpreter::NaabVal VM::run() {
                                 peekTaint(0) = true;
                             } else if (governance_->isSanitizer(full_name)) {
                                 peekTaint(0) = false;
+                                sanitizer_applied = true;
                             }
                         }
                     } else if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
@@ -2556,6 +2563,7 @@ interpreter::NaabVal VM::run() {
                                     peekTaint(0) = true;
                                 } else if (governance_->isSanitizer(full_name)) {
                                     peekTaint(0) = false;
+                                    sanitizer_applied = true;
                                 }
                             }
                         } else {
@@ -2584,8 +2592,8 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
                 }
-                // Finding D fix: propagate object taint only if not already set by taint source check
-                if (governance_ && member_obj_taint && !peekTaint(0)) {
+                // Finding D fix: propagate object taint only if not already set by taint source/sanitizer check
+                if (governance_ && member_obj_taint && !peekTaint(0) && !sanitizer_applied) {
                     peekTaint(0) = true;
                 }
             }
@@ -2702,6 +2710,7 @@ interpreter::NaabVal VM::run() {
                     bound_vals.push_back(peek(i));
                     bound_taints.push_back(governance_ ? peekTaint(i) : false);
                 }
+                auto* pre_pop_stack_top = stack_top_;
                 for (int i = 0; i < num_vars; i++) pop();
 
                 // V-VM-001/V-VM-004: Guard polyglot info dict access
@@ -2731,8 +2740,11 @@ interpreter::NaabVal VM::run() {
                 }
 
                 // Governance: check polyglot block
-                int polyglot_gov_line = CURRENT_CHUNK().getLine(
-                    static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                auto line_it = info.find("__line__");
+                int polyglot_gov_line = (line_it != info.end() && line_it->second.isInt())
+                    ? static_cast<int>(line_it->second.asInt())
+                    : CURRENT_CHUNK().getLine(
+                          static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
                 if (governance_) {
                     governance_->reloadIfChanged();
                     int gov_line = polyglot_gov_line;
@@ -2776,9 +2788,9 @@ interpreter::NaabVal VM::run() {
                                     if (stack_depth < num_vars) {
                                         runtimeError("Internal error: stack underflow in polyglot bound variable lookup");
                                     }
-                                    // bound vars are at stack positions: stack_top_ - num_vars + bi
+                                    // bound vars were at stack positions before pop: pre_pop_stack_top - num_vars + bi
                                     size_t var_offset = static_cast<size_t>(
-                                        (stack_top_ - num_vars + static_cast<int>(bi)) - stack_.get());
+                                        (pre_pop_stack_top - num_vars + static_cast<int>(bi)) - stack_.get());
                                     auto lit = taint_lineage_map_.find(var_offset);
                                     if (lit != taint_lineage_map_.end()) {
                                         origin_func = lit->second.source_func;

@@ -941,6 +941,10 @@ std::string GovernanceEngine::enforce(
     auto [cwes, owasps] = lookupCweOwasp(rule_name);
     std::string rationale = lookupRationale(rule_name);
     std::string explanation = generateExplanation(rule_name, level, false, rationale);
+    // Pre-load scoring calibration outside results_mutex_ to avoid I/O under lock
+    if (rules().scoring_calibration.enabled) {
+        loadScoringCalibration();
+    }
     {
         // V-CONC-007: mutex-guard concurrent access from async threads
         std::lock_guard<std::mutex> lock(results_mutex_);
@@ -1000,8 +1004,9 @@ std::string GovernanceEngine::enforce(
                 }
             }
             // Scoring calibration: operator weight override takes precedence over config
+            // (loadScoringCalibration already called before results_mutex_ to avoid I/O under lock)
             if (rules().scoring_calibration.enabled) {
-                loadScoringCalibration();
+                std::lock_guard<std::mutex> cal_lock(calibration_mutex_);
                 auto cit = scoring_calibration_.find(rule_name);
                 if (cit != scoring_calibration_.end() && cit->second.weight_override >= 0) {
                     weight = cit->second.weight_override;
@@ -3156,8 +3161,10 @@ bool GovernanceEngine::verifyScoreIntegrity() const {
 // ============================================================================
 
 void GovernanceEngine::loadScoringCalibration() const {
-    if (scoring_calibration_loaded_) return;
-    scoring_calibration_loaded_ = true;
+    if (scoring_calibration_loaded_.load(std::memory_order_acquire)) return;
+    std::lock_guard<std::mutex> lock(calibration_mutex_);
+    if (scoring_calibration_loaded_.load(std::memory_order_relaxed)) return;
+    scoring_calibration_loaded_.store(true, std::memory_order_relaxed);
     if (!rules().scoring_calibration.enabled) return;
 
     std::string path = rules().scoring_calibration.path;
@@ -3196,6 +3203,7 @@ void GovernanceEngine::loadScoringCalibration() const {
 }
 
 void GovernanceEngine::saveScoringCalibration() const {
+    std::lock_guard<std::mutex> lock(calibration_mutex_);
     if (scoring_calibration_.empty()) return;
 
     std::string path = rules().scoring_calibration.path;
@@ -3240,41 +3248,47 @@ bool GovernanceEngine::calibrateRule(const std::string& rule_name,
                                       const std::string& reason) {
     if (!rules().scoring_calibration.enabled) return false;
     loadScoringCalibration();
+    {
+        std::lock_guard<std::mutex> lock(calibration_mutex_);
+        auto& entry = scoring_calibration_[rule_name];
+        entry.weight_override = std::max(0, weight_override);
+        entry.reason = reason;
+        entry.observation_count++;
 
-    auto& entry = scoring_calibration_[rule_name];
-    entry.weight_override = std::max(0, weight_override);
-    entry.reason = reason;
-    entry.observation_count++;
-
-    auto now = std::chrono::system_clock::now();
-    auto t = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_buf;
+        auto now = std::chrono::system_clock::now();
+        auto t = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf;
 #ifdef _WIN32
-    localtime_s(&tm_buf, &t);
+        localtime_s(&tm_buf, &t);
 #else
-    localtime_r(&t, &tm_buf);
+        localtime_r(&t, &tm_buf);
 #endif
-    char ts[32];
-    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
-    entry.updated_at = std::string(ts);
+        char ts[32];
+        std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+        entry.updated_at = std::string(ts);
 
-    scoring_calibration_dirty_ = true;
+        scoring_calibration_dirty_ = true;
+    }
     return true;
 }
 
 bool GovernanceEngine::resetCalibration(const std::string& rule_name) {
     if (!rules().scoring_calibration.enabled) return false;
     loadScoringCalibration();
-    auto it = scoring_calibration_.find(rule_name);
-    if (it == scoring_calibration_.end()) return false;
-    scoring_calibration_.erase(it);
-    scoring_calibration_dirty_ = true;
+    {
+        std::lock_guard<std::mutex> lock(calibration_mutex_);
+        auto it = scoring_calibration_.find(rule_name);
+        if (it == scoring_calibration_.end()) return false;
+        scoring_calibration_.erase(it);
+        scoring_calibration_dirty_ = true;
+    }
     return true;
 }
 
 std::unordered_map<std::string, ScoringCalibrationEntry>
 GovernanceEngine::getCalibrationOverrides() const {
     loadScoringCalibration();
+    std::lock_guard<std::mutex> lock(calibration_mutex_);
     return scoring_calibration_;
 }
 
@@ -5664,6 +5678,7 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
 // ============================================================================
 
 void GovernanceEngine::addPolyglotExecution(const PolyglotExecutionRecord& record) {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     polyglot_executions_.push_back(record);
 
     // Cross-block flow detection: check if any bound_vars were output by a previous block
@@ -5689,11 +5704,13 @@ void GovernanceEngine::addPolyglotExecution(const PolyglotExecutionRecord& recor
 }
 
 void GovernanceEngine::addTaintFlow(const TaintFlowRecord& flow) {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     taint_flows_.push_back(flow);
 }
 
 void GovernanceEngine::addSideEffect(const std::string& type, const std::string& detail,
                                       const std::string& file, int line) {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     side_effects_.push_back({type, detail, file, line});
 }
 
@@ -5710,6 +5727,7 @@ void GovernanceEngine::runPostExecutionAudit() {
 }
 
 void GovernanceEngine::auditPolyglotOutputs() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     for (const auto& rec : polyglot_executions_) {
         if (rec.captured_output.empty()) continue;
 
@@ -5760,6 +5778,7 @@ void GovernanceEngine::auditPolyglotOutputs() {
 }
 
 void GovernanceEngine::auditTaintFlows() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     // Taint flows are already accumulated via addTaintFlow() calls from checkTaintedSink()
     // Pass 2 just records a summary finding
     if (taint_flows_.empty()) return;
@@ -5782,6 +5801,7 @@ void GovernanceEngine::auditTaintFlows() {
 }
 
 void GovernanceEngine::auditDeterminism() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     for (const auto& rec : polyglot_executions_) {
         std::string err = checkDeterminism(rec.language, rec.final_code, rec.source_line);
         if (!err.empty()) {
@@ -5793,6 +5813,7 @@ void GovernanceEngine::auditDeterminism() {
 }
 
 void GovernanceEngine::auditSemanticCorrectness() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     for (const auto& rec : polyglot_executions_) {
         // Empty output check: only meaningful when output was expected to be captured
         // Many executors write to stdout directly (not captured), so this only fires
@@ -5820,6 +5841,7 @@ void GovernanceEngine::auditSemanticCorrectness() {
 }
 
 void GovernanceEngine::auditCrossBlockFlows() {
+    std::lock_guard<std::mutex> lock(audit_data_mutex_);
     if (cross_block_flows_.empty()) return;
 
     int unsanitized = 0;
@@ -5995,13 +6017,16 @@ void GovernanceEngine::printValidationReport() {
     }
 
     // Side Effects
-    if (!side_effects_.empty()) {
-        std::map<std::string, int> effect_counts;
-        for (const auto& se : side_effects_) effect_counts[se.type]++;
-        fmt::print(stderr, "\n  Side Effects:\n");
-        for (const auto& [type, count] : effect_counts) {
-            fmt::print(stderr, "    {} {}: {}\n", count, type,
-                       count == 1 ? side_effects_.front().detail : "(multiple)");
+    {
+        std::lock_guard<std::mutex> lock(audit_data_mutex_);
+        if (!side_effects_.empty()) {
+            std::map<std::string, int> effect_counts;
+            for (const auto& se : side_effects_) effect_counts[se.type]++;
+            fmt::print(stderr, "\n  Side Effects:\n");
+            for (const auto& [type, count] : effect_counts) {
+                fmt::print(stderr, "    {} {}: {}\n", count, type,
+                           count == 1 ? side_effects_.front().detail : "(multiple)");
+            }
         }
     }
 
