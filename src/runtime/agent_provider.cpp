@@ -360,9 +360,9 @@ static NormalizedResponse normalizeResponse(
         }
         if (response.contains("usageMetadata")) {
             auto& usage = response["usageMetadata"];
-            if (usage.contains("promptTokenCount"))
+            if (usage.contains("promptTokenCount") && usage["promptTokenCount"].is_number_integer())
                 result.input_tokens = usage["promptTokenCount"].get<int>();
-            if (usage.contains("candidatesTokenCount"))
+            if (usage.contains("candidatesTokenCount") && usage["candidatesTokenCount"].is_number_integer())
                 result.output_tokens = usage["candidatesTokenCount"].get<int>();
             if (usage.contains("thoughtsTokenCount") && usage["thoughtsTokenCount"].is_number_integer())
                 result.thinking_tokens = usage["thoughtsTokenCount"].get<int>();
@@ -396,9 +396,9 @@ static NormalizedResponse normalizeResponse(
             result.truncated = true;
         if (response.contains("usage") && response["usage"].is_object()) {
             auto& usage = response["usage"];
-            if (usage.contains("input_tokens"))
+            if (usage.contains("input_tokens") && usage["input_tokens"].is_number_integer())
                 result.input_tokens = usage["input_tokens"].get<int>();
-            if (usage.contains("output_tokens"))
+            if (usage.contains("output_tokens") && usage["output_tokens"].is_number_integer())
                 result.output_tokens = usage["output_tokens"].get<int>();
         }
     }

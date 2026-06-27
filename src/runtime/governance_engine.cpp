@@ -5897,6 +5897,7 @@ std::string GovernanceEngine::computeCoverageReport() const {
 }
 
 void GovernanceEngine::printValidationReport() {
+    std::lock_guard<std::mutex> lock(results_mutex_);
     // Count pass 2 findings
     int pass2_checks = 0, pass2_findings = 0;
     std::vector<const CheckResult*> pass2_results;

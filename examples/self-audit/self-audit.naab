@@ -141,40 +141,41 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
+    // Manifest rotation v8: fresh files not covered by v4-v7 audits
     let manifest = [
-        {file: src + "/runtime/governance_checks.cpp",  lines: 6906, priority: "critical",
-         windows: [[3100, 3500], [4300, 4700], [6500, 6906]]},
-        {file: src + "/stdlib/agent_impl.cpp",          lines: 3587, priority: "critical",
-         windows: [[1700, 2100], [3000, 3400], [3400, 3587]]},
-        {file: src + "/runtime/governance_engine.cpp",  lines: 6594, priority: "critical",
-         windows: [[860, 1260], [2100, 2500], [5000, 5400]]},
-        {file: src + "/runtime/governance_config.cpp",  lines: 4424, priority: "high",
-         windows: [[2100, 2500], [4200, 4424]]},
-        {file: src + "/stdlib/codegen_impl.cpp",        lines: 593,  priority: "high",
-         windows: [[0, 593]]},
-        {file: src + "/vm/vm.cpp",                      lines: 5129, priority: "high",
-         windows: [[0, 400], [2400, 2800]]},
-        {file: src + "/cli/main.cpp",                   lines: 4752, priority: "medium",
-         windows: [[800, 1200], [2400, 2800]]}
+        {file: src + "/runtime/governance_reports.cpp",   lines: 2532, priority: "critical",
+         windows: [[0, 400], [800, 1200], [2100, 2532]]},
+        {file: src + "/runtime/behavioral_sequence.cpp",  lines: 1781, priority: "critical",
+         windows: [[0, 400], [800, 1200], [1400, 1781]]},
+        {file: src + "/interpreter/call_dispatch.cpp",    lines: 3351, priority: "critical",
+         windows: [[0, 400], [1400, 1800], [2900, 3351]]},
+        {file: src + "/runtime/agent_provider.cpp",       lines: 831,  priority: "high",
+         windows: [[0, 831]]},
+        {file: src + "/interpreter/interpreter.cpp",      lines: 3047, priority: "high",
+         windows: [[0, 400], [1400, 1800], [2600, 3047]]},
+        {file: src + "/vm/compiler.cpp",                  lines: 2161, priority: "high",
+         windows: [[0, 400], [1000, 1400], [1800, 2161]]},
+        {file: src + "/api/rest_api.cpp",                 lines: 728,  priority: "medium",
+         windows: [[0, 728]]}
     ]
 
     let boundaries = [
-        {name: "agent-governance", file_a: src + "/stdlib/agent_impl.cpp",
+        {name: "reports-engine", file_a: src + "/runtime/governance_reports.cpp",
          file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [3100, 3400], window_b: [860, 1060],
-         focus: "GovernanceGuard lifecycle, tool callback taint, agentSend→enforce path"},
-        {name: "vm-governance", file_a: src + "/vm/vm.cpp",
+         window_a: [0, 400], window_b: [5800, 6100],
+         focus: "Telemetry write paths, hash chain integrity, transcript hooks, fwrite error handling"},
+        {name: "bsd-engine", file_a: src + "/runtime/behavioral_sequence.cpp",
          file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [2400, 2700], window_b: [860, 1060],
-         focus: "VM taint stack↔governance taint, GovernanceHardError, callNaabFunction callback"},
-        {name: "codegen-governance", file_a: src + "/stdlib/codegen_impl.cpp",
-         file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [0, 400], window_b: [860, 1060],
-         focus: "codegen.run→governance checks, HardError in codegen try/catch, taint_all_args"},
-        {name: "config-engine", file_a: src + "/runtime/governance_config.cpp",
-         file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [4200, 4424], window_b: [2100, 2400],
-         focus: "Config reload→state consistency, ratchet enforcement, extends/inheritance"}
+         window_a: [800, 1100], window_b: [4800, 5100],
+         focus: "BSD pattern matching, cross-agent detection, event emission, mutex scope"},
+        {name: "dispatch-interpreter", file_a: src + "/interpreter/call_dispatch.cpp",
+         file_b: src + "/interpreter/interpreter.cpp",
+         window_a: [1400, 1700], window_b: [1400, 1700],
+         focus: "Function call routing, taint propagation through calls, GovernanceHardError in call paths"},
+        {name: "compiler-vm", file_a: src + "/vm/compiler.cpp",
+         file_b: src + "/vm/vm.cpp",
+         window_a: [1000, 1300], window_b: [2400, 2700],
+         focus: "Bytecode emission correctness, constant pool, polyglot block compilation, taint setup"}
     ]
 
     let suspicions = []
