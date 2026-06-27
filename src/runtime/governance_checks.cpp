@@ -3120,14 +3120,19 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
     }
     addTrace(fmt::format("body has {} lines", line_count));
 
+    // Strip comments — prevent // regex.match(...) from fooling sanitization detection.
+    // Input is already string-stripped (stripStringLiterals at call site line 4247),
+    // so stripComments won't be confused by // inside strings.
+    std::string body_clean = stripComments(body);
+
     // Check for real sanitization operations
     bool has_real_sanitization = false;
 
     // 1. Pattern validation (regex library usage)
-    if (body.find("regex.") != std::string::npos ||
-        body.find("regex_") != std::string::npos ||
-        body.find("re.match") != std::string::npos ||
-        body.find("re.search") != std::string::npos) {
+    if (body_clean.find("regex.") != std::string::npos ||
+        body_clean.find("regex_") != std::string::npos ||
+        body_clean.find("re.match") != std::string::npos ||
+        body_clean.find("re.search") != std::string::npos) {
         has_real_sanitization = true;
     }
 
@@ -3136,22 +3141,22 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
         static const std::regex rejection(
             "if\\s+[^{]*\\{[^}]*(?:return\\s+(?:false|null|0|\"\"|\\[\\]|\\{\\})|throw\\s)",
             std::regex::icase);
-        if (std::regex_search(body, rejection)) has_real_sanitization = true;
+        if (std::regex_search(body_clean, rejection)) has_real_sanitization = true;
     }
 
     // 3. Type checking with rejection (type() + != or ==)
     if (!has_real_sanitization) {
-        if (body.find("type(") != std::string::npos &&
-            (body.find("!=") != std::string::npos || body.find("==") != std::string::npos) &&
-            (body.find("return") != std::string::npos || body.find("throw") != std::string::npos)) {
+        if (body_clean.find("type(") != std::string::npos &&
+            (body_clean.find("!=") != std::string::npos || body_clean.find("==") != std::string::npos) &&
+            (body_clean.find("return") != std::string::npos || body_clean.find("throw") != std::string::npos)) {
             has_real_sanitization = true;
         }
     }
 
     // 4. Numeric conversion with try/catch (real error handling)
     if (!has_real_sanitization) {
-        if ((body.find("int(") != std::string::npos || body.find("float(") != std::string::npos) &&
-            body.find("try") != std::string::npos && body.find("catch") != std::string::npos) {
+        if ((body_clean.find("int(") != std::string::npos || body_clean.find("float(") != std::string::npos) &&
+            body_clean.find("try") != std::string::npos && body_clean.find("catch") != std::string::npos) {
             has_real_sanitization = true;
         }
     }
@@ -3161,18 +3166,18 @@ std::string GovernanceEngine::checkCosmeticSanitizer(
         static const std::regex bounds_check(
             "(?:>=?|<=?|>|<)\\s*(?:\\d+|len\\(|length\\(|size\\()",
             std::regex::icase);
-        if (std::regex_search(body, bounds_check) &&
-            (body.find("return") != std::string::npos || body.find("throw") != std::string::npos)) {
+        if (std::regex_search(body_clean, bounds_check) &&
+            (body_clean.find("return") != std::string::npos || body_clean.find("throw") != std::string::npos)) {
             has_real_sanitization = true;
         }
     }
 
     // 6. Allowlist/blocklist check (.contains() or "in [")
     if (!has_real_sanitization) {
-        if ((body.find(".contains(") != std::string::npos ||
-             body.find(" in [") != std::string::npos ||
-             body.find(" not in ") != std::string::npos) &&
-            (body.find("return") != std::string::npos || body.find("throw") != std::string::npos)) {
+        if ((body_clean.find(".contains(") != std::string::npos ||
+             body_clean.find(" in [") != std::string::npos ||
+             body_clean.find(" not in ") != std::string::npos) &&
+            (body_clean.find("return") != std::string::npos || body_clean.find("throw") != std::string::npos)) {
             has_real_sanitization = true;
         }
     }
