@@ -141,45 +141,46 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
-    // Manifest rotation v11: security-critical files not covered by v4-v10 audits
+    // Manifest rotation v12: stdlib security-sensitive files (zero prior coverage)
     // v4-v7: governance_checks, agent_impl, governance_engine, governance_config, codegen_impl, vm, main
     // v8: governance_reports, behavioral_sequence, call_dispatch, agent_provider, interpreter, compiler, rest_api
     // v9: polyglot, package_manager, modules, subprocess_helpers, python_c_executor, js_executor, governance_impl
     // v10: governance_init, project_context, expressions, checks_code_quality, scanner, cpp_executor, checks_redundancy
+    // v11: sandbox, trust_store, crypto_utils, tamper_evident_logger, error_sanitizer, agent_review, input_validator
     let manifest = [
-        {file: src + "/runtime/agent_review.cpp",          lines: 718,  priority: "critical",
-         windows: [[0, 400], [400, 718]]},
-        {file: src + "/runtime/tamper_evident_logger.cpp",  lines: 597,  priority: "critical",
-         windows: [[0, 400], [400, 597]]},
-        {file: src + "/runtime/sandbox.cpp",               lines: 444,  priority: "critical",
-         windows: [[0, 444]]},
-        {file: src + "/runtime/error_sanitizer.cpp",       lines: 325,  priority: "high",
-         windows: [[0, 325]]},
-        {file: src + "/runtime/crypto_utils.cpp",          lines: 301,  priority: "critical",
-         windows: [[0, 301]]},
-        {file: src + "/runtime/trust_store.cpp",           lines: 267,  priority: "critical",
-         windows: [[0, 267]]},
-        {file: src + "/runtime/input_validator.cpp",       lines: 139,  priority: "high",
-         windows: [[0, 139]]}
+        {file: src + "/stdlib/file_impl.cpp",     lines: 602,  priority: "critical",
+         windows: [[0, 400], [400, 602]]},
+        {file: src + "/stdlib/env_impl.cpp",       lines: 583,  priority: "critical",
+         windows: [[0, 400], [400, 583]]},
+        {file: src + "/stdlib/http_impl.cpp",      lines: 547,  priority: "critical",
+         windows: [[0, 400], [400, 547]]},
+        {file: src + "/stdlib/crypto_impl.cpp",    lines: 520,  priority: "high",
+         windows: [[0, 400], [400, 520]]},
+        {file: src + "/stdlib/stdlib.cpp",         lines: 483,  priority: "high",
+         windows: [[0, 400], [400, 483]]},
+        {file: src + "/stdlib/json_impl.cpp",      lines: 395,  priority: "high",
+         windows: [[0, 395]]},
+        {file: src + "/stdlib/process_impl.cpp",   lines: 185,  priority: "critical",
+         windows: [[0, 185]]}
     ]
 
     let boundaries = [
-        {name: "sandbox-containment", file_a: src + "/runtime/sandbox.cpp",
+        {name: "file-sandbox", file_a: src + "/stdlib/file_impl.cpp",
+         file_b: src + "/runtime/sandbox.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Filesystem stdlib → sandbox enforcement, path traversal prevention, symlink handling, blocked_paths check, permission mode enforcement"},
+        {name: "http-ssrf", file_a: src + "/stdlib/http_impl.cpp",
+         file_b: src + "/runtime/sandbox.cpp",
+         window_a: [0, 300], window_b: [200, 300],
+         focus: "HTTP stdlib → SSRF protection, private IP blocking, host whitelist enforcement, redirect following safety"},
+        {name: "env-governance", file_a: src + "/stdlib/env_impl.cpp",
+         file_b: src + "/runtime/governance_engine.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Env var stdlib → governance enforcement, blocked_read/allowed_read checks, value-before-check ordering, env_vars capability sync"},
+        {name: "process-containment", file_a: src + "/stdlib/process_impl.cpp",
          file_b: src + "/runtime/subprocess_helpers.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Sandbox enforcement → subprocess containment handoff, capability propagation, sandbox level mapping, privilege escalation vectors"},
-        {name: "crypto-trust", file_a: src + "/runtime/crypto_utils.cpp",
-         file_b: src + "/runtime/trust_store.cpp",
-         window_a: [0, 301], window_b: [0, 267],
-         focus: "Ed25519 signing → trust store verification, key validation, signature bypass, timing side channels, key format parsing"},
-        {name: "review-sanitizer", file_a: src + "/runtime/agent_review.cpp",
-         file_b: src + "/runtime/error_sanitizer.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Agent output review → error sanitization, information disclosure in review messages, bypass via encoding or splitting"},
-        {name: "logger-integrity", file_a: src + "/runtime/tamper_evident_logger.cpp",
-         file_b: src + "/runtime/audit_logger.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Tamper-evident hash chain → audit trail, chain integrity gaps, hash ordering, concurrent write safety, truncation handling"}
+         window_a: [0, 185], window_b: [0, 300],
+         focus: "Process stdlib → subprocess containment, command injection via arguments, sandbox capability check, output capture safety"}
     ]
 
     let suspicions = []
