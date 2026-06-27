@@ -45,6 +45,37 @@ static std::string stripStringLiterals(const std::string& code) {
         // Skip escape processing in raw strings (r"..." / r'...')
         if (c == '\\' && (in_single || in_double || in_backtick) && !in_raw) { escaped = true; continue; }
 
+        // S-10 fix: When not in a string, skip comment sequences so unmatched
+        // quotes in comments (e.g., // don't) don't toggle string mode.
+        // Comments are passed through to output for downstream checks that need them
+        // (e.g., checkPlaceholders intentionally detects // TODO in comments).
+        if (!in_single && !in_double && !in_backtick) {
+            // Line comment: //
+            if (c == '/' && i+1 < code.size() && code[i+1] == '/') {
+                while (i < code.size() && code[i] != '\n') {
+                    result += code[i];
+                    i++;
+                }
+                if (i < code.size()) result += code[i]; // newline
+                continue;
+            }
+            // Block comment: /* ... */
+            if (c == '/' && i+1 < code.size() && code[i+1] == '*') {
+                result += code[i]; i++; // /
+                result += code[i]; i++; // *
+                while (i < code.size()) {
+                    if (code[i] == '*' && i+1 < code.size() && code[i+1] == '/') {
+                        result += code[i]; i++; // *
+                        result += code[i]; // /
+                        break;
+                    }
+                    result += code[i];
+                    i++;
+                }
+                continue;
+            }
+        }
+
         // V-GOV-001: consume Python/JS string prefixes (f, b, r, u and two-letter
         // combinations rb, br, rf, fr) before quote detection. Without this, the
         // prefix character is left in the output, allowing f"malicious_code()" to

@@ -2104,8 +2104,8 @@ std::string GovernanceEngine::checkSecrets(
                         "  In NAAb:\n"
                         "    let key = env.get_var(\"YOUR_KEY_NAME\")"));
             }
-        } catch (const std::regex_error&) {
-            // Skip invalid patterns
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed in checkSecrets: %s\n", re.what());
         }
     }
 
@@ -2178,8 +2178,8 @@ std::string GovernanceEngine::checkPlaceholders(
                         "// TODO: implement validation\nfn validate(x) { return true }",
                         "fn validate(x) {\n    if type(x) != \"string\" { return false }\n    return x.length() > 0\n}"));
             }
-        } catch (const std::regex_error&) {
-            // Skip invalid patterns
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed in checkPlaceholders: %s\n", re.what());
         }
     }
 
@@ -2222,8 +2222,8 @@ std::string GovernanceEngine::checkHardcodedResults(
                         "        return False\n"
                         "    return \"name\" in data and \"value\" in data"));
             }
-        } catch (const std::regex_error&) {
-            // Skip invalid patterns
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed in checkHardcodedResults: %s\n", re.what());
         }
     }
 
