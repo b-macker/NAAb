@@ -141,41 +141,43 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
-    // Manifest rotation v8: fresh files not covered by v4-v7 audits
+    // Manifest rotation v9: fresh files not covered by v4-v8 audits
+    // v4-v7: governance_checks, agent_impl, governance_engine, governance_config, codegen_impl, vm, main
+    // v8: governance_reports, behavioral_sequence, call_dispatch, agent_provider, interpreter, compiler, rest_api
     let manifest = [
-        {file: src + "/runtime/governance_reports.cpp",   lines: 2532, priority: "critical",
-         windows: [[0, 400], [800, 1200], [2100, 2532]]},
-        {file: src + "/runtime/behavioral_sequence.cpp",  lines: 1781, priority: "critical",
-         windows: [[0, 400], [800, 1200], [1400, 1781]]},
-        {file: src + "/interpreter/call_dispatch.cpp",    lines: 3351, priority: "critical",
-         windows: [[0, 400], [1400, 1800], [2900, 3351]]},
-        {file: src + "/runtime/agent_provider.cpp",       lines: 831,  priority: "high",
-         windows: [[0, 831]]},
-        {file: src + "/interpreter/interpreter.cpp",      lines: 3047, priority: "high",
-         windows: [[0, 400], [1400, 1800], [2600, 3047]]},
-        {file: src + "/vm/compiler.cpp",                  lines: 2161, priority: "high",
-         windows: [[0, 400], [1000, 1400], [1800, 2161]]},
-        {file: src + "/api/rest_api.cpp",                 lines: 728,  priority: "medium",
-         windows: [[0, 728]]}
+        {file: src + "/interpreter/polyglot.cpp",          lines: 2414, priority: "critical",
+         windows: [[0, 400], [800, 1200], [1800, 2414]]},
+        {file: src + "/packages/package_manager.cpp",      lines: 1311, priority: "high",
+         windows: [[0, 400], [600, 1000], [1000, 1311]]},
+        {file: src + "/interpreter/modules.cpp",           lines: 974,  priority: "high",
+         windows: [[0, 400], [500, 974]]},
+        {file: src + "/runtime/subprocess_helpers.cpp",    lines: 788,  priority: "critical",
+         windows: [[0, 400], [400, 788]]},
+        {file: src + "/runtime/python_c_executor.cpp",     lines: 718,  priority: "high",
+         windows: [[0, 400], [400, 718]]},
+        {file: src + "/runtime/js_executor.cpp",           lines: 931,  priority: "high",
+         windows: [[0, 400], [400, 931]]},
+        {file: src + "/stdlib/governance_impl.cpp",        lines: 438,  priority: "medium",
+         windows: [[0, 438]]}
     ]
 
     let boundaries = [
-        {name: "reports-engine", file_a: src + "/runtime/governance_reports.cpp",
+        {name: "polyglot-subprocess", file_a: src + "/interpreter/polyglot.cpp",
+         file_b: src + "/runtime/subprocess_helpers.cpp",
+         window_a: [400, 700], window_b: [0, 300],
+         focus: "Polyglot execution → subprocess containment handoff, sandbox level propagation, RLIMIT enforcement, timeout propagation"},
+        {name: "modules-governance", file_a: src + "/interpreter/modules.cpp",
          file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [0, 400], window_b: [5800, 6100],
-         focus: "Telemetry write paths, hash chain integrity, transcript hooks, fwrite error handling"},
-        {name: "bsd-engine", file_a: src + "/runtime/behavioral_sequence.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Module import → governance check path, filesystem access validation, blocked_paths enforcement, fail-open on import errors"},
+        {name: "executor-governance", file_a: src + "/runtime/python_c_executor.cpp",
+         file_b: src + "/runtime/governance_checks.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Python executor → governance check interface, output sanitization, exit code handling, taint on execution results"},
+        {name: "governance-stdlib", file_a: src + "/stdlib/governance_impl.cpp",
          file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [800, 1100], window_b: [4800, 5100],
-         focus: "BSD pattern matching, cross-agent detection, event emission, mutex scope"},
-        {name: "dispatch-interpreter", file_a: src + "/interpreter/call_dispatch.cpp",
-         file_b: src + "/interpreter/interpreter.cpp",
-         window_a: [1400, 1700], window_b: [1400, 1700],
-         focus: "Function call routing, taint propagation through calls, GovernanceHardError in call paths"},
-        {name: "compiler-vm", file_a: src + "/vm/compiler.cpp",
-         file_b: src + "/vm/vm.cpp",
-         window_a: [1000, 1300], window_b: [2400, 2700],
-         focus: "Bytecode emission correctness, constant pool, polyglot block compilation, taint setup"}
+         window_a: [0, 438], window_b: [6500, 6800],
+         focus: "governance.health() stdlib → engine state reads, mutex consistency, stale data exposure"}
     ]
 
     let suspicions = []
