@@ -997,13 +997,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 // Extract capability category from the detail string
                 // Detail typically contains the check name (e.g., "filesystem", "network")
                 std::string det = ev.detail;
-                if (det.find("file") != std::string::npos || det.find("File") != std::string::npos ||
+                std::transform(det.begin(), det.end(), det.begin(), ::tolower);
+                if (det.find("file") != std::string::npos ||
                     det.find("path") != std::string::npos) this_turn_blocked.insert("filesystem");
-                if (det.find("network") != std::string::npos || det.find("Network") != std::string::npos ||
+                if (det.find("network") != std::string::npos ||
                     det.find("http") != std::string::npos) this_turn_blocked.insert("network");
-                if (det.find("shell") != std::string::npos || det.find("Shell") != std::string::npos ||
+                if (det.find("shell") != std::string::npos ||
                     det.find("exec") != std::string::npos) this_turn_blocked.insert("execution");
-                if (det.find("env") != std::string::npos || det.find("Env") != std::string::npos)
+                if (det.find("env") != std::string::npos)
                     this_turn_blocked.insert("environment");
             } else {
                 std::string cap = capCategory(ev.type);
