@@ -1793,12 +1793,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
         // Run-level call budget check
         if (hs.max_calls_per_run > 0 && s_dispatch.total_calls.load() > hs.max_calls_per_run) {
+            std::string reason;
             {
                 std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
                 s_dispatch.hard_stopped = true;
                 s_dispatch.stop_reason = "max_calls_per_run (" + std::to_string(hs.max_calls_per_run) + ") exceeded";
+                reason = s_dispatch.stop_reason;
             }
-            throw std::runtime_error("Agent error: Hard stop — " + s_dispatch.stop_reason);
+            throw std::runtime_error("Agent error: Hard stop — " + reason);
         }
 
         auto attempt_start = std::chrono::steady_clock::now();
@@ -1957,11 +1959,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Consecutive failure hard stop
         if (hs.consecutive_failure_limit > 0 &&
             s_dispatch.consecutive_failures.load() >= hs.consecutive_failure_limit) {
+            std::string reason;
             {
                 std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
                 s_dispatch.hard_stopped = true;
                 s_dispatch.stop_reason = "consecutive_failure_limit (" +
                     std::to_string(hs.consecutive_failure_limit) + ") reached";
+                reason = s_dispatch.stop_reason;
             }
             if (gov_engine && gov_engine->isActive() &&
                 gov_engine->getRules().context_drift.enabled) {
@@ -1969,12 +1973,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
             if (gov_engine && gov_engine->isActive()) {
                 gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
-                    {"reason", s_dispatch.stop_reason},
+                    {"reason", reason},
                     {"total_calls", std::to_string(s_dispatch.total_calls.load())},
                     {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
                 });
             }
-            throw std::runtime_error("Agent error: Hard stop — " + s_dispatch.stop_reason +
+            throw std::runtime_error("Agent error: Hard stop — " + reason +
                 "\n\n  Last error: " + last_error);
         }
 

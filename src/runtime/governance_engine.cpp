@@ -2104,8 +2104,8 @@ std::string GovernanceEngine::checkSecrets(
                         "  In NAAb:\n"
                         "    let key = env.get_var(\"YOUR_KEY_NAME\")"));
             }
-        } catch (const std::regex_error&) {
-            // Skip invalid patterns
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed in checkSecrets: %s\n", re.what());
         }
     }
 
@@ -2127,16 +2127,19 @@ std::string GovernanceEngine::checkPlaceholders(
             if (std::regex_search(code, match, re)) {
                 // Find the line containing the match
                 std::string matched_line;
-                std::istringstream stream(code);
-                std::string l;
                 auto offset = static_cast<int>(match.position());
-                int pos = 0;
-                while (std::getline(stream, l)) {
-                    if (pos + static_cast<int>(l.size()) >= offset) {
-                        matched_line = l;
-                        break;
-                    }
-                    pos += l.size() + 1;
+                // Walk raw bytes to find the line containing the match offset
+                // (handles \n, \r\n, and \r without including \r in matched_line)
+                int line_start = 0;
+                for (int ci = 0; ci <= offset && ci < static_cast<int>(code.size()); ci++) {
+                    if (code[ci] == '\n') line_start = ci + 1;
+                }
+                int line_end = offset;
+                while (line_end < static_cast<int>(code.size()) && code[line_end] != '\n' && code[line_end] != '\r') {
+                    line_end++;
+                }
+                if (line_start < static_cast<int>(code.size())) {
+                    matched_line = code.substr(line_start, line_end - line_start);
                 }
 
                 // Trim the matched line
@@ -2178,8 +2181,8 @@ std::string GovernanceEngine::checkPlaceholders(
                         "// TODO: implement validation\nfn validate(x) { return true }",
                         "fn validate(x) {\n    if type(x) != \"string\" { return false }\n    return x.length() > 0\n}"));
             }
-        } catch (const std::regex_error&) {
-            // Skip invalid patterns
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed in checkPlaceholders: %s\n", re.what());
         }
     }
 
@@ -2222,8 +2225,8 @@ std::string GovernanceEngine::checkHardcodedResults(
                         "        return False\n"
                         "    return \"name\" in data and \"value\" in data"));
             }
-        } catch (const std::regex_error&) {
-            // Skip invalid patterns
+        } catch (const std::regex_error& re) {
+            fprintf(stderr, "[governance] Warning: regex pattern failed in checkHardcodedResults: %s\n", re.what());
         }
     }
 
