@@ -141,43 +141,44 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
-    // Manifest rotation v9: fresh files not covered by v4-v8 audits
+    // Manifest rotation v10: fresh files not covered by v4-v9 audits
     // v4-v7: governance_checks, agent_impl, governance_engine, governance_config, codegen_impl, vm, main
     // v8: governance_reports, behavioral_sequence, call_dispatch, agent_provider, interpreter, compiler, rest_api
+    // v9: polyglot, package_manager, modules, subprocess_helpers, python_c_executor, js_executor, governance_impl
     let manifest = [
-        {file: src + "/interpreter/polyglot.cpp",          lines: 2414, priority: "critical",
-         windows: [[0, 400], [800, 1200], [1800, 2414]]},
-        {file: src + "/packages/package_manager.cpp",      lines: 1311, priority: "high",
-         windows: [[0, 400], [600, 1000], [1000, 1311]]},
-        {file: src + "/interpreter/modules.cpp",           lines: 974,  priority: "high",
-         windows: [[0, 400], [500, 974]]},
-        {file: src + "/runtime/subprocess_helpers.cpp",    lines: 788,  priority: "critical",
-         windows: [[0, 400], [400, 788]]},
-        {file: src + "/runtime/python_c_executor.cpp",     lines: 718,  priority: "high",
-         windows: [[0, 400], [400, 718]]},
-        {file: src + "/runtime/js_executor.cpp",           lines: 931,  priority: "high",
-         windows: [[0, 400], [400, 931]]},
-        {file: src + "/stdlib/governance_impl.cpp",        lines: 438,  priority: "medium",
-         windows: [[0, 438]]}
+        {file: src + "/cli/governance_init.cpp",           lines: 1661, priority: "critical",
+         windows: [[0, 400], [600, 1000], [1200, 1661]]},
+        {file: src + "/runtime/project_context.cpp",       lines: 1573, priority: "high",
+         windows: [[0, 400], [600, 1000], [1200, 1573]]},
+        {file: src + "/interpreter/expressions.cpp",       lines: 1332, priority: "high",
+         windows: [[0, 400], [600, 1000], [1000, 1332]]},
+        {file: src + "/scanner/checks_code_quality.cpp",   lines: 975,  priority: "high",
+         windows: [[0, 400], [400, 975]]},
+        {file: src + "/scanner/scanner.cpp",               lines: 911,  priority: "high",
+         windows: [[0, 400], [400, 911]]},
+        {file: src + "/runtime/cpp_executor.cpp",          lines: 843,  priority: "critical",
+         windows: [[0, 400], [400, 843]]},
+        {file: src + "/scanner/checks_redundancy.cpp",     lines: 769,  priority: "medium",
+         windows: [[0, 400], [400, 769]]}
     ]
 
     let boundaries = [
-        {name: "polyglot-subprocess", file_a: src + "/interpreter/polyglot.cpp",
+        {name: "init-config", file_a: src + "/cli/governance_init.cpp",
+         file_b: src + "/runtime/governance_config.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "CLI governance init → config loading handoff, signature verification, environment selection, error handling on malformed govern.json"},
+        {name: "expressions-taint", file_a: src + "/interpreter/expressions.cpp",
+         file_b: src + "/runtime/governance_taint.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Expression evaluation → taint propagation, operator-based taint spreading, type coercion taint loss"},
+        {name: "scanner-engine", file_a: src + "/scanner/scanner.cpp",
+         file_b: src + "/scanner/checks_code_quality.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Scanner core → check dispatch, finding deduplication, false negative risk from check ordering or short-circuit"},
+        {name: "cpp-subprocess", file_a: src + "/runtime/cpp_executor.cpp",
          file_b: src + "/runtime/subprocess_helpers.cpp",
-         window_a: [400, 700], window_b: [0, 300],
-         focus: "Polyglot execution → subprocess containment handoff, sandbox level propagation, RLIMIT enforcement, timeout propagation"},
-        {name: "modules-governance", file_a: src + "/interpreter/modules.cpp",
-         file_b: src + "/runtime/governance_engine.cpp",
          window_a: [0, 300], window_b: [0, 300],
-         focus: "Module import → governance check path, filesystem access validation, blocked_paths enforcement, fail-open on import errors"},
-        {name: "executor-governance", file_a: src + "/runtime/python_c_executor.cpp",
-         file_b: src + "/runtime/governance_checks.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Python executor → governance check interface, output sanitization, exit code handling, taint on execution results"},
-        {name: "governance-stdlib", file_a: src + "/stdlib/governance_impl.cpp",
-         file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [0, 438], window_b: [6500, 6800],
-         focus: "governance.health() stdlib → engine state reads, mutex consistency, stale data exposure"}
+         focus: "C++ executor → subprocess containment, compilation command injection, temp file cleanup, sandbox level propagation"}
     ]
 
     let suspicions = []
