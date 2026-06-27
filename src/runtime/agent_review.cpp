@@ -157,12 +157,15 @@ static std::string buildDetectionPrompt(const std::string& categories,
                 if (trimmed.rfind("function ", 0) == 0 || trimmed.rfind("fn ", 0) == 0 ||
                     trimmed.rfind("func ", 0) == 0 || trimmed.rfind("def ", 0) == 0) {
                     size_t name_start = trimmed.find(' ') + 1;
+                    while (name_start < trimmed.size() && trimmed[name_start] == ' ')
+                        name_start++;
                     size_t name_end = name_start;
                     while (name_end < trimmed.size() &&
                            (std::isalnum(static_cast<unsigned char>(trimmed[name_end])) || trimmed[name_end] == '_'))
                         name_end++;
                     llm_intents.push_back({trimmed.substr(name_start, name_end - name_start), current_intent});
-                } else if (trimmed.rfind("main", 0) == 0) {
+                } else if (trimmed.rfind("main", 0) == 0 &&
+                           (trimmed.size() == 4 || trimmed[4] == ' ' || trimmed[4] == '{')) {
                     llm_intents.push_back({"main", current_intent});
                 }
                 current_intent.clear();

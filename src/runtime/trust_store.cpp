@@ -13,6 +13,24 @@
 namespace naab {
 namespace security {
 
+// Backward-compatible file lookup: try exact fingerprint, then old 16-char suffix
+// Needed because fingerprints expanded from 16 to 32 hex chars
+static std::string findFileByFingerprint(const std::string& store,
+                                          const std::string& fp,
+                                          const std::string& suffix) {
+    // Try exact match first (works for both new 32-char and old 16-char)
+    std::string exact = store + "/" + fp + suffix;
+    if (std::filesystem::exists(exact)) return exact;
+
+    // If fp is 32 chars, try matching the last 16 chars (old format)
+    if (fp.size() == 32) {
+        std::string old_fp = fp.substr(16);
+        std::string old_path = store + "/" + old_fp + suffix;
+        if (std::filesystem::exists(old_path)) return old_path;
+    }
+    return "";  // Not found
+}
+
 std::string TrustStore::getStorePath() {
     // Allow test isolation via explicit override (not in LLM-facing docs)
     const char* override_dir = std::getenv("NAAB_TRUST_STORE_DIR");
@@ -125,6 +143,22 @@ bool TrustStore::installKey(const std::string& public_key_pem) {
     chmod(store.c_str(), 0755);
 #endif
 
+    // Migrate old 16-char fingerprint files to new 32-char format
+    if (fp.size() == 32) {
+        std::string old_fp = fp.substr(16);
+        std::string old_key = store + "/" + old_fp + ".pub";
+        std::string old_meta = store + "/" + old_fp + ".meta.json";
+        std::string new_key = store + "/" + fp + ".pub";
+        std::string new_meta = store + "/" + fp + ".meta.json";
+        std::error_code rename_ec;
+        if (std::filesystem::exists(old_key, ec) && !std::filesystem::exists(new_key, ec)) {
+            std::filesystem::rename(old_key, new_key, rename_ec);
+        }
+        if (std::filesystem::exists(old_meta, ec) && !std::filesystem::exists(new_meta, ec)) {
+            std::filesystem::rename(old_meta, new_meta, rename_ec);
+        }
+    }
+
     // Write <fingerprint>.pub
     std::string key_path = store + "/" + fp + ".pub";
     std::ofstream ofs(key_path);
@@ -179,9 +213,10 @@ std::vector<std::string> TrustStore::listKeyFingerprints() {
 KeyMetadata TrustStore::loadKeyMetadata(const std::string& fingerprint) {
     KeyMetadata meta;
     meta.fingerprint = fingerprint;
-    std::string meta_path = getStorePath() + "/" + fingerprint + ".meta.json";
+    std::string meta_path = findFileByFingerprint(getStorePath(), fingerprint, ".meta.json");
+    if (meta_path.empty()) return meta;  // No metadata file — backward compat
     std::ifstream ifs(meta_path);
-    if (!ifs.is_open()) return meta;  // No metadata file — backward compat
+    if (!ifs.is_open()) return meta;
 
     try {
         nlohmann::json j = nlohmann::json::parse(ifs);
@@ -247,10 +282,9 @@ bool TrustStore::isKeyRevoked(const std::string& fingerprint) {
 }
 
 bool TrustStore::revokeKey(const std::string& fingerprint, const std::string& reason) {
-    // Verify key exists
-    std::string key_path = getStorePath() + "/" + fingerprint + ".pub";
-    std::error_code ec;
-    if (!std::filesystem::exists(key_path, ec)) {
+    // Verify key exists (backward-compat: try old 16-char fingerprint too)
+    std::string key_path = findFileByFingerprint(getStorePath(), fingerprint, ".pub");
+    if (key_path.empty()) {
         fprintf(stderr, "[trust-store] Error: Key not found: %s\n", fingerprint.c_str());
         return false;
     }

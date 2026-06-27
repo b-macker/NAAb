@@ -256,9 +256,23 @@ bool Sandbox::canConnect(const std::string& host, int port) const {
 
     // Check host whitelist (if specified)
     if (!config_.allowed_hosts.empty()) {
+        // Case-insensitive hostname comparison (RFC 1035: domain names are case-insensitive)
+        auto host_eq = [](const std::string& a, const std::string& b) -> bool {
+            if (a.size() != b.size()) return false;
+            for (size_t i = 0; i < a.size(); i++) {
+                if (std::tolower(static_cast<unsigned char>(a[i])) !=
+                    std::tolower(static_cast<unsigned char>(b[i]))) return false;
+            }
+            return true;
+        };
+
         bool host_allowed = false;
         for (const auto& allowed_host : config_.allowed_hosts) {
-            if (host == allowed_host || host.find(allowed_host) != std::string::npos) {
+            // Exact match (case-insensitive) or subdomain match (dot boundary)
+            if (host_eq(host, allowed_host) ||
+                (host.size() > allowed_host.size() &&
+                 host[host.size() - allowed_host.size() - 1] == '.' &&
+                 host_eq(host.substr(host.size() - allowed_host.size()), allowed_host))) {
                 host_allowed = true;
                 break;
             }

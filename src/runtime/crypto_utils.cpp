@@ -293,8 +293,9 @@ std::string CryptoUtils::ed25519Fingerprint(const std::string& pem) {
     SHA256(raw.data(), raw_len, hash);
 
     std::string full_hex = toHex(hash, SHA256_DIGEST_LENGTH);
-    // Return last 16 hex chars as fingerprint
-    return full_hex.substr(full_hex.size() > 16 ? full_hex.size() - 16 : 0);
+    // Return last 32 hex chars as fingerprint (128-bit security margin)
+    // Previously 16 chars (64 bits) — birthday attack threshold at ~2^32 was too low
+    return full_hex.substr(full_hex.size() > 32 ? full_hex.size() - 32 : 0);
 }
 
 } // namespace security
