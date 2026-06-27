@@ -107,20 +107,16 @@ bool JsExecutor::execute(const std::string& code, JsExecutionMode mode) {
         code_to_execute = code;
     }
 
-    // Set up timeout mechanism (30 seconds)
+    // Set up timeout via ScopedTimeout (RAII — no detached threads)
     timeout_triggered_ = false;
-    std::thread timeout_thread([this]() {
-        std::this_thread::sleep_for(std::chrono::seconds(30));
-        timeout_triggered_ = true;
-    });
-    timeout_thread.detach();
+    unsigned int exec_timeout = 30;
+    auto* sb = security::ScopedSandbox::getCurrent();
+    if (sb) exec_timeout = sb->getConfig().max_cpu_seconds;
+    security::ScopedTimeout scoped_timeout(exec_timeout);
 
     // Evaluate code
     JSValue result = JS_Eval(ctx_, code_to_execute.c_str(), code_to_execute.length(),
                               "<naab-block>", JS_EVAL_TYPE_GLOBAL);
-
-    // Clear timeout flag
-    timeout_triggered_ = false;
 
     // Check for errors
     if (JS_IsException(result)) {
@@ -170,20 +166,16 @@ interpreter::NaabVal JsExecutor::callFunction(
         js_args.push_back(toJSValue(ctx_, arg));
     }
 
-    // Set up timeout mechanism (30 seconds)
+    // Set up timeout via ScopedTimeout (RAII — no detached threads)
     timeout_triggered_ = false;
-    std::thread timeout_thread([this]() {
-        std::this_thread::sleep_for(std::chrono::seconds(30));
-        timeout_triggered_ = true;
-    });
-    timeout_thread.detach();
+    unsigned int call_timeout = 30;
+    auto* call_sb = security::ScopedSandbox::getCurrent();
+    if (call_sb) call_timeout = call_sb->getConfig().max_cpu_seconds;
+    security::ScopedTimeout scoped_timeout(call_timeout);
 
     // Call function
     JSValue result = JS_Call(ctx_, func, global,
                              js_args.size(), js_args.data());
-
-    // Clear timeout flag
-    timeout_triggered_ = false;
 
     // Free arguments
     for (auto& js_arg : js_args) {
@@ -233,10 +225,13 @@ interpreter::NaabVal JsExecutor::evaluate(
         security::ResourceLimiter::installSignalHandlers();
     }
 
-    // Enterprise Security: Get limits from sandbox config (if active)
+    // Enterprise Security: Check sandbox permissions for evaluation
     unsigned int timeout = 30;  // Default: 30 seconds
     size_t memory_limit = 512;  // Default: 512MB
     auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox && !sandbox->getConfig().hasCapability(security::Capability::BLOCK_CALL)) {
+        throw std::runtime_error("Sandbox violation: JavaScript evaluation denied (BLOCK_CALL capability required)");
+    }
     if (sandbox) {
         timeout = sandbox->getConfig().max_cpu_seconds;
         memory_limit = sandbox->getConfig().max_memory_mb;
