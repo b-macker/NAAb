@@ -141,44 +141,45 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
-    // Manifest rotation v10: fresh files not covered by v4-v9 audits
+    // Manifest rotation v11: security-critical files not covered by v4-v10 audits
     // v4-v7: governance_checks, agent_impl, governance_engine, governance_config, codegen_impl, vm, main
     // v8: governance_reports, behavioral_sequence, call_dispatch, agent_provider, interpreter, compiler, rest_api
     // v9: polyglot, package_manager, modules, subprocess_helpers, python_c_executor, js_executor, governance_impl
+    // v10: governance_init, project_context, expressions, checks_code_quality, scanner, cpp_executor, checks_redundancy
     let manifest = [
-        {file: src + "/cli/governance_init.cpp",           lines: 1661, priority: "critical",
-         windows: [[0, 400], [600, 1000], [1200, 1661]]},
-        {file: src + "/runtime/project_context.cpp",       lines: 1573, priority: "high",
-         windows: [[0, 400], [600, 1000], [1200, 1573]]},
-        {file: src + "/interpreter/expressions.cpp",       lines: 1332, priority: "high",
-         windows: [[0, 400], [600, 1000], [1000, 1332]]},
-        {file: src + "/scanner/checks_code_quality.cpp",   lines: 975,  priority: "high",
-         windows: [[0, 400], [400, 975]]},
-        {file: src + "/scanner/scanner.cpp",               lines: 911,  priority: "high",
-         windows: [[0, 400], [400, 911]]},
-        {file: src + "/runtime/cpp_executor.cpp",          lines: 843,  priority: "critical",
-         windows: [[0, 400], [400, 843]]},
-        {file: src + "/scanner/checks_redundancy.cpp",     lines: 769,  priority: "medium",
-         windows: [[0, 400], [400, 769]]}
+        {file: src + "/runtime/agent_review.cpp",          lines: 718,  priority: "critical",
+         windows: [[0, 400], [400, 718]]},
+        {file: src + "/runtime/tamper_evident_logger.cpp",  lines: 597,  priority: "critical",
+         windows: [[0, 400], [400, 597]]},
+        {file: src + "/runtime/sandbox.cpp",               lines: 444,  priority: "critical",
+         windows: [[0, 444]]},
+        {file: src + "/runtime/error_sanitizer.cpp",       lines: 325,  priority: "high",
+         windows: [[0, 325]]},
+        {file: src + "/runtime/crypto_utils.cpp",          lines: 301,  priority: "critical",
+         windows: [[0, 301]]},
+        {file: src + "/runtime/trust_store.cpp",           lines: 267,  priority: "critical",
+         windows: [[0, 267]]},
+        {file: src + "/runtime/input_validator.cpp",       lines: 139,  priority: "high",
+         windows: [[0, 139]]}
     ]
 
     let boundaries = [
-        {name: "init-config", file_a: src + "/cli/governance_init.cpp",
-         file_b: src + "/runtime/governance_config.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "CLI governance init → config loading handoff, signature verification, environment selection, error handling on malformed govern.json"},
-        {name: "expressions-taint", file_a: src + "/interpreter/expressions.cpp",
-         file_b: src + "/runtime/governance_taint.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Expression evaluation → taint propagation, operator-based taint spreading, type coercion taint loss"},
-        {name: "scanner-engine", file_a: src + "/scanner/scanner.cpp",
-         file_b: src + "/scanner/checks_code_quality.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Scanner core → check dispatch, finding deduplication, false negative risk from check ordering or short-circuit"},
-        {name: "cpp-subprocess", file_a: src + "/runtime/cpp_executor.cpp",
+        {name: "sandbox-containment", file_a: src + "/runtime/sandbox.cpp",
          file_b: src + "/runtime/subprocess_helpers.cpp",
          window_a: [0, 300], window_b: [0, 300],
-         focus: "C++ executor → subprocess containment, compilation command injection, temp file cleanup, sandbox level propagation"}
+         focus: "Sandbox enforcement → subprocess containment handoff, capability propagation, sandbox level mapping, privilege escalation vectors"},
+        {name: "crypto-trust", file_a: src + "/runtime/crypto_utils.cpp",
+         file_b: src + "/runtime/trust_store.cpp",
+         window_a: [0, 301], window_b: [0, 267],
+         focus: "Ed25519 signing → trust store verification, key validation, signature bypass, timing side channels, key format parsing"},
+        {name: "review-sanitizer", file_a: src + "/runtime/agent_review.cpp",
+         file_b: src + "/runtime/error_sanitizer.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Agent output review → error sanitization, information disclosure in review messages, bypass via encoding or splitting"},
+        {name: "logger-integrity", file_a: src + "/runtime/tamper_evident_logger.cpp",
+         file_b: src + "/runtime/audit_logger.cpp",
+         window_a: [0, 300], window_b: [0, 300],
+         focus: "Tamper-evident hash chain → audit trail, chain integrity gaps, hash ordering, concurrent write safety, truncation handling"}
     ]
 
     let suspicions = []
