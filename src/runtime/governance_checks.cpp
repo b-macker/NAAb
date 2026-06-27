@@ -3269,6 +3269,8 @@ std::string GovernanceEngine::checkComplexityFloor(
     analyzer::SyntacticProfile profile;
     try {
         profile = sa.analyze(code, function_name);
+    } catch (const governance::GovernanceHardError&) {
+        throw;
     } catch (...) {
         addTrace("skipped: syntactic analysis failed");
         return "";  // Can't analyze — skip floor check
