@@ -141,46 +141,47 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
-    // Manifest rotation v12: stdlib security-sensitive files (zero prior coverage)
+    // Manifest rotation v13: execution pipeline + taint + resource limits (zero prior coverage)
     // v4-v7: governance_checks, agent_impl, governance_engine, governance_config, codegen_impl, vm, main
     // v8: governance_reports, behavioral_sequence, call_dispatch, agent_provider, interpreter, compiler, rest_api
     // v9: polyglot, package_manager, modules, subprocess_helpers, python_c_executor, js_executor, governance_impl
     // v10: governance_init, project_context, expressions, checks_code_quality, scanner, cpp_executor, checks_redundancy
     // v11: sandbox, trust_store, crypto_utils, tamper_evident_logger, error_sanitizer, agent_review, input_validator
+    // v12: file_impl, env_impl, http_impl, crypto_impl, stdlib, json_impl, process_impl
     let manifest = [
-        {file: src + "/stdlib/file_impl.cpp",     lines: 602,  priority: "critical",
-         windows: [[0, 400], [400, 602]]},
-        {file: src + "/stdlib/env_impl.cpp",       lines: 583,  priority: "critical",
-         windows: [[0, 400], [400, 583]]},
-        {file: src + "/stdlib/http_impl.cpp",      lines: 547,  priority: "critical",
-         windows: [[0, 400], [400, 547]]},
-        {file: src + "/stdlib/crypto_impl.cpp",    lines: 520,  priority: "high",
-         windows: [[0, 400], [400, 520]]},
-        {file: src + "/stdlib/stdlib.cpp",         lines: 483,  priority: "high",
-         windows: [[0, 400], [400, 483]]},
-        {file: src + "/stdlib/json_impl.cpp",      lines: 395,  priority: "high",
-         windows: [[0, 395]]},
-        {file: src + "/stdlib/process_impl.cpp",   lines: 185,  priority: "critical",
-         windows: [[0, 185]]}
+        {file: src + "/stdlib/codegen_impl.cpp",              lines: 596,  priority: "critical",
+         windows: [[0, 400], [400, 596]]},
+        {file: src + "/runtime/generic_subprocess_executor.cpp", lines: 456, priority: "critical",
+         windows: [[0, 400], [400, 456]]},
+        {file: src + "/runtime/shell_executor.cpp",           lines: 372,  priority: "critical",
+         windows: [[0, 372]]},
+        {file: src + "/interpreter/governance_taint.cpp",     lines: 292,  priority: "high",
+         windows: [[0, 292]]},
+        {file: src + "/runtime/resource_limits.cpp",          lines: 251,  priority: "high",
+         windows: [[0, 251]]},
+        {file: src + "/stdlib/orchestra_impl.cpp",            lines: 276,  priority: "high",
+         windows: [[0, 276]]},
+        {file: src + "/stdlib/debug_impl.cpp",                lines: 644,  priority: "medium",
+         windows: [[0, 400], [400, 644]]}
     ]
 
     let boundaries = [
-        {name: "file-sandbox", file_a: src + "/stdlib/file_impl.cpp",
-         file_b: src + "/runtime/sandbox.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Filesystem stdlib → sandbox enforcement, path traversal prevention, symlink handling, blocked_paths check, permission mode enforcement"},
-        {name: "http-ssrf", file_a: src + "/stdlib/http_impl.cpp",
-         file_b: src + "/runtime/sandbox.cpp",
-         window_a: [0, 300], window_b: [200, 300],
-         focus: "HTTP stdlib → SSRF protection, private IP blocking, host whitelist enforcement, redirect following safety"},
-        {name: "env-governance", file_a: src + "/stdlib/env_impl.cpp",
+        {name: "codegen-governance", file_a: src + "/stdlib/codegen_impl.cpp",
          file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [0, 300], window_b: [0, 300],
-         focus: "Env var stdlib → governance enforcement, blocked_read/allowed_read checks, value-before-check ordering, env_vars capability sync"},
-        {name: "process-containment", file_a: src + "/stdlib/process_impl.cpp",
+         window_a: [0, 400], window_b: [0, 300],
+         focus: "Codegen dynamic execution → governance checks, nesting prevention, taint policy, cumulative limits, GHE propagation"},
+        {name: "shell-containment", file_a: src + "/runtime/shell_executor.cpp",
          file_b: src + "/runtime/subprocess_helpers.cpp",
-         window_a: [0, 185], window_b: [0, 300],
-         focus: "Process stdlib → subprocess containment, command injection via arguments, sandbox capability check, output capture safety"}
+         window_a: [0, 372], window_b: [100, 300],
+         focus: "Shell executor → subprocess containment, command injection via shell metacharacters, PATH restriction, env scrubbing"},
+        {name: "taint-interpreter", file_a: src + "/interpreter/governance_taint.cpp",
+         file_b: src + "/interpreter/interpreter.cpp",
+         window_a: [0, 292], window_b: [1600, 1950],
+         focus: "Taint propagation → interpreter assignment/return, source/sanitizer matching, stale flag consumption, polyglot output tainting"},
+        {name: "resource-subprocess", file_a: src + "/runtime/resource_limits.cpp",
+         file_b: src + "/runtime/subprocess_helpers.cpp",
+         window_a: [0, 251], window_b: [100, 200],
+         focus: "Resource limits → subprocess containment, RLIMIT_AS parent vs child, process-wide vs per-child limits, limit persistence across fork"}
     ]
 
     let suspicions = []
