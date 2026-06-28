@@ -40,7 +40,7 @@ public:
 
     // Returns true if the function mutates its first argument
     // Used for automatic mutation handling (array.push, etc.)
-    virtual bool isMutatingFunction(const std::string& function_name) const {
+    virtual bool isMutatingFunction(const std::string& /*function_name*/) const {
         return false;  // Default: not mutating
     }
 };

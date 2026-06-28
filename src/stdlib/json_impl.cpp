@@ -138,10 +138,6 @@ interpreter::NaabVal jsonToValue(const json& j) {
     return interpreter::NaabVal::makeNull();
 }
 
-// V-DOS-009: Maximum JSON serialization depth
-// Default depth 64, overridden by governance max_json_depth via limits::setMaxJsonDepth()
-static constexpr int DEFAULT_JSON_DEPTH = 64;
-
 // Helper: Convert NaabVal to nlohmann::json with depth + cycle guards
 json valueToJson(const interpreter::NaabVal& val, int depth = 0,
                  std::unordered_set<const void*>* visited = nullptr) {

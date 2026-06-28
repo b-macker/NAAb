@@ -29,7 +29,7 @@ public:
     // Throws std::runtime_error if the queue is full (>= max_queue_size tasks pending).
     template<typename F, typename... Args>
     auto enqueue(F&& f, Args&&... args)
-        -> std::future<typename std::result_of<F(Args...)>::type>;
+        -> std::future<std::invoke_result_t<F, Args...>>;
 
     // Get number of worker threads
     size_t getNumThreads() const { return workers_.size(); }
@@ -62,9 +62,9 @@ private:
 // Template implementation must be in header
 template<typename F, typename... Args>
 auto ThreadPool::enqueue(F&& f, Args&&... args)
-    -> std::future<typename std::result_of<F(Args...)>::type>
+    -> std::future<std::invoke_result_t<F, Args...>>
 {
-    using return_type = typename std::result_of<F(Args...)>::type;
+    using return_type = std::invoke_result_t<F, Args...>;
 
     auto task = std::make_shared<std::packaged_task<return_type()>>(
         std::bind(std::forward<F>(f), std::forward<Args>(args)...)
