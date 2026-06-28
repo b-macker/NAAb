@@ -6743,12 +6743,13 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
 
     // --- Composite pressure detection + circuit breaker + pulse ---
-    // Composite pressure, pulse verdict, and governance level updates run whenever
-    // CDD is active (getDriftState returns valid state). Only the blocking reality
-    // checkpoint enforcement is gated on rccfg.enabled. This decoupling ensures
-    // circuit breaker and pulse can function independently of reality_checkpoint.
+    // Pressure factors, pulse verdict, and governance level updates run
+    // unconditionally whenever getDriftState returns valid state — even when
+    // drifted. This ensures governance_level_ stays current so step-up
+    // challenges can fire as a recovery mechanism. Only enforcement actions
+    // (reality checkpoint) are gated on !drifted.
     const auto& rccfg = rules().context_drift.reality_checkpoint;
-    if (!drifted) {
+    {
         auto state = drift_analyzer_.getDriftState(handle_id);
         if (state) {
             // Factor 1: Coherence proximity (how close to threshold)
@@ -6883,9 +6884,9 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // Reality checkpoint enforcement — pulse and circuit breaker
             // run above (before this block) so governance state is current
-            // even when checkpoint fires. Only the blocking enforcement
-            // action is gated on rccfg.enabled.
-            if (rccfg.enabled) {
+            // even when checkpoint fires. Enforcement is gated on !drifted
+            // (coherence_loss handles the drifted case separately below).
+            if (!drifted && rccfg.enabled) {
                 // Check trigger condition: sustained + cooldown
                 if (consecutive >= rccfg.sustained_turns_required &&
                     (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
