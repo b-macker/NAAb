@@ -54,8 +54,8 @@ struct SubprocessContainment {
     bool block_fork = false;          // L2: RLIMIT_NPROC=0 / ACTIVE_PROCESS=1
     size_t max_fsize_bytes = 0;       // L3: RLIMIT_FSIZE (0 = no limit)
     size_t max_nofile = 0;            // L3: RLIMIT_NOFILE (0 = no limit)
-    size_t max_memory_bytes = 0;      // L3: Job memory limit (Windows)
-    size_t max_cpu_ms = 0;            // L3: Job CPU time (Windows)
+    size_t max_memory_bytes = 0;      // L3/L7: Memory limit (RLIMIT_AS / Job memory)
+    size_t max_cpu_ms = 0;            // L3/L8: CPU time limit (RLIMIT_CPU / Job CPU time)
 
     bool no_new_privs = false;        // L4: prctl(PR_SET_NO_NEW_PRIVS)
     bool strip_network_env = false;   // L5: remove proxy env vars

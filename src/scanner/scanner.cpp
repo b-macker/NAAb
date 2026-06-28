@@ -352,11 +352,11 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
     // Load scan settings
     if (scanner_cfg.contains("scan") && scanner_cfg["scan"].is_object()) {
         auto& scan = scanner_cfg["scan"];
-        if (scan.contains("max_files")) config_.max_files = scan["max_files"].get<int>();
-        if (scan.contains("max_depth")) config_.max_depth = scan["max_depth"].get<int>();
-        if (scan.contains("max_file_size_kb")) config_.max_file_size_kb = scan["max_file_size_kb"].get<int>();
-        if (scan.contains("include_tests")) config_.include_tests = scan["include_tests"].get<bool>();
-        if (scan.contains("follow_symlinks")) config_.follow_symlinks = scan["follow_symlinks"].get<bool>();
+        if (scan.contains("max_files") && scan["max_files"].is_number_integer()) config_.max_files = scan["max_files"].get<int>();
+        if (scan.contains("max_depth") && scan["max_depth"].is_number_integer()) config_.max_depth = scan["max_depth"].get<int>();
+        if (scan.contains("max_file_size_kb") && scan["max_file_size_kb"].is_number_integer()) config_.max_file_size_kb = scan["max_file_size_kb"].get<int>();
+        if (scan.contains("include_tests") && scan["include_tests"].is_boolean()) config_.include_tests = scan["include_tests"].get<bool>();
+        if (scan.contains("follow_symlinks") && scan["follow_symlinks"].is_boolean()) config_.follow_symlinks = scan["follow_symlinks"].get<bool>();
         if (scan.contains("exclude_patterns") && scan["exclude_patterns"].is_array()) {
             config_.exclude_patterns.clear();
             for (auto& p : scan["exclude_patterns"]) {
@@ -401,15 +401,15 @@ bool ScannerEngine::loadConfigFromPath(const std::string& govern_json_path, bool
     if (scanner_cfg.contains("output") && scanner_cfg["output"].is_object()) {
         auto& output = scanner_cfg["output"];
         if (output.contains("format") && output["format"].is_string()) config_.output_format = output["format"].get<std::string>();
-        if (output.contains("max_issues_per_file")) config_.max_issues_per_file = output["max_issues_per_file"].get<int>();
-        if (output.contains("max_total_issues")) config_.max_total_issues = output["max_total_issues"].get<int>();
+        if (output.contains("max_issues_per_file") && output["max_issues_per_file"].is_number_integer()) config_.max_issues_per_file = output["max_issues_per_file"].get<int>();
+        if (output.contains("max_total_issues") && output["max_total_issues"].is_number_integer()) config_.max_total_issues = output["max_total_issues"].get<int>();
         if (output.contains("group_by") && output["group_by"].is_string()) config_.group_by = output["group_by"].get<std::string>();
         if (output.contains("sort_by") && output["sort_by"].is_string()) config_.sort_by = output["sort_by"].get<std::string>();
-        if (output.contains("show_line_preview")) config_.show_line_preview = output["show_line_preview"].get<bool>();
-        if (output.contains("show_fix_suggestion")) config_.show_fix_suggestion = output["show_fix_suggestion"].get<bool>();
-        if (output.contains("save_json")) config_.save_json = output["save_json"].get<bool>();
-        if (output.contains("save_text")) config_.save_text = output["save_text"].get<bool>();
-        if (output.contains("save_sarif")) config_.save_sarif = output["save_sarif"].get<bool>();
+        if (output.contains("show_line_preview") && output["show_line_preview"].is_boolean()) config_.show_line_preview = output["show_line_preview"].get<bool>();
+        if (output.contains("show_fix_suggestion") && output["show_fix_suggestion"].is_boolean()) config_.show_fix_suggestion = output["show_fix_suggestion"].get<bool>();
+        if (output.contains("save_json") && output["save_json"].is_boolean()) config_.save_json = output["save_json"].get<bool>();
+        if (output.contains("save_text") && output["save_text"].is_boolean()) config_.save_text = output["save_text"].get<bool>();
+        if (output.contains("save_sarif") && output["save_sarif"].is_boolean()) config_.save_sarif = output["save_sarif"].get<bool>();
         if (output.contains("json_path") && output["json_path"].is_string()) config_.json_path = output["json_path"].get<std::string>();
         if (output.contains("text_path") && output["text_path"].is_string()) config_.text_path = output["text_path"].get<std::string>();
         if (output.contains("sarif_path") && output["sarif_path"].is_string()) config_.sarif_path = output["sarif_path"].get<std::string>();

@@ -1,6 +1,7 @@
 #include "naab/tamper_evident_logger.h"
 #include "naab/audit_logger.h"
 #include "naab/crypto_utils.h"
+#include "naab/governance.h"
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -517,6 +518,8 @@ VerificationResult TamperEvidenceLogger::verifyIntegrity(const std::string& hmac
             expected_prev_hash = entry.hash;
             expected_sequence = entry.sequence + 1;
 
+        } catch (const governance::GovernanceHardError&) {
+            throw;  // Uncatchable — propagate to main
         } catch (const std::exception& e) {
             result.is_valid = false;
             result.errors.push_back(fmt::format(

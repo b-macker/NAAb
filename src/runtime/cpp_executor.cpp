@@ -8,6 +8,7 @@
 #include "naab/input_validator.h"
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
+#include "naab/subprocess_helpers.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.5: Cross-language stack traces
 #include <fmt/core.h>
 #include <fstream>
@@ -249,59 +250,51 @@ bool CppExecutor::compileToSharedLibrary(
     std::string naab_include = naab::paths::include_dir();
     std::string python_include = naab::paths::python_include_dir();
 
-    std::ostringstream cmd;
-    cmd << compiler << " "
-        << "-std=c++17 "
-        << "-fPIC "           // Position-independent code
-        << "-shared "         // Build shared library
-        << "-O2 "             // Optimize
-        << "-I" << naab_include << " "  // Include NAAb headers
-        << "-I" << python_include << " "  // Include Python headers (for pybind11)
-        << "-o " << so_path << " "
-        << source_path << " ";
+    // Build args vector for execute_subprocess_with_pipes (no shell interpretation)
+    std::vector<std::string> compile_args = {
+        "-std=c++17", "-fPIC", "-shared", "-O2",
+        "-I" + naab_include, "-I" + python_include,
+        "-o", so_path, source_path
+    };
 
-    // Add library flags if any
+    // Add library flags if any (space-separated from buildLibraryFlags)
     if (!lib_flags.empty()) {
-        cmd << lib_flags << " ";
+        std::istringstream lf(lib_flags);
+        std::string flag;
+        while (lf >> flag) compile_args.push_back(flag);
     }
 
-    cmd << "2>&1";  // Capture stderr
-
-    std::string command = cmd.str();
-    // Command (silent)
-
     // Check sandbox permissions for command execution
+    std::string flat_cmd = compiler;
+    for (const auto& a : compile_args) flat_cmd += " " + a;
     auto* sandbox = security::ScopedSandbox::getCurrent();
-    if (sandbox && !sandbox->canExecuteCommand(command)) {
+    if (sandbox && !sandbox->canExecuteCommand(flat_cmd)) {
         fmt::print("[ERROR] Sandbox violation: Command execution denied\n");
-        sandbox->logViolation("executeCommand", command, "SYS_EXEC capability required");
+        sandbox->logViolation("executeCommand", flat_cmd, "SYS_EXEC capability required");
         return false;
     }
 
-    // Execute compilation with timeout protection
-    // Use system() instead of popen() to avoid blocking on pclose()
+    // Execute compilation with subprocess containment and timeout
     int exit_code = -1;
     std::string compiler_output;
 
     try {
-        // Set 60-second timeout for compilation (increased for complex blocks)
         security::ScopedTimeout timeout(60);
 
-        // Redirect output to temp file to capture it
-        std::string output_file = source_path + ".compile_output";
-        std::string full_command = command + " > " + output_file + " 2>&1";
+        std::string compile_stdout, compile_stderr;
+        SubprocessContainment containment = SubprocessContainment::fromCurrentSandbox(compiler);
+        // Compiler needs to fork (e.g., cc1plus) and access system paths
+        containment.block_fork = false;
+        containment.restrict_path = false;
 
-        exit_code = system(full_command.c_str());
+        exit_code = execute_subprocess_with_pipes(
+            compiler, compile_args,
+            compile_stdout, compile_stderr,
+            nullptr, &containment);
 
-        // Read compiler output from file
-        std::ifstream output_stream(output_file);
-        if (output_stream.is_open()) {
-            std::string line;
-            while (std::getline(output_stream, line)) {
-                compiler_output += line + "\n";
-            }
-            output_stream.close();
-            fs::remove(output_file);  // Clean up
+        compiler_output = compile_stdout;
+        if (!compile_stderr.empty()) {
+            compiler_output += compile_stderr;
         }
 
     } catch (const security::ResourceLimitException& e) {

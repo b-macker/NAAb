@@ -11,9 +11,9 @@ namespace naab {
 namespace scanner {
 
 static inline std::string trim(const std::string& s) {
-    size_t start = s.find_first_not_of(" \t");
+    size_t start = s.find_first_not_of(" \t\r");
     if (start == std::string::npos) return "";
-    size_t end = s.find_last_not_of(" \t");
+    size_t end = s.find_last_not_of(" \t\r");
     return s.substr(start, end - start + 1);
 }
 

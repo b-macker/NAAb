@@ -2346,7 +2346,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             // Generate a block expression that creates a HashMap
             std::string result = "{ let mut __m = std::collections::HashMap::new(); ";
             for (const auto& [key, val] : dict) {
-                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val, language, depth + 1) + "); ";
+                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val, language, depth + 1, visited) + "); ";
             }
             result += "__m }";
             return result;
@@ -2359,7 +2359,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language, depth + 1) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language, depth + 1, visited) + "}";
             }
             result += "}";
             return result;
@@ -2372,7 +2372,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language, depth + 1) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language, depth + 1, visited) + "}";
             }
             result += "}";
             return result;

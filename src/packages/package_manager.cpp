@@ -402,6 +402,14 @@ PackageManager::ParsedSpec PackageManager::parseSpec(const std::string& spec) co
         }
     }
 
+    // V-PKG-003: Block path traversal sequences in owner/repo/version
+    // Single dots are fine (version "1.2.3"), but ".." and "/" escape the sandbox
+    for (const auto& s : {result.owner, result.repo, result.version}) {
+        if (s.find("..") != std::string::npos || s.find('/') != std::string::npos) {
+            return ParsedSpec{};
+        }
+    }
+
     return result;
 }
 
