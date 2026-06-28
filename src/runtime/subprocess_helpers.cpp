@@ -138,6 +138,25 @@ static void apply_posix_containment(const SubprocessContainment& c) {
         setrlimit(RLIMIT_NOFILE, &rl);
     }
 
+    // L7: Memory limit — RLIMIT_AS caps virtual address space for the child.
+    // Safe post-fork: only affects this child process, not the parent.
+    // (cf. buildMemoryLimitError() documents the parent-process RLIMIT_AS disaster.)
+    if (c.max_memory_bytes > 0) {
+        struct rlimit rl = {(rlim_t)c.max_memory_bytes, (rlim_t)c.max_memory_bytes};
+        setrlimit(RLIMIT_AS, &rl);
+    }
+
+    // L8: CPU time limit — RLIMIT_CPU complements wall-clock timeout.
+    // Kernel sends SIGXCPU at soft limit, SIGKILL at hard limit.
+    // Separate from wall-clock timeout: I/O-bound processes can exceed wall time
+    // without consuming CPU time, or CPU-bound processes can burn CPU while
+    // the wall-clock timeout hasn't fired yet.
+    if (c.max_cpu_ms > 0) {
+        rlim_t cpu_secs = (rlim_t)((c.max_cpu_ms + 999) / 1000);  // Round up
+        struct rlimit rl = {cpu_secs, cpu_secs};
+        setrlimit(RLIMIT_CPU, &rl);
+    }
+
     // L1: PATH restriction — strip to interpreter dir only
     if (c.restrict_path && !c.interpreter_dir.empty()) {
         setenv("PATH", c.interpreter_dir.c_str(), 1);

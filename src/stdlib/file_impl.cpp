@@ -386,6 +386,23 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
+#ifndef _WIN32
+        // V12-S1 fix: O_NOFOLLOW on ORIGINAL path to reject symlinks
+        // before canonicalization resolves them away (same as read/write/append).
+        if (security::ScopedSandbox::getCurrent()) {
+            std::string content = readFileNoFollow(path);
+            std::vector<interpreter::NaabVal> lines;
+            std::istringstream stream(content);
+            std::string line;
+            while (std::getline(stream, line)) {
+                if (!line.empty() && line.back() == '\r') {
+                    line.pop_back();
+                }
+                lines.push_back(interpreter::NaabVal::makeString(line));
+            }
+            return interpreter::NaabVal::makeList(std::move(lines));
+        }
+#endif
         std::string safe_path = resolveCanonical(path);
         if (safe_path != path) checkFileSandbox(safe_path, "read");
         std::ifstream file(safe_path);
@@ -409,6 +426,20 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "write");
+#ifndef _WIN32
+        // V12-S1 fix: O_NOFOLLOW on ORIGINAL path to reject symlinks
+        // before canonicalization resolves them away (same as read/write/append).
+        if (security::ScopedSandbox::getCurrent()) {
+            auto lines = getStringArray(args[1]);
+            std::string content;
+            for (const auto& line : lines) {
+                content += line;
+                content += '\n';
+            }
+            writeFileNoFollow(path, content, false);
+            return interpreter::NaabVal::makeNull();
+        }
+#endif
         std::string safe_path = resolveCanonical(path);
         if (safe_path != path) checkFileSandbox(safe_path, "write");
         auto lines = getStringArray(args[1]);
