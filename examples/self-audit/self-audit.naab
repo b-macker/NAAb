@@ -141,47 +141,35 @@ main {
     print_section("Stage 1: LLM Suspicion Scan")
 
     // Audit manifest — files and targeted windows
-    // Manifest rotation v13: execution pipeline + taint + resource limits (zero prior coverage)
+    // Manifest rotation v14: parser + async/persistent subprocess + FFI/cross-lang + external API (zero prior coverage)
     // v4-v7: governance_checks, agent_impl, governance_engine, governance_config, codegen_impl, vm, main
     // v8: governance_reports, behavioral_sequence, call_dispatch, agent_provider, interpreter, compiler, rest_api
     // v9: polyglot, package_manager, modules, subprocess_helpers, python_c_executor, js_executor, governance_impl
     // v10: governance_init, project_context, expressions, checks_code_quality, scanner, cpp_executor, checks_redundancy
     // v11: sandbox, trust_store, crypto_utils, tamper_evident_logger, error_sanitizer, agent_review, input_validator
     // v12: file_impl, env_impl, http_impl, crypto_impl, stdlib, json_impl, process_impl
+    // v13: codegen_impl, generic_subprocess_executor, shell_executor, governance_taint, resource_limits, orchestra_impl, debug_impl
+    // v14 retry: 4 files + 2 boundaries that hit Gemini rate limits on first run
     let manifest = [
-        {file: src + "/stdlib/codegen_impl.cpp",              lines: 596,  priority: "critical",
-         windows: [[0, 400], [400, 596]]},
-        {file: src + "/runtime/generic_subprocess_executor.cpp", lines: 456, priority: "critical",
-         windows: [[0, 400], [400, 456]]},
-        {file: src + "/runtime/shell_executor.cpp",           lines: 372,  priority: "critical",
-         windows: [[0, 372]]},
-        {file: src + "/interpreter/governance_taint.cpp",     lines: 292,  priority: "high",
-         windows: [[0, 292]]},
-        {file: src + "/runtime/resource_limits.cpp",          lines: 251,  priority: "high",
-         windows: [[0, 251]]},
-        {file: src + "/stdlib/orchestra_impl.cpp",            lines: 276,  priority: "high",
-         windows: [[0, 276]]},
-        {file: src + "/stdlib/debug_impl.cpp",                lines: 644,  priority: "medium",
-         windows: [[0, 400], [400, 644]]}
+        {file: src + "/runtime/persistent_process_executor.cpp", lines: 633,  priority: "critical",
+         windows: [[0, 400], [400, 633]]},
+        {file: src + "/runtime/ffi_async_callback.cpp",          lines: 571,  priority: "critical",
+         windows: [[0, 400], [400, 571]]},
+        {file: src + "/runtime/cpp_executor_adapter.cpp",        lines: 844,  priority: "high",
+         windows: [[0, 400], [400, 844]]},
+        {file: src + "/api/governance_c_api.cpp",                lines: 354,  priority: "high",
+         windows: [[0, 354]]}
     ]
 
     let boundaries = [
-        {name: "codegen-governance", file_a: src + "/stdlib/codegen_impl.cpp",
-         file_b: src + "/runtime/governance_engine.cpp",
-         window_a: [0, 400], window_b: [0, 300],
-         focus: "Codegen dynamic execution → governance checks, nesting prevention, taint policy, cumulative limits, GHE propagation"},
-        {name: "shell-containment", file_a: src + "/runtime/shell_executor.cpp",
-         file_b: src + "/runtime/subprocess_helpers.cpp",
-         window_a: [0, 372], window_b: [100, 300],
-         focus: "Shell executor → subprocess containment, command injection via shell metacharacters, PATH restriction, env scrubbing"},
-        {name: "taint-interpreter", file_a: src + "/interpreter/governance_taint.cpp",
+        {name: "parser-interpreter", file_a: src + "/parser/parser.cpp",
          file_b: src + "/interpreter/interpreter.cpp",
-         window_a: [0, 292], window_b: [1600, 1950],
-         focus: "Taint propagation → interpreter assignment/return, source/sanitizer matching, stale flag consumption, polyglot output tainting"},
-        {name: "resource-subprocess", file_a: src + "/runtime/resource_limits.cpp",
-         file_b: src + "/runtime/subprocess_helpers.cpp",
-         window_a: [0, 251], window_b: [100, 200],
-         focus: "Resource limits → subprocess containment, RLIMIT_AS parent vs child, process-wide vs per-child limits, limit persistence across fork"}
+         window_a: [0, 400], window_b: [0, 300],
+         focus: "Parser AST construction → interpreter consumption, malformed input propagation, inline code block parsing, expression precedence edge cases"},
+        {name: "capi-governance", file_a: src + "/api/governance_c_api.cpp",
+         file_b: src + "/runtime/governance_engine.cpp",
+         window_a: [0, 354], window_b: [0, 300],
+         focus: "C API external surface → governance engine internals, handle validation, thread safety at API boundary, capability exposure to external callers"}
     ]
 
     let suspicions = []

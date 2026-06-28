@@ -159,6 +159,20 @@ static bool isCppSourceSafe(const std::string& code, std::string& reason) {
         reason = "absolute-path #include (angle-bracket) is not permitted in polyglot C++ blocks";
         return false;
     }
+    // V-RCE-014: Reject relative path traversal in #include (e.g. #include "../../../etc/shadow")
+    // Blocks ".." anywhere in double-quote or angle-bracket include paths.
+    // g++ runs without containment, so traversal from mkdtemp dir leaks file contents
+    // via compiler errors or successful compilation.
+    std::regex traversal_include_dq(R"(#\s*include\s*"[^"]*\.\.)");
+    if (std::regex_search(processed, traversal_include_dq)) {
+        reason = "path traversal in #include is not permitted in polyglot C++ blocks";
+        return false;
+    }
+    std::regex traversal_include_ab(R"(#\s*include\s*<[^>]*\.\.)");
+    if (std::regex_search(processed, traversal_include_ab)) {
+        reason = "path traversal in #include is not permitted in polyglot C++ blocks";
+        return false;
+    }
     // Reject #pragma GCC plugin — executes a native shared library at compile time
     std::regex plugin_pragma(R"(#\s*pragma\s+GCC\s+plugin)");
     if (std::regex_search(processed, plugin_pragma)) {
@@ -172,10 +186,15 @@ static bool isCppSourceSafe(const std::string& code, std::string& reason) {
         reason = "#include with macro expansion is not permitted in polyglot C++ blocks";
         return false;
     }
-    // Block #define whose value contains a path-like include target
+    // Block #define whose value contains a path-like include target (absolute or traversal)
     std::regex define_path(R"(#\s*define\s+\w+\s+[<"]/)");
     if (std::regex_search(processed, define_path)) {
         reason = "#define with absolute path value is not permitted in polyglot C++ blocks";
+        return false;
+    }
+    std::regex define_traversal(R"(#\s*define\s+\w+\s+[<"][^>"]*\.\.)");
+    if (std::regex_search(processed, define_traversal)) {
+        reason = "#define with path traversal value is not permitted in polyglot C++ blocks";
         return false;
     }
     return true;
