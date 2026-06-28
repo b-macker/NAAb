@@ -25,11 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BSD/CDD dashboard telemetry — `--governance-dashboard` now shows BSD events processed, patterns matched, and CDD coherence state
 
 ### Fixed
+- **Zero-warning build** — root-cause analysis and fix for all 20 build warnings across 8 files
+  - `executeWithReturn()` missing exit code check — garbage stdout parsed as return value on subprocess failure
+  - Dead code from refactors: `last_line_idx` (cpp_executor_adapter), `blocks_found` (block_registry), `DEFAULT_JSON_DEPTH` (json_impl)
+  - Sign conversions in backward loops and timeout parsing (main.cpp, agent_impl, json_result_parser)
+  - `std::result_of` → `std::invoke_result_t` migration (deprecated C++17, removed C++20)
 - BSD/CDD correctness — 6 post-review findings (detail_glob matching, pre-execution abort, hard enforcement)
 - `behavioral_sequence.cpp` moved to `naab_security` CMake library (fixed linker errors on Sanitizers, Windows, and CodeQL CI)
 - Shell polyglot test T6 skipped on Windows (no shell executor on that platform)
 - Stale regex docs synced with actual patterns
 - Struct helper error message improved
+
+### Security
+- **V-RCE-014**: C++ polyglot `#include` path traversal bypass — relative paths (`../../../etc/shadow`) not blocked by `isCppSourceSafe()` (self-audit v14)
 
 ## [1.4.0] - 2026-04-30
 

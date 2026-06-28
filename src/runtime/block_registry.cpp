@@ -201,8 +201,6 @@ void BlockRegistry::scanDirectory(const std::string& base_path) {
 void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std::string& language) {
     namespace fs = std::filesystem;
     std::error_code ec;
-    int blocks_found = 0;
-
     for (const auto& dir_entry : fs::directory_iterator(lang_dir, ec)) {
         if (ec) break;
         auto filename = dir_entry.path().filename().string();
@@ -278,7 +276,6 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
                     // Store in registry
                     if (!metadata.block_id.empty()) {
                         blocks_[metadata.block_id] = metadata;
-                        blocks_found++;
                     }
                 } catch (const std::exception& e) {
                     // Skip malformed JSON files
@@ -336,7 +333,6 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
                 metadata.stability = "stable";
 
                 blocks_[block_id] = metadata;
-                blocks_found++;
             }
         }
     }

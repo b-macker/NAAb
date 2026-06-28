@@ -507,6 +507,12 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
             temp_bin_main.string(), {}, exec_stdout, exec_stderr, nullptr, &containment
         );
 
+        if (exec_exit != 0) {
+            std::string error_msg = "C++ code execution failed with exit code " + std::to_string(exec_exit);
+            if (!exec_stderr.empty()) error_msg += "\n  stderr: " + exec_stderr;
+            throw std::runtime_error(error_msg);
+        }
+
         // Buffer only log output (strip last line = return value)
         if (!exec_stdout.empty()) {
             auto last_nl = exec_stdout.rfind('\n', exec_stdout.size() - 2);
@@ -631,16 +637,6 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
             lines.push_back(line);
         }
 
-        int last_line_idx = -1;
-        for (int i = lines.size() - 1; i >= 0; i--) {
-            std::string trimmed = lines[i];
-            size_t s = trimmed.find_first_not_of(" \t\r");
-            if (s != std::string::npos) {
-                last_line_idx = i;
-                break;
-            }
-        }
-
         // Extract #include and using directives to top-level
         std::vector<std::string> includes;
         std::vector<std::string> code_lines;
@@ -676,8 +672,9 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
 
         // Find last non-empty code line
         int last_code_idx = -1;
-        for (int i = code_lines.size() - 1; i >= 0; i--) {
-            std::string trimmed = code_lines[i];
+        for (int i = static_cast<int>(code_lines.size()) - 1; i >= 0; i--) {
+            size_t idx = static_cast<size_t>(i);
+            std::string trimmed = code_lines[idx];
             size_t s = trimmed.find_first_not_of(" \t\r");
             if (s != std::string::npos) {
                 last_code_idx = i;
@@ -800,6 +797,12 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
     int exec_exit = execute_subprocess_with_pipes(
         temp_bin.string(), {}, exec_stdout, exec_stderr, nullptr, &containment
     );
+
+    if (exec_exit != 0) {
+        std::string error_msg = "C++ code execution failed with exit code " + std::to_string(exec_exit);
+        if (!exec_stderr.empty()) error_msg += "\n  stderr: " + exec_stderr;
+        throw std::runtime_error(error_msg);
+    }
 
     // Phase 3.3.1: Only cleanup if not using cached binary
     if (cached_binary.empty()) {

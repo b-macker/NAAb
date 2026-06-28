@@ -154,8 +154,9 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
     // Pass 1: Check for explicit sentinel (highest priority)
     int sentinel_idx = -1;
     for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
-        if (lines[i].find(sentinel) == 0) {
-            std::string json_data = lines[i].substr(sentinel.size());
+        size_t idx = static_cast<size_t>(i);
+        if (lines[idx].find(sentinel) == 0) {
+            std::string json_data = lines[idx].substr(sentinel.size());
             while (!json_data.empty() && (json_data.back() == '\n' || json_data.back() == '\r' || json_data.back() == ' ')) {
                 json_data.pop_back();
             }
@@ -168,8 +169,9 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
     // Pass 2: If no sentinel and return_type specified (e.g., "JSON"), find last valid JSON line
     if (result.return_value.isNull() && !return_type.empty()) {
         for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
+            size_t idx = static_cast<size_t>(i);
             if (i == sentinel_idx) continue;
-            std::string trimmed = lines[i];
+            std::string trimmed = lines[idx];
             size_t start = trimmed.find_first_not_of(" \t");
             if (start == std::string::npos) continue;
             trimmed = trimmed.substr(start);
@@ -179,7 +181,7 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
                 trimmed.substr(0, 4) == "true" || trimmed.substr(0, 5) == "false" ||
                 trimmed.substr(0, 4) == "null")) {
                 try {
-                    nlohmann::json::parse(trimmed);  // Validate JSON
+                    (void)nlohmann::json::parse(trimmed);  // Validate JSON
                     result.return_value = JsonResultParser::parse(trimmed);
                     sentinel_idx = i;
                     break;
@@ -190,9 +192,10 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
 
     // Remaining lines = log output
     for (int i = 0; i < static_cast<int>(lines.size()); ++i) {
+        size_t idx = static_cast<size_t>(i);
         if (i != sentinel_idx) {
             if (!result.log_output.empty()) result.log_output += "\n";
-            result.log_output += lines[i];
+            result.log_output += lines[idx];
         }
     }
 

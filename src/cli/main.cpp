@@ -538,7 +538,7 @@ int main(int argc, char** argv) {
             global_sandbox_level = argv[++command_arg_index];
             command_arg_index++;
         } else if (arg == "--timeout" && command_arg_index + 1 < argc) {
-            try { global_timeout = std::stoi(argv[++command_arg_index]); }
+            try { int t = std::stoi(argv[++command_arg_index]); global_timeout = t > 0 ? static_cast<unsigned int>(t) : 0; }
             catch (...) { global_timeout = 0; }
             command_arg_index++;
         } else if (arg == "--lint-only") {
@@ -1096,7 +1096,7 @@ int main(int argc, char** argv) {
             } else if (arg == "--sandbox-level" && i + 1 < argc) {
                 sandbox_level = argv[++i];
             } else if (arg == "--timeout" && i + 1 < argc) {
-                try { timeout = std::stoi(argv[++i]); } catch (const std::exception&) {
+                try { int t = std::stoi(argv[++i]); timeout = t > 0 ? static_cast<unsigned int>(t) : 0; } catch (const std::exception&) {
                     fprintf(stderr, "Error: --timeout requires a numeric value\n"); return 1;
                 }
             } else if (arg == "--memory-limit" && i + 1 < argc) {
@@ -1554,10 +1554,11 @@ int main(int argc, char** argv) {
                                 fprintf(stderr, "  (empty call stack)\n");
                             } else {
                                 for (int i = static_cast<int>(stack.size()) - 1; i >= 0; --i) {
+                                    size_t si = static_cast<size_t>(i);
                                     fprintf(stderr, "  #%d %s at %s\n",
                                             static_cast<int>(stack.size()) - 1 - i,
-                                            stack[i].function_name.c_str(),
-                                            stack[i].source_location.c_str());
+                                            stack[si].function_name.c_str(),
+                                            stack[si].source_location.c_str());
                                 }
                             }
                         } else if (cmd.size() > 2 && cmd[0] == 'p' && cmd[1] == ' ') {
@@ -2250,10 +2251,11 @@ int main(int argc, char** argv) {
                                     fprintf(stderr, "  (empty call stack)\n");
                                 } else {
                                     for (int i = static_cast<int>(stack.size()) - 1; i >= 0; --i) {
+                                        size_t si = static_cast<size_t>(i);
                                         fprintf(stderr, "  #%d %s at %s\n",
                                                 static_cast<int>(stack.size()) - 1 - i,
-                                                stack[i].function_name.c_str(),
-                                                stack[i].source_location.c_str());
+                                                stack[si].function_name.c_str(),
+                                                stack[si].source_location.c_str());
                                     }
                                 }
                             } else if (cmd.size() > 2 && cmd[0] == 'p' && cmd[1] == ' ') {

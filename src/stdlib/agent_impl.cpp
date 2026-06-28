@@ -91,7 +91,7 @@ struct AgentTracker {
     int lease_granted_turn = 0;    // turn when lease was last granted/renewed
     int lease_expires_turn = 0;    // turn after which agent must re-authorize (0 = no lease)
     std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
-    int key_offset = 0;  // round-robin position across agent.send() calls
+    size_t key_offset = 0;  // round-robin position across agent.send() calls
     int truncation_count = 0;  // times response was truncated (MAX_TOKENS)
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
@@ -1727,8 +1727,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // ── Retry loop with key rotation, model fallback, backoff + jitter ──
     runtime::AgentResponse agent_resp;
     int max_attempts = config->retry.max_attempts;
-    int model_idx = 0;
-    int key_offset = 0;
+    size_t model_idx = 0;
+    size_t key_offset = 0;
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
         auto koff_it = s_trackers.find(handle_id);
@@ -1748,7 +1748,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string key_env;
         std::string api_key;
         bool found_key = false;
-        int key_offset_before = key_offset;  // save for empty-response restore
+        size_t key_offset_before = key_offset;  // save for empty-response restore
         for (size_t k = 0; k < keys.size(); k++) {
             size_t idx = (key_offset + k) % keys.size();
             {
@@ -1765,7 +1765,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             api_key = runtime::resolveApiKey(keys[idx]);
             if (!api_key.empty()) {
                 key_env = keys[idx];
-                key_offset = static_cast<int>(idx) + 1;
+                key_offset = idx + 1;
                 found_key = true;
                 break;
             }
@@ -2007,7 +2007,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
         // Fallback model on 404/503
         for (int code : config->retry.fallback_model_on) {
-            if (status == code && model_idx + 1 < static_cast<int>(models.size())) {
+            if (status == code && model_idx + 1 < models.size()) {
                 if (gov_engine && gov_engine->isActive()) {
                     gov_engine->writeAgentTelemetry("AGENT_FALLBACK", {
                         {"handle_id", std::to_string(handle_id)},
