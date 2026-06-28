@@ -732,6 +732,13 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_POP): {
                 pop();
+                // V13-S7 fix: Consume stale lastReturnWasTainted flag when discarding
+                // expression result. Without this, builtin taint source calls as ExprStmt
+                // (e.g., env.get("SECRET")) leak the flag to the next OP_CALL_METHOD
+                // via the else-if at line 1844.
+                if (governance_ && governance_->isActive()) {
+                    governance_->setLastReturnTainted(false);
+                }
             }
                 VM_NEXT();
 
