@@ -1569,6 +1569,11 @@ void Interpreter::visit(ast::ExprStmt& node) {
                 }
             }
         }
+
+        // V13-S7 fix: Consume stale lastReturnWasTainted flag.
+        // ExprStmt discards its result, so taint from a standalone call like
+        // env.get("SECRET") must not leak to the next statement's checkRhsTainted().
+        governance_->setLastReturnTainted(false);
     }
 }
 
