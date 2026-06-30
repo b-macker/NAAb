@@ -225,9 +225,30 @@ static double scoreStepUpChallengeRatio(const std::string& response,
     for (char c : response)
         response_lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
+    // Strip common English suffixes for fuzzy matching.
+    // "building"→"build", "coding"→"cod", "helpful"→"help", "assistant"→"assist"
+    // Stems are matched as substrings too, so "cod" finds "code" in response.
+    // Min word size = suffix_len + 3 (keep 3-char stems for substring matching).
+    auto stem = [](const std::string& w) -> std::string {
+        if (w.size() >= 6 && w.compare(w.size()-3, 3, "ing") == 0) return w.substr(0, w.size()-3);
+        if (w.size() >= 6 && w.compare(w.size()-3, 3, "ful") == 0) return w.substr(0, w.size()-3);
+        if (w.size() >= 6 && w.compare(w.size()-3, 3, "ant") == 0) return w.substr(0, w.size()-3);
+        if (w.size() >= 5 && w.compare(w.size()-2, 2, "ed") == 0) return w.substr(0, w.size()-2);
+        if (w.size() >= 5 && w.compare(w.size()-2, 2, "er") == 0) return w.substr(0, w.size()-2);
+        if (w.size() >= 5 && w.compare(w.size()-2, 2, "ly") == 0) return w.substr(0, w.size()-2);
+        if (w.size() >= 5 && w.back() == 's' && (w.size() < 2 || w[w.size()-2] != 's'))
+            return w.substr(0, w.size()-1);
+        return w;
+    };
+
     int found = 0;
     for (const auto& kw : prompt_keywords) {
-        if (response_lower.find(kw) != std::string::npos) found++;
+        if (response_lower.find(kw) != std::string::npos) {
+            found++;
+        } else {
+            std::string s = stem(kw);
+            if (s != kw && response_lower.find(s) != std::string::npos) found++;
+        }
     }
     return static_cast<double>(found) / static_cast<double>(prompt_keywords.size());
 }
@@ -1531,12 +1552,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         // System prompt is NOT included here — callAgentWithStatus
                         // sends it via config (Gemini: systemInstruction, Anthropic:
                         // "system" field). Including it would double-send.
+                        // Cap history to last 20 messages to prevent context bloat
+                        // from degrading model response quality at long conversations.
                         json challenge_msgs = json::array();
                         size_t history_message_count = 0;
                         {
                             auto hist_it = handle.find("messages");
                             if (hist_it != handle.end() && hist_it->second.isList()) {
                                 auto& hlist = hist_it->second.asList();
+                                // Collect all messages, then take last 20
+                                std::vector<json> all_msgs;
                                 for (auto& hmsg : hlist) {
                                     if (hmsg.isDict()) {
                                         auto& hd = hmsg.asDict();
@@ -1547,9 +1572,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                             json hm;
                                             hm["role"] = hr_it->second.asString();
                                             hm["content"] = hc_it->second.asString();
-                                            challenge_msgs.push_back(hm);
+                                            all_msgs.push_back(std::move(hm));
                                         }
                                     }
+                                }
+                                // Keep last 20 messages (10 user-assistant pairs)
+                                static constexpr size_t MAX_CHALLENGE_HISTORY = 20;
+                                size_t start = all_msgs.size() > MAX_CHALLENGE_HISTORY
+                                    ? all_msgs.size() - MAX_CHALLENGE_HISTORY : 0;
+                                for (size_t i = start; i < all_msgs.size(); i++) {
+                                    challenge_msgs.push_back(std::move(all_msgs[i]));
                                 }
                                 history_message_count = challenge_msgs.size();
                             }
