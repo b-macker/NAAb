@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <array>
 #include <deque>
 #include <unordered_map>
 #include <unordered_set>
@@ -78,6 +79,38 @@ struct SequenceMatchResult {
     std::string pattern_name;                    // empty = no match
     const SequencePattern* pattern = nullptr;    // valid only if pattern_name non-empty
     std::vector<RuntimeEvent> matched_events;    // copy of matched events
+};
+
+// CDD signal indices for generic adaptive baseline
+static constexpr int NUM_CDD_SIGNALS = 19;
+enum CddSignalId : int {
+    SIG_CIRCULAR = 0,              // S1
+    SIG_REPEATED_FAILURES = 1,     // S2
+    SIG_SCOPE_CREEP = 2,           // S3
+    SIG_CONTRADICTIONS = 3,        // S4
+    SIG_VOCAB_CONTRACTION = 4,     // S5
+    SIG_COHERENCE_VELOCITY = 5,    // S6 — no cumulative counter, base_penalty only
+    SIG_CAPABILITY_UNDERUTIL = 6,  // S7 — no cumulative counter, base_penalty only
+    SIG_RESPONSE_QUALITY = 7,      // S8
+    SIG_THINKING_COLLAPSE = 8,     // S9
+    SIG_SEMANTIC_STABILITY = 9,    // S10
+    SIG_MANDATE_ALIGNMENT = 10,    // S11
+    SIG_CONTEXT_GROWTH = 11,       // S12
+    SIG_INSTRUCTION_RECALL = 12,   // S13
+    SIG_PLAN_DRIFT = 13,           // S14
+    SIG_ENTITY_CONSISTENCY = 14,   // S15
+    SIG_INSTRUCTION_CONFLICT = 15, // S16
+    SIG_PERSONA_FINGERPRINT = 16,  // S17
+    SIG_TOOL_CHAIN_INTEGRITY = 17, // S18
+    SIG_CLAIM_RESULT = 18          // S19
+};
+
+struct SignalBaseline {
+    int snapshot = 0;       // cumulative counter at baseline completion
+    double mean = 0.0;      // per-turn firing rate during baseline
+    double stddev = 0.0;
+    double sum = 0.0;       // running sum during baseline
+    double sum_sq = 0.0;    // running sum-of-squares
 };
 
 // --- Context Drift State (per agent handle) ---
@@ -175,29 +208,7 @@ struct DriftState {
     int baseline_turns_counted = 0;
     int baseline_completed_turn = -1;  // wall-clock turn when baseline finished (-1 = not yet)
     int post_baseline_checks = 0;     // gate-passing turns after baseline complete
-    int baseline_circular_snapshot = 0;
-    int baseline_failures_snapshot = 0;
-    int baseline_scope_creep_snapshot = 0;
-    int baseline_contradictions_snapshot = 0;
-    struct BaselineStats {
-        double mean_failures = 0.0;
-        double mean_circular = 0.0;
-        double mean_scope_creep = 0.0;
-        double mean_contradictions = 0.0;
-        double stddev_failures = 0.0;
-        double stddev_circular = 0.0;
-        double stddev_scope_creep = 0.0;
-        double stddev_contradictions = 0.0;
-        // Running sums for incremental computation
-        double sum_failures = 0.0;
-        double sum_sq_failures = 0.0;
-        double sum_circular = 0.0;
-        double sum_sq_circular = 0.0;
-        double sum_scope_creep = 0.0;
-        double sum_sq_scope_creep = 0.0;
-        double sum_contradictions = 0.0;
-        double sum_sq_contradictions = 0.0;
-    } baseline;
+    std::array<SignalBaseline, NUM_CDD_SIGNALS> signal_baselines = {};
 
     // Reality checkpoint state
     double last_pressure_score = 0.0;

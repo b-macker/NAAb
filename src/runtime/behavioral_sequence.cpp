@@ -831,19 +831,19 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         return weight;
     };
 
-    // Adaptive penalty: modulates weight using baseline statistics.
+    // Adaptive penalty: modulates weight using per-signal baseline statistics.
     // Uses post_baseline_checks (gate-passing turns after baseline) as denominator,
     // matching the counting unit of signal counters. Returns 0 when post-baseline
-    // firing rate is at/below baseline + k*stddev; proportional excess above.
-    auto adaptive_penalty = [&](double weight, int count, int baseline_snapshot,
-                                 double baseline_mean, double baseline_stddev) -> double {
+    // firing rate is at/below baseline mean + k*stddev; proportional excess above.
+    auto adaptive_penalty = [&](double weight, int count, int sig) -> double {
         if (config_->adaptive_baseline_enabled && state.baseline_complete &&
             state.post_baseline_checks > 0) {
-            int post_count = count - baseline_snapshot;
+            const auto& bl = state.signal_baselines[sig];
+            int post_count = count - bl.snapshot;
             double current_rate = static_cast<double>(post_count) / state.post_baseline_checks;
 
-            double threshold = baseline_mean +
-                config_->adaptive_baseline_sensitivity * std::max(baseline_stddev, 0.1);
+            double threshold = bl.mean +
+                config_->adaptive_baseline_sensitivity * std::max(bl.stddev, 0.1);
 
             if (current_rate <= threshold) return 0.0;
 
@@ -856,15 +856,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Adaptive baselining: during baseline window, count signals but suppress penalties
     bool in_baseline = config_->adaptive_baseline_enabled && !state.baseline_complete;
     // Per-turn signal counters (used for baseline accumulation)
-    int turn_failures = 0, turn_circular = 0, turn_scope_creep = 0, turn_contradictions = 0;
+    std::array<int, NUM_CDD_SIGNALS> turn_fired = {};
 
     // Signal 1: Circular actions (same fingerprint repeats)
     if (config_->signals.circular_actions && isCircular(state, fp)) {
         state.circular_action_count++;
-        turn_circular++;
+        turn_fired[SIG_CIRCULAR]++;
         if (!in_baseline) {
-            double p = adaptive_penalty(config_->weights.circular, state.circular_action_count,
-                state.baseline_circular_snapshot, state.baseline.mean_circular, state.baseline.stddev_circular);
+            double p = adaptive_penalty(config_->weights.circular, state.circular_action_count, SIG_CIRCULAR);
             if (p > 0.0) {
                 state.coherence_score -= p;
                 state.signals_fired_this_turn++;
@@ -887,10 +886,9 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             }
             if (same_count >= config_->thresholds.repeated_failure_count) {
                 state.repeated_failures++;
-                turn_failures++;
+                turn_fired[SIG_REPEATED_FAILURES]++;
                 if (!in_baseline) {
-                    double p = adaptive_penalty(config_->weights.repeated_failure, state.repeated_failures,
-                        state.baseline_failures_snapshot, state.baseline.mean_failures, state.baseline.stddev_failures);
+                    double p = adaptive_penalty(config_->weights.repeated_failure, state.repeated_failures, SIG_REPEATED_FAILURES);
                     if (p > 0.0) {
                         state.coherence_score -= p;
                         state.signals_fired_this_turn++;
@@ -936,10 +934,9 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         // Only fire after enough history and multiple new types at once
         if (static_cast<int>(state.turn_fingerprints.size()) >= config_->thresholds.scope_creep_min_history && new_types >= config_->thresholds.scope_creep_min_new_types) {
             state.scope_creep_count++;
-            turn_scope_creep++;
+            turn_fired[SIG_SCOPE_CREEP]++;
             if (!in_baseline) {
-                double p = adaptive_penalty(config_->weights.scope_creep, state.scope_creep_count,
-                    state.baseline_scope_creep_snapshot, state.baseline.mean_scope_creep, state.baseline.stddev_scope_creep);
+                double p = adaptive_penalty(config_->weights.scope_creep, state.scope_creep_count, SIG_SCOPE_CREEP);
                 if (p > 0.0) {
                     state.coherence_score -= p;
                     state.signals_fired_this_turn++;
@@ -1000,9 +997,13 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             // Also fires on cardinality drop as fallback (early had 3+ types, recent lost 2+)
             if (state.initial_entropy > config_->thresholds.entropy_min_initial && recent_entropy < state.initial_entropy * config_->thresholds.entropy_contraction_ratio) {
                 state.vocabulary_contraction_count++;
+                turn_fired[SIG_VOCAB_CONTRACTION]++;
                 if (!in_baseline) {
-                    state.coherence_score -= base_penalty(config_->weights.vocabulary_contraction, state.vocabulary_contraction_count);
-                    state.signals_fired_this_turn++;
+                    double p = adaptive_penalty(config_->weights.vocabulary_contraction, state.vocabulary_contraction_count, SIG_VOCAB_CONTRACTION);
+                    if (p > 0.0) {
+                        state.coherence_score -= p;
+                        state.signals_fired_this_turn++;
+                    }
                 }
             }
         }
@@ -1054,10 +1055,9 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         for (const auto& cap : this_turn_attempted) {
             if (state.prev_turn_blocked_caps.count(cap)) {
                 state.contradictions++;
-                turn_contradictions++;
+                turn_fired[SIG_CONTRADICTIONS]++;
                 if (!in_baseline) {
-                    double p = adaptive_penalty(config_->weights.contradiction, state.contradictions,
-                        state.baseline_contradictions_snapshot, state.baseline.mean_contradictions, state.baseline.stddev_contradictions);
+                    double p = adaptive_penalty(config_->weights.contradiction, state.contradictions, SIG_CONTRADICTIONS);
                     if (p > 0.0) {
                         state.coherence_score -= p;
                         state.signals_fired_this_turn++;
@@ -1080,6 +1080,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.coherence_acceleration = state.coherence_velocity - prev_velocity;
 
         if (state.coherence_velocity < config_->thresholds.velocity_drop) {
+            turn_fired[SIG_COHERENCE_VELOCITY]++;
             if (!in_baseline) {
                 state.coherence_score -= base_penalty(config_->weights.coherence_velocity, 1);
                 state.signals_fired_this_turn++;
@@ -1109,57 +1110,12 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 // Late first use (10+ turns after start) of a granted capability = suspicious
                 if (was_new && state.granted_capabilities.count(cap) &&
                     turn_number - state.first_event_turn >= config_->thresholds.underutilization_delay) {
+                    turn_fired[SIG_CAPABILITY_UNDERUTIL]++;
                     if (!in_baseline) {
                         state.coherence_score -= base_penalty(config_->weights.capability_underutilization, 1);
                         state.signals_fired_this_turn++;
                     }
                 }
-            }
-        }
-    }
-
-    // Adaptive baseline: accumulate per-turn signal counts during window
-    if (config_->adaptive_baseline_enabled) {
-        if (!state.baseline_complete) {
-            // Accumulate running sums for baseline computation
-            state.baseline.sum_failures += turn_failures;
-            state.baseline.sum_sq_failures += turn_failures * turn_failures;
-            state.baseline.sum_circular += turn_circular;
-            state.baseline.sum_sq_circular += turn_circular * turn_circular;
-            state.baseline.sum_scope_creep += turn_scope_creep;
-            state.baseline.sum_sq_scope_creep += turn_scope_creep * turn_scope_creep;
-            state.baseline.sum_contradictions += turn_contradictions;
-            state.baseline.sum_sq_contradictions += turn_contradictions * turn_contradictions;
-            state.baseline_turns_counted++;
-
-            if (state.baseline_turns_counted >= config_->adaptive_baseline_window) {
-                // Compute means
-                double n = static_cast<double>(state.baseline_turns_counted);
-                state.baseline.mean_failures = state.baseline.sum_failures / n;
-                state.baseline.mean_circular = state.baseline.sum_circular / n;
-                state.baseline.mean_scope_creep = state.baseline.sum_scope_creep / n;
-                state.baseline.mean_contradictions = state.baseline.sum_contradictions / n;
-
-                // Compute stddev for all 4 signals using Bessel's correction
-                auto computeStddev = [n](double sum_sq, double mean) -> double {
-                    double variance = (n > 1.0)
-                        ? ((sum_sq / n) - (mean * mean)) * (n / (n - 1.0))
-                        : 0.0;
-                    return (variance > 0.0) ? std::sqrt(variance) : 0.0;
-                };
-                state.baseline.stddev_failures = computeStddev(state.baseline.sum_sq_failures, state.baseline.mean_failures);
-                state.baseline.stddev_circular = computeStddev(state.baseline.sum_sq_circular, state.baseline.mean_circular);
-                state.baseline.stddev_scope_creep = computeStddev(state.baseline.sum_sq_scope_creep, state.baseline.mean_scope_creep);
-                state.baseline.stddev_contradictions = computeStddev(state.baseline.sum_sq_contradictions, state.baseline.mean_contradictions);
-
-                state.baseline_complete = true;
-                state.baseline_completed_turn = turn_number;
-
-                // Snapshot cumulative counters at baseline completion
-                state.baseline_circular_snapshot = state.circular_action_count;
-                state.baseline_failures_snapshot = state.repeated_failures;
-                state.baseline_scope_creep_snapshot = state.scope_creep_count;
-                state.baseline_contradictions_snapshot = state.contradictions;
             }
         }
     }
@@ -1174,10 +1130,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 double ratio = static_cast<double>(ev.output_tokens) / total_gen;
                 if (ratio < config_->thresholds.response_quality_min_ratio) {
                     state.response_quality_count++;
+                    turn_fired[SIG_RESPONSE_QUALITY]++;
                     if (!in_baseline) {
-                        state.coherence_score -= base_penalty(config_->weights.response_quality,
-                                                          state.response_quality_count);
-                        state.signals_fired_this_turn++;
+                        double p = adaptive_penalty(config_->weights.response_quality,
+                                                    state.response_quality_count, SIG_RESPONSE_QUALITY);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
                     }
                 }
             }
@@ -1213,10 +1173,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             double current_mean = current_sum / static_cast<double>(state.thinking_history.size());
             if (current_mean < state.thinking_baseline_mean * config_->thresholds.thinking_collapse_ratio) {
                 state.thinking_collapse_count++;
+                turn_fired[SIG_THINKING_COLLAPSE]++;
                 if (!in_baseline) {
-                    state.coherence_score -= base_penalty(config_->weights.thinking_collapse,
-                                                      state.thinking_collapse_count);
-                    state.signals_fired_this_turn++;
+                    double p = adaptive_penalty(config_->weights.thinking_collapse,
+                                                state.thinking_collapse_count, SIG_THINKING_COLLAPSE);
+                    if (p > 0.0) {
+                        state.coherence_score -= p;
+                        state.signals_fired_this_turn++;
+                    }
                 }
             }
         }
@@ -1265,10 +1229,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             if (static_cast<double>(current) >
                 state.input_tokens_baseline_mean * config_->thresholds.context_growth_factor) {
                 state.context_growth_count++;
+                turn_fired[SIG_CONTEXT_GROWTH]++;
                 if (!in_baseline) {
-                    state.coherence_score -= base_penalty(config_->weights.context_growth,
-                                                      state.context_growth_count);
-                    state.signals_fired_this_turn++;
+                    double p = adaptive_penalty(config_->weights.context_growth,
+                                                state.context_growth_count, SIG_CONTEXT_GROWTH);
+                    if (p > 0.0) {
+                        state.coherence_score -= p;
+                        state.signals_fired_this_turn++;
+                    }
                 }
             }
         }
@@ -1291,10 +1259,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
                     if (similarity < config_->thresholds.semantic_stability_min_overlap) {
                         state.semantic_stability_count++;
+                        turn_fired[SIG_SEMANTIC_STABILITY]++;
                         if (!in_baseline) {
-                            state.coherence_score -= base_penalty(config_->weights.semantic_stability,
-                                                              state.semantic_stability_count);
-                            state.signals_fired_this_turn++;
+                            double p = adaptive_penalty(config_->weights.semantic_stability,
+                                                        state.semantic_stability_count, SIG_SEMANTIC_STABILITY);
+                            if (p > 0.0) {
+                                state.coherence_score -= p;
+                                state.signals_fired_this_turn++;
+                            }
                         }
                     }
                 }
@@ -1324,10 +1296,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
                 if (mean < config_->thresholds.mandate_alignment_min) {
                     state.mandate_drift_count++;
+                    turn_fired[SIG_MANDATE_ALIGNMENT]++;
                     if (!in_baseline) {
-                        state.coherence_score -= base_penalty(config_->weights.mandate_alignment,
-                                                          state.mandate_drift_count);
-                        state.signals_fired_this_turn++;
+                        double p = adaptive_penalty(config_->weights.mandate_alignment,
+                                                    state.mandate_drift_count, SIG_MANDATE_ALIGNMENT);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
                     }
                 }
                 break;
@@ -1347,10 +1323,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                                 static_cast<double>(state.instruction_keywords.size());
                 if (recall < config_->thresholds.instruction_recall_min) {
                     state.instruction_recall_count++;
+                    turn_fired[SIG_INSTRUCTION_RECALL]++;
                     if (!in_baseline) {
-                        state.coherence_score -= base_penalty(config_->weights.instruction_recall,
-                                                          state.instruction_recall_count);
-                        state.signals_fired_this_turn++;
+                        double p = adaptive_penalty(config_->weights.instruction_recall,
+                                                    state.instruction_recall_count, SIG_INSTRUCTION_RECALL);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
                     }
                 }
                 break;
@@ -1402,10 +1382,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
                     if (drifted) {
                         state.plan_drift_count++;
+                        turn_fired[SIG_PLAN_DRIFT]++;
                         if (!in_baseline) {
-                            state.coherence_score -= base_penalty(config_->weights.plan_drift,
-                                                              state.plan_drift_count);
-                            state.signals_fired_this_turn++;
+                            double p = adaptive_penalty(config_->weights.plan_drift,
+                                                        state.plan_drift_count, SIG_PLAN_DRIFT);
+                            if (p > 0.0) {
+                                state.coherence_score -= p;
+                                state.signals_fired_this_turn++;
+                            }
                         }
                     }
                 }
@@ -1443,10 +1427,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 }
                 if (contradiction_found) {
                     state.entity_consistency_count++;
+                    turn_fired[SIG_ENTITY_CONSISTENCY]++;
                     if (!in_baseline) {
-                        state.coherence_score -= base_penalty(config_->weights.entity_consistency,
-                                                          state.entity_consistency_count);
-                        state.signals_fired_this_turn++;
+                        double p = adaptive_penalty(config_->weights.entity_consistency,
+                                                    state.entity_consistency_count, SIG_ENTITY_CONSISTENCY);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
                     }
                 }
                 break;
@@ -1481,10 +1469,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
         if (conflict_found) {
             state.instruction_conflict_count++;
+            turn_fired[SIG_INSTRUCTION_CONFLICT]++;
             if (!in_baseline) {
-                state.coherence_score -= base_penalty(config_->weights.instruction_conflict,
-                                                  state.instruction_conflict_count);
-                state.signals_fired_this_turn++;
+                double p = adaptive_penalty(config_->weights.instruction_conflict,
+                                            state.instruction_conflict_count, SIG_INSTRUCTION_CONFLICT);
+                if (p > 0.0) {
+                    state.coherence_score -= p;
+                    state.signals_fired_this_turn++;
+                }
             }
         }
     }
@@ -1523,10 +1515,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                     if (deviation > config_->thresholds.persona_deviation_factor *
                                     state.persona_baseline_stddev) {
                         state.persona_drift_count++;
+                        turn_fired[SIG_PERSONA_FINGERPRINT]++;
                         if (!in_baseline) {
-                            state.coherence_score -= base_penalty(config_->weights.persona_fingerprint,
-                                                              state.persona_drift_count);
-                            state.signals_fired_this_turn++;
+                            double p = adaptive_penalty(config_->weights.persona_fingerprint,
+                                                        state.persona_drift_count, SIG_PERSONA_FINGERPRINT);
+                            if (p > 0.0) {
+                                state.coherence_score -= p;
+                                state.signals_fired_this_turn++;
+                            }
                         }
                     }
                 }
@@ -1562,10 +1558,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 }
                 if (misrepresented) {
                     state.tool_integrity_count++;
+                    turn_fired[SIG_TOOL_CHAIN_INTEGRITY]++;
                     if (!in_baseline) {
-                        state.coherence_score -= base_penalty(config_->weights.tool_chain_integrity,
-                                                          state.tool_integrity_count);
-                        state.signals_fired_this_turn++;
+                        double p = adaptive_penalty(config_->weights.tool_chain_integrity,
+                                                    state.tool_integrity_count, SIG_TOOL_CHAIN_INTEGRITY);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
                     }
                 }
                 break;
@@ -1631,10 +1631,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
                 if (mismatch_detected) {
                     state.claim_result_mismatch_count++;
+                    turn_fired[SIG_CLAIM_RESULT]++;
                     if (!in_baseline) {
-                        state.coherence_score -= base_penalty(config_->weights.claim_result_reconciliation,
-                                                          state.claim_result_mismatch_count);
-                        state.signals_fired_this_turn++;
+                        double p = adaptive_penalty(config_->weights.claim_result_reconciliation,
+                                                    state.claim_result_mismatch_count, SIG_CLAIM_RESULT);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
                     }
                 }
                 break;
@@ -1642,6 +1646,53 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
         // Clear tool outcomes after reconciliation (per-turn check, not cumulative)
         state.tool_last_outcome.clear();
+    }
+
+    // Adaptive baseline: accumulate per-turn signal counts during window
+    if (config_->adaptive_baseline_enabled) {
+        if (!state.baseline_complete) {
+            for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+                state.signal_baselines[i].sum += turn_fired[i];
+                state.signal_baselines[i].sum_sq += static_cast<double>(turn_fired[i]) * turn_fired[i];
+            }
+            state.baseline_turns_counted++;
+
+            if (state.baseline_turns_counted >= config_->adaptive_baseline_window) {
+                double n = static_cast<double>(state.baseline_turns_counted);
+                auto computeStddev = [n](double sum_sq, double mean) -> double {
+                    double variance = (n > 1.0)
+                        ? ((sum_sq / n) - (mean * mean)) * (n / (n - 1.0))
+                        : 0.0;
+                    return (variance > 0.0) ? std::sqrt(variance) : 0.0;
+                };
+                for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+                    state.signal_baselines[i].mean = state.signal_baselines[i].sum / n;
+                    state.signal_baselines[i].stddev = computeStddev(
+                        state.signal_baselines[i].sum_sq, state.signal_baselines[i].mean);
+                }
+                state.baseline_complete = true;
+                state.baseline_completed_turn = turn_number;
+
+                // Snapshot cumulative counters (17 signals with counters; S6/S7 stay at 0)
+                state.signal_baselines[SIG_CIRCULAR].snapshot = state.circular_action_count;
+                state.signal_baselines[SIG_REPEATED_FAILURES].snapshot = state.repeated_failures;
+                state.signal_baselines[SIG_SCOPE_CREEP].snapshot = state.scope_creep_count;
+                state.signal_baselines[SIG_CONTRADICTIONS].snapshot = state.contradictions;
+                state.signal_baselines[SIG_VOCAB_CONTRACTION].snapshot = state.vocabulary_contraction_count;
+                state.signal_baselines[SIG_RESPONSE_QUALITY].snapshot = state.response_quality_count;
+                state.signal_baselines[SIG_THINKING_COLLAPSE].snapshot = state.thinking_collapse_count;
+                state.signal_baselines[SIG_SEMANTIC_STABILITY].snapshot = state.semantic_stability_count;
+                state.signal_baselines[SIG_MANDATE_ALIGNMENT].snapshot = state.mandate_drift_count;
+                state.signal_baselines[SIG_CONTEXT_GROWTH].snapshot = state.context_growth_count;
+                state.signal_baselines[SIG_INSTRUCTION_RECALL].snapshot = state.instruction_recall_count;
+                state.signal_baselines[SIG_PLAN_DRIFT].snapshot = state.plan_drift_count;
+                state.signal_baselines[SIG_ENTITY_CONSISTENCY].snapshot = state.entity_consistency_count;
+                state.signal_baselines[SIG_INSTRUCTION_CONFLICT].snapshot = state.instruction_conflict_count;
+                state.signal_baselines[SIG_PERSONA_FINGERPRINT].snapshot = state.persona_drift_count;
+                state.signal_baselines[SIG_TOOL_CHAIN_INTEGRITY].snapshot = state.tool_integrity_count;
+                state.signal_baselines[SIG_CLAIM_RESULT].snapshot = state.claim_result_mismatch_count;
+            }
+        }
     }
 
     // F15: Natural healing — proportional to signal cleanliness.
