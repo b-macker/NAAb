@@ -141,10 +141,18 @@ static void apply_posix_containment(const SubprocessContainment& c) {
     // L7: Memory limit — RLIMIT_AS caps virtual address space for the child.
     // Safe post-fork: only affects this child process, not the parent.
     // (cf. buildMemoryLimitError() documents the parent-process RLIMIT_AS disaster.)
+    //
+    // Android/Termux: skip RLIMIT_AS entirely. The Android linker maps shared
+    // libraries at high virtual addresses, consuming ~12 GB of virtual address
+    // space even for trivial programs like /usr/bin/echo. RLIMIT_AS < 12 GB
+    // causes every child exec to SIGABRT (dynamic linker OOM). Actual RSS
+    // remains small — the virtual size is just address-space reservation.
+#ifndef __ANDROID__
     if (c.max_memory_bytes > 0) {
         struct rlimit rl = {(rlim_t)c.max_memory_bytes, (rlim_t)c.max_memory_bytes};
         setrlimit(RLIMIT_AS, &rl);
     }
+#endif
 
     // L8: CPU time limit — RLIMIT_CPU complements wall-clock timeout.
     // Kernel sends SIGXCPU at soft limit, SIGKILL at hard limit.

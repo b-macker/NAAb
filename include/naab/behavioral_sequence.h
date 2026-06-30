@@ -174,18 +174,29 @@ struct DriftState {
     bool baseline_complete = false;
     int baseline_turns_counted = 0;
     int baseline_completed_turn = -1;  // wall-clock turn when baseline finished (-1 = not yet)
+    int post_baseline_checks = 0;     // gate-passing turns after baseline complete
+    int baseline_circular_snapshot = 0;
+    int baseline_failures_snapshot = 0;
+    int baseline_scope_creep_snapshot = 0;
+    int baseline_contradictions_snapshot = 0;
     struct BaselineStats {
         double mean_failures = 0.0;
         double mean_circular = 0.0;
         double mean_scope_creep = 0.0;
         double mean_contradictions = 0.0;
         double stddev_failures = 0.0;
+        double stddev_circular = 0.0;
+        double stddev_scope_creep = 0.0;
+        double stddev_contradictions = 0.0;
         // Running sums for incremental computation
         double sum_failures = 0.0;
         double sum_sq_failures = 0.0;
         double sum_circular = 0.0;
+        double sum_sq_circular = 0.0;
         double sum_scope_creep = 0.0;
+        double sum_sq_scope_creep = 0.0;
         double sum_contradictions = 0.0;
+        double sum_sq_contradictions = 0.0;
     } baseline;
 
     // Reality checkpoint state
