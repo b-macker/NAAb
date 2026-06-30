@@ -196,7 +196,6 @@ static void extractKeywords(const std::string& text, std::unordered_set<std::str
 // and recent user prompts (context-aware). Returns overlap ratio for telemetry.
 static double scoreStepUpChallengeRatio(const std::string& response,
                                          const std::string& system_prompt,
-                                         const std::vector<std::string>& recent_prompts,
                                          int min_words) {
     // 1. Word count
     int words = 0;
@@ -211,12 +210,13 @@ static double scoreStepUpChallengeRatio(const std::string& response,
     }
     if (words < min_words) return -1.0;  // word count failure
 
-    // 2. Extract keywords from system prompt AND recent user prompts
+    // 2. Extract keywords from system prompt only.
+    // Mandate challenges ask the agent to restate its objective, which is defined
+    // by the system prompt. User prompt keywords dilute the denominator without
+    // contributing to the numerator, creating a structural ceiling that drops
+    // below any fixed threshold as conversations grow longer.
     std::unordered_set<std::string> prompt_keywords;
     extractKeywords(system_prompt, prompt_keywords);
-    for (const auto& prompt : recent_prompts) {
-        extractKeywords(prompt, prompt_keywords);
-    }
     if (prompt_keywords.empty()) return 1.0;  // no keywords to check
 
     // 3. Check overlap with response
@@ -1601,11 +1601,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 passed = (keyword_ratio >= 0.0 &&
                                           keyword_ratio >= cb.step_up_contextual_threshold);
                             } else {
-                                // Mandate challenge (fallback): score against system_prompt + prompts
+                                // Mandate challenge (fallback): score against system_prompt only
                                 keyword_ratio = scoreStepUpChallengeRatio(
                                     challenge_result.response.content,
                                     config->system_prompt,
-                                    recent_prompts,
                                     cb.step_up_min_words);
                                 passed = (keyword_ratio >= 0.0 &&
                                           keyword_ratio >= cb.step_up_keyword_threshold);
