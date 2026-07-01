@@ -1547,6 +1547,16 @@ struct CircuitBreakerConfig {
     // Lower threshold for contextual challenges — tool/plan keywords are more specific
     // than system_prompt keywords, so a lower overlap bar is appropriate.
     double step_up_contextual_threshold = 0.30;
+    // Challenge history mode: controls what conversation context the model
+    // receives when answering a step-up challenge.
+    // "full"    — all messages (no cap, original behavior)
+    // "recent"  — last N messages only (default, backward compatible)
+    // "summary" — mechanical DriftState summary preamble + last N recent messages
+    std::string step_up_challenge_history = "recent";
+    // Number of recent messages to include. Used by "recent" (as the cap) and
+    // "summary" (as the recent tail after the summary preamble). Default 20
+    // matches the original MAX_CHALLENGE_HISTORY constant.
+    int step_up_history_recent_count = 20;
 };
 
 // Advisory Escalation — repeated advisories harden over time

@@ -2823,6 +2823,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_contextual_threshold") && cbj["step_up_contextual_threshold"].is_number()) {
             cfg.step_up_contextual_threshold = std::max(0.0, std::min(1.0, cbj["step_up_contextual_threshold"].get<double>()));
         }
+        if (cbj.contains("step_up_challenge_history") && cbj["step_up_challenge_history"].is_string()) {
+            std::string val = cbj["step_up_challenge_history"].get<std::string>();
+            if (val == "full" || val == "recent" || val == "summary") {
+                cfg.step_up_challenge_history = val;
+            } else {
+                fprintf(stderr, "[governance] Warning: step_up_challenge_history '%s' is not valid — using 'recent'\n", val.c_str());
+            }
+        }
+        if (cbj.contains("step_up_history_recent_count") && cbj["step_up_history_recent_count"].is_number_integer()) {
+            cfg.step_up_history_recent_count = std::max(2, std::min(200, cbj["step_up_history_recent_count"].get<int>()));
+        }
         parseRationale(cbj, cfg.rationale);
     }
 

@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <algorithm>
 #ifdef _WIN32
 #include <process.h>
 #define getpid _getpid
@@ -284,6 +285,86 @@ static double scoreContextualChallengeRatio(const std::string& response,
         if (response_lower.find(kw) != std::string::npos) found++;
     }
     return static_cast<double>(found) / static_cast<double>(expected_keywords.size());
+}
+
+// Build a mechanical summary preamble from DriftState metadata for challenge context.
+// Returns empty string if no metadata is available.
+static std::string buildChallengeSummary(const governance::DriftState& ds, int current_turn) {
+    // If no metadata, return empty (fall through to recent-only behavior)
+    if (ds.instruction_keywords.empty() && ds.plan_step_keywords.empty() &&
+        ds.entity_context.empty() && ds.tool_result_keywords.empty()) {
+        return "";
+    }
+
+    std::string summary = "[Context: Turn " + std::to_string(current_turn) + " of ongoing session.";
+
+    // Topics from accumulated instruction keywords (cap at 30 terms)
+    if (!ds.instruction_keywords.empty()) {
+        summary += " Topics discussed:";
+        int count = 0;
+        for (const auto& kw : ds.instruction_keywords) {
+            if (count >= 30) { summary += " ..."; break; }
+            summary += (count == 0 ? " " : ", ") + kw;
+            count++;
+        }
+        summary += ".";
+    }
+
+    // Plan steps
+    if (!ds.plan_step_keywords.empty()) {
+        summary += " Plan: " + std::to_string(ds.plan_step_keywords.size()) + " steps";
+        for (size_t i = 0; i < ds.plan_step_keywords.size() && i < 8; i++) {
+            summary += " (" + std::to_string(i + 1) + ")";
+            int kcount = 0;
+            for (const auto& kw : ds.plan_step_keywords[i]) {
+                if (kcount >= 5) break;
+                summary += (kcount == 0 ? " " : ", ") + kw;
+                kcount++;
+            }
+        }
+        summary += ".";
+    }
+
+    // Key entities (top 5 by context keyword count)
+    if (!ds.entity_context.empty()) {
+        std::vector<std::pair<std::string, size_t>> entities;
+        for (const auto& [ent, ctx] : ds.entity_context) {
+            entities.push_back({ent, ctx.size()});
+        }
+        std::sort(entities.begin(), entities.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+        summary += " Key entities:";
+        for (size_t i = 0; i < entities.size() && i < 5; i++) {
+            const auto& ent = entities[i].first;
+            summary += (i == 0 ? " " : ", ") + ent;
+            auto it = ds.entity_context.find(ent);
+            if (it != ds.entity_context.end() && !it->second.empty()) {
+                summary += " (";
+                int kcount = 0;
+                for (const auto& kw : it->second) {
+                    if (kcount >= 4) break;
+                    summary += (kcount == 0 ? "" : ", ") + kw;
+                    kcount++;
+                }
+                summary += ")";
+            }
+        }
+        summary += ".";
+    }
+
+    // Tools used (names only)
+    if (!ds.tool_result_keywords.empty()) {
+        summary += " Tools used:";
+        int count = 0;
+        for (const auto& [name, _] : ds.tool_result_keywords) {
+            summary += (count == 0 ? " " : ", ") + name;
+            count++;
+        }
+        summary += ".";
+    }
+
+    summary += "]\n\n";
+    return summary;
 }
 
 // Pipeline upstream provenance — keyed by downstream handle_id
@@ -1488,14 +1569,18 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         std::string challenge_text = cb.step_up_challenge;
                         std::unordered_set<std::string> contextual_expected_keywords;
 
-                        if (cb.step_up_contextual && gov_engine) {
-                            auto ds = gov_engine->getDriftState(handle_id);
-                            if (ds) {
+                        // Get DriftState for contextual selection and summary history
+                        std::optional<governance::DriftState> challenge_ds;
+                        if (gov_engine) {
+                            challenge_ds = gov_engine->getDriftState(handle_id);
+                        }
+
+                        if (cb.step_up_contextual && challenge_ds) {
                                 // Priority 1: tool_result — test recall of actual tool output
-                                if (challenge_type == "mandate" && !ds->tool_result_keywords.empty()) {
+                                if (challenge_type == "mandate" && !challenge_ds->tool_result_keywords.empty()) {
                                     // Pick most recently recorded tool (last in iteration order)
                                     std::string tool_name;
-                                    for (const auto& [name, kw] : ds->tool_result_keywords) {
+                                    for (const auto& [name, kw] : challenge_ds->tool_result_keywords) {
                                         if (!kw.empty()) tool_name = name;
                                     }
                                     if (!tool_name.empty()) {
@@ -1503,33 +1588,33 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         challenge_text = "Your last call to " + tool_name +
                                             " returned a result. In one sentence, describe what "
                                             "that result contained, then proceed.";
-                                        contextual_expected_keywords = ds->tool_result_keywords.at(tool_name);
+                                        contextual_expected_keywords = challenge_ds->tool_result_keywords.at(tool_name);
                                     }
                                 }
                                 // Priority 2: plan_step — test plan awareness
-                                if (challenge_type == "mandate" && !ds->plan_step_keywords.empty() &&
-                                    ds->plan_last_step_matched >= 0) {
-                                    int next = ds->plan_last_step_matched;
-                                    if (next < static_cast<int>(ds->plan_step_keywords.size())) {
+                                if (challenge_type == "mandate" && !challenge_ds->plan_step_keywords.empty() &&
+                                    challenge_ds->plan_last_step_matched >= 0) {
+                                    int next = challenge_ds->plan_last_step_matched;
+                                    if (next < static_cast<int>(challenge_ds->plan_step_keywords.size())) {
                                         challenge_type = "plan_step";
                                         challenge_text = "What is step " + std::to_string(next + 1) +
                                             " of your current plan? State it in one sentence, then proceed.";
-                                        contextual_expected_keywords = ds->plan_step_keywords[static_cast<size_t>(next)];
+                                        contextual_expected_keywords = challenge_ds->plan_step_keywords[static_cast<size_t>(next)];
                                     }
                                 }
                                 // Priority 3: instruction — test instruction memory
-                                if (challenge_type == "mandate" && !ds->instruction_history.empty()) {
+                                if (challenge_type == "mandate" && !challenge_ds->instruction_history.empty()) {
                                     challenge_type = "instruction";
                                     challenge_text = "In one sentence, summarize the most recent "
                                         "user instruction you received, then proceed.";
-                                    contextual_expected_keywords = ds->instruction_history.back();
+                                    contextual_expected_keywords = challenge_ds->instruction_history.back();
                                 }
                                 // Priority 4: entity — test entity awareness
-                                if (challenge_type == "mandate" && !ds->entity_context.empty()) {
+                                if (challenge_type == "mandate" && !challenge_ds->entity_context.empty()) {
                                     // Pick entity with most context keywords
                                     std::string best_entity;
                                     size_t best_size = 0;
-                                    for (const auto& [ent, ctx] : ds->entity_context) {
+                                    for (const auto& [ent, ctx] : challenge_ds->entity_context) {
                                         if (ctx.size() > best_size) {
                                             best_entity = ent;
                                             best_size = ctx.size();
@@ -1540,27 +1625,25 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         challenge_text = "What is " + best_entity +
                                             " and how does it relate to your current task? "
                                             "Answer in one sentence, then proceed.";
-                                        contextual_expected_keywords = ds->entity_context.at(best_entity);
+                                        contextual_expected_keywords = challenge_ds->entity_context.at(best_entity);
                                     }
                                 }
-                            }
                         }
 
                         // Build challenge message with conversation history.
-                        // History gives the model context to answer contextual
-                        // questions (tool recall, plan steps, instructions, entities).
+                        // History mode controls context sent to the model:
+                        //   "full"    — all messages (no cap)
+                        //   "recent"  — last N messages (default, backward compatible)
+                        //   "summary" — DriftState summary preamble + last N messages
                         // System prompt is NOT included here — callAgentWithStatus
                         // sends it via config (Gemini: systemInstruction, Anthropic:
                         // "system" field). Including it would double-send.
-                        // Cap history to last 20 messages to prevent context bloat
-                        // from degrading model response quality at long conversations.
                         json challenge_msgs = json::array();
                         size_t history_message_count = 0;
                         {
                             auto hist_it = handle.find("messages");
                             if (hist_it != handle.end() && hist_it->second.isList()) {
                                 auto& hlist = hist_it->second.asList();
-                                // Collect all messages, then take last 20
                                 std::vector<json> all_msgs;
                                 for (auto& hmsg : hlist) {
                                     if (hmsg.isDict()) {
@@ -1576,19 +1659,36 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         }
                                     }
                                 }
-                                // Keep last 20 messages (10 user-assistant pairs)
-                                static constexpr size_t MAX_CHALLENGE_HISTORY = 20;
-                                size_t start = all_msgs.size() > MAX_CHALLENGE_HISTORY
-                                    ? all_msgs.size() - MAX_CHALLENGE_HISTORY : 0;
-                                for (size_t i = start; i < all_msgs.size(); i++) {
-                                    challenge_msgs.push_back(std::move(all_msgs[i]));
+                                if (cb.step_up_challenge_history == "full") {
+                                    // All messages, no cap
+                                    for (auto& m : all_msgs) {
+                                        challenge_msgs.push_back(std::move(m));
+                                    }
+                                } else {
+                                    // "recent" and "summary" both use configurable recent count
+                                    size_t recent = static_cast<size_t>(cb.step_up_history_recent_count);
+                                    size_t start = all_msgs.size() > recent
+                                        ? all_msgs.size() - recent : 0;
+                                    for (size_t i = start; i < all_msgs.size(); i++) {
+                                        challenge_msgs.push_back(std::move(all_msgs[i]));
+                                    }
                                 }
                                 history_message_count = challenge_msgs.size();
                             }
                         }
+
+                        // Summary mode: prepend DriftState summary to challenge text
+                        std::string effective_challenge = challenge_text;
+                        if (cb.step_up_challenge_history == "summary" && challenge_ds) {
+                            std::string summary = buildChallengeSummary(*challenge_ds, current_turn);
+                            if (!summary.empty()) {
+                                effective_challenge = summary + challenge_text;
+                            }
+                        }
+
                         json challenge_user;
                         challenge_user["role"] = "user";
-                        challenge_user["content"] = challenge_text;
+                        challenge_user["content"] = effective_challenge;
                         challenge_msgs.push_back(challenge_user);
 
                         governance::AgentConfig challenge_config = *config;
@@ -1644,11 +1744,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         }
 
                         // Gate lease renewal on coherence if drift tracking is active
+                        // Reuses hoisted challenge_ds to avoid redundant DriftState copy
                         bool coherence_ok = true;
-                        if (passed && gov_engine) {
-                            auto drift_state = gov_engine->getDriftState(handle_id);
+                        if (passed && challenge_ds) {
                             double floor = gov_engine->getRules().exposure_tracking.coherence_floor;
-                            if (drift_state && floor > 0.0 && drift_state->coherence_score < floor) {
+                            if (floor > 0.0 && challenge_ds->coherence_score < floor) {
                                 coherence_ok = false;
                             }
                         }
@@ -1692,7 +1792,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"lease_expired", lease_expired},
                                 {"coherence_ok", coherence_ok},
                                 {"response_length", static_cast<int>(challenge_result.response.content.size())},
-                                {"history_messages", static_cast<int>(history_message_count)}
+                                {"history_messages", static_cast<int>(history_message_count)},
+                                {"history_mode", cb.step_up_challenge_history}
                             };
                         }
 
@@ -1707,7 +1808,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
                                 {"context_prompts", std::to_string(recent_prompts.size())},
-                                {"history_messages", std::to_string(history_message_count)}
+                                {"history_messages", std::to_string(history_message_count)},
+                                {"history_mode", cb.step_up_challenge_history}
                             });
                         } else {
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_FAIL", {
@@ -1719,7 +1821,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
                                 {"context_prompts", std::to_string(recent_prompts.size())},
-                                {"history_messages", std::to_string(history_message_count)}
+                                {"history_messages", std::to_string(history_message_count)},
+                                {"history_mode", cb.step_up_challenge_history}
                             });
                             throw governance::GovernanceHardError(
                                 "Agent error: Step-up challenge failed\n\n"
