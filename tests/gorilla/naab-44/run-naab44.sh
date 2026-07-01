@@ -79,7 +79,7 @@ else
     # Copy long-build.naab and run
     cp "$SCRIPT_DIR/src/long-build.naab" "$WORKDIR/"
     echo -e "${CYAN}Running long-build (this takes 5-15 minutes with live API calls)...${NC}"
-    echo -e "${CYAN}Config: circular_weight=0.04, check_interval=5, adaptive_baseline=10, lease=20, recovery=0.2${NC}"
+    echo -e "${CYAN}Config: circular_weight=0.06, check_interval=3, adaptive_baseline=3/1.5, lease=20, recovery=0.2${NC}"
     echo ""
 
     OUTPUT=$(cd "$WORKDIR" && timeout 14400 "$NAAB" --governance-dashboard "long-build.naab" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
@@ -215,28 +215,19 @@ else
         fail "C04" "No CDD_TURN events in telemetry"
     fi
 
-    # C05: CDD events where signals actually fired should match turns / check_interval.
-    # check_interval_turns=5, so penalty-firing CDD checks = turns / 5.
-    # This verifies CDD is actually running at the configured interval, not just
-    # emitting telemetry per-turn (which it also does for visibility).
+    # C05: At least some CDD events had signals fire (proves penalties work).
+    # With adaptive baselining, most CDD checks won't fire penalties — signals
+    # must exceed mean + k*stddev to penalize. So we just check signals > 0.
     TELEM_CDD_SIGNALS=$(echo "$OUTPUT" | grep -oP 'TELEM_CDD_SIGNAL_EVENTS: \K[0-9]+' | head -1)
     TELEM_CDD_SIGNALS=${TELEM_CDD_SIGNALS:-0}
-    if [ "$TURNS_COMPLETED" -gt 0 ] && [ "$TELEM_CDD_SIGNALS" -gt 0 ]; then
-        EXPECTED_CHECKS=$((TURNS_COMPLETED / 5))
-        if [ "$EXPECTED_CHECKS" -gt 0 ]; then
-            LOW=$((EXPECTED_CHECKS * 70 / 100))
-            HIGH=$((EXPECTED_CHECKS * 130 / 100))
-            [ "$LOW" -lt 1 ] && LOW=1
-            if [ "$TELEM_CDD_SIGNALS" -ge "$LOW" ] && [ "$TELEM_CDD_SIGNALS" -le "$HIGH" ]; then
-                pass "C05" "CDD signal events match check_interval (signals=$TELEM_CDD_SIGNALS, expected=$EXPECTED_CHECKS)"
-            else
-                fail "C05" "CDD signal count off" "signals=$TELEM_CDD_SIGNALS, expected=$EXPECTED_CHECKS, range=$LOW-$HIGH"
-            fi
+    if [ "$TURNS_COMPLETED" -gt 0 ]; then
+        if [ "$TELEM_CDD_SIGNALS" -gt 0 ]; then
+            pass "C05" "CDD signals fired ($TELEM_CDD_SIGNALS events with penalties)"
         else
-            skip "C05" "Expected check count is 0"
+            fail "C05" "No CDD signals fired in $TURNS_COMPLETED turns" "adaptive baseline may be too forgiving"
         fi
     else
-        skip "C05" "No turns or no CDD signal events to compare"
+        skip "C05" "No turns to check"
     fi
 
     # ============================================================
@@ -441,9 +432,12 @@ if [ -f "${STDERR_FILE:-/dev/null}" ]; then
     cp "$STDERR_FILE" "$RESULTS_DIR/stderr_${TIMESTAMP}.txt" 2>/dev/null || true
 fi
 
-# Copy telemetry for manual audit
+# Copy telemetry + transcript for manual audit
 if [ -f "${WORKDIR:-/dev/null}/telemetry.jsonl" ]; then
     cp "$WORKDIR/telemetry.jsonl" "$RESULTS_DIR/telemetry_${TIMESTAMP}.jsonl" 2>/dev/null || true
+fi
+if [ -f "${WORKDIR:-/dev/null}/transcript.jsonl" ]; then
+    cp "$WORKDIR/transcript.jsonl" "$RESULTS_DIR/transcript_${TIMESTAMP}.jsonl" 2>/dev/null || true
 fi
 
 exit "$FAIL_COUNT"

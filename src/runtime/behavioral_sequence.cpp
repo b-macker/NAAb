@@ -1271,6 +1271,11 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                     double similarity = union_size > 0 ?
                         static_cast<double>(intersection) / static_cast<double>(union_size) : 1.0;
 
+                    // Store similarity in rolling history (same pattern as mandate_alignment)
+                    state.semantic_stability_history.push_back(similarity);
+                    while (state.semantic_stability_history.size() > 20)
+                        state.semantic_stability_history.pop_front();
+
                     if (similarity < config_->thresholds.semantic_stability_min_overlap) {
                         state.semantic_stability_count++;
                         turn_fired[SIG_SEMANTIC_STABILITY]++;

@@ -149,6 +149,7 @@ struct DriftState {
 
     // F19: Semantic stability (keyword overlap between consecutive responses)
     std::unordered_set<std::string> prev_response_keywords;
+    std::deque<double> semantic_stability_history;  // rolling window of Jaccard similarity scores
     int semantic_stability_count = 0;     // turns where topic shifted significantly
 
     // Mandate alignment — continuous system_prompt keyword adherence

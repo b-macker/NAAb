@@ -3480,9 +3480,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     snprintf(ma_buf, sizeof(ma_buf), "%.4f", ma_mean);
                     ma_str = ma_buf;
                 }
+                std::string ss_str = "N/A";
+                if (!drift_state->semantic_stability_history.empty()) {
+                    double ss_sum = 0;
+                    for (double v : drift_state->semantic_stability_history) ss_sum += v;
+                    double ss_mean = ss_sum / static_cast<double>(drift_state->semantic_stability_history.size());
+                    char ss_buf[32];
+                    snprintf(ss_buf, sizeof(ss_buf), "%.4f", ss_mean);
+                    ss_str = ss_buf;
+                }
                 gov_engine->writeAgentTelemetry("SEMANTIC_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
                     {"turn",                   std::to_string(current_turn)},
+                    {"semantic_stability",      ss_str},
                     {"semantic_stability_count", std::to_string(drift_state->semantic_stability_count)},
                     {"mandate_drift_count",     std::to_string(drift_state->mandate_drift_count)},
                     {"context_growth_count",    std::to_string(drift_state->context_growth_count)},
