@@ -292,11 +292,24 @@ static double scoreContextualChallengeRatio(const std::string& response,
 static std::string buildChallengeSummary(const governance::DriftState& ds, int current_turn) {
     // If no metadata, return empty (fall through to recent-only behavior)
     if (ds.instruction_keywords.empty() && ds.plan_step_keywords.empty() &&
-        ds.entity_context.empty() && ds.tool_result_keywords.empty()) {
+        ds.entity_context.empty() && ds.tool_result_keywords.empty() &&
+        ds.mandate_keywords.empty()) {
         return "";
     }
 
     std::string summary = "[Context: Turn " + std::to_string(current_turn) + " of ongoing session.";
+
+    // Mandate (system prompt keywords) — reinforces objective for challenge
+    if (!ds.mandate_keywords.empty()) {
+        summary += " Your role:";
+        int count = 0;
+        for (const auto& kw : ds.mandate_keywords) {
+            if (count >= 20) { summary += " ..."; break; }
+            summary += (count == 0 ? " " : ", ") + kw;
+            count++;
+        }
+        summary += ".";
+    }
 
     // Topics from accumulated instruction keywords (cap at 30 terms)
     if (!ds.instruction_keywords.empty()) {

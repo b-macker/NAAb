@@ -107,7 +107,7 @@ bool InterpreterDebugger::shouldBreak(const ast::ASTNode& node) const {
 
     auto it = breakpoints_.find(loc.filename);
     if (it != breakpoints_.end()) {
-        return it->second.count(loc.line) > 0;
+        return it->second.count(static_cast<size_t>(loc.line)) > 0;
     }
 
     return false;

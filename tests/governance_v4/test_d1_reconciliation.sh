@@ -766,7 +766,7 @@ NAABEOF
     # Try SUMMARY line first; fall back to counting TURN| output lines
     TURNS=$(echo "$OUTPUT" | grep -oP 'SUMMARY_TURNS_COMPLETED: \K[0-9]+' | head -1)
     if [ -z "$TURNS" ]; then
-        TURNS=$(echo "$OUTPUT" | grep -cF 'TURN|n=' 2>/dev/null | head -1 || echo "0")
+        TURNS=$(echo "$OUTPUT" | grep -cF 'TURN|n=' 2>/dev/null || true)
     fi
     TURNS=$(echo "${TURNS:-0}" | tr -dc '0-9' | head -c 5)
     TURNS=${TURNS:-0}
@@ -780,7 +780,8 @@ NAABEOF
     # What this tests: agent_impl.cpp:3153-3178 emits RECONCILIATION_TURN
     # when claim_result_reconciliation signal is enabled. Should appear whenever
     # drift_state exists (after first CDD check).
-    TELEM_RECONCIL=$(grep -c "RECONCILIATION_TURN" "$TELEM_FILE" 2>/dev/null || echo "0")
+    TELEM_RECONCIL=$(grep -c "RECONCILIATION_TURN" "$TELEM_FILE" 2>/dev/null || true)
+    TELEM_RECONCIL=${TELEM_RECONCIL:-0}
     if [ "$TELEM_RECONCIL" -gt 0 ]; then
         pass "B04" "RECONCILIATION_TURN telemetry emitted ($TELEM_RECONCIL events)"
     else
@@ -843,9 +844,11 @@ NAABEOF
 
     # B08: SEMANTIC_TURN telemetry includes claim_mismatch_count
     # What this tests: agent_impl.cpp:3148 adds claim_mismatch_count to SEMANTIC_TURN
-    TELEM_SEM=$(grep -c "SEMANTIC_TURN" "$TELEM_FILE" 2>/dev/null || echo "0")
+    TELEM_SEM=$(grep -c "SEMANTIC_TURN" "$TELEM_FILE" 2>/dev/null || true)
+    TELEM_SEM=${TELEM_SEM:-0}
     if [ "$TELEM_SEM" -gt 0 ]; then
-        SEM_HAS_CMM=$(grep "SEMANTIC_TURN" "$TELEM_FILE" | head -1 | grep -c "claim_mismatch_count" 2>/dev/null || echo "0")
+        SEM_HAS_CMM=$(grep "SEMANTIC_TURN" "$TELEM_FILE" | head -1 | grep -c "claim_mismatch_count" 2>/dev/null || true)
+        SEM_HAS_CMM=${SEM_HAS_CMM:-0}
         if [ "$SEM_HAS_CMM" -gt 0 ]; then
             pass "B08" "SEMANTIC_TURN telemetry includes claim_mismatch_count"
         else

@@ -1,0 +1,36 @@
+// Stress test: sandbox + parallel agents
+use agent
+use json
+use string
+
+main {
+    print("=== Sandbox Stress Test ===")
+    print("Creating 4 agents and running fan_out...")
+
+    let h1 = agent.create("reviewer_a")
+    let h2 = agent.create("reviewer_b")
+    let h3 = agent.create("reviewer_a")
+    let h4 = agent.create("reviewer_b")
+
+    print("Agents created. Memory checkpoint 1.")
+
+    // Fan out to all 4
+    let results = agent.fan_out([h1, h2, h3, h4], "Say hello in exactly 5 words.")
+
+    print("Fan-out complete. Results:")
+    for i in 0..len(results) {
+        let r = results[i]
+        if r.has("error") {
+            print("  Agent " + json.stringify(i) + ": ERROR - " + r.get("error"))
+        } else {
+            print("  Agent " + json.stringify(i) + ": " + r.get("content"))
+        }
+    }
+
+    let ds = agent.dispatch_status()
+    print("")
+    print("Calls: " + json.stringify(ds.get("calls_made")))
+    print("Tokens: " + json.stringify(ds.get("tokens_used")))
+    print("Time: " + json.stringify(ds.get("agent_time_ms")) + "ms")
+    print("=== DONE ===")
+}

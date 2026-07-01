@@ -1,0 +1,32 @@
+use agent
+use json
+
+main {
+    let ra = agent.create("reviewer_a")
+    let rb = agent.create("reviewer_b")
+
+    print("Fan-out with 2 agents...")
+    let results = agent.fan_out([ra, rb], "Say hello in 5 words.")
+
+    for i in 0..len(results) {
+        let r = results[i]
+        print("--- Agent " + json.stringify(i) + " ---")
+        if r.has("error") {
+            print("  ERROR: " + r.get("error"))
+        }
+        if r.has("success") {
+            print("  success: " + json.stringify(r.get("success")))
+        }
+        if r.has("content") {
+            print("  content: [" + r.get("content") + "]")
+        }
+        if r.has("trace") {
+            let t = r.get("trace")
+            if t != null {
+                print("  trace.model: " + t.get("model"))
+            } else {
+                print("  trace: null")
+            }
+        }
+    }
+}

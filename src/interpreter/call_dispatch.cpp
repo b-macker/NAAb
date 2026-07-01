@@ -2848,7 +2848,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             try {
                 // Try parsing as double first to handle "3.14" -> 3
                 double d = std::stod(args[0].asString());
-                result_ = NaabVal::makeInt(d);
+                result_ = NaabVal::makeInt(static_cast<int>(d));
             } catch (...) {
                 throw std::runtime_error("int() cannot convert \"" + args[0].asString() + "\" to int");
             }
@@ -2915,7 +2915,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (start >= end) {
                 result_ = NaabVal::makeString("");
             } else {
-                result_ = NaabVal::makeString(str.substr(start, end - start));
+                result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
             }
         } else {
             throw std::runtime_error("Slice operator requires an array or string");
@@ -3127,9 +3127,8 @@ void Interpreter::visit(ast::MemberExpr& node) {
 
     // Check if object is a Python object (for method chaining)
     if (obj.isPythonObject()) {
-        auto& py_obj = obj.asPythonObject();
-
 #ifdef NAAB_HAS_PYTHON
+        auto& py_obj = obj.asPythonObject();
         fmt::print("[MEMBER] Accessing .{} on Python object\n", member_name);
 
         // Get the member attribute from the Python object
