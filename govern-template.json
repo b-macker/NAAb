@@ -1984,6 +1984,8 @@
     "step_up_keyword_threshold": 0.4,
     "step_up_contextual": false,
     "step_up_contextual_threshold": 0.30,
+    "step_up_challenge_history": "recent",
+    "step_up_history_recent_count": 20,
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
   },
 
