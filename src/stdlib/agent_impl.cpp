@@ -94,6 +94,8 @@ struct AgentTracker {
     std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
     size_t key_offset = 0;  // round-robin position across agent.send() calls
     int truncation_count = 0;  // times response was truncated (MAX_TOKENS)
+    int last_reinforcement_turn = -100;  // mandate reinforcement cooldown
+    int last_correction_turn = -100;     // coherence correction cooldown
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -1869,6 +1871,89 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         nlohmann::json tool_names = nlohmann::json::array();
         for (const auto& td : initial_tool_defs) tool_names.push_back(td.name);
         transcript_entry["tools_sent"] = tool_names;
+    }
+
+    // ── Mandate reinforcement & coherence correction injection ──
+    // Detect-and-correct: steer the model back before it reaches the challenge
+    // kill zone. Prepended to user message content (not a separate message) to
+    // preserve Gemini's strict user/assistant role alternation.
+    if (gov_engine && gov_engine->isActive() && config && !config->system_prompt.empty()) {
+        const auto& mr_cb = gov_engine->getRules().circuit_breaker;
+        std::string injection_text;
+        std::string injection_type;
+        double injection_coherence = 1.0;
+
+        // Coherence correction (priority — reactive, CDD-triggered)
+        if (mr_cb.coherence_correction_enabled) {
+            auto ds = gov_engine->getDriftState(handle_id);
+            if (ds && ds->coherence_score < mr_cb.coherence_correction_threshold) {
+                injection_coherence = ds->coherence_score;
+                int last_corr;
+                {
+                    std::lock_guard<std::mutex> lock(s_agent_mutex);
+                    last_corr = s_trackers[handle_id].last_correction_turn;
+                }
+                if (current_turn - last_corr >= mr_cb.coherence_correction_cooldown_turns) {
+                    injection_text = mr_cb.coherence_correction_message;
+                    if (injection_text.empty()) {
+                        injection_text = "[Focus Alert: Your responses have been drifting from "
+                                         "your assigned task. Your role: " +
+                                         config->system_prompt +
+                                         " Please refocus on this objective.]";
+                    }
+                    injection_type = "coherence_correction";
+                    {
+                        std::lock_guard<std::mutex> lock(s_agent_mutex);
+                        s_trackers[handle_id].last_correction_turn = current_turn;
+                    }
+                }
+            }
+        }
+
+        // Periodic mandate reinforcement (only if no correction)
+        if (injection_text.empty() && mr_cb.mandate_reinforcement_enabled &&
+            current_turn > 0 &&
+            current_turn % mr_cb.mandate_reinforcement_interval == 0) {
+            int last_reinf;
+            {
+                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                last_reinf = s_trackers[handle_id].last_reinforcement_turn;
+            }
+            if (last_reinf != current_turn) {
+                injection_text = mr_cb.mandate_reinforcement_message;
+                if (injection_text.empty()) {
+                    injection_text = "[Task Reminder: " + config->system_prompt + "]";
+                }
+                injection_type = "mandate_reinforcement";
+                {
+                    std::lock_guard<std::mutex> lock(s_agent_mutex);
+                    s_trackers[handle_id].last_reinforcement_turn = current_turn;
+                }
+            }
+        }
+
+        // Prepend to user message content (Gemini-safe: no separate user message)
+        if (!injection_text.empty() && !messages_json.empty()) {
+            std::string original = messages_json.back()["content"].get<std::string>();
+            messages_json.back()["content"] = injection_text + "\n\n" + original;
+
+            char coh[32];
+            snprintf(coh, sizeof(coh), "%.4f", injection_coherence);
+            gov_engine->writeAgentTelemetry("MANDATE_INJECTION", {
+                {"handle_id", std::to_string(handle_id)},
+                {"turn",      std::to_string(current_turn)},
+                {"type",      injection_type},
+                {"agent",     config_name},
+                {"coherence", coh}
+            });
+            if (transcript_active) {
+                transcript_entry["mandate_injection"] = {
+                    {"type", injection_type},
+                    {"turn", current_turn},
+                    {"coherence", injection_coherence}
+                };
+            }
+        }
     }
 
     // ── Retry loop with key rotation, model fallback, backoff + jitter ──

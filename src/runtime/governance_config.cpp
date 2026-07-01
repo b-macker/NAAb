@@ -2834,6 +2834,22 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_history_recent_count") && cbj["step_up_history_recent_count"].is_number_integer()) {
             cfg.step_up_history_recent_count = std::max(2, std::min(200, cbj["step_up_history_recent_count"].get<int>()));
         }
+        // Mandate reinforcement — periodic reminder injection
+        if (cbj.contains("mandate_reinforcement_enabled") && cbj["mandate_reinforcement_enabled"].is_boolean())
+            cfg.mandate_reinforcement_enabled = cbj["mandate_reinforcement_enabled"].get<bool>();
+        if (cbj.contains("mandate_reinforcement_interval") && cbj["mandate_reinforcement_interval"].is_number_integer())
+            cfg.mandate_reinforcement_interval = std::max(1, cbj["mandate_reinforcement_interval"].get<int>());
+        if (cbj.contains("mandate_reinforcement_message") && cbj["mandate_reinforcement_message"].is_string())
+            cfg.mandate_reinforcement_message = cbj["mandate_reinforcement_message"].get<std::string>();
+        // Coherence correction — CDD-triggered correction injection
+        if (cbj.contains("coherence_correction_enabled") && cbj["coherence_correction_enabled"].is_boolean())
+            cfg.coherence_correction_enabled = cbj["coherence_correction_enabled"].get<bool>();
+        if (cbj.contains("coherence_correction_threshold") && cbj["coherence_correction_threshold"].is_number())
+            cfg.coherence_correction_threshold = std::max(0.0, std::min(1.0, cbj["coherence_correction_threshold"].get<double>()));
+        if (cbj.contains("coherence_correction_cooldown_turns") && cbj["coherence_correction_cooldown_turns"].is_number_integer())
+            cfg.coherence_correction_cooldown_turns = std::max(1, cbj["coherence_correction_cooldown_turns"].get<int>());
+        if (cbj.contains("coherence_correction_message") && cbj["coherence_correction_message"].is_string())
+            cfg.coherence_correction_message = cbj["coherence_correction_message"].get<std::string>();
         parseRationale(cbj, cfg.rationale);
     }
 

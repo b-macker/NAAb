@@ -1557,6 +1557,27 @@ struct CircuitBreakerConfig {
     // "summary" (as the recent tail after the summary preamble). Default 20
     // matches the original MAX_CHALLENGE_HISTORY constant.
     int step_up_history_recent_count = 20;
+    // Mandate reinforcement — periodic reminder prepended to user message.
+    // Prevents drift by reminding the model of its objective every N turns.
+    // Zero extra API calls — injected into existing message content.
+    bool mandate_reinforcement_enabled = false;
+    // 10 turns: roughly every other lease window. Frequent enough to prevent
+    // drift, rare enough to avoid prompt bloat and model desensitization.
+    int mandate_reinforcement_interval = 10;
+    // Empty = auto-generated "[Task Reminder: {system_prompt}]"
+    std::string mandate_reinforcement_message;
+    // Coherence correction — CDD-triggered stronger correction prepended to
+    // user message when coherence drops below threshold. Steers the model back
+    // before it reaches the challenge/kill zone.
+    bool coherence_correction_enabled = false;
+    // 0.85: fires when coherence drops 15% from perfect, well above the 0.7
+    // kill threshold. Gives headroom for the correction to take effect.
+    double coherence_correction_threshold = 0.85;
+    // 5 turns: prevent spamming corrections. Long enough for the model to
+    // respond, short enough to catch rapid decay.
+    int coherence_correction_cooldown_turns = 5;
+    // Empty = auto-generated "[Focus Alert: ... Your role: {system_prompt} ...]"
+    std::string coherence_correction_message;
 };
 
 // Advisory Escalation — repeated advisories harden over time

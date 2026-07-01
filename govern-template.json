@@ -1986,7 +1986,14 @@
     "step_up_contextual_threshold": 0.30,
     "step_up_challenge_history": "recent",
     "step_up_history_recent_count": 20,
-    "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
+    "mandate_reinforcement_enabled": false,
+    "mandate_reinforcement_interval": 10,
+    "mandate_reinforcement_message": "",
+    "coherence_correction_enabled": false,
+    "coherence_correction_threshold": 0.85,
+    "coherence_correction_cooldown_turns": 5,
+    "coherence_correction_message": "",
+    "rationale": "Graduated system-wide governance levels based on sustained composite pressure. Mandate reinforcement and coherence correction provide proactive drift prevention — steer the model back before it reaches the challenge/kill zone. Zero extra API calls."
   },
 
   "_comment_advisory_escalation": "Advisory Escalation — repeated advisory findings harden over time. 1st occurrence: warn. 2nd+: increase scoring weight by multiplier. N-th (soft_after): escalate to SOFT block. OSHA violation escalation analog: informal warning → formal → citation.",
