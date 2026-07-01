@@ -157,7 +157,9 @@
     "step_up_challenge": "Restate your current objective in one sentence, then continue helping.",
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 3,
-    "step_up_keyword_threshold": 0.3
+    "step_up_keyword_threshold": 0.3,
+    "step_up_challenge_history": "summary",
+    "step_up_history_recent_count": 10
   },
 
   "advisory_escalation": {
