@@ -29,6 +29,10 @@
       "enabled": true,
       "algorithm": "sha256",
       "chain_genesis": "naab44-longbuild"
+    },
+    "transcript": {
+      "enabled": true,
+      "output_file": "transcript.jsonl"
     }
   },
 
@@ -49,6 +53,8 @@
       "risk_budget": 150,
       "standing_lease_turns": 20,
       "standing_lease_seconds": 0,
+      "context_window": 40,
+      "context_strategy": "summary",
       "rate_limit": {
         "requests_per_minute": 0,
         "delay_between_calls_ms": 4000
@@ -117,16 +123,22 @@
       "coherence_velocity": true,
       "vocabulary_contraction": false,
       "capability_underutilization": false,
-      "semantic_stability": false,
+      "semantic_stability": true,
+      "mandate_alignment": true,
       "response_quality": true,
-      "thinking_collapse": true
+      "thinking_collapse": true,
+      "plan_drift": true,
+      "entity_consistency": true,
+      "persona_fingerprint": true
     },
     "weights": {
       "circular": 0.04,
       "scope_creep": 0.05,
       "contradiction": 0.10,
       "repeated_failure": 0.05,
-      "vocabulary_contraction": 0.05
+      "vocabulary_contraction": 0.05,
+      "semantic_stability": 0.08,
+      "mandate_alignment": 0.10
     },
     "thresholds": {
       "velocity_drop": -0.15,
@@ -134,7 +146,9 @@
       "scope_creep_min_history": 5,
       "scope_creep_min_new_types": 3,
       "repeated_failure_count": 5,
-      "coherence_history_size": 20
+      "coherence_history_size": 20,
+      "semantic_stability_min_overlap": 0.20,
+      "mandate_alignment_min": 0.12
     },
     "reality_checkpoint": {
       "enabled": true,
@@ -158,8 +172,15 @@
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 3,
     "step_up_keyword_threshold": 0.3,
+    "step_up_contextual": true,
+    "step_up_contextual_threshold": 0.30,
     "step_up_challenge_history": "summary",
-    "step_up_history_recent_count": 10
+    "step_up_history_recent_count": 10,
+    "mandate_reinforcement_enabled": true,
+    "mandate_reinforcement_interval": 10,
+    "coherence_correction_enabled": true,
+    "coherence_correction_threshold": 0.85,
+    "coherence_correction_cooldown_turns": 5
   },
 
   "advisory_escalation": {
