@@ -2064,6 +2064,13 @@ struct AgentConfig {
     int standing_lease_turns = 0;
     int standing_lease_seconds = 0;  // 0 = no wall-clock lease
 
+    // Context windowing — limit conversation history sent per API call.
+    // 0 = unlimited (backward compatible). When set, only last N messages included.
+    int context_window = 0;
+    // "full" = all messages (context_window ignored), "recent" = last N only,
+    // "summary" = DriftState summary preamble + last N messages
+    std::string context_strategy = "full";
+
     // Output Contract — validation schema for LLM responses (Phase 7)
     struct OutputContract {
         std::string format;  // "json", "text", etc. (empty = no format enforcement)

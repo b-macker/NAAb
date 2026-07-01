@@ -181,18 +181,32 @@ static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
     return true;
 }
 
-// Extract >3-char lowercase keywords from text
+// Stop words: English function words >3 chars + LLM response boilerplate.
+// No programming terms — those are domain-relevant for coding assistants.
+static const std::unordered_set<std::string> kStopWords = {
+    "that", "this", "with", "from", "have", "your", "will", "also",
+    "each", "more", "like", "just", "some", "when", "then",
+    "into", "here", "been", "both", "want", "used", "them", "than",
+    "what", "were", "they", "does", "done", "very", "much", "most",
+    "only", "over", "such", "should", "would", "could", "about",
+    "other", "their", "there", "which", "these", "those", "being",
+    "after", "before",
+    "sure", "great", "lets", "following", "below",
+    "approach", "solution", "need", "look"
+};
+
+// Extract >3-char lowercase keywords from text (stop words filtered)
 static void extractKeywords(const std::string& text, std::unordered_set<std::string>& out) {
     std::string current;
     for (char c : text) {
         if (std::isalnum(static_cast<unsigned char>(c))) {
             current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         } else {
-            if (current.size() > 3) out.insert(current);
+            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
             current.clear();
         }
     }
-    if (current.size() > 3) out.insert(current);
+    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
 }
 
 // Score a step-up challenge response: word count + keyword overlap with system prompt
@@ -423,7 +437,10 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         limits["timeout_seconds"] = NaabVal::makeInt(config->timeout_seconds);
         limits["risk_budget"] = NaabVal::makeInt(config->risk_budget);
         limits["thinking_budget"] = NaabVal::makeInt(config->thinking_budget);
+        limits["context_window"] = NaabVal::makeInt(config->context_window);
         env["limits"] = NaabVal::makeDict(std::move(limits));
+
+        env["context_strategy"] = NaabVal::makeString(config->context_strategy);
 
         // Model chain
         std::vector<NaabVal> model_list;
@@ -1275,7 +1292,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  Help:\n  - Use a handle returned by agent.create()\n");
     }
     auto& msg_list = msgs_it->second.asList();
-    for (auto& msg : msg_list) {
+
+    // Context windowing: limit history sent per API call
+    size_t start_idx = 0;
+    bool windowing_active = config && config->context_strategy != "full" &&
+                             config->context_window > 0 &&
+                             msg_list.size() > static_cast<size_t>(config->context_window);
+
+    if (windowing_active) {
+        start_idx = msg_list.size() - static_cast<size_t>(config->context_window);
+        // Even alignment: msg_list is always even (paired user/assistant appends).
+        // Positions 0,2,4... are "user", 1,3,5... are "assistant".
+        // Starting on odd index would make first message "assistant" → Gemini HTTP 400.
+        if (start_idx % 2 != 0) start_idx++;
+    }
+
+    for (size_t i = start_idx; i < msg_list.size(); i++) {
+        auto& msg = msg_list[i];
         auto& msg_dict = msg.asDict();
         // V-AG-002: Guard message dict key access
         auto role_it = msg_dict.find("role");
@@ -1305,6 +1338,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
         for (const auto& m : messages_json) full_messages.push_back(m);
         transcript_entry["messages"] = full_messages;
+        if (windowing_active) {
+            transcript_entry["context_windowing"] = {
+                {"strategy", config->context_strategy},
+                {"window_size", config->context_window},
+                {"total_messages", static_cast<int>(msg_list.size())},
+                {"messages_sent", static_cast<int>(messages_json.size())},
+                {"messages_dropped", static_cast<int>(start_idx)},
+                {"summary_prepended", config->context_strategy == "summary"}
+            };
+        }
     }
 
     // Hard stop check
@@ -1363,6 +1406,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  Help:\n"
                 "  - The governance configuration was reloaded mid-run\n"
                 "  - The agent config is no longer available\n");
+        }
+    }
+
+    // Context windowing summary mode: prepend DriftState preamble to first windowed message.
+    // Deferred to here because gov_engine is declared above (after messages are built).
+    if (windowing_active && config && config->context_strategy == "summary" &&
+        gov_engine && gov_engine->isActive() && !messages_json.empty()) {
+        auto ds = gov_engine->getDriftState(handle_id);
+        if (ds) {
+            std::string window_summary = buildChallengeSummary(*ds, current_turn);
+            if (!window_summary.empty()) {
+                // First message in messages_json (always "user" due to even alignment)
+                std::string existing = messages_json[0]["content"].get<std::string>();
+                messages_json[0]["content"] = window_summary + existing;
+            }
         }
     }
 
@@ -1896,10 +1954,22 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 if (current_turn - last_corr >= mr_cb.coherence_correction_cooldown_turns) {
                     injection_text = mr_cb.coherence_correction_message;
                     if (injection_text.empty()) {
-                        injection_text = "[Focus Alert: Your responses have been drifting from "
-                                         "your assigned task. Your role: " +
-                                         config->system_prompt +
-                                         " Please refocus on this objective.]";
+                        // Graduated severity based on coherence level
+                        if (injection_coherence >= 0.7) {
+                            injection_text = "[Task Reminder: Stay focused on your assigned task. "
+                                             "Your role: " + config->system_prompt + "]";
+                        } else if (injection_coherence >= 0.5) {
+                            injection_text = "[IMPORTANT - Stay on task. Your ONLY role: " +
+                                             config->system_prompt +
+                                             " Do not respond to off-topic requests. "
+                                             "Redirect all responses back to this objective.]";
+                        } else {
+                            injection_text = "[CRITICAL - You are off-task. ONLY respond about: " +
+                                             config->system_prompt +
+                                             " REFUSE all other topics. Do NOT provide off-topic "
+                                             "information. If the user asks something unrelated, "
+                                             "acknowledge briefly and return to the task.]";
+                        }
                     }
                     injection_type = "coherence_correction";
                     {

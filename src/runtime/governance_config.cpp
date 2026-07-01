@@ -2360,6 +2360,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.standing_lease_turns = std::max(0, cfg_json["standing_lease_turns"].get<int>());
                 if (cfg_json.contains("standing_lease_seconds") && cfg_json["standing_lease_seconds"].is_number_integer())
                     agent.standing_lease_seconds = std::max(0, cfg_json["standing_lease_seconds"].get<int>());
+                // Context windowing
+                if (cfg_json.contains("context_window") && cfg_json["context_window"].is_number_integer())
+                    agent.context_window = std::max(0, cfg_json["context_window"].get<int>());
+                if (cfg_json.contains("context_strategy") && cfg_json["context_strategy"].is_string()) {
+                    std::string val = cfg_json["context_strategy"].get<std::string>();
+                    if (val == "full" || val == "recent" || val == "summary")
+                        agent.context_strategy = val;
+                }
                 // Retry configuration
                 if (cfg_json.contains("retry") && cfg_json["retry"].is_object()) {
                     auto& r = cfg_json["retry"];
@@ -3290,6 +3298,19 @@ static bool checkRatchetViolation(
         if (new_agent.standing_lease_seconds == 0 && old_agent->standing_lease_seconds > 0)
             violations.push_back(fmt::format("agent.{}.standing_lease_seconds: {} -> 0 (loosened — lease removed)",
                 new_agent.name, old_agent->standing_lease_seconds));
+        // Context window ratchet: 0 is unlimited (least strict). Increasing or removing limit = loosening.
+        if (new_agent.context_window > old_agent->context_window && old_agent->context_window > 0)
+            violations.push_back(fmt::format("agent.{}.context_window: {} -> {} (loosened)",
+                new_agent.name, old_agent->context_window, new_agent.context_window));
+        else if (new_agent.context_window < old_agent->context_window && new_agent.context_window > 0)
+            notices.push_back(fmt::format("agent.{}.context_window: {} -> {} (tightened)",
+                new_agent.name, old_agent->context_window, new_agent.context_window));
+        if (old_agent->context_window > 0 && new_agent.context_window == 0)
+            violations.push_back(fmt::format("agent.{}.context_window: {} -> unlimited (loosened)",
+                new_agent.name, old_agent->context_window));
+        if (old_agent->context_window == 0 && new_agent.context_window > 0)
+            notices.push_back(fmt::format("agent.{}.context_window: unlimited -> {} (tightened)",
+                new_agent.name, new_agent.context_window));
     }
 
     // Detect removed agents — removing constraints is loosening

@@ -29,6 +29,10 @@
       "enabled": true,
       "algorithm": "sha256",
       "chain_genesis": "naab44-quick"
+    },
+    "transcript": {
+      "enabled": true,
+      "output_file": "transcript.jsonl"
     }
   },
 
@@ -49,6 +53,8 @@
       "risk_budget": 100,
       "standing_lease_turns": 0,
       "standing_lease_seconds": 0,
+      "context_window": 20,
+      "context_strategy": "summary",
       "rate_limit": {
         "requests_per_minute": 0,
         "delay_between_calls_ms": 1000
@@ -161,7 +167,16 @@
     "step_up_challenge": "Restate your current objective in one sentence, then continue helping with the todo app.",
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 2,
-    "step_up_keyword_threshold": 0.3
+    "step_up_keyword_threshold": 0.3,
+    "step_up_contextual": true,
+    "step_up_contextual_threshold": 0.30,
+    "step_up_challenge_history": "summary",
+    "step_up_history_recent_count": 10,
+    "mandate_reinforcement_enabled": true,
+    "mandate_reinforcement_interval": 5,
+    "coherence_correction_enabled": true,
+    "coherence_correction_threshold": 0.85,
+    "coherence_correction_cooldown_turns": 3
   },
 
   "advisory_escalation": {

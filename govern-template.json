@@ -1078,6 +1078,8 @@
       "risk_budget": 0,
       "standing_lease_turns": 0,
       "standing_lease_seconds": 0,
+      "context_window": 0,
+      "context_strategy": "full",
       "stream": false,
       "stop_reason_action": "",
       "_comment_output_contract": "Output contract — validate agent response structure. format: 'json' requires valid JSON. required_fields: keys that must exist. field_types: expected types per key. regex_checks: regex patterns per key.",
@@ -1120,6 +1122,8 @@
       "risk_budget": 0,
       "standing_lease_turns": 0,
       "standing_lease_seconds": 0,
+      "context_window": 0,
+      "context_strategy": "full",
       "retry": {
         "max_attempts": 3,
         "backoff_ms": 1000,

@@ -24,6 +24,20 @@ static std::string normalizeEventTypeName(const std::string& raw) {
     return s;
 }
 
+// Stop words: English function words >3 chars + LLM response boilerplate.
+// No programming terms — those are domain-relevant for coding assistants.
+static const std::unordered_set<std::string> kStopWords = {
+    "that", "this", "with", "from", "have", "your", "will", "also",
+    "each", "more", "like", "just", "some", "when", "then",
+    "into", "here", "been", "both", "want", "used", "them", "than",
+    "what", "were", "they", "does", "done", "very", "much", "most",
+    "only", "over", "such", "should", "would", "could", "about",
+    "other", "their", "there", "which", "these", "those", "being",
+    "after", "before",
+    "sure", "great", "lets", "following", "below",
+    "approach", "solution", "need", "look"
+};
+
 // Extract keywords (>3 chars) from text, lowercased — local version for CDD signals
 static void extractKeywordsLocal(const std::string& text, std::unordered_set<std::string>& out) {
     std::string current;
@@ -31,11 +45,11 @@ static void extractKeywordsLocal(const std::string& text, std::unordered_set<std
         if (std::isalnum(static_cast<unsigned char>(c))) {
             current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         } else {
-            if (current.size() > 3) out.insert(current);
+            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
             current.clear();
         }
     }
-    if (current.size() > 3) out.insert(current);
+    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
 }
 
 // Extract ordered plan steps from agent response text.
@@ -1076,7 +1090,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     if (config_->signals.coherence_velocity && state.coherence_history.size() >= 2) {
         size_t n = state.coherence_history.size();
         double prev_velocity = state.coherence_velocity;
-        state.coherence_velocity = state.coherence_score - state.coherence_history[n - 1];
+        state.coherence_velocity = state.coherence_history[n - 1] - state.coherence_history[n - 2];
         state.coherence_acceleration = state.coherence_velocity - prev_velocity;
 
         if (state.coherence_velocity < config_->thresholds.velocity_drop) {
