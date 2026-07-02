@@ -1,0 +1,655 @@
+// NAAb-56: 20-Agent Org Simulation
+// Full software company building a todo app.
+// Tests: 20-agent creation, fan-out to all 20, 6-stage pipeline,
+// per-agent CDD isolation, consensus voting, S20 prompt compliance.
+use agent
+use file
+use json
+use string
+use governance
+use orchestra
+
+fn get_coherence(resp) {
+    let env = resp.get("environment")
+    if env == null { return -1.0 }
+    let state = env.get("state")
+    if state == null { return -1.0 }
+    let c = state.get("coherence")
+    if c == null { return -1.0 }
+    return c
+}
+
+fn get_challenges_passed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    return state.get("challenges_passed") ?? 0
+}
+
+fn get_prompt_compliance(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    return state.get("prompt_compliance_count") ?? 0
+}
+
+fn safe_send(handle, message) {
+    try {
+        return agent.send(handle, message)
+    } catch (e) {
+        return {"error": string(e)}
+    }
+}
+
+main {
+    // ========================================
+    // PHASE 1: CREATE ALL 20 AGENTS
+    // ========================================
+    print("PHASE_START|CREATION|turn=0")
+
+    let agent_names = [
+        "architect", "frontend_dev", "backend_dev", "db_engineer", "devops",
+        "code_reviewer", "test_engineer", "security_analyst", "performance_eng", "qa_lead",
+        "product_manager", "ux_designer", "tech_writer", "data_analyst",
+        "tech_lead", "eng_director", "cto",
+        "sre_engineer", "release_manager", "support_engineer"
+    ]
+
+    let handles = {}
+    let created_count = 0
+    let create_errors = 0
+
+    let ci = 0
+    while ci < agent_names.length() {
+        let name = agent_names[ci]
+        try {
+            let h = agent.create(name)
+            handles[name] = h
+            created_count = created_count + 1
+            print("AGENT_CREATED|" + name + "|id=" + string(h.get("id")))
+        } catch (e) {
+            create_errors = create_errors + 1
+            print("AGENT_CREATE_ERROR|" + name + "|" + string(e))
+        }
+        ci = ci + 1
+    }
+
+    print("SUMMARY_AGENTS_CREATED: " + string(created_count))
+    print("SUMMARY_AGENTS_EXPECTED: 20")
+
+    if created_count < 2 {
+        print("ABORT: fewer than 2 agents created")
+        return
+    }
+
+    // === TEST: max_unique_agents enforcement (21st agent should fail) ===
+    let max_agents_enforced = false
+    try {
+        let extra = agent.create("architect")
+        try {
+            let extra2 = agent.create("backend_dev")
+            print("MAX_AGENTS_NOT_ENFORCED")
+        } catch (e2) {
+            max_agents_enforced = true
+            print("MAX_AGENTS_ENFORCED|22nd|" + string(e2))
+        }
+    } catch (e) {
+        max_agents_enforced = true
+        print("MAX_AGENTS_ENFORCED|21st|" + string(e))
+    }
+    print("SUMMARY_MAX_AGENTS_ENFORCED: " + string(max_agents_enforced))
+
+    // === TEST: pipeline separation ===
+    let pipeline_sep_enforced = false
+    if handles.get("architect") != null {
+        try {
+            let arch2 = agent.create("architect")
+            let sep_resp = agent.pipeline([handles["architect"], arch2], "test")
+            print("PIPELINE_SEP_NOT_ENFORCED")
+        } catch (e) {
+            pipeline_sep_enforced = true
+            print("PIPELINE_SEP_ENFORCED|" + string(e))
+        }
+    }
+    print("SUMMARY_PIPELINE_SEP: " + string(pipeline_sep_enforced))
+
+    // ========================================
+    // TRACKING
+    // ========================================
+    let total_sends = 0
+    let send_errors = 0
+    let coherences = {}    // name → last coherence
+    let min_coherences = {} // name → min coherence
+    let challenges_p = {}
+    let current_phase = ""
+
+    fn track(name, resp) {
+        if resp == null { return }
+        if resp.get("error") != null { return }
+        let c = get_coherence(resp)
+        if c >= 0.0 {
+            coherences[name] = c
+            let prev_min = min_coherences.get(name)
+            if prev_min == null || c < prev_min {
+                min_coherences[name] = c
+            }
+        }
+        challenges_p[name] = get_challenges_passed(resp)
+    }
+
+    // ========================================
+    // PHASE 2: WARMUP — 1 send per agent (20 sends)
+    // ========================================
+    current_phase = "WARMUP"
+    print("PHASE_START|WARMUP|turn=1")
+
+    let warmup_prompts = {
+        "architect": "We're building a Python CLI todo app. Propose the high-level architecture.",
+        "frontend_dev": "We need a CLI interface for a todo app. What commands should we support?",
+        "backend_dev": "Write a TodoItem class with id, title, done, and priority fields.",
+        "db_engineer": "Design the JSON storage schema for a todo app.",
+        "devops": "What CI/CD setup do you recommend for a Python CLI app?",
+        "code_reviewer": "What's your code review checklist for Python projects?",
+        "test_engineer": "What test framework and strategy should we use for a CLI app?",
+        "security_analyst": "What security concerns should we address for a file-based todo app?",
+        "performance_eng": "What performance considerations for a JSON-backed todo app?",
+        "qa_lead": "Define acceptance criteria for a v1.0 todo app release.",
+        "product_manager": "Write user stories for the core todo app features.",
+        "ux_designer": "Design the CLI command structure for the todo app.",
+        "tech_writer": "Outline the documentation plan for the todo app.",
+        "data_analyst": "What usage analytics should we track in the todo app?",
+        "tech_lead": "What coding standards should the team follow?",
+        "eng_director": "What milestones should we set for the todo app project?",
+        "cto": "Should we build this as a CLI, web app, or both?",
+        "sre_engineer": "What error handling and logging strategy should we use?",
+        "release_manager": "Plan the v1.0 release process.",
+        "support_engineer": "What common user issues should we anticipate?"
+    }
+
+    let wi = 0
+    while wi < agent_names.length() {
+        let name = agent_names[wi]
+        let h = handles.get(name)
+        if h != null {
+            let prompt = warmup_prompts.get(name) ?? ("Introduce yourself and your role for the todo app project.")
+            let resp = safe_send(h, prompt)
+            total_sends = total_sends + 1
+            if resp.get("error") != null { send_errors = send_errors + 1 }
+            track(name, resp)
+            print("TURN|agent=" + name + "|n=" + string(total_sends) + "|c=" + string(coherences.get(name) ?? -1) + "|phase=" + current_phase)
+        }
+        wi = wi + 1
+    }
+
+    // ========================================
+    // PHASE 3: BUILD — core eng builds, quality reviews (20 sends)
+    // ========================================
+    current_phase = "BUILD"
+    print("PHASE_START|BUILD|turn=" + string(total_sends + 1))
+
+    // Backend builds 5 features
+    let build_prompts = [
+        "Write a TodoStore class with load/save methods for JSON persistence.",
+        "Add an add_todo method with auto-incrementing IDs.",
+        "Write list_todos with filtering by done status and priority.",
+        "Write complete_todo and delete_todo methods.",
+        "Add input validation for title and priority fields."
+    ]
+
+    let bi = 0
+    while bi < 5 {
+        let resp = safe_send(handles["backend_dev"], build_prompts[bi])
+        total_sends = total_sends + 1
+        if resp.get("error") != null { send_errors = send_errors + 1 }
+        track("backend_dev", resp)
+        print("TURN|agent=backend_dev|n=" + string(total_sends) + "|c=" + string(coherences.get("backend_dev") ?? -1) + "|phase=" + current_phase)
+
+        // Quality team reviews each piece
+        if resp.get("content") != null {
+            let code = resp.get("content") ?? ""
+            let review_prompt = "Review this code:\n" + code
+
+            // Rotate reviewers: code_reviewer, security_analyst, test_engineer
+            let reviewers = ["code_reviewer", "security_analyst", "test_engineer"]
+            let reviewer_name = reviewers[bi % 3]
+            let rr = safe_send(handles[reviewer_name], review_prompt)
+            total_sends = total_sends + 1
+            if rr.get("error") != null { send_errors = send_errors + 1 }
+            track(reviewer_name, rr)
+            print("TURN|agent=" + reviewer_name + "|n=" + string(total_sends) + "|c=" + string(coherences.get(reviewer_name) ?? -1) + "|phase=" + current_phase)
+        }
+
+        bi = bi + 1
+    }
+
+    // Frontend builds CLI
+    let fe_prompts = [
+        "Write the CLI argument parser with add, list, done, delete subcommands.",
+        "Add colored output for todo list. Green=done, red=high priority.",
+        "Write a pretty table formatter for the list command.",
+        "Add a search command that searches title and tags.",
+        "Write error messages with helpful suggestions."
+    ]
+    let fi = 0
+    while fi < 5 {
+        let resp = safe_send(handles["frontend_dev"], fe_prompts[fi])
+        total_sends = total_sends + 1
+        if resp.get("error") != null { send_errors = send_errors + 1 }
+        track("frontend_dev", resp)
+        print("TURN|agent=frontend_dev|n=" + string(total_sends) + "|c=" + string(coherences.get("frontend_dev") ?? -1) + "|phase=" + current_phase)
+        fi = fi + 1
+    }
+
+    // ========================================
+    // PHASE 4: FAN-OUT — quality panel reviews (2 rounds × 5 quality agents = 10 sends)
+    // ========================================
+    current_phase = "FAN_OUT"
+    print("PHASE_START|FAN_OUT|turn=" + string(total_sends + 1))
+
+    let quality_names = ["code_reviewer", "test_engineer", "security_analyst", "performance_eng", "qa_lead"]
+    let quality_handles = []
+    let qi = 0
+    while qi < quality_names.length() {
+        let h = handles.get(quality_names[qi])
+        if h != null { quality_handles.push(h) }
+        qi = qi + 1
+    }
+
+    let fan_out_5_ok = 0
+    let fan_out_prompts = [
+        "Review the overall architecture: Python CLI with JSON storage, TodoItem/TodoStore classes, argparse CLI. Is this solid for v1.0?",
+        "The app handles file I/O, user input, and data serialization. What are the top 3 risks?"
+    ]
+
+    let fqi = 0
+    while fqi < 2 {
+        try {
+            let responses = agent.fan_out(quality_handles, fan_out_prompts[fqi])
+            total_sends = total_sends + quality_handles.length()
+            if responses.length() == quality_handles.length() {
+                fan_out_5_ok = fan_out_5_ok + 1
+                let ri = 0
+                while ri < responses.length() {
+                    track(quality_names[ri], responses[ri])
+                    ri = ri + 1
+                }
+            }
+            print("FAN_OUT_5|round=" + string(fqi + 1) + "|responses=" + string(responses.length()))
+        } catch (e) {
+            total_sends = total_sends + quality_handles.length()
+            send_errors = send_errors + quality_handles.length()
+            print("FAN_OUT_5|round=" + string(fqi + 1) + "|error=" + string(e))
+        }
+        fqi = fqi + 1
+    }
+    print("SUMMARY_FAN_OUT_5: " + string(fan_out_5_ok) + "/2")
+
+    // === MEGA FAN-OUT: all 20 agents, same question ===
+    let all_handles = []
+    let all_names_ordered = []
+    let ai = 0
+    while ai < agent_names.length() {
+        let h = handles.get(agent_names[ai])
+        if h != null {
+            all_handles.push(h)
+            all_names_ordered.push(agent_names[ai])
+        }
+        ai = ai + 1
+    }
+
+    let mega_fan_out_ok = false
+    let mega_fan_out_count = 0
+    try {
+        let responses = agent.fan_out(all_handles, "The todo app v1.0 is feature-complete. Give your one-sentence verdict: ship or delay?")
+        total_sends = total_sends + all_handles.length()
+        mega_fan_out_count = responses.length()
+        if responses.length() == all_handles.length() {
+            mega_fan_out_ok = true
+            let mi = 0
+            while mi < responses.length() {
+                track(all_names_ordered[mi], responses[mi])
+                mi = mi + 1
+            }
+        }
+        print("MEGA_FAN_OUT|responses=" + string(responses.length()) + "|expected=" + string(all_handles.length()))
+    } catch (e) {
+        total_sends = total_sends + all_handles.length()
+        send_errors = send_errors + all_handles.length()
+        print("MEGA_FAN_OUT|error=" + string(e))
+    }
+    print("SUMMARY_MEGA_FAN_OUT: " + string(mega_fan_out_ok) + "|count=" + string(mega_fan_out_count))
+
+    // ========================================
+    // PHASE 5: PIPELINE — 6-stage review chain (6 sends)
+    // architect → backend_dev → code_reviewer → test_engineer → security_analyst → tech_lead
+    // ========================================
+    current_phase = "PIPELINE"
+    print("PHASE_START|PIPELINE|turn=" + string(total_sends + 1))
+
+    let pipeline_handles = [
+        handles["architect"],
+        handles["backend_dev"],
+        handles["code_reviewer"],
+        handles["test_engineer"],
+        handles["security_analyst"],
+        handles["tech_lead"]
+    ]
+
+    let pipeline_6_ok = 0
+    let pipeline_prompts = [
+        "Design and implement a due-date feature for the todo app with overdue detection.",
+        "Add recurring todos with daily/weekly/monthly recurrence patterns."
+    ]
+
+    let pli = 0
+    while pli < 2 {
+        try {
+            let resp = agent.pipeline(pipeline_handles, pipeline_prompts[pli])
+            total_sends = total_sends + 6
+            if resp.get("content") != null {
+                pipeline_6_ok = pipeline_6_ok + 1
+                track("tech_lead", resp)
+            }
+            print("PIPELINE_6|round=" + string(pli + 1) + "|ok=true|final_c=" + string(get_coherence(resp)))
+        } catch (e) {
+            total_sends = total_sends + 6
+            send_errors = send_errors + 6
+            print("PIPELINE_6|round=" + string(pli + 1) + "|error=" + string(e))
+        }
+        pli = pli + 1
+    }
+    print("SUMMARY_PIPELINE_6: " + string(pipeline_6_ok) + "/2")
+
+    // ========================================
+    // PHASE 6: DRIFT — 10 off-topic to backend_dev only
+    // ========================================
+    current_phase = "DRIFT"
+    print("PHASE_START|DRIFT|turn=" + string(total_sends + 1))
+
+    let backend_pre_drift = coherences.get("backend_dev") ?? 1.0
+    let drift_prompts = [
+        "What's your favorite programming language?",
+        "Tell me a joke about databases.",
+        "Write a fibonacci function.",
+        "What's the weather like?",
+        "Can you write a haiku about code?",
+        "Explain quantum computing.",
+        "Who invented the internet?",
+        "Write a sorting algorithm.",
+        "What's the best pizza topping?",
+        "Tell me about the Roman Empire."
+    ]
+
+    let di = 0
+    while di < 10 {
+        let resp = safe_send(handles["backend_dev"], drift_prompts[di])
+        total_sends = total_sends + 1
+        if resp.get("error") != null { send_errors = send_errors + 1 }
+        track("backend_dev", resp)
+        let pc = 0
+        if resp.get("error") == null { pc = get_prompt_compliance(resp) }
+        print("TURN|agent=backend_dev|n=" + string(total_sends) + "|c=" + string(coherences.get("backend_dev") ?? -1) + "|pc=" + string(pc) + "|phase=DRIFT")
+        di = di + 1
+    }
+
+    let backend_post_drift = coherences.get("backend_dev") ?? -1
+    let backend_pc = 0
+    try {
+        let env = agent.environment(handles["backend_dev"])
+        let st = env.get("state")
+        if st != null { backend_pc = st.get("prompt_compliance_count") ?? 0 }
+    } catch (e) {}
+
+    print("DRIFT_RESULT|backend_pre=" + string(backend_pre_drift) + "|backend_post=" + string(backend_post_drift) + "|pc=" + string(backend_pc))
+
+    // ========================================
+    // PHASE 7: CONSENSUS — leadership votes (3 sends + vote tally)
+    // ========================================
+    current_phase = "CONSENSUS"
+    print("PHASE_START|CONSENSUS|turn=" + string(total_sends + 1))
+
+    let leader_names = ["tech_lead", "eng_director", "cto"]
+    let leader_handles = []
+    let li = 0
+    while li < 3 {
+        let h = handles.get(leader_names[li])
+        if h != null { leader_handles.push(h) }
+        li = li + 1
+    }
+
+    let consensus_ok = false
+    let consensus_verdict = "unknown"
+    try {
+        let verdicts = agent.fan_out(leader_handles, "Based on what you know, should we ship the todo app v1.0? Answer exactly one word: APPROVED or REJECTED.")
+        total_sends = total_sends + leader_handles.length()
+
+        let votes = []
+        let vi = 0
+        while vi < verdicts.length() {
+            let content = verdicts[vi].get("content") ?? ""
+            track(leader_names[vi], verdicts[vi])
+            // Extract verdict keyword
+            if string.contains(string.upper(content), "APPROVED") {
+                votes.push("APPROVED")
+            } else if string.contains(string.upper(content), "REJECTED") {
+                votes.push("REJECTED")
+            } else {
+                votes.push("REVIEW")
+            }
+            vi = vi + 1
+        }
+
+        let tally = orchestra.consensus_vote({votes: votes})
+        consensus_verdict = tally.get("verdict") ?? "unknown"
+        consensus_ok = true
+        print("CONSENSUS|verdict=" + consensus_verdict + "|approved=" + string(tally.get("approved") ?? 0) + "|rejected=" + string(tally.get("rejected") ?? 0) + "|votes=" + string(votes))
+    } catch (e) {
+        total_sends = total_sends + leader_handles.length()
+        send_errors = send_errors + leader_handles.length()
+        print("CONSENSUS|error=" + string(e))
+    }
+    print("SUMMARY_CONSENSUS: " + string(consensus_ok) + "|verdict=" + consensus_verdict)
+
+    // ========================================
+    // PHASE 8: RECOVERY — on-task sends (10 sends)
+    // ========================================
+    current_phase = "RECOVERY"
+    print("PHASE_START|RECOVERY|turn=" + string(total_sends + 1))
+
+    // Backend recovers
+    let recovery_prompts = [
+        "OK back to work. Add an export-to-CSV feature to the todo app.",
+        "Write an import-from-CSV function with row validation.",
+        "Add a backup command that copies data.json to data.json.bak.",
+        "Write a restore command that loads from backup.",
+        "Add a version command that prints v1.0.0."
+    ]
+    let rci = 0
+    while rci < 5 {
+        let resp = safe_send(handles["backend_dev"], recovery_prompts[rci])
+        total_sends = total_sends + 1
+        if resp.get("error") != null { send_errors = send_errors + 1 }
+        track("backend_dev", resp)
+        print("TURN|agent=backend_dev|n=" + string(total_sends) + "|c=" + string(coherences.get("backend_dev") ?? -1) + "|phase=RECOVERY")
+        rci = rci + 1
+    }
+
+    // A few others do final work
+    let final_work = [
+        ["tech_writer", "Write the README for the todo app v1.0 release."],
+        ["release_manager", "Create the v1.0.0 release checklist."],
+        ["devops", "Write the GitHub Actions CI workflow for the todo app."],
+        ["support_engineer", "Write a troubleshooting FAQ for common todo app issues."],
+        ["product_manager", "Write the v1.0 release announcement."]
+    ]
+    let fwi = 0
+    while fwi < 5 {
+        let name = final_work[fwi][0]
+        let prompt = final_work[fwi][1]
+        let h = handles.get(name)
+        if h != null {
+            let resp = safe_send(h, prompt)
+            total_sends = total_sends + 1
+            if resp.get("error") != null { send_errors = send_errors + 1 }
+            track(name, resp)
+            print("TURN|agent=" + name + "|n=" + string(total_sends) + "|c=" + string(coherences.get(name) ?? -1) + "|phase=RECOVERY")
+        }
+        fwi = fwi + 1
+    }
+
+    // ========================================
+    // SUMMARY
+    // ========================================
+    print("SUMMARY_TOTAL_SENDS: " + string(total_sends))
+    print("SUMMARY_SEND_ERRORS: " + string(send_errors))
+    print("SUMMARY_BACKEND_PRE_DRIFT: " + string(backend_pre_drift))
+    print("SUMMARY_BACKEND_POST_DRIFT: " + string(backend_post_drift))
+    print("SUMMARY_BACKEND_COHERENCE: " + string(coherences.get("backend_dev") ?? -1))
+    print("SUMMARY_BACKEND_MIN_COHERENCE: " + string(min_coherences.get("backend_dev") ?? -1))
+    print("SUMMARY_BACKEND_PC: " + string(backend_pc))
+    print("SUMMARY_PHASE_REACHED: " + current_phase)
+
+    // Per-agent coherence dump
+    let sci = 0
+    while sci < agent_names.length() {
+        let name = agent_names[sci]
+        let c = coherences.get(name) ?? -1
+        let mc = min_coherences.get(name) ?? -1
+        let cp = challenges_p.get(name) ?? 0
+        print("AGENT_STATE|" + name + "|c=" + string(c) + "|min=" + string(mc) + "|cp=" + string(cp))
+        sci = sci + 1
+    }
+
+    // Count agents with coherence < 1.0
+    let agents_with_drift = 0
+    let total_challenges = 0
+    let dci = 0
+    while dci < agent_names.length() {
+        let mc = min_coherences.get(agent_names[dci])
+        if mc != null && mc < 1.0 { agents_with_drift = agents_with_drift + 1 }
+        let cp = challenges_p.get(agent_names[dci]) ?? 0
+        total_challenges = total_challenges + cp
+        dci = dci + 1
+    }
+    print("SUMMARY_AGENTS_WITH_DRIFT: " + string(agents_with_drift))
+    print("SUMMARY_TOTAL_CHALLENGES: " + string(total_challenges))
+
+    // CDD isolation: how many non-drifted agents have higher coherence than backend?
+    let isolation_count = 0
+    let isolation_total = 0
+    let ici = 0
+    while ici < agent_names.length() {
+        let name = agent_names[ici]
+        if name != "backend_dev" {
+            let c = coherences.get(name)
+            if c != null {
+                isolation_total = isolation_total + 1
+                if c > backend_post_drift { isolation_count = isolation_count + 1 }
+            }
+        }
+        ici = ici + 1
+    }
+    print("SUMMARY_CDD_ISOLATION: " + string(isolation_count) + "/" + string(isolation_total) + " agents have higher coherence than drifted backend")
+
+    // ========================================
+    // TELEMETRY
+    // ========================================
+    print("=== TELEMETRY ===")
+    let telemetry_raw = ""
+    let telemetry_ok = false
+    try {
+        telemetry_raw = file.read("telemetry.jsonl")
+        telemetry_ok = telemetry_raw != null && string.length(telemetry_raw) > 10
+    } catch (e) {
+        print("TELEM_READ_ERROR: " + string(e))
+    }
+
+    if !telemetry_ok {
+        print("TELEM_HASH_CHAIN: false")
+        print("TELEM_EVENT_DIVERSITY: 0")
+        print("TELEM_RUN_ID_CONSISTENT: false")
+        print("TELEM_TIMESTAMPS_ORDERED: false")
+        print("TELEM_TOTAL_EVENTS: 0")
+    } else {
+        let lines = string.split(string.trim(telemetry_raw), "\n")
+        let events = []
+        let tli = 0
+        while tli < lines.length() {
+            let line = string.trim(lines[tli])
+            if string.length(line) > 2 {
+                try {
+                    let evt = json.parse(line)
+                    events.push(evt)
+                } catch (e) {}
+            }
+            tli = tli + 1
+        }
+        print("TELEM_TOTAL_EVENTS: " + string(events.length()))
+
+        let chain_valid = true
+        let tei = 1
+        while tei < events.length() {
+            let prev_hash = events[tei - 1].get("hash")
+            let curr_prev = events[tei].get("prev_hash")
+            if prev_hash != null && curr_prev != null {
+                if prev_hash != curr_prev { chain_valid = false }
+            }
+            tei = tei + 1
+        }
+        print("TELEM_HASH_CHAIN: " + string(chain_valid))
+
+        let event_types = {}
+        let challenge_pass_count = 0
+        let tdi = 0
+        while tdi < events.length() {
+            let evt_type = events[tdi].get("event_type")
+            if evt_type == null { evt_type = events[tdi].get("type") }
+            if evt_type != null {
+                event_types[string(evt_type)] = true
+                if string(evt_type) == "AGENT_CHALLENGE_PASS" { challenge_pass_count = challenge_pass_count + 1 }
+            }
+            tdi = tdi + 1
+        }
+        print("TELEM_EVENT_DIVERSITY: " + string(event_types.keys().length()))
+        print("TELEM_CHALLENGE_EVENTS: " + string(challenge_pass_count))
+
+        let first_run_id = ""
+        let run_id_consistent = true
+        let tri = 0
+        while tri < events.length() {
+            let rid = events[tri].get("run_id")
+            if rid != null {
+                if first_run_id == "" { first_run_id = string(rid) }
+                else if string(rid) != first_run_id { run_id_consistent = false }
+            }
+            tri = tri + 1
+        }
+        print("TELEM_RUN_ID_CONSISTENT: " + string(run_id_consistent))
+
+        let timestamps_ordered = true
+        let prev_ts = ""
+        let ttsi = 0
+        while ttsi < events.length() {
+            let ts = events[ttsi].get("timestamp")
+            if ts != null {
+                let ts_str = string(ts)
+                if prev_ts != "" && ts_str < prev_ts { timestamps_ordered = false }
+                prev_ts = ts_str
+            }
+            ttsi = ttsi + 1
+        }
+        print("TELEM_TIMESTAMPS_ORDERED: " + string(timestamps_ordered))
+    }
+
+    let health = governance.health()
+    let verdict = "unknown"
+    if health != null {
+        verdict = health.get("verdict")
+        if verdict == null { verdict = "unknown" }
+    }
+    print("HEALTH_VERDICT: " + string(verdict))
+
+    print("=== ORG SIMULATION COMPLETE ===")
+}
