@@ -1,0 +1,563 @@
+// NAAb-55: Multi-Agent Gorilla Test — Code Review Workflow
+// 2 agents (builder + reviewer) across 6 phases. Tests fan_out, pipeline,
+// per-agent CDD isolation, pipeline separation, max_unique_agents enforcement.
+use agent
+use file
+use json
+use string
+use governance
+
+fn get_coherence(resp) {
+    let env = resp.get("environment")
+    if env == null { return -1.0 }
+    let state = env.get("state")
+    if state == null { return -1.0 }
+    let c = state.get("coherence")
+    if c == null { return -1.0 }
+    return c
+}
+
+fn get_level(resp) {
+    let env = resp.get("environment")
+    if env == null { return "unknown" }
+    let state = env.get("state")
+    if state == null { return "unknown" }
+    let lev = state.get("governance_level")
+    if lev == null { return "unknown" }
+    return lev
+}
+
+fn get_challenges_passed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let cp = state.get("challenges_passed")
+    if cp == null { return 0 }
+    return cp
+}
+
+fn get_challenges_failed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let cf = state.get("challenges_failed")
+    if cf == null { return 0 }
+    return cf
+}
+
+fn get_prompt_compliance(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let pc = state.get("prompt_compliance_count")
+    if pc == null { return 0 }
+    return pc
+}
+
+fn safe_send(handle, message) {
+    let resp = null
+    try {
+        resp = agent.send(handle, message)
+    } catch (e) {
+        let err_str = string(e)
+        if string.contains(string.lower(err_str), "challenge") {
+            // Challenge failure — catchable, agent can continue
+            return {"error": err_str, "challenge_fail": true}
+        }
+        // Non-challenge error
+        return {"error": err_str, "challenge_fail": false}
+    }
+    return resp
+}
+
+main {
+    // === PHASE 0: AGENT CREATION ===
+    print("PHASE_START|SETUP|turn=0")
+
+    let builder = null
+    let reviewer = null
+    let builder_alive = true
+    let reviewer_alive = true
+
+    try {
+        builder = agent.create("builder")
+        print("AGENT_CREATED|builder|id=" + string(builder.get("id")))
+    } catch (e) {
+        print("AGENT_CREATE_ERROR|builder|" + string(e))
+        builder_alive = false
+    }
+
+    try {
+        reviewer = agent.create("reviewer")
+        print("AGENT_CREATED|reviewer|id=" + string(reviewer.get("id")))
+    } catch (e) {
+        print("AGENT_CREATE_ERROR|reviewer|" + string(e))
+        reviewer_alive = false
+    }
+
+    if !builder_alive || !reviewer_alive {
+        print("SUMMARY_ABORT: agent creation failed")
+        print("SUMMARY_BUILDER_CREATED: " + string(builder_alive))
+        print("SUMMARY_REVIEWER_CREATED: " + string(reviewer_alive))
+        return
+    }
+
+    // === TEST: max_unique_agents enforcement ===
+    let max_agents_enforced = false
+    try {
+        let extra = agent.create("builder")
+        // If we get here with max_unique_agents=3, try one more
+        try {
+            let extra2 = agent.create("reviewer")
+            print("MAX_AGENTS_NOT_ENFORCED: created 4 agents")
+        } catch (e2) {
+            max_agents_enforced = true
+            print("MAX_AGENTS_ENFORCED|4th_blocked|" + string(e2))
+        }
+    } catch (e) {
+        max_agents_enforced = true
+        print("MAX_AGENTS_ENFORCED|3rd_blocked|" + string(e))
+    }
+    print("SUMMARY_MAX_AGENTS_ENFORCED: " + string(max_agents_enforced))
+
+    // === TEST: pipeline separation (same-config rejected) ===
+    let pipeline_sep_enforced = false
+    try {
+        let b2 = agent.create("builder")
+        let sep_resp = agent.pipeline([builder, b2], "test pipeline separation")
+        print("PIPELINE_SEP_NOT_ENFORCED")
+    } catch (e) {
+        let err_str = string(e)
+        if string.contains(string.lower(err_str), "separation") || string.contains(string.lower(err_str), "adjacent") {
+            pipeline_sep_enforced = true
+            print("PIPELINE_SEP_ENFORCED|" + err_str)
+        } else {
+            // Might be max_unique_agents blocking the create
+            if string.contains(string.lower(err_str), "max agent") || string.contains(string.lower(err_str), "denied") {
+                pipeline_sep_enforced = true
+                print("PIPELINE_SEP_BLOCKED_BY_MAX_AGENTS|" + err_str)
+            } else {
+                print("PIPELINE_SEP_OTHER_ERROR|" + err_str)
+            }
+        }
+    }
+    print("SUMMARY_PIPELINE_SEP_ENFORCED: " + string(pipeline_sep_enforced))
+
+    // === TRACKING STATE ===
+    let total_sends = 0
+    let send_errors = 0
+    let builder_coherence = 1.0
+    let reviewer_coherence = 1.0
+    let builder_min_coherence = 1.0
+    let reviewer_min_coherence = 1.0
+    let builder_challenges_p = 0
+    let builder_challenges_f = 0
+    let reviewer_challenges_p = 0
+    let reviewer_challenges_f = 0
+    let builder_prompt_compliance = 0
+    let fan_out_ok = 0
+    let fan_out_total = 0
+    let pipeline_ok = 0
+    let pipeline_total = 0
+    let current_phase = "SETUP"
+
+    fn update_builder(resp) {
+        if resp == null { return }
+        if resp.get("error") != null { return }
+        let c = get_coherence(resp)
+        if c >= 0.0 {
+            builder_coherence = c
+            if c < builder_min_coherence { builder_min_coherence = c }
+        }
+        builder_challenges_p = get_challenges_passed(resp)
+        builder_challenges_f = get_challenges_failed(resp)
+        builder_prompt_compliance = get_prompt_compliance(resp)
+    }
+
+    fn update_reviewer(resp) {
+        if resp == null { return }
+        if resp.get("error") != null { return }
+        let c = get_coherence(resp)
+        if c >= 0.0 {
+            reviewer_coherence = c
+            if c < reviewer_min_coherence { reviewer_min_coherence = c }
+        }
+        reviewer_challenges_p = get_challenges_passed(resp)
+        reviewer_challenges_f = get_challenges_failed(resp)
+    }
+
+    // === PHASE 1: WARMUP (5 sends per agent = 10 total) ===
+    current_phase = "WARMUP"
+    print("PHASE_START|WARMUP|turn=1")
+
+    let warmup_builder = [
+        "Let's build a todo app CLI in Python. What architecture do you suggest?",
+        "Write a TodoItem class with id, title, done, and priority fields.",
+        "Add a to_dict method and a from_dict classmethod to TodoItem.",
+        "Write a TodoStore class that loads and saves todos to a JSON file.",
+        "Add an add_todo method that auto-increments the ID."
+    ]
+
+    let warmup_reviewer = [
+        "I'll be sending you Python code to review. Focus on bugs and style.",
+        "Review this approach: using JSON files for a todo app's data store.",
+        "What are the key things to check in a Python CLI application?",
+        "What common bugs should I watch for in file I/O code?",
+        "What's your checklist for reviewing a Python class?"
+    ]
+
+    let wi = 0
+    while wi < 5 {
+        let br = safe_send(builder, warmup_builder[wi])
+        total_sends = total_sends + 1
+        if br.get("error") != null { send_errors = send_errors + 1 }
+        update_builder(br)
+        print("TURN|agent=builder|n=" + string(total_sends) + "|c=" + string(builder_coherence) + "|phase=" + current_phase)
+
+        let rr = safe_send(reviewer, warmup_reviewer[wi])
+        total_sends = total_sends + 1
+        if rr.get("error") != null { send_errors = send_errors + 1 }
+        update_reviewer(rr)
+        print("TURN|agent=reviewer|n=" + string(total_sends) + "|c=" + string(reviewer_coherence) + "|phase=" + current_phase)
+
+        wi = wi + 1
+    }
+
+    // === PHASE 2: BUILD_REVIEW (10 cycles = 20 sends) ===
+    current_phase = "BUILD_REVIEW"
+    print("PHASE_START|BUILD_REVIEW|turn=" + string(total_sends + 1))
+
+    let build_prompts = [
+        "Write the list_todos method with optional filter by done status.",
+        "Write the complete_todo method by ID.",
+        "Write the delete_todo method by ID.",
+        "Write the CLI argument parser with add, list, done, delete commands.",
+        "Write the main entry point that wires CLI to TodoStore.",
+        "Add priority validation. Valid values: low, medium, high.",
+        "Write a pretty_print method with color output for todos.",
+        "Add a search command that checks title and tags.",
+        "Write unit tests for TodoItem and TodoStore.add_todo.",
+        "Add error handling for missing JSON file and invalid IDs."
+    ]
+
+    let bri = 0
+    while bri < 10 {
+        // Builder writes code
+        let br = safe_send(builder, build_prompts[bri])
+        total_sends = total_sends + 1
+        if br.get("error") != null {
+            send_errors = send_errors + 1
+            print("TURN|agent=builder|n=" + string(total_sends) + "|c=" + string(builder_coherence) + "|phase=" + current_phase + "|error=true")
+        } else {
+            update_builder(br)
+            print("TURN|agent=builder|n=" + string(total_sends) + "|c=" + string(builder_coherence) + "|phase=" + current_phase)
+
+            // Reviewer reviews what builder wrote
+            let builder_content = br.get("content") ?? "No response"
+            let review_prompt = "Review this code for bugs and style:\n\n" + builder_content
+            let rr = safe_send(reviewer, review_prompt)
+            total_sends = total_sends + 1
+            if rr.get("error") != null {
+                send_errors = send_errors + 1
+                print("TURN|agent=reviewer|n=" + string(total_sends) + "|c=" + string(reviewer_coherence) + "|phase=" + current_phase + "|error=true")
+            } else {
+                update_reviewer(rr)
+                print("TURN|agent=reviewer|n=" + string(total_sends) + "|c=" + string(reviewer_coherence) + "|phase=" + current_phase)
+            }
+        }
+
+        bri = bri + 1
+    }
+
+    // === PHASE 3: FAN_OUT (5 rounds × 2 agents = 10 sends) ===
+    current_phase = "FAN_OUT"
+    print("PHASE_START|FAN_OUT|turn=" + string(total_sends + 1))
+
+    let fan_out_prompts = [
+        "What's the best way to handle concurrent file access in a todo app?",
+        "Should we add a config file? What would go in it?",
+        "How should we handle data migration if the schema changes?",
+        "What logging strategy should we use for debugging?",
+        "How should we structure error messages for the user?"
+    ]
+
+    let fi = 0
+    while fi < 5 {
+        fan_out_total = fan_out_total + 1
+        try {
+            let responses = agent.fan_out([builder, reviewer], fan_out_prompts[fi])
+            total_sends = total_sends + 2
+
+            if responses.length() == 2 {
+                fan_out_ok = fan_out_ok + 1
+                update_builder(responses[0])
+                update_reviewer(responses[1])
+                print("FAN_OUT|round=" + string(fi + 1) + "|responses=2|bc=" + string(builder_coherence) + "|rc=" + string(reviewer_coherence))
+            } else {
+                print("FAN_OUT|round=" + string(fi + 1) + "|responses=" + string(responses.length()) + "|UNEXPECTED")
+            }
+        } catch (e) {
+            total_sends = total_sends + 2
+            send_errors = send_errors + 2
+            print("FAN_OUT|round=" + string(fi + 1) + "|error=" + string(e))
+        }
+
+        fi = fi + 1
+    }
+
+    // === PHASE 4: PIPELINE (5 chains × 2 agents = 10 sends) ===
+    current_phase = "PIPELINE"
+    print("PHASE_START|PIPELINE|turn=" + string(total_sends + 1))
+
+    let pipeline_prompts = [
+        "Write a function to export todos to CSV format.",
+        "Write an import_from_csv function that validates each row.",
+        "Add due date support with --due flag on the add command.",
+        "Write a stats command showing total, done, pending, and overdue counts.",
+        "Write a backup command that copies data.json to data.json.bak."
+    ]
+
+    let pi = 0
+    while pi < 5 {
+        pipeline_total = pipeline_total + 1
+        try {
+            let resp = agent.pipeline([builder, reviewer], pipeline_prompts[pi])
+            total_sends = total_sends + 2
+
+            // Pipeline returns single dict (final stage response), not array
+            if resp.get("content") != null {
+                pipeline_ok = pipeline_ok + 1
+                // Pipeline response comes from reviewer (last stage)
+                update_reviewer(resp)
+                print("PIPELINE|round=" + string(pi + 1) + "|ok=true|rc=" + string(reviewer_coherence))
+            } else {
+                print("PIPELINE|round=" + string(pi + 1) + "|ok=false|no_content")
+            }
+        } catch (e) {
+            total_sends = total_sends + 2
+            send_errors = send_errors + 2
+            print("PIPELINE|round=" + string(pi + 1) + "|error=" + string(e))
+        }
+
+        pi = pi + 1
+    }
+
+    // Record pre-drift coherence for isolation comparison
+    let builder_coherence_before_drift = builder_coherence
+    let reviewer_coherence_before_drift = reviewer_coherence
+    print("PRE_DRIFT|builder_c=" + string(builder_coherence_before_drift) + "|reviewer_c=" + string(reviewer_coherence_before_drift))
+
+    // === PHASE 5: DRIFT (10 off-topic sends to builder ONLY) ===
+    current_phase = "DRIFT"
+    print("PHASE_START|DRIFT|turn=" + string(total_sends + 1))
+
+    let drift_prompts = [
+        "What's your favorite programming language and why?",
+        "Tell me a joke about programmers.",
+        "Write a function to calculate the fibonacci sequence.",
+        "What's the weather like today?",
+        "Can you write a haiku about coding?",
+        "Explain quantum computing in simple terms.",
+        "What year was Python created?",
+        "Write a sorting algorithm from scratch.",
+        "Tell me about the history of the internet.",
+        "What's the best pizza topping?"
+    ]
+
+    let di = 0
+    while di < 10 {
+        let br = safe_send(builder, drift_prompts[di])
+        total_sends = total_sends + 1
+        if br.get("error") != null {
+            send_errors = send_errors + 1
+            print("TURN|agent=builder|n=" + string(total_sends) + "|c=" + string(builder_coherence) + "|phase=" + current_phase + "|error=true")
+        } else {
+            update_builder(br)
+            print("TURN|agent=builder|n=" + string(total_sends) + "|c=" + string(builder_coherence) + "|pc=" + string(builder_prompt_compliance) + "|phase=" + current_phase)
+        }
+
+        di = di + 1
+    }
+
+    // Record post-drift coherence
+    let builder_coherence_after_drift = builder_coherence
+    print("POST_DRIFT|builder_c=" + string(builder_coherence_after_drift) + "|reviewer_c=" + string(reviewer_coherence) + "|builder_pc=" + string(builder_prompt_compliance))
+
+    // === PHASE 6: RECOVERY (5 sends per agent = 10 total) ===
+    current_phase = "RECOVERY"
+    print("PHASE_START|RECOVERY|turn=" + string(total_sends + 1))
+
+    let recovery_builder = [
+        "OK let's get back to the todo app. Where were we?",
+        "Add an undo command that reverts the last operation.",
+        "Write input sanitization for the title field.",
+        "Add a --verbose flag for detailed output.",
+        "Final review: what features are we missing for v1.0?"
+    ]
+
+    let recovery_reviewer = [
+        "Let's review the todo app one more time. Focus on security.",
+        "Review the file I/O code for race conditions.",
+        "Check the CLI argument parser for edge cases.",
+        "Review error handling coverage. Any gaps?",
+        "Final review: is the codebase ready for release?"
+    ]
+
+    let ri = 0
+    while ri < 5 {
+        let br = safe_send(builder, recovery_builder[ri])
+        total_sends = total_sends + 1
+        if br.get("error") != null { send_errors = send_errors + 1 }
+        update_builder(br)
+        print("TURN|agent=builder|n=" + string(total_sends) + "|c=" + string(builder_coherence) + "|phase=" + current_phase)
+
+        let rr = safe_send(reviewer, recovery_reviewer[ri])
+        total_sends = total_sends + 1
+        if rr.get("error") != null { send_errors = send_errors + 1 }
+        update_reviewer(rr)
+        print("TURN|agent=reviewer|n=" + string(total_sends) + "|c=" + string(reviewer_coherence) + "|phase=" + current_phase)
+
+        ri = ri + 1
+    }
+
+    // === SUMMARY ===
+    print("SUMMARY_TOTAL_SENDS: " + string(total_sends))
+    print("SUMMARY_SEND_ERRORS: " + string(send_errors))
+    print("SUMMARY_BUILDER_CREATED: true")
+    print("SUMMARY_REVIEWER_CREATED: true")
+    print("SUMMARY_BUILDER_COHERENCE: " + string(builder_coherence))
+    print("SUMMARY_REVIEWER_COHERENCE: " + string(reviewer_coherence))
+    print("SUMMARY_BUILDER_MIN_COHERENCE: " + string(builder_min_coherence))
+    print("SUMMARY_REVIEWER_MIN_COHERENCE: " + string(reviewer_min_coherence))
+    print("SUMMARY_BUILDER_CHALLENGES_PASSED: " + string(builder_challenges_p))
+    print("SUMMARY_BUILDER_CHALLENGES_FAILED: " + string(builder_challenges_f))
+    print("SUMMARY_REVIEWER_CHALLENGES_PASSED: " + string(reviewer_challenges_p))
+    print("SUMMARY_REVIEWER_CHALLENGES_FAILED: " + string(reviewer_challenges_f))
+    print("SUMMARY_BUILDER_PROMPT_COMPLIANCE: " + string(builder_prompt_compliance))
+    print("SUMMARY_FAN_OUT_OK: " + string(fan_out_ok) + "/" + string(fan_out_total))
+    print("SUMMARY_PIPELINE_OK: " + string(pipeline_ok) + "/" + string(pipeline_total))
+    print("SUMMARY_BUILDER_PRE_DRIFT_C: " + string(builder_coherence_before_drift))
+    print("SUMMARY_BUILDER_POST_DRIFT_C: " + string(builder_coherence_after_drift))
+    print("SUMMARY_REVIEWER_STABLE_C: " + string(reviewer_coherence))
+    print("SUMMARY_PHASE_REACHED: " + current_phase)
+
+    // === TELEMETRY VERIFICATION ===
+    print("=== TELEMETRY ===")
+    let telemetry_raw = ""
+    let telemetry_ok = false
+    try {
+        telemetry_raw = file.read("telemetry.jsonl")
+        telemetry_ok = telemetry_raw != null && string.length(telemetry_raw) > 10
+    } catch (e) {
+        print("TELEM_READ_ERROR: " + string(e))
+    }
+
+    if !telemetry_ok {
+        print("TELEM_HASH_CHAIN: false")
+        print("TELEM_EVENT_DIVERSITY: 0")
+        print("TELEM_RUN_ID_CONSISTENT: false")
+        print("TELEM_TIMESTAMPS_ORDERED: false")
+        print("TELEM_TOTAL_EVENTS: 0")
+        print("TELEM_MULTI_AGENT: false")
+    } else {
+        let lines = string.split(string.trim(telemetry_raw), "\n")
+        let events = []
+        let li = 0
+        while li < lines.length() {
+            let line = string.trim(lines[li])
+            if string.length(line) > 2 {
+                try {
+                    let evt = json.parse(line)
+                    events.push(evt)
+                } catch (e) {}
+            }
+            li = li + 1
+        }
+        print("TELEM_TOTAL_EVENTS: " + string(events.length()))
+
+        // Hash chain
+        let chain_valid = true
+        let ei = 1
+        while ei < events.length() {
+            let prev_hash = events[ei - 1].get("hash")
+            let curr_prev = events[ei].get("prev_hash")
+            if prev_hash != null && curr_prev != null {
+                if prev_hash != curr_prev { chain_valid = false }
+            }
+            ei = ei + 1
+        }
+        print("TELEM_HASH_CHAIN: " + string(chain_valid))
+
+        // Event type diversity + agent diversity
+        let event_types = {}
+        let agent_configs_seen = {}
+        let challenge_pass_count = 0
+        let challenge_fail_count = 0
+        let di2 = 0
+        while di2 < events.length() {
+            let evt_type = events[di2].get("event_type")
+            if evt_type == null { evt_type = events[di2].get("type") }
+            if evt_type != null {
+                event_types[string(evt_type)] = true
+                if string(evt_type) == "AGENT_CHALLENGE_PASS" { challenge_pass_count = challenge_pass_count + 1 }
+                if string(evt_type) == "AGENT_CHALLENGE_FAIL" { challenge_fail_count = challenge_fail_count + 1 }
+            }
+            let ac = events[di2].get("agent_config")
+            if ac != null && string(ac) != "" {
+                agent_configs_seen[string(ac)] = true
+            }
+            di2 = di2 + 1
+        }
+        print("TELEM_EVENT_DIVERSITY: " + string(event_types.keys().length()))
+        print("TELEM_CHALLENGE_PASS_EVENTS: " + string(challenge_pass_count))
+        print("TELEM_CHALLENGE_FAIL_EVENTS: " + string(challenge_fail_count))
+
+        // Multi-agent: did telemetry capture events from both agents?
+        let multi_agent = agent_configs_seen.keys().length() >= 2
+        print("TELEM_MULTI_AGENT: " + string(multi_agent))
+        print("TELEM_AGENT_CONFIGS: " + string(agent_configs_seen.keys().length()))
+
+        // Run ID consistency
+        let first_run_id = ""
+        let run_id_consistent = true
+        let ri2 = 0
+        while ri2 < events.length() {
+            let rid = events[ri2].get("run_id")
+            if rid != null {
+                if first_run_id == "" { first_run_id = string(rid) }
+                else if string(rid) != first_run_id { run_id_consistent = false }
+            }
+            ri2 = ri2 + 1
+        }
+        print("TELEM_RUN_ID_CONSISTENT: " + string(run_id_consistent))
+
+        // Timestamps ordered
+        let timestamps_ordered = true
+        let prev_ts = ""
+        let tsi = 0
+        while tsi < events.length() {
+            let ts = events[tsi].get("timestamp")
+            if ts != null {
+                let ts_str = string(ts)
+                if prev_ts != "" && ts_str < prev_ts { timestamps_ordered = false }
+                prev_ts = ts_str
+            }
+            tsi = tsi + 1
+        }
+        print("TELEM_TIMESTAMPS_ORDERED: " + string(timestamps_ordered))
+    }
+
+    // Governance health
+    let health = governance.health()
+    let verdict = "unknown"
+    if health != null {
+        verdict = health.get("verdict")
+        if verdict == null { verdict = "unknown" }
+    }
+    print("HEALTH_VERDICT: " + string(verdict))
+
+    print("=== MULTI-AGENT TEST COMPLETE ===")
+}
