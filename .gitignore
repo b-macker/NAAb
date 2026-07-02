@@ -5,7 +5,7 @@ cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
+/Makefile
 
 # Compiled object files
 *.o
@@ -205,4 +205,3 @@ demos/agent-orchestration/report.json
 
 # Vendored dependency build artifacts
 external/quickjs-2021-03-27/.obj/
-external/quickjs-2021-03-27/Makefile
