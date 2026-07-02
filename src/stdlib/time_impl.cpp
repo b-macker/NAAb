@@ -26,6 +26,16 @@ static interpreter::NaabVal makeInt(int i);
 static interpreter::NaabVal makeString(const std::string& s);
 static interpreter::NaabVal makeNull();
 
+// Thread-safe localtime with null check. Returns false on out-of-range timestamps.
+static bool safe_localtime(std::time_t time, std::tm& result) {
+#ifdef _WIN32
+    if (localtime_s(&result, &time) != 0) return false;
+#else
+    if (!localtime_r(&time, &result)) return false;
+#endif
+    return true;
+}
+
 bool TimeModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "now", "now_millis", "sleep", "format_timestamp", "parse_datetime",
@@ -95,10 +105,13 @@ interpreter::NaabVal TimeModule::call(
         std::string format = getString(args[1]);
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf)) {
+            throw std::runtime_error("format_timestamp() failed — timestamp out of range");
+        }
 
         std::ostringstream oss;
-        oss << std::put_time(tm_info, format.c_str());
+        oss << std::put_time(&tm_buf, format.c_str());
         return makeString(oss.str());
     }
 
@@ -138,8 +151,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_year + 1900);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("year() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_year + 1900);
     }
 
     // Function 7: month - Get month from timestamp (or current)
@@ -156,8 +171,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_mon + 1);  // 1-12 instead of 0-11
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("month() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_mon + 1);  // 1-12 instead of 0-11
     }
 
     // Function 8: day - Get day from timestamp (or current)
@@ -174,8 +191,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_mday);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("day() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_mday);
     }
 
     // Function 9: hour - Get hour from timestamp (or current)
@@ -192,8 +211,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_hour);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("hour() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_hour);
     }
 
     // Function 10: minute - Get minute from timestamp (or current)
@@ -210,8 +231,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_min);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("minute() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_min);
     }
 
     // Function 11: second - Get second from timestamp (or current)
@@ -228,8 +251,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_sec);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("second() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_sec);
     }
 
     // Function 12: weekday - Get weekday from timestamp (or current) (0=Sunday, 6=Saturday)
@@ -246,8 +271,10 @@ interpreter::NaabVal TimeModule::call(
         }
 
         std::time_t time = static_cast<std::time_t>(timestamp);
-        std::tm* tm_info = std::localtime(&time);
-        return makeInt(tm_info->tm_wday);
+        std::tm tm_buf;
+        if (!safe_localtime(time, tm_buf))
+            throw std::runtime_error("weekday() failed — timestamp out of range");
+        return makeInt(tm_buf.tm_wday);
     }
 
     // Common LLM mistakes

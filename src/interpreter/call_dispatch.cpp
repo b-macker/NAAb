@@ -2847,7 +2847,12 @@ void Interpreter::visit(ast::CallExpr& node) {
             try {
                 // Try parsing as double first to handle "3.14" -> 3
                 double d = std::stod(args[0].asString());
-                result_ = NaabVal::makeInt(static_cast<int>(d));
+                if (std::isnan(d)) { result_ = NaabVal::makeInt(0); }
+                else if (d >= static_cast<double>(INT_MAX)) { result_ = NaabVal::makeInt(INT_MAX); }
+                else if (d <= static_cast<double>(INT_MIN)) { result_ = NaabVal::makeInt(INT_MIN); }
+                else { result_ = NaabVal::makeInt(static_cast<int>(d)); }
+            } catch (const governance::GovernanceHardError&) {
+                throw;
             } catch (...) {
                 throw std::runtime_error("int() cannot convert \"" + args[0].asString() + "\" to int");
             }

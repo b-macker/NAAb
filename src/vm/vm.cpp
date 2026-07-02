@@ -18,6 +18,8 @@
 #endif
 #include "naab/resource_limits.h"
 #include "naab/limits.h"
+#include <climits>
+#include <cmath>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -258,6 +260,9 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
         if (args[0].isString()) {
             try {
                 double d = std::stod(args[0].asString());
+                if (std::isnan(d)) return interpreter::NaabVal::makeInt(0);
+                if (d >= static_cast<double>(INT_MAX)) return interpreter::NaabVal::makeInt(INT_MAX);
+                if (d <= static_cast<double>(INT_MIN)) return interpreter::NaabVal::makeInt(INT_MIN);
                 return interpreter::NaabVal::makeInt(static_cast<int>(d));
             } catch (const governance::GovernanceHardError&) {
                 throw;
