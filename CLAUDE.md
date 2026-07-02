@@ -39,9 +39,9 @@ src/
 ├── interpreter/    Tree-walker — visitor pattern, call_dispatch, governance_taint
 ├── vm/             Bytecode VM — stack-based dispatch loop, compiler (AST→bytecode)
 ├── runtime/        Governance engine, polyglot executors, trust_store, crypto_utils
-├── stdlib/         22 modules (*_impl.cpp): array, string, math, file, json, csv,
+├── stdlib/         23 modules (*_impl.cpp): array, string, math, file, json, csv,
 │                   dict, path, env, time, regex, crypto, http, log, uuid, validate,
-│                   process, debug, bolo, agent, codegen, orchestra
+│                   process, debug, bolo, agent, codegen, orchestra, governance
 ├── cli/            main.cpp entry point — CLI flag parsing, subcommands
 ├── scanner/        C++ security scanner (SARIF output, 18 code quality checks)
 ├── libnaab-governance/  C API for external agent framework integration (Go, Rust, Java, C# bindings)

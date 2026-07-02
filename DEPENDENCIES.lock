@@ -4,8 +4,8 @@
 # DO NOT EDIT MANUALLY - Regenerate with: scripts/update-dependencies.sh
 
 version: 1
-generated: 2026-02-21T00:00:00Z
-naab_version: 0.8.1
+generated: 2026-07-02T00:00:00Z
+naab_version: 1.4.0
 
 # ============================================================================
 # Vendored C++ Dependencies (in external/)
@@ -13,30 +13,30 @@ naab_version: 0.8.1
 
 vendored_dependencies:
   - name: abseil-cpp
-    version: "20230125.3"
+    version: "20260107.rc1"
     source: https://github.com/abseil/abseil-cpp
-    commit: "273292d1cfc0a94a65082ee350509af1d113344d"
+    commit: "17947175b574f9d355f7c5b48931e0de920fd626"
     license: Apache-2.0
     purpose: Core utilities, strings, hash maps
 
   - name: fmt
-    version: "10.1.1"
+    version: "12.1.0"
     source: https://github.com/fmtlib/fmt
-    commit: "e69e5f977d458f2650bb346dadf2ad30c5320281"
+    commit: "7bce22571a49ba7921174effefbfbf24300667a6"
     license: MIT
     purpose: String formatting library
 
   - name: spdlog
-    version: "1.12.0"
+    version: "1.x"
     source: https://github.com/gabime/spdlog
-    commit: "76fb40d95455f249bd70824ecfcae7a8f0930fa3"
+    commit: "0209b12c502bbdd37e04d238d74af851457e8210"
     license: MIT
     purpose: Logging library
 
-  - name: nlohmann-json
+  - name: json
     version: "3.11.2"
     source: https://github.com/nlohmann/json
-    commit: "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d"
+    commit: "9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03"
     license: MIT
     purpose: JSON parsing and serialization
 
@@ -47,12 +47,12 @@ vendored_dependencies:
     license: BSD-3-Clause
     purpose: Unit testing framework
 
-  - name: cpp-httplib
-    version: "0.14.0"
-    source: https://github.com/yhirose/cpp-httplib
-    commit: "2e59c35fc1b8f68e0645b9e68c65c04059ed6063"
+  - name: tomlplusplus
+    version: "3.4.0"
+    source: https://github.com/marzer/tomlplusplus
+    commit: "7807a314ad1c0c9c227d9dbd68f23f187163372e"
     license: MIT
-    purpose: HTTP server/client library
+    purpose: TOML configuration file parsing
 
   - name: quickjs
     version: "2021-03-27"
@@ -61,13 +61,6 @@ vendored_dependencies:
     sha256: "a45d90d59cbeb3a6ca7a7092d9db17ef7c9f37cb0ddfef30a1e4aa0c97c44d5b"
     license: MIT
     purpose: JavaScript engine for polyglot blocks
-
-  - name: linenoise
-    version: "1.0"
-    source: https://github.com/antirez/linenoise
-    commit: "c894b9e59f02203dbe4e2be657572cf88c4230c3"
-    license: BSD-2-Clause
-    purpose: Readline replacement for REPL
 
 # ============================================================================
 # System Dependencies (via package manager)
@@ -149,15 +142,8 @@ build_tools:
 # ============================================================================
 
 checksums:
-  abseil-cpp:
-    sha256: "unknown"  # Vendored via git submodule
-
-  fmt:
-    sha256: "unknown"  # Vendored via git submodule
-
-  spdlog:
-    sha256: "unknown"  # Vendored via git submodule
-
+  # Submodule integrity is verified by git (commit hash pinning)
+  # Only archive downloads need standalone checksums
   quickjs-2021-03-27.tar.xz:
     sha256: "a45d90d59cbeb3a6ca7a7092d9db17ef7c9f37cb0ddfef30a1e4aa0c97c44d5b"
 

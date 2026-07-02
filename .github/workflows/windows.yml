@@ -1,5 +1,8 @@
 name: Windows Build
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ master, main ]
@@ -18,7 +21,7 @@ jobs:
       # MSYS2/MinGW64 provides POSIX headers required by QuickJS (sys/time.h,
       # unistd.h, __attribute__((packed))) and produces native Windows .exe files.
       - name: Set up MSYS2 (MinGW64)
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
         with:
           msystem: MINGW64
           update: false

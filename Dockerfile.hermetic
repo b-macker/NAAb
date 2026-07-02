@@ -59,6 +59,7 @@ RUN test -d external/abseil-cpp && \
     test -d external/googletest && \
     test -d external/json && \
     test -d external/spdlog && \
+    test -d external/tomlplusplus && \
     echo "✓ All dependencies vendored"
 
 # Configure build with hermetic settings

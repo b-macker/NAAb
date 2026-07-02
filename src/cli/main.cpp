@@ -4023,6 +4023,25 @@ int main(int argc, char** argv) {
             {"shell", ".sh", "bash"},
         };
 
+        // Check if a binary exists on PATH without using system()
+        auto binaryExists = [](const std::string& name) -> bool {
+#ifdef _WIN32
+            // Windows: use _searchenv or check common extensions
+            std::string cmd = "where " + name + " >NUL 2>&1";
+            return system(cmd.c_str()) == 0;
+#else
+            const char* path_env = std::getenv("PATH");
+            if (!path_env) return false;
+            std::istringstream iss(path_env);
+            std::string dir;
+            while (std::getline(iss, dir, ':')) {
+                std::string full = dir + "/" + name;
+                if (access(full.c_str(), X_OK) == 0) return true;
+            }
+            return false;
+#endif
+        };
+
         // Check which languages are available
         std::vector<LangInfo> available;
         for (auto& lang : languages) {
@@ -4033,18 +4052,18 @@ int main(int argc, char** argv) {
                 if (!found) continue;
             }
             // Check if runner/compiler exists
-            std::string check_cmd;
+            std::string binary_name;
             if (!lang.runner.empty())
-                check_cmd = "which " + lang.runner + " >/dev/null 2>&1";
+                binary_name = lang.runner;
             else if (lang.name == "go")
-                check_cmd = "which go >/dev/null 2>&1";
+                binary_name = "go";
             else if (lang.name == "rust")
-                check_cmd = "which rustc >/dev/null 2>&1";
+                binary_name = "rustc";
             else if (lang.name == "nim")
-                check_cmd = "which nim >/dev/null 2>&1";
+                binary_name = "nim";
             else
                 continue;
-            if (system(check_cmd.c_str()) == 0) {
+            if (binaryExists(binary_name)) {
                 available.push_back(lang);
             }
         }

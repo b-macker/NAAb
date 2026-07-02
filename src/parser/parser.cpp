@@ -1299,7 +1299,21 @@ std::unique_ptr<ast::EnumDecl> Parser::parseEnumDecl() {
         std::optional<int> explicit_value = std::nullopt;
         if (match(lexer::TokenType::EQ)) {
             auto& value_token = expect(lexer::TokenType::NUMBER, "Expected integer value after '='");
-            explicit_value = std::stoi(value_token.value);
+            try {
+                explicit_value = std::stoi(value_token.value);
+            } catch (const std::out_of_range&) {
+                throw std::runtime_error(
+                    "Parse error: enum value out of range\n\n"
+                    "  Got: " + value_token.value + "\n"
+                    "  Expected: integer in range [-2147483648, 2147483647]\n"
+                );
+            } catch (const std::invalid_argument&) {
+                throw std::runtime_error(
+                    "Parse error: invalid enum value\n\n"
+                    "  Got: " + value_token.value + "\n"
+                    "  Expected: integer literal\n"
+                );
+            }
         }
 
         variants.emplace_back(ast::EnumDecl::EnumVariant(variant_name, explicit_value));
