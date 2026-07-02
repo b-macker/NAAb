@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <algorithm>
 #ifdef _WIN32
 #include <process.h>
 #define getpid _getpid
@@ -93,6 +94,8 @@ struct AgentTracker {
     std::chrono::steady_clock::time_point lease_granted_time;  // wall-clock lease start
     size_t key_offset = 0;  // round-robin position across agent.send() calls
     int truncation_count = 0;  // times response was truncated (MAX_TOKENS)
+    int last_reinforcement_turn = -100;  // mandate reinforcement cooldown
+    int last_correction_turn = -100;     // coherence correction cooldown
 };
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
@@ -178,25 +181,38 @@ static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
     return true;
 }
 
-// Extract >3-char lowercase keywords from text
+// Stop words: English function words >3 chars + LLM response boilerplate.
+// No programming terms — those are domain-relevant for coding assistants.
+static const std::unordered_set<std::string> kStopWords = {
+    "that", "this", "with", "from", "have", "your", "will", "also",
+    "each", "more", "like", "just", "some", "when", "then",
+    "into", "here", "been", "both", "want", "used", "them", "than",
+    "what", "were", "they", "does", "done", "very", "much", "most",
+    "only", "over", "such", "should", "would", "could", "about",
+    "other", "their", "there", "which", "these", "those", "being",
+    "after", "before",
+    "sure", "great", "lets", "following", "below",
+    "approach", "solution", "need", "look"
+};
+
+// Extract >3-char lowercase keywords from text (stop words filtered)
 static void extractKeywords(const std::string& text, std::unordered_set<std::string>& out) {
     std::string current;
     for (char c : text) {
         if (std::isalnum(static_cast<unsigned char>(c))) {
             current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         } else {
-            if (current.size() > 3) out.insert(current);
+            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
             current.clear();
         }
     }
-    if (current.size() > 3) out.insert(current);
+    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
 }
 
 // Score a step-up challenge response: word count + keyword overlap with system prompt
 // and recent user prompts (context-aware). Returns overlap ratio for telemetry.
 static double scoreStepUpChallengeRatio(const std::string& response,
                                          const std::string& system_prompt,
-                                         const std::vector<std::string>& recent_prompts,
                                          int min_words) {
     // 1. Word count
     int words = 0;
@@ -211,12 +227,13 @@ static double scoreStepUpChallengeRatio(const std::string& response,
     }
     if (words < min_words) return -1.0;  // word count failure
 
-    // 2. Extract keywords from system prompt AND recent user prompts
+    // 2. Extract keywords from system prompt only.
+    // Mandate challenges ask the agent to restate its objective, which is defined
+    // by the system prompt. User prompt keywords dilute the denominator without
+    // contributing to the numerator, creating a structural ceiling that drops
+    // below any fixed threshold as conversations grow longer.
     std::unordered_set<std::string> prompt_keywords;
     extractKeywords(system_prompt, prompt_keywords);
-    for (const auto& prompt : recent_prompts) {
-        extractKeywords(prompt, prompt_keywords);
-    }
     if (prompt_keywords.empty()) return 1.0;  // no keywords to check
 
     // 3. Check overlap with response
@@ -225,9 +242,30 @@ static double scoreStepUpChallengeRatio(const std::string& response,
     for (char c : response)
         response_lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
+    // Strip common English suffixes for fuzzy matching.
+    // "building"→"build", "coding"→"cod", "helpful"→"help", "assistant"→"assist"
+    // Stems are matched as substrings too, so "cod" finds "code" in response.
+    // Min word size = suffix_len + 3 (keep 3-char stems for substring matching).
+    auto stem = [](const std::string& w) -> std::string {
+        if (w.size() >= 6 && w.compare(w.size()-3, 3, "ing") == 0) return w.substr(0, w.size()-3);
+        if (w.size() >= 6 && w.compare(w.size()-3, 3, "ful") == 0) return w.substr(0, w.size()-3);
+        if (w.size() >= 6 && w.compare(w.size()-3, 3, "ant") == 0) return w.substr(0, w.size()-3);
+        if (w.size() >= 5 && w.compare(w.size()-2, 2, "ed") == 0) return w.substr(0, w.size()-2);
+        if (w.size() >= 5 && w.compare(w.size()-2, 2, "er") == 0) return w.substr(0, w.size()-2);
+        if (w.size() >= 5 && w.compare(w.size()-2, 2, "ly") == 0) return w.substr(0, w.size()-2);
+        if (w.size() >= 5 && w.back() == 's' && (w.size() < 2 || w[w.size()-2] != 's'))
+            return w.substr(0, w.size()-1);
+        return w;
+    };
+
     int found = 0;
     for (const auto& kw : prompt_keywords) {
-        if (response_lower.find(kw) != std::string::npos) found++;
+        if (response_lower.find(kw) != std::string::npos) {
+            found++;
+        } else {
+            std::string s = stem(kw);
+            if (s != kw && response_lower.find(s) != std::string::npos) found++;
+        }
     }
     return static_cast<double>(found) / static_cast<double>(prompt_keywords.size());
 }
@@ -263,6 +301,99 @@ static double scoreContextualChallengeRatio(const std::string& response,
         if (response_lower.find(kw) != std::string::npos) found++;
     }
     return static_cast<double>(found) / static_cast<double>(expected_keywords.size());
+}
+
+// Build a mechanical summary preamble from DriftState metadata for challenge context.
+// Returns empty string if no metadata is available.
+static std::string buildChallengeSummary(const governance::DriftState& ds, int current_turn) {
+    // If no metadata, return empty (fall through to recent-only behavior)
+    if (ds.instruction_keywords.empty() && ds.plan_step_keywords.empty() &&
+        ds.entity_context.empty() && ds.tool_result_keywords.empty() &&
+        ds.mandate_keywords.empty()) {
+        return "";
+    }
+
+    std::string summary = "[Context: Turn " + std::to_string(current_turn) + " of ongoing session.";
+
+    // Mandate (system prompt keywords) — reinforces objective for challenge
+    if (!ds.mandate_keywords.empty()) {
+        summary += " Your role:";
+        int count = 0;
+        for (const auto& kw : ds.mandate_keywords) {
+            if (count >= 20) { summary += " ..."; break; }
+            summary += (count == 0 ? " " : ", ") + kw;
+            count++;
+        }
+        summary += ".";
+    }
+
+    // Topics from accumulated instruction keywords (cap at 30 terms)
+    if (!ds.instruction_keywords.empty()) {
+        summary += " Topics discussed:";
+        int count = 0;
+        for (const auto& kw : ds.instruction_keywords) {
+            if (count >= 30) { summary += " ..."; break; }
+            summary += (count == 0 ? " " : ", ") + kw;
+            count++;
+        }
+        summary += ".";
+    }
+
+    // Plan steps
+    if (!ds.plan_step_keywords.empty()) {
+        summary += " Plan: " + std::to_string(ds.plan_step_keywords.size()) + " steps";
+        for (size_t i = 0; i < ds.plan_step_keywords.size() && i < 8; i++) {
+            summary += " (" + std::to_string(i + 1) + ")";
+            int kcount = 0;
+            for (const auto& kw : ds.plan_step_keywords[i]) {
+                if (kcount >= 5) break;
+                summary += (kcount == 0 ? " " : ", ") + kw;
+                kcount++;
+            }
+        }
+        summary += ".";
+    }
+
+    // Key entities (top 5 by context keyword count)
+    if (!ds.entity_context.empty()) {
+        std::vector<std::pair<std::string, size_t>> entities;
+        for (const auto& [ent, ctx] : ds.entity_context) {
+            entities.push_back({ent, ctx.size()});
+        }
+        std::sort(entities.begin(), entities.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+        summary += " Key entities:";
+        for (size_t i = 0; i < entities.size() && i < 5; i++) {
+            const auto& ent = entities[i].first;
+            summary += (i == 0 ? " " : ", ") + ent;
+            auto it = ds.entity_context.find(ent);
+            if (it != ds.entity_context.end() && !it->second.empty()) {
+                summary += " (";
+                int kcount = 0;
+                for (const auto& kw : it->second) {
+                    if (kcount >= 4) break;
+                    summary += (kcount == 0 ? "" : ", ") + kw;
+                    kcount++;
+                }
+                summary += ")";
+            }
+        }
+        summary += ".";
+    }
+
+    // Tools used (names only)
+    if (!ds.tool_result_keywords.empty()) {
+        summary += " Tools used:";
+        int count = 0;
+        for (const auto& [name, _] : ds.tool_result_keywords) {
+            summary += (count == 0 ? " " : ", ") + name;
+            count++;
+        }
+        summary += ".";
+    }
+
+    summary += "]\n\n";
+    return summary;
 }
 
 // Pipeline upstream provenance — keyed by downstream handle_id
@@ -306,7 +437,10 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         limits["timeout_seconds"] = NaabVal::makeInt(config->timeout_seconds);
         limits["risk_budget"] = NaabVal::makeInt(config->risk_budget);
         limits["thinking_budget"] = NaabVal::makeInt(config->thinking_budget);
+        limits["context_window"] = NaabVal::makeInt(config->context_window);
         env["limits"] = NaabVal::makeDict(std::move(limits));
+
+        env["context_strategy"] = NaabVal::makeString(config->context_strategy);
 
         // Model chain
         std::vector<NaabVal> model_list;
@@ -463,6 +597,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["persona_drift_count"] = NaabVal::makeInt(drift_opt->persona_drift_count);
             state["tool_integrity_count"] = NaabVal::makeInt(drift_opt->tool_integrity_count);
             state["claim_mismatch_count"] = NaabVal::makeInt(drift_opt->claim_result_mismatch_count);
+            state["prompt_compliance_count"] = NaabVal::makeInt(drift_opt->prompt_compliance_count);
             if (!drift_opt->claim_accuracy_history.empty()) {
                 double ca_sum = 0;
                 for (double v : drift_opt->claim_accuracy_history) ca_sum += v;
@@ -505,6 +640,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["persona_drift_count"] = NaabVal::makeInt(0);
             state["tool_integrity_count"] = NaabVal::makeInt(0);
             state["claim_mismatch_count"] = NaabVal::makeInt(0);
+            state["prompt_compliance_count"] = NaabVal::makeInt(0);
             state["claim_accuracy"] = NaabVal::makeDouble(1.0);
             state["mandate_alignment"] = NaabVal::makeDouble(0.0);
             state["escalation_turn"] = NaabVal::makeInt(-1);
@@ -1158,7 +1294,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "  Help:\n  - Use a handle returned by agent.create()\n");
     }
     auto& msg_list = msgs_it->second.asList();
-    for (auto& msg : msg_list) {
+
+    // Context windowing: limit history sent per API call
+    size_t start_idx = 0;
+    bool windowing_active = config && config->context_strategy != "full" &&
+                             config->context_window > 0 &&
+                             msg_list.size() > static_cast<size_t>(config->context_window);
+
+    if (windowing_active) {
+        start_idx = msg_list.size() - static_cast<size_t>(config->context_window);
+        // Even alignment: msg_list is always even (paired user/assistant appends).
+        // Positions 0,2,4... are "user", 1,3,5... are "assistant".
+        // Starting on odd index would make first message "assistant" → Gemini HTTP 400.
+        if (start_idx % 2 != 0) start_idx++;
+    }
+
+    for (size_t i = start_idx; i < msg_list.size(); i++) {
+        auto& msg = msg_list[i];
         auto& msg_dict = msg.asDict();
         // V-AG-002: Guard message dict key access
         auto role_it = msg_dict.find("role");
@@ -1188,6 +1340,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
         for (const auto& m : messages_json) full_messages.push_back(m);
         transcript_entry["messages"] = full_messages;
+        if (windowing_active) {
+            transcript_entry["context_windowing"] = {
+                {"strategy", config->context_strategy},
+                {"window_size", config->context_window},
+                {"total_messages", static_cast<int>(msg_list.size())},
+                {"messages_sent", static_cast<int>(messages_json.size())},
+                {"messages_dropped", static_cast<int>(start_idx)},
+                {"summary_prepended", config->context_strategy == "summary"}
+            };
+        }
     }
 
     // Hard stop check
@@ -1249,10 +1411,26 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // Initialize mandate keywords on first send (for mandate alignment signal)
+    // Context windowing summary mode: prepend DriftState preamble to first windowed message.
+    // Deferred to here because gov_engine is declared above (after messages are built).
+    if (windowing_active && config && config->context_strategy == "summary" &&
+        gov_engine && gov_engine->isActive() && !messages_json.empty()) {
+        auto ds = gov_engine->getDriftState(handle_id);
+        if (ds) {
+            std::string window_summary = buildChallengeSummary(*ds, current_turn);
+            if (!window_summary.empty()) {
+                // First message in messages_json (always "user" due to even alignment)
+                std::string existing = messages_json[0]["content"].get<std::string>();
+                messages_json[0]["content"] = window_summary + existing;
+            }
+        }
+    }
+
+    // Initialize mandate keywords on first send (for mandate alignment + prompt compliance signals)
     if (gov_engine && gov_engine->isActive() && current_turn == 0 &&
         !config->system_prompt.empty() &&
-        gov_engine->getRules().context_drift.signals.mandate_alignment) {
+        (gov_engine->getRules().context_drift.signals.mandate_alignment ||
+         gov_engine->getRules().context_drift.signals.prompt_compliance)) {
         std::unordered_set<std::string> mandate_kw;
         extractKeywords(config->system_prompt, mandate_kw);
         if (!mandate_kw.empty()) {
@@ -1270,6 +1448,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         extractKeywords(message, instr_kw);
         if (!instr_kw.empty()) {
             gov_engine->addInstructionKeywords(handle_id, instr_kw);
+        }
+    }
+
+    // Route prompt keywords to CDD for prompt compliance signal (S20)
+    if (gov_engine && gov_engine->isActive() && !message.empty() &&
+        gov_engine->getRules().context_drift.signals.prompt_compliance) {
+        std::unordered_set<std::string> prompt_kw;
+        extractKeywords(message, prompt_kw);
+        if (!prompt_kw.empty()) {
+            gov_engine->setTurnPromptKeywords(handle_id, prompt_kw);
         }
     }
 
@@ -1467,14 +1655,18 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         std::string challenge_text = cb.step_up_challenge;
                         std::unordered_set<std::string> contextual_expected_keywords;
 
-                        if (cb.step_up_contextual && gov_engine) {
-                            auto ds = gov_engine->getDriftState(handle_id);
-                            if (ds) {
+                        // Get DriftState for contextual selection and summary history
+                        std::optional<governance::DriftState> challenge_ds;
+                        if (gov_engine) {
+                            challenge_ds = gov_engine->getDriftState(handle_id);
+                        }
+
+                        if (cb.step_up_contextual && challenge_ds) {
                                 // Priority 1: tool_result — test recall of actual tool output
-                                if (challenge_type == "mandate" && !ds->tool_result_keywords.empty()) {
+                                if (challenge_type == "mandate" && !challenge_ds->tool_result_keywords.empty()) {
                                     // Pick most recently recorded tool (last in iteration order)
                                     std::string tool_name;
-                                    for (const auto& [name, kw] : ds->tool_result_keywords) {
+                                    for (const auto& [name, kw] : challenge_ds->tool_result_keywords) {
                                         if (!kw.empty()) tool_name = name;
                                     }
                                     if (!tool_name.empty()) {
@@ -1482,33 +1674,33 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         challenge_text = "Your last call to " + tool_name +
                                             " returned a result. In one sentence, describe what "
                                             "that result contained, then proceed.";
-                                        contextual_expected_keywords = ds->tool_result_keywords.at(tool_name);
+                                        contextual_expected_keywords = challenge_ds->tool_result_keywords.at(tool_name);
                                     }
                                 }
                                 // Priority 2: plan_step — test plan awareness
-                                if (challenge_type == "mandate" && !ds->plan_step_keywords.empty() &&
-                                    ds->plan_last_step_matched >= 0) {
-                                    int next = ds->plan_last_step_matched;
-                                    if (next < static_cast<int>(ds->plan_step_keywords.size())) {
+                                if (challenge_type == "mandate" && !challenge_ds->plan_step_keywords.empty() &&
+                                    challenge_ds->plan_last_step_matched >= 0) {
+                                    int next = challenge_ds->plan_last_step_matched;
+                                    if (next < static_cast<int>(challenge_ds->plan_step_keywords.size())) {
                                         challenge_type = "plan_step";
                                         challenge_text = "What is step " + std::to_string(next + 1) +
                                             " of your current plan? State it in one sentence, then proceed.";
-                                        contextual_expected_keywords = ds->plan_step_keywords[static_cast<size_t>(next)];
+                                        contextual_expected_keywords = challenge_ds->plan_step_keywords[static_cast<size_t>(next)];
                                     }
                                 }
                                 // Priority 3: instruction — test instruction memory
-                                if (challenge_type == "mandate" && !ds->instruction_history.empty()) {
+                                if (challenge_type == "mandate" && !challenge_ds->instruction_history.empty()) {
                                     challenge_type = "instruction";
                                     challenge_text = "In one sentence, summarize the most recent "
                                         "user instruction you received, then proceed.";
-                                    contextual_expected_keywords = ds->instruction_history.back();
+                                    contextual_expected_keywords = challenge_ds->instruction_history.back();
                                 }
                                 // Priority 4: entity — test entity awareness
-                                if (challenge_type == "mandate" && !ds->entity_context.empty()) {
+                                if (challenge_type == "mandate" && !challenge_ds->entity_context.empty()) {
                                     // Pick entity with most context keywords
                                     std::string best_entity;
                                     size_t best_size = 0;
-                                    for (const auto& [ent, ctx] : ds->entity_context) {
+                                    for (const auto& [ent, ctx] : challenge_ds->entity_context) {
                                         if (ctx.size() > best_size) {
                                             best_entity = ent;
                                             best_size = ctx.size();
@@ -1519,15 +1711,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         challenge_text = "What is " + best_entity +
                                             " and how does it relate to your current task? "
                                             "Answer in one sentence, then proceed.";
-                                        contextual_expected_keywords = ds->entity_context.at(best_entity);
+                                        contextual_expected_keywords = challenge_ds->entity_context.at(best_entity);
                                     }
                                 }
-                            }
                         }
 
                         // Build challenge message with conversation history.
-                        // History gives the model context to answer contextual
-                        // questions (tool recall, plan steps, instructions, entities).
+                        // History mode controls context sent to the model:
+                        //   "full"    — all messages (no cap)
+                        //   "recent"  — last N messages (default, backward compatible)
+                        //   "summary" — DriftState summary preamble + last N messages
                         // System prompt is NOT included here — callAgentWithStatus
                         // sends it via config (Gemini: systemInstruction, Anthropic:
                         // "system" field). Including it would double-send.
@@ -1537,6 +1730,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             auto hist_it = handle.find("messages");
                             if (hist_it != handle.end() && hist_it->second.isList()) {
                                 auto& hlist = hist_it->second.asList();
+                                std::vector<json> all_msgs;
                                 for (auto& hmsg : hlist) {
                                     if (hmsg.isDict()) {
                                         auto& hd = hmsg.asDict();
@@ -1547,16 +1741,40 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                             json hm;
                                             hm["role"] = hr_it->second.asString();
                                             hm["content"] = hc_it->second.asString();
-                                            challenge_msgs.push_back(hm);
+                                            all_msgs.push_back(std::move(hm));
                                         }
+                                    }
+                                }
+                                if (cb.step_up_challenge_history == "full") {
+                                    // All messages, no cap
+                                    for (auto& m : all_msgs) {
+                                        challenge_msgs.push_back(std::move(m));
+                                    }
+                                } else {
+                                    // "recent" and "summary" both use configurable recent count
+                                    size_t recent = static_cast<size_t>(cb.step_up_history_recent_count);
+                                    size_t start = all_msgs.size() > recent
+                                        ? all_msgs.size() - recent : 0;
+                                    for (size_t i = start; i < all_msgs.size(); i++) {
+                                        challenge_msgs.push_back(std::move(all_msgs[i]));
                                     }
                                 }
                                 history_message_count = challenge_msgs.size();
                             }
                         }
+
+                        // Summary mode: prepend DriftState summary to challenge text
+                        std::string effective_challenge = challenge_text;
+                        if (cb.step_up_challenge_history == "summary" && challenge_ds) {
+                            std::string summary = buildChallengeSummary(*challenge_ds, current_turn);
+                            if (!summary.empty()) {
+                                effective_challenge = summary + challenge_text;
+                            }
+                        }
+
                         json challenge_user;
                         challenge_user["role"] = "user";
-                        challenge_user["content"] = challenge_text;
+                        challenge_user["content"] = effective_challenge;
                         challenge_msgs.push_back(challenge_user);
 
                         governance::AgentConfig challenge_config = *config;
@@ -1601,11 +1819,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 passed = (keyword_ratio >= 0.0 &&
                                           keyword_ratio >= cb.step_up_contextual_threshold);
                             } else {
-                                // Mandate challenge (fallback): score against system_prompt + prompts
+                                // Mandate challenge (fallback): score against system_prompt only
                                 keyword_ratio = scoreStepUpChallengeRatio(
                                     challenge_result.response.content,
                                     config->system_prompt,
-                                    recent_prompts,
                                     cb.step_up_min_words);
                                 passed = (keyword_ratio >= 0.0 &&
                                           keyword_ratio >= cb.step_up_keyword_threshold);
@@ -1613,11 +1830,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         }
 
                         // Gate lease renewal on coherence if drift tracking is active
+                        // Reuses hoisted challenge_ds to avoid redundant DriftState copy
                         bool coherence_ok = true;
-                        if (passed && gov_engine) {
-                            auto drift_state = gov_engine->getDriftState(handle_id);
+                        if (passed && challenge_ds) {
                             double floor = gov_engine->getRules().exposure_tracking.coherence_floor;
-                            if (drift_state && floor > 0.0 && drift_state->coherence_score < floor) {
+                            if (floor > 0.0 && challenge_ds->coherence_score < floor) {
                                 coherence_ok = false;
                             }
                         }
@@ -1661,7 +1878,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"lease_expired", lease_expired},
                                 {"coherence_ok", coherence_ok},
                                 {"response_length", static_cast<int>(challenge_result.response.content.size())},
-                                {"history_messages", static_cast<int>(history_message_count)}
+                                {"history_messages", static_cast<int>(history_message_count)},
+                                {"history_mode", cb.step_up_challenge_history}
                             };
                         }
 
@@ -1676,7 +1894,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
                                 {"context_prompts", std::to_string(recent_prompts.size())},
-                                {"history_messages", std::to_string(history_message_count)}
+                                {"history_messages", std::to_string(history_message_count)},
+                                {"history_mode", cb.step_up_challenge_history}
                             });
                         } else {
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_FAIL", {
@@ -1688,7 +1907,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"thinking_tokens", std::to_string(challenge_result.response.thinking_tokens)},
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
                                 {"context_prompts", std::to_string(recent_prompts.size())},
-                                {"history_messages", std::to_string(history_message_count)}
+                                {"history_messages", std::to_string(history_message_count)},
+                                {"history_mode", cb.step_up_challenge_history}
                             });
                             throw governance::GovernanceHardError(
                                 "Agent error: Step-up challenge failed\n\n"
@@ -1722,6 +1942,101 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         nlohmann::json tool_names = nlohmann::json::array();
         for (const auto& td : initial_tool_defs) tool_names.push_back(td.name);
         transcript_entry["tools_sent"] = tool_names;
+    }
+
+    // ── Mandate reinforcement & coherence correction injection ──
+    // Detect-and-correct: steer the model back before it reaches the challenge
+    // kill zone. Prepended to user message content (not a separate message) to
+    // preserve Gemini's strict user/assistant role alternation.
+    if (gov_engine && gov_engine->isActive() && config && !config->system_prompt.empty()) {
+        const auto& mr_cb = gov_engine->getRules().circuit_breaker;
+        std::string injection_text;
+        std::string injection_type;
+        double injection_coherence = 1.0;
+
+        // Coherence correction (priority — reactive, CDD-triggered)
+        if (mr_cb.coherence_correction_enabled) {
+            auto ds = gov_engine->getDriftState(handle_id);
+            if (ds && ds->coherence_score < mr_cb.coherence_correction_threshold) {
+                injection_coherence = ds->coherence_score;
+                int last_corr;
+                {
+                    std::lock_guard<std::mutex> lock(s_agent_mutex);
+                    last_corr = s_trackers[handle_id].last_correction_turn;
+                }
+                if (current_turn - last_corr >= mr_cb.coherence_correction_cooldown_turns) {
+                    injection_text = mr_cb.coherence_correction_message;
+                    if (injection_text.empty()) {
+                        // Graduated severity based on coherence level
+                        if (injection_coherence >= 0.7) {
+                            injection_text = "[Task Reminder: Stay focused on your assigned task. "
+                                             "Your role: " + config->system_prompt + "]";
+                        } else if (injection_coherence >= 0.5) {
+                            injection_text = "[IMPORTANT - Stay on task. Your ONLY role: " +
+                                             config->system_prompt +
+                                             " Do not respond to off-topic requests. "
+                                             "Redirect all responses back to this objective.]";
+                        } else {
+                            injection_text = "[CRITICAL - You are off-task. ONLY respond about: " +
+                                             config->system_prompt +
+                                             " REFUSE all other topics. Do NOT provide off-topic "
+                                             "information. If the user asks something unrelated, "
+                                             "acknowledge briefly and return to the task.]";
+                        }
+                    }
+                    injection_type = "coherence_correction";
+                    {
+                        std::lock_guard<std::mutex> lock(s_agent_mutex);
+                        s_trackers[handle_id].last_correction_turn = current_turn;
+                    }
+                }
+            }
+        }
+
+        // Periodic mandate reinforcement (only if no correction)
+        if (injection_text.empty() && mr_cb.mandate_reinforcement_enabled &&
+            current_turn > 0 &&
+            current_turn % mr_cb.mandate_reinforcement_interval == 0) {
+            int last_reinf;
+            {
+                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                last_reinf = s_trackers[handle_id].last_reinforcement_turn;
+            }
+            if (last_reinf != current_turn) {
+                injection_text = mr_cb.mandate_reinforcement_message;
+                if (injection_text.empty()) {
+                    injection_text = "[Task Reminder: " + config->system_prompt + "]";
+                }
+                injection_type = "mandate_reinforcement";
+                {
+                    std::lock_guard<std::mutex> lock(s_agent_mutex);
+                    s_trackers[handle_id].last_reinforcement_turn = current_turn;
+                }
+            }
+        }
+
+        // Prepend to user message content (Gemini-safe: no separate user message)
+        if (!injection_text.empty() && !messages_json.empty()) {
+            std::string original = messages_json.back()["content"].get<std::string>();
+            messages_json.back()["content"] = injection_text + "\n\n" + original;
+
+            char coh[32];
+            snprintf(coh, sizeof(coh), "%.4f", injection_coherence);
+            gov_engine->writeAgentTelemetry("MANDATE_INJECTION", {
+                {"handle_id", std::to_string(handle_id)},
+                {"turn",      std::to_string(current_turn)},
+                {"type",      injection_type},
+                {"agent",     config_name},
+                {"coherence", coh}
+            });
+            if (transcript_active) {
+                transcript_entry["mandate_injection"] = {
+                    {"type", injection_type},
+                    {"turn", current_turn},
+                    {"coherence", injection_coherence}
+                };
+            }
+        }
     }
 
     // ── Retry loop with key rotation, model fallback, backoff + jitter ──
@@ -3178,9 +3493,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     snprintf(ma_buf, sizeof(ma_buf), "%.4f", ma_mean);
                     ma_str = ma_buf;
                 }
+                std::string ss_str = "N/A";
+                if (!drift_state->semantic_stability_history.empty()) {
+                    double ss_sum = 0;
+                    for (double v : drift_state->semantic_stability_history) ss_sum += v;
+                    double ss_mean = ss_sum / static_cast<double>(drift_state->semantic_stability_history.size());
+                    char ss_buf[32];
+                    snprintf(ss_buf, sizeof(ss_buf), "%.4f", ss_mean);
+                    ss_str = ss_buf;
+                }
                 gov_engine->writeAgentTelemetry("SEMANTIC_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
                     {"turn",                   std::to_string(current_turn)},
+                    {"semantic_stability",      ss_str},
                     {"semantic_stability_count", std::to_string(drift_state->semantic_stability_count)},
                     {"mandate_drift_count",     std::to_string(drift_state->mandate_drift_count)},
                     {"context_growth_count",    std::to_string(drift_state->context_growth_count)},
@@ -3191,6 +3516,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"persona_drift_count",     std::to_string(drift_state->persona_drift_count)},
                     {"tool_integrity_count",    std::to_string(drift_state->tool_integrity_count)},
                     {"claim_mismatch_count",   std::to_string(drift_state->claim_result_mismatch_count)},
+                    {"prompt_compliance_count", std::to_string(drift_state->prompt_compliance_count)},
                     {"mandate_alignment",       ma_str},
                     {"keywords_count",          std::to_string(response_keywords.size())}
                 });
@@ -3226,6 +3552,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"turn",                   std::to_string(current_turn)},
                     {"tool_integrity_count",   std::to_string(drift_state->tool_integrity_count)},
                     {"claim_mismatch_count",   std::to_string(drift_state->claim_result_mismatch_count)},
+                    {"prompt_compliance_count", std::to_string(drift_state->prompt_compliance_count)},
                     {"claim_accuracy_rolling", claim_accuracy_str},
                     {"instruction_recall_count", std::to_string(drift_state->instruction_recall_count)},
                     {"plan_drift_count",       std::to_string(drift_state->plan_drift_count)},
@@ -3293,6 +3620,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 double ma_sum = 0;
                 for (double v : drift_st->mandate_alignment_history) ma_sum += v;
                 cdd["mandate_alignment"] = ma_sum / static_cast<double>(drift_st->mandate_alignment_history.size());
+            }
+            cdd["prompt_compliance_count"] = drift_st->prompt_compliance_count;
+            if (!drift_st->prompt_alignment_history.empty()) {
+                double pa_sum = 0;
+                for (double v : drift_st->prompt_alignment_history) pa_sum += v;
+                cdd["prompt_alignment"] = pa_sum / static_cast<double>(drift_st->prompt_alignment_history.size());
             }
             transcript_entry["cdd"] = cdd;
         }
@@ -3410,6 +3743,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             sem["persona_drift_count"] = NaabVal::makeInt(drift_st->persona_drift_count);
             sem["tool_integrity_count"] = NaabVal::makeInt(drift_st->tool_integrity_count);
             sem["claim_mismatch_count"] = NaabVal::makeInt(drift_st->claim_result_mismatch_count);
+            sem["prompt_compliance_count"] = NaabVal::makeInt(drift_st->prompt_compliance_count);
             if (!drift_st->claim_accuracy_history.empty()) {
                 double ca_sum = 0;
                 for (double v : drift_st->claim_accuracy_history) ca_sum += v;

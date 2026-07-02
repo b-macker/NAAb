@@ -2857,6 +2857,17 @@ void GovernanceEngine::printDashboard() const {
                 }
                 fprintf(stderr, "\n");
             }
+            if (state->prompt_compliance_count > 0) {
+                fprintf(stderr, "Compliance: %d off-topic compliance events",
+                        state->prompt_compliance_count);
+                if (!state->prompt_alignment_history.empty()) {
+                    double pa_sum = 0;
+                    for (double v : state->prompt_alignment_history) pa_sum += v;
+                    double pa_mean = pa_sum / static_cast<double>(state->prompt_alignment_history.size());
+                    fprintf(stderr, ", prompt_alignment=%.2f", pa_mean);
+                }
+                fprintf(stderr, "\n");
+            }
         } else {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
@@ -6743,12 +6754,13 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
 
     // --- Composite pressure detection + circuit breaker + pulse ---
-    // Composite pressure, pulse verdict, and governance level updates run whenever
-    // CDD is active (getDriftState returns valid state). Only the blocking reality
-    // checkpoint enforcement is gated on rccfg.enabled. This decoupling ensures
-    // circuit breaker and pulse can function independently of reality_checkpoint.
+    // Pressure factors, pulse verdict, and governance level updates run
+    // unconditionally whenever getDriftState returns valid state — even when
+    // drifted. This ensures governance_level_ stays current so step-up
+    // challenges can fire as a recovery mechanism. Only enforcement actions
+    // (reality checkpoint) are gated on !drifted.
     const auto& rccfg = rules().context_drift.reality_checkpoint;
-    if (!drifted) {
+    {
         auto state = drift_analyzer_.getDriftState(handle_id);
         if (state) {
             // Factor 1: Coherence proximity (how close to threshold)
@@ -6843,10 +6855,49 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 consecutive = std::max(0, consecutive - 1);  // decay, not instant reset
             }
 
-            // Reality checkpoint enforcement — ONLY this blocking action
-            // is gated on rccfg.enabled. Pressure tracking, pulse, and
-            // circuit breaker run independently.
-            if (rccfg.enabled) {
+            // Pulse: compute verdict unconditionally (not gated on circuit breaker)
+            PulseVerdict prev_pv = getPulseVerdict();
+            PulseVerdict pv = computePulseVerdict(turn);
+
+            // Emit BSD events for pulse state transitions
+            if (pv != prev_pv) {
+                if (pv == PulseVerdict::DEGRADED)
+                    emitEvent(RuntimeEventType::PULSE_DEGRADED, "governance pulse degraded", "", 0);
+                else if (pv == PulseVerdict::IMPAIRED)
+                    emitEvent(RuntimeEventType::PULSE_IMPAIRED, "governance pulse impaired", "", 0);
+            }
+
+            // F6: Update system-wide governance level from sustained pressure
+            const auto& cb = rules().circuit_breaker;
+            if (cb.enabled) {
+                int level = 0;
+                if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) level = 3;
+                else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) level = 2;
+                else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) level = 1;
+
+                // Pulse escalation: raises per-call floor (never below pressure-computed level)
+                if (pv == PulseVerdict::IMPAIRED && level < 2) level = 2;
+                else if (pv == PulseVerdict::DEGRADED && level < 1) level = 1;
+
+                // Evidence Epoch: governance level change invalidates prior evidence
+                int prev_level = governance_level_.load(std::memory_order_relaxed);
+                if (level != prev_level) {
+                    governance_epoch_++;
+                    {
+                        std::lock_guard<std::mutex> lock(results_mutex_);
+                        decayAdvisoryHistory();
+                    }
+                    // Record escalation for effectiveness tracking
+                    drift_analyzer_.recordEscalation(state->handle_id, prev_level, level);
+                }
+                governance_level_.store(level, std::memory_order_relaxed);
+            }
+
+            // Reality checkpoint enforcement — pulse and circuit breaker
+            // run above (before this block) so governance state is current
+            // even when checkpoint fires. Enforcement is gated on !drifted
+            // (coherence_loss handles the drifted case separately below).
+            if (!drifted && rccfg.enabled) {
                 // Check trigger condition: sustained + cooldown
                 if (consecutive >= rccfg.sustained_turns_required &&
                     (turn - last_cp_turn) >= rccfg.min_turns_between_checkpoints) {
@@ -6886,44 +6937,6 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // Update pressure tracking (reached when checkpoint didn't fire or is disabled)
             drift_analyzer_.updateCheckpointState(handle_id, composite, consecutive, -1);
-
-            // Pulse: compute verdict unconditionally (not gated on circuit breaker)
-            PulseVerdict prev_pv = getPulseVerdict();
-            PulseVerdict pv = computePulseVerdict(turn);
-
-            // Emit BSD events for pulse state transitions
-            if (pv != prev_pv) {
-                if (pv == PulseVerdict::DEGRADED)
-                    emitEvent(RuntimeEventType::PULSE_DEGRADED, "governance pulse degraded", "", 0);
-                else if (pv == PulseVerdict::IMPAIRED)
-                    emitEvent(RuntimeEventType::PULSE_IMPAIRED, "governance pulse impaired", "", 0);
-            }
-
-            // F6: Update system-wide governance level from sustained pressure
-            const auto& cb = rules().circuit_breaker;
-            if (cb.enabled) {
-                int level = 0;
-                if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) level = 3;
-                else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) level = 2;
-                else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) level = 1;
-
-                // Pulse escalation: raises per-call floor (never below pressure-computed level)
-                if (pv == PulseVerdict::IMPAIRED && level < 2) level = 2;
-                else if (pv == PulseVerdict::DEGRADED && level < 1) level = 1;
-
-                // Evidence Epoch: governance level change invalidates prior evidence
-                int prev_level = governance_level_.load(std::memory_order_relaxed);
-                if (level != prev_level) {
-                    governance_epoch_++;
-                    {
-                        std::lock_guard<std::mutex> lock(results_mutex_);
-                        decayAdvisoryHistory();
-                    }
-                    // Record escalation for effectiveness tracking
-                    drift_analyzer_.recordEscalation(state->handle_id, prev_level, level);
-                }
-                governance_level_.store(level, std::memory_order_relaxed);
-            }
         }
     }
 
@@ -6993,6 +7006,11 @@ void GovernanceEngine::recordToolResult(
 void GovernanceEngine::recordToolOutcome(
     int handle_id, const std::string& tool_name, bool success) {
     drift_analyzer_.recordToolOutcome(handle_id, tool_name, success);
+}
+
+void GovernanceEngine::setTurnPromptKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    drift_analyzer_.setTurnPromptKeywords(handle_id, keywords);
 }
 
 void GovernanceEngine::recordEscalation(

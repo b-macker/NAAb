@@ -848,9 +848,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                 // indexOf(item) - find index of item, -1 if not found
                 if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                     if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
-                    for (int i = 0; i < static_cast<int>(arr.size()); i++) {
+                    for (size_t i = 0; i < arr.size(); i++) {
                         if (arr[i].toString() == args[0].toString()) {
-                            result_ = NaabVal::makeInt(i);
+                            result_ = NaabVal::makeInt(static_cast<int>(i));
                             return;
                         }
                     }
@@ -1134,7 +1134,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                         fill = fs[0];
                     }
                     std::string s = str;
-                    if (static_cast<int>(s.length()) < width) s.append(width - s.length(), fill);
+                    if (s.length() < static_cast<size_t>(width)) s.append(static_cast<size_t>(width) - s.length(), fill);
                     result_ = NaabVal::makeString(s);
                     return;
                 }
@@ -1147,8 +1147,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                         if (fs.length() != 1) throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
                         fill = fs[0];
                     }
-                    if (static_cast<int>(str.length()) < width) {
-                        result_ = NaabVal::makeString(std::string(width - str.length(), fill) + str);
+                    if (str.length() < static_cast<size_t>(width)) {
+                        result_ = NaabVal::makeString(std::string(static_cast<size_t>(width) - str.length(), fill) + str);
                     } else {
                         result_ = NaabVal::makeString(str);
                     }
@@ -1170,9 +1170,8 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         // If it's a Python object, call it
         if (callable.isPythonObject()) {
-            auto& py_callable = callable.asPythonObject();
-
 #ifdef NAAB_HAS_PYTHON
+            auto& py_callable = callable.asPythonObject();
             LOG_TRACE("[CALL] Invoking Python method with {} args\n", args.size());
 
             // Build argument tuple for Python
@@ -1788,7 +1787,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     else { result_ = NaabVal::makeNull(); }
                     return;
                 }
-                result_ = arr[idx];
+                result_ = arr[static_cast<size_t>(idx)];
                 return;
             }
             if (method_name == "contains" || method_name == "includes") {
@@ -1805,7 +1804,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 int count = args[0].toInt();
                 std::vector<NaabVal> taken;
                 for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
-                    taken.push_back(arr[i]);
+                    taken.push_back(arr[static_cast<size_t>(i)]);
                 }
                 result_ = NaabVal::makeList(std::move(taken));
                 return;
@@ -1853,9 +1852,9 @@ void Interpreter::visit(ast::CallExpr& node) {
             // indexOf(item)
             if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                 if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
-                for (int i = 0; i < static_cast<int>(arr.size()); i++) {
+                for (size_t i = 0; i < arr.size(); i++) {
                     if (arr[i].toString() == args[0].toString()) {
-                        result_ = NaabVal::makeInt(i);
+                        result_ = NaabVal::makeInt(static_cast<int>(i));
                         return;
                     }
                 }
@@ -2027,9 +2026,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (args.size() >= 2) {
                     int end = args[1].asInt();
                     if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
-                    result_ = NaabVal::makeString(str.substr(start, end - start));
+                    result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
                 } else {
-                    result_ = NaabVal::makeString(str.substr(start));
+                    result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start)));
                 }
                 return;
             }
@@ -2127,7 +2126,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fill = fs[0];
                 }
                 std::string s = str;
-                if (static_cast<int>(s.length()) < width) s.append(width - s.length(), fill);
+                if (s.length() < static_cast<size_t>(width)) s.append(static_cast<size_t>(width) - s.length(), fill);
                 result_ = NaabVal::makeString(s);
                 return;
             }
@@ -2140,8 +2139,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (fs.length() != 1) throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
                     fill = fs[0];
                 }
-                if (static_cast<int>(str.length()) < width) {
-                    result_ = NaabVal::makeString(std::string(width - str.length(), fill) + str);
+                if (str.length() < static_cast<size_t>(width)) {
+                    result_ = NaabVal::makeString(std::string(static_cast<size_t>(width) - str.length(), fill) + str);
                 } else {
                     result_ = NaabVal::makeString(str);
                 }
@@ -2848,7 +2847,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             try {
                 // Try parsing as double first to handle "3.14" -> 3
                 double d = std::stod(args[0].asString());
-                result_ = NaabVal::makeInt(d);
+                result_ = NaabVal::makeInt(static_cast<int>(d));
             } catch (...) {
                 throw std::runtime_error("int() cannot convert \"" + args[0].asString() + "\" to int");
             }
@@ -2915,7 +2914,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (start >= end) {
                 result_ = NaabVal::makeString("");
             } else {
-                result_ = NaabVal::makeString(str.substr(start, end - start));
+                result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
             }
         } else {
             throw std::runtime_error("Slice operator requires an array or string");
@@ -3127,9 +3126,8 @@ void Interpreter::visit(ast::MemberExpr& node) {
 
     // Check if object is a Python object (for method chaining)
     if (obj.isPythonObject()) {
-        auto& py_obj = obj.asPythonObject();
-
 #ifdef NAAB_HAS_PYTHON
+        auto& py_obj = obj.asPythonObject();
         fmt::print("[MEMBER] Accessing .{} on Python object\n", member_name);
 
         // Get the member attribute from the Python object

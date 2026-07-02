@@ -2360,6 +2360,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.standing_lease_turns = std::max(0, cfg_json["standing_lease_turns"].get<int>());
                 if (cfg_json.contains("standing_lease_seconds") && cfg_json["standing_lease_seconds"].is_number_integer())
                     agent.standing_lease_seconds = std::max(0, cfg_json["standing_lease_seconds"].get<int>());
+                // Context windowing
+                if (cfg_json.contains("context_window") && cfg_json["context_window"].is_number_integer())
+                    agent.context_window = std::max(0, cfg_json["context_window"].get<int>());
+                if (cfg_json.contains("context_strategy") && cfg_json["context_strategy"].is_string()) {
+                    std::string val = cfg_json["context_strategy"].get<std::string>();
+                    if (val == "full" || val == "recent" || val == "summary")
+                        agent.context_strategy = val;
+                }
                 // Retry configuration
                 if (cfg_json.contains("retry") && cfg_json["retry"].is_object()) {
                     auto& r = cfg_json["retry"];
@@ -2675,6 +2683,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("persona_deviation_factor") && th["persona_deviation_factor"].is_number()) cfg.thresholds.persona_deviation_factor = std::max(1.0, th["persona_deviation_factor"].get<double>());
             if (th.contains("tool_result_recall_min") && th["tool_result_recall_min"].is_number()) cfg.thresholds.tool_result_recall_min = std::max(0.0, std::min(1.0, th["tool_result_recall_min"].get<double>()));
             if (th.contains("claim_accuracy_min") && th["claim_accuracy_min"].is_number()) cfg.thresholds.claim_accuracy_min = std::max(0.0, std::min(1.0, th["claim_accuracy_min"].get<double>()));
+            if (th.contains("prompt_compliance_mandate_min") && th["prompt_compliance_mandate_min"].is_number()) cfg.thresholds.prompt_compliance_mandate_min = std::max(0.0, std::min(1.0, th["prompt_compliance_mandate_min"].get<double>()));
+            if (th.contains("prompt_compliance_response_min_tokens") && th["prompt_compliance_response_min_tokens"].is_number_integer()) cfg.thresholds.prompt_compliance_response_min_tokens = std::max(0, th["prompt_compliance_response_min_tokens"].get<int>());
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
@@ -2698,6 +2708,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("persona_fingerprint") && sig["persona_fingerprint"].is_boolean()) cfg.signals.persona_fingerprint = sig["persona_fingerprint"].get<bool>();
             if (sig.contains("tool_chain_integrity") && sig["tool_chain_integrity"].is_boolean()) cfg.signals.tool_chain_integrity = sig["tool_chain_integrity"].get<bool>();
             if (sig.contains("claim_result_reconciliation") && sig["claim_result_reconciliation"].is_boolean()) cfg.signals.claim_result_reconciliation = sig["claim_result_reconciliation"].get<bool>();
+            if (sig.contains("prompt_compliance") && sig["prompt_compliance"].is_boolean()) cfg.signals.prompt_compliance = sig["prompt_compliance"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -2721,6 +2732,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("persona_fingerprint") && w["persona_fingerprint"].is_number()) cfg.weights.persona_fingerprint = w["persona_fingerprint"].get<double>();
             if (w.contains("tool_chain_integrity") && w["tool_chain_integrity"].is_number()) cfg.weights.tool_chain_integrity = w["tool_chain_integrity"].get<double>();
             if (w.contains("claim_result_reconciliation") && w["claim_result_reconciliation"].is_number()) cfg.weights.claim_result_reconciliation = w["claim_result_reconciliation"].get<double>();
+            if (w.contains("prompt_compliance") && w["prompt_compliance"].is_number()) cfg.weights.prompt_compliance = w["prompt_compliance"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -2823,6 +2835,33 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_contextual_threshold") && cbj["step_up_contextual_threshold"].is_number()) {
             cfg.step_up_contextual_threshold = std::max(0.0, std::min(1.0, cbj["step_up_contextual_threshold"].get<double>()));
         }
+        if (cbj.contains("step_up_challenge_history") && cbj["step_up_challenge_history"].is_string()) {
+            std::string val = cbj["step_up_challenge_history"].get<std::string>();
+            if (val == "full" || val == "recent" || val == "summary") {
+                cfg.step_up_challenge_history = val;
+            } else {
+                fprintf(stderr, "[governance] Warning: step_up_challenge_history '%s' is not valid — using 'recent'\n", val.c_str());
+            }
+        }
+        if (cbj.contains("step_up_history_recent_count") && cbj["step_up_history_recent_count"].is_number_integer()) {
+            cfg.step_up_history_recent_count = std::max(2, std::min(200, cbj["step_up_history_recent_count"].get<int>()));
+        }
+        // Mandate reinforcement — periodic reminder injection
+        if (cbj.contains("mandate_reinforcement_enabled") && cbj["mandate_reinforcement_enabled"].is_boolean())
+            cfg.mandate_reinforcement_enabled = cbj["mandate_reinforcement_enabled"].get<bool>();
+        if (cbj.contains("mandate_reinforcement_interval") && cbj["mandate_reinforcement_interval"].is_number_integer())
+            cfg.mandate_reinforcement_interval = std::max(1, cbj["mandate_reinforcement_interval"].get<int>());
+        if (cbj.contains("mandate_reinforcement_message") && cbj["mandate_reinforcement_message"].is_string())
+            cfg.mandate_reinforcement_message = cbj["mandate_reinforcement_message"].get<std::string>();
+        // Coherence correction — CDD-triggered correction injection
+        if (cbj.contains("coherence_correction_enabled") && cbj["coherence_correction_enabled"].is_boolean())
+            cfg.coherence_correction_enabled = cbj["coherence_correction_enabled"].get<bool>();
+        if (cbj.contains("coherence_correction_threshold") && cbj["coherence_correction_threshold"].is_number())
+            cfg.coherence_correction_threshold = std::max(0.0, std::min(1.0, cbj["coherence_correction_threshold"].get<double>()));
+        if (cbj.contains("coherence_correction_cooldown_turns") && cbj["coherence_correction_cooldown_turns"].is_number_integer())
+            cfg.coherence_correction_cooldown_turns = std::max(1, cbj["coherence_correction_cooldown_turns"].get<int>());
+        if (cbj.contains("coherence_correction_message") && cbj["coherence_correction_message"].is_string())
+            cfg.coherence_correction_message = cbj["coherence_correction_message"].get<std::string>();
         parseRationale(cbj, cfg.rationale);
     }
 
@@ -3263,6 +3302,19 @@ static bool checkRatchetViolation(
         if (new_agent.standing_lease_seconds == 0 && old_agent->standing_lease_seconds > 0)
             violations.push_back(fmt::format("agent.{}.standing_lease_seconds: {} -> 0 (loosened — lease removed)",
                 new_agent.name, old_agent->standing_lease_seconds));
+        // Context window ratchet: 0 is unlimited (least strict). Increasing or removing limit = loosening.
+        if (new_agent.context_window > old_agent->context_window && old_agent->context_window > 0)
+            violations.push_back(fmt::format("agent.{}.context_window: {} -> {} (loosened)",
+                new_agent.name, old_agent->context_window, new_agent.context_window));
+        else if (new_agent.context_window < old_agent->context_window && new_agent.context_window > 0)
+            notices.push_back(fmt::format("agent.{}.context_window: {} -> {} (tightened)",
+                new_agent.name, old_agent->context_window, new_agent.context_window));
+        if (old_agent->context_window > 0 && new_agent.context_window == 0)
+            violations.push_back(fmt::format("agent.{}.context_window: {} -> unlimited (loosened)",
+                new_agent.name, old_agent->context_window));
+        if (old_agent->context_window == 0 && new_agent.context_window > 0)
+            notices.push_back(fmt::format("agent.{}.context_window: unlimited -> {} (tightened)",
+                new_agent.name, new_agent.context_window));
     }
 
     // Detect removed agents — removing constraints is loosening

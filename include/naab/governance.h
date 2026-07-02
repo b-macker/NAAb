@@ -1333,6 +1333,7 @@ struct ContextDriftConfig {
         bool persona_fingerprint = true;       // fire when response style deviates from established baseline
         bool tool_chain_integrity = true;      // fire when agent misrepresents tool results
         bool claim_result_reconciliation = true; // fire when agent misrepresents tool success/failure status
+        bool prompt_compliance = true;           // fire when agent complies with off-topic prompts
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1363,6 +1364,7 @@ struct ContextDriftConfig {
         double persona_fingerprint = 0.05;    // low — style shifts are common and often legitimate
         double tool_chain_integrity = 0.08;   // moderate — misrepresenting tool results indicates hallucination
         double claim_result_reconciliation = 0.12; // moderate-high — status misrepresentation is unambiguous hallucination
+        double prompt_compliance = 0.10;             // moderate-high — complying with off-topic prompts is unambiguous drift
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -1443,6 +1445,14 @@ struct ContextDriftConfig {
         // 0.70: rolling claim accuracy below 70% triggers escalated penalty.
         // Agent must correctly report tool success/failure at least 70% of the time.
         double claim_accuracy_min = 0.70;
+        // 0.10: prompt-to-mandate overlap below 10% = clearly off-topic prompt.
+        // System prompt for "todo app" has keywords like "todo", "app", "bugs", "code", "features".
+        // A prompt about fibonacci or poetry shares <5% overlap. On-task prompts share 15-40%.
+        double prompt_compliance_mandate_min = 0.10;
+        // 50: minimum response token count to consider "substantive compliance."
+        // Short refusals ("I can only help with todo apps") are typically <50 tokens.
+        // Full compliance ("Here's a fibonacci function...") is typically >100 tokens.
+        int prompt_compliance_response_min_tokens = 50;
     } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -1547,6 +1557,37 @@ struct CircuitBreakerConfig {
     // Lower threshold for contextual challenges — tool/plan keywords are more specific
     // than system_prompt keywords, so a lower overlap bar is appropriate.
     double step_up_contextual_threshold = 0.30;
+    // Challenge history mode: controls what conversation context the model
+    // receives when answering a step-up challenge.
+    // "full"    — all messages (no cap, original behavior)
+    // "recent"  — last N messages only (default, backward compatible)
+    // "summary" — mechanical DriftState summary preamble + last N recent messages
+    std::string step_up_challenge_history = "recent";
+    // Number of recent messages to include. Used by "recent" (as the cap) and
+    // "summary" (as the recent tail after the summary preamble). Default 20
+    // matches the original MAX_CHALLENGE_HISTORY constant.
+    int step_up_history_recent_count = 20;
+    // Mandate reinforcement — periodic reminder prepended to user message.
+    // Prevents drift by reminding the model of its objective every N turns.
+    // Zero extra API calls — injected into existing message content.
+    bool mandate_reinforcement_enabled = false;
+    // 10 turns: roughly every other lease window. Frequent enough to prevent
+    // drift, rare enough to avoid prompt bloat and model desensitization.
+    int mandate_reinforcement_interval = 10;
+    // Empty = auto-generated "[Task Reminder: {system_prompt}]"
+    std::string mandate_reinforcement_message;
+    // Coherence correction — CDD-triggered stronger correction prepended to
+    // user message when coherence drops below threshold. Steers the model back
+    // before it reaches the challenge/kill zone.
+    bool coherence_correction_enabled = false;
+    // 0.85: fires when coherence drops 15% from perfect, well above the 0.7
+    // kill threshold. Gives headroom for the correction to take effect.
+    double coherence_correction_threshold = 0.85;
+    // 5 turns: prevent spamming corrections. Long enough for the model to
+    // respond, short enough to catch rapid decay.
+    int coherence_correction_cooldown_turns = 5;
+    // Empty = auto-generated "[Focus Alert: ... Your role: {system_prompt} ...]"
+    std::string coherence_correction_message;
 };
 
 // Advisory Escalation — repeated advisories harden over time
@@ -2032,6 +2073,13 @@ struct AgentConfig {
     // 0 = no lease (unlimited standing). Requires step_up_enabled in circuit_breaker.
     int standing_lease_turns = 0;
     int standing_lease_seconds = 0;  // 0 = no wall-clock lease
+
+    // Context windowing — limit conversation history sent per API call.
+    // 0 = unlimited (backward compatible). When set, only last N messages included.
+    int context_window = 0;
+    // "full" = all messages (context_window ignored), "recent" = last N only,
+    // "summary" = DriftState summary preamble + last N messages
+    std::string context_strategy = "full";
 
     // Output Contract — validation schema for LLM responses (Phase 7)
     struct OutputContract {
@@ -2903,6 +2951,9 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Set per-turn prompt keywords (for prompt compliance signal)
+    void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);

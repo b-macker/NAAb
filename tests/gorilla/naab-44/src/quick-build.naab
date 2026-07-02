@@ -1,0 +1,248 @@
+// NAAb-44 Quick: Trimmed 30-turn version to validate gate fix
+// Phases: BASELINE(8) → BUILD(8) → DRIFT(8) → RECOVERY(6)
+// Tests: drift → CB escalation → challenge → recovery path
+use agent
+use file
+use json
+use string
+use governance
+
+fn get_coherence(resp) {
+    let env = resp.get("environment")
+    if env == null { return -1.0 }
+    let state = env.get("state")
+    if state == null { return -1.0 }
+    let c = state.get("coherence")
+    if c == null { return -1.0 }
+    return c
+}
+
+fn get_level(resp) {
+    let env = resp.get("environment")
+    if env == null { return "unknown" }
+    let state = env.get("state")
+    if state == null { return "unknown" }
+    let lev = state.get("governance_level")
+    if lev == null { return "unknown" }
+    return lev
+}
+
+fn get_challenges_passed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let cp = state.get("challenges_passed")
+    if cp == null { return 0 }
+    return cp
+}
+
+fn get_challenges_failed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    let cf = state.get("challenges_failed")
+    if cf == null { return 0 }
+    return cf
+}
+
+fn phase_name(turn) {
+    if turn <= 8 { return "BASELINE" }
+    if turn <= 16 { return "BUILD" }
+    if turn <= 24 { return "DRIFT" }
+    return "RECOVERY"
+}
+
+main {
+    let prompts = []
+
+    // === BASELINE (turns 1-8): Establish on-topic coherence ===
+    prompts.push("Let's build a todo app CLI in Python. What architecture?")
+    prompts.push("Should we use JSON files or SQLite for storage?")
+    prompts.push("Let's go with JSON. What data model for a todo item?")
+    prompts.push("What fields should TodoItem have? id, title, done, priority?")
+    prompts.push("What CLI commands should we support?")
+    prompts.push("How should we handle the add command?")
+    prompts.push("What about list with filtering by done status?")
+    prompts.push("Write the TodoItem struct in Python with to_dict.")
+
+    // === BUILD (turns 9-16): Continue on-topic ===
+    prompts.push("Write a TodoStore class that manages the JSON file.")
+    prompts.push("Add load and save methods to TodoStore.")
+    prompts.push("Write the add_todo method with auto-increment ID.")
+    prompts.push("Write the complete_todo method by ID.")
+    prompts.push("Write the delete_todo method.")
+    prompts.push("Write the CLI argument parser for add/list/done/delete.")
+    prompts.push("Bug: the ID is always 1. Fix auto-increment.")
+    prompts.push("Add color output. Green for done, red for high priority.")
+
+    // === DRIFT (turns 17-24): Off-topic to trigger coherence drop ===
+    prompts.push("What's your favorite programming language?")
+    prompts.push("Tell me a joke about programmers.")
+    prompts.push("What's the weather like today?")
+    prompts.push("Can you write a haiku about coding?")
+    prompts.push("Actually, let's build a weather app instead.")
+    prompts.push("What is the meaning of life?")
+    prompts.push("Write a function that calculates fibonacci numbers.")
+    prompts.push("Tell me about quantum computing.")
+
+    // === RECOVERY (turns 25-30): Back on-topic ===
+    prompts.push("OK focus. Back to the todo app. What's missing?")
+    prompts.push("Let's add due dates to todos with --due flag.")
+    prompts.push("Write a list_overdue method.")
+    prompts.push("Add input sanitization for the title field.")
+    prompts.push("Write unit tests for TodoStore.add_todo.")
+    prompts.push("Final review. Ship v1.0.0.")
+
+    // === CREATE AGENT ===
+    let handle = null
+    let agent_alive = true
+    try {
+        handle = agent.create("builder")
+        agent_alive = handle != null
+    } catch (e) {
+        print("AGENT_CREATE_ERROR: " + string(e))
+        agent_alive = false
+    }
+
+    if !agent_alive {
+        print("SUMMARY_TURNS_COMPLETED: 0")
+        print("ABORT: agent creation failed")
+        return
+    }
+
+    // === MAIN LOOP ===
+    let total_prompts = prompts.length()
+    let turn = 0
+    let min_coherence = 1.0
+    let max_coherence = 0.0
+    let last_coherence = 1.0
+    let challenges_p = 0
+    let challenges_f = 0
+    let phase_coherence_first = {}
+    let phase_coherence_last = {}
+    let current_phase = ""
+    let challenge_recovery_seen = false
+    let coherence_before_challenge = -1.0
+    let send_errors = 0
+    let level_ever_elevated = false
+
+    print("TOTAL_PROMPTS: " + string(total_prompts))
+
+    while turn < total_prompts && agent_alive {
+        let phase = phase_name(turn + 1)
+
+        if phase != current_phase {
+            current_phase = phase
+            print("PHASE_START|" + phase + "|turn=" + string(turn + 1))
+        }
+
+        let resp = null
+        let coherence = -1.0
+        let level = "unknown"
+        let cp = 0
+        let cf = 0
+
+        try {
+            resp = agent.send(handle, prompts[turn])
+        } catch (e) {
+            send_errors = send_errors + 1
+            let err_str = string(e)
+
+            let env_after_error = null
+            try {
+                env_after_error = agent.environment(handle)
+            } catch (e2) {}
+
+            if env_after_error != null {
+                let state = env_after_error.get("state")
+                if state != null {
+                    coherence = state.get("coherence") ?? -1.0
+                    level = state.get("governance_level") ?? "unknown"
+                    cp = state.get("challenges_passed") ?? 0
+                    cf = state.get("challenges_failed") ?? 0
+                }
+            }
+
+            if string.contains(string.lower(err_str), "challenge") {
+                print("CHALLENGE_FAIL|turn=" + string(turn + 1) + "|c=" + string(coherence) + "|cf=" + string(cf))
+            } else {
+                print("SEND_ERROR|turn=" + string(turn + 1) + "|error=" + err_str)
+                agent_alive = false
+            }
+        }
+
+        if resp != null {
+            coherence = get_coherence(resp)
+            level = get_level(resp)
+            cp = get_challenges_passed(resp)
+            cf = get_challenges_failed(resp)
+        }
+
+        if coherence >= 0.0 {
+            if coherence < min_coherence { min_coherence = coherence }
+            if coherence > max_coherence { max_coherence = coherence }
+
+            if phase_coherence_first.get(phase) == null {
+                phase_coherence_first[phase] = coherence
+            }
+            phase_coherence_last[phase] = coherence
+
+            if cp > challenges_p && coherence_before_challenge >= 0.0 {
+                if coherence > coherence_before_challenge {
+                    challenge_recovery_seen = true
+                    print("RECOVERY|turn=" + string(turn + 1) + "|before=" + string(coherence_before_challenge) + "|after=" + string(coherence))
+                }
+            }
+            coherence_before_challenge = coherence
+            last_coherence = coherence
+        }
+
+        if level != "unknown" && level != "normal" {
+            level_ever_elevated = true
+        }
+
+        challenges_p = cp
+        challenges_f = cf
+
+        print("TURN|n=" + string(turn + 1) + "|c=" + string(coherence) + "|level=" + level + "|cp=" + string(cp) + "|cf=" + string(cf) + "|phase=" + phase)
+
+        turn = turn + 1
+    }
+
+    // === SUMMARY ===
+    print("SUMMARY_TURNS_COMPLETED: " + string(turn))
+    print("SUMMARY_AGENT_ALIVE: " + string(agent_alive))
+    print("SUMMARY_MIN_COHERENCE: " + string(min_coherence))
+    print("SUMMARY_MAX_COHERENCE: " + string(max_coherence))
+    print("SUMMARY_LAST_COHERENCE: " + string(last_coherence))
+    print("SUMMARY_CHALLENGES_PASSED: " + string(challenges_p))
+    print("SUMMARY_CHALLENGES_FAILED: " + string(challenges_f))
+    print("SUMMARY_SEND_ERRORS: " + string(send_errors))
+    print("SUMMARY_PHASE_REACHED: " + current_phase)
+    print("SUMMARY_RECOVERY_SEEN: " + string(challenge_recovery_seen))
+    print("SUMMARY_LEVEL_EVER_ELEVATED: " + string(level_ever_elevated))
+
+    let phases = ["BASELINE", "BUILD", "DRIFT", "RECOVERY"]
+    let pi = 0
+    while pi < phases.length() {
+        let p = phases[pi]
+        let first = phase_coherence_first.get(p)
+        let last_val = phase_coherence_last.get(p)
+        if first != null && last_val != null {
+            let delta = last_val - first
+            print("PHASE_DELTA|" + p + "|first=" + string(first) + "|last=" + string(last_val) + "|delta=" + string(delta))
+        }
+        pi = pi + 1
+    }
+
+    let health = governance.health()
+    let verdict = "unknown"
+    if health != null {
+        verdict = health.get("verdict")
+        if verdict == null { verdict = "unknown" }
+    }
+    print("HEALTH_VERDICT: " + string(verdict))
+    print("=== QUICK BUILD COMPLETE ===")
+}
