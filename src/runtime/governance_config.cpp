@@ -2862,6 +2862,29 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             cfg.coherence_correction_cooldown_turns = std::max(1, cbj["coherence_correction_cooldown_turns"].get<int>());
         if (cbj.contains("coherence_correction_message") && cbj["coherence_correction_message"].is_string())
             cfg.coherence_correction_message = cbj["coherence_correction_message"].get<std::string>();
+        // Output admissibility — post-CDD gate on response coherence
+        if (cbj.contains("output_admissibility") && cbj["output_admissibility"].is_object()) {
+            auto& oa = cbj["output_admissibility"];
+            auto& oac = cfg.output_admissibility;
+            if (oa.contains("enabled") && oa["enabled"].is_boolean())
+                oac.enabled = oa["enabled"].get<bool>();
+            if (oa.contains("threshold") && oa["threshold"].is_number())
+                oac.threshold = std::max(0.0, std::min(1.0, oa["threshold"].get<double>()));
+            if (oa.contains("action") && oa["action"].is_string()) {
+                std::string act = oa["action"].get<std::string>();
+                if (act == "block" || act == "quarantine" || act == "attest")
+                    oac.action = act;
+            }
+            if (oa.contains("level") && oa["level"].is_string()) {
+                auto [en, lv] = parseEnforcementLevel(oa["level"]);
+                oac.level = lv;
+            }
+            // Clamp: ADVISORY/NONE can't block — minimum DETECT for "block" action
+            if (oac.action == "block" && (oac.level == EnforcementLevel::ADVISORY ||
+                oac.level == EnforcementLevel::NONE)) {
+                oac.level = EnforcementLevel::DETECT;
+            }
+        }
         parseRationale(cbj, cfg.rationale);
     }
 
@@ -3373,6 +3396,37 @@ static bool checkRatchetViolation(
     else if (new_r.advisory_escalation.soft_after < old_r.advisory_escalation.soft_after)
         notices.push_back(fmt::format("advisory_escalation.soft_after: {} -> {} (tightened)",
             old_r.advisory_escalation.soft_after, new_r.advisory_escalation.soft_after));
+
+    // --- Output Admissibility ratchet ---
+    auto& old_oa = old_r.circuit_breaker.output_admissibility;
+    auto& new_oa = new_r.circuit_breaker.output_admissibility;
+    // Disabling = loosening
+    if (!new_oa.enabled && old_oa.enabled)
+        violations.push_back("output_admissibility.enabled: true -> false (loosened)");
+    else if (new_oa.enabled && !old_oa.enabled)
+        notices.push_back("output_admissibility.enabled: false -> true (tightened)");
+    // Lowering threshold = loosening (more outputs pass)
+    if (new_oa.threshold < old_oa.threshold)
+        violations.push_back(fmt::format("output_admissibility.threshold: {:.2f} -> {:.2f} (loosened)",
+            old_oa.threshold, new_oa.threshold));
+    else if (new_oa.threshold > old_oa.threshold)
+        notices.push_back(fmt::format("output_admissibility.threshold: {:.2f} -> {:.2f} (tightened)",
+            old_oa.threshold, new_oa.threshold));
+    // Action rank: block=3, quarantine=2, attest=1. Lower rank = loosening
+    auto actionRank = [](const std::string& a) -> int {
+        if (a == "block") return 3;
+        if (a == "quarantine") return 2;
+        if (a == "attest") return 1;
+        return 0;
+    };
+    int old_rank = actionRank(old_oa.action);
+    int new_rank = actionRank(new_oa.action);
+    if (new_rank < old_rank)
+        violations.push_back(fmt::format("output_admissibility.action: {} -> {} (loosened)",
+            old_oa.action, new_oa.action));
+    else if (new_rank > old_rank)
+        notices.push_back(fmt::format("output_admissibility.action: {} -> {} (tightened)",
+            old_oa.action, new_oa.action));
 
     return violations.empty();
 }

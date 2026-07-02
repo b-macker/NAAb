@@ -891,6 +891,8 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     }
     // Codegen
     if (rule_name.rfind("codegen", 0) == 0) return rules().codegen.rationale;
+    // Output admissibility
+    if (rule_name == "output_admissibility") return rules().circuit_breaker.rationale;
     // Custom rules
     if (rule_name.rfind("custom.", 0) == 0) {
         std::string id = rule_name.substr(7);
@@ -2872,6 +2874,17 @@ void GovernanceEngine::printDashboard() const {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
         }
+    }
+    // Output admissibility status (outside CDD block — OA can be enabled independently)
+    if (rules().circuit_breaker.enabled &&
+        rules().circuit_breaker.output_admissibility.enabled) {
+        const auto& oac = rules().circuit_breaker.output_admissibility;
+        fprintf(stderr, "OA Gate:    threshold=%.2f, action=%s, level=%s\n",
+                oac.threshold, oac.action.c_str(),
+                oac.action == "block" ?
+                    (oac.level == EnforcementLevel::HARD ? "HARD" :
+                     oac.level == EnforcementLevel::SOFT ? "SOFT" : "DETECT")
+                    : "n/a");
     }
     // Exposure tracking summary
     {
@@ -6305,6 +6318,78 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
     }
 
     return "";
+}
+
+GovernanceEngine::OutputAdmissibilityResult
+GovernanceEngine::checkOutputAdmissibility(
+    int handle_id, int turn, const std::string& agent_config) {
+
+    OutputAdmissibilityResult result;
+    const auto& oac = rules().circuit_breaker.output_admissibility;
+    if (!rules().circuit_breaker.enabled || !oac.enabled)
+        return result;  // admissible=true
+
+    result.threshold = oac.threshold;
+    result.action = oac.action;
+
+    auto state = drift_analyzer_.getDriftState(handle_id);
+    if (!state) return result;  // no CDD data yet = admissible
+
+    result.coherence_score = state->coherence_score;
+
+    // PulseVerdict override: IMPAIRED forces inadmissible
+    bool pulse_override = (getPulseVerdict() == PulseVerdict::IMPAIRED);
+
+    if (state->coherence_score >= oac.threshold && !pulse_override) {
+        // Pass — emit telemetry
+        writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", {
+            {"handle_id",   std::to_string(handle_id)},
+            {"config_name", agent_config},
+            {"turn",        std::to_string(turn)},
+            {"result",      "pass"},
+            {"coherence",   fmt::format("{:.4f}", state->coherence_score)},
+            {"threshold",   fmt::format("{:.4f}", oac.threshold)},
+            {"action",      oac.action}
+        });
+        return result;  // pass
+    }
+
+    // Gate fires
+    result.admissible = false;
+    clearTrace();
+    addTrace(pulse_override
+        ? fmt::format("output_inadmissible: pulse IMPAIRED for '{}'", agent_config)
+        : fmt::format("output_inadmissible: coherence {:.4f} < threshold {:.4f} for '{}'",
+            state->coherence_score, oac.threshold, agent_config));
+
+    // Emit telemetry BEFORE potential throw (enforce throws for "block")
+    writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", {
+        {"handle_id",   std::to_string(handle_id)},
+        {"config_name", agent_config},
+        {"turn",        std::to_string(turn)},
+        {"result",      "fail"},
+        {"coherence",   fmt::format("{:.4f}", state->coherence_score)},
+        {"threshold",   fmt::format("{:.4f}", oac.threshold)},
+        {"action",      oac.action},
+        {"pulse_override", pulse_override ? "true" : "false"}
+    });
+
+    if (oac.action == "block") {
+        // enforce() throws directly — GovernanceHardError for HARD/SOFT,
+        // std::runtime_error for DETECT. Never returns the message.
+        enforce("output_admissibility", oac.level,
+            formatError(oac.level,
+                fmt::format("Output inadmissible — coherence below threshold\n\n"
+                    "  Coherence: {:.4f}\n  Threshold: {:.4f}\n"
+                    "  Agent: {}\n  Turn: {}\n\n"
+                    "  The response was not returned to the caller.\n",
+                    state->coherence_score, oac.threshold, agent_config, turn),
+                "", "output_admissibility",
+                lookupRationale("output_admissibility"), "", ""));
+        // enforce() threw — this line never reached for HARD/SOFT/DETECT
+    }
+    // "quarantine" / "attest": return with admissible = false, caller handles metadata
+    return result;
 }
 
 std::string GovernanceEngine::checkGovernanceHealth(int turn) {

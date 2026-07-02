@@ -536,22 +536,24 @@ main {
     print("SUMMARY_AGENTS_WITH_DRIFT: " + string(agents_with_drift))
     print("SUMMARY_TOTAL_CHALLENGES: " + string(total_challenges))
 
-    // CDD isolation: how many non-drifted agents have higher coherence than backend?
+    // CDD isolation: how many non-drifted agents have higher min_coherence than backend's min?
+    // Use min_coherence (not final coherence) because backend may recover during RECOVERY phase
+    let backend_min = min_coherences.get("backend_dev") ?? 1.0
     let isolation_count = 0
     let isolation_total = 0
     let ici = 0
     while ici < agent_names.length() {
         let name = agent_names[ici]
         if name != "backend_dev" {
-            let c = coherences.get(name)
-            if c != null {
+            let mc = min_coherences.get(name)
+            if mc != null {
                 isolation_total = isolation_total + 1
-                if c > backend_post_drift { isolation_count = isolation_count + 1 }
+                if mc > backend_min { isolation_count = isolation_count + 1 }
             }
         }
         ici = ici + 1
     }
-    print("SUMMARY_CDD_ISOLATION: " + string(isolation_count) + "/" + string(isolation_total) + " agents have higher coherence than drifted backend")
+    print("SUMMARY_CDD_ISOLATION: " + string(isolation_count) + "/" + string(isolation_total) + " agents have higher min_coherence than backend (backend_min=" + string(backend_min) + ")")
 
     // ========================================
     // TELEMETRY

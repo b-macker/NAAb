@@ -1588,6 +1588,14 @@ struct CircuitBreakerConfig {
     int coherence_correction_cooldown_turns = 5;
     // Empty = auto-generated "[Focus Alert: ... Your role: {system_prompt} ...]"
     std::string coherence_correction_message;
+    // Output admissibility — post-CDD gate on response coherence.
+    // Symmetric to checkAdmission() (pre-send). Evaluates after CDD scores.
+    struct OutputAdmissibilityConfig {
+        bool enabled = false;
+        double threshold = 0.70;               // coherence floor for output
+        std::string action = "quarantine";     // "block", "quarantine", "attest"
+        EnforcementLevel level = EnforcementLevel::SOFT;  // for "block" action only
+    } output_admissibility;
 };
 
 // Advisory Escalation — repeated advisories harden over time
@@ -2922,6 +2930,19 @@ public:
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
     std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
+
+    // Output admissibility — post-CDD gate on response coherence
+    struct OutputAdmissibilityResult {
+        bool admissible = true;
+        double coherence_score = 1.0;
+        double threshold = 0.70;
+        std::string action;
+    };
+    OutputAdmissibilityResult checkOutputAdmissibility(int handle_id, int turn,
+        const std::string& agent_config);
+    void emitOutputAdmissibilityAttestation(const std::string& agent_config,
+        int turn, double coherence_score, double threshold);
+
     std::string recordAutonomousAction(const std::string& agent_config);
     int getAutonomousActionCount() const;
     size_t getUniqueAgentCount() const;

@@ -1954,6 +1954,13 @@
     "step_up_min_words": 5,
     "step_up_cooldown_turns": 3,
     "step_up_keyword_threshold": 0.4,
+    "output_admissibility": {
+      "_comment": "Post-CDD gate on response coherence. Symmetric to checkAdmission() (pre-send). Actions: block (throw, response not returned), quarantine (response returned with admissible:false), attest (quarantine + Ed25519 signed attestation).",
+      "enabled": false,
+      "threshold": 0.70,
+      "action": "quarantine",
+      "level": "soft"
+    },
     "rationale": "Graduated system-wide governance levels based on sustained composite pressure"
   },
 

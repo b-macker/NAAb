@@ -3585,6 +3585,53 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Output admissibility gate — post-CDD coherence boundary
+    bool output_admissible = true;
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.enabled &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+
+        auto oa_result = gov_engine->checkOutputAdmissibility(
+            handle_id, current_turn, config_name);
+        // NOTE: for "block" action, checkOutputAdmissibility() calls enforce()
+        // which throws directly (GovernanceHardError for HARD/SOFT, std::runtime_error
+        // for DETECT). Telemetry is emitted inside checkOutputAdmissibility() before
+        // the throw. Code below only runs for "quarantine" and "attest" actions.
+
+        if (!oa_result.admissible) {
+            output_admissible = false;
+
+            gov_engine->writeAgentTelemetry("OUTPUT_INADMISSIBLE", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",        std::to_string(current_turn)},
+                {"coherence",   std::to_string(oa_result.coherence_score)},
+                {"threshold",   std::to_string(oa_result.threshold)},
+                {"action",      oa_result.action}
+            });
+
+            if (transcript_active) {
+                transcript_entry["output_admissibility"] = {
+                    {"result", oa_result.action},
+                    {"coherence", oa_result.coherence_score},
+                    {"threshold", oa_result.threshold}
+                };
+            }
+
+            if (oa_result.action == "attest") {
+                gov_engine->emitOutputAdmissibilityAttestation(
+                    config_name, current_turn,
+                    oa_result.coherence_score, oa_result.threshold);
+            }
+        } else if (transcript_active) {
+            transcript_entry["output_admissibility"] = {
+                {"result", "pass"},
+                {"coherence", oa_result.coherence_score},
+                {"threshold", oa_result.threshold}
+            };
+        }
+    }
+
     // Transcript: CDD, governance state, and response scan
     if (transcript_active && gov_engine && gov_engine->isActive()) {
         // Response scan result (if we got here, it passed)
@@ -3771,6 +3818,23 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
             result["semantic"] = NaabVal::makeDict(std::move(sem));
         }
+    }
+
+    // Output admissibility sub-dict in response
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+        auto drift_st = gov_engine->getDriftState(handle_id);
+        double coh = drift_st ? drift_st->coherence_score : 1.0;
+        std::unordered_map<std::string, NaabVal> adm;
+        adm["admissible"] = NaabVal::makeBool(output_admissible);
+        adm["coherence_score"] = NaabVal::makeDouble(coh);
+        adm["threshold"] = NaabVal::makeDouble(
+            gov_engine->getRules().circuit_breaker.output_admissibility.threshold);
+        if (!output_admissible) {
+            adm["action"] = NaabVal::makeString(
+                gov_engine->getRules().circuit_breaker.output_admissibility.action);
+        }
+        result["admissibility"] = NaabVal::makeDict(std::move(adm));
     }
 
     // Environment self-awareness: updated state after each interaction
