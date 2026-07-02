@@ -1,0 +1,982 @@
+// NAAb-57: Multi-Agent Collaborative App Build
+// 6 agents collaborate to build a Python CLI calculator.
+// Tests: fan_out, pipeline, batch, consensus, extract_code,
+// enforce_convergence, CDD isolation, S20, transcript verification.
+use agent
+use file
+use json
+use string
+use governance
+use orchestra
+
+fn get_coherence(resp) {
+    let env = resp.get("environment")
+    if env == null { return -1.0 }
+    let state = env.get("state")
+    if state == null { return -1.0 }
+    let c = state.get("coherence")
+    if c == null { return -1.0 }
+    return c
+}
+
+fn get_challenges_passed(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    return state.get("challenges_passed") ?? 0
+}
+
+fn get_prompt_compliance(resp) {
+    let env = resp.get("environment")
+    if env == null { return 0 }
+    let state = env.get("state")
+    if state == null { return 0 }
+    return state.get("prompt_compliance_count") ?? 0
+}
+
+fn safe_send(handle, message) {
+    try {
+        return agent.send(handle, message)
+    } catch (e) {
+        return {"error": string(e)}
+    }
+}
+
+main {
+    // ========================================
+    // PHASE 1: CREATION — create 6 agents
+    // ========================================
+    print("PHASE_START|CREATION|turn=0")
+
+    let agent_names = ["architect", "developer", "tester", "reviewer", "security", "integrator"]
+    let handles = {}
+    let created_count = 0
+    let create_errors = 0
+
+    let ci = 0
+    while ci < agent_names.length() {
+        let name = agent_names[ci]
+        try {
+            let h = agent.create(name)
+            handles[name] = h
+            created_count = created_count + 1
+            print("AGENT_CREATED|" + name + "|id=" + string(h.get("id")))
+        } catch (e) {
+            create_errors = create_errors + 1
+            print("AGENT_CREATE_ERROR|" + name + "|" + string(e))
+        }
+        ci = ci + 1
+    }
+
+    print("SUMMARY_AGENTS_CREATED: " + string(created_count))
+    print("SUMMARY_AGENTS_EXPECTED: 6")
+
+    if created_count < 2 {
+        print("ABORT: fewer than 2 agents created")
+        return
+    }
+
+    // === TEST: max_unique_agents enforcement (7th agent should fail) ===
+    let max_agents_enforced = false
+    try {
+        let extra = agent.create("architect")
+        try {
+            let extra2 = agent.create("developer")
+            print("MAX_AGENTS_NOT_ENFORCED")
+        } catch (e2) {
+            max_agents_enforced = true
+            print("MAX_AGENTS_ENFORCED|8th|" + string(e2))
+        }
+    } catch (e) {
+        max_agents_enforced = true
+        print("MAX_AGENTS_ENFORCED|7th|" + string(e))
+    }
+    print("SUMMARY_MAX_AGENTS_ENFORCED: " + string(max_agents_enforced))
+
+    // === TEST: pipeline separation (architect + architect should fail) ===
+    let pipeline_sep_enforced = false
+    if handles.get("architect") != null {
+        try {
+            let arch2 = agent.create("architect")
+            let sep_resp = agent.pipeline([handles["architect"], arch2], "test")
+            print("PIPELINE_SEP_NOT_ENFORCED")
+        } catch (e) {
+            pipeline_sep_enforced = true
+            print("PIPELINE_SEP_ENFORCED|" + string(e))
+        }
+    }
+    print("SUMMARY_PIPELINE_SEP: " + string(pipeline_sep_enforced))
+
+    // ========================================
+    // TRACKING
+    // ========================================
+    let total_sends = 0
+    let send_errors = 0
+    let coherences = {}
+    let min_coherences = {}
+    let challenges_p = {}
+    let current_phase = ""
+
+    fn track(name, resp) {
+        if resp == null { return }
+        if resp.get("error") != null { return }
+        let c = get_coherence(resp)
+        if c >= 0.0 {
+            coherences[name] = c
+            let prev_min = min_coherences.get(name)
+            if prev_min == null || c < prev_min {
+                min_coherences[name] = c
+            }
+        }
+        challenges_p[name] = get_challenges_passed(resp)
+    }
+
+    // Code storage — will hold extracted Python code
+    let ops_code = ""
+    let main_code = ""
+    let test_code = ""
+    let ops_extracted = false
+    let main_extracted = false
+    let test_extracted = false
+
+    // ========================================
+    // PHASE 2: DESIGN — architect produces spec, fan_out for feedback, consensus
+    // ========================================
+    current_phase = "DESIGN"
+    print("PHASE_START|DESIGN|turn=1")
+
+    let spec = ""
+
+    // 1. Architect produces spec
+    if handles.get("architect") != null {
+        let spec_resp = safe_send(handles["architect"], "Design the module structure for a Python CLI calculator app. Define:\n1. operations.py: Calculator class with add, subtract, multiply, divide methods and calculation history (get_history, clear_history)\n2. main.py: argparse CLI with subcommands for each operation and history\n3. test_calc.py: pytest test cases\n\nOutput the complete specification with function signatures, class structure, and module relationships.")
+        total_sends = total_sends + 1
+        if spec_resp.get("error") != null {
+            send_errors = send_errors + 1
+        } else {
+            spec = spec_resp.get("content") ?? ""
+            track("architect", spec_resp)
+        }
+        print("TURN|agent=architect|n=" + string(total_sends) + "|c=" + string(coherences.get("architect") ?? -1) + "|phase=" + current_phase)
+    }
+
+    // 2. Fan-out spec to all other agents for review
+    let design_fan_out_ok = 0
+    if string.length(spec) > 10 {
+        let review_names = ["developer", "tester", "reviewer", "security", "integrator"]
+        let review_handles = []
+        let rni = 0
+        while rni < review_names.length() {
+            let h = handles.get(review_names[rni])
+            if h != null { review_handles.push(h) }
+            rni = rni + 1
+        }
+
+        if review_handles.length() > 0 {
+            try {
+                let review_responses = agent.fan_out(review_handles, "Review this calculator app specification. Is it complete and well-designed? If you approve, say APPROVED. If you have concerns, say REJECTED and explain.\n\n" + spec)
+                total_sends = total_sends + review_handles.length()
+                if review_responses.length() == review_handles.length() {
+                    design_fan_out_ok = 1
+                    let fri = 0
+                    while fri < review_responses.length() {
+                        track(review_names[fri], review_responses[fri])
+                        fri = fri + 1
+                    }
+                }
+                print("DESIGN_FAN_OUT|responses=" + string(review_responses.length()) + "|expected=" + string(review_handles.length()))
+            } catch (e) {
+                total_sends = total_sends + review_handles.length()
+                send_errors = send_errors + review_handles.length()
+                print("DESIGN_FAN_OUT|error=" + string(e))
+            }
+        }
+    }
+    print("SUMMARY_DESIGN_FAN_OUT: " + string(design_fan_out_ok))
+
+    // 3. Design consensus vote
+    let design_consensus_ok = false
+    let design_verdict = "unknown"
+    if design_fan_out_ok > 0 {
+        // Collect votes from reviewer + security
+        let voter_names = ["reviewer", "security"]
+        let voter_handles = []
+        let vni = 0
+        while vni < voter_names.length() {
+            let h = handles.get(voter_names[vni])
+            if h != null { voter_handles.push(h) }
+            vni = vni + 1
+        }
+
+        if voter_handles.length() > 0 {
+            try {
+                let vote_resps = agent.fan_out(voter_handles, "Based on the specification you reviewed, vote: is this design ready for implementation? Answer exactly APPROVED or REJECTED.")
+                total_sends = total_sends + voter_handles.length()
+
+                let votes = []
+                let vri = 0
+                while vri < vote_resps.length() {
+                    let content = vote_resps[vri].get("content") ?? ""
+                    track(voter_names[vri], vote_resps[vri])
+                    if string.contains(string.upper(content), "APPROVED") {
+                        votes.push("APPROVED")
+                    } else if string.contains(string.upper(content), "REJECTED") {
+                        votes.push("REJECTED")
+                    } else {
+                        votes.push("REVIEW")
+                    }
+                    vri = vri + 1
+                }
+
+                let tally = orchestra.consensus_vote({votes: votes})
+                design_verdict = tally.get("verdict") ?? "unknown"
+                design_consensus_ok = true
+                print("DESIGN_CONSENSUS|verdict=" + design_verdict + "|votes=" + string(votes))
+            } catch (e) {
+                total_sends = total_sends + voter_handles.length()
+                send_errors = send_errors + voter_handles.length()
+                print("DESIGN_CONSENSUS|error=" + string(e))
+            }
+        }
+    }
+    print("SUMMARY_DESIGN_CONSENSUS: " + string(design_consensus_ok) + "|verdict=" + design_verdict)
+
+    // 4. Architect refines based on feedback
+    if handles.get("architect") != null {
+        let refine_resp = safe_send(handles["architect"], "Good. Finalize the specification. Make sure the Calculator class in operations.py has: add(a, b), subtract(a, b), multiply(a, b), divide(a, b) methods that return results and store in history. Include get_history() and clear_history() methods.")
+        total_sends = total_sends + 1
+        if refine_resp.get("error") != null { send_errors = send_errors + 1 }
+        else {
+            let refined = refine_resp.get("content") ?? ""
+            if string.length(refined) > string.length(spec) { spec = refined }
+            track("architect", refine_resp)
+        }
+        print("TURN|agent=architect|n=" + string(total_sends) + "|c=" + string(coherences.get("architect") ?? -1) + "|phase=" + current_phase)
+    }
+
+    // ========================================
+    // PHASE 3: IMPLEMENT — developer writes 3 files
+    // ========================================
+    current_phase = "IMPLEMENT"
+    print("PHASE_START|IMPLEMENT|turn=" + string(total_sends + 1))
+
+    if handles.get("developer") != null {
+        // 3a. Write operations.py
+        let ops_prompt = "Write operations.py for the calculator app. It must contain:\n- A Calculator class with __init__ that creates an empty history list\n- add(self, a, b) — returns a+b, appends to history\n- subtract(self, a, b) — returns a-b, appends to history\n- multiply(self, a, b) — returns a*b, appends to history\n- divide(self, a, b) — returns a/b (raise ValueError on zero), appends to history\n- get_history(self) — returns the history list\n- clear_history(self) — clears history\n\nWrap the code in ```python fences. Write ONLY the code, no explanations."
+        let ops_resp = safe_send(handles["developer"], ops_prompt)
+        total_sends = total_sends + 1
+        if ops_resp.get("error") != null {
+            send_errors = send_errors + 1
+        } else {
+            track("developer", ops_resp)
+            let raw = ops_resp.get("content") ?? ""
+            let extracted = agent.extract_code(raw, "python")
+            if len(extracted) > 20 {
+                ops_code = extracted
+                ops_extracted = true
+            } else if len(raw) > 20 {
+                ops_code = raw
+                ops_extracted = true
+            }
+        }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+        print("CODE_EXTRACT|operations.py|extracted=" + string(ops_extracted) + "|len=" + string(len(ops_code)))
+
+        // 3b. Write main.py
+        let main_prompt = "Write main.py for the calculator CLI app. It must:\n- import Calculator from operations\n- Use argparse with subcommands: add, subtract, multiply, divide, history, clear\n- Each math subcommand takes two float arguments (a, b)\n- Print the result\n- Have a def main() function as entry point\n- Use if __name__ == '__main__': main()\n\nWrap the code in ```python fences. Write ONLY the code."
+        let main_resp = safe_send(handles["developer"], main_prompt)
+        total_sends = total_sends + 1
+        if main_resp.get("error") != null {
+            send_errors = send_errors + 1
+        } else {
+            track("developer", main_resp)
+            let raw = main_resp.get("content") ?? ""
+            let extracted = agent.extract_code(raw, "python")
+            if len(extracted) > 20 {
+                main_code = extracted
+                main_extracted = true
+            } else if len(raw) > 20 {
+                main_code = raw
+                main_extracted = true
+            }
+        }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+        print("CODE_EXTRACT|main.py|extracted=" + string(main_extracted) + "|len=" + string(len(main_code)))
+
+        // 3c. Write test_calc.py
+        let test_prompt = "Write test_calc.py with pytest tests for the Calculator class. It must:\n- import Calculator from operations\n- def test_add() — assert Calculator().add(2, 3) == 5\n- def test_subtract() — assert Calculator().subtract(10, 4) == 6\n- def test_multiply() — assert Calculator().multiply(3, 7) == 21\n- def test_divide() — assert Calculator().divide(10, 2) == 5.0\n- def test_divide_by_zero() — assert raises ValueError\n- def test_history() — verify operations are recorded\n- def test_clear_history() — verify clear works\n\nWrap the code in ```python fences. Write ONLY the code."
+        let test_resp = safe_send(handles["developer"], test_prompt)
+        total_sends = total_sends + 1
+        if test_resp.get("error") != null {
+            send_errors = send_errors + 1
+        } else {
+            track("developer", test_resp)
+            let raw = test_resp.get("content") ?? ""
+            let extracted = agent.extract_code(raw, "python")
+            if len(extracted) > 20 {
+                test_code = extracted
+                test_extracted = true
+            } else if len(raw) > 20 {
+                test_code = raw
+                test_extracted = true
+            }
+        }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+        print("CODE_EXTRACT|test_calc.py|extracted=" + string(test_extracted) + "|len=" + string(len(test_code)))
+    }
+
+    // Validate extracted code with enforce_convergence
+    let convergence_ops_ok = false
+    let convergence_main_ok = false
+    let convergence_test_ok = false
+
+    if ops_extracted {
+        let check = orchestra.enforce_convergence(ops_code, {pattern: "def add|def subtract|def multiply|def divide"})
+        convergence_ops_ok = check.get("valid") ?? false
+        print("CONVERGENCE|operations.py|valid=" + string(convergence_ops_ok) + "|error=" + string(check.get("error_message") ?? ""))
+    }
+    if main_extracted {
+        let check = orchestra.enforce_convergence(main_code, {pattern: "import|argparse|def main"})
+        convergence_main_ok = check.get("valid") ?? false
+        print("CONVERGENCE|main.py|valid=" + string(convergence_main_ok) + "|error=" + string(check.get("error_message") ?? ""))
+    }
+    if test_extracted {
+        let check = orchestra.enforce_convergence(test_code, {pattern: "def test_|assert"})
+        convergence_test_ok = check.get("valid") ?? false
+        print("CONVERGENCE|test_calc.py|valid=" + string(convergence_test_ok) + "|error=" + string(check.get("error_message") ?? ""))
+    }
+
+    let convergence_ok_count = 0
+    if convergence_ops_ok { convergence_ok_count = convergence_ok_count + 1 }
+    if convergence_main_ok { convergence_ok_count = convergence_ok_count + 1 }
+    if convergence_test_ok { convergence_ok_count = convergence_ok_count + 1 }
+    print("SUMMARY_CONVERGENCE_OK: " + string(convergence_ok_count))
+
+    // Check specific function/class presence in operations.py
+    let ops_has_add = ops_extracted && string.contains(ops_code, "def add")
+    let ops_has_subtract = ops_extracted && string.contains(ops_code, "def subtract")
+    let ops_has_multiply = ops_extracted && string.contains(ops_code, "def multiply")
+    let ops_has_divide = ops_extracted && string.contains(ops_code, "def divide")
+    let ops_has_calculator = ops_extracted && string.contains(ops_code, "class Calculator")
+    let ops_has_history = ops_extracted && string.contains(ops_code, "history")
+
+    let ops_function_count = 0
+    if ops_has_add { ops_function_count = ops_function_count + 1 }
+    if ops_has_subtract { ops_function_count = ops_function_count + 1 }
+    if ops_has_multiply { ops_function_count = ops_function_count + 1 }
+    if ops_has_divide { ops_function_count = ops_function_count + 1 }
+    if ops_has_calculator { ops_function_count = ops_function_count + 1 }
+
+    print("SUMMARY_OPS_HAS_ADD: " + string(ops_has_add))
+    print("SUMMARY_OPS_HAS_SUBTRACT: " + string(ops_has_subtract))
+    print("SUMMARY_OPS_HAS_MULTIPLY: " + string(ops_has_multiply))
+    print("SUMMARY_OPS_HAS_DIVIDE: " + string(ops_has_divide))
+    print("SUMMARY_OPS_HAS_CALCULATOR: " + string(ops_has_calculator))
+    print("SUMMARY_OPS_HAS_HISTORY: " + string(ops_has_history))
+    print("SUMMARY_OPS_FUNCTION_COUNT: " + string(ops_function_count))
+
+    // ========================================
+    // PHASE 4: TEST — pipeline developer->tester
+    // ========================================
+    current_phase = "TEST"
+    print("PHASE_START|TEST|turn=" + string(total_sends + 1))
+
+    let pipeline_ok = 0
+    let pipeline_total = 0
+
+    if handles.get("developer") != null && handles.get("tester") != null {
+        let pipeline_handles = [handles["developer"], handles["tester"]]
+
+        // Pipeline 1: operations.py through developer->tester
+        if ops_extracted {
+            pipeline_total = pipeline_total + 1
+            try {
+                let p1_resp = agent.pipeline(pipeline_handles, "Review and test this operations.py code. Identify any bugs or missing edge cases:\n```python\n" + ops_code + "\n```")
+                total_sends = total_sends + 2
+                if p1_resp.get("content") != null {
+                    pipeline_ok = pipeline_ok + 1
+                    track("tester", p1_resp)
+                }
+                print("PIPELINE|round=1|ok=true|final_c=" + string(get_coherence(p1_resp)))
+            } catch (e) {
+                total_sends = total_sends + 2
+                send_errors = send_errors + 2
+                print("PIPELINE|round=1|error=" + string(e))
+            }
+        }
+
+        // Pipeline 2: main.py through developer->tester
+        if main_extracted {
+            pipeline_total = pipeline_total + 1
+            try {
+                let p2_resp = agent.pipeline(pipeline_handles, "Review and test this main.py CLI code. Check argument parsing and error handling:\n```python\n" + main_code + "\n```")
+                total_sends = total_sends + 2
+                if p2_resp.get("content") != null {
+                    pipeline_ok = pipeline_ok + 1
+                    track("tester", p2_resp)
+                }
+                print("PIPELINE|round=2|ok=true|final_c=" + string(get_coherence(p2_resp)))
+            } catch (e) {
+                total_sends = total_sends + 2
+                send_errors = send_errors + 2
+                print("PIPELINE|round=2|error=" + string(e))
+            }
+        }
+    }
+    print("SUMMARY_PIPELINE: " + string(pipeline_ok) + "/" + string(pipeline_total))
+
+    // ========================================
+    // PHASE 5: REVIEW — fan_out + batch for parallel review
+    // ========================================
+    current_phase = "REVIEW"
+    print("PHASE_START|REVIEW|turn=" + string(total_sends + 1))
+
+    let fan_out_review_ok = 0
+    let fan_out_review_total = 0
+
+    if handles.get("reviewer") != null && handles.get("security") != null {
+        let review_pair = [handles["reviewer"], handles["security"]]
+        let review_pair_names = ["reviewer", "security"]
+
+        // Fan-out 1: review operations.py
+        if ops_extracted {
+            fan_out_review_total = fan_out_review_total + 1
+            try {
+                let fo1 = agent.fan_out(review_pair, "Review this Python code for bugs, style issues, and security vulnerabilities:\n```python\n" + ops_code + "\n```")
+                total_sends = total_sends + 2
+                if fo1.length() == 2 {
+                    fan_out_review_ok = fan_out_review_ok + 1
+                    let foi = 0
+                    while foi < fo1.length() {
+                        track(review_pair_names[foi], fo1[foi])
+                        foi = foi + 1
+                    }
+                }
+                print("REVIEW_FAN_OUT|round=1|responses=" + string(fo1.length()))
+            } catch (e) {
+                total_sends = total_sends + 2
+                send_errors = send_errors + 2
+                print("REVIEW_FAN_OUT|round=1|error=" + string(e))
+            }
+        }
+
+        // Fan-out 2: review main.py
+        if main_extracted {
+            fan_out_review_total = fan_out_review_total + 1
+            try {
+                let fo2 = agent.fan_out(review_pair, "Review this CLI code for bugs, style, and security:\n```python\n" + main_code + "\n```")
+                total_sends = total_sends + 2
+                if fo2.length() == 2 {
+                    fan_out_review_ok = fan_out_review_ok + 1
+                    let foi = 0
+                    while foi < fo2.length() {
+                        track(review_pair_names[foi], fo2[foi])
+                        foi = foi + 1
+                    }
+                }
+                print("REVIEW_FAN_OUT|round=2|responses=" + string(fo2.length()))
+            } catch (e) {
+                total_sends = total_sends + 2
+                send_errors = send_errors + 2
+                print("REVIEW_FAN_OUT|round=2|error=" + string(e))
+            }
+        }
+    }
+    print("SUMMARY_FAN_OUT_REVIEW: " + string(fan_out_review_ok) + "/" + string(fan_out_review_total))
+
+    // Batch: send DIFFERENT messages to reviewer vs security
+    let batch_ok = 0
+    let batch_total = 0
+
+    if handles.get("reviewer") != null && handles.get("security") != null && ops_extracted {
+        batch_total = 1
+        try {
+            let batch_handles = [handles["reviewer"], handles["security"]]
+            let batch_messages = [
+                "Give a style and readability score from 1-10 for this code. List the top 3 style improvements:\n```python\n" + ops_code + "\n```",
+                "Perform a security audit. Check for: eval/exec usage, input injection, division by zero handling, information disclosure. List all findings:\n```python\n" + ops_code + "\n```"
+            ]
+            let batch_results = agent.batch(batch_handles, batch_messages)
+            total_sends = total_sends + 2
+            if batch_results.length() == 2 {
+                batch_ok = 1
+                track("reviewer", batch_results[0])
+                track("security", batch_results[1])
+            }
+            print("BATCH|responses=" + string(batch_results.length()) + "|expected=2")
+        } catch (e) {
+            total_sends = total_sends + 2
+            send_errors = send_errors + 2
+            print("BATCH|error=" + string(e))
+        }
+    }
+    print("SUMMARY_BATCH: " + string(batch_ok) + "/" + string(batch_total))
+
+    // ========================================
+    // PHASE 6: REFINE + INTEGRATE — developer fixes, pipeline to integrator
+    // ========================================
+    current_phase = "REFINE"
+    print("PHASE_START|REFINE|turn=" + string(total_sends + 1))
+
+    // Developer fixes any issues
+    if handles.get("developer") != null {
+        let fix_resp = safe_send(handles["developer"], "Based on the reviews, make sure operations.py is complete and correct. Ensure:\n- Division by zero raises ValueError with clear message\n- History stores dicts with 'operation', 'operands', and 'result' keys\n- All methods return numeric results\nWrite the final version in ```python fences.")
+        total_sends = total_sends + 1
+        if fix_resp.get("error") != null {
+            send_errors = send_errors + 1
+        } else {
+            track("developer", fix_resp)
+            let raw = fix_resp.get("content") ?? ""
+            let extracted = agent.extract_code(raw, "python")
+            if len(extracted) > len(ops_code) {
+                ops_code = extracted
+            }
+        }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+
+        let fix2_resp = safe_send(handles["developer"], "Make sure main.py is complete. Verify argparse subcommands work and error messages are clear. Write the final version in ```python fences.")
+        total_sends = total_sends + 1
+        if fix2_resp.get("error") != null {
+            send_errors = send_errors + 1
+        } else {
+            track("developer", fix2_resp)
+            let raw = fix2_resp.get("content") ?? ""
+            let extracted = agent.extract_code(raw, "python")
+            if len(extracted) > len(main_code) {
+                main_code = extracted
+            }
+        }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+    }
+
+    // Pipeline: developer -> integrator for final assembly
+    let integrate_pipeline_ok = 0
+    if handles.get("developer") != null && handles.get("integrator") != null {
+        try {
+            let int_resp = agent.pipeline([handles["developer"], handles["integrator"]], "Here is the final calculator app code. Assemble it into a coherent package and verify all imports are correct:\n\n--- operations.py ---\n```python\n" + ops_code + "\n```\n\n--- main.py ---\n```python\n" + main_code + "\n```")
+            total_sends = total_sends + 2
+            if int_resp.get("content") != null {
+                integrate_pipeline_ok = 1
+                track("integrator", int_resp)
+            }
+            print("INTEGRATE_PIPELINE|ok=true|final_c=" + string(get_coherence(int_resp)))
+        } catch (e) {
+            total_sends = total_sends + 2
+            send_errors = send_errors + 2
+            print("INTEGRATE_PIPELINE|error=" + string(e))
+        }
+    }
+    print("SUMMARY_INTEGRATE_PIPELINE: " + string(integrate_pipeline_ok))
+
+    // Final polishing sends
+    if handles.get("integrator") != null {
+        let readme_resp = safe_send(handles["integrator"], "Write a README.md for the Python CLI Calculator app. Include: installation, usage examples for each operation, and how to run tests.")
+        total_sends = total_sends + 1
+        if readme_resp.get("error") != null { send_errors = send_errors + 1 }
+        else { track("integrator", readme_resp) }
+        print("TURN|agent=integrator|n=" + string(total_sends) + "|c=" + string(coherences.get("integrator") ?? -1) + "|phase=" + current_phase)
+    }
+
+    if handles.get("tester") != null {
+        let final_test_resp = safe_send(handles["tester"], "Review the test coverage. Are there any additional edge cases we should test for the Calculator class? Consider: large numbers, float precision, negative numbers, zero operations.")
+        total_sends = total_sends + 1
+        if final_test_resp.get("error") != null { send_errors = send_errors + 1 }
+        else { track("tester", final_test_resp) }
+        print("TURN|agent=tester|n=" + string(total_sends) + "|c=" + string(coherences.get("tester") ?? -1) + "|phase=" + current_phase)
+    }
+
+    if handles.get("architect") != null {
+        let arch_final = safe_send(handles["architect"], "The calculator app is built. Review the final structure: operations.py (Calculator class), main.py (argparse CLI), test_calc.py (pytest). Does it match your original specification?")
+        total_sends = total_sends + 1
+        if arch_final.get("error") != null { send_errors = send_errors + 1 }
+        else { track("architect", arch_final) }
+        print("TURN|agent=architect|n=" + string(total_sends) + "|c=" + string(coherences.get("architect") ?? -1) + "|phase=" + current_phase)
+    }
+
+    // ========================================
+    // PHASE 7: DRIFT — 10 off-topic sends to developer only
+    // ========================================
+    current_phase = "DRIFT"
+    print("PHASE_START|DRIFT|turn=" + string(total_sends + 1))
+
+    let developer_pre_drift = coherences.get("developer") ?? 1.0
+
+    let drift_prompts = [
+        "What's your favorite programming language and why?",
+        "Tell me a joke about databases.",
+        "Write a fibonacci function in JavaScript.",
+        "What's the weather like today?",
+        "Write a haiku about debugging.",
+        "Explain quantum computing in simple terms.",
+        "Who invented the internet?",
+        "Write a bubble sort algorithm in Rust.",
+        "What's the best pizza topping?",
+        "Tell me about the Roman Empire."
+    ]
+
+    let di = 0
+    while di < 10 {
+        let resp = safe_send(handles["developer"], drift_prompts[di])
+        total_sends = total_sends + 1
+        if resp.get("error") != null { send_errors = send_errors + 1 }
+        track("developer", resp)
+        let pc = 0
+        if resp.get("error") == null { pc = get_prompt_compliance(resp) }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|pc=" + string(pc) + "|phase=DRIFT")
+        di = di + 1
+    }
+
+    let developer_post_drift = coherences.get("developer") ?? -1
+    let developer_pc = 0
+    try {
+        let env = agent.environment(handles["developer"])
+        let st = env.get("state")
+        if st != null { developer_pc = st.get("prompt_compliance_count") ?? 0 }
+    } catch (e) {}
+
+    print("DRIFT_RESULT|pre=" + string(developer_pre_drift) + "|post=" + string(developer_post_drift) + "|pc=" + string(developer_pc))
+
+    // ========================================
+    // PHASE 8: SHIP — recovery + ship vote + final touches
+    // ========================================
+    current_phase = "SHIP"
+    print("PHASE_START|SHIP|turn=" + string(total_sends + 1))
+
+    // 3 recovery sends to developer
+    let recovery_prompts = [
+        "OK, back to the calculator app. Let's finalize. Check that operations.py handles edge cases: very large numbers, float precision for division.",
+        "Write a final version of main.py with proper error messages when users provide invalid arguments.",
+        "Write the final test_calc.py with complete coverage. Include tests for history tracking and clear."
+    ]
+
+    let rci = 0
+    while rci < 3 {
+        if handles.get("developer") != null {
+            let resp = safe_send(handles["developer"], recovery_prompts[rci])
+            total_sends = total_sends + 1
+            if resp.get("error") != null { send_errors = send_errors + 1 }
+            track("developer", resp)
+            print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+        }
+        rci = rci + 1
+    }
+
+    // Ship vote: fan_out to reviewer, security, tester
+    let ship_consensus_ok = false
+    let ship_verdict = "unknown"
+
+    let ship_voter_names = ["reviewer", "security", "tester"]
+    let ship_voter_handles = []
+    let svi = 0
+    while svi < ship_voter_names.length() {
+        let h = handles.get(ship_voter_names[svi])
+        if h != null { ship_voter_handles.push(h) }
+        svi = svi + 1
+    }
+
+    if ship_voter_handles.length() > 0 {
+        let ship_code_summary = "Calculator app files:\n"
+        if ops_extracted { ship_code_summary = ship_code_summary + "- operations.py: " + string(len(ops_code)) + " chars\n" }
+        if main_extracted { ship_code_summary = ship_code_summary + "- main.py: " + string(len(main_code)) + " chars\n" }
+        if test_extracted { ship_code_summary = ship_code_summary + "- test_calc.py: " + string(len(test_code)) + " chars\n" }
+
+        try {
+            let ship_resps = agent.fan_out(ship_voter_handles, "The calculator app is ready for release. " + ship_code_summary + "\nBased on your review of the code during this session, is it ready to ship? Answer exactly APPROVED or REJECTED with your reasoning.")
+            total_sends = total_sends + ship_voter_handles.length()
+
+            let ship_votes = []
+            let shi = 0
+            while shi < ship_resps.length() {
+                let content = ship_resps[shi].get("content") ?? ""
+                track(ship_voter_names[shi], ship_resps[shi])
+                if string.contains(string.upper(content), "APPROVED") {
+                    ship_votes.push("APPROVED")
+                } else if string.contains(string.upper(content), "REJECTED") {
+                    ship_votes.push("REJECTED")
+                } else {
+                    ship_votes.push("REVIEW")
+                }
+                shi = shi + 1
+            }
+
+            let ship_tally = orchestra.consensus_vote({votes: ship_votes})
+            ship_verdict = ship_tally.get("verdict") ?? "unknown"
+            ship_consensus_ok = true
+            print("SHIP_CONSENSUS|verdict=" + ship_verdict + "|approved=" + string(ship_tally.get("approved") ?? 0) + "|rejected=" + string(ship_tally.get("rejected") ?? 0) + "|votes=" + string(ship_votes))
+        } catch (e) {
+            total_sends = total_sends + ship_voter_handles.length()
+            send_errors = send_errors + ship_voter_handles.length()
+            print("SHIP_CONSENSUS|error=" + string(e))
+        }
+    }
+    print("SUMMARY_SHIP_CONSENSUS: " + string(ship_consensus_ok) + "|verdict=" + ship_verdict)
+
+    // Final touches
+    if handles.get("integrator") != null {
+        let final_readme = safe_send(handles["integrator"], "Write the final README.md with a project description, installation steps, usage, and testing instructions for the Python CLI Calculator.")
+        total_sends = total_sends + 1
+        if final_readme.get("error") != null { send_errors = send_errors + 1 }
+        else { track("integrator", final_readme) }
+        print("TURN|agent=integrator|n=" + string(total_sends) + "|c=" + string(coherences.get("integrator") ?? -1) + "|phase=" + current_phase)
+    }
+
+    if handles.get("developer") != null {
+        let final_main = safe_send(handles["developer"], "Write the absolute final version of main.py. Make sure it imports from operations, uses argparse, and has a clean main() function. ```python fences please.")
+        total_sends = total_sends + 1
+        if final_main.get("error") != null { send_errors = send_errors + 1 }
+        else { track("developer", final_main) }
+        print("TURN|agent=developer|n=" + string(total_sends) + "|c=" + string(coherences.get("developer") ?? -1) + "|phase=" + current_phase)
+    }
+
+    // ========================================
+    // SUMMARY
+    // ========================================
+    print("SUMMARY_TOTAL_SENDS: " + string(total_sends))
+    print("SUMMARY_SEND_ERRORS: " + string(send_errors))
+    print("SUMMARY_DEV_PRE_DRIFT: " + string(developer_pre_drift))
+    print("SUMMARY_DEV_POST_DRIFT: " + string(developer_post_drift))
+    print("SUMMARY_DEV_COHERENCE: " + string(coherences.get("developer") ?? -1))
+    print("SUMMARY_DEV_MIN_COHERENCE: " + string(min_coherences.get("developer") ?? -1))
+    print("SUMMARY_DEV_PC: " + string(developer_pc))
+    print("SUMMARY_PHASE_REACHED: " + current_phase)
+    let files_extracted_count = 0
+    if ops_extracted { files_extracted_count = files_extracted_count + 1 }
+    if main_extracted { files_extracted_count = files_extracted_count + 1 }
+    if test_extracted { files_extracted_count = files_extracted_count + 1 }
+    print("SUMMARY_FILES_EXTRACTED: " + string(files_extracted_count))
+
+    // Per-agent coherence dump
+    let sci = 0
+    while sci < agent_names.length() {
+        let name = agent_names[sci]
+        let c = coherences.get(name) ?? -1
+        let mc = min_coherences.get(name) ?? -1
+        let cp = challenges_p.get(name) ?? 0
+        print("AGENT_STATE|" + name + "|c=" + string(c) + "|min=" + string(mc) + "|cp=" + string(cp))
+        sci = sci + 1
+    }
+
+    // Count agents with coherence < 1.0
+    let agents_with_drift = 0
+    let total_challenges = 0
+    let dci = 0
+    while dci < agent_names.length() {
+        let mc = min_coherences.get(agent_names[dci])
+        if mc != null && mc < 1.0 { agents_with_drift = agents_with_drift + 1 }
+        let cp = challenges_p.get(agent_names[dci]) ?? 0
+        total_challenges = total_challenges + cp
+        dci = dci + 1
+    }
+    print("SUMMARY_AGENTS_WITH_DRIFT: " + string(agents_with_drift))
+    print("SUMMARY_TOTAL_CHALLENGES: " + string(total_challenges))
+
+    // CDD isolation: non-drifted agents should have higher min_coherence than developer
+    let dev_min = min_coherences.get("developer") ?? 1.0
+    let isolation_count = 0
+    let isolation_total = 0
+    let ici = 0
+    while ici < agent_names.length() {
+        let name = agent_names[ici]
+        if name != "developer" {
+            let mc = min_coherences.get(name)
+            if mc != null {
+                isolation_total = isolation_total + 1
+                if mc > dev_min { isolation_count = isolation_count + 1 }
+            }
+        }
+        ici = ici + 1
+    }
+    print("SUMMARY_CDD_ISOLATION: " + string(isolation_count) + "/" + string(isolation_total) + " agents above developer (dev_min=" + string(dev_min) + ")")
+
+    // ========================================
+    // TELEMETRY VERIFICATION
+    // ========================================
+    print("=== TELEMETRY ===")
+    let telemetry_raw = ""
+    let telemetry_ok = false
+    try {
+        telemetry_raw = file.read("telemetry.jsonl")
+        telemetry_ok = telemetry_raw != null && string.length(telemetry_raw) > 10
+    } catch (e) {
+        print("TELEM_READ_ERROR: " + string(e))
+    }
+
+    if !telemetry_ok {
+        print("TELEM_HASH_CHAIN: false")
+        print("TELEM_EVENT_DIVERSITY: 0")
+        print("TELEM_RUN_ID_CONSISTENT: false")
+        print("TELEM_TIMESTAMPS_ORDERED: false")
+        print("TELEM_TOTAL_EVENTS: 0")
+        print("TELEM_CHALLENGE_EVENTS: 0")
+    } else {
+        let lines = string.split(string.trim(telemetry_raw), "\n")
+        let events = []
+        let tli = 0
+        while tli < lines.length() {
+            let line = string.trim(lines[tli])
+            if string.length(line) > 2 {
+                try {
+                    let evt = json.parse(line)
+                    events.push(evt)
+                } catch (e) {}
+            }
+            tli = tli + 1
+        }
+        print("TELEM_TOTAL_EVENTS: " + string(events.length()))
+
+        // Hash chain
+        let chain_valid = true
+        let tei = 1
+        while tei < events.length() {
+            let prev_hash = events[tei - 1].get("hash")
+            let curr_prev = events[tei].get("prev_hash")
+            if prev_hash != null && curr_prev != null {
+                if prev_hash != curr_prev { chain_valid = false }
+            }
+            tei = tei + 1
+        }
+        print("TELEM_HASH_CHAIN: " + string(chain_valid))
+
+        // Event diversity + challenge count
+        let event_types = {}
+        let challenge_pass_count = 0
+        let tdi = 0
+        while tdi < events.length() {
+            let evt_type = events[tdi].get("event_type")
+            if evt_type == null { evt_type = events[tdi].get("type") }
+            if evt_type != null {
+                event_types[string(evt_type)] = true
+                if string(evt_type) == "AGENT_CHALLENGE_PASS" { challenge_pass_count = challenge_pass_count + 1 }
+            }
+            tdi = tdi + 1
+        }
+        print("TELEM_EVENT_DIVERSITY: " + string(event_types.keys().length()))
+        print("TELEM_CHALLENGE_EVENTS: " + string(challenge_pass_count))
+
+        // Run ID consistency
+        let first_run_id = ""
+        let run_id_consistent = true
+        let tri = 0
+        while tri < events.length() {
+            let rid = events[tri].get("run_id")
+            if rid != null {
+                if first_run_id == "" { first_run_id = string(rid) }
+                else if string(rid) != first_run_id { run_id_consistent = false }
+            }
+            tri = tri + 1
+        }
+        print("TELEM_RUN_ID_CONSISTENT: " + string(run_id_consistent))
+
+        // Timestamp ordering
+        let timestamps_ordered = true
+        let prev_ts = ""
+        let ttsi = 0
+        while ttsi < events.length() {
+            let ts = events[ttsi].get("timestamp")
+            if ts != null {
+                let ts_str = string(ts)
+                if prev_ts != "" && ts_str < prev_ts { timestamps_ordered = false }
+                prev_ts = ts_str
+            }
+            ttsi = ttsi + 1
+        }
+        print("TELEM_TIMESTAMPS_ORDERED: " + string(timestamps_ordered))
+    }
+
+    // ========================================
+    // TRANSCRIPT VERIFICATION
+    // ========================================
+    print("=== TRANSCRIPT ===")
+    let transcript_raw = ""
+    let transcript_ok = false
+    try {
+        transcript_raw = file.read("transcript.jsonl")
+        transcript_ok = transcript_raw != null && string.length(transcript_raw) > 10
+    } catch (e) {
+        print("TRANSCRIPT_READ_ERROR: " + string(e))
+    }
+
+    if !transcript_ok {
+        print("TRANSCRIPT_TOTAL_ENTRIES: 0")
+        print("TRANSCRIPT_AGENTS_SEEN: 0")
+        print("TRANSCRIPT_AGENT_NAMES: ")
+        print("TRANSCRIPT_CREATE_COUNT: 0")
+        print("TRANSCRIPT_SEND_COUNT: 0")
+        print("TRANSCRIPT_HANDOFF_VERIFIED: false")
+    } else {
+        let tr_lines = string.split(string.trim(transcript_raw), "\n")
+        let tr_entries = []
+        let trli = 0
+        while trli < tr_lines.length() {
+            let line = string.trim(tr_lines[trli])
+            if string.length(line) > 2 {
+                try {
+                    let entry = json.parse(line)
+                    tr_entries.push(entry)
+                } catch (e) {}
+            }
+            trli = trli + 1
+        }
+        print("TRANSCRIPT_TOTAL_ENTRIES: " + string(tr_entries.length()))
+
+        // Count creates vs sends, collect agent names
+        let tr_creates = 0
+        let tr_sends = 0
+        let tr_agents = {}
+        let trei = 0
+        while trei < tr_entries.length() {
+            let entry_type = tr_entries[trei].get("type") ?? tr_entries[trei].get("entry_type") ?? ""
+            let agent_name = tr_entries[trei].get("agent") ?? tr_entries[trei].get("agent_name") ?? tr_entries[trei].get("config_name") ?? ""
+            if string(entry_type) == "agent_create" { tr_creates = tr_creates + 1 }
+            if string(entry_type) == "agent_send" { tr_sends = tr_sends + 1 }
+            if string(agent_name) != "" { tr_agents[string(agent_name)] = true }
+            trei = trei + 1
+        }
+        print("TRANSCRIPT_CREATE_COUNT: " + string(tr_creates))
+        print("TRANSCRIPT_SEND_COUNT: " + string(tr_sends))
+
+        let tr_agent_names = tr_agents.keys()
+        print("TRANSCRIPT_AGENTS_SEEN: " + string(tr_agent_names.length()))
+        print("TRANSCRIPT_AGENT_NAMES: " + string(tr_agent_names))
+
+        // Data handoff verification: check if architect spec keywords appear in developer transcript messages
+        let handoff_verified = false
+        // Look for keywords from the architect spec (e.g., "Calculator", "operations", "argparse")
+        // in the developer's transcript entries
+        let spec_keywords = ["Calculator", "operations", "argparse", "add", "subtract", "history"]
+        let keyword_found_count = 0
+
+        let hvi = 0
+        while hvi < tr_entries.length() {
+            let agent_name = string(tr_entries[hvi].get("agent") ?? tr_entries[hvi].get("agent_name") ?? tr_entries[hvi].get("config_name") ?? "")
+            if agent_name == "developer" {
+                let msg_content = string(tr_entries[hvi].get("messages") ?? tr_entries[hvi].get("prompt") ?? "")
+                let ki = 0
+                while ki < spec_keywords.length() {
+                    if string.contains(msg_content, spec_keywords[ki]) {
+                        keyword_found_count = keyword_found_count + 1
+                    }
+                    ki = ki + 1
+                }
+            }
+            hvi = hvi + 1
+        }
+        // If at least 2 spec keywords found in developer messages, handoff is verified
+        handoff_verified = keyword_found_count >= 2
+        print("TRANSCRIPT_HANDOFF_VERIFIED: " + string(handoff_verified) + "|keywords_found=" + string(keyword_found_count))
+    }
+
+    // ========================================
+    // HEALTH
+    // ========================================
+    let health = governance.health()
+    let verdict = "unknown"
+    if health != null {
+        verdict = health.get("verdict")
+        if verdict == null { verdict = "unknown" }
+    }
+    print("HEALTH_VERDICT: " + string(verdict))
+
+    print("=== APP BUILD COMPLETE ===")
+}
