@@ -30,14 +30,14 @@ jobs:
           fetch-depth: 0  # Full history for comprehensive scanning
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
 
       - name: Upload Gitleaks SARIF
         if: failure()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@411c4c9a36b3fca4d674f06b6396b2c6d23522c6 # v3
         with:
           sarif_file: results.sarif
 
@@ -93,7 +93,7 @@ jobs:
 
       - name: Attach SBOM to release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             sbom/naab-sbom.spdx.json
@@ -118,7 +118,7 @@ jobs:
           path: sbom/
 
       - name: Scan for vulnerabilities with Grype
-        uses: anchore/scan-action@v5
+        uses: anchore/scan-action@869c549e657a088dc0441b08ce4fc0ecdac2bb65 # v5
         env:
           GRYPE_DB_AUTO_UPDATE: "true"
           GRYPE_DB_MAX_ALLOWED_BUILT_AGE: 168h
@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload vulnerability report
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@411c4c9a36b3fca4d674f06b6396b2c6d23522c6 # v3
         with:
           sarif_file: results.sarif
 
@@ -171,7 +171,7 @@ jobs:
           strip build/naab-lang
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Generate checksums
         run: |
@@ -185,7 +185,7 @@ jobs:
           SIGN_METHOD=cosign ./scripts/sign-artifacts.sh build/naab-lang
 
       - name: Upload release artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             build/naab-lang
@@ -234,7 +234,7 @@ jobs:
           PROVENANCE
 
       - name: Upload provenance
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: provenance.json
 

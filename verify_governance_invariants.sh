@@ -6,6 +6,13 @@
 set -e
 
 NAAB_BIN="./build/naab-lang"
+
+if [ ! -f "$NAAB_BIN" ]; then
+    echo "Error: naab-lang binary not found at $NAAB_BIN"
+    echo "Run 'cd build && make naab-lang' first"
+    exit 1
+fi
+
 TEST_DIR="tests/governance_v4"
 PASSED=0
 FAILED=0

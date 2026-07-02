@@ -292,7 +292,16 @@ bool PackageManager::extractTarball(const std::string& tarball_path, const std::
         return false;
     }
 #else
-    // Windows: use system() with validated paths (parseSpec rejects metacharacters)
+    // Windows: use system() with validated paths
+    // Reject cmd.exe metacharacters that could escape double-quote quoting
+    auto hasCmdMeta = [](const std::string& s) {
+        return s.find_first_of("\"<>|&^`") != std::string::npos;
+    };
+    if (hasCmdMeta(tarball_path) || hasCmdMeta(temp_dir)) {
+        fs::remove_all(temp_dir);
+        last_error_ = "Path contains shell metacharacters";
+        return false;
+    }
     std::string cmd = fmt::format("tar xzf \"{}\" -C \"{}\" 2>NUL", tarball_path, temp_dir);
     int ret = std::system(cmd.c_str());
     if (ret != 0) {

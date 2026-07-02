@@ -1,8 +1,0 @@
-=== Compliance Report ===
-
-Total Rules: 1
-Total Entities: 1
-Total Findings: 1
-
-=== Findings ===
-[CRIT] R1: M

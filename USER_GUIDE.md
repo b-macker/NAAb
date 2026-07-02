@@ -27,7 +27,7 @@ NAAb is a modern polyglot orchestration language designed for seamlessly integra
 
 - **Polyglot by design**: Execute code blocks in 12 languages — Python, JavaScript, Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, and Julia — all within `<< >>` blocks
 - **Bytecode VM**: Stack-based bytecode compiler and virtual machine as the default execution engine (~8x faster than tree-walking)
-- **Governance engine**: 50+ built-in checks, taint tracking, 3-tier enforcement (HARD/SOFT/ADVISORY), agent roles, and CI/CD integration
+- **Governance engine**: 50+ built-in checks, taint tracking, 4-tier enforcement (HARD/SOFT/ADVISORY/DETECT), agent roles, and CI/CD integration
 - **Pipeline syntax**: Chain operations with `|>` operator
 - **Rich stdlib**: 19 modules (array, string, math, json, file, time, env, io, csv, regex, crypto, debug, dict, path, log, uuid, validate, process, bolo)
 - **NaN-boxing**: 8-byte inline values for int/double/bool/null — zero heap allocation for primitives
@@ -841,7 +841,7 @@ NAAb includes a built-in governance engine that enforces project-level policies 
 
 Key features:
 - **50+ built-in checks** for security, code quality, and LLM anti-drift
-- **Three enforcement levels**: HARD (block), SOFT (overridable), ADVISORY (warn)
+- **Four enforcement levels**: HARD (block), SOFT (overridable), ADVISORY (warn), DETECT (catchable block for test configs)
 - **CI/CD integration** via `--governance-sarif` and `--governance-junit` flags
 - **Custom rules** with regex patterns for project-specific policies
 

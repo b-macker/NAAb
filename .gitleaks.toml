@@ -17,22 +17,26 @@ useDefault = true
 [allowlist]
 description = "Allowed patterns that are not secrets"
 
-# Test files, demo projects, and block library can have dummy secrets
+# Narrow path allowlists — only dirs with known dummy/fixture secrets
 paths = [
-    '''tests/.*''',
+    '''tests/fixtures/.*''',
+    '''tests/gorilla/.*/src/.*''',
+    '''tests/bugs/.*''',
+    '''tests/security/.*''',
+    '''tests/governance.*/.*''',
+    '''tests/chaos/.*''',
     '''examples/.*''',
     '''demo/.*''',
     '''fuzz/corpus/.*''',
-    '''docs/.*''',
+    '''docs/book/verification/.*/config/setup_pki\.sh''',
     '''blocks/library/.*''',
     '''include/naab/secure_string\.h''',
 ]
 
 # Specific known false positives
 regexes = [
-    # Build timestamps and version hashes
+    # Build timestamps
     '''[0-9]{8}\.[0-9]{6}''',  # Build timestamps (YYYYMMDD.HHMMSS)
-    '''[a-f0-9]{7,40}''',  # Git commit hashes (in CHANGELOG, docs, etc.)
 
     # Common words that trigger false positives
     '''password.*=.*example''',  # Example passwords in docs
