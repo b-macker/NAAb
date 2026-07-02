@@ -81,6 +81,7 @@ struct AgentTracker {
     int fallbacks = 0;         // times a fallback model was used
     int64_t total_latency_ms = 0;  // cumulative API call time
     std::string nonce;         // HMAC nonce — verified on every handle use
+    std::string config_name;   // bound at create time — reject if handle dict diverges
     int last_challenge_turn = -100;  // step-up challenge cooldown tracking
     int challenges_passed = 0;
     int challenges_failed = 0;
@@ -941,6 +942,7 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         nonce = security::CryptoUtils::hmacSha256(nonce_input, s_process_secret);
         auto& tracker = s_trackers[handle_id];
         tracker.nonce = nonce;
+        tracker.config_name = config_name;
         // Standing Lease: grant initial lease if configured
         if (config->standing_lease_turns > 0) {
             tracker.lease_granted_turn = 0;
@@ -4259,6 +4261,14 @@ static std::pair<std::string, int> validateHandle(NaabVal& handle_val) {
         if (tracker_it == s_trackers.end() ||
             !security::CryptoUtils::constantTimeCompare(
                 nonce_it->second.asString(), tracker_it->second.nonce)) {
+            throw std::runtime_error(
+                "Agent error: Invalid or tampered agent handle\n\n"
+                "  Help:\n  - Use the handle returned by agent.create()\n"
+                "  - Forged or modified handles are rejected\n");
+        }
+        // Verify config_name matches what was bound at create time —
+        // prevents swapping governance config on a live handle
+        if (config_name != tracker_it->second.config_name) {
             throw std::runtime_error(
                 "Agent error: Invalid or tampered agent handle\n\n"
                 "  Help:\n  - Use the handle returned by agent.create()\n"

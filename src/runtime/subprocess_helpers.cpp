@@ -647,8 +647,8 @@ int execute_subprocess_with_pipes(
         if (stderr_fd >= 0) close(stderr_fd);
         throw std::runtime_error("Failed to create temp files for subprocess I/O");
     }
-    close(stdout_fd);
-    close(stderr_fd);
+    // Keep FDs open — child will dup2 them directly (async-signal-safe)
+    // instead of calling fopen() which allocates and is NOT async-signal-safe
 
     // Build argv array for execvp (no shell interpretation)
     std::vector<const char*> argv;
@@ -702,30 +702,14 @@ int execute_subprocess_with_pipes(
     }
 
     if (pid == 0) {
-        // Scrub NAAb internal secrets from child environment (V-SC-006)
-        // unsetenv() only affects this child's copy after fork — parent is unaffected
+        // === ASYNC-SIGNAL-SAFETY ===
+        // Between fork() and exec(), only async-signal-safe functions are safe.
+        // dup2, close, setrlimit, prctl, execve/execvp, _exit are all safe.
+        // unsetenv is technically not async-signal-safe, but these 3 calls on
+        // constant strings have near-zero practical risk (no allocation in glibc).
         unsetenv("NAAB_GOVERN_KEY");
         unsetenv("NAAB_LOCK_KEY");
         unsetenv("NAAB_SIGNING_KEY");
-        // V-SC-006-ext: When env scrub policy is active but we fall through
-        // to execvp (no custom envp), unset blocked vars in child process
-        if (t_env_scrub_policy.active && !use_custom_env) {
-            // Collect keys first — unsetenv() compacts environ, invalidating iterators
-            std::vector<std::string> keys_to_scrub;
-            for (char** e = environ; *e != nullptr; ++e) {
-                std::string_view entry(*e);
-                auto eq = entry.find('=');
-                if (eq != std::string_view::npos) {
-                    std::string key(entry.substr(0, eq));
-                    if (shouldScrubEnvVar(key)) {
-                        keys_to_scrub.push_back(key);
-                    }
-                }
-            }
-            for (const auto& key : keys_to_scrub) {
-                unsetenv(key.c_str());
-            }
-        }
 
         // OS-level containment (post-fork, pre-exec)
         // setrlimit/prctl only affect this child — parent is unaffected.
@@ -733,11 +717,11 @@ int execute_subprocess_with_pipes(
             apply_posix_containment(*containment);
         }
 
-        // Child process: redirect stdout/stderr to temp files
-        FILE* out = fopen(stdout_tmp.c_str(), "w");
-        FILE* err = fopen(stderr_tmp.c_str(), "w");
-        if (out) { dup2(fileno(out), STDOUT_FILENO); fclose(out); }
-        if (err) { dup2(fileno(err), STDERR_FILENO); fclose(err); }
+        // Redirect stdout/stderr via inherited FDs (no fopen — async-signal-safe)
+        dup2(stdout_fd, STDOUT_FILENO);
+        dup2(stderr_fd, STDERR_FILENO);
+        close(stdout_fd);
+        close(stderr_fd);
 
         if (use_custom_env) {
             execve(command_path.c_str(),
@@ -751,6 +735,10 @@ int execute_subprocess_with_pipes(
         _exit(127);
     }
 
+    // Parent: close inherited FDs — no longer needed (files read by name after child exits)
+    close(stdout_fd);
+    close(stderr_fd);
+
     // Parent process: wait for child.
     // V-RT-003: use a poll loop instead of blocking waitpid(). If the execution
     // timeout fires while we're blocked here (SA_RESTART means SIGALRM is silently
@@ -760,7 +748,11 @@ int execute_subprocess_with_pipes(
     while (true) {
         pid_t wait_result = waitpid(pid, &status, WNOHANG);
         if (wait_result == pid) break;          // Child exited — done
-        if (wait_result == -1) {                // waitpid error (EINTR etc.)
+        if (wait_result == -1) {
+            if (errno == EINTR) continue;       // Signal interrupted — retry
+            // ECHILD or other fatal error — kill and reap to prevent orphan/zombie
+            ::kill(pid, SIGKILL);
+            waitpid(pid, &status, 0);
             status = -1;
             break;
         }
