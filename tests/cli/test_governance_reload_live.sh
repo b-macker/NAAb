@@ -9,19 +9,19 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB_BIN="${SCRIPT_DIR}/../../build/naab-lang"
+source "${SCRIPT_DIR}/../helpers/trust_setup.sh"
 PASS=0
 FAIL=0
 TEST_DIR="${HOME}/.naab_reload_live_test_$$"
 mkdir -p "$TEST_DIR"
 
-cleanup() { rm -rf "$TEST_DIR"; }
+cleanup() { teardown_isolated_trust; rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
 
-# Sign a govern.json in the current directory using the default signing key
+# Sign a govern.json in the current directory using NAAB_SIGNING_KEY
 sign_govern() {
-    local signing_key="${HOME}/.naab/keys/signing.pem"
-    if [ -f "$signing_key" ]; then
-        NAAB_SIGNING_KEY="$signing_key" "$NAAB_BIN" --sign-governance 2>/dev/null
+    if [ -n "$NAAB_SIGNING_KEY" ] && [ -f "$NAAB_SIGNING_KEY" ]; then
+        "$NAAB_BIN" --sign-governance 2>/dev/null
     fi
 }
 
@@ -65,13 +65,11 @@ fi
 echo "  Using API key: $WORKING_KEY_NAME"
 export NAAB_TEST_GK="$WORKING_KEY"
 
-# Signing key must exist for pre-signing
-SIGNING_KEY_PATH="${HOME}/.naab/keys/signing.pem"
-if [ ! -f "$SIGNING_KEY_PATH" ]; then
-    echo "  SKIP: No signing key found at $SIGNING_KEY_PATH"
-    echo "=== Results: 0/0 passed, 0 failed (skipped) ==="
-    exit 0
-fi
+# Set up isolated trust store with ephemeral signing key
+setup_isolated_trust
+"$NAAB_BIN" --keygen "$TEST_DIR/test-key.pem" 2>/dev/null
+"$NAAB_BIN" --trust-key "$TEST_DIR/test-key.pem.pub" 2>/dev/null
+export NAAB_SIGNING_KEY="$TEST_DIR/test-key.pem"
 
 # --- Test 1: agent.send() returns governance_notices after mid-run tightening ---
 echo "--- Live Reload: governance_notices in agent.send() ---"

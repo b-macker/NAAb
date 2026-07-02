@@ -41,7 +41,7 @@ TEST_DIRS=(
     "tests/formatter"
     "tests/llm_patterns"
     "tests/path_resolution"
-    "tests/chapter verification"
+    "tests/chapter_verification"
     "tests/governance_v3"
     "tests/governance_v4"
     "tests/robustness"
@@ -162,7 +162,7 @@ SKIP_FILES["test_plugin.naab"]=1          # governance plugin library, not stand
 
 # Directories to skip entirely
 SKIP_DIRS=(
-    "tests/chapter verification/ch0_full_projects"  # Gemini-generated projects (most have runtime issues)
+    "tests/chapter_verification/ch0_full_projects"  # Gemini-generated projects (most have runtime issues)
     "tests/property"  # Property-based tests run via dedicated runner, not standalone
     "examples/self-audit"  # Agent scripts requiring API keys, not standalone tests
 )
@@ -291,7 +291,7 @@ for dir in "${TEST_DIRS[@]}"; do
     timeout="10s"
     if [ "$dir" = "tests/comprehensive" ]; then
         timeout="180s"
-    elif [ "$dir" = "tests/chapter verification" ]; then
+    elif [ "$dir" = "tests/chapter_verification" ]; then
         timeout="30s"
     elif [ "$dir" = "examples" ]; then
         timeout="60s"  # Examples run multiple polyglot blocks with governance scanning
