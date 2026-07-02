@@ -1333,6 +1333,7 @@ struct ContextDriftConfig {
         bool persona_fingerprint = true;       // fire when response style deviates from established baseline
         bool tool_chain_integrity = true;      // fire when agent misrepresents tool results
         bool claim_result_reconciliation = true; // fire when agent misrepresents tool success/failure status
+        bool prompt_compliance = true;           // fire when agent complies with off-topic prompts
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1363,6 +1364,7 @@ struct ContextDriftConfig {
         double persona_fingerprint = 0.05;    // low — style shifts are common and often legitimate
         double tool_chain_integrity = 0.08;   // moderate — misrepresenting tool results indicates hallucination
         double claim_result_reconciliation = 0.12; // moderate-high — status misrepresentation is unambiguous hallucination
+        double prompt_compliance = 0.10;             // moderate-high — complying with off-topic prompts is unambiguous drift
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -1443,6 +1445,14 @@ struct ContextDriftConfig {
         // 0.70: rolling claim accuracy below 70% triggers escalated penalty.
         // Agent must correctly report tool success/failure at least 70% of the time.
         double claim_accuracy_min = 0.70;
+        // 0.10: prompt-to-mandate overlap below 10% = clearly off-topic prompt.
+        // System prompt for "todo app" has keywords like "todo", "app", "bugs", "code", "features".
+        // A prompt about fibonacci or poetry shares <5% overlap. On-task prompts share 15-40%.
+        double prompt_compliance_mandate_min = 0.10;
+        // 50: minimum response token count to consider "substantive compliance."
+        // Short refusals ("I can only help with todo apps") are typically <50 tokens.
+        // Full compliance ("Here's a fibonacci function...") is typically >100 tokens.
+        int prompt_compliance_response_min_tokens = 50;
     } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -2941,6 +2951,9 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Set per-turn prompt keywords (for prompt compliance signal)
+    void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);

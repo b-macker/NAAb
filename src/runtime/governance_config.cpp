@@ -2683,6 +2683,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("persona_deviation_factor") && th["persona_deviation_factor"].is_number()) cfg.thresholds.persona_deviation_factor = std::max(1.0, th["persona_deviation_factor"].get<double>());
             if (th.contains("tool_result_recall_min") && th["tool_result_recall_min"].is_number()) cfg.thresholds.tool_result_recall_min = std::max(0.0, std::min(1.0, th["tool_result_recall_min"].get<double>()));
             if (th.contains("claim_accuracy_min") && th["claim_accuracy_min"].is_number()) cfg.thresholds.claim_accuracy_min = std::max(0.0, std::min(1.0, th["claim_accuracy_min"].get<double>()));
+            if (th.contains("prompt_compliance_mandate_min") && th["prompt_compliance_mandate_min"].is_number()) cfg.thresholds.prompt_compliance_mandate_min = std::max(0.0, std::min(1.0, th["prompt_compliance_mandate_min"].get<double>()));
+            if (th.contains("prompt_compliance_response_min_tokens") && th["prompt_compliance_response_min_tokens"].is_number_integer()) cfg.thresholds.prompt_compliance_response_min_tokens = std::max(0, th["prompt_compliance_response_min_tokens"].get<int>());
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
@@ -2706,6 +2708,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("persona_fingerprint") && sig["persona_fingerprint"].is_boolean()) cfg.signals.persona_fingerprint = sig["persona_fingerprint"].get<bool>();
             if (sig.contains("tool_chain_integrity") && sig["tool_chain_integrity"].is_boolean()) cfg.signals.tool_chain_integrity = sig["tool_chain_integrity"].get<bool>();
             if (sig.contains("claim_result_reconciliation") && sig["claim_result_reconciliation"].is_boolean()) cfg.signals.claim_result_reconciliation = sig["claim_result_reconciliation"].get<bool>();
+            if (sig.contains("prompt_compliance") && sig["prompt_compliance"].is_boolean()) cfg.signals.prompt_compliance = sig["prompt_compliance"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -2729,6 +2732,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("persona_fingerprint") && w["persona_fingerprint"].is_number()) cfg.weights.persona_fingerprint = w["persona_fingerprint"].get<double>();
             if (w.contains("tool_chain_integrity") && w["tool_chain_integrity"].is_number()) cfg.weights.tool_chain_integrity = w["tool_chain_integrity"].get<double>();
             if (w.contains("claim_result_reconciliation") && w["claim_result_reconciliation"].is_number()) cfg.weights.claim_result_reconciliation = w["claim_result_reconciliation"].get<double>();
+            if (w.contains("prompt_compliance") && w["prompt_compliance"].is_number()) cfg.weights.prompt_compliance = w["prompt_compliance"].get<double>();
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];

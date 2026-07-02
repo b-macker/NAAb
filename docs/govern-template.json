@@ -1714,6 +1714,15 @@
       "mandate_alignment": false,
       "response_quality": false,
       "thinking_collapse": false,
+      "context_growth": true,
+      "instruction_recall": true,
+      "plan_drift": true,
+      "entity_consistency": true,
+      "instruction_conflict": true,
+      "persona_fingerprint": true,
+      "tool_chain_integrity": true,
+      "claim_result_reconciliation": true,
+      "prompt_compliance": true,
       "exclude_infrastructure_errors": true
     },
     "weights": {
@@ -1726,7 +1735,16 @@
       "semantic_stability": 0.10,
       "mandate_alignment": 0.12,
       "response_quality": 0.08,
-      "thinking_collapse": 0.06
+      "thinking_collapse": 0.06,
+      "context_growth": 0.07,
+      "instruction_recall": 0.08,
+      "plan_drift": 0.09,
+      "entity_consistency": 0.08,
+      "instruction_conflict": 0.10,
+      "persona_fingerprint": 0.05,
+      "tool_chain_integrity": 0.08,
+      "claim_result_reconciliation": 0.12,
+      "prompt_compliance": 0.10
     },
     "thresholds": {
       "velocity_drop": -0.15,
@@ -1743,7 +1761,18 @@
       "thinking_collapse_ratio": 0.5,
       "thinking_history_window": 20,
       "semantic_stability_min_overlap": 0.25,
-      "mandate_alignment_min": 0.15
+      "mandate_alignment_min": 0.15,
+      "context_growth_factor": 3.0,
+      "instruction_recall_min": 0.10,
+      "plan_step_overlap_min": 0.20,
+      "entity_context_min_overlap": 0.25,
+      "instruction_conflict_topic_overlap": 0.40,
+      "instruction_conflict_window": 10,
+      "persona_deviation_factor": 2.0,
+      "tool_result_recall_min": 0.15,
+      "claim_accuracy_min": 0.70,
+      "prompt_compliance_mandate_min": 0.10,
+      "prompt_compliance_response_min_tokens": 50
     },
     "reality_checkpoint": {
       "enabled": false,

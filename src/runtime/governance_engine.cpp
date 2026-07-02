@@ -2857,6 +2857,17 @@ void GovernanceEngine::printDashboard() const {
                 }
                 fprintf(stderr, "\n");
             }
+            if (state->prompt_compliance_count > 0) {
+                fprintf(stderr, "Compliance: %d off-topic compliance events",
+                        state->prompt_compliance_count);
+                if (!state->prompt_alignment_history.empty()) {
+                    double pa_sum = 0;
+                    for (double v : state->prompt_alignment_history) pa_sum += v;
+                    double pa_mean = pa_sum / static_cast<double>(state->prompt_alignment_history.size());
+                    fprintf(stderr, ", prompt_alignment=%.2f", pa_mean);
+                }
+                fprintf(stderr, "\n");
+            }
         } else {
             fprintf(stderr, "CDD:        enabled, %zu turns analyzed\n",
                     drift_analyzer_.totalTurnsAnalyzed());
@@ -6995,6 +7006,11 @@ void GovernanceEngine::recordToolResult(
 void GovernanceEngine::recordToolOutcome(
     int handle_id, const std::string& tool_name, bool success) {
     drift_analyzer_.recordToolOutcome(handle_id, tool_name, success);
+}
+
+void GovernanceEngine::setTurnPromptKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    drift_analyzer_.setTurnPromptKeywords(handle_id, keywords);
 }
 
 void GovernanceEngine::recordEscalation(

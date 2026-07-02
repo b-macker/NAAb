@@ -1667,6 +1667,67 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.tool_last_outcome.clear();
     }
 
+    // Signal 20: Prompt compliance — detect off-topic prompt compliance
+    if (config_->signals.prompt_compliance && !state.mandate_keywords.empty() &&
+        !state.turn_prompt_keywords.empty()) {
+        // Gate 1: Is the prompt off-topic? (low overlap with mandate keywords)
+        int prompt_mandate_found = 0;
+        for (const auto& kw : state.mandate_keywords) {
+            if (state.turn_prompt_keywords.count(kw)) prompt_mandate_found++;
+        }
+        double prompt_alignment = static_cast<double>(prompt_mandate_found) /
+            static_cast<double>(state.mandate_keywords.size());
+
+        state.prompt_alignment_history.push_back(prompt_alignment);
+        while (state.prompt_alignment_history.size() > 20)
+            state.prompt_alignment_history.pop_front();
+
+        if (prompt_alignment < config_->thresholds.prompt_compliance_mandate_min) {
+            // Gate 2: Did the agent respond substantively? (not a short refusal)
+            for (const auto& ev : turn_events) {
+                if (ev.type == RuntimeEventType::AGENT_RESPONSE) {
+                    bool substantive = ev.output_tokens >=
+                        config_->thresholds.prompt_compliance_response_min_tokens;
+
+                    if (substantive) {
+                        // Gate 3: No refusal indicators in response
+                        static const std::vector<std::string> refusal_words = {
+                            "focused", "focus", "redirect", "scope", "mandate",
+                            "sorry", "cannot", "assigned", "task", "objective",
+                            "unable", "outside", "beyond", "instead", "back",
+                            "remind", "reminder"
+                        };
+                        bool has_refusal = false;
+                        for (const auto& rw : refusal_words) {
+                            if (ev.content_keywords.count(rw)) {
+                                has_refusal = true;
+                                break;
+                            }
+                        }
+
+                        if (!has_refusal) {
+                            // All 3 gates passed: off-topic prompt + substantive response + no refusal
+                            state.prompt_compliance_count++;
+                            turn_fired[SIG_PROMPT_COMPLIANCE]++;
+                            if (!in_baseline) {
+                                double p = adaptive_penalty(config_->weights.prompt_compliance,
+                                                            state.prompt_compliance_count,
+                                                            SIG_PROMPT_COMPLIANCE);
+                                if (p > 0.0) {
+                                    state.coherence_score -= p;
+                                    state.signals_fired_this_turn++;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        // Clear per-turn keywords (consumed)
+        state.turn_prompt_keywords.clear();
+    }
+
     // Adaptive baseline: accumulate per-turn signal counts during window
     if (config_->adaptive_baseline_enabled) {
         if (!state.baseline_complete) {
@@ -1710,6 +1771,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 state.signal_baselines[SIG_PERSONA_FINGERPRINT].snapshot = state.persona_drift_count;
                 state.signal_baselines[SIG_TOOL_CHAIN_INTEGRITY].snapshot = state.tool_integrity_count;
                 state.signal_baselines[SIG_CLAIM_RESULT].snapshot = state.claim_result_mismatch_count;
+                state.signal_baselines[SIG_PROMPT_COMPLIANCE].snapshot = state.prompt_compliance_count;
             }
         }
     }
@@ -1901,6 +1963,12 @@ void ContextDriftAnalyzer::recordToolOutcome(
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     state.tool_last_outcome[tool_name] = success;
+}
+
+void ContextDriftAnalyzer::setTurnPromptKeywords(
+    int handle_id, const std::unordered_set<std::string>& keywords) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    drift_states_[handle_id].turn_prompt_keywords = keywords;
 }
 
 void ContextDriftAnalyzer::recordEscalation(

@@ -82,7 +82,7 @@ struct SequenceMatchResult {
 };
 
 // CDD signal indices for generic adaptive baseline
-static constexpr int NUM_CDD_SIGNALS = 19;
+static constexpr int NUM_CDD_SIGNALS = 20;
 enum CddSignalId : int {
     SIG_CIRCULAR = 0,              // S1
     SIG_REPEATED_FAILURES = 1,     // S2
@@ -102,7 +102,8 @@ enum CddSignalId : int {
     SIG_INSTRUCTION_CONFLICT = 15, // S16
     SIG_PERSONA_FINGERPRINT = 16,  // S17
     SIG_TOOL_CHAIN_INTEGRITY = 17, // S18
-    SIG_CLAIM_RESULT = 18          // S19
+    SIG_CLAIM_RESULT = 18,         // S19
+    SIG_PROMPT_COMPLIANCE = 19     // S20 — off-topic prompt compliance
 };
 
 struct SignalBaseline {
@@ -192,6 +193,11 @@ struct DriftState {
     std::unordered_map<std::string, bool> tool_last_outcome;  // tool_name → last success/failure
     int claim_result_mismatch_count = 0;                      // turns where agent misrepresented tool outcome
     std::deque<double> claim_accuracy_history;                 // rolling window of per-turn accuracy (size 20)
+
+    // Prompt compliance — detect off-topic prompt compliance
+    std::unordered_set<std::string> turn_prompt_keywords;  // per-turn (set before CDD, cleared after)
+    std::deque<double> prompt_alignment_history;            // rolling window of prompt-to-mandate overlap
+    int prompt_compliance_count = 0;                        // turns where off-topic prompt was complied with
 
     // Escalation effectiveness tracking — measure whether level changes improve behavior
     int escalation_turn = -1;                      // turn when last escalation occurred (-1 = never)
@@ -335,6 +341,9 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Set per-turn prompt keywords (for prompt compliance signal)
+    void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);

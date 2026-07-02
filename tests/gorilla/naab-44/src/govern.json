@@ -129,7 +129,8 @@
       "thinking_collapse": true,
       "plan_drift": true,
       "entity_consistency": true,
-      "persona_fingerprint": true
+      "persona_fingerprint": true,
+      "prompt_compliance": true
     },
     "weights": {
       "circular": 0.06,
@@ -138,7 +139,8 @@
       "repeated_failure": 0.05,
       "vocabulary_contraction": 0.05,
       "semantic_stability": 0.08,
-      "mandate_alignment": 0.10
+      "mandate_alignment": 0.10,
+      "prompt_compliance": 0.10
     },
     "thresholds": {
       "velocity_drop": -0.15,
@@ -148,7 +150,9 @@
       "repeated_failure_count": 5,
       "coherence_history_size": 20,
       "semantic_stability_min_overlap": 0.20,
-      "mandate_alignment_min": 0.12
+      "mandate_alignment_min": 0.12,
+      "prompt_compliance_mandate_min": 0.10,
+      "prompt_compliance_response_min_tokens": 50
     },
     "reality_checkpoint": {
       "enabled": true,
