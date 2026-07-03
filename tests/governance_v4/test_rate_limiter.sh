@@ -145,12 +145,19 @@ EOF
 # Create a test file to read
 echo "test content" > "$WORKDIR/testfile.txt"
 
+# The native Windows binary can't resolve MSYS-style absolute paths embedded
+# in .naab sources; convert to a mixed (C:/...) path under MSYS/Git Bash
+NAAB_WORKDIR="$WORKDIR"
+if command -v cygpath &>/dev/null; then
+    NAAB_WORKDIR=$(cygpath -m "$WORKDIR")
+fi
+
 cat > "$WORKDIR/test_file_rate.naab" << NAABEOF
 use file
 main {
-  let a = file.read("$WORKDIR/testfile.txt")
-  let b = file.read("$WORKDIR/testfile.txt")
-  let c = file.read("$WORKDIR/testfile.txt")
+  let a = file.read("$NAAB_WORKDIR/testfile.txt")
+  let b = file.read("$NAAB_WORKDIR/testfile.txt")
+  let c = file.read("$NAAB_WORKDIR/testfile.txt")
   print(a)
 }
 NAABEOF

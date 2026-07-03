@@ -106,8 +106,8 @@ fi
 echo ""
 echo "=== Behavioral Tests ==="
 
-# Create temp test files for scanner
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+# Create temp test files for scanner (Termux sets TMPDIR; fall back to /tmp elsewhere)
+TMPDIR="${TMPDIR:-/tmp}"
 TEST_UNCHECKED="$TMPDIR/test_unchecked_send.naab"
 TEST_FROMFILE="$TMPDIR/test_prompt_from_file.naab"
 

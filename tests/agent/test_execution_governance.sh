@@ -122,9 +122,15 @@ fi
 echo ""
 echo "=== Behavioral Tests ==="
 
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+# Termux sets TMPDIR; fall back to /tmp elsewhere
+TMPDIR="${TMPDIR:-/tmp}"
 TEST_DIR="$TMPDIR/test_exec_gov_$$"
 mkdir -p "$TEST_DIR/.naab"
+
+# Isolate the trust store: the --trust-key fallback below must not install
+# keys into the global ~/.naab/trusted-keys — trusted keys there make every
+# later suite's unsigned govern.json fail with INTEGRITY BLOCK
+export NAAB_TRUST_STORE_DIR="$TEST_DIR/trusted-keys"
 
 # T12: --approve generates valid JSON
 NAAB_SIGNING_KEY="$SCRIPT_DIR/../../tests/security/test_signing_key.pem"
