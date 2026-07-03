@@ -1777,6 +1777,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (hj.contains("command") && hj["command"].is_string() && !hj["command"].is_null()) hc.command = hj["command"].get<std::string>();
             if (hj.contains("args")) for (auto& a : hj["args"]) if (a.is_string()) hc.args.push_back(a.get<std::string>());
             if (hj.contains("timeout") && hj["timeout"].is_number_integer()) hc.timeout = hj["timeout"].get<int>();
+            if (hj.contains("inherit_governance_keys") && hj["inherit_governance_keys"].is_boolean()) hc.inherit_governance_keys = hj["inherit_governance_keys"].get<bool>();
         };
         auto& hk = j["hooks"];
         if (hk.contains("on_violation")) loadHook(hk["on_violation"], rules_.hooks.on_violation);

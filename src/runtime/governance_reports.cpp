@@ -24,7 +24,10 @@
 #  include <sys/wait.h>
 #  include <signal.h>
 #  include <fcntl.h>
+#else
+#  include <windows.h>
 #endif
+#include "naab/subprocess_helpers.h"
 #include <fmt/core.h>
 
 // Helper: checked fwrite with failure counter (warns once on first failure)
@@ -489,7 +492,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
     if (hook.command.empty()) return;
 
     try {
-        // Build args with variable substitution (no shell escaping — execvp is shell-free)
+        // Build args with variable substitution (no shell escaping — execv is shell-free)
         std::vector<std::string> expanded_args;
         expanded_args.push_back(hook.command);  // argv[0]
         for (const auto& arg : hook.args) {
@@ -506,56 +509,79 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
         }
 
 #ifndef _WIN32
-        // POSIX: fork + execvp with per-call wall-clock timeout (thread-safe)
-        int stderr_pipe[2];
-        if (pipe(stderr_pipe) != 0) return;
+        // POSIX: fork + execv with per-call wall-clock timeout (thread-safe)
 
-        pid_t pid = fork();
-        if (pid < 0) {
-            close(stderr_pipe[0]);
-            close(stderr_pipe[1]);
-            return;
+        // Build argv BEFORE fork — push_back may malloc, deadlocking
+        // if another thread holds the allocator lock at fork time.
+        std::vector<const char*> argv;
+        for (const auto& a : expanded_args) argv.push_back(a.c_str());
+        argv.push_back(nullptr);
+
+        // Resolve command path before fork — execvp does PATH search which
+        // may malloc (not async-signal-safe). execv is async-signal-safe.
+        std::string resolved_cmd = hook.command;
+        if (hook.command.find('/') == std::string::npos) {
+            const char* path_env = getenv("PATH");
+            if (path_env) {
+                std::istringstream path_stream(path_env);
+                std::string dir;
+                while (std::getline(path_stream, dir, ':')) {
+                    std::string candidate = dir + "/" + hook.command;
+                    if (access(candidate.c_str(), X_OK) == 0) {
+                        resolved_cmd = candidate;
+                        break;
+                    }
+                }
+            }
         }
 
+        pid_t pid = fork();
+        if (pid < 0) return;
+
         if (pid == 0) {
-            // Child: redirect stderr to pipe, stdout to /dev/null, set alarm, exec
-            close(stderr_pipe[0]);
-            dup2(stderr_pipe[1], STDERR_FILENO);
-            close(stderr_pipe[1]);
+            // === CHILD (only async-signal-safe calls below) ===
+
+            // V-SC-006: scrub governance keys from child environment.
+            // unsetenv is technically not async-signal-safe, but these 3 calls
+            // on constant strings have near-zero practical risk (no allocation in glibc).
+            if (!hook.inherit_governance_keys) {
+                unsetenv("NAAB_GOVERN_KEY");
+                unsetenv("NAAB_LOCK_KEY");
+                unsetenv("NAAB_SIGNING_KEY");
+            }
+
+            // Redirect stdout+stderr to /dev/null
             int devnull = open("/dev/null", O_WRONLY);
-            if (devnull >= 0) { dup2(devnull, STDOUT_FILENO); close(devnull); }
+            if (devnull >= 0) {
+                dup2(devnull, STDOUT_FILENO);
+                dup2(devnull, STDERR_FILENO);
+                close(devnull);
+            }
 
             // Per-call timeout via alarm (child process — no thread conflicts)
             if (hook.timeout > 0) alarm(static_cast<unsigned>(hook.timeout));
 
-            std::vector<const char*> argv;
-            for (const auto& a : expanded_args) argv.push_back(a.c_str());
-            argv.push_back(nullptr);
-
-            execvp(hook.command.c_str(), const_cast<char* const*>(argv.data()));
+            execv(resolved_cmd.c_str(), const_cast<char* const*>(argv.data()));
             _exit(127);  // exec failed
         }
 
         // Parent: poll waitpid with wall-clock timeout
-        close(stderr_pipe[1]);
-
-        // Set read end non-blocking for interleaved drain
-        int fl = fcntl(stderr_pipe[0], F_GETFL, 0);
-        if (fl >= 0) fcntl(stderr_pipe[0], F_SETFL, fl | O_NONBLOCK);
-
         auto start = std::chrono::steady_clock::now();
         int timeout_ms = (hook.timeout > 0 ? hook.timeout : 5) * 1000;
         int status = 0;
         bool timed_out = false;
 
         while (true) {
-            // Drain stderr pipe (cap capture at 1 KiB)
-            char buf[256];
-            while (read(stderr_pipe[0], buf, sizeof(buf)) > 0) {}
-
             pid_t w = waitpid(pid, &status, WNOHANG);
             if (w == pid) break;
-            if (w == -1 && errno != EINTR) break;
+            if (w == -1) {
+                if (errno == EINTR) continue;
+                // ECHILD or other fatal error — kill and reap to prevent orphan/zombie
+                kill(pid, SIGKILL);
+                waitpid(pid, &status, 0);
+                status = -1;
+                break;
+            }
 
             auto elapsed = std::chrono::steady_clock::now() - start;
             if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > timeout_ms) {
@@ -567,8 +593,6 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             usleep(50000);  // 50ms poll
         }
 
-        close(stderr_pipe[0]);
-
         // Diagnostic to stderr (generic — never include command or args)
         if (timed_out) {
             fprintf(stderr, "[governance] Hook killed (timeout)\n");
@@ -579,12 +603,93 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
             fprintf(stderr, "[governance] Hook exited %d\n", WEXITSTATUS(status));
         }
 #else
-        // Windows: fire-and-forget via CreateProcess (no per-call timeout yet)
-        std::string cmd = hook.command;
+        // Windows: CreateProcessA with per-call timeout (no shell — no cmd.exe injection)
+        auto quoteArg = [](const std::string& s) -> std::string {
+            bool needs_quote = s.empty() ||
+                               s.find(' ') != std::string::npos ||
+                               s.find('"') != std::string::npos ||
+                               s.find('\t') != std::string::npos;
+            if (!needs_quote) return s;
+            std::string result = "\"";
+            for (char c : s) {
+                if (c == '"') result += "\\\"";
+                else result += c;
+            }
+            result += '"';
+            return result;
+        };
+
+        std::string cmdline = quoteArg(hook.command);
         for (size_t i = 1; i < expanded_args.size(); ++i) {
-            cmd += " " + expanded_args[i];
+            cmdline += ' ';
+            cmdline += quoteArg(expanded_args[i]);
         }
-        (void)system(cmd.c_str());
+
+        // V-SC-006: Build filtered environment block to scrub governance keys
+        std::vector<char> env_block;
+        LPVOID env_ptr = nullptr;
+        if (!hook.inherit_governance_keys) {
+            LPCH cur_env = ::GetEnvironmentStringsA();
+            if (cur_env) {
+                for (LPCH p = cur_env; *p; ) {
+                    std::string entry(p);
+                    p += entry.size() + 1;
+                    size_t eq = entry.find('=');
+                    if (eq != std::string::npos) {
+                        std::string key = entry.substr(0, eq);
+                        if (shouldScrubEnvVar(key)) continue;
+                    }
+                    for (char c : entry) env_block.push_back(c);
+                    env_block.push_back('\0');
+                }
+                ::FreeEnvironmentStringsA(cur_env);
+            }
+            env_block.push_back('\0');  // double-null terminator
+            env_ptr = env_block.data();
+        }
+
+        SECURITY_ATTRIBUTES sa = {};
+        sa.nLength = sizeof(sa);
+        sa.bInheritHandle = TRUE;
+        HANDLE hNul = ::CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE,
+                                    &sa, OPEN_EXISTING, 0, nullptr);
+
+        STARTUPINFOA si = {};
+        si.cb = sizeof(si);
+        if (hNul != INVALID_HANDLE_VALUE) {
+            si.dwFlags = STARTF_USESTDHANDLES;
+            si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+            si.hStdOutput = hNul;
+            si.hStdError = hNul;
+        }
+
+        PROCESS_INFORMATION pi = {};
+        std::vector<char> cmdline_buf(cmdline.begin(), cmdline.end());
+        cmdline_buf.push_back('\0');
+
+        BOOL ok = ::CreateProcessA(nullptr, cmdline_buf.data(),
+                                   nullptr, nullptr,
+                                   hNul != INVALID_HANDLE_VALUE,
+                                   0, env_ptr, nullptr, &si, &pi);
+        if (hNul != INVALID_HANDLE_VALUE) ::CloseHandle(hNul);
+
+        if (ok) {
+            DWORD timeout_ms = static_cast<DWORD>(
+                (hook.timeout > 0 ? hook.timeout : 5) * 1000);
+            DWORD waitRc = ::WaitForSingleObject(pi.hProcess, timeout_ms);
+            if (waitRc == WAIT_TIMEOUT) {
+                ::TerminateProcess(pi.hProcess, 1);
+                ::WaitForSingleObject(pi.hProcess, 1000);
+                fprintf(stderr, "[governance] Hook killed (timeout)\n");
+            } else {
+                DWORD exit_code = 0;
+                if (::GetExitCodeProcess(pi.hProcess, &exit_code) && exit_code != 0) {
+                    fprintf(stderr, "[governance] Hook exited %lu\n", exit_code);
+                }
+            }
+            ::CloseHandle(pi.hThread);
+            ::CloseHandle(pi.hProcess);
+        }
 #endif
     } catch (...) {
         // Hook failures must NEVER mask governance enforcement

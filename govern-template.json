@@ -1174,8 +1174,11 @@
     "command: executable path (no shell pipelines — use a script file for shell logic).",
     "args: array of arguments. ${variable} placeholders are substituted per hook type.",
     "timeout: wall-clock seconds before SIGKILL (default 5). Enforced per-call.",
-    "Hooks are fire-and-forget — failures never mask governance enforcement.",
-    "Uses execvp (no shell) — no shell injection possible.",
+    "Hooks are synchronous — the caller blocks until the hook exits or times out (default 5s).",
+    "Hook failures never mask governance enforcement.",
+    "POSIX: uses execv (no shell). Windows: uses CreateProcess (no cmd.exe). No shell injection possible.",
+    "inherit_governance_keys: if true, hook child inherits NAAB_GOVERN_KEY (default false).",
+    "  Only enable for hooks that need to re-sign govern.json after tightening.",
     "",
     "on_violation vars: ${rule_name}, ${level}, ${file}, ${line}, ${category}",
     "  level values: hard, detect, approval_denied, soft, advisory_escalated",
@@ -1190,27 +1193,32 @@
     "on_violation": {
       "command": "",
       "args": [],
-      "timeout": 5
+      "timeout": 5,
+      "inherit_governance_keys": false
     },
     "on_override": {
       "command": "",
       "args": [],
-      "timeout": 5
+      "timeout": 5,
+      "inherit_governance_keys": false
     },
     "on_complete": {
       "command": "",
       "args": [],
-      "timeout": 5
+      "timeout": 5,
+      "inherit_governance_keys": false
     },
     "pre_check": {
       "command": "",
       "args": [],
-      "timeout": 5
+      "timeout": 5,
+      "inherit_governance_keys": false
     },
     "post_check": {
       "command": "",
       "args": [],
-      "timeout": 5
+      "timeout": 5,
+      "inherit_governance_keys": false
     }
   },
 
