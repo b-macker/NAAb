@@ -1303,9 +1303,9 @@ if [ -f "$GOV_CONFIG_SCRIPT" ]; then
     if bash "$GOV_CONFIG_SCRIPT" 2>&1; then
         echo "  test_govern_json_config.sh: ALL PASSED"
     else
-        echo "  test_govern_json_config.sh: SOME FAILURES (pre-existing, not counted)"
-        # Not counted as failure — pre-existing CI-only issue
-        # FAILED_TESTS+=("test_govern_json_config.sh")
+        echo "  test_govern_json_config.sh: SOME FAILURES"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_govern_json_config.sh")
     fi
 else
     echo "  test_govern_json_config.sh: not found, skipping"

@@ -408,6 +408,11 @@ target_include_directories(naab_security PRIVATE
 )
 target_link_libraries(naab_security
     naab_analyzer
+    naab_runtime   # governance_engine.cpp calls writeFileSecure (secure_file.cpp).
+                   # Cyclic with naab_runtime -> naab_security; CMake resolves
+                   # static-lib cycles by repeating archives on the link line.
+                   # Without this edge, targets that don't happen to list a
+                   # workable order explicitly (naab-repl*) fail to link.
     fmt::fmt
 )
 # Link OpenSSL if available

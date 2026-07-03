@@ -1,6 +1,7 @@
 // NAAb REPL with Readline Support - Enhanced editing with linenoise
 // Arrow keys, Ctrl+R search, auto-completion, and full history support
 
+#include "naab/config.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -315,7 +316,7 @@ private:
         fmt::print("\n");
         fmt::print("\033[36m╔═══════════════════════════════════════════════════════╗\033[0m\n");
         fmt::print("\033[36m║\033[0m  \033[1mNAAb REPL\033[0m — Interactive Shell (linenoise)          \033[36m║\033[0m\n");
-        fmt::print("\033[36m║\033[0m  Version 0.9.0                                       \033[36m║\033[0m\n");
+        fmt::print("\033[36m║\033[0m  Version {:<45}\033[36m║\033[0m\n", NAAB_VERSION_STRING);
         fmt::print("\033[36m╚═══════════════════════════════════════════════════════╝\033[0m\n");
         fmt::print("\n");
         fmt::print("Features:\n");
@@ -325,8 +326,7 @@ private:
         fmt::print("  • Ctrl+A/E for line start/end\n");
         fmt::print("  • Ctrl+U to clear line\n");
         fmt::print("\n");
-        fmt::print("Type :help for help, :exit to quit\n");
-        fmt::print("24,167 blocks available\n\n");
+        fmt::print("Type :help for help, :exit to quit\n\n");
     }
 
     void handleCommand(const std::string& cmd) {
@@ -343,7 +343,6 @@ private:
         } else if (cmd == ":history") {
             printHistory();
         } else if (cmd == ":blocks") {
-            fmt::print("24,167 blocks available in registry\n");
             fmt::print("Use 'use BLOCK-ID as Name' to load a block\n");
         } else if (cmd == ":reset") {
             fmt::print("Resetting interpreter state...\n");

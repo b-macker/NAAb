@@ -47,6 +47,13 @@ check "context.cpp source exists" \
     "$([ -f "${ROOT_DIR}/src/interpreter/context.cpp" ] && echo 0 || echo 1)"
 
 # Test 6: libnaab.a (or libnaab.so) was built
+# The libnaab target is not part of the default naab-lang build, so build it
+# here if the CMake cache exists rather than asserting on a target nobody ran.
+if [ -f "${BUILD_DIR}/CMakeCache.txt" ] && \
+   ! { [ -f "${BUILD_DIR}/libnaab.a" ] || [ -f "${BUILD_DIR}/libnaab.so" ]; }; then
+    echo "  (building libnaab target...)"
+    cmake --build "${BUILD_DIR}" --target libnaab -j"$(nproc 2>/dev/null || echo 2)" > /dev/null 2>&1
+fi
 check "libnaab.a or libnaab.so was built" \
     "$(( [ -f "${BUILD_DIR}/libnaab.a" ] || [ -f "${BUILD_DIR}/libnaab.so" ] ) && echo 0 || echo 1)"
 

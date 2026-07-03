@@ -1,6 +1,7 @@
 // NAAb REPL - Interactive shell
 // Read-Eval-Print Loop with history and multi-line support
 
+#include "naab/config.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -115,7 +116,7 @@ private:
         fmt::print("\n");
         fmt::print("╔═══════════════════════════════════════════════════════╗\n");
         fmt::print("║  NAAb Block Assembly Language - Interactive Shell    ║\n");
-        fmt::print("║  Version 0.1.0                                        ║\n");
+        fmt::print("║  Version {:<45}║\n", NAAB_VERSION_STRING);
         fmt::print("╚═══════════════════════════════════════════════════════╝\n");
         fmt::print("\n");
         fmt::print("Type :help for help, :exit to quit\n");
