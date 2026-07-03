@@ -165,8 +165,12 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
         }
     }
 
-    // Pre-execution governance: validate scope patterns, require main block
+    // Pre-execution governance: fire pre_check hook, validate scope patterns, require main block
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        governance_->fireHook(governance_->getRules().hooks.pre_check, {
+            {"file", current_file_}
+        });
+
         // Collect function names from globals for scope validation
         std::vector<std::string> func_names;
         for (auto& [gname, gval] : globals_) {
@@ -222,6 +226,16 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
             }
         }
         governance_->writeReports();
+
+        // Fire post_check and on_complete hooks (only reachable on clean completion)
+        governance_->fireHook(governance_->getRules().hooks.post_check, {
+            {"file", current_file_},
+            {"status", governance::g_governance_hard_block ? "blocked" : "passed"}
+        });
+        governance_->fireHook(governance_->getRules().hooks.on_complete, {
+            {"file", current_file_},
+            {"status", "passed"}
+        });
     }
 
     return result;

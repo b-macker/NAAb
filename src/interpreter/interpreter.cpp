@@ -889,6 +889,13 @@ void Interpreter::visit(ast::Program& node) {
         export_stmt->accept(*this);
     }
 
+    // Fire pre_check hook before governance validation
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        governance_->fireHook(governance_->getRules().hooks.pre_check, {
+            {"file", current_file_}
+        });
+    }
+
     // FIX-DX-8: Validate scope patterns against actual function names
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
         auto all_names = current_env_->getAllNames();
@@ -962,6 +969,16 @@ void Interpreter::visit(ast::Program& node) {
         }
         // Write any configured report files (JSON, SARIF, JUnit, CSV, HTML)
         governance_->writeReports();
+
+        // Fire post_check and on_complete hooks (only reachable on clean completion)
+        governance_->fireHook(governance_->getRules().hooks.post_check, {
+            {"file", current_file_},
+            {"status", governance::g_governance_hard_block ? "blocked" : "passed"}
+        });
+        governance_->fireHook(governance_->getRules().hooks.on_complete, {
+            {"file", current_file_},
+            {"status", "passed"}
+        });
     }
 
     // Scanner: Auto-run if govern.json has a "scanner" section

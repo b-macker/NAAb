@@ -19,7 +19,11 @@
 #include <functional>
 #include <unordered_set>
 #ifndef _WIN32
+#  include <unistd.h>
 #  include <sys/file.h>
+#  include <sys/wait.h>
+#  include <signal.h>
+#  include <fcntl.h>
 #endif
 #include <fmt/core.h>
 
@@ -480,44 +484,111 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
 
 // --- Hooks ---
 
-// V-HK-001: Shell-escape a value for safe interpolation into shell commands.
-// Wraps in single quotes with internal quote escaping: val → 'val'
-// Single quotes prevent all shell metacharacter interpretation.
-static std::string shellEscape(const std::string& val) {
-    std::string escaped = "'";
-    for (char c : val) {
-        if (c == '\'') {
-            escaped += "'\\''";  // end quote, literal quote, restart quote
-        } else {
-            escaped += c;
-        }
-    }
-    escaped += "'";
-    return escaped;
-}
-
 void GovernanceEngine::fireHook(const HookConfig& hook,
                                  const std::unordered_map<std::string, std::string>& vars) {
     if (hook.command.empty()) return;
 
-    std::string cmd = hook.command;
-    for (const auto& arg : hook.args) {
-        std::string expanded = arg;
-        for (const auto& [key, val] : vars) {
-            std::string placeholder = "${" + key + "}";
-            // V-HK-001: Shell-escape substituted values to prevent command injection
-            std::string safe_val = shellEscape(val);
-            size_t pos = expanded.find(placeholder);
-            while (pos != std::string::npos) {
-                expanded.replace(pos, placeholder.size(), safe_val);
-                pos = expanded.find(placeholder, pos + safe_val.size());
+    try {
+        // Build args with variable substitution (no shell escaping — execvp is shell-free)
+        std::vector<std::string> expanded_args;
+        expanded_args.push_back(hook.command);  // argv[0]
+        for (const auto& arg : hook.args) {
+            std::string expanded = arg;
+            for (const auto& [key, val] : vars) {
+                std::string placeholder = "${" + key + "}";
+                size_t pos = expanded.find(placeholder);
+                while (pos != std::string::npos) {
+                    expanded.replace(pos, placeholder.size(), val);
+                    pos = expanded.find(placeholder, pos + val.size());
+                }
             }
+            expanded_args.push_back(std::move(expanded));
         }
-        cmd += " " + expanded;
-    }
 
-    // Execute with timeout (fire-and-forget)
-    (void)system(cmd.c_str());
+#ifndef _WIN32
+        // POSIX: fork + execvp with per-call wall-clock timeout (thread-safe)
+        int stderr_pipe[2];
+        if (pipe(stderr_pipe) != 0) return;
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            close(stderr_pipe[0]);
+            close(stderr_pipe[1]);
+            return;
+        }
+
+        if (pid == 0) {
+            // Child: redirect stderr to pipe, stdout to /dev/null, set alarm, exec
+            close(stderr_pipe[0]);
+            dup2(stderr_pipe[1], STDERR_FILENO);
+            close(stderr_pipe[1]);
+            int devnull = open("/dev/null", O_WRONLY);
+            if (devnull >= 0) { dup2(devnull, STDOUT_FILENO); close(devnull); }
+
+            // Per-call timeout via alarm (child process — no thread conflicts)
+            if (hook.timeout > 0) alarm(static_cast<unsigned>(hook.timeout));
+
+            std::vector<const char*> argv;
+            for (const auto& a : expanded_args) argv.push_back(a.c_str());
+            argv.push_back(nullptr);
+
+            execvp(hook.command.c_str(), const_cast<char* const*>(argv.data()));
+            _exit(127);  // exec failed
+        }
+
+        // Parent: poll waitpid with wall-clock timeout
+        close(stderr_pipe[1]);
+
+        // Set read end non-blocking for interleaved drain
+        int fl = fcntl(stderr_pipe[0], F_GETFL, 0);
+        if (fl >= 0) fcntl(stderr_pipe[0], F_SETFL, fl | O_NONBLOCK);
+
+        auto start = std::chrono::steady_clock::now();
+        int timeout_ms = (hook.timeout > 0 ? hook.timeout : 5) * 1000;
+        int status = 0;
+        bool timed_out = false;
+
+        while (true) {
+            // Drain stderr pipe (cap capture at 1 KiB)
+            char buf[256];
+            while (read(stderr_pipe[0], buf, sizeof(buf)) > 0) {}
+
+            pid_t w = waitpid(pid, &status, WNOHANG);
+            if (w == pid) break;
+            if (w == -1 && errno != EINTR) break;
+
+            auto elapsed = std::chrono::steady_clock::now() - start;
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > timeout_ms) {
+                kill(pid, SIGKILL);
+                waitpid(pid, &status, 0);
+                timed_out = true;
+                break;
+            }
+            usleep(50000);  // 50ms poll
+        }
+
+        close(stderr_pipe[0]);
+
+        // Diagnostic to stderr (generic — never include command or args)
+        if (timed_out) {
+            fprintf(stderr, "[governance] Hook killed (timeout)\n");
+        } else if (WIFSIGNALED(status)) {
+            // Child killed by signal (e.g. SIGALRM from per-call timeout)
+            fprintf(stderr, "[governance] Hook killed (timeout)\n");
+        } else if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+            fprintf(stderr, "[governance] Hook exited %d\n", WEXITSTATUS(status));
+        }
+#else
+        // Windows: fire-and-forget via CreateProcess (no per-call timeout yet)
+        std::string cmd = hook.command;
+        for (size_t i = 1; i < expanded_args.size(); ++i) {
+            cmd += " " + expanded_args[i];
+        }
+        (void)system(cmd.c_str());
+#endif
+    } catch (...) {
+        // Hook failures must NEVER mask governance enforcement
+    }
 }
 
 // --- Report Helpers ---

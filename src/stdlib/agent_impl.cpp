@@ -1912,6 +1912,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"history_messages", std::to_string(history_message_count)},
                                 {"history_mode", cb.step_up_challenge_history}
                             });
+                            gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                                {"rule_name", "step_up_challenge_fail"},
+                                {"level", "hard"},
+                                {"agent", config_name},
+                                {"turn", std::to_string(current_turn)}
+                            });
                             throw governance::GovernanceHardError(
                                 "Agent error: Step-up challenge failed\n\n"
                                 "  Help:\n"
@@ -2117,6 +2123,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 s_dispatch.stop_reason = "max_calls_per_run (" + std::to_string(hs.max_calls_per_run) + ") exceeded";
                 reason = s_dispatch.stop_reason;
             }
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                    {"rule_name", "max_calls_hard_stop"},
+                    {"level", "hard"},
+                    {"agent", config_name},
+                    {"reason", reason}
+                });
+            }
             throw std::runtime_error("Agent error: Hard stop — " + reason);
         }
 
@@ -2137,6 +2151,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             s_dispatch.hard_stopped = true;
             s_dispatch.stop_reason = "max_agent_time_ms (" + std::to_string(hs.max_agent_time_ms) + ") exceeded";
             if (!result.response.success) {
+                if (gov_engine && gov_engine->isActive()) {
+                    gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                        {"rule_name", "max_time_hard_stop"},
+                        {"level", "hard"},
+                        {"agent", config_name},
+                        {"reason", s_dispatch.stop_reason}
+                    });
+                }
                 throw std::runtime_error("Agent error: Hard stop — " + s_dispatch.stop_reason);
             }
         }
@@ -2293,6 +2315,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"reason", reason},
                     {"total_calls", std::to_string(s_dispatch.total_calls.load())},
                     {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
+                });
+                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                    {"rule_name", "consecutive_failures"},
+                    {"level", "hard"},
+                    {"agent", config_name},
+                    {"reason", reason}
                 });
             }
             throw std::runtime_error("Agent error: Hard stop — " + reason +
@@ -3352,6 +3380,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"violation",     contract_error},
                     {"content_length", std::to_string(content.size())}
                 });
+                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                    {"rule_name", "contract_violation"},
+                    {"level", "hard"},
+                    {"agent", config_name},
+                    {"turn", std::to_string(current_turn)}
+                });
             }
             // Block the response by throwing an error
             throw std::runtime_error(
@@ -3716,6 +3750,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             transcript_entry["temporal_coupling"] = coupling_err.empty() ? "pass" : "warn";
         }
         if (!coupling_err.empty()) {
+            gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                {"rule_name", "temporal_coupling"},
+                {"level", "hard"},
+                {"agent", config_name},
+                {"turn", std::to_string(current_turn)}
+            });
             throw std::runtime_error(coupling_err);
         }
     }

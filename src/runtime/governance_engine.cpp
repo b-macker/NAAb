@@ -1073,6 +1073,12 @@ std::string GovernanceEngine::enforce(
         case EnforcementLevel::HARD:
             g_governance_hard_block = true;
             emitRefusalAttestation(rule_name, level, "hard", violation_message);
+            fireHook(rules().hooks.on_violation, {
+                {"rule_name", rule_name}, {"level", "hard"},
+                {"file", current_check_file_},
+                {"line", std::to_string(current_check_line_)},
+                {"category", cat}
+            });
             throw GovernanceHardError(violation_message);
 
         case EnforcementLevel::DETECT:
@@ -1080,6 +1086,12 @@ std::string GovernanceEngine::enforce(
             // NAAb try/catch CAN catch this — used for governance tests that
             // verify violation detection without being killed.
             emitRefusalAttestation(rule_name, level, "detect", violation_message);
+            fireHook(rules().hooks.on_violation, {
+                {"rule_name", rule_name}, {"level", "detect"},
+                {"file", current_check_file_},
+                {"line", std::to_string(current_check_line_)},
+                {"category", cat}
+            });
             throw std::runtime_error(violation_message);
 
         case EnforcementLevel::APPROVAL_REQUIRED: {
@@ -1092,6 +1104,12 @@ std::string GovernanceEngine::enforce(
             }
             g_governance_hard_block = true;
             emitRefusalAttestation(rule_name, level, "approval_denied", violation_message);
+            fireHook(rules().hooks.on_violation, {
+                {"rule_name", rule_name}, {"level", "approval_denied"},
+                {"file", current_check_file_},
+                {"line", std::to_string(current_check_line_)},
+                {"category", cat}
+            });
             throw GovernanceHardError(violation_message +
                 "\n\n  This rule requires explicit approval.\n"
                 "  The project owner can provide a signed token.\n");
@@ -1114,12 +1132,25 @@ std::string GovernanceEngine::enforce(
                         fmt::format("agent='{}'", agent_id_));
                 }
                 override_counts_[agent_id_]++;
+                fireHook(rules().hooks.on_override, {
+                    {"rule_name", rule_name},
+                    {"agent_id", agent_id_},
+                    {"override_reason", override_reason_},
+                    {"file", current_check_file_},
+                    {"line", std::to_string(current_check_line_)}
+                });
                 fprintf(stderr, "[governance] OVERRIDE %s\n", rule_name.c_str());
                 return "";  // Don't block
             }
             // naab-29 L-09: SOFT without override is a governance block (exit 3)
             g_governance_hard_block = true;
             emitRefusalAttestation(rule_name, level, "soft_no_override", violation_message);
+            fireHook(rules().hooks.on_violation, {
+                {"rule_name", rule_name}, {"level", "soft"},
+                {"file", current_check_file_},
+                {"line", std::to_string(current_check_line_)},
+                {"category", cat}
+            });
             throw GovernanceHardError(violation_message);
 
         case EnforcementLevel::ADVISORY: {
@@ -1142,6 +1173,11 @@ std::string GovernanceEngine::enforce(
                 adv_lock.unlock();  // release before attestation (avoids deadlock)
                 emitRefusalAttestation(rule_name, EnforcementLevel::HARD,
                     "advisory_escalation", escalation_msg);
+                fireHook(rules().hooks.on_violation, {
+                    {"rule_name", rule_name}, {"level", "advisory_escalated"},
+                    {"occurrence", std::to_string(occ_copy)},
+                    {"category", cat}
+                });
                 throw GovernanceHardError(escalation_msg);
             }
 

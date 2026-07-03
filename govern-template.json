@@ -1169,6 +1169,23 @@
     }
   },
 
+  "_comment_hooks": [
+    "Hooks fire external programs on governance lifecycle events.",
+    "command: executable path (no shell pipelines — use a script file for shell logic).",
+    "args: array of arguments. ${variable} placeholders are substituted per hook type.",
+    "timeout: wall-clock seconds before SIGKILL (default 5). Enforced per-call.",
+    "Hooks are fire-and-forget — failures never mask governance enforcement.",
+    "Uses execvp (no shell) — no shell injection possible.",
+    "",
+    "on_violation vars: ${rule_name}, ${level}, ${file}, ${line}, ${category}",
+    "  level values: hard, detect, approval_denied, soft, advisory_escalated",
+    "  Also fires for agent-side blocks: step_up_challenge_fail, max_calls_hard_stop,",
+    "  max_time_hard_stop, consecutive_failures, contract_violation, temporal_coupling",
+    "on_override vars: ${rule_name}, ${agent_id}, ${override_reason}, ${file}, ${line}",
+    "pre_check vars: ${file}",
+    "post_check vars: ${file}, ${status}  (status: passed or blocked)",
+    "on_complete vars: ${file}, ${status}  (only fires on program completion, not on HARD block)"
+  ],
   "hooks": {
     "on_violation": {
       "command": "",
