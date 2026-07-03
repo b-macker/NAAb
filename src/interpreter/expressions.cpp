@@ -1062,7 +1062,13 @@ void Interpreter::visit(ast::LiteralExpr& node) {
             break;
         }
         case ast::LiteralKind::Float:
-            result_ = NaabVal::makeDouble(std::stod(node.getValue()));
+            // std::stod throws std::out_of_range on values exceeding double
+            // (e.g. 1e400); surface a clear message instead of leaking "stod".
+            try {
+                result_ = NaabVal::makeDouble(std::stod(node.getValue()));
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Invalid float literal: " + node.getValue());
+            }
             break;
 
         case ast::LiteralKind::String: {

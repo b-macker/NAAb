@@ -250,17 +250,16 @@ int Debugger::getCurrentDepth() const {
 
 // Variable inspection
 interpreter::NaabVal Debugger::inspectVariable(const std::string& name) {
-    (void)name; // TODO: Use when Environment interface is available
-
     if (!current_environment_) {
         return interpreter::NaabVal::makeNull();
     }
 
-    // Try to get variable from current environment
-    // Note: This requires access to Environment::get() method
-    // Implementation depends on Environment class interface
-    // For now, return null - will be implemented when integrating with interpreter
-    return interpreter::NaabVal::makeNull();
+    // Look the name up in the live environment captured at the current step.
+    // has() walks the scope chain; get() throws if absent, so guard with has().
+    if (!current_environment_->has(name)) {
+        return interpreter::NaabVal::makeNull();
+    }
+    return current_environment_->get(name);
 }
 
 std::map<std::string, interpreter::NaabVal> Debugger::listLocalVariables() {
