@@ -3,6 +3,7 @@
 
 #include "naab/stack_tracer.h"
 #include "naab/stack_formatter.h"  // Phase 4.2.6: Enhanced formatting
+#include "naab/error_reporter.h"   // Diagnostic::isGlobalColorEnabled()
 #include <sstream>
 
 namespace naab {
@@ -39,10 +40,12 @@ std::string StackTracer::formatTrace() {
         return "<empty stack trace>";
     }
 
-    // Phase 4.2.6: Use enhanced formatter with color support
-    // TODO: Check global color setting from Diagnostic::isGlobalColorEnabled()
-    // For now, use colored output by default
-    return StackFormatter::formatColored(stack_);
+    // Phase 4.2.6: Use enhanced formatter, honoring the global color setting.
+    // Traces are interpolated into exception messages that land in logs/pipes,
+    // so respect --no-color and non-TTY output rather than always emitting ANSI.
+    return Diagnostic::isGlobalColorEnabled()
+        ? StackFormatter::formatColored(stack_)
+        : StackFormatter::formatPlain(stack_);
 }
 
 } // namespace error

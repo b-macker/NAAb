@@ -1318,6 +1318,7 @@ if [ -f "$DRIFT_SCRIPT" ]; then
         echo "  test_drift_detection.sh: ALL PASSED"
     else
         echo "  test_drift_detection.sh: SOME FAILURES"
+        FAILED=$((FAILED + 1))
         FAILED_TESTS+=("test_drift_detection.sh")
     fi
 else
@@ -1416,10 +1417,52 @@ if [ -f "$UNCATCHABLE_SCRIPT" ]; then
     if bash "$UNCATCHABLE_SCRIPT" 2>&1; then
         echo "  test_uncatchable.sh: ALL PASSED"
     else
+        FAILED=$((FAILED + 1))
         FAILED_TESTS+=("test_uncatchable.sh")
     fi
 else
     echo "  test_uncatchable.sh: not found, skipping"
+fi
+
+# Governance hooks (pre_check/post_check/on_complete/on_violation/on_override)
+HOOKS_SCRIPT="tests/governance_v4/test_hooks.sh"
+if $IS_WINDOWS; then
+    echo "  test_hooks.sh: skipped (fork/execv hook path — POSIX-only)"
+elif [ -f "$HOOKS_SCRIPT" ]; then
+    if bash "$HOOKS_SCRIPT" 2>&1; then
+        echo "  test_hooks.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_hooks.sh")
+    fi
+else
+    echo "  test_hooks.sh: not found, skipping"
+fi
+
+# Output admissibility gate (block/quarantine/attest)
+OUTPUT_ADMIS_SCRIPT="tests/governance_v4/test_output_admissibility.sh"
+if [ -f "$OUTPUT_ADMIS_SCRIPT" ]; then
+    if bash "$OUTPUT_ADMIS_SCRIPT" 2>&1; then
+        echo "  test_output_admissibility.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_output_admissibility.sh")
+    fi
+else
+    echo "  test_output_admissibility.sh: not found, skipping"
+fi
+
+# naab-44 governance gap fixes (windowing, velocity, graduated corrections)
+NAAB44_SCRIPT="tests/governance_v4/test_naab44_fixes.sh"
+if [ -f "$NAAB44_SCRIPT" ]; then
+    if bash "$NAAB44_SCRIPT" 2>&1; then
+        echo "  test_naab44_fixes.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_naab44_fixes.sh")
+    fi
+else
+    echo "  test_naab44_fixes.sh: not found, skipping"
 fi
 
 CONTAINMENT_SCRIPT="tests/security/test_subprocess_containment.sh"
@@ -1429,6 +1472,7 @@ elif [ -f "$CONTAINMENT_SCRIPT" ]; then
     if bash "$CONTAINMENT_SCRIPT" 2>/dev/null; then
         echo "  test_subprocess_containment.sh: ALL PASSED"
     else
+        FAILED=$((FAILED + 1))
         FAILED_TESTS+=("test_subprocess_containment.sh")
     fi
 else

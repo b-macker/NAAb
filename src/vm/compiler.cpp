@@ -532,7 +532,14 @@ void Compiler::visit(ast::LiteralExpr& node) {
             break;
         }
         case ast::LiteralKind::Float: {
-            double val = std::stod(node.getValue());
+            // std::stod throws std::out_of_range on values exceeding double
+            // (e.g. 1e400); surface a clear message instead of leaking "stod".
+            double val;
+            try {
+                val = std::stod(node.getValue());
+            } catch (const std::exception&) {
+                throw std::runtime_error("Invalid float literal: " + node.getValue());
+            }
             int idx = makeConstant(interpreter::NaabVal::makeDouble(val));
             emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
             break;
@@ -641,7 +648,13 @@ void Compiler::visit(ast::UnaryExpr& node) {
             } catch (...) { /* too large, fall through */ }
         }
         if (node.getOp() == ast::UnaryOp::Neg && lit->getLiteralKind() == ast::LiteralKind::Float) {
-            int ci = makeConstant(interpreter::NaabVal::makeDouble(-std::stod(lit->getValue())));
+            double fv;
+            try {
+                fv = std::stod(lit->getValue());
+            } catch (const std::exception&) {
+                throw std::runtime_error("Invalid float literal: " + lit->getValue());
+            }
+            int ci = makeConstant(interpreter::NaabVal::makeDouble(-fv));
             emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
             return;
         }

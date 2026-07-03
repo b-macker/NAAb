@@ -1,0 +1,32 @@
+// Regression: math.floor/ceil/round must not invoke UB casting an
+// out-of-range or NaN double to a 32-bit int. Before the fix these did a
+// bare static_cast<int>(double) which is undefined for |x| >= 2^31 / NaN.
+// After the fix they saturate to INT_MIN/INT_MAX like NaabVal::toInt().
+
+use math
+
+main {
+    // Large positive value — exceeds INT32_MAX (2147483647)
+    let big = math.floor(3000000000.0)
+    print("floor_big:", big)
+
+    // Large negative value — below INT32_MIN (-2147483648)
+    let small = math.ceil(-3000000000.0)
+    print("ceil_small:", small)
+
+    // Ordinary values must still round correctly
+    let a = math.floor(3.7)
+    let b = math.ceil(3.2)
+    let c = math.round(2.5)
+    print("floor:", a, "ceil:", b, "round:", c)
+
+    if a != 3 { throw "floor(3.7) should be 3" }
+    if b != 4 { throw "ceil(3.2) should be 4" }
+    if c != 3 { throw "round(2.5) should be 3" }
+
+    // Saturated values are within int range (no crash / no garbage)
+    if big != 2147483647 { throw "floor(3e9) should saturate to INT_MAX" }
+    if small != -2147483648 { throw "ceil(-3e9) should saturate to INT_MIN" }
+
+    print("PASS: math int-cast clamping")
+}

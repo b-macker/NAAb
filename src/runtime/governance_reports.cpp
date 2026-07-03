@@ -610,11 +610,27 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
                                s.find('"') != std::string::npos ||
                                s.find('\t') != std::string::npos;
             if (!needs_quote) return s;
+            // Windows CommandLineToArgvW quoting: a run of N backslashes
+            // followed by a quote needs 2N+1 backslashes; a trailing run of N
+            // backslashes before the closing quote needs 2N. Escaping only the
+            // quote (as the old code did) mangled args ending in '\' — the
+            // trailing backslash would escape the closing quote and merge args.
             std::string result = "\"";
+            size_t backslashes = 0;
             for (char c : s) {
-                if (c == '"') result += "\\\"";
-                else result += c;
+                if (c == '\\') {
+                    ++backslashes;
+                } else if (c == '"') {
+                    result.append(backslashes * 2 + 1, '\\');
+                    result += '"';
+                    backslashes = 0;
+                } else {
+                    result.append(backslashes, '\\');
+                    result += c;
+                    backslashes = 0;
+                }
             }
+            result.append(backslashes * 2, '\\');  // trailing run, doubled
             result += '"';
             return result;
         };

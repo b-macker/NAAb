@@ -8,6 +8,7 @@
 #include "naab/interpreter.h"
 #include "naab/utils/string_utils.h"
 #include <cmath>
+#include <climits>
 #include <cstdlib>
 #include <ctime>
 #include <random>
@@ -21,6 +22,16 @@ namespace stdlib {
 
 // Forward declaration of helper function
 static double getDouble(const interpreter::NaabVal& val);
+
+// Saturating double->int conversion. A bare static_cast<int> of a double
+// outside [INT_MIN, INT_MAX] (or NaN) is undefined behavior, so clamp the
+// same way NaabVal::toInt() does: NaN -> 0, out-of-range -> INT_MIN/INT_MAX.
+static int clampToInt(double d) {
+    if (std::isnan(d)) return 0;
+    if (d >= static_cast<double>(INT_MAX)) return INT_MAX;
+    if (d <= static_cast<double>(INT_MIN)) return INT_MIN;
+    return static_cast<int>(d);
+}
 
 bool MathModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -84,7 +95,7 @@ interpreter::NaabVal MathModule::call(
             throw std::runtime_error("floor() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return interpreter::NaabVal::makeInt(static_cast<int>(std::floor(x)));
+        return interpreter::NaabVal::makeInt(clampToInt(std::floor(x)));
     }
 
     // Function 5: ceil
@@ -93,7 +104,7 @@ interpreter::NaabVal MathModule::call(
             throw std::runtime_error("ceil() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return interpreter::NaabVal::makeInt(static_cast<int>(std::ceil(x)));
+        return interpreter::NaabVal::makeInt(clampToInt(std::ceil(x)));
     }
 
     // Function 6: round
@@ -102,7 +113,7 @@ interpreter::NaabVal MathModule::call(
             throw std::runtime_error("round() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return interpreter::NaabVal::makeInt(static_cast<int>(std::round(x)));
+        return interpreter::NaabVal::makeInt(clampToInt(std::round(x)));
     }
 
     // Function 6b: round_to - round to N decimal places
