@@ -228,12 +228,13 @@ else
     fail "T23: checkAdmission missing from governance_engine.cpp"
 fi
 
-# T24: agent_impl.cpp calls checkAdmission BEFORE the API call
+# T24: agent_impl.cpp calls checkAdmission BEFORE the API call. The provider
+# entry point was renamed from callAgentMultiTurn to
+# runtime::callAgentWithStatus/WithTools — anchor on the first send site.
 if grep -q 'checkAdmission' "$SRC_AGENT"; then
-    # Verify it appears before callAgentMultiTurn
     ADMISSION_LINE=$(grep -n 'checkAdmission' "$SRC_AGENT" | head -1 | cut -d: -f1)
-    API_CALL_LINE=$(grep -n 'callAgentMultiTurn' "$SRC_AGENT" | head -1 | cut -d: -f1)
-    if [[ "$ADMISSION_LINE" -lt "$API_CALL_LINE" ]]; then
+    API_CALL_LINE=$(grep -n 'runtime::callAgentWith' "$SRC_AGENT" | head -1 | cut -d: -f1)
+    if [[ -n "$API_CALL_LINE" && "$ADMISSION_LINE" -lt "$API_CALL_LINE" ]]; then
         pass "T24: checkAdmission is PRE-CALL (line $ADMISSION_LINE < $API_CALL_LINE)"
     else
         fail "T24: checkAdmission is POST-CALL (should be before API call)"
@@ -444,8 +445,11 @@ else
     fail "T50: PressureWeights missing coherence_acceleration"
 fi
 
-# T51: behavioral_sequence.cpp implements Signal 6 (coherence velocity)
-if grep -q 'Signal 6.*coherence velocity\|coherence_velocity < -0.15' "$SRC_BSD"; then
+# T51: behavioral_sequence.cpp implements Signal 6 (coherence velocity).
+# The hardcoded -0.15 threshold became configurable (thresholds.velocity_drop),
+# so accept either the signal comment or the configurable comparison.
+if grep -qi 'Signal 6.*coherence velocity' "$SRC_BSD" || \
+   grep -q 'coherence_velocity < config_->thresholds.velocity_drop' "$SRC_BSD"; then
     pass "T51: behavioral_sequence.cpp implements Signal 6"
 else
     fail "T51: behavioral_sequence.cpp missing Signal 6"

@@ -86,13 +86,15 @@ fi
 echo ""
 echo "=== Structural Verification ==="
 
-# T9: Prompt scanning is BEFORE the API call (checkSecrets(message before callAgentMultiTurn)
+# T9: Prompt scanning is BEFORE the API call. The provider entry point was
+# renamed from callAgentMultiTurn to runtime::callAgentWithStatus/WithTools,
+# so anchor on the first current send site.
 SECRETS_LINE=$(grep -n 'checkSecrets(message' "$SRC_AGENT" | head -1 | cut -d: -f1)
-API_CALL_LINE=$(grep -n 'callAgentMultiTurn' "$SRC_AGENT" | head -1 | cut -d: -f1)
+API_CALL_LINE=$(grep -n 'runtime::callAgentWith' "$SRC_AGENT" | head -1 | cut -d: -f1)
 if [[ -n "$SECRETS_LINE" && -n "$API_CALL_LINE" ]] && (( SECRETS_LINE < API_CALL_LINE )); then
     pass "T9: outbound checkSecrets (line $SECRETS_LINE) is before API call (line $API_CALL_LINE)"
 else
-    fail "T9: outbound checkSecrets must be before callAgentMultiTurn" \
+    fail "T9: outbound checkSecrets must be before the provider send call" \
          "secrets=$SECRETS_LINE api=$API_CALL_LINE"
 fi
 
