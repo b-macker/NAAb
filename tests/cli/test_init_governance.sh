@@ -58,38 +58,19 @@ done
 # --- Test 4: capabilities has 7 sub-sections ---
 echo ""
 echo "Test 4: Sub-section counts"
-check "capabilities has 7 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"capabilities\"]) == 7, f\"got {len(d[\"capabilities\"])}\"
-' 2>/dev/null"
-check "code_quality has 23 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"code_quality\"]) == 23, f\"got {len(d[\"code_quality\"])}\"
-' 2>/dev/null"
-check "restrictions has 10 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"restrictions\"]) == 10, f\"got {len(d[\"restrictions\"])}\"
-' 2>/dev/null"
-check "requirements has 7 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"requirements\"]) == 7, f\"got {len(d[\"requirements\"])}\"
-' 2>/dev/null"
-check "limits has 6 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"limits\"]) == 6, f\"got {len(d[\"limits\"])}\"
-' 2>/dev/null"
-check "meta has 5 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"meta\"]) == 5, f\"got {len(d[\"meta\"])}\"
-' 2>/dev/null"
-check "hooks has 5 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"hooks\"]) == 5, f\"got {len(d[\"hooks\"])}\"
-' 2>/dev/null"
-check "polyglot has 5 sub-sections" "python3 -c '
-import json; d=json.load(open(\"govern.json\"))
-assert len(d[\"polyglot\"]) == 5, f\"got {len(d[\"polyglot\"])}\"
-' 2>/dev/null"
+# Argv-based helper: the previous inline f-strings nested double quotes
+# inside {len(d["..."])}, which is a SyntaxError on Python < 3.12.
+section_count() {
+    python3 -c 'import json,sys; d=json.load(open("govern.json")); sys.exit(0 if len(d[sys.argv[1]]) == int(sys.argv[2]) else 1)' "$1" "$2" 2>/dev/null
+}
+check "capabilities has 7 sub-sections"  "section_count capabilities 7"
+check "code_quality has 23 sub-sections" "section_count code_quality 23"
+check "restrictions has 10 sub-sections" "section_count restrictions 10"
+check "requirements has 7 sub-sections"  "section_count requirements 7"
+check "limits has 6 sub-sections"        "section_count limits 6"
+check "meta has 5 sub-sections"          "section_count meta 5"
+check "hooks has 5 sub-sections"         "section_count hooks 5"
+check "polyglot has 5 sub-sections"      "section_count polyglot 5"
 
 # --- Test 5: Language selection ---
 echo ""

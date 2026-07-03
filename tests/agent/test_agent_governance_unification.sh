@@ -77,23 +77,27 @@ fi
 echo ""
 echo "=== Structural Verification ==="
 
-# T7: json_valid check appears BEFORE checkContextDrift
+# T7: json_valid check appears BEFORE the response-turn CDD analysis.
+# Anchor CDD on the turn-analysis call site (drift_err = ...checkContextDrift):
+# earlier checkContextDrift occurrences are infrastructure-error feeds in the
+# retry path, which legitimately sit before the json_valid computation.
 JSON_CHECK_LINE=$(grep -n 'json_valid_result' "$SRC_AGENT" | head -1 | cut -d: -f1)
-CDD_LINE=$(grep -n 'checkContextDrift' "$SRC_AGENT" | head -1 | cut -d: -f1)
+CDD_LINE=$(grep -n 'drift_err = gov_engine->checkContextDrift' "$SRC_AGENT" | head -1 | cut -d: -f1)
 if [[ -n "$JSON_CHECK_LINE" && -n "$CDD_LINE" ]] && (( JSON_CHECK_LINE < CDD_LINE )); then
-    pass "T7: json_valid check (line $JSON_CHECK_LINE) is before CDD (line $CDD_LINE)"
+    pass "T7: json_valid check (line $JSON_CHECK_LINE) is before turn CDD (line $CDD_LINE)"
 else
-    fail "T7: json_valid check must be before checkContextDrift" \
+    fail "T7: json_valid check must be before the turn checkContextDrift" \
          "json=$JSON_CHECK_LINE cdd=$CDD_LINE"
 fi
 
-# T8: checkInfoDisclosure appears BEFORE callAgentMultiTurn
+# T8: checkInfoDisclosure appears BEFORE the provider send call (renamed from
+# callAgentMultiTurn to runtime::callAgentWithStatus/WithTools).
 INFO_LINE=$(grep -n 'checkInfoDisclosure' "$SRC_AGENT" | head -1 | cut -d: -f1)
-API_LINE=$(grep -n 'callAgentMultiTurn' "$SRC_AGENT" | head -1 | cut -d: -f1)
+API_LINE=$(grep -n 'runtime::callAgentWith' "$SRC_AGENT" | head -1 | cut -d: -f1)
 if [[ -n "$INFO_LINE" && -n "$API_LINE" ]] && (( INFO_LINE < API_LINE )); then
     pass "T8: checkInfoDisclosure (line $INFO_LINE) is before API call (line $API_LINE)"
 else
-    fail "T8: checkInfoDisclosure must be before callAgentMultiTurn" \
+    fail "T8: checkInfoDisclosure must be before the provider send call" \
          "info=$INFO_LINE api=$API_LINE"
 fi
 

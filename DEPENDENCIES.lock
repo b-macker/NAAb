@@ -1,11 +1,13 @@
 # NAAb Language - Dependency Lockfile
-# Week 3, Task 3.1: Dependency Pinning
-# This file locks all dependency versions for reproducible builds
-# DO NOT EDIT MANUALLY - Regenerate with: scripts/update-dependencies.sh
+# This file locks all dependency versions for reproducible builds.
+# Maintained by hand alongside submodule updates:
+#   - naab_version is kept in sync by scripts/bump-version.sh
+#   - vendored commit pins must match `git submodule status`
+#   - verified in CI by .github/workflows/supply-chain.yml
 
 version: 1
 generated: 2026-07-02T00:00:00Z
-naab_version: 1.4.0
+naab_version: 0.10.0
 
 # ============================================================================
 # Vendored C++ Dependencies (in external/)

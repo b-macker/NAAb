@@ -257,6 +257,11 @@ run_test() {
             NEEDS_TREE_WALK=$((NEEDS_TREE_WALK + 1))
             echo "  XFAIL: $test_name (needs --tree-walk)"
         elif [ -f "$output_file" ] && grep -q "Python support not available" "$output_file"; then
+            # NOTE: this message is printed only by the tree-walker Interpreter
+            # ctor when <Python.h> was absent at compile time. VM-mode runs and
+            # pybind11-less-but-Python.h-present builds never emit it — those
+            # use the GenericSubprocessExecutor fallback instead (which, since
+            # the F7 fix, returns expression values via __NAAB_RETURN__).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
         elif [ $exit_code -eq 124 ]; then
@@ -1303,9 +1308,9 @@ if [ -f "$GOV_CONFIG_SCRIPT" ]; then
     if bash "$GOV_CONFIG_SCRIPT" 2>&1; then
         echo "  test_govern_json_config.sh: ALL PASSED"
     else
-        echo "  test_govern_json_config.sh: SOME FAILURES (pre-existing, not counted)"
-        # Not counted as failure — pre-existing CI-only issue
-        # FAILED_TESTS+=("test_govern_json_config.sh")
+        echo "  test_govern_json_config.sh: SOME FAILURES"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_govern_json_config.sh")
     fi
 else
     echo "  test_govern_json_config.sh: not found, skipping"
@@ -1464,6 +1469,97 @@ if [ -f "$NAAB44_SCRIPT" ]; then
 else
     echo "  test_naab44_fixes.sh: not found, skipping"
 fi
+
+# Rate limiter enforcement (polyglot/stdlib/file-ops rates)
+RATE_SCRIPT="tests/governance_v4/test_rate_limiter.sh"
+if [ -f "$RATE_SCRIPT" ]; then
+    if bash "$RATE_SCRIPT" 2>&1; then
+        echo "  test_rate_limiter.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_rate_limiter.sh")
+    fi
+else
+    echo "  test_rate_limiter.sh: not found, skipping"
+fi
+
+# Agent interaction transcript (self-contained: uses fake API keys)
+TRANSCRIPT_SCRIPT="tests/governance_v4/test_transcript.sh"
+if [ -f "$TRANSCRIPT_SCRIPT" ]; then
+    if bash "$TRANSCRIPT_SCRIPT" 2>&1; then
+        echo "  test_transcript.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_transcript.sh")
+    fi
+else
+    echo "  test_transcript.sh: not found, skipping"
+fi
+
+# Reality checkpoint (unit tests run keyless; live tests self-skip without GK5)
+REALITY_SCRIPT="tests/governance_v4/test_reality_checkpoint.sh"
+if [ -f "$REALITY_SCRIPT" ]; then
+    if bash "$REALITY_SCRIPT" 2>&1; then
+        echo "  test_reality_checkpoint.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_reality_checkpoint.sh")
+    fi
+else
+    echo "  test_reality_checkpoint.sh: not found, skipping"
+fi
+
+# Semantic CDD signals (unit tests run keyless; live tests self-skip without GK1)
+SEMANTIC_SCRIPT="tests/governance_v4/test_semantic_signals.sh"
+if [ -f "$SEMANTIC_SCRIPT" ]; then
+    if bash "$SEMANTIC_SCRIPT" 2>&1; then
+        echo "  test_semantic_signals.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_semantic_signals.sh")
+    fi
+else
+    echo "  test_semantic_signals.sh: not found, skipping"
+fi
+
+# Governance depth runtime checks (fake keys, no network)
+DEPTH_RT_SCRIPT="tests/governance_v4/depth/test_depth_runtime.sh"
+if [ -f "$DEPTH_RT_SCRIPT" ]; then
+    if bash "$DEPTH_RT_SCRIPT" 2>&1; then
+        echo "  test_depth_runtime.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_depth_runtime.sh")
+    fi
+else
+    echo "  test_depth_runtime.sh: not found, skipping"
+fi
+
+# Agent governance source-structure tests (static greps + scanner, no network)
+for agent_script in \
+    "tests/agent/test_agent_governance_symmetry.sh" \
+    "tests/agent/test_agent_governance_unification.sh" \
+    "tests/agent/test_execution_governance.sh" \
+    "tests/agent/test_agent_governance_depth.sh"; do
+    if [ -f "$agent_script" ]; then
+        script_name=$(basename "$agent_script")
+        if bash "$agent_script" 2>&1; then
+            echo "  $script_name: ALL PASSED"
+        else
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$script_name")
+        fi
+    else
+        echo "  $(basename "$agent_script"): not found, skipping"
+    fi
+done
+
+# NOTE: tests/governance_v4/edge/run_edge_tests.sh is intentionally NOT wired
+# here. The main loop above already executes edge/*.naab (exit-code check);
+# the wrapper additionally parses per-file "Edge X/Y" summaries and currently
+# surfaces a real, tracked VM taint-precision defect (edge_09 T9: a tainted
+# return in an UNTAKEN branch taints the taken safe-path return in VM mode;
+# the tree-walker is per-path precise). Wire it once that defect is fixed.
 
 CONTAINMENT_SCRIPT="tests/security/test_subprocess_containment.sh"
 if $IS_WINDOWS; then

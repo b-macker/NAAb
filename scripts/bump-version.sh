@@ -173,7 +173,10 @@ fi
 # Update DEPENDENCIES.lock
 if [ -f "$DEPS_LOCK" ]; then
     echo "Updating DEPENDENCIES.lock..."
-    _sed "s/naab_version: $CURRENT_VERSION/naab_version: $NEW_VERSION/" "$DEPS_LOCK"
+    # Match any current value: anchoring on $CURRENT_VERSION silently no-ops
+    # forever once the field drifts (it sat at a stale value through multiple
+    # bumps while this script printed "updated").
+    _sed "s/^naab_version: .*/naab_version: $NEW_VERSION/" "$DEPS_LOCK"
     echo -e "${GREEN}✓${NC} DEPENDENCIES.lock updated"
 fi
 

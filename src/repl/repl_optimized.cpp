@@ -1,6 +1,7 @@
 // NAAb REPL - Optimized with Incremental Execution
 // O(1) per statement instead of O(n) by only executing new statements
 
+#include "naab/config.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -106,11 +107,10 @@ private:
         fmt::print("\n");
         fmt::print("╔═══════════════════════════════════════════════════════╗\n");
         fmt::print("║  NAAb REPL - Optimized with Incremental Execution    ║\n");
-        fmt::print("║  Version 0.1.0                                        ║\n");
+        fmt::print("║  Version {:<45}║\n", NAAB_VERSION_STRING);
         fmt::print("╚═══════════════════════════════════════════════════════╝\n");
         fmt::print("\n");
         fmt::print("Type :help for help, :exit to quit\n");
-        fmt::print("24,167 blocks available\n");
         fmt::print("Performance: O(1) incremental execution enabled\n\n");
     }
 
@@ -128,7 +128,6 @@ private:
         } else if (cmd == ":history") {
             printHistory();
         } else if (cmd == ":blocks") {
-            fmt::print("24,167 blocks available in registry\n");
             fmt::print("Use 'use BLOCK-ID as Name' to load a block\n");
         } else if (cmd == ":reset") {
             fmt::print("Resetting interpreter state...\n");

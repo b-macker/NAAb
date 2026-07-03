@@ -29,3 +29,8 @@ if [ -n "$FAILED_FILES" ]; then
     echo "FAILURES:$FAILED_FILES"
 fi
 echo "=============================="
+
+# The main runner only checks each edge file's exit code; this wrapper parses
+# the per-file "Edge X/Y" summaries, so it must fail when any file reports
+# internal failures (previously it always exited 0).
+[ -z "$FAILED_FILES" ]
