@@ -122,7 +122,8 @@ fi
 echo ""
 echo "=== Behavioral Tests ==="
 
-TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
+# Termux sets TMPDIR; fall back to /tmp elsewhere
+TMPDIR="${TMPDIR:-/tmp}"
 TEST_DIR="$TMPDIR/test_exec_gov_$$"
 mkdir -p "$TEST_DIR/.naab"
 
