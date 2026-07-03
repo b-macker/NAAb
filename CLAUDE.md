@@ -18,7 +18,7 @@ Binary lands at `build/naab-lang`. A second CLI, `naab-gov` (`src/cli/gov_main.c
 ## Test
 
 ```bash
-# Full suite — 396 tests, 0 unexpected failures
+# Full suite — 438 tests, 0 unexpected failures
 bash run-all-tests.sh   # from the repo root
 
 # Security leak check — 874 checks, 0 failures
@@ -27,7 +27,7 @@ bash tests/security/test_error_msg_leaks.sh
 
 Test categories in `tests/` (non-exhaustive — 40+ directories total): governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, formatter, lsp, platform, chaos, robustness, agent, unit, property.
 
-Expected breakdown: ~334 pass, ~51 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
+Expected breakdown: ~374 pass, ~51 error-behavior (intentional failures), ~12 needs-tree-walk (VM-unsupported features), plus a platform-dependent missing-executor count (tests whose compilers are absent on the platform).
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 

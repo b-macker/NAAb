@@ -745,7 +745,7 @@ Source Code (.naab)
 ```
 
 - **120,000+** lines of C++17
-- **396** regression tests, **331** mono test assertions
+- **438** regression tests
 - **24** standard library modules with **204** error messages
 - Bytecode VM default (~8x faster), tree-walker via `--tree-walk`
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
