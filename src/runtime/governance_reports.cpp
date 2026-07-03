@@ -637,7 +637,7 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
                     size_t eq = entry.find('=');
                     if (eq != std::string::npos) {
                         std::string key = entry.substr(0, eq);
-                        if (shouldScrubEnvVar(key)) continue;
+                        if (naab::runtime::shouldScrubEnvVar(key)) continue;
                     }
                     for (char c : entry) env_block.push_back(c);
                     env_block.push_back('\0');
