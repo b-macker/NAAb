@@ -1122,6 +1122,7 @@ struct HookConfig {
     std::string command;
     std::vector<std::string> args;
     int timeout = 5;
+    bool inherit_governance_keys = false;  // V-SC-006: scrub NAAB keys by default
 };
 
 struct HooksConfig {
