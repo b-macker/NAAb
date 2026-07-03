@@ -10,7 +10,7 @@
 AI agents can read your secrets, encode them, and send them to an external API — all in three steps. NAAb blocks the sequence **before the network call fires.**
 
 ```
-$ naab agent_task.naab
+$ naab-lang agent_task.naab
 
 [governance] Behavioral sequence 'credential_exfiltration' blocked before execution.
 
@@ -74,9 +74,9 @@ The patterns are yours to define. The engine tracks event sequences across your 
 Rules live in `govern.json`, not in prompts. A signed govern.json with Ed25519 means the agent can't modify its own constraints mid-run. A one-way ratchet ensures mid-run reloads can only tighten rules, never loosen them.
 
 ```bash
-naab --keygen ./keys/governance
-naab --sign-governance                    # Sign govern.json
-naab --trust-key ./keys/governance.pub   # Install on CI
+naab-lang --keygen ./keys/governance
+naab-lang --sign-governance                    # Sign govern.json
+naab-lang --trust-key ./keys/governance.pub   # Install on CI
 ```
 
 ---
@@ -121,7 +121,7 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 | **Governance Engine** | 50+ checks, 4-tier policy engine (hard / soft / advisory / detect), `govern.json` config |
 | **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
 | **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
-| **Standard Library** | 24 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, log, uuid, validate, process, io, bolo, agent, governance, codegen, orchestra |
+| **Standard Library** | 24 registered modules — array, string, math, json, http, file, path, time, debug, dict, env, csv, regex, crypto, log, uuid, validate, process, io, bolo, agent, governance, codegen, orchestra |
 | **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline, destructuring |
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
 | **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
@@ -155,6 +155,8 @@ ninja naab-lang -j$(nproc)
 # Start interactive REPL
 ./naab-lang
 ```
+
+Detailed build instructions: [INSTALL.md](INSTALL.md) · Language guide: [USER_GUIDE.md](USER_GUIDE.md) · Release history: [CHANGELOG.md](CHANGELOG.md)
 
 ### Hello World
 
@@ -253,13 +255,13 @@ Define your own regex-based governance rules:
 
 ```bash
 # GitHub Code Scanning (SARIF)
-naab app.naab --governance-report sarif > results.sarif
+naab-lang app.naab --governance-report sarif > results.sarif
 
 # Jenkins / GitLab CI (JUnit XML)
-naab app.naab --governance-report junit > results.xml
+naab-lang app.naab --governance-report junit > results.xml
 
 # Custom tooling (JSON)
-naab app.naab --governance-report json > results.json
+naab-lang app.naab --governance-report json > results.json
 ```
 
 > **[Build your govern.json interactively](https://b-macker.github.io/NAAb/governance.html)** | [Full governance reference (Chapter 21)](docs/book/chapter21.md)
@@ -296,10 +298,10 @@ NAAb supports multi-agent environments where different AI agents have different 
 
 ```bash
 # Run with agent identity
-naab --agent-id analyzer app.naab
+naab-lang --agent-id analyzer app.naab
 
 # View governance dashboard
-naab --agent-id analyzer --governance-dashboard app.naab
+naab-lang --agent-id analyzer --governance-dashboard app.naab
 ```
 
 **Agent features:**
@@ -328,13 +330,13 @@ Trust-anchored signing ensures govern.json integrity:
 
 ```bash
 # Generate keypair
-naab --keygen ./keys/governance
+naab-lang --keygen ./keys/governance
 
 # Sign govern.json
-naab --signing-key ./keys/governance.key --sign-governance
+naab-lang --signing-key ./keys/governance.key --sign-governance
 
 # Install public key on CI/team machines
-naab --trust-key ./keys/governance.pub
+naab-lang --trust-key ./keys/governance.pub
 ```
 
 Signed governance enforces a one-way ratchet — mid-run config reloads can only tighten restrictions, never loosen them.
@@ -346,6 +348,8 @@ Signed governance enforces a one-way ratchet — mid-run config reloads can only
 Use each language where it shines — Python for data science, Rust for performance, JavaScript for web, Go for concurrency, Shell for file ops. Variables flow between languages automatically. No FFI, no serialization, no microservices.
 
 **Supported languages:** Python · JavaScript · Rust · C++ · Go · C# · Ruby · PHP · Shell · Nim · Zig · Julia
+
+> Zig and Julia executors ship with the runtime but are disabled by default in `naab.toml` — flip `zig = true` / `julia = true` under `[polyglot]` to enable them.
 
 ```naab
 main {
@@ -597,6 +601,12 @@ main {
 | `csv` | parse, stringify |
 | `regex` | search, matches, find, find_all, replace, replace_first, split, groups, find_groups, escape, is_valid |
 | `crypto` | hash, sha256, sha512, md5, sha1, random_bytes, random_string, random_int, base64_encode, base64_decode, hex_encode, hex_decode, compare_digest, generate_token, hash_password |
+| `dict` | get, get_or, has_key, keys, values, entries, merge, size |
+| `io` | print, println, input, read_line, read_file, write_file, write_error, exists, list_dir |
+| `log` | debug, info, warn, error, set_level, get_level, set_format, set_output |
+| `process` | run, exit, getpid, kill |
+| `uuid` | v4, v5, nil, is_valid |
+| `validate` | email, url, ip, ipv6, is_int, is_float, is_string, int_range, length, matches, not_empty |
 | `agent` | create, send, run, extract_code, register_tool, batch, fan_out, pipeline, check, key_health, dispatch_status, environment |
 | `codegen` | run, run_with_args, run_strict, supported_languages, is_enabled |
 | `orchestra` | sequential_refinement, consensus_vote, enforce_convergence |
@@ -641,6 +651,12 @@ NAAb accepts multiple keyword styles so AI-generated code works without manual e
 - Semicolons — optional (accepted but not required)
 - `return` — optional in single-expression functions
 
+### Tooling
+
+- **`naab-lsp`** — Language Server Protocol implementation (`tools/naab-lsp/`), built and installed alongside the main binary. Powers the [VS Code extension](vscode-naab/).
+- **`naab-gov`** — standalone governance CLI (`src/cli/gov_main.cpp`) for working with govern.json outside script execution.
+- **Governance C API bindings** — embed the governance engine in other agent frameworks via `bindings/` (C#, Go, Java, Python, Rust), backed by the C API in `src/api/governance_c_api.cpp`.
+
 ---
 
 ## NAAb Ecosystem
@@ -659,13 +675,13 @@ Three tools built with NAAb — code governance, performance optimization, and d
 
 ```bash
 # Scan for governance violations
-naab bolo.naab scan ./src --profile enterprise
+naab-lang bolo.naab scan ./src --profile enterprise
 
 # Generate SARIF report for CI
-naab bolo.naab report ./src --format sarif --output results.sarif
+naab-lang bolo.naab report ./src --format sarif --output results.sarif
 
 # AI governance validation
-naab bolo.naab ai-check ./ml-models
+naab-lang bolo.naab ai-check ./ml-models
 ```
 
 **50+ checks · 4 languages · 339 regression tests** → [Get started](https://github.com/b-macker/naab-bolo)
@@ -676,10 +692,10 @@ naab bolo.naab ai-check ./ml-models
 
 ```bash
 # Analyze hotspots (Python → Rust candidates)
-naab pivot.naab analyze app.py
+naab-lang pivot.naab analyze app.py
 
 # Rewrite with proof
-naab pivot.naab rewrite app.py:expensive_loop --target rust --prove
+naab-lang pivot.naab rewrite app.py:expensive_loop --target rust --prove
 
 # Result: 45x faster, semantically identical
 ```
@@ -692,7 +708,7 @@ naab pivot.naab rewrite app.py:expensive_loop --target rust --prove
 
 ```bash
 # Start secure gateway
-naab main.naab
+naab-lang main.naab
 
 # All requests validated, PII blocked
 curl -X POST http://localhost:8091/ -d '{"prompt": "SSN: 123-45-6789"}'

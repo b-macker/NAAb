@@ -1,30 +1,31 @@
 # NAAb Language — Internal Reference
 
-Reference for Claude Code when working on the NAAb language source at `~/.naab/language/`.
+Reference for Claude Code when working on the NAAb language source (this repository).
 
 ## Build
 
 ```bash
-cd ~/.naab/language/build && cmake .. && make naab-lang -j4
+# from the repo root
+mkdir -p build && cd build && cmake .. && make naab-lang -j4
 ```
 
 - Debug (default): `cmake ..`
 - Release: `cmake .. -DCMAKE_BUILD_TYPE=Release`
 - After modifying CMakeLists.txt: `cmake ..` again before `make`
 
-Binary lands at `build/naab-lang`.
+Binary lands at `build/naab-lang`. A second CLI, `naab-gov` (`src/cli/gov_main.cpp`), builds via `make naab-gov` for standalone govern.json work.
 
 ## Test
 
 ```bash
 # Full suite — 396 tests, 0 unexpected failures
-cd ~/.naab/language && bash run-all-tests.sh
+bash run-all-tests.sh   # from the repo root
 
 # Security leak check — 874 checks, 0 failures
 bash tests/security/test_error_msg_leaks.sh
 ```
 
-Test categories in `tests/`: governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, polyglot, formatter, lsp, platform, chaos, robustness.
+Test categories in `tests/` (non-exhaustive — 40+ directories total): governance_v4, security, stdlib, vm, cli, e2e, integration, bugs, gorilla, scanner, formatter, lsp, platform, chaos, robustness, agent, unit, property.
 
 Expected breakdown: ~334 pass, ~51 error-behavior (intentional failures), ~11 needs-tree-walk (VM-unsupported features).
 
@@ -43,9 +44,9 @@ src/
 │                   dict, path, env, time, regex, crypto, http, log, uuid, validate,
 │                   process, debug, bolo, agent, codegen, orchestra, governance
 ├── cli/            main.cpp entry point — CLI flag parsing, subcommands
-├── scanner/        C++ security scanner (SARIF output, 18 code quality checks)
-├── libnaab-governance/  C API for external agent framework integration (Go, Rust, Java, C# bindings)
-├── api/            REST API (rest_api.cpp)
+├── scanner/        C++ security scanner (SARIF output, 19 code quality checks)
+├── api/            REST API (rest_api.cpp) + governance C API (governance_c_api.cpp,
+│                   built as naab_governance static lib; Go/Rust/Java/C#/Python bindings in bindings/)
 ├── repl/           REPL with readline support
 ├── linter/         Static analysis
 ├── formatter/      Code formatter
@@ -82,7 +83,7 @@ include/naab/       All headers
 - `global_env_` — global scope
 - `current_file_` — current source file (NOT `filename_`)
 - Control flow: `returning_`, `breaking_`, `loop_depth_`
-- Environment class is at `interpreter.h:371` — NOT `environment.h` (unused)
+- Environment class: `class Environment` in `include/naab/interpreter.h` (~line 413)
 
 ### Bytecode VM
 - `include/naab/vm.h` + `src/vm/vm.cpp` — stack-based dispatch
@@ -103,7 +104,7 @@ include/naab/       All headers
 - Module governance: VM compiler skips function-body governance checks during module loading (`!skip_main_` guard in `compiler.cpp`), matching tree-walker's `module_loading_depth_ == 0` guard
 - Enforcement tiers: HARD (block, exit 3), SOFT (block unless `--governance-override`, exit 3 without override), ADVISORY (warn, continue), DETECT (block but catchable by NAAb try/catch — for test configs only)
 - Exit codes: 0=success, 1=runtime, 2=quality gate, 3=HARD governance block, 4=config error
-- **GovernanceHardError** (`governance.h:2157`): `enforce()` throws `GovernanceHardError` (inherits `std::runtime_error`) for all HARD-level blocks. NAAb `try/catch` cannot catch it — both tree-walker (`interpreter.cpp`: `visit(TryCatchExpr)`, `visit(TryStmt)` outer+inner) and VM (`vm.cpp`: dispatch loop + 3 inner catches) explicitly re-throw before generic handlers. `main.cpp` catches it and calls `_exit(3)`. When adding new catch sites that could intercept stdlib/governance exceptions, always add `catch (const governance::GovernanceHardError&) { throw; }` BEFORE `catch (const std::exception&)`. ADVISORY (non-escalated) and SOFT-with-override remain catchable.
+- **GovernanceHardError** (`class GovernanceHardError` in `governance.h`, ~line 2467): `enforce()` throws `GovernanceHardError` (inherits `std::runtime_error`) for all HARD-level blocks. NAAb `try/catch` cannot catch it — both tree-walker (`interpreter.cpp`: `visit(TryCatchExpr)`, `visit(TryStmt)` outer+inner) and VM (`vm.cpp`: dispatch loop + 3 inner catches) explicitly re-throw before generic handlers. `main.cpp` catches it and calls `_exit(3)`. When adding new catch sites that could intercept stdlib/governance exceptions, always add `catch (const governance::GovernanceHardError&) { throw; }` BEFORE `catch (const std::exception&)`. ADVISORY (non-escalated) and SOFT-with-override remain catchable.
 - **env_vars enforcement**: `capabilities.env_vars` in govern.json — `blocked_read` (HARD), `allowed_read` (SOFT allowlist), `blocked_write`/`allowed_write`. Enforced in all 9 env stdlib access points via `checkEnvVarRead()`/`checkEnvVarWrite()` in `governance_engine.cpp`. blocked_read prevents value from ever entering memory (check fires before `std::getenv`).
 - Decision rationale: govern.json sections accept optional `rationale` field; engine generates `decision_trace` per check. Both flow into all 5 report formats + audit trail via `CheckResult.rationale` and `CheckResult.decision_trace`
 - Decision trace storage: `t_current_decision_trace` is `static thread_local` in `governance_engine.cpp` (NOT a class member) — thread-safe for concurrent polyglot/agent threads
@@ -202,17 +203,17 @@ include/naab/       All headers
   - `orchestra.enforce_convergence(response, spec)` — validates response against spec (regex `pattern` or `required_fields`). Returns `{valid, error_message}`. No retry loop — caller implements retries.
 - **Governance module** (`src/stdlib/governance_impl.cpp`): `governance.health()` — returns pulse verdict and instrumentation status without API call.
 
-### Scanner Code Quality Checks (18 checks in `checks_code_quality.cpp`)
-- Checks 1-15: original checks (empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, etc.)
-- Check 16: `null_coalesce_non_nullable` — flags `??` on comparisons/bool literals that can never be null
-- Check 17: `assigned_never_read` — detects `let`-assigned variables never referenced after declaration, with special `sort()` mutation hint
-- Check 18: `hash_sanitize_mismatch` — one-level data flow tracing: finds `crypto.sha256(X)`, traces X back through `let` assignments, checks if any component variable is also passed to `sanitize_*()`/`validate_*()`
+### Scanner Code Quality Checks (19 checks in `checks_code_quality.cpp`)
+- Baseline checks (16): empty_catch, catch_and_ignore, magic_numbers, magic_strings, dead_code_after_return, dead_conditional, dead_conditional_dataflow, god_functions, god_classes, deep_nesting, boolean_function_returns, complex_boolean_expr, long_parameter_list, mutable_global_state, recursive_no_base_case, string_concat_in_loop
+- `null_coalesce_non_nullable` — flags `??` on comparisons/bool literals that can never be null
+- `assigned_never_read` — detects `let`-assigned variables never referenced after declaration, with special `sort()` mutation hint
+- `hash_sanitize_mismatch` — one-level data flow tracing: finds `crypto.sha256(X)`, traces X back through `let` assignments, checks if any component variable is also passed to `sanitize_*()`/`validate_*()`
 - Pattern: guard on `isEnabled(CAT, "check_name")`, use `findFuncEnd()` for function scope, `addIssue()` to report
 
 ### Telemetry
 - `GovernanceEngine::writeTelemetry()` in `governance_reports.cpp` writes JSONL events
 - Each event includes `run_id` (timestamp-pid, generated once in `loadFromFile()`) for separating runs in shared output files
-- Agent telemetry event types (31): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `OUTPUT_ADMISSIBILITY_EVAL`, `OUTPUT_INADMISSIBLE`, `POLYGLOT_EXEC`, `PROMPT_SCAN`, `RECONCILIATION_TURN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `RESPONSE_TRUNCATED`, `SEMANTIC_TURN`
+- Agent telemetry event types (32): `ADMISSION_EVAL`, `AGENT_CHALLENGE_FAIL`, `AGENT_CHALLENGE_PASS`, `AGENT_FALLBACK`, `AGENT_HARD_STOP`, `AGENT_KEY_DISABLED`, `AGENT_KEY_REVIVED`, `AGENT_RESPONSE`, `AGENT_RETRY`, `AGENT_TOOL_BLOCKED`, `AGENT_TOOL_CALL`, `AGENT_TOOL_LOOP_END`, `AGENT_TOOL_LOOP_START`, `AGENT_TOOL_REGISTERED`, `AGENT_TOOL_RESULT`, `AGENT_TOOL_SCAN_HIT`, `BSD_MATCH`, `CDD_TURN`, `CODEGEN_EXEC`, `CONTRACT_VIOLATION`, `GOVERNANCE_HEALTH_WARNING`, `GOVERNANCE_LEVEL_CHANGE`, `MANDATE_INJECTION`, `OUTPUT_ADMISSIBILITY_EVAL`, `OUTPUT_INADMISSIBLE`, `POLYGLOT_EXEC`, `PROMPT_SCAN`, `RECONCILIATION_TURN`, `RESPONSE_SCAN`, `RESPONSE_SUPPRESSED`, `RESPONSE_TRUNCATED`, `SEMANTIC_TURN`
 - Telemetry forwarding: `telemetry.forwarding` config enables webhook/SIEM push of events
 - Tamper-evident hash chain: each telemetry event includes `prev_hash` linking to previous event, creating an immutable audit trail
 
@@ -292,7 +293,6 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 
 ## Gotchas
 
-- **Two Environment classes exist** — use `interpreter.h:371`, not `environment.h`
 - **nlohmann/json.hpp** — keep in .cpp only, never in headers
 - **`result_`** is NaabVal — use `.isNull()` not `if (result_)`
 - **CLI flags must be in BOTH** global pre-scan AND run command flag loop in main.cpp
