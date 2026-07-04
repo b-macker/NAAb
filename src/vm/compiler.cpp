@@ -816,10 +816,12 @@ void Compiler::visit(ast::BinaryExpr& node) {
                     int ci = makeConstant(interpreter::NaabVal::makeInt((int)r)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
                 } return;
                 case ast::BinaryOp::Div:
-                    if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeInt(a / b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
+                    // Division always produces a double, matching the tree-walker
+                    if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeDouble((double)a / (double)b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
                     break;
                 case ast::BinaryOp::Mod:
-                    if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeInt(a % b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
+                    // INT_MIN % -1 is UB in C++; the truncated-mod result is 0
+                    if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeInt(b == -1 ? 0 : a % b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
                     break;
                 case ast::BinaryOp::Lt: { int ci = makeConstant(interpreter::NaabVal::makeBool(a < b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
                 case ast::BinaryOp::Le: { int ci = makeConstant(interpreter::NaabVal::makeBool(a <= b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;

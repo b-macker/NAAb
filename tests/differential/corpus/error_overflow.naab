@@ -1,0 +1,6 @@
+// Differential probe: integer overflow error parity (intentional error).
+main {
+    print("before")
+    let x = 2147483647
+    print(x + 1)
+}

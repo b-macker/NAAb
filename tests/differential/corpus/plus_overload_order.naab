@@ -1,0 +1,18 @@
+// Differential probe: `+` overload resolution order across engines.
+// String concat must win over numeric promotion; list concat must work.
+main {
+    print("x" + 1)
+    print(1 + "x")
+    print("x" + 3.5)
+    print(3.5 + "x")
+    print("a" + "b")
+    print("s" + true)
+    print("s" + null)
+    print([1, 2] + [3])
+    print([] + [1])
+    let l = [1] + [2] + [3]
+    print(l)
+    print("n=" + 1 + 2)
+    print(1 + 2 + "=n")
+    print("END")
+}

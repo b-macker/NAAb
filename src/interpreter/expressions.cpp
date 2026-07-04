@@ -619,7 +619,8 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 throw std::runtime_error(oss.str());
             }
 
-            result_ = NaabVal::makeInt(left.toInt() % divisor);
+            // INT_MIN % -1 is UB in C++; the truncated-mod result is 0
+            result_ = NaabVal::makeInt(divisor == -1 ? 0 : left.toInt() % divisor);
             break;
         }
 
