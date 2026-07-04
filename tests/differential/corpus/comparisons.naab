@@ -1,0 +1,19 @@
+// Differential probe: comparison and equality semantics (same-family only;
+// mixed string/number ordering lives in known_fork_probes.naab).
+main {
+    print(1 == 1.0)
+    print(0 == -0.0)
+    print("a" == 1)
+    print("a" == "a")
+    print(true == true)
+    print(null == null)
+    print(1 != 2)
+    print(2 < 10)
+    print("2" < "10")
+    print(1.5 <= 1.5)
+    print(-1 > -2)
+    print(3.14 >= 3)
+    print(true && false || true)
+    print(!(true && false))
+    print("END")
+}

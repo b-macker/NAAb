@@ -1,0 +1,8 @@
+// Differential probe: error CATEGORY parity — engines word errors
+// differently (terse VM vs help-text TW) but the category must match.
+// This file errors intentionally (division by zero at the end).
+main {
+    print("before")
+    print(1 / 0)
+    print("unreachable")
+}

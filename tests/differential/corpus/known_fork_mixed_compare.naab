@@ -1,0 +1,8 @@
+// Differential probe: CMP-001 (mixed comparison) — UNIFIED 2026-07.
+// Both engines now raise the same type error for "a" < 1; this probe checks
+// the error CATEGORY matches across engines (the harness compares categories).
+main {
+    print("probe start")
+    print("a" < 1)
+    print("END")
+}

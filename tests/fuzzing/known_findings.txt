@@ -1,0 +1,4 @@
+# Triaged/accepted severity-1 signatures the fuzz gate tolerates.
+# Format: <signature> [comment]. Every entry MUST link to a section in
+# docs/engine-divergences.md. The pipeline never auto-adds entries here.
+# (empty — the generator's subset currently has no accepted divergences)

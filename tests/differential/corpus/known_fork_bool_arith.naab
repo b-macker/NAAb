@@ -1,0 +1,8 @@
+// Differential probe: BOOL-001 (bool arithmetic) — UNIFIED 2026-07.
+// Both engines now treat bool as numeric (1/0) in arithmetic: true + 1 == 2.
+// This probe locks the unification in; a FAIL here means one engine regressed.
+main {
+    print("probe start")
+    print(true + 1)
+    print("END")
+}

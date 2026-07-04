@@ -1,0 +1,13 @@
+// Differential probe: list indexing, nesting, index expressions.
+main {
+    let xs = [10, 20, 30, 40]
+    print(xs[0])
+    print(xs[3])
+    print(xs[1 + 1])
+    let nested = [[1, 2], [3, 4]]
+    print(nested[1][0])
+    let i = 2
+    print(xs[i])
+    print([5][0])
+    print("END")
+}

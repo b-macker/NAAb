@@ -1,0 +1,4 @@
+{
+  "_comment": "Known-divergence registry for the differential harness. Every entry MUST have a linked section in docs/engine-divergences.md. status: accepted = intentional, open = real fork awaiting a unification decision. detect names a function in diff_runner.py's DETECTORS dict. Currently EMPTY — CMP-001, BOOL-001, and FEAT-001 were unified (see docs/engine-divergences.md); their detectors remain in diff_runner.py for reuse if a fork regresses.",
+  "divergences": []
+}
