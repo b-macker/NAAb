@@ -1596,6 +1596,12 @@ struct CircuitBreakerConfig {
         double threshold = 0.70;               // coherence floor for output
         std::string action = "quarantine";     // "block", "quarantine", "attest"
         EnforcementLevel level = EnforcementLevel::SOFT;  // for "block" action only
+        // Split commit: whether quarantine/attest responses enter handle history.
+        // "commit" (default) = inadmissible content stays in conversation context;
+        // "exclude" = returned to caller but never appended to history.
+        std::string inadmissible_history = "commit";
+        // Gate tool execution on current coherence/pulse before each tool call.
+        bool gate_tool_calls = false;
     } output_admissibility;
 };
 
@@ -2032,6 +2038,10 @@ struct AgentConfig {
 
     // --- LLM config (populated from "agents" key in govern.json) ---
     std::string provider = "anthropic";
+    // Optional API endpoint base URL override (e.g. self-hosted gateway or
+    // local test stub). Empty = provider's default endpoint. Must be https://
+    // unless the host is loopback (127.0.0.1 / localhost / [::1]).
+    std::string api_base;
     std::string model;                          // primary model (first in chain)
     std::vector<std::string> model_chain;       // fallback models [model, fallback1, ...]
     std::string api_key_env = "ANTHROPIC_API_KEY";  // primary key env var
@@ -2049,6 +2059,8 @@ struct AgentConfig {
     int tool_timeout_seconds = 10;               // per-tool-call execution timeout
     int max_turns = 50;
     int max_total_tokens = 100000;
+    // agent.propose() candidate cap. 0 = propose disabled (fail-closed).
+    int propose_candidates_max = 0;
     double temperature = 1.0;
     std::string stop_reason_action = "end";
     bool stream = false;
@@ -2943,6 +2955,9 @@ public:
         const std::string& agent_config);
     void emitOutputAdmissibilityAttestation(const std::string& agent_config,
         int turn, double coherence_score, double threshold);
+    // Per-tool-call gate (gate_tool_calls): throws per the configured OA level.
+    [[noreturn]] void enforceOutputAdmissibilityGate(const std::string& agent_config,
+        const std::string& tool_name, double coherence_score);
 
     std::string recordAutonomousAction(const std::string& agent_config);
     int getAutonomousActionCount() const;
@@ -3152,7 +3167,9 @@ private:
     // Exposure tracking: aggregate autonomous action counters
     std::atomic<int> autonomous_actions_{0};
     std::unordered_set<std::string> unique_agents_;
-    mutable std::mutex exposure_mutex_;         // guards unique_agents_
+    // Per-handle pipeline depth — authoritative across worker threads
+    std::unordered_map<int, int> pipeline_depths_;
+    mutable std::mutex exposure_mutex_;         // guards unique_agents_ + pipeline_depths_
     std::atomic<bool> cdd_enabled_{false};
     std::atomic<bool> agent_governance_active_{false};  // Fix 3B: only count consecutive_passes during agent phase
 

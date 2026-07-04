@@ -2335,6 +2335,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     agent.max_turns = cfg_json["max_turns"].get<int>();
                 if (cfg_json.contains("max_total_tokens") && cfg_json["max_total_tokens"].is_number_integer())
                     agent.max_total_tokens = cfg_json["max_total_tokens"].get<int>();
+                // agent.propose() candidate cap (0 = propose disabled)
+                if (cfg_json.contains("propose_candidates_max") && cfg_json["propose_candidates_max"].is_number_integer())
+                    agent.propose_candidates_max = std::max(0, cfg_json["propose_candidates_max"].get<int>());
                 if (cfg_json.contains("temperature") && cfg_json["temperature"].is_number())
                     agent.temperature = cfg_json["temperature"].get<double>();
                 if (cfg_json.contains("stop_reason_action") && cfg_json["stop_reason_action"].is_string())
@@ -2350,6 +2353,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (cfg_json.contains("risk_budget") && cfg_json["risk_budget"].is_number_integer()) {
                     agent.risk_budget = cfg_json["risk_budget"].get<int>();
                     if (agent.risk_budget < 0) agent.risk_budget = 0;
+                }
+                // API endpoint base override — https only, except loopback (test stubs)
+                if (cfg_json.contains("api_base") && cfg_json["api_base"].is_string()) {
+                    std::string base = cfg_json["api_base"].get<std::string>();
+                    bool https = base.rfind("https://", 0) == 0;
+                    bool loopback_http = base.rfind("http://127.0.0.1", 0) == 0 ||
+                                         base.rfind("http://localhost", 0) == 0 ||
+                                         base.rfind("http://[::1]", 0) == 0;
+                    if (https || loopback_http) {
+                        agent.api_base = base;
+                    } else if (!base.empty()) {
+                        fprintf(stderr, "[governance] agent '%s': api_base ignored "
+                                "(must be https:// or loopback http://)\n", name.c_str());
+                    }
                 }
                 // Thinking budget — -1=provider default, 0=disable, >0=budget
                 if (cfg_json.contains("thinking_budget") && cfg_json["thinking_budget"].is_number_integer()) {
@@ -2885,6 +2902,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 oac.level == EnforcementLevel::NONE)) {
                 oac.level = EnforcementLevel::DETECT;
             }
+            // Split commit: history disposition for quarantined/attested responses
+            if (oa.contains("inadmissible_history") && oa["inadmissible_history"].is_string()) {
+                std::string hist = oa["inadmissible_history"].get<std::string>();
+                if (hist == "commit" || hist == "exclude")
+                    oac.inadmissible_history = hist;
+            }
+            // Per-tool-call admissibility gate
+            if (oa.contains("gate_tool_calls") && oa["gate_tool_calls"].is_boolean())
+                oac.gate_tool_calls = oa["gate_tool_calls"].get<bool>();
         }
         parseRationale(cbj, cfg.rationale);
     }
@@ -3211,6 +3237,19 @@ static bool checkRatchetViolation(
         if (new_agent.model_chain != old_agent->model_chain || new_agent.model != old_agent->model)
             notices.push_back(fmt::format("agent.{}.model: chain updated", new_agent.name));
 
+        // api_base: any mid-run endpoint change is a violation (traffic redirection)
+        if (new_agent.api_base != old_agent->api_base)
+            violations.push_back(fmt::format("agent.{}.api_base: endpoint changed mid-run",
+                new_agent.name));
+
+        // propose_candidates_max: increasing = loosening
+        if (new_agent.propose_candidates_max > old_agent->propose_candidates_max)
+            violations.push_back(fmt::format("agent.{}.propose_candidates_max: {} -> {} (loosened)",
+                new_agent.name, old_agent->propose_candidates_max, new_agent.propose_candidates_max));
+        else if (new_agent.propose_candidates_max < old_agent->propose_candidates_max)
+            notices.push_back(fmt::format("agent.{}.propose_candidates_max: {} -> {} (reduced)",
+                new_agent.name, old_agent->propose_candidates_max, new_agent.propose_candidates_max));
+
         // Key pool changes
         if (new_agent.api_key_envs.size() != old_agent->api_key_envs.size())
             notices.push_back(fmt::format("agent.{}.api_key_env: pool size {} -> {}",
@@ -3428,6 +3467,16 @@ static bool checkRatchetViolation(
     else if (new_rank > old_rank)
         notices.push_back(fmt::format("output_admissibility.action: {} -> {} (tightened)",
             old_oa.action, new_oa.action));
+    // Split commit: exclude is stricter than commit
+    if (old_oa.inadmissible_history == "exclude" && new_oa.inadmissible_history == "commit")
+        violations.push_back("output_admissibility.inadmissible_history: exclude -> commit (loosened)");
+    else if (old_oa.inadmissible_history == "commit" && new_oa.inadmissible_history == "exclude")
+        notices.push_back("output_admissibility.inadmissible_history: commit -> exclude (tightened)");
+    // Tool-call gate: disabling is loosening
+    if (old_oa.gate_tool_calls && !new_oa.gate_tool_calls)
+        violations.push_back("output_admissibility.gate_tool_calls: true -> false (loosened)");
+    else if (!old_oa.gate_tool_calls && new_oa.gate_tool_calls)
+        notices.push_back("output_admissibility.gate_tool_calls: false -> true (tightened)");
 
     return violations.empty();
 }

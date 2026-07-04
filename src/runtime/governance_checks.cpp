@@ -490,15 +490,58 @@ std::string normalizeLanguage(const std::string& language) {
 }
 
 // Helper: regex search against a list of patterns
+// Process-wide compiled-regex cache for searchPatterns(). Patterns come from
+// constant default tables and loaded config — a small, bounded set per
+// process — so compiling each once amortizes the per-check regex cost.
+// Capped so a pathological config cannot grow it unbounded; on overflow the
+// caller compiles per-call as before. A cached nullptr marks a pattern that
+// failed to compile (warned once, skipped thereafter).
+enum class RegexCacheResult { HIT, BAD, FULL };
+static RegexCacheResult cachedSearchRegex(const std::string& pat, bool case_insensitive,
+                                          const std::regex** out) {
+    static std::mutex cache_mutex;
+    static std::unordered_map<std::string, std::unique_ptr<std::regex>> cache;
+    constexpr size_t kMaxEntries = 1024;
+
+    std::string key = (case_insensitive ? "i:" : "s:") + pat;
+    std::lock_guard<std::mutex> lock(cache_mutex);
+    auto it = cache.find(key);
+    if (it != cache.end()) {
+        if (!it->second) return RegexCacheResult::BAD;
+        *out = it->second.get();
+        return RegexCacheResult::HIT;
+    }
+    if (cache.size() >= kMaxEntries) return RegexCacheResult::FULL;
+    auto flags = std::regex::ECMAScript;
+    if (case_insensitive) flags |= std::regex::icase;
+    try {
+        auto re = std::make_unique<std::regex>(pat, flags);
+        *out = re.get();
+        cache.emplace(std::move(key), std::move(re));
+        return RegexCacheResult::HIT;
+    } catch (const std::regex_error& e) {
+        fprintf(stderr, "[governance] Warning: invalid regex pattern skipped: %s\n", e.what());
+        cache.emplace(std::move(key), nullptr);
+        return RegexCacheResult::BAD;
+    }
+}
+
 static std::string searchPatterns(const std::string& code,
     const std::vector<std::string>& patterns, bool case_insensitive = true) {
     for (const auto& pat : patterns) {
         try {
-            auto flags = std::regex::ECMAScript;
-            if (case_insensitive) flags |= std::regex::icase;
-            std::regex re(pat, flags);
+            const std::regex* re = nullptr;
+            RegexCacheResult cr = cachedSearchRegex(pat, case_insensitive, &re);
+            if (cr == RegexCacheResult::BAD) continue;  // warned once at compile
+            std::regex local_re;
+            if (cr == RegexCacheResult::FULL) {
+                auto flags = std::regex::ECMAScript;
+                if (case_insensitive) flags |= std::regex::icase;
+                local_re = std::regex(pat, flags);
+                re = &local_re;
+            }
             std::smatch match;
-            if (std::regex_search(code, match, re)) {
+            if (std::regex_search(code, match, *re)) {
                 return match[0].str();
             }
         } catch (const std::regex_error& e) {
@@ -914,16 +957,28 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
     if (!cfg.enabled) return "";
     clearTrace();
 
-    std::vector<std::pair<std::string, std::string>> patterns;
-    if (cfg.detect_ssn) patterns.push_back(DEFAULT_PII_PATTERNS[0]);
-    if (cfg.detect_credit_card) patterns.push_back(DEFAULT_PII_PATTERNS[1]);
-    if (cfg.detect_email) patterns.push_back(DEFAULT_PII_PATTERNS[2]);
-    if (cfg.detect_phone) patterns.push_back(DEFAULT_PII_PATTERNS[3]);
-    if (cfg.detect_ip_address) patterns.push_back(DEFAULT_PII_PATTERNS[4]);
+    // DEFAULT_PII_PATTERNS is constant — compile once (runs on every agent
+    // prompt/response/tool argument, so per-call compilation is hot).
+    static const std::vector<std::regex> compiled_pii_patterns = [] {
+        std::vector<std::regex> out;
+        for (const auto& [pat, desc] : DEFAULT_PII_PATTERNS) {
+            (void)desc;
+            out.emplace_back(pat);
+        }
+        return out;
+    }();
 
-    for (const auto& [pat, desc] : patterns) {
+    std::vector<size_t> pattern_indices;
+    if (cfg.detect_ssn) pattern_indices.push_back(0);
+    if (cfg.detect_credit_card) pattern_indices.push_back(1);
+    if (cfg.detect_email) pattern_indices.push_back(2);
+    if (cfg.detect_phone) pattern_indices.push_back(3);
+    if (cfg.detect_ip_address) pattern_indices.push_back(4);
+
+    for (size_t pi : pattern_indices) {
+        const auto& desc = DEFAULT_PII_PATTERNS[pi].second;
         try {
-            std::regex re(pat);
+            const std::regex& re = compiled_pii_patterns[pi];
             std::smatch match;
             if (std::regex_search(code, match, re)) {
                 std::string found = match[0].str();
