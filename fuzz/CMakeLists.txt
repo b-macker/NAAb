@@ -42,12 +42,15 @@ target_link_options(fuzz_parser PRIVATE ${FUZZ_LINK_FLAGS})
 
 # --- Fuzz target 2: full interpreter ---
 add_executable(fuzz_interpreter fuzz_interpreter.cpp)
+# naab_security <-> naab_runtime is a static-archive cycle
+# (governance_engine.cpp in naab_security calls writeFileSecure from
+# naab_runtime); RESCAN groups them so ld iterates until resolved
 target_link_libraries(fuzz_interpreter
     naab_lexer
     naab_parser
     naab_semantic
     naab_interpreter
-    naab_runtime
+    "$<LINK_GROUP:RESCAN,naab_runtime,naab_security>"
     naab_stdlib
     naab_scanner
     fmt::fmt

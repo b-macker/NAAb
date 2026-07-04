@@ -565,6 +565,11 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         skipNewlines();
         collectDocComments();  // Accumulate /// doc comments, extract @intent
 
+        // Recovery progress guard: if an error is thrown while the cursor
+        // sits on a synchronize() sync-point token (e.g. a duplicate 'main'),
+        // recovery would otherwise make no progress and loop forever.
+        size_t iter_start_pos = pos_;
+
         try {
 
         if (check(lexer::TokenType::USE)) {
@@ -725,10 +730,12 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
             // S10: Collect error and recover
             parse_errors_.push_back(e.what());
             had_error_ = true;
+            if (pos_ == iter_start_pos && !isAtEnd()) advance();
             synchronize();
         } catch (const std::runtime_error& e) {
             parse_errors_.push_back(e.what());
             had_error_ = true;
+            if (pos_ == iter_start_pos && !isAtEnd()) advance();
             synchronize();
         }
 

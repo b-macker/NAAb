@@ -2242,6 +2242,28 @@ void Interpreter::visit(ast::ForStmt& node) {
         return;
     }
 
+    // String iteration: yields 1-char strings, matching the VM
+    if (iterable.isString()) {
+        const auto& str = iterable.asString();
+        size_t iter_count = 0;
+        for (size_t idx = 0; idx < str.size(); ++idx) {
+            if (governance_ && governance_->isActive()) {
+                std::string err = governance_->checkLoopIterations(++iter_count);
+                if (!err.empty()) throw std::runtime_error(err);
+            }
+            if (node.hasIndex()) {
+                current_env_->define(node.getIndexVar(), NaabVal::makeInt(static_cast<int>(idx)));
+            }
+            defineLoopVar(NaabVal::makeString(std::string(1, str[idx])));
+            node.getBody()->accept(*this);
+            if (returning_) break;
+            if (breaking_) { breaking_ = false; break; }
+            if (continuing_) { continuing_ = false; continue; }
+        }
+        --loop_depth_;
+        return;
+    }
+
     // Non-iterable type - error
     --loop_depth_;
     throw std::runtime_error(

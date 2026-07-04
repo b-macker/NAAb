@@ -24,6 +24,32 @@ static std::string getTypeName(NaabVal val) {
     return val.getTypeName();
 }
 
+// Ordering comparisons accept both-numeric (int/float/bool) or both-string
+// operand pairs; anything else is a type error, matching the VM.
+[[noreturn]] static void throwComparisonTypeError(const NaabVal& left,
+                                                  const NaabVal& right,
+                                                  const char* op) {
+    std::ostringstream oss;
+    oss << "Type error: Cannot compare " << left.getTypeName() << " " << op
+        << " " << right.getTypeName() << "\n\n"
+        << "  Ordering comparisons require both operands to be numbers\n"
+        << "  (int, float, bool) or both to be strings\n\n"
+        << "  Help:\n"
+        << "  - Convert operands to a common type before comparing\n\n"
+        << "  Example:\n"
+        << "    \xE2\x9C\x97 Wrong: \"10\" < 2      (string < int)\n"
+        << "    \xE2\x9C\x93 Right: 10 < 2        (int < int)\n";
+    throw std::runtime_error(oss.str());
+}
+
+static bool isOrderComparable(const NaabVal& left, const NaabVal& right) {
+    auto num = [](const NaabVal& v) {
+        return v.isInt() || v.isDouble() || v.isBool();
+    };
+    return (num(left) && num(right)) ||
+           (left.isString() && right.isString());
+}
+
 
 // V-GOV-013: Recursively unwrap nested subscripts/members to find the root
 // container identifier.  dynamic_cast to IdentifierExpr fails for arr[0][1]
@@ -706,6 +732,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         }
 
         case ast::BinaryOp::Lt:
+            if (!isOrderComparable(left, right)) {
+                throwComparisonTypeError(left, right, "<");
+            }
             if (left.isString() &&
                 right.isString()) {
                 result_ = NaabVal::makeBool(left.asString() < right.asString());
@@ -715,6 +744,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             break;
 
         case ast::BinaryOp::Le:
+            if (!isOrderComparable(left, right)) {
+                throwComparisonTypeError(left, right, "<=");
+            }
             if (left.isString() &&
                 right.isString()) {
                 result_ = NaabVal::makeBool(left.asString() <= right.asString());
@@ -724,6 +756,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             break;
 
         case ast::BinaryOp::Gt:
+            if (!isOrderComparable(left, right)) {
+                throwComparisonTypeError(left, right, ">");
+            }
             if (left.isString() &&
                 right.isString()) {
                 result_ = NaabVal::makeBool(left.asString() > right.asString());
@@ -733,6 +768,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             break;
 
         case ast::BinaryOp::Ge:
+            if (!isOrderComparable(left, right)) {
+                throwComparisonTypeError(left, right, ">=");
+            }
             if (left.isString() &&
                 right.isString()) {
                 result_ = NaabVal::makeBool(left.asString() >= right.asString());
@@ -926,6 +964,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 int index = right.toInt();
 
+                // Negative indices wrap once from the end, matching the VM
+                if (index < 0) index += static_cast<int>(list.size());
+
                 if (index < 0 || index >= static_cast<int>(list.size())) {
                     std::ostringstream oss;
                     oss << "Index error: Array index out of bounds\n\n";
@@ -944,6 +985,30 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 }
 
                 result_ = list[static_cast<size_t>(index)];
+                break;
+            }
+
+            // String subscript: s[i] -> 1-char string, matching the VM
+            if (left.isString()) {
+                const auto& str = left.asString();
+                // Allow string["message"] → returns self (thrown-string idiom)
+                if (right.isString() && right.asString() == "message") {
+                    result_ = left;
+                    break;
+                }
+                if (!right.isInt() && !right.isBool()) {
+                    throw std::runtime_error("String index must be an integer");
+                }
+                int idx = right.toInt();
+                int size = static_cast<int>(str.size());
+                if (idx < 0) idx += size;
+                if (idx < 0 || idx >= size) {
+                    std::ostringstream oss;
+                    oss << "Index error: Index " << idx
+                        << " out of bounds for string of length " << size << "\n";
+                    throw std::runtime_error(oss.str());
+                }
+                result_ = NaabVal::makeString(std::string(1, str[static_cast<size_t>(idx)]));
                 break;
             }
 

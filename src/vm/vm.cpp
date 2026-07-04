@@ -821,6 +821,12 @@ interpreter::NaabVal VM::run() {
                 size_t b_off_slow = static_cast<size_t>((stack_top_ - 1) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in arithmetic, matching the
+                // tree-walker; string concat still formats bools as text
+                if (!a.isString() && !b.isString()) {
+                    if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                    if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
+                }
                 if (a.isString() || b.isString()) {
                     // String concatenation with auto-coercion (must be before double check)
                     push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
@@ -901,6 +907,9 @@ interpreter::NaabVal VM::run() {
                 size_t a_off_slow = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in arithmetic, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     int32_t av = static_cast<int32_t>(a.asInt()), bv = static_cast<int32_t>(b.asInt());
                     if ((bv < 0 && av > INT32_MAX + bv) || (bv > 0 && av < INT32_MIN + bv)) {
@@ -938,6 +947,12 @@ interpreter::NaabVal VM::run() {
                 size_t a_off_mul = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in arithmetic, matching the
+                // tree-walker; string repetition counts stay int-only
+                if (!a.isString() && !b.isString()) {
+                    if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                    if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
+                }
                 if (a.isInt() && b.isInt()) {
                     int32_t av = static_cast<int32_t>(a.asInt()), bv = static_cast<int32_t>(b.asInt());
                     // Overflow check using 64-bit multiplication
@@ -1001,6 +1016,9 @@ interpreter::NaabVal VM::run() {
                 size_t a_off_div = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in arithmetic, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     if (b.asInt() == 0) runtimeError("Division by zero");
                     // Division always produces a double, matching the tree-walker
@@ -1033,6 +1051,9 @@ interpreter::NaabVal VM::run() {
                 size_t a_off_mod = static_cast<size_t>((stack_top_ - 2) - stack_.get());
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in arithmetic, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     if (b.asInt() == 0) runtimeError("Modulo by zero");
                     int64_t ma = a.asInt(), mb = b.asInt();
@@ -1057,6 +1078,8 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_NEG): {
                 bool t = peekTaint(0);
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in arithmetic, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
                 if (a.isInt()) {
                     int32_t av = static_cast<int32_t>(a.asInt());
                     if (av == INT32_MIN) {
@@ -1144,6 +1167,9 @@ interpreter::NaabVal VM::run() {
                 bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in ordering comparisons, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     push(interpreter::NaabVal::makeBool(a.asInt() < b.asInt()));
                 } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
@@ -1165,6 +1191,9 @@ interpreter::NaabVal VM::run() {
                 bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in ordering comparisons, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     push(interpreter::NaabVal::makeBool(a.asInt() <= b.asInt()));
                 } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
@@ -1185,6 +1214,9 @@ interpreter::NaabVal VM::run() {
                 bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in ordering comparisons, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     push(interpreter::NaabVal::makeBool(a.asInt() > b.asInt()));
                 } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
@@ -1205,6 +1237,9 @@ interpreter::NaabVal VM::run() {
                 bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
+                // Bool is numeric (1/0) in ordering comparisons, matching the tree-walker
+                if (a.isBool()) a = interpreter::NaabVal::makeInt(a.asBool() ? 1 : 0);
+                if (b.isBool()) b = interpreter::NaabVal::makeInt(b.asBool() ? 1 : 0);
                 if (a.isInt() && b.isInt()) {
                     push(interpreter::NaabVal::makeBool(a.asInt() >= b.asInt()));
                 } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {

@@ -1,6 +1,6 @@
-// Differential probe: EXPECTED to diverge — CMP-001 (mixed comparison).
-// VM: type error for "a" < 1. Tree-walker: coerces and prints true.
-// Reported KNOWN via divergences.json; flips to FAIL->retire when unified.
+// Differential probe: CMP-001 (mixed comparison) — UNIFIED 2026-07.
+// Both engines now raise the same type error for "a" < 1; this probe checks
+// the error CATEGORY matches across engines (the harness compares categories).
 main {
     print("probe start")
     print("a" < 1)

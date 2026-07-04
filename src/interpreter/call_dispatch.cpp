@@ -774,6 +774,17 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = obj_val;
                     return;
                 }
+                if (method_name == "pop") {
+                    if (arr.empty()) throw std::runtime_error("Cannot pop from empty list");
+                    NaabVal popped = arr.back();
+                    arr.pop_back();
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = popped;
+                    return;
+                }
                 if (method_name == "get") {
                     if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
                     int idx = args[0].asInt();
@@ -1776,6 +1787,17 @@ void Interpreter::visit(ast::CallExpr& node) {
                     governance_->markTainted(obj_id->getName());
                 }
                 result_ = obj;
+                return;
+            }
+            if (method_name == "pop") {
+                if (arr.empty()) throw std::runtime_error("Cannot pop from empty list");
+                NaabVal popped = arr.back();
+                arr.pop_back();
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = popped;
                 return;
             }
             if (method_name == "get") {
