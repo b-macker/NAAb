@@ -186,6 +186,10 @@ message(STATUS "  ✓ toml++ TOML parser")
 # SQLite3 for block registry
 find_package(SQLite3 REQUIRED)
 if(SQLite3_FOUND)
+    # CMake 4.3+ provides SQLite3::SQLite3; older versions only have SQLite::SQLite3
+    if(NOT TARGET SQLite3::SQLite3 AND TARGET SQLite::SQLite3)
+        add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+    endif()
     message(STATUS "  ✓ SQLite3 (block registry support)")
 else()
     message(FATAL_ERROR "SQLite3 required for block loading")
