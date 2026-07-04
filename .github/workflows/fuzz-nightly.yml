@@ -134,9 +134,15 @@ jobs:
             -print_final_stats=1
 
       - name: Fuzz interpreter
+        # Fork mode + ignore_timeouts: the fuzzer inevitably generates
+        # legitimately infinite programs (e.g. `while i < n { i = i + 0 }`),
+        # which are not engine bugs. Crashes/ASan/UBSan still fail the job.
+        # Real hang detection is covered by the grammar fuzzer, whose
+        # generated programs terminate by construction.
         run: |
           ./build-fuzz/fuzz/fuzz_interpreter fuzz-corpus-grown/interpreter \
             -max_total_time=600 -timeout=10 -max_len=10000 \
+            -fork=2 -ignore_timeouts=1 \
             -print_final_stats=1
 
       - name: Upload crashes

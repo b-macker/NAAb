@@ -60,6 +60,31 @@ VECTORS = [
     # null coalescing
     ("null ?? 5", "5"),
     ("7 ?? 5", "7"),
+    # BOOL-001 unification: bool is numeric (1/0) in arithmetic + ordering
+    ("true + 1", "2"),
+    ("1 + true", "2"),
+    ("true - 1", "0"),
+    ("true * 3", "3"),
+    ("true / 2", "0.5"),
+    ("true % 2", "1"),
+    ("5 % true", "0"),
+    ("-true", "-1"),
+    ("true < 2", "true"),
+    ("false < true", "true"),
+    ("true + 1.5", "2.5"),
+    ("true == 1", "false"),  # equality stays type-aware
+    ('"s" + true', "strue"),  # concat formats bool as text
+    # CMP-001 unification: mixed string/number ordering is a type error
+    ('"a" < 1', "ERROR:type_error"),
+    ('1 < "a"', "ERROR:type_error"),
+    ('"2" > 1', "ERROR:type_error"),
+    ("true < \"a\"", "ERROR:type_error"),
+    # FEAT-001 unification: string subscript + negative index wrap
+    ('"hello"[1]', "e"),
+    ('"hello"[-1]', "o"),
+    ('"abc"[10]', "ERROR:index_error"),
+    ("[10, 20, 30][-1]", "30"),
+    ("[10, 20, 30][1 + 1]", "30"),
 ]
 
 

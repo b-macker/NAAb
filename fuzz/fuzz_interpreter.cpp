@@ -1,7 +1,11 @@
 // NAAb Interpreter Fuzz Harness — libFuzzer
 // Feeds valid-syntax but adversarial programs through Lexer → Parser → Interpreter.
-// Inputs that fail to parse are cheaply skipped. Only crashes, ASAN/UBSAN
-// violations, and timeouts (-timeout=10) indicate real bugs.
+// Inputs that fail to parse are cheaply skipped. Only crashes and ASAN/UBSAN
+// violations indicate real bugs. Timeouts are NOT reliable signals here: the
+// fuzzer can synthesize legitimately infinite programs (`i = i + 0` loop
+// counters), so run this target with -fork=N -ignore_timeouts=1. Engine-hang
+// detection belongs to the grammar fuzzer (tools/naabfuzz), whose generated
+// programs terminate by construction.
 
 #include "naab/lexer.h"
 #include "naab/parser.h"

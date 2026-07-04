@@ -40,44 +40,45 @@ signature in `tests/fuzzing/known_findings.txt` MUST link to a section here.
   (constant folder), `src/interpreter/expressions.cpp` (`BinaryOp::Mod`).
 - **Regression test**: `tests/bugs/test_int_min_div_mod.naab`.
 
-## Open divergences (allowlisted pending a semantics call)
+### CMP-001: string<->number ordering comparison (fixed 2026-07)
 
-### CMP-001: string<->number ordering comparison
+- **Was**: `"a" < 1` — VM raised `Type error: Cannot compare string < int`;
+  tree-walker coerced the string via `toFloat()` (yielding 0, so
+  `"2" > 1 == false`) and returned a bool.
+- **Decision**: unify on the VM's strict type error — the TW coercion
+  silently produced nonsense orderings.
+- **Fix**: `src/interpreter/expressions.cpp` — `isOrderComparable()` guard
+  on Lt/Le/Gt/Ge (both-numeric-incl-bool or both-string, else type error).
+- **Regression**: `tests/differential/corpus/known_fork_mixed_compare.naab`
+  (now passes identically on both engines) + oracle vectors.
 
-- **Is**: `"a" < 1` — VM raises `Type error: Cannot compare string < int`;
-  tree-walker coerces and returns `true`.
-- **Decision**: open. Recommendation: unify — the VM's strict type error is
-  the safer semantics to standardize on (the TW result comes from a numeric
-  coercion of the string, which silently yields nonsense orderings).
-- **Allowlist**: `tests/differential/divergences.json` CMP-001
-  (`mixed_compare_fork` detector); probed by
-  `tests/differential/corpus/known_fork_mixed_compare.naab`.
+### BOOL-001: bool operands in arithmetic (fixed 2026-07)
 
-### FEAT-001: tree-walker lags VM on string/array conveniences
-
-- **Is**: the VM supports `for c in "abc"` (string iteration), `s[0]`
-  (string subscript), and `arr.pop()` (array dot-notation); the tree-walker
-  rejects all three with type errors.
-- **Decision**: open. Recommendation: implement the three conveniences in
-  the tree-walker (the VM behavior is clearly the intended surface — the
-  main VM test corpus relies on it).
-- **Allowlist**: `tests/differential/divergences.json` FEAT-001
-  (`tw_feature_gap` detector); exposed by `tests/vm/test_vm_core.naab`,
-  `test_vm_collections.naab`, `test_vm_dict_array.naab`,
-  `test_vm_exceptions.naab` reused as differential corpus.
-
-### BOOL-001: bool operands in arithmetic
-
-- **Is**: `true + 1` — VM raises `Type error: Cannot add bool and int`;
+- **Was**: `true + 1` — VM raised `Type error: Cannot add bool and int`;
   tree-walker treats bool as numeric (1/0) and returns `2`.
-- **Decision**: open. Recommendation: unify toward the tree-walker —
-  bool-as-numeric is the TW's documented contract (its div/mod error text
-  says "int, float, or bool") — by normalizing bool→int in the VM's
-  arithmetic opcode paths. Deferred because it touches every arithmetic
-  opcode including the int fast paths.
-- **Allowlist**: `tests/differential/divergences.json` BOOL-001
-  (`bool_arith_fork` detector); probed by
-  `tests/differential/corpus/known_fork_bool_arith.naab`.
+- **Decision**: unify on the tree-walker — bool-as-numeric is its documented
+  contract (div/mod error text says "int, float, or bool").
+- **Fix**: `src/vm/vm.cpp` — bool→int normalization in OP_ADD/SUB/MUL/DIV/
+  MOD/NEG and OP_LT/LE/GT/GE slow paths. String concat (`"s" + true`) and
+  string repetition counts are excluded and keep their prior behavior.
+  Equality (`true == 1` is `false`) is intentionally unchanged in both.
+- **Regression**: `tests/differential/corpus/known_fork_bool_arith.naab`
+  + oracle vectors.
+
+### FEAT-001: tree-walker lagged VM on string/array conveniences (fixed 2026-07)
+
+- **Was**: the VM supported `for c in "abc"` (string iteration), `s[0]` /
+  `s[-1]` (string subscript with negative wrap), `arr[-1]` (negative list
+  index wrap), and `arr.pop()`; the tree-walker rejected all of them.
+- **Decision**: implement in the tree-walker — the VM behavior is the
+  intended surface (the main VM test corpus relies on it).
+- **Fix**: `src/interpreter/interpreter.cpp` (string iteration in for),
+  `src/interpreter/expressions.cpp` (string subscript incl. the
+  `s["message"]` thrown-string idiom; negative list index wrap),
+  `src/interpreter/call_dispatch.cpp` (`arr.pop()` in both method paths).
+- **Regression**: `tests/vm/test_vm_core.naab`, `test_vm_collections.naab`,
+  `test_vm_dict_array.naab`, `test_vm_exceptions.naab` now pass identically
+  on both engines via the differential corpus.
 
 ## Accepted divergences (allowlisted)
 

@@ -1,6 +1,7 @@
 # Differential v2 corpus manifest — <relpath from repo root> [tags...]
 # Nondeterministic files are auto-skipped by the pre-screen (NONDET).
 # New focused probes:
+tests/bugs/test_engine_parity_unified.naab probe
 tests/differential/corpus/arith_int_edges.naab probe
 tests/differential/corpus/arith_mixed.naab probe
 tests/differential/corpus/arrays_sort.naab probe

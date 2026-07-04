@@ -1,26 +1,4 @@
 {
-  "_comment": "Known-divergence registry for the differential harness. Every entry MUST have a linked section in docs/engine-divergences.md. status: accepted = intentional, open = real fork awaiting a unification decision. detect names a function in diff_runner.py's DETECTORS dict.",
-  "divergences": [
-    {
-      "id": "CMP-001",
-      "status": "open",
-      "scope": ["tests/differential/corpus/known_fork_mixed_compare.naab"],
-      "detect": "mixed_compare_fork",
-      "notes": "docs/engine-divergences.md#cmp-001 — VM raises a type error for string<->number ordering comparisons ('a' < 1); the tree-walker coerces and returns a bool. Recommendation: unify (VM's strict behavior is the safer candidate); allowlisted until the semantics call is made."
-    },
-    {
-      "id": "FEAT-001",
-      "status": "open",
-      "scope": ["tests/vm/test_vm_core.naab", "tests/vm/test_vm_collections.naab", "tests/vm/test_vm_dict_array.naab", "tests/vm/test_vm_exceptions.naab"],
-      "detect": "tw_feature_gap",
-      "notes": "docs/engine-divergences.md#feat-001 — VM supports string iteration (for c in \"abc\"), string subscript (s[0]), and array dot-notation (arr.pop()) that the tree-walker rejects with type errors. Tree-walker feature gap, discovered by this harness reusing tests/vm as corpus."
-    },
-    {
-      "id": "BOOL-001",
-      "status": "open",
-      "scope": ["tests/differential/corpus/known_fork_bool_arith.naab"],
-      "detect": "bool_arith_fork",
-      "notes": "docs/engine-divergences.md#bool-001 — tree-walker treats bool as numeric in + - * / (true + 1 == 2); the VM raises a type error. Recommendation: unify toward tree-walker (bool-as-numeric is the documented TW contract); allowlisted until the VM opcode paths are updated."
-    }
-  ]
+  "_comment": "Known-divergence registry for the differential harness. Every entry MUST have a linked section in docs/engine-divergences.md. status: accepted = intentional, open = real fork awaiting a unification decision. detect names a function in diff_runner.py's DETECTORS dict. Currently EMPTY — CMP-001, BOOL-001, and FEAT-001 were unified (see docs/engine-divergences.md); their detectors remain in diff_runner.py for reuse if a fork regresses.",
+  "divergences": []
 }
