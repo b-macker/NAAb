@@ -611,7 +611,7 @@ target_link_libraries(naab_runtime
     absl::flat_hash_map
     absl::statusor
     fmt::fmt
-    SQLite::SQLite3
+    SQLite3::SQLite3
     naab_security        # Phase 1: Security hardening
     tomlplusplus::tomlplusplus
     ${NAAB_CURL_LIB}
@@ -1298,7 +1298,7 @@ add_executable(test_search_index
 target_link_libraries(test_search_index
     naab_runtime
     fmt::fmt
-    SQLite::SQLite3
+    SQLite3::SQLite3
 )
 message(STATUS "  ✓ Search index test (Phase 1.5)")
 
