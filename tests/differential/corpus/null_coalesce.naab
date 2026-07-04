@@ -1,0 +1,18 @@
+// Differential probe: ?? and null handling parity.
+fn maybe(flag) {
+    if flag > 0 {
+        return 42
+    }
+    return null
+}
+
+main {
+    print(null ?? 5)
+    print(7 ?? 5)
+    print(maybe(1) ?? -1)
+    print(maybe(0) ?? -1)
+    print((null ?? null) ?? "fallback")
+    let x = null
+    print(x ?? "dflt")
+    print("END")
+}

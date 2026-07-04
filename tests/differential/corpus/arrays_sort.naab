@@ -1,0 +1,17 @@
+// Differential probe: sort/sorted/reverse parity across engines.
+use array
+main {
+    let xs = [5, 3, 1, 4, 2]
+    print(array.sorted(xs))
+    print(xs)
+    print(array.sorted(["b", "a", "c"]))
+    print(array.sorted([]))
+    print(array.reverse([1, 2, 3]))
+    print(array.reverse([]))
+    print(array.length([1, 2, 3]))
+    let ys = [3, 1, 2]
+    ys.sort()
+    print(ys)
+    print(array.sorted([2, 2, 1, 1]))
+    print("END")
+}

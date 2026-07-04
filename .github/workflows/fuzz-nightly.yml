@@ -1,0 +1,151 @@
+name: Nightly Fuzz
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  grammar-fuzz:
+    name: Grammar Fuzz (naabfuzz, 30 min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+          pip3 install pybind11
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang -j$(nproc)
+
+      - name: Oracle self-tests
+        run: PYTHONPATH=tools python3 -m naabfuzz selftest
+
+      - name: Fuzz (30 min, run-id seed base)
+        run: |
+          PYTHONPATH=tools python3 -m naabfuzz fuzz \
+            --naab build/naab-lang \
+            --time-budget 1800 \
+            --seed-base "$GITHUB_RUN_ID" \
+            --findings findings.jsonl \
+            --known-findings tests/fuzzing/known_findings.txt
+
+      - name: Minimize new findings
+        if: failure()
+        run: |
+          # Minimize each new severity-1 finding for the artifact
+          mkdir -p minimized
+          python3 - <<'EOF'
+          import json, os, subprocess
+          if not os.path.exists("findings.jsonl"):
+              raise SystemExit(0)
+          env = {**os.environ, "PYTHONPATH": "tools"}
+          for i, ln in enumerate(open("findings.jsonl")):
+              rec = json.loads(ln)
+              if rec.get("severity") != 1:
+                  continue
+              out = subprocess.run(
+                  ["python3", "-m", "naabfuzz", "minimize",
+                   "--naab", "build/naab-lang", "--seed", str(rec["seed"])],
+                  capture_output=True, text=True, timeout=600, env=env)
+              with open("minimized/seed_%s.txt" % rec["seed"], "w") as f:
+                  f.write(out.stdout)
+          EOF
+
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grammar-fuzz-findings
+          path: |
+            findings.jsonl
+            minimized/
+          if-no-files-found: ignore
+
+  libfuzzer:
+    name: libFuzzer (parser + interpreter, 10 min each)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            clang \
+            libsqlite3-dev \
+            python3-dev \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+
+      - name: Restore grown corpus
+        uses: actions/cache@v4
+        with:
+          path: fuzz-corpus-grown
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-
+
+      - name: Build fuzzers
+        run: |
+          cmake -B build-fuzz -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_FUZZING=ON \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -G Ninja
+          ninja -C build-fuzz fuzz_parser fuzz_interpreter -j$(nproc)
+
+      - name: Seed grown corpus
+        run: |
+          mkdir -p fuzz-corpus-grown/parser fuzz-corpus-grown/interpreter
+          cp -n fuzz/corpus/* fuzz-corpus-grown/parser/ 2>/dev/null || true
+          cp -n fuzz/corpus_interpreter/* fuzz-corpus-grown/interpreter/ 2>/dev/null || true
+
+      - name: Fuzz parser
+        run: |
+          ./build-fuzz/fuzz/fuzz_parser fuzz-corpus-grown/parser \
+            -max_total_time=600 -timeout=10 -max_len=10000 \
+            -print_final_stats=1
+
+      - name: Fuzz interpreter
+        run: |
+          ./build-fuzz/fuzz/fuzz_interpreter fuzz-corpus-grown/interpreter \
+            -max_total_time=600 -timeout=10 -max_len=10000 \
+            -print_final_stats=1
+
+      - name: Upload crashes
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libfuzzer-crashes
+          path: |
+            crash-*
+            leak-*
+            timeout-*
+          if-no-files-found: ignore

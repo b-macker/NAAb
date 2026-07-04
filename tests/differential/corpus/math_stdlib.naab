@@ -1,0 +1,23 @@
+// Differential probe: math stdlib return types and rounding parity.
+use math
+main {
+    print(math.floor(3.7))
+    print(math.floor(-3.7))
+    print(math.ceil(3.2))
+    print(math.ceil(-3.2))
+    print(math.round(2.5))
+    print(math.round(-2.5))
+    print(math.round(2.4))
+    print(math.floor(3.7) % 2)
+    print(math.min(3, 5))
+    print(math.max(3, 5))
+    print(math.min(3, 5) % 2)
+    print(math.min(3.0, 5))
+    print(math.abs(-3))
+    print(math.abs(-3.5))
+    print(math.sqrt(4.0))
+    print(math.pow(2, 10))
+    print(math.PI)
+    print(math.E)
+    print("END")
+}

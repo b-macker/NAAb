@@ -30,6 +30,37 @@ Expected breakdown: ~334 pass, ~51 error-behavior (intentional failures), ~11 ne
 
 Run a single test: `./build/naab-lang tests/path/to/test.naab`
 
+### Differential / Oracle / Fuzz pipeline
+
+```bash
+# Differential v2 — VM vs tree-walker output parity over a corpus
+bash tests/differential/run_differential.sh
+
+# Fuzz smoke — 300 deterministic seeds + regression seeds (runs on every PR)
+bash tests/fuzzing/run_fuzz_smoke.sh
+
+# Exact-arithmetic oracle suite (also invariant 7 of run_property_tests.sh)
+PYTHONPATH=tools python3 -m naabfuzz oracle --naab build/naab-lang
+
+# Reproduce / debug a fuzzer finding
+PYTHONPATH=tools python3 -m naabfuzz repro --seed N
+PYTHONPATH=tools python3 -m naabfuzz minimize --naab build/naab-lang --seed N
+```
+
+- Both suites run inside `run-all-tests.sh`; deep fuzzing (30 min grammar +
+  libFuzzer) is nightly-only (`.github/workflows/fuzz-nightly.yml`).
+- Engine forks are triaged with the oracle: `VM_BUG` / `TW_BUG` attribution.
+  The pipeline never auto-allowlists — every entry in
+  `tests/differential/divergences.json` and every accepted signature in
+  `tests/fuzzing/known_findings.txt` MUST link to a section in
+  `docs/engine-divergences.md`.
+- Division is always double (`7/2 == 3.5`) in BOTH engines; `INT_MIN % -1`
+  is `0` (see DIV-001/MOD-001 in `docs/engine-divergences.md`).
+- `tools/naabfuzz` is python3-stdlib-only; oracle model facts (errors print
+  to stdout with `Error:` prefix, `%.15g` doubles, `math.abs` returns float,
+  the literal `-2147483648` lexes as a float) are locked in by
+  `python3 -m naabfuzz selftest` and `tools/naabfuzz/vectors.py`.
+
 ## Source Layout
 
 ```

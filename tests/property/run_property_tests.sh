@@ -1,11 +1,13 @@
 #!/bin/bash
 # Property-Based Test Runner
-# Runs all five invariant suites:
+# Runs all seven invariant suites:
 #   1. Governance transparency (A/B test)
 #   2. Taint monotonicity
 #   3. Type error completeness
 #   4. Polyglot differential (NAAb executor vs raw Python)
 #   5. Serialization boundary audit
+#   6. Governance properties
+#   7. Exact-arithmetic oracle (naabfuzz: vectors + generated + metamorphic)
 
 set -e
 
@@ -74,6 +76,14 @@ fi
 # --- Invariant 6: Governance Properties ---
 echo ""
 if bash "$SCRIPT_DIR/test_governance_properties.sh"; then
+    SUITES_PASSED=$((SUITES_PASSED + 1))
+else
+    SUITES_FAILED=$((SUITES_FAILED + 1))
+fi
+
+# --- Invariant 7: Exact-Arithmetic Oracle ---
+echo ""
+if bash "$SCRIPT_DIR/test_arith_oracle.sh"; then
     SUITES_PASSED=$((SUITES_PASSED + 1))
 else
     SUITES_FAILED=$((SUITES_FAILED + 1))

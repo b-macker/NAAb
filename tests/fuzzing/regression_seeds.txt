@@ -1,0 +1,3 @@
+# Seeds that produced a true (fixed) finding in the past.
+# One seed per line; the smoke run re-checks each on every PR.
+# (empty — populate as real findings are fixed)

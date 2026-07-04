@@ -40,6 +40,45 @@ signature in `tests/fuzzing/known_findings.txt` MUST link to a section here.
   (constant folder), `src/interpreter/expressions.cpp` (`BinaryOp::Mod`).
 - **Regression test**: `tests/bugs/test_int_min_div_mod.naab`.
 
+## Open divergences (allowlisted pending a semantics call)
+
+### CMP-001: string<->number ordering comparison
+
+- **Is**: `"a" < 1` — VM raises `Type error: Cannot compare string < int`;
+  tree-walker coerces and returns `true`.
+- **Decision**: open. Recommendation: unify — the VM's strict type error is
+  the safer semantics to standardize on (the TW result comes from a numeric
+  coercion of the string, which silently yields nonsense orderings).
+- **Allowlist**: `tests/differential/divergences.json` CMP-001
+  (`mixed_compare_fork` detector); probed by
+  `tests/differential/corpus/known_fork_mixed_compare.naab`.
+
+### FEAT-001: tree-walker lags VM on string/array conveniences
+
+- **Is**: the VM supports `for c in "abc"` (string iteration), `s[0]`
+  (string subscript), and `arr.pop()` (array dot-notation); the tree-walker
+  rejects all three with type errors.
+- **Decision**: open. Recommendation: implement the three conveniences in
+  the tree-walker (the VM behavior is clearly the intended surface — the
+  main VM test corpus relies on it).
+- **Allowlist**: `tests/differential/divergences.json` FEAT-001
+  (`tw_feature_gap` detector); exposed by `tests/vm/test_vm_core.naab`,
+  `test_vm_collections.naab`, `test_vm_dict_array.naab`,
+  `test_vm_exceptions.naab` reused as differential corpus.
+
+### BOOL-001: bool operands in arithmetic
+
+- **Is**: `true + 1` — VM raises `Type error: Cannot add bool and int`;
+  tree-walker treats bool as numeric (1/0) and returns `2`.
+- **Decision**: open. Recommendation: unify toward the tree-walker —
+  bool-as-numeric is the TW's documented contract (its div/mod error text
+  says "int, float, or bool") — by normalizing bool→int in the VM's
+  arithmetic opcode paths. Deferred because it touches every arithmetic
+  opcode including the int fast paths.
+- **Allowlist**: `tests/differential/divergences.json` BOOL-001
+  (`bool_arith_fork` detector); probed by
+  `tests/differential/corpus/known_fork_bool_arith.naab`.
+
 ## Accepted divergences (allowlisted)
 
 ### ERR-TEXT-001: Error message wording differs between engines
