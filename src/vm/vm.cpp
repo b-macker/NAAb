@@ -1022,7 +1022,9 @@ interpreter::NaabVal VM::run() {
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
                     if (b.asInt() == 0) runtimeError("Division by zero");
-                    push(interpreter::NaabVal::makeInt(a.asInt() / b.asInt()));
+                    // Division always produces a double, matching the tree-walker
+                    push(interpreter::NaabVal::makeDouble(
+                        static_cast<double>(a.asInt()) / static_cast<double>(b.asInt())));
                 } else if (a.isDouble() || b.isDouble()) {
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     if (bv == 0.0) runtimeError("Division by zero");
@@ -1052,7 +1054,10 @@ interpreter::NaabVal VM::run() {
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
                     if (b.asInt() == 0) runtimeError("Modulo by zero");
-                    push(interpreter::NaabVal::makeInt(a.asInt() % b.asInt()));
+                    int64_t ma = a.asInt(), mb = b.asInt();
+                    // INT_MIN % -1 is UB in C++; the truncated-mod result is 0
+                    push(interpreter::NaabVal::makeInt(
+                        (mb == -1) ? 0 : (ma % mb)));
                 } else {
                     runtimeError("Type error: Modulo requires integers");
                 }

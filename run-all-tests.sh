@@ -1606,6 +1606,30 @@ else
     echo "  test_vm_treewalker_diff.sh: not found, skipping"
 fi
 
+DIFF_V2_SCRIPT="tests/differential/run_differential.sh"
+if [ -f "$DIFF_V2_SCRIPT" ]; then
+    if bash "$DIFF_V2_SCRIPT" 2>&1; then
+        echo "  run_differential.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("run_differential.sh")
+    fi
+else
+    echo "  run_differential.sh: not found, skipping"
+fi
+
+FUZZ_SMOKE_SCRIPT="tests/fuzzing/run_fuzz_smoke.sh"
+if [ -f "$FUZZ_SMOKE_SCRIPT" ]; then
+    if bash "$FUZZ_SMOKE_SCRIPT" 2>&1; then
+        echo "  run_fuzz_smoke.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("run_fuzz_smoke.sh")
+    fi
+else
+    echo "  run_fuzz_smoke.sh: not found, skipping"
+fi
+
 INVARIANT_SCRIPT="tests/governance_v4/invariants/test_invariant_enforcement.sh"
 if [ -f "$INVARIANT_SCRIPT" ]; then
     if bash "$INVARIANT_SCRIPT" 2>&1; then

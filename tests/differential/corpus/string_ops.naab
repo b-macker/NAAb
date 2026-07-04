@@ -1,0 +1,14 @@
+// Differential probe: string repetition (`*`) parity and string stdlib.
+use string
+main {
+    print("ab" * 3)
+    print(3 * "ab")
+    print("x" * 0)
+    print("" * 5)
+    print(string.length("hello"))
+    print(string.length(""))
+    print(string.upper("NaAb1"))
+    print(string.lower("NaAb1"))
+    print(string.length("ab" * 4))
+    print("END")
+}

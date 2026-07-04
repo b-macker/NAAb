@@ -1,0 +1,8 @@
+// Differential probe: EXPECTED to diverge — BOOL-001 (bool arithmetic).
+// VM: type error. Tree-walker: bool is numeric, prints 2.
+// Reported KNOWN via divergences.json; flips to FAIL->retire when unified.
+main {
+    print("probe start")
+    print(true + 1)
+    print("END")
+}

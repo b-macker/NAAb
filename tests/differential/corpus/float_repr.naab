@@ -1,0 +1,15 @@
+// Differential probe: double formatting edge cases (%.15g parity).
+main {
+    print(0.5)
+    print(0.25)
+    print(0.1)
+    print(1.0 / 3.0)
+    print(2.0 / 3.0)
+    print(0.0001)
+    print(100000.0)
+    print(99999.75)
+    print(1.5 * 1.5)
+    print(0.1 * 3.0)
+    print(10000000000.0 * 1.0 + 0.5)
+    print("END")
+}

@@ -1,0 +1,39 @@
+// Differential probe: if/while/for/range/function control flow parity.
+fn add(a, b) {
+    return a + b
+}
+
+fn classify(n) {
+    if n < 0 {
+        return "neg"
+    } else {
+        if n == 0 {
+            return "zero"
+        }
+    }
+    return "pos"
+}
+
+main {
+    for i in 0..3 {
+        print(i)
+    }
+    for j in 1..=3 {
+        print(j)
+    }
+    let i = 0
+    let acc = 0
+    while i < 5 {
+        acc = acc + i
+        i = i + 1
+    }
+    print(acc)
+    print(add(2, 3))
+    print(add(2.5, 3))
+    print(classify(-5))
+    print(classify(0))
+    print(classify(7))
+    let x = if acc > 5 { "big" } else { "small" }
+    print(x)
+    print("END")
+}

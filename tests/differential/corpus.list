@@ -1,0 +1,60 @@
+# Differential v2 corpus manifest — <relpath from repo root> [tags...]
+# Nondeterministic files are auto-skipped by the pre-screen (NONDET).
+# New focused probes:
+tests/differential/corpus/arith_int_edges.naab probe
+tests/differential/corpus/arith_mixed.naab probe
+tests/differential/corpus/arrays_sort.naab probe
+tests/differential/corpus/comparisons.naab probe
+tests/differential/corpus/control_flow.naab probe
+tests/differential/corpus/error_categories.naab probe
+tests/differential/corpus/error_mod.naab probe
+tests/differential/corpus/error_overflow.naab probe
+tests/differential/corpus/float_repr.naab probe
+tests/differential/corpus/known_fork_bool_arith.naab probe
+tests/differential/corpus/known_fork_mixed_compare.naab probe
+tests/differential/corpus/list_index.naab probe
+tests/differential/corpus/math_stdlib.naab probe
+tests/differential/corpus/null_coalesce.naab probe
+tests/differential/corpus/plus_overload_order.naab probe
+tests/differential/corpus/precedence.naab probe
+tests/differential/corpus/string_ops.naab probe
+# Reused engine test corpus (governance/taint/typed-scoring robustness tests excluded —
+# they legitimately differ across engines or need the repo govern.json):
+tests/vm/test_enum_module.naab vm
+tests/vm/test_import_as.naab vm
+tests/vm/test_import_module.naab vm
+tests/vm/test_vm_arithmetic.naab vm
+tests/vm/test_vm_arithmetic_fastpath.naab vm
+tests/vm/test_vm_closures.naab vm
+tests/vm/test_vm_collections.naab vm
+tests/vm/test_vm_constant_folding.naab vm
+tests/vm/test_vm_core.naab vm
+tests/vm/test_vm_deep_calls.naab vm
+tests/vm/test_vm_deep_recursion.naab vm
+tests/vm/test_vm_dict_array.naab vm
+tests/vm/test_vm_exceptions.naab vm
+tests/vm/test_vm_functions.naab vm
+tests/vm/test_vm_import.naab vm
+tests/vm/test_vm_loop_ops.naab vm
+tests/vm/test_vm_loops.naab vm
+tests/vm/test_vm_match.naab vm
+tests/vm/test_vm_string_ops.naab vm
+tests/robustness/test_closures_scope.naab robustness
+tests/robustness/test_concurrency_state.naab robustness
+tests/robustness/test_control_flow.naab robustness
+tests/robustness/test_encoding_edge_cases.naab robustness
+tests/robustness/test_factuality.naab robustness
+tests/robustness/test_fstring_hardened.naab robustness
+tests/robustness/test_generators.naab robustness
+tests/robustness/test_interfaces.naab robustness
+tests/robustness/test_match_hardened.naab robustness
+tests/robustness/test_mutations.naab robustness
+tests/robustness/test_operators_matrix.naab robustness
+tests/robustness/test_sensitivity.naab robustness
+tests/robustness/test_stdlib_array.naab robustness
+tests/robustness/test_stdlib_env_time.naab robustness
+tests/robustness/test_stdlib_math_json.naab robustness
+tests/robustness/test_stdlib_path.naab robustness
+tests/robustness/test_stdlib_string.naab robustness
+tests/robustness/test_v060_interactions.naab robustness
+tests/robustness/test_vm_regression.naab robustness

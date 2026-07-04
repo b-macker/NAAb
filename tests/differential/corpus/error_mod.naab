@@ -1,0 +1,6 @@
+// Differential probe: modulo error parity (intentional error).
+main {
+    print("before")
+    let z = 0
+    print(5 % z)
+}
