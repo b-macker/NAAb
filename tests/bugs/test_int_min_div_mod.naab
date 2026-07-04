@@ -1,0 +1,32 @@
+// Regression: INT_MIN division/modulo edge cases and unified division semantics.
+// Before the fix: VM computed 7/2 == 3 (int) while tree-walker computed 3.5,
+// and INT_MIN / -1, INT_MIN % -1 were C++ undefined behavior.
+// Both engines must now agree: division always yields a double, and
+// INT_MIN % -1 == 0 (the mathematically correct truncated-mod result).
+main {
+    let int_min = -2147483647 - 1
+
+    // Division always promotes to double (both engines)
+    let d1 = 7 / 2
+    print("7/2: " + d1)                    // 7/2: 3.5
+
+    let d2 = int_min / -1
+    print("INT_MIN/-1: " + d2)             // INT_MIN/-1: 2147483648
+
+    // INT_MIN % -1 is 0, not UB
+    let m1 = int_min % -1
+    print("INT_MIN%-1: " + m1)             // INT_MIN%-1: 0
+
+    // Truncated modulo sign behavior unchanged
+    print("-7%3: " + (-7 % 3))             // -7%3: -1
+    print("7%-3: " + (7 % -3))             // 7%-3: 1
+
+    // Exact division of ints still prints without decimal point (%.15g)
+    print("8/2: " + (8 / 2))               // 8/2: 4
+
+    if d1 == 3.5 && m1 == 0 && d2 == 2147483648.0 {
+        print("PASS: int_min_div_mod")
+    } else {
+        print("FAIL: int_min_div_mod")
+    }
+}
