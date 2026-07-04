@@ -36,6 +36,12 @@ PYTHONPATH=tools python3 -m naabfuzz selftest > /dev/null 2>&1 || {
 }
 
 rc=0
+
+# Parser precedence parity: fully-parenthesized emission of the same AST
+# must produce identical output
+PYTHONPATH=tools python3 -m naabfuzz paren-check \
+    --naab "$NAAB" --seed 1 --count 40 || rc=1
+
 PYTHONPATH=tools python3 -m naabfuzz fuzz \
     --naab "$NAAB" \
     --seeds 1..300 \

@@ -188,6 +188,30 @@ def cmd_oracle(args):
     return 0 if total_fail == 0 else 1
 
 
+def cmd_parencheck(args):
+    """Emit each seed's AST twice — fully parenthesized and precedence-based
+    — and require identical engine output. A mismatch is a parser
+    precedence/associativity bug (or an emitter table drift)."""
+    from .runner import run_engine
+    from .triage import classify_error
+    bad = 0
+    for i in range(args.count):
+        seed = args.seed + i
+        prog = G.generate(seed)
+        plain = Emitter(paren_all=False).program(prog)
+        paren = Emitter(paren_all=True).program(prog)
+        a = run_engine(args.naab, plain, tree_walk=False)
+        b = run_engine(args.naab, paren, tree_walk=False)
+        same = (a.rc == b.rc and a.out_lines == b.out_lines and
+                classify_error(a.error_text) == classify_error(b.error_text))
+        if not same:
+            bad += 1
+            print("PAREN MISMATCH seed=%d: plain rc=%d %r / paren rc=%d %r"
+                  % (seed, a.rc, a.out_lines[:3], b.rc, b.out_lines[:3]))
+    print("=== paren-check: %d seeds, %d mismatches ===" % (args.count, bad))
+    return 1 if bad else 0
+
+
 def cmd_properties(args):
     from .properties import run_properties
     total, failures = run_properties(args.naab, args.seed, args.count)
@@ -245,6 +269,13 @@ def main(argv=None):
     p.add_argument("--count", type=int, default=150)
     p.add_argument("--prop-count", type=int, default=5)
     p.set_defaults(fn=cmd_oracle)
+
+    p = sub.add_parser("paren-check",
+                       help="paren-all vs precedence emission parity")
+    add_naab(p)
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--count", type=int, default=50)
+    p.set_defaults(fn=cmd_parencheck)
 
     p = sub.add_parser("properties", help="metamorphic property suite only")
     add_naab(p)
