@@ -878,8 +878,10 @@ std::string GovernanceEngine::lookupRationale(const std::string& rule_name) cons
     // Context drift
     if (rule_name == "context_drift.coherence_loss") return rules().context_drift.rationale;
     if (rule_name == "context_drift.reality_checkpoint") return rules().context_drift.reality_checkpoint.rationale;
-    // Exposure tracking
-    if (rule_name == "exposure_tracking") return rules().exposure_tracking.rationale;
+    // Exposure tracking — "admission" is the vocabulary alias for the pre-send
+    // gate (checkAdmission enforces under the exposure_tracking config key)
+    if (rule_name == "exposure_tracking" || rule_name == "admission")
+        return rules().exposure_tracking.rationale;
     // Scoring
     if (rule_name.rfind("scoring", 0) == 0) return rules().scoring.rationale;
     // Contracts — look up per-function rationale
@@ -1562,12 +1564,38 @@ std::string GovernanceEngine::checkNetworkImports(
         recordPass("capabilities.network", EnforcementLevel::HARD);
         return "";
     }
-    // Scan polyglot code for network library usage patterns
+    // Scan polyglot code for network library usage patterns.
+    // Patterns are constant — compile once (magic static, thread-safe) instead
+    // of per invocation. A pattern that fails to compile stays fail-closed via
+    // the compiled=false flag, matching the previous per-call catch behavior.
+    struct CompiledNetworkPattern {
+        const DangerousPattern* pat;
+        std::regex re;
+        bool compiled;
+    };
+    static const std::vector<CompiledNetworkPattern> compiled_network_patterns = [] {
+        std::vector<CompiledNetworkPattern> out;
+        out.reserve(NETWORK_IMPORT_PATTERNS.size());
+        for (const auto& p : NETWORK_IMPORT_PATTERNS) {
+            CompiledNetworkPattern cp{&p, std::regex(), false};
+            try {
+                cp.re = std::regex(p.pattern);
+                cp.compiled = true;
+            } catch (const std::regex_error&) {
+                cp.compiled = false;
+            }
+            out.push_back(std::move(cp));
+        }
+        return out;
+    }();
+
     bool any_pattern_failed = false;
-    for (const auto& pat : NETWORK_IMPORT_PATTERNS) {
+    for (const auto& cpat : compiled_network_patterns) {
+        const auto& pat = *cpat.pat;
         if (pat.language != language && pat.language != "any") continue;
+        if (!cpat.compiled) { any_pattern_failed = true; continue; }
         try {
-            std::regex re(pat.pattern);
+            const std::regex& re = cpat.re;
             if (std::regex_search(code, re)) {
                 return enforce("capabilities.network", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
@@ -2106,9 +2134,26 @@ std::string GovernanceEngine::checkSecrets(
 
     if (!rules().no_secrets) return "";
 
-    for (const auto& pattern : SECRET_PATTERNS) {
+    // SECRET_PATTERNS is constant — compile once. This runs on every agent
+    // prompt, response, and tool argument, so per-call compilation is the
+    // hottest regex cost on the agent path.
+    static const std::vector<std::pair<size_t, std::regex>> compiled_secret_patterns = [] {
+        std::vector<std::pair<size_t, std::regex>> out;
+        for (size_t i = 0; i < SECRET_PATTERNS.size(); ++i) {
+            try {
+                out.emplace_back(i, std::regex(SECRET_PATTERNS[i].pattern, std::regex::icase));
+            } catch (const std::regex_error& e) {
+                fprintf(stderr, "[governance] Warning: regex pattern failed in checkSecrets: %s\n",
+                        e.what());
+            }
+        }
+        return out;
+    }();
+
+    for (const auto& [pat_idx, compiled_re] : compiled_secret_patterns) {
+        const auto& pattern = SECRET_PATTERNS[pat_idx];
         try {
-            std::regex re(pattern.pattern, std::regex::icase);
+            const std::regex& re = compiled_re;
             std::smatch match;
             if (std::regex_search(code, match, re)) {
                 std::string matched = match[0].str();
@@ -6196,10 +6241,18 @@ void GovernanceEngine::recoverCoherence(int handle_id) {
 }
 
 // Read-only copy of pipeline depth, synced from agent_impl.cpp via setPipelineDepth().
+// Thread-local fallback for call sites without a handle; the per-handle map in
+// pipeline_depths_ is authoritative and survives cross-thread hops
+// (agent.batch / fan_out workers run stages on pool threads).
 static thread_local int t_pipeline_depth = 0;
 
-void GovernanceEngine::setPipelineDepth(int /*handle_id*/, int depth) {
+void GovernanceEngine::setPipelineDepth(int handle_id, int depth) {
     t_pipeline_depth = depth;
+    if (handle_id > 0) {
+        std::lock_guard<std::mutex> lock(exposure_mutex_);
+        if (depth > 0) pipeline_depths_[handle_id] = depth;
+        else pipeline_depths_.erase(handle_id);
+    }
 }
 
 int GovernanceEngine::consumeRiskBudget(const std::string& config, int cost) {
@@ -6283,16 +6336,25 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
         }
     }
 
-    // F3: Pipeline depth check
-    if (cfg.max_pipeline_depth > 0 && t_pipeline_depth > cfg.max_pipeline_depth) {
+    // F3: Pipeline depth check — per-handle map is authoritative (survives
+    // worker-thread hops); thread-local is the fallback for handle-less sites
+    int effective_pipeline_depth = t_pipeline_depth;
+    {
+        int hid = current_agent_handle_.load(std::memory_order_relaxed);
+        std::lock_guard<std::mutex> lock(exposure_mutex_);
+        auto pit = pipeline_depths_.find(hid);
+        if (pit != pipeline_depths_.end())
+            effective_pipeline_depth = std::max(effective_pipeline_depth, pit->second);
+    }
+    if (cfg.max_pipeline_depth > 0 && effective_pipeline_depth > cfg.max_pipeline_depth) {
         clearTrace();
         addTrace(fmt::format("admission_denied: pipeline depth {} exceeds limit {} for agent '{}'",
-            t_pipeline_depth, cfg.max_pipeline_depth, agent_config));
+            effective_pipeline_depth, cfg.max_pipeline_depth, agent_config));
         return enforce("exposure_tracking", cfg.level,
             formatError(cfg.level,
                 fmt::format("Admission denied — pipeline nesting too deep\n\n"
                     "  Depth: {}\n  Limit: {}\n  Agent: {}\n",
-                    t_pipeline_depth, cfg.max_pipeline_depth, agent_config),
+                    effective_pipeline_depth, cfg.max_pipeline_depth, agent_config),
                 "", "exposure_tracking",
                 lookupRationale("exposure_tracking"), "", ""));
     }
@@ -6426,6 +6488,30 @@ GovernanceEngine::checkOutputAdmissibility(
     }
     // "quarantine" / "attest": return with admissible = false, caller handles metadata
     return result;
+}
+
+void GovernanceEngine::enforceOutputAdmissibilityGate(
+    const std::string& agent_config, const std::string& tool_name,
+    double coherence_score) {
+    const auto& oac = rules().circuit_breaker.output_admissibility;
+    clearTrace();
+    addTrace(fmt::format(
+        "tool_gate: coherence {:.4f} below admissible threshold {:.4f} for '{}' tool '{}'",
+        coherence_score, oac.threshold, agent_config, tool_name));
+    enforce("output_admissibility", oac.level,
+        formatError(oac.level,
+            fmt::format("Tool execution not admissible — coherence below threshold\n\n"
+                "  Tool: {}\n  Coherence: {:.4f}\n  Threshold: {:.4f}\n"
+                "  Agent: {}\n\n"
+                "  The tool call was not executed.\n",
+                tool_name, coherence_score, oac.threshold, agent_config),
+            "", "output_admissibility",
+            lookupRationale("output_admissibility"), "", ""));
+    // enforce() throws for block-capable levels; if a non-throwing level
+    // slipped through config clamping, blocking is still mandatory here.
+    throw std::runtime_error(fmt::format(
+        "Agent error: Tool execution not admissible\n\n"
+        "  Tool: {}\n  Agent: {}\n", tool_name, agent_config));
 }
 
 std::string GovernanceEngine::checkGovernanceHealth(int turn) {

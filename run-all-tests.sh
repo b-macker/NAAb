@@ -1457,6 +1457,45 @@ else
     echo "  test_output_admissibility.sh: not found, skipping"
 fi
 
+# Split commit — accounting vs conversation state (stub-backed)
+SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
+if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
+    if bash "$SPLIT_COMMIT_SCRIPT" 2>&1; then
+        echo "  test_split_commit.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_split_commit.sh")
+    fi
+else
+    echo "  test_split_commit.sh: not found, skipping"
+fi
+
+# agent.propose / agent.commit / orchestra.select_admissible (stub-backed)
+PROPOSE_SCRIPT="tests/governance_v4/test_propose_commit.sh"
+if [ -f "$PROPOSE_SCRIPT" ]; then
+    if bash "$PROPOSE_SCRIPT" 2>&1; then
+        echo "  test_propose_commit.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_propose_commit.sh")
+    fi
+else
+    echo "  test_propose_commit.sh: not found, skipping"
+fi
+
+# Per-tool-call admissibility gate (stub-backed)
+TOOL_GATE_SCRIPT="tests/governance_v4/test_tool_admissibility_gate.sh"
+if [ -f "$TOOL_GATE_SCRIPT" ]; then
+    if bash "$TOOL_GATE_SCRIPT" 2>&1; then
+        echo "  test_tool_admissibility_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_tool_admissibility_gate.sh")
+    fi
+else
+    echo "  test_tool_admissibility_gate.sh: not found, skipping"
+fi
+
 # naab-44 governance gap fixes (windowing, velocity, graduated corrections)
 NAAB44_SCRIPT="tests/governance_v4/test_naab44_fixes.sh"
 if [ -f "$NAAB44_SCRIPT" ]; then

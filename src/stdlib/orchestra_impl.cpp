@@ -250,12 +250,117 @@ interpreter::NaabVal orchestraEnforceConvergence(std::vector<interpreter::NaabVa
 }
 
 // ============================================================================
+// Orchestra.select_admissible(candidates [, spec])
+// ============================================================================
+// Pure selection over candidate dicts (from agent.propose() or response dicts
+// carrying an "admissibility" section). Filters admissible candidates,
+// optionally applies an enforce_convergence-style spec (pattern or
+// required_fields) to each candidate's content, and ranks by admissibility
+// score (falling back to coherence_score). No API calls, no state mutation.
+
+interpreter::NaabVal orchestraSelectAdmissible(std::vector<interpreter::NaabVal>& args) {
+    if (args.empty() || args.size() > 2) {
+        throw std::runtime_error(
+            "Orchestra error: orchestra.select_admissible() takes 1 or 2 arguments\n\n"
+            "  Got: " + std::to_string(args.size()) + " argument(s)\n"
+            "  Expected: orchestra.select_admissible(candidates [, spec])\n\n"
+            "  Example:\n"
+            "    let proposals = agent.propose(h, \"summarize\", 3)\n"
+            "    let pick = orchestra.select_admissible(proposals[\"candidates\"])\n");
+    }
+
+    // Accept either a candidates list or the whole agent.propose() result dict
+    std::vector<interpreter::NaabVal> candidates;
+    if (args[0].isList()) {
+        candidates = args[0].asListConst();
+    } else if (args[0].isDict()) {
+        auto& d = args[0].asDictConst();
+        auto c_it = d.find("candidates");
+        if (c_it != d.end() && c_it->second.isList()) {
+            candidates = c_it->second.asListConst();
+        }
+    }
+    if (candidates.empty() && !args[0].isList() &&
+        !(args[0].isDict() && args[0].asDictConst().count("candidates"))) {
+        throw std::runtime_error(
+            "Orchestra error: candidates must be a list or an agent.propose() result\n\n"
+            "  Expected: orchestra.select_admissible(candidates [, spec])\n");
+    }
+
+    // Optional spec: reuse enforce_convergence validation per candidate
+    bool has_spec = args.size() == 2 && args[1].isDict();
+
+    int best_index = -1;
+    double best_score = -1.0;
+    int admissible_count = 0;
+
+    for (size_t i = 0; i < candidates.size(); i++) {
+        if (!candidates[i].isDict()) continue;
+        auto& cand = candidates[i].asDictConst();
+
+        // Admissibility flag (default false when section is missing)
+        bool admissible = false;
+        double score = 0.0;
+        auto adm_it = cand.find("admissibility");
+        if (adm_it != cand.end() && adm_it->second.isDict()) {
+            auto& adm = adm_it->second.asDictConst();
+            auto a_it = adm.find("admissible");
+            if (a_it != adm.end() && a_it->second.isBool())
+                admissible = a_it->second.asBool();
+            auto s_it = adm.find("score");
+            if (s_it != adm.end() && (s_it->second.isDouble() || s_it->second.isInt()))
+                score = s_it->second.isDouble() ? s_it->second.asDouble()
+                                                : static_cast<double>(s_it->second.asInt());
+            else {
+                auto c_it = adm.find("coherence_score");
+                if (c_it != adm.end() && c_it->second.isDouble())
+                    score = c_it->second.asDouble();
+            }
+        }
+        if (!admissible) continue;
+
+        // Spec check on candidate content
+        if (has_spec) {
+            std::string content;
+            auto content_it = cand.find("content");
+            if (content_it != cand.end() && content_it->second.isString())
+                content = content_it->second.asString();
+            std::vector<interpreter::NaabVal> conv_args = {
+                interpreter::NaabVal::makeString(content), args[1]};
+            auto conv = orchestraEnforceConvergence(conv_args);
+            bool spec_ok = false;
+            if (conv.isDict()) {
+                auto& cd = conv.asDictConst();
+                auto v_it = cd.find("valid");
+                if (v_it != cd.end() && v_it->second.isBool())
+                    spec_ok = v_it->second.asBool();
+            }
+            if (!spec_ok) continue;
+        }
+
+        admissible_count++;
+        if (score > best_score) {
+            best_score = score;
+            best_index = static_cast<int>(i);
+        }
+    }
+
+    std::unordered_map<std::string, interpreter::NaabVal> result_dict;
+    result_dict["selected"] = best_index >= 0
+        ? candidates[best_index] : interpreter::NaabVal::makeNull();
+    result_dict["selected_index"] = interpreter::NaabVal::makeInt(best_index);
+    result_dict["admissible_count"] = interpreter::NaabVal::makeInt(admissible_count);
+    result_dict["total"] = interpreter::NaabVal::makeInt(static_cast<int>(candidates.size()));
+    return interpreter::NaabVal::makeDict(std::move(result_dict));
+}
+
+// ============================================================================
 // Module Interface
 // ============================================================================
 
 bool OrchestraModule::hasFunction(const std::string& name) const {
     return name == "sequential_refinement" || name == "consensus_vote" ||
-           name == "enforce_convergence";
+           name == "enforce_convergence" || name == "select_admissible";
 }
 
 interpreter::NaabVal OrchestraModule::call(
@@ -265,10 +370,11 @@ interpreter::NaabVal OrchestraModule::call(
     if (function_name == "sequential_refinement") return orchestraSequentialRefinement(args);
     if (function_name == "consensus_vote") return orchestraConsensusVote(args);
     if (function_name == "enforce_convergence") return orchestraEnforceConvergence(args);
+    if (function_name == "select_admissible") return orchestraSelectAdmissible(args);
 
     throw std::runtime_error(
         fmt::format("Orchestra error: unknown function 'orchestra.{}'\n\n"
-            "  Available: sequential_refinement, consensus_vote, enforce_convergence\n",
+            "  Available: sequential_refinement, consensus_vote, enforce_convergence, select_admissible\n",
             function_name));
 }
 

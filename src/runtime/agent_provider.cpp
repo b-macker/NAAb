@@ -69,6 +69,14 @@ struct HttpResult {
     std::string error_detail; // API error message (from response body)
 };
 
+// Plain http is permitted ONLY for loopback hosts — supports local test stubs
+// via the per-agent api_base override. All other endpoints require https.
+static bool isLoopbackHttpUrl(const std::string& url) {
+    return url.rfind("http://127.0.0.1", 0) == 0 ||
+           url.rfind("http://localhost", 0) == 0 ||
+           url.rfind("http://[::1]", 0) == 0;
+}
+
 static HttpResult httpPostRaw(
     const std::string& url,
     const std::string& body,
@@ -94,7 +102,8 @@ static HttpResult httpPostRaw(
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
 
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_seconds > 0 ? timeout_seconds : 60L);
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR,
+                     isLoopbackHttpUrl(url) ? "http,https" : "https");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
@@ -188,6 +197,24 @@ static json httpPost(
 }
 
 // ============================================================================
+// Endpoint construction — honors per-agent api_base override (signed govern.json)
+// ============================================================================
+
+static std::string anthropicUrl(const governance::AgentConfig& config) {
+    std::string base = config.api_base.empty()
+        ? "https://api.anthropic.com" : config.api_base;
+    if (!base.empty() && base.back() == '/') base.pop_back();
+    return base + "/v1/messages";
+}
+
+static std::string geminiUrl(const governance::AgentConfig& config) {
+    std::string base = config.api_base.empty()
+        ? "https://generativelanguage.googleapis.com" : config.api_base;
+    if (!base.empty() && base.back() == '/') base.pop_back();
+    return base + "/v1beta/models/" + config.model + ":generateContent";
+}
+
+// ============================================================================
 // Thinking budget helpers
 // ============================================================================
 
@@ -240,7 +267,7 @@ static json callAnthropic(
         request_body["system"] = config.system_prompt;
 
     return httpPost(
-        "https://api.anthropic.com/v1/messages",
+        anthropicUrl(config),
         request_body.dump(),
         {
             "x-api-key: " + api_key,
@@ -300,8 +327,7 @@ static json callGemini(
         }
     }
 
-    std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                    + config.model + ":generateContent";
+    std::string url = geminiUrl(config);
 
     return httpPost(url, request_body.dump(),
         {"content-type: application/json", "User-Agent: NAAb/1.0",
@@ -552,8 +578,7 @@ ProviderResult callAgentWithStatus(
                 }
             }
 
-            std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                            + config.model + ":generateContent";
+            std::string url = geminiUrl(config);
             http_result = httpPostRaw(url, request_body.dump(),
                 {"content-type: application/json", "User-Agent: NAAb/1.0",
                  "x-goog-api-key: " + api_key},
@@ -569,7 +594,7 @@ ProviderResult callAgentWithStatus(
                 request_body["system"] = config.system_prompt;
 
             http_result = httpPostRaw(
-                "https://api.anthropic.com/v1/messages",
+                anthropicUrl(config),
                 request_body.dump(),
                 {
                     "x-api-key: " + api_key,
@@ -733,8 +758,7 @@ ProviderResult callAgentWithTools(
                 request_body["tools"] = json::array({{{"functionDeclarations", func_decls}}});
             }
 
-            std::string url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                            + config.model + ":generateContent";
+            std::string url = geminiUrl(config);
             http_result = httpPostRaw(url, request_body.dump(),
                 {"content-type: application/json", "User-Agent: NAAb/1.0",
                  "x-goog-api-key: " + api_key},
@@ -769,7 +793,7 @@ ProviderResult callAgentWithTools(
             }
 
             http_result = httpPostRaw(
-                "https://api.anthropic.com/v1/messages",
+                anthropicUrl(config),
                 request_body.dump(),
                 {
                     "x-api-key: " + api_key,

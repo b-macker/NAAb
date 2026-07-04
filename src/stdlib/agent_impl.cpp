@@ -101,6 +101,24 @@ struct AgentTracker {
 static std::unordered_map<int, AgentTracker> s_trackers;
 static std::mutex s_agent_mutex;
 
+// Pending proposals from agent.propose() — server-side authority for
+// agent.commit(). Keyed by handle_id; the whole set is invalidated by any
+// subsequent send/propose/commit on that handle (single outstanding proposal
+// set, no replay). Guarded by s_agent_mutex.
+struct PendingProposal {
+    std::string nonce;         // HMAC anti-forge (same secret as handles)
+    std::string content_hash;  // sha256 of candidate content
+    std::string content;       // authoritative content (commit uses this, not the dict)
+    std::string user_message;  // prompt that produced the candidates (history pairing)
+    std::string model;
+    int input_tokens = 0;
+    int output_tokens = 0;
+    bool scan_ok = true;       // response scan + contract passed during propose
+    double score = 1.0;        // read-only admissibility score at propose time
+    bool admissible = true;
+};
+static std::unordered_map<int, std::vector<PendingProposal>> s_pending_proposals;
+
 // Run-level dispatch counters — shared across all agent calls in this process
 struct DispatchCounters {
     std::atomic<int> total_calls{0};
@@ -208,6 +226,46 @@ static void extractKeywords(const std::string& text, std::unordered_set<std::str
         }
     }
     if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
+}
+
+// Strip a single markdown code fence wrapping the entire response.
+// LLMs frequently wrap JSON/code in ```json ... ``` or ``` ... ```
+// which breaks json.parse() downstream. Only strips when the fence spans
+// the whole response (optional surrounding whitespace); partial fences and
+// multiple fence blocks are left untouched. Shared by send and propose paths.
+static std::string stripMarkdownFences(const std::string& input) {
+    std::string content = input;
+    if (content.empty()) return content;
+    auto fence_start = content.find("```");
+    if (fence_start == std::string::npos) return content;
+    auto fence_end = content.rfind("```");
+    if (fence_end == std::string::npos || fence_end <= fence_start + 3) return content;
+    auto line_end = content.find('\n', fence_start);
+    if (line_end == std::string::npos || line_end >= fence_end) return content;
+    bool only_whitespace_before = true;
+    for (size_t ci = 0; ci < fence_start; ++ci) {
+        if (content[ci] != ' ' && content[ci] != '\t' &&
+            content[ci] != '\n' && content[ci] != '\r') {
+            only_whitespace_before = false;
+            break;
+        }
+    }
+    bool only_whitespace_after = true;
+    for (size_t ci = fence_end + 3; ci < content.size(); ++ci) {
+        if (content[ci] != ' ' && content[ci] != '\t' &&
+            content[ci] != '\n' && content[ci] != '\r') {
+            only_whitespace_after = false;
+            break;
+        }
+    }
+    if (only_whitespace_before && only_whitespace_after) {
+        content = content.substr(line_end + 1, fence_end - line_end - 1);
+        while (!content.empty() && (content.back() == '\n' ||
+               content.back() == '\r' || content.back() == ' ')) {
+            content.pop_back();
+        }
+    }
+    return content;
 }
 
 // Score a step-up challenge response: word count + keyword overlap with system prompt
@@ -1214,6 +1272,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 "  - Forged or corrupted handles are rejected\n");
         }
         auto& tracker = tracker_it->second;
+
+        // Stale-proposal invalidation: a new send supersedes any outstanding
+        // agent.propose() candidates for this handle (no replay after state moves)
+        s_pending_proposals.erase(handle_id);
 
         // Enforce turn limit from tracker (not handle dict)
         if (tracker.turns >= config->max_turns) {
@@ -2403,52 +2465,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             attempts_made, last_error, model_idx + 1));
     }
 
-    std::string content = agent_resp.content;
-
-    // Strip markdown code fences from LLM responses.
-    // LLMs frequently wrap JSON/code in ```json ... ``` or ``` ... ```
-    // which breaks json.parse() downstream. Strip them transparently.
-    if (!content.empty()) {
-        // Find leading fence: ``` optionally followed by a language tag
-        auto fence_start = content.find("```");
-        if (fence_start != std::string::npos) {
-            // Check if there's a closing fence
-            auto fence_end = content.rfind("```");
-            if (fence_end != std::string::npos && fence_end > fence_start + 3) {
-                // Skip past the opening fence line (```json\n or ```\n)
-                auto line_end = content.find('\n', fence_start);
-                if (line_end != std::string::npos && line_end < fence_end) {
-                    // Only strip if fence is near the start (allow leading whitespace/newlines)
-                    bool only_whitespace_before = true;
-                    for (size_t ci = 0; ci < fence_start; ++ci) {
-                        if (content[ci] != ' ' && content[ci] != '\t' &&
-                            content[ci] != '\n' && content[ci] != '\r') {
-                            only_whitespace_before = false;
-                            break;
-                        }
-                    }
-                    // Only strip if fence is near the end too
-                    bool only_whitespace_after = true;
-                    for (size_t ci = fence_end + 3; ci < content.size(); ++ci) {
-                        if (content[ci] != ' ' && content[ci] != '\t' &&
-                            content[ci] != '\n' && content[ci] != '\r') {
-                            only_whitespace_after = false;
-                            break;
-                        }
-                    }
-                    if (only_whitespace_before && only_whitespace_after) {
-                        // Extract content between opening fence line and closing fence
-                        content = content.substr(line_end + 1, fence_end - line_end - 1);
-                        // Trim trailing whitespace/newlines
-                        while (!content.empty() && (content.back() == '\n' ||
-                               content.back() == '\r' || content.back() == ' ')) {
-                            content.pop_back();
-                        }
-                    }
-                }
-            }
-        }
-    }
+    std::string content = stripMarkdownFences(agent_resp.content);
 
     bool fence_was_stripped = (content != agent_resp.content);
     if (transcript_active) {
@@ -2642,6 +2659,62 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         tool_calls_this_send++;
                         tool_blocked_this_send++;
                         continue;
+                    }
+                }
+
+                // Per-tool-call admissibility gate: tool execution is the most
+                // irreversible effect in the turn, so when gate_tool_calls is
+                // enabled it gets the same coherence/pulse boundary as responses.
+                if (gov_engine && gov_engine->isActive()) {
+                    const auto& oac_gate = gov_engine->getRules()
+                        .circuit_breaker.output_admissibility;
+                    if (gov_engine->getRules().circuit_breaker.enabled &&
+                        oac_gate.enabled && oac_gate.gate_tool_calls) {
+                        auto gate_state = gov_engine->getDriftState(handle_id);
+                        bool pulse_impaired = (gov_engine->getPulseVerdict() ==
+                            governance::PulseVerdict::IMPAIRED);
+                        bool below_floor = gate_state &&
+                            gate_state->coherence_score < oac_gate.threshold;
+                        if (below_floor || pulse_impaired) {
+                            gov_engine->emitEvent(
+                                governance::RuntimeEventType::TOOL_BLOCKED,
+                                "tool_admissibility_gate(" + tc.name + ")", "", 0);
+                            gov_engine->writeAgentTelemetry("AGENT_TOOL_BLOCKED", {
+                                {"tool_name", tc.name},
+                                {"reason", "admissibility_gate"},
+                                {"handle_id", std::to_string(handle_id)},
+                                {"coherence", gate_state
+                                    ? fmt::format("{:.4f}", gate_state->coherence_score)
+                                    : "n/a"},
+                                {"threshold", fmt::format("{:.4f}", oac_gate.threshold)},
+                                {"pulse_impaired", pulse_impaired ? "true" : "false"}
+                            });
+                            if (oac_gate.action == "block") {
+                                // enforce() throws per level (GovernanceHardError
+                                // for HARD/SOFT, runtime_error for DETECT)
+                                gov_engine->enforceOutputAdmissibilityGate(
+                                    config_name, tc.name,
+                                    gate_state ? gate_state->coherence_score : 0.0);
+                            }
+                            // quarantine/attest: deny just this tool call
+                            json error_result;
+                            error_result["type"] = "tool_result";
+                            error_result["tool_use_id"] = tc.id;
+                            error_result["content"] =
+                                "Error: tool execution not admissible";
+                            error_result["is_error"] = true;
+                            tool_result_blocks.push_back(error_result);
+                            tool_calls_this_send++;
+                            tool_blocked_this_send++;
+
+                            std::unordered_map<std::string, NaabVal> ts;
+                            ts["name"] = NaabVal::makeString(tc.name);
+                            ts["success"] = NaabVal::makeBool(false);
+                            ts["error"] = NaabVal::makeString("admissibility_gate");
+                            tool_results_summary.push_back(
+                                NaabVal::makeDict(std::move(ts)));
+                            continue;
+                        }
                     }
                 }
 
@@ -3407,24 +3480,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         transcript_entry["contract_check"] = cc;
     }
 
-    // Update handle: append messages, update counters
-    // Skip empty-response turns to prevent history poisoning — empty assistant
-    // messages confuse models into returning nothing on subsequent turns.
-    // Skip BOTH user and assistant to preserve Gemini's strict role alternation
-    // (consecutive user messages cause HTTP 400). Tracker still updates below.
-    if (!content.empty()) {
-        // Add user message to history
-        std::unordered_map<std::string, NaabVal> user_msg_val;
-        user_msg_val["role"] = NaabVal::makeString("user");
-        user_msg_val["content"] = NaabVal::makeString(message);
-        msg_list.push_back(NaabVal::makeDict(std::move(user_msg_val)));
-
-        // Add assistant message to history
-        std::unordered_map<std::string, NaabVal> asst_msg_val;
-        asst_msg_val["role"] = NaabVal::makeString("assistant");
-        asst_msg_val["content"] = NaabVal::makeString(content);
-        msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
-    }
+    // Split commit — accounting vs conversation state.
+    // The tracker/exposure updates below are ACCOUNTING: the API call truthfully
+    // happened, so turns/tokens/actions count even if the response is later
+    // blocked. The history append (conversation STATE) is deferred until after
+    // CDD and the output-admissibility gate so inadmissible responses never
+    // poison the context sent on subsequent turns.
 
     // Update server-side tracker (authoritative) and handle dict (informational)
     {
@@ -3447,6 +3508,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"input_tokens_total", tracker.input_tokens},
                 {"output_tokens_total", tracker.output_tokens}
             };
+        }
+    }
+
+    // Track aggregate autonomous exposure BEFORE the post-receive gates.
+    // Attempted transitions must be visible to the next checkAdmission()
+    // projection even when CDD or the output gate subsequently blocks them.
+    if (gov_engine && gov_engine->isActive()) {
+        std::string exposure_block = gov_engine->recordAutonomousAction(config_name);
+        if (!exposure_block.empty()) {
+            throw std::runtime_error(exposure_block);
         }
     }
 
@@ -3643,7 +3714,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"turn",        std::to_string(current_turn)},
                 {"coherence",   std::to_string(oa_result.coherence_score)},
                 {"threshold",   std::to_string(oa_result.threshold)},
-                {"action",      oa_result.action}
+                {"action",      oa_result.action},
+                {"history_committed",
+                 gov_engine->getRules().circuit_breaker.output_admissibility
+                     .inadmissible_history == "commit" ? "true" : "false"}
             });
 
             if (transcript_active) {
@@ -3666,6 +3740,39 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"threshold", oa_result.threshold}
             };
         }
+    }
+
+    // Split commit, state half: append conversation history now that the turn
+    // has passed CDD and the output-admissibility gate. Blocked turns (throws
+    // above) never reach this point, so inadmissible content cannot poison the
+    // context replayed on subsequent turns.
+    // Skip empty-response turns to prevent history poisoning — empty assistant
+    // messages confuse models into returning nothing on subsequent turns.
+    // Skip BOTH user and assistant to preserve Gemini's strict role alternation
+    // (consecutive user messages cause HTTP 400). Tracker already updated above.
+    bool commit_history = !content.empty();
+    if (commit_history && !output_admissible && gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility
+            .inadmissible_history == "exclude") {
+        // Quarantined/attested response: returned to the caller but kept out
+        // of the conversation state per inadmissible_history = "exclude".
+        commit_history = false;
+    }
+    if (commit_history) {
+        // Add user message to history
+        std::unordered_map<std::string, NaabVal> user_msg_val;
+        user_msg_val["role"] = NaabVal::makeString("user");
+        user_msg_val["content"] = NaabVal::makeString(message);
+        msg_list.push_back(NaabVal::makeDict(std::move(user_msg_val)));
+
+        // Add assistant message to history
+        std::unordered_map<std::string, NaabVal> asst_msg_val;
+        asst_msg_val["role"] = NaabVal::makeString("assistant");
+        asst_msg_val["content"] = NaabVal::makeString(content);
+        msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
+    }
+    if (transcript_active) {
+        transcript_entry["history_committed"] = commit_history;
     }
 
     // Transcript: CDD, governance state, and response scan
@@ -3898,15 +4005,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
 
     // Emit signed execution attestation if provenance is enabled
+    // (exposure was already recorded before the post-receive gates)
     if (gov_engine && gov_engine->isActive()) {
         auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
         gov_engine->emitAttestation("send", config_name, current_turn, cp.pressure);
-
-        // Track aggregate autonomous exposure
-        std::string exposure_block = gov_engine->recordAutonomousAction(config_name);
-        if (!exposure_block.empty()) {
-            throw std::runtime_error(exposure_block);
-        }
     }
 
     // Mark agent response as tainted (LLM output is untrusted external data)
@@ -3949,6 +4051,680 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         write_error_transcript("unknown error");
         throw;
     }
+}
+
+// ============================================================================
+// agent.propose(handle, message [, n]) → {candidates, admissible_count, total}
+//
+// Generates N candidate responses for one PROPOSED transition without
+// committing anything to conversation state: no history append, no turn
+// increment, no CDD mutation, no tool execution. Candidates carry a
+// read-only admissibility evaluation; agent.commit() runs the full
+// post-receive pipeline for the selected candidate exactly once.
+// ============================================================================
+
+// Read-only admissibility score for a candidate against the CURRENT DriftState
+// snapshot. Blends live coherence with mandate-alignment and semantic-stability
+// components when history exists. Never mutates drift state — N candidates
+// must not pollute the per-turn CDD signal history.
+static double evaluateCandidateScore(governance::GovernanceEngine* gov,
+                                     int handle_id, const std::string& content) {
+    if (!gov || !gov->isActive()) return 1.0;
+    auto state = gov->getDriftState(handle_id);
+    if (!state) return 1.0;
+    double score = state->coherence_score;
+
+    std::unordered_set<std::string> content_kw;
+    extractKeywords(content, content_kw);
+    if (content_kw.empty()) return score;
+
+    double align_component = -1.0;
+    if (!state->mandate_keywords.empty()) {
+        size_t hits = 0;
+        for (const auto& kw : content_kw)
+            if (state->mandate_keywords.count(kw)) hits++;
+        double ratio = static_cast<double>(hits) / content_kw.size();
+        const auto& cdd = gov->getRules().context_drift;
+        double floor = cdd.thresholds.mandate_alignment_min > 0.0 ? cdd.thresholds.mandate_alignment_min : 0.15;
+        align_component = std::min(1.0, ratio / floor);
+    }
+    double stab_component = -1.0;
+    if (!state->prev_response_keywords.empty()) {
+        size_t inter = 0;
+        for (const auto& kw : content_kw)
+            if (state->prev_response_keywords.count(kw)) inter++;
+        size_t uni = content_kw.size() + state->prev_response_keywords.size() - inter;
+        double jaccard = uni > 0 ? static_cast<double>(inter) / uni : 0.0;
+        const auto& cdd = gov->getRules().context_drift;
+        double floor = cdd.thresholds.semantic_stability_min_overlap > 0.0
+            ? cdd.thresholds.semantic_stability_min_overlap : 0.25;
+        stab_component = std::min(1.0, jaccard / floor);
+    }
+
+    double weight_sum = 0.6, blended = 0.6;
+    if (align_component >= 0.0) { blended += 0.25 * align_component; weight_sum += 0.25; }
+    if (stab_component >= 0.0)  { blended += 0.15 * stab_component;  weight_sum += 0.15; }
+    return score * (blended / weight_sum);
+}
+
+static NaabVal agentPropose(std::vector<NaabVal>& args) {
+    if (args.size() < 2 || !args[0].isDict() || !args[1].isString()) {
+        throw std::runtime_error(
+            "Agent error: agent.propose requires a handle and message\n\n"
+            "  Expected: agent.propose(handle, \"your message\" [, n])\n\n"
+            "  Help:\n"
+            "  - agent.propose generates candidate responses WITHOUT committing\n"
+            "    them to the conversation; commit one with agent.commit(handle, proposal)\n");
+    }
+
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    auto& handle = args[0].asDict();
+    std::string message = args[1].asString();
+
+    const auto* config = findAgentConfig(config_name);
+    if (!config) {
+        throw std::runtime_error(
+            "Agent error: Agent config no longer available\n\n"
+            "  Help:\n"
+            "  - The governance configuration may have changed\n");
+    }
+
+    // Fail-closed: propose is disabled unless explicitly configured
+    if (config->propose_candidates_max <= 0) {
+        throw std::runtime_error(fmt::format(
+            "Agent error: agent.propose is not enabled for '{}'\n\n"
+            "  Help:\n"
+            "  - Set \"propose_candidates_max\" (> 0) in this agent's govern.json config\n"
+            "  - Proposals are capped at that count per call\n",
+            config_name));
+    }
+
+    int n = 1;
+    if (args.size() >= 3 && args[2].isInt()) n = static_cast<int>(args[2].asInt());
+    if (n < 1) n = 1;
+    if (n > config->propose_candidates_max) n = config->propose_candidates_max;
+
+    // Gap O: tools cannot propose on their own invoking handle
+    if (t_in_tool_execution_for_handle == handle_id) {
+        throw std::runtime_error(
+            "Agent error: agent.propose denied — recursive call from tool execution\n\n"
+            "  Help:\n"
+            "  - A tool function cannot call agent.propose() on the agent that invoked it\n");
+    }
+
+    int current_turn = 0;
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto tracker_it = s_trackers.find(handle_id);
+        if (tracker_it == s_trackers.end()) {
+            throw std::runtime_error(
+                "Agent error: Invalid or expired agent handle\n\n"
+                "  Help:\n"
+                "  - Use a handle returned by agent.create()\n");
+        }
+        auto& tracker = tracker_it->second;
+        // A new propose supersedes any outstanding proposal set
+        s_pending_proposals.erase(handle_id);
+        // Committing would add a turn — enforce the limit up front
+        if (tracker.turns >= config->max_turns) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Conversation exceeded max_turns limit ({})\n\n"
+                "  Got: {} turns used\n",
+                config->max_turns, tracker.turns));
+        }
+        int total_used = tracker.input_tokens + tracker.output_tokens;
+        if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
+                "  Help:\n"
+                "  - Create a new agent handle for a fresh conversation\n",
+                total_used, config->max_total_tokens));
+        }
+        current_turn = tracker.turns;
+    }
+
+    // Hard stop check
+    if (s_dispatch.hard_stopped) {
+        throw std::runtime_error(
+            "Agent error: Hard stop active\n\n"
+            "  Got: " + s_dispatch.stop_reason + "\n\n"
+            "  Help:\n"
+            "  - All agent API calls are blocked for the remainder of this run\n");
+    }
+
+    // Mid-run governance reload + config re-lookup (same as send)
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->reloadIfChanged();
+        config = findAgentConfig(config_name);
+        if (!config || config->propose_candidates_max <= 0) {
+            throw std::runtime_error(
+                "Agent error: agent.propose no longer available after governance reload\n\n"
+                "  Help:\n"
+                "  - The governance configuration was reloaded mid-run\n");
+        }
+        if (n > config->propose_candidates_max) n = config->propose_candidates_max;
+    }
+
+    // Fail-closed: propose has no challenge machinery, so when a step-up
+    // challenge or lease renewal is due the transition must go through
+    // agent.send() (which can run the challenge).
+    if (gov_engine && gov_engine->isActive()) {
+        const auto& cb = gov_engine->getRules().circuit_breaker;
+        if (cb.step_up_enabled) {
+            int required_level = (cb.step_up_at_level == "high") ? 2 : 1;
+            bool lease_expired = false;
+            {
+                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                auto it = s_trackers.find(handle_id);
+                if (it != s_trackers.end() && it->second.lease_expires_turn > 0)
+                    lease_expired = (it->second.turns >= it->second.lease_expires_turn);
+            }
+            if (static_cast<int>(gov_engine->getGovernanceLevel()) >= required_level ||
+                lease_expired) {
+                throw std::runtime_error(
+                    "Agent error: agent.propose denied — step-up challenge required\n\n"
+                    "  Help:\n"
+                    "  - Governance level or lease state requires re-authorization\n"
+                    "  - Call agent.send() first so the step-up challenge can run\n");
+            }
+        }
+    }
+
+    // Pre-send gates: BSD event, prompt scans, admission, action matrix
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().behavioral_sequences.enabled) {
+        gov_engine->setAgentContext(handle_id, current_turn, config_name);
+        std::string bsd_block = gov_engine->emitEvent(
+            governance::RuntimeEventType::AGENT_SEND,
+            "agent.propose('" + config_name + "')", "", 0);
+        if (!bsd_block.empty()) throw std::runtime_error(bsd_block);
+    }
+    if (gov_engine && gov_engine->isActive() && !message.empty()) {
+        std::string secret_err = gov_engine->checkSecrets(message, 0);
+        if (!secret_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Prompt for '{}' contains a potential secret\n\n"
+                "  Help:\n"
+                "  - Sanitize sensitive data before sending to external LLM APIs\n",
+                config_name));
+        }
+        std::string pii_err = gov_engine->checkPii(message, 0);
+        if (!pii_err.empty()) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Prompt for '{}' contains potential PII\n\n"
+                "  Help:\n"
+                "  - Remove or mask PII before sending to external LLM APIs\n",
+                config_name));
+        }
+    }
+    if (gov_engine && gov_engine->isActive()) {
+        std::string admission = gov_engine->checkAdmission(config_name);
+        if (!admission.empty()) throw std::runtime_error(admission);
+        if (!config->allowed_actions.empty()) {
+            bool allowed = false;
+            for (const auto& a : config->allowed_actions)
+                if (a == "AGENT_SEND") { allowed = true; break; }
+            if (!allowed) {
+                throw std::runtime_error(
+                    "Agent error: Action matrix does not include AGENT_SEND\n\n"
+                    "  Help:\n"
+                    "  - Add AGENT_SEND to the agent's allowed_actions configuration\n");
+            }
+        }
+        // Accounting: one logical transition is being attempted (N candidates
+        // for the SAME transition count once toward autonomous exposure)
+        std::string exposure_block = gov_engine->recordAutonomousAction(config_name);
+        if (!exposure_block.empty()) throw std::runtime_error(exposure_block);
+    }
+
+    // Build messages array (full history + new user message; no tools sent)
+    json messages_json = json::array();
+    auto msgs_it = handle.find("messages");
+    if (msgs_it == handle.end() || !msgs_it->second.isList()) {
+        throw std::runtime_error(
+            "Agent error: handle missing 'messages' list\n\n"
+            "  Help:\n  - Use a handle returned by agent.create()\n");
+    }
+    for (auto& msg : msgs_it->second.asList()) {
+        if (!msg.isDict()) continue;
+        auto& msg_dict = msg.asDict();
+        auto role_it = msg_dict.find("role");
+        auto content_it = msg_dict.find("content");
+        if (role_it == msg_dict.end() || !role_it->second.isString() ||
+            content_it == msg_dict.end() || !content_it->second.isString()) continue;
+        json msg_obj;
+        msg_obj["role"] = role_it->second.asString();
+        msg_obj["content"] = content_it->second.asString();
+        messages_json.push_back(msg_obj);
+    }
+    json user_msg;
+    user_msg["role"] = "user";
+    user_msg["content"] = message;
+    messages_json.push_back(user_msg);
+    std::string messages_str = messages_json.dump();
+
+    // Key / model resolution (first alive key, primary model)
+    std::vector<std::string> keys = config->api_key_envs;
+    if (keys.empty()) keys.push_back(config->api_key_env);
+    std::vector<std::string> models = config->model_chain;
+    if (models.empty()) models.push_back(config->model);
+
+    const auto& oac = gov_engine && gov_engine->isActive()
+        ? gov_engine->getRules().circuit_breaker.output_admissibility
+        : governance::CircuitBreakerConfig::OutputAdmissibilityConfig{};
+    bool oa_active = gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.enabled && oac.enabled;
+    bool pulse_impaired = gov_engine && gov_engine->isActive() &&
+        gov_engine->getPulseVerdict() == governance::PulseVerdict::IMPAIRED;
+
+    bool transcript_active = gov_engine && gov_engine->isActive() &&
+        gov_engine->isTranscriptAgent(config_name);
+
+    ensureProcessSecret();
+    governance::AgentConfig call_config = *config;
+    call_config.model = models[0];
+
+    std::vector<PendingProposal> pending;
+    std::vector<NaabVal> candidate_dicts;
+    int admissible_count = 0;
+    int total_prop_tokens_in = 0, total_prop_tokens_out = 0;
+
+    for (int i = 0; i < n; i++) {
+        // Pick first alive resolvable key
+        std::string api_key;
+        for (const auto& k : keys) {
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                if (isKeyDead(k, config->retry.key_retry_after_seconds)) continue;
+            }
+            api_key = runtime::resolveApiKey(k);
+            if (!api_key.empty()) break;
+        }
+        if (api_key.empty()) {
+            throw std::runtime_error(
+                "Agent error: API key not available\n\n"
+                "  Help:\n"
+                "  - Set the required API key environment variable\n");
+        }
+
+        runtime::AgentResponse resp;
+        bool got_response = false;
+        for (int attempt = 0; attempt < std::max(1, config->retry.max_attempts); attempt++) {
+            s_dispatch.total_calls++;
+            auto result = runtime::callAgentWithStatus(call_config, api_key, messages_str);
+            if (result.response.success) {
+                resp = result.response;
+                got_response = true;
+                break;
+            }
+            if (config->retry.backoff_ms > 0 && attempt + 1 < config->retry.max_attempts)
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(config->retry.backoff_ms));
+        }
+
+        std::unordered_map<std::string, NaabVal> cand;
+        cand["index"] = NaabVal::makeInt(i);
+        if (!got_response) {
+            cand["success"] = NaabVal::makeBool(false);
+            cand["content"] = NaabVal::makeString("");
+            std::unordered_map<std::string, NaabVal> adm;
+            adm["admissible"] = NaabVal::makeBool(false);
+            adm["reason"] = NaabVal::makeString("api_error");
+            cand["admissibility"] = NaabVal::makeDict(std::move(adm));
+            candidate_dicts.push_back(NaabVal::makeDict(std::move(cand)));
+            continue;
+        }
+
+        s_dispatch.total_tokens += resp.input_tokens + resp.output_tokens;
+        total_prop_tokens_in += resp.input_tokens;
+        total_prop_tokens_out += resp.output_tokens;
+
+        std::string content = stripMarkdownFences(resp.content);
+
+        // Stateless per-candidate governance: response scan + contract format.
+        // Failures mark the candidate inadmissible instead of throwing —
+        // candidates are for inspection; only commit executes consequences.
+        bool scan_ok = true;
+        std::string inadmissible_reason;
+        if (gov_engine && gov_engine->isActive() && !content.empty()) {
+            if (!gov_engine->checkSecrets(content, 0).empty() ||
+                !gov_engine->checkPii(content, 0).empty()) {
+                scan_ok = false;
+                inadmissible_reason = "response_scan";
+            }
+        }
+        if (scan_ok && config->response_format == "json" && !content.empty()) {
+            try { (void)json::parse(content); }
+            catch (const json::exception&) {
+                scan_ok = false;
+                inadmissible_reason = "contract";
+            }
+        }
+
+        double score = evaluateCandidateScore(gov_engine, handle_id, content);
+        bool admissible = scan_ok && !pulse_impaired &&
+            (!oa_active || score >= oac.threshold);
+        if (!admissible && inadmissible_reason.empty())
+            inadmissible_reason = pulse_impaired ? "pulse_impaired" : "below_threshold";
+        if (admissible) admissible_count++;
+
+        // Anti-forge nonce ties the candidate to server-side state
+        std::string content_hash = security::CryptoUtils::sha256(content);
+        std::string nonce_input = "proposal:" + std::to_string(handle_id) + ":" +
+            std::to_string(current_turn) + ":" + std::to_string(i) + ":" + content_hash;
+        std::string nonce = security::CryptoUtils::hmacSha256(nonce_input, s_process_secret);
+
+        PendingProposal pp;
+        pp.nonce = nonce;
+        pp.content_hash = content_hash;
+        pp.content = content;
+        pp.user_message = message;
+        pp.model = models[0];
+        pp.input_tokens = resp.input_tokens;
+        pp.output_tokens = resp.output_tokens;
+        pp.scan_ok = scan_ok;
+        pp.score = score;
+        pp.admissible = admissible;
+        pending.push_back(std::move(pp));
+
+        cand["success"] = NaabVal::makeBool(true);
+        cand["content"] = NaabVal::makeString(content);
+        cand["__proposal"] = NaabVal::makeString(nonce);
+        std::unordered_map<std::string, NaabVal> adm;
+        adm["admissible"] = NaabVal::makeBool(admissible);
+        adm["score"] = NaabVal::makeDouble(score);
+        adm["threshold"] = NaabVal::makeDouble(oa_active ? oac.threshold : 0.0);
+        if (!admissible)
+            adm["reason"] = NaabVal::makeString(inadmissible_reason);
+        cand["admissibility"] = NaabVal::makeDict(std::move(adm));
+        std::unordered_map<std::string, NaabVal> usage;
+        usage["input_tokens"] = NaabVal::makeInt(resp.input_tokens);
+        usage["output_tokens"] = NaabVal::makeInt(resp.output_tokens);
+        cand["usage"] = NaabVal::makeDict(std::move(usage));
+        std::unordered_map<std::string, NaabVal> trace;
+        trace["model"] = NaabVal::makeString(models[0]);
+        cand["trace"] = NaabVal::makeDict(std::move(trace));
+        candidate_dicts.push_back(NaabVal::makeDict(std::move(cand)));
+    }
+
+    // Accounting commit: token spend is truth even though no turn advanced
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto& tracker = s_trackers[handle_id];
+        tracker.input_tokens += total_prop_tokens_in;
+        tracker.output_tokens += total_prop_tokens_out;
+        handle["input_tokens"] = NaabVal::makeInt(tracker.input_tokens);
+        handle["output_tokens"] = NaabVal::makeInt(tracker.output_tokens);
+        s_pending_proposals[handle_id] = std::move(pending);
+    }
+
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->writeAgentTelemetry("AGENT_PROPOSE", {
+            {"handle_id",        std::to_string(handle_id)},
+            {"config_name",      config_name},
+            {"turn",             std::to_string(current_turn)},
+            {"candidates",       std::to_string(n)},
+            {"admissible_count", std::to_string(admissible_count)},
+            {"input_tokens",     std::to_string(total_prop_tokens_in)},
+            {"output_tokens",    std::to_string(total_prop_tokens_out)}
+        });
+        if (gov_engine->getRules().taint_tracking.enabled)
+            gov_engine->setLastReturnTainted(true, "agent.propose");
+    }
+
+    if (transcript_active && gov_engine) {
+        nlohmann::json te;
+        te["type"] = "agent_propose";
+        te["handle_id"] = handle_id;
+        te["agent"] = config_name;
+        te["turn"] = current_turn;
+        te["prompt"] = message;
+        te["candidates"] = static_cast<int>(candidate_dicts.size());
+        te["admissible_count"] = admissible_count;
+        te["run_id"] = gov_engine->getRunId();
+        gov_engine->writeAgentTranscript(te.dump());
+    }
+
+    std::unordered_map<std::string, NaabVal> result;
+    result["success"] = NaabVal::makeBool(true);
+    result["candidates"] = NaabVal::makeList(std::move(candidate_dicts));
+    result["admissible_count"] = NaabVal::makeInt(admissible_count);
+    result["total"] = NaabVal::makeInt(n);
+    result["turn"] = NaabVal::makeInt(current_turn);
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
+// agent.commit(handle, proposal) → response dict
+//
+// Commits ONE proposed candidate: runs the full post-receive pipeline
+// (BSD response event, CDD, output-admissibility gate, split commit of
+// history + turn) exactly once for the selected candidate.
+// ============================================================================
+
+static NaabVal agentCommit(std::vector<NaabVal>& args) {
+    if (args.size() < 2 || !args[0].isDict() || !args[1].isDict()) {
+        throw std::runtime_error(
+            "Agent error: agent.commit requires a handle and a proposal\n\n"
+            "  Expected: agent.commit(handle, proposal)\n\n"
+            "  Help:\n"
+            "  - Pass one candidate dict from agent.propose()'s candidates list\n");
+    }
+
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    auto& handle = args[0].asDict();
+    auto& proposal = args[1].asDictConst();
+
+    const auto* config = findAgentConfig(config_name);
+    if (!config) {
+        throw std::runtime_error(
+            "Agent error: Agent config no longer available\n\n"
+            "  Help:\n"
+            "  - The governance configuration may have changed\n");
+    }
+
+    auto nonce_it = proposal.find("__proposal");
+    if (nonce_it == proposal.end() || !nonce_it->second.isString()) {
+        throw std::runtime_error(
+            "Agent error: Not a proposal — missing proposal marker\n\n"
+            "  Help:\n"
+            "  - Pass a candidate dict returned by agent.propose()\n");
+    }
+    std::string nonce = nonce_it->second.asString();
+
+    // Server-side verification: nonce membership + content authority.
+    // The committed content comes from the registry, NOT the caller's dict —
+    // mutating a proposal's content invalidates nothing but changes nothing.
+    PendingProposal selected;
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto pit = s_pending_proposals.find(handle_id);
+        if (pit != s_pending_proposals.end()) {
+            for (auto& pp : pit->second) {
+                if (pp.nonce == nonce) { selected = pp; found = true; break; }
+            }
+        }
+        if (found) s_pending_proposals.erase(handle_id);  // single use, no replay
+    }
+    if (!found) {
+        throw std::runtime_error(
+            "Agent error: Proposal not valid for this handle\n\n"
+            "  Help:\n"
+            "  - Proposals are single-use and expire when the conversation moves on\n"
+            "  - Call agent.propose() again to generate fresh candidates\n");
+    }
+    if (!selected.scan_ok) {
+        throw std::runtime_error(
+            "Agent error: Proposal failed response scanning and cannot be committed\n\n"
+            "  Help:\n"
+            "  - Candidates that fail secret/PII/contract scans are inspection-only\n"
+            "  - Select an admissible candidate instead\n");
+    }
+
+    // The user message that produced the candidates comes from the registry
+    // (server-side authority), preserving user/assistant pairing in history.
+    std::string user_message = selected.user_message;
+
+    int current_turn = 0;
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto tracker_it = s_trackers.find(handle_id);
+        if (tracker_it == s_trackers.end()) {
+            throw std::runtime_error(
+                "Agent error: Invalid or expired agent handle\n\n"
+                "  Help:\n"
+                "  - Use a handle returned by agent.create()\n");
+        }
+        if (tracker_it->second.turns >= config->max_turns) {
+            throw std::runtime_error(fmt::format(
+                "Agent error: Conversation exceeded max_turns limit ({})\n\n"
+                "  Got: {} turns used\n",
+                config->max_turns, tracker_it->second.turns));
+        }
+        current_turn = tracker_it->second.turns;
+    }
+
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+
+    // Post-receive pipeline: BSD response event + CDD at the pre-increment turn
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().behavioral_sequences.enabled) {
+        gov_engine->setAgentContext(handle_id, current_turn, config_name);
+        std::string cfp;
+        std::unordered_set<std::string> response_keywords;
+        if (!selected.content.empty()) {
+            cfp = security::CryptoUtils::sha256(selected.content.substr(0,
+                std::min(selected.content.size(), size_t(200))));
+            extractKeywords(selected.content, response_keywords);
+        }
+        int event_turn = gov_engine->getCurrentAgentTurn();
+        gov_engine->emitEvent(governance::RuntimeEventType::AGENT_RESPONSE,
+            "agent.response('" + config_name + "', tokens=" +
+            std::to_string(selected.output_tokens) + ")", "", 0, cfp,
+            selected.output_tokens, 0, response_keywords, selected.input_tokens);
+        std::string drift_err = gov_engine->checkContextDrift(handle_id, event_turn, "");
+        {
+            auto drift_state = gov_engine->getDriftState(handle_id);
+            if (drift_state) {
+                gov_engine->writeAgentTelemetry("CDD_TURN", {
+                    {"handle_id",      std::to_string(handle_id)},
+                    {"turn",           std::to_string(current_turn)},
+                    {"coherence",      fmt::format("{:.4f}", drift_state->coherence_score)},
+                    {"signals_fired",  std::to_string(drift_state->signals_fired_this_turn)},
+                    {"drift_detected", drift_err.empty() ? "false" : "true"},
+                    {"source",         "agent.commit"}
+                });
+            }
+        }
+        if (!drift_err.empty()) throw std::runtime_error(drift_err);
+    }
+
+    // Accounting commit: the turn advances now (tokens were counted at propose)
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto& tracker = s_trackers[handle_id];
+        tracker.turns++;
+        handle["turns"] = NaabVal::makeInt(tracker.turns);
+        current_turn = tracker.turns;
+    }
+
+    // Output admissibility gate — full enforce-capable evaluation
+    bool output_admissible = true;
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.enabled &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+        auto oa_result = gov_engine->checkOutputAdmissibility(
+            handle_id, current_turn, config_name);
+        if (!oa_result.admissible) {
+            output_admissible = false;
+            gov_engine->writeAgentTelemetry("OUTPUT_INADMISSIBLE", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",        std::to_string(current_turn)},
+                {"coherence",   std::to_string(oa_result.coherence_score)},
+                {"threshold",   std::to_string(oa_result.threshold)},
+                {"action",      oa_result.action},
+                {"source",      "agent.commit"}
+            });
+            if (oa_result.action == "attest") {
+                gov_engine->emitOutputAdmissibilityAttestation(
+                    config_name, current_turn,
+                    oa_result.coherence_score, oa_result.threshold);
+            }
+        }
+    }
+
+    // Split commit, state half — same rules as agent.send()
+    bool commit_history = !selected.content.empty();
+    if (commit_history && !output_admissible && gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility
+            .inadmissible_history == "exclude") {
+        commit_history = false;
+    }
+    if (commit_history) {
+        auto msgs_it = handle.find("messages");
+        if (msgs_it != handle.end() && msgs_it->second.isList()) {
+            auto& msg_list = msgs_it->second.asList();
+            if (!user_message.empty()) {
+                std::unordered_map<std::string, NaabVal> user_msg_val;
+                user_msg_val["role"] = NaabVal::makeString("user");
+                user_msg_val["content"] = NaabVal::makeString(user_message);
+                msg_list.push_back(NaabVal::makeDict(std::move(user_msg_val)));
+            }
+            std::unordered_map<std::string, NaabVal> asst_msg_val;
+            asst_msg_val["role"] = NaabVal::makeString("assistant");
+            asst_msg_val["content"] = NaabVal::makeString(selected.content);
+            msg_list.push_back(NaabVal::makeDict(std::move(asst_msg_val)));
+        }
+    }
+
+    if (gov_engine && gov_engine->isActive()) {
+        auto cp = gov_engine->getCheckpointData(handle_id, current_turn);
+        gov_engine->emitAttestation("commit", config_name, current_turn, cp.pressure);
+        gov_engine->writeAgentTelemetry("AGENT_PROPOSAL_COMMIT", {
+            {"handle_id",    std::to_string(handle_id)},
+            {"config_name",  config_name},
+            {"turn",         std::to_string(current_turn)},
+            {"content_hash", selected.content_hash},
+            {"score",        fmt::format("{:.4f}", selected.score)},
+            {"history_committed", commit_history ? "true" : "false"}
+        });
+        if (gov_engine->isTranscriptAgent(config_name)) {
+            nlohmann::json te;
+            te["type"] = "agent_commit";
+            te["handle_id"] = handle_id;
+            te["agent"] = config_name;
+            te["turn"] = current_turn;
+            te["content_hash"] = selected.content_hash;
+            te["history_committed"] = commit_history;
+            te["run_id"] = gov_engine->getRunId();
+            gov_engine->writeAgentTranscript(te.dump());
+        }
+        if (gov_engine->getRules().taint_tracking.enabled)
+            gov_engine->setLastReturnTainted(true, "agent.commit");
+    }
+
+    std::unordered_map<std::string, NaabVal> result;
+    result["success"] = NaabVal::makeBool(true);
+    result["content"] = NaabVal::makeString(selected.content);
+    result["role"] = NaabVal::makeString("assistant");
+    std::unordered_map<std::string, NaabVal> usage;
+    usage["input_tokens"] = NaabVal::makeInt(selected.input_tokens);
+    usage["output_tokens"] = NaabVal::makeInt(selected.output_tokens);
+    result["usage"] = NaabVal::makeDict(std::move(usage));
+    std::unordered_map<std::string, NaabVal> adm;
+    adm["admissible"] = NaabVal::makeBool(output_admissible);
+    adm["score"] = NaabVal::makeDouble(selected.score);
+    result["admissibility"] = NaabVal::makeDict(std::move(adm));
+    std::unordered_map<std::string, NaabVal> trace;
+    trace["model"] = NaabVal::makeString(selected.model);
+    trace["turn"] = NaabVal::makeInt(current_turn);
+    trace["handle_id"] = NaabVal::makeInt(handle_id);
+    result["trace"] = NaabVal::makeDict(std::move(trace));
+    result["environment"] = buildEnvironmentDict(handle_id, config_name);
+    return NaabVal::makeDict(std::move(result));
 }
 
 // ============================================================================
@@ -4532,23 +5308,37 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
             "  Got: empty handles array\n");
     }
 
-    // Validate all handles upfront
+    // Validate all handles upfront (collect ids for per-handle depth tracking)
+    std::vector<int> pipeline_handle_ids;
+    pipeline_handle_ids.reserve(handles.size());
     for (size_t i = 0; i < handles.size(); i++) {
-        validateHandle(handles[i]);
+        pipeline_handle_ids.push_back(validateHandle(handles[i]).second);
     }
 
     // F3: Track pipeline depth with thread_local counter + RAII guard
     // Authoritative pipeline depth counter. Synced to governance engine via
-    // setPipelineDepth() below. RAII DepthGuard ensures consistency.
+    // setPipelineDepth() below (per-handle, so worker threads dispatched by a
+    // stage still see the depth). RAII DepthGuard restores outer depth.
     static thread_local int t_pipeline_depth = 0;
     t_pipeline_depth++;
-    struct DepthGuard { ~DepthGuard() { t_pipeline_depth--; } } depth_guard;
+    struct DepthGuard {
+        std::vector<int>* ids;
+        ~DepthGuard() {
+            t_pipeline_depth--;
+            auto* ge = governance::GovernanceEngine::getCurrent();
+            if (ge && ge->isActive() && ids) {
+                for (int hid : *ids) ge->setPipelineDepth(hid, t_pipeline_depth);
+            }
+        }
+    } depth_guard{&pipeline_handle_ids};
 
-    // Set pipeline_depth on governance engine (thread_local, read by checkAdmission)
+    // Set pipeline_depth on governance engine (per handle, read by checkAdmission)
     {
         auto* ge = governance::GovernanceEngine::getCurrent();
         if (ge && ge->isActive()) {
-            ge->setPipelineDepth(0, t_pipeline_depth);
+            for (int hid : pipeline_handle_ids) {
+                ge->setPipelineDepth(hid, t_pipeline_depth);
+            }
 
             // F7: Pipeline separation of duties — no adjacent stages may share config
             const auto& sep = ge->getRules().pipeline_separation;
@@ -4787,7 +5577,7 @@ bool AgentModule::hasFunction(const std::string& name) const {
         "create", "send", "run", "messages", "usage",
         "batch", "fan_out", "pipeline", "check",
         "key_health", "dispatch_status", "environment",
-        "register_tool", "extract_code"
+        "register_tool", "extract_code", "propose", "commit"
     };
     return functions.count(name) > 0;
 }
@@ -4810,10 +5600,12 @@ NaabVal AgentModule::call(
     if (function_name == "environment") return agentEnvironment(args);
     if (function_name == "register_tool") return agentRegisterTool(args);
     if (function_name == "extract_code") return agentExtractCode(args);
+    if (function_name == "propose") return agentPropose(args);
+    if (function_name == "commit") return agentCommit(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
