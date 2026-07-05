@@ -165,6 +165,7 @@ SKIP_DIRS=(
     "tests/chapter_verification/ch0_full_projects"  # Gemini-generated projects (most have runtime issues)
     "tests/property"  # Property-based tests run via dedicated runner, not standalone
     "examples/self-audit"  # Agent scripts requiring API keys, not standalone tests
+    "examples/living-script"  # Multi-agent living script, requires API keys and govern.json workdir
 )
 
 echo "═══════════════════════════════════════════════════════════"
