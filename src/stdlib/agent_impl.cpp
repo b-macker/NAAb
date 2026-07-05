@@ -492,6 +492,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         std::unordered_map<std::string, NaabVal> limits;
         limits["max_turns"] = NaabVal::makeInt(config->max_turns);
         limits["max_tokens"] = NaabVal::makeInt(config->max_tokens);
+        limits["min_tokens"] = NaabVal::makeInt(config->min_tokens);
         limits["max_total_tokens"] = NaabVal::makeInt(config->max_total_tokens);
         limits["timeout_seconds"] = NaabVal::makeInt(config->timeout_seconds);
         limits["risk_budget"] = NaabVal::makeInt(config->risk_budget);
@@ -1049,6 +1050,7 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         cfg["model"] = config->model;
         if (!config->model_chain.empty()) cfg["model_chain"] = config->model_chain;
         cfg["max_tokens"] = config->max_tokens;
+        if (config->min_tokens > 0) cfg["min_tokens"] = config->min_tokens;
         cfg["thinking_budget"] = config->thinking_budget;
         cfg["temperature"] = config->temperature;
         cfg["max_turns"] = config->max_turns;
@@ -1451,6 +1453,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         api_params["model"] = models[0];
         if (models.size() > 1) api_params["model_chain"] = models;
         api_params["max_tokens"] = config->max_tokens;
+        if (config->min_tokens > 0) api_params["min_tokens"] = config->min_tokens;
         api_params["thinking_budget"] = config->thinking_budget;
         api_params["temperature"] = config->temperature;
         api_params["keys_available"] = static_cast<int>(keys.size());
@@ -1532,6 +1535,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         cfg["model"] = config->model;
         if (!config->model_chain.empty()) cfg["model_chain"] = config->model_chain;
         cfg["max_tokens"] = config->max_tokens;
+        if (config->min_tokens > 0) cfg["min_tokens"] = config->min_tokens;
         cfg["thinking_budget"] = config->thinking_budget;
         cfg["temperature"] = config->temperature;
         cfg["max_turns"] = config->max_turns;

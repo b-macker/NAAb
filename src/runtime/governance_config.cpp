@@ -2313,6 +2313,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
                 if (cfg_json.contains("max_tokens") && cfg_json["max_tokens"].is_number_integer())
                     agent.max_tokens = cfg_json["max_tokens"].get<int>();
+                if (cfg_json.contains("min_tokens") && cfg_json["min_tokens"].is_number_integer())
+                    agent.min_tokens = std::max(0, cfg_json["min_tokens"].get<int>());
                 if (cfg_json.contains("system_prompt") && cfg_json["system_prompt"].is_string())
                     agent.system_prompt = cfg_json["system_prompt"].get<std::string>();
                 if (cfg_json.contains("tools") && cfg_json["tools"].is_array())
@@ -2666,6 +2668,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("check_interval_turns") && cd["check_interval_turns"].is_number_integer()) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
         if (cd.contains("fingerprint_window") && cd["fingerprint_window"].is_number_integer()) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
         if (cd.contains("rate_normalized") && cd["rate_normalized"].is_boolean()) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
+        if (cd.contains("rate_normalized_floor") && cd["rate_normalized_floor"].is_number()) cfg.rate_normalized_floor = std::max(0.0, std::min(1.0, cd["rate_normalized_floor"].get<double>()));
         if (cd.contains("coherence_recovery_amount") && cd["coherence_recovery_amount"].is_number()) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
         if (cd.contains("coherence_recovery_cap") && cd["coherence_recovery_cap"].is_number()) cfg.coherence_recovery_cap = cd["coherence_recovery_cap"].get<double>();
         if (cd.contains("coherence_natural_healing") && cd["coherence_natural_healing"].is_number()) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
@@ -3378,6 +3381,23 @@ static bool checkRatchetViolation(
         if (old_agent->context_window == 0 && new_agent.context_window > 0)
             notices.push_back(fmt::format("agent.{}.context_window: unlimited -> {} (tightened)",
                 new_agent.name, new_agent.context_window));
+        // min_tokens ratchet: a floor on the agent's token budget — raising is
+        // tightening, lowering or removing (N→0) is loosening.
+        if (new_agent.min_tokens < old_agent->min_tokens && new_agent.min_tokens > 0)
+            violations.push_back(fmt::format("agent.{}.min_tokens: {} -> {} (loosened)",
+                new_agent.name, old_agent->min_tokens, new_agent.min_tokens));
+        if (old_agent->min_tokens > 0 && new_agent.min_tokens == 0)
+            violations.push_back(fmt::format("agent.{}.min_tokens: {} -> 0 (loosened — floor removed)",
+                new_agent.name, old_agent->min_tokens));
+        if (new_agent.min_tokens > old_agent->min_tokens)
+            notices.push_back(fmt::format("agent.{}.min_tokens: {} -> {} (tightened)",
+                new_agent.name, old_agent->min_tokens, new_agent.min_tokens));
+        // Reducing max_tokens below the floor is an attempt to cripple the agent
+        // (the floor wins at request time, but flag the attempt explicitly).
+        if (new_agent.min_tokens > 0 && new_agent.max_tokens < new_agent.min_tokens
+                && old_agent->max_tokens >= new_agent.min_tokens)
+            violations.push_back(fmt::format("agent.{}.max_tokens: {} -> {} (below min_tokens floor {})",
+                new_agent.name, old_agent->max_tokens, new_agent.max_tokens, new_agent.min_tokens));
     }
 
     // Detect removed agents — removing constraints is loosening
@@ -3478,12 +3498,43 @@ static bool checkRatchetViolation(
     else if (!old_oa.gate_tool_calls && new_oa.gate_tool_calls)
         notices.push_back("output_admissibility.gate_tool_calls: false -> true (tightened)");
 
+    // --- Context Drift ratchet ---
+    // rate_normalized: disabling mid-run restores flat per-event penalties
+    // (stricter), so false->true is the loosening direction — diluted penalties
+    // let a paced adversary drift more cheaply.
+    if (new_r.context_drift.rate_normalized && !old_r.context_drift.rate_normalized)
+        violations.push_back("context_drift.rate_normalized: false -> true (loosened — penalties diluted by turn count)");
+    else if (!new_r.context_drift.rate_normalized && old_r.context_drift.rate_normalized)
+        notices.push_back("context_drift.rate_normalized: true -> false (tightened)");
+    // Lowering the floor = loosening (firing signals pay less)
+    if (new_r.context_drift.rate_normalized_floor < old_r.context_drift.rate_normalized_floor)
+        violations.push_back(fmt::format("context_drift.rate_normalized_floor: {:.2f} -> {:.2f} (loosened)",
+            old_r.context_drift.rate_normalized_floor, new_r.context_drift.rate_normalized_floor));
+    else if (new_r.context_drift.rate_normalized_floor > old_r.context_drift.rate_normalized_floor)
+        notices.push_back(fmt::format("context_drift.rate_normalized_floor: {:.2f} -> {:.2f} (tightened)",
+            old_r.context_drift.rate_normalized_floor, new_r.context_drift.rate_normalized_floor));
+
     return violations.empty();
 }
 
 // ============================================================================
 // Governance Under Survivability — Mid-Run Config Reload
 // ============================================================================
+
+// True when behavior-affecting fields differ between two versions of the same
+// agent config — the fields whose change makes CDD judge the agent against a
+// different mandate/shape than the one its rate window accumulated under.
+static bool agentBehaviorFieldsDiffer(const AgentConfig& a, const AgentConfig& b) {
+    return a.system_prompt != b.system_prompt ||
+           a.model != b.model ||
+           a.model_chain != b.model_chain ||
+           a.temperature != b.temperature ||
+           a.max_tokens != b.max_tokens ||
+           a.min_tokens != b.min_tokens ||
+           a.thinking_budget != b.thinking_budget ||
+           a.context_window != b.context_window ||
+           a.context_strategy != b.context_strategy;
+}
 
 bool GovernanceEngine::reloadIfChanged() {
     std::lock_guard<std::mutex> reload_lock(reload_mutex_);
@@ -3529,6 +3580,10 @@ bool GovernanceEngine::reloadIfChanged() {
             fmt::print(stderr, "[governance] Reload rejected: signature verification failed\n");
             logAuditEvent("governance_reload_rejected", "governance_config",
                 "Signature verification failed on govern.json reload");
+            writeAgentTelemetry("CONFIG_ADJUSTMENT", {
+                {"accepted", "false"},
+                {"reason", "signature"},
+            });
             loaded_mtime_ns_ = current_mtime;
             return false;
         }
@@ -3551,6 +3606,11 @@ bool GovernanceEngine::reloadIfChanged() {
             fmt::print(stderr, "[governance] Reload rejected: ratchet violation(s): {}\n", detail);
             logAuditEvent("governance_reload_rejected", "governance_config",
                 fmt::format("Ratchet violation: {}", detail));
+            writeAgentTelemetry("CONFIG_ADJUSTMENT", {
+                {"accepted", "false"},
+                {"reason", "ratchet"},
+                {"violations", detail},
+            });
             loaded_mtime_ns_ = current_mtime;
             return false;
         }
@@ -3563,6 +3623,27 @@ bool GovernanceEngine::reloadIfChanged() {
         if (!update_reason.empty()) {
             notices.insert(notices.begin(),
                 fmt::format("Governance update: {}", update_reason));
+        }
+
+        // Per-agent behavior diff (computed against the still-active old rules)
+        // — drives the scoped CDD rate-window reset and CONFIG_ADJUSTMENT
+        // telemetry below.
+        std::set<std::string> changed_agents;
+        std::unordered_map<std::string, std::string> changed_system_prompts;
+        {
+            const auto& old_r = rules();
+            for (const auto& new_agent : new_rules.agents) {
+                for (const auto& old_agent : old_r.agents) {
+                    if (old_agent.name != new_agent.name) continue;
+                    if (agentBehaviorFieldsDiffer(old_agent, new_agent)) {
+                        changed_agents.insert(new_agent.name);
+                        if (old_agent.system_prompt != new_agent.system_prompt) {
+                            changed_system_prompts[new_agent.name] = new_agent.system_prompt;
+                        }
+                    }
+                    break;
+                }
+            }
         }
 
         // C1: Atomic swap via shared_ptr — readers see consistent snapshot
@@ -3625,6 +3706,13 @@ bool GovernanceEngine::reloadIfChanged() {
         bsd_enabled_.store(new_rp->behavioral_sequences.enabled, std::memory_order_release);
         cdd_enabled_.store(new_rp->context_drift.enabled, std::memory_order_release);
 
+        // Scoped rate-window reset: operator-driven config changes must not be
+        // scored as agent drift. Only the rate window restarts — learned
+        // baselines and coherence are preserved (see onAgentConfigChanged).
+        if (new_rp->context_drift.enabled && !changed_agents.empty()) {
+            drift_analyzer_.onAgentConfigChanged(changed_agents, changed_system_prompts);
+        }
+
         // C3: restart telemetry forwarder if webhook config changed
         {
             std::shared_ptr<TelemetryForwarder> old_fwd;
@@ -3658,7 +3746,16 @@ bool GovernanceEngine::reloadIfChanged() {
         }
 
         // Store notices for retrieval by agent.send()
+        auto joinStrings = [](const auto& items) {
+            std::string s;
+            for (const auto& i : items) {
+                if (!s.empty()) s += "; ";
+                s += i;
+            }
+            return s;
+        };
         size_t notice_count = notices.size();
+        std::string notices_joined = joinStrings(notices);
         {
             std::lock_guard<std::mutex> lock(notices_mutex_);
             pending_notices_ = std::move(notices);
@@ -3669,6 +3766,28 @@ bool GovernanceEngine::reloadIfChanged() {
             fmt::format("Config reloaded: {} change(s){}",
                 notice_count,
                 update_reason.empty() ? "" : ", reason: " + update_reason));
+
+        // CONFIG_ADJUSTMENT telemetry: link the operator's decision to the
+        // config change without transcript diving. Requesting context is
+        // best-effort — the reload is picked up inside enforcement entry
+        // points, so this identifies whose turn triggered it.
+        {
+            std::string requesting_config;
+            {
+                std::lock_guard<std::mutex> lock(agent_config_mutex_);
+                requesting_config = current_agent_config_;
+            }
+            writeAgentTelemetry("CONFIG_ADJUSTMENT", {
+                {"accepted", "true"},
+                {"reload_count", std::to_string(reload_count_)},
+                {"governance_epoch", std::to_string(governance_epoch_.load())},
+                {"update_reason", update_reason},
+                {"changed_agents", joinStrings(changed_agents)},
+                {"ratchet_notices", notices_joined},
+                {"requesting_handle", std::to_string(current_agent_handle_.load(std::memory_order_relaxed))},
+                {"requesting_config", requesting_config},
+            });
+        }
 
         // Dashboard notification
         fmt::print(stderr, "[governance] Config reloaded mid-run: {} change(s) applied{}\n",

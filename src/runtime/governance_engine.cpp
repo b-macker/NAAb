@@ -6229,6 +6229,9 @@ void GovernanceEngine::setAgentContext(int handle_id, int turn,
         std::lock_guard<std::mutex> lock(agent_config_mutex_);
         current_agent_config_ = config_name;
     }
+    // Bind config name to the handle's drift state so config reloads can
+    // scope their rate-window reset to the agents that actually changed
+    drift_analyzer_.setAgentConfigName(handle_id, config_name);
 }
 
 void GovernanceEngine::setInheritedPressure(int handle_id, double pressure) {
