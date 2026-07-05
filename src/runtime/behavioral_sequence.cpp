@@ -840,7 +840,10 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     auto base_penalty = [&](double weight, int count) -> double {
         if (config_->rate_normalized && state.turns_analyzed > 1) {
             double rate = static_cast<double>(count) / state.turns_analyzed;
-            return rate * weight;
+            // Floor: a firing signal always pays at least rate_normalized_floor
+            // of the base weight — dilution over long runs can reduce but never
+            // zero the cost, so calibrated slow-walk drift still accumulates.
+            return std::max(rate, config_->rate_normalized_floor) * weight;
         }
         return weight;
     };
@@ -1752,26 +1755,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 }
                 state.baseline_complete = true;
                 state.baseline_completed_turn = turn_number;
-
-                // Snapshot cumulative counters (17 signals with counters; S6/S7 stay at 0)
-                state.signal_baselines[SIG_CIRCULAR].snapshot = state.circular_action_count;
-                state.signal_baselines[SIG_REPEATED_FAILURES].snapshot = state.repeated_failures;
-                state.signal_baselines[SIG_SCOPE_CREEP].snapshot = state.scope_creep_count;
-                state.signal_baselines[SIG_CONTRADICTIONS].snapshot = state.contradictions;
-                state.signal_baselines[SIG_VOCAB_CONTRACTION].snapshot = state.vocabulary_contraction_count;
-                state.signal_baselines[SIG_RESPONSE_QUALITY].snapshot = state.response_quality_count;
-                state.signal_baselines[SIG_THINKING_COLLAPSE].snapshot = state.thinking_collapse_count;
-                state.signal_baselines[SIG_SEMANTIC_STABILITY].snapshot = state.semantic_stability_count;
-                state.signal_baselines[SIG_MANDATE_ALIGNMENT].snapshot = state.mandate_drift_count;
-                state.signal_baselines[SIG_CONTEXT_GROWTH].snapshot = state.context_growth_count;
-                state.signal_baselines[SIG_INSTRUCTION_RECALL].snapshot = state.instruction_recall_count;
-                state.signal_baselines[SIG_PLAN_DRIFT].snapshot = state.plan_drift_count;
-                state.signal_baselines[SIG_ENTITY_CONSISTENCY].snapshot = state.entity_consistency_count;
-                state.signal_baselines[SIG_INSTRUCTION_CONFLICT].snapshot = state.instruction_conflict_count;
-                state.signal_baselines[SIG_PERSONA_FINGERPRINT].snapshot = state.persona_drift_count;
-                state.signal_baselines[SIG_TOOL_CHAIN_INTEGRITY].snapshot = state.tool_integrity_count;
-                state.signal_baselines[SIG_CLAIM_RESULT].snapshot = state.claim_result_mismatch_count;
-                state.signal_baselines[SIG_PROMPT_COMPLIANCE].snapshot = state.prompt_compliance_count;
+                snapshotSignalCounters(state);
             }
         }
     }
@@ -1911,6 +1895,69 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
         it->second.coherence_velocity = 0.0;
         it->second.coherence_acceleration = 0.0;
         it->second.last_recovery_turn = it->second.last_checked_turn;
+    }
+}
+
+// Snapshot cumulative signal counters into signal_baselines[].snapshot
+// (17 signals with counters; S6/S7 have no cumulative counter and stay at 0).
+// Used at baseline completion and on scoped config-change resets — the
+// counter→signal mapping lives only here.
+void ContextDriftAnalyzer::snapshotSignalCounters(DriftState& state) {
+    state.signal_baselines[SIG_CIRCULAR].snapshot = state.circular_action_count;
+    state.signal_baselines[SIG_REPEATED_FAILURES].snapshot = state.repeated_failures;
+    state.signal_baselines[SIG_SCOPE_CREEP].snapshot = state.scope_creep_count;
+    state.signal_baselines[SIG_CONTRADICTIONS].snapshot = state.contradictions;
+    state.signal_baselines[SIG_VOCAB_CONTRACTION].snapshot = state.vocabulary_contraction_count;
+    state.signal_baselines[SIG_RESPONSE_QUALITY].snapshot = state.response_quality_count;
+    state.signal_baselines[SIG_THINKING_COLLAPSE].snapshot = state.thinking_collapse_count;
+    state.signal_baselines[SIG_SEMANTIC_STABILITY].snapshot = state.semantic_stability_count;
+    state.signal_baselines[SIG_MANDATE_ALIGNMENT].snapshot = state.mandate_drift_count;
+    state.signal_baselines[SIG_CONTEXT_GROWTH].snapshot = state.context_growth_count;
+    state.signal_baselines[SIG_INSTRUCTION_RECALL].snapshot = state.instruction_recall_count;
+    state.signal_baselines[SIG_PLAN_DRIFT].snapshot = state.plan_drift_count;
+    state.signal_baselines[SIG_ENTITY_CONSISTENCY].snapshot = state.entity_consistency_count;
+    state.signal_baselines[SIG_INSTRUCTION_CONFLICT].snapshot = state.instruction_conflict_count;
+    state.signal_baselines[SIG_PERSONA_FINGERPRINT].snapshot = state.persona_drift_count;
+    state.signal_baselines[SIG_TOOL_CHAIN_INTEGRITY].snapshot = state.tool_integrity_count;
+    state.signal_baselines[SIG_CLAIM_RESULT].snapshot = state.claim_result_mismatch_count;
+    state.signal_baselines[SIG_PROMPT_COMPLIANCE].snapshot = state.prompt_compliance_count;
+}
+
+void ContextDriftAnalyzer::setAgentConfigName(int handle_id, const std::string& name) {
+    if (name.empty()) return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    drift_states_[handle_id].config_name = name;
+}
+
+void ContextDriftAnalyzer::onAgentConfigChanged(
+    const std::set<std::string>& changed_agents,
+    const std::unordered_map<std::string, std::string>& new_system_prompts) {
+    if (changed_agents.empty()) return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto& [handle_id, state] : drift_states_) {
+        if (state.config_name.empty() || !changed_agents.count(state.config_name)) {
+            continue;
+        }
+        // Restart the rate-measurement window only: pre-change signal counts no
+        // longer count against the post-change rate. Learned baseline stats
+        // (mean/stddev/baseline_complete), coherence, and turn history are
+        // deliberately untouched — a flip-flopping operator gets full base
+        // penalties, not a grace period.
+        snapshotSignalCounters(state);
+        state.post_baseline_checks = 0;
+        // A changed mandate means alignment must be judged against the new
+        // system_prompt, not the stale one (S11 mandate_alignment / S20
+        // prompt_compliance).
+        auto sp = new_system_prompts.find(state.config_name);
+        if (sp != new_system_prompts.end() && !sp->second.empty()) {
+            std::unordered_set<std::string> kw;
+            extractKeywordsLocal(sp->second, kw);
+            if (!kw.empty()) {
+                state.mandate_keywords = std::move(kw);
+                state.mandate_alignment_history.clear();
+                state.prompt_alignment_history.clear();
+            }
+        }
     }
 }
 

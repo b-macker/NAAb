@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <fstream>
+#include <algorithm>
 
 namespace naab {
 namespace runtime {
@@ -218,6 +219,12 @@ static std::string geminiUrl(const governance::AgentConfig& config) {
 // Thinking budget helpers
 // ============================================================================
 
+// Effective response budget: min_tokens is a ratcheted floor — an operator
+// shrinking max_tokens below it cannot cripple the agent, the floor wins.
+static int effectiveMaxTokens(const governance::AgentConfig& config) {
+    return std::max(config.max_tokens, config.min_tokens);
+}
+
 // Apply thinking_budget to Gemini generationConfig.
 // When thinking_budget > 0, expands maxOutputTokens and sends thinkingConfig.
 // When thinking_budget == 0 or -1, just sends maxOutputTokens without thinkingConfig
@@ -225,12 +232,12 @@ static std::string geminiUrl(const governance::AgentConfig& config) {
 static void applyGeminiThinkingConfig(json& gen_config,
                                        const governance::AgentConfig& config) {
     if (config.thinking_budget > 0) {
-        gen_config["maxOutputTokens"] = config.max_tokens + config.thinking_budget;
+        gen_config["maxOutputTokens"] = effectiveMaxTokens(config) + config.thinking_budget;
         json tc;
         tc["thinkingBudget"] = config.thinking_budget;
         gen_config["thinkingConfig"] = tc;
     } else {
-        gen_config["maxOutputTokens"] = config.max_tokens;
+        gen_config["maxOutputTokens"] = effectiveMaxTokens(config);
     }
 }
 
@@ -238,7 +245,7 @@ static void applyGeminiThinkingConfig(json& gen_config,
 // Anthropic thinking budget is separate from max_tokens (no adjustment needed).
 static void applyAnthropicThinkingConfig(json& request_body,
                                           const governance::AgentConfig& config) {
-    request_body["max_tokens"] = config.max_tokens;
+    request_body["max_tokens"] = effectiveMaxTokens(config);
     if (config.thinking_budget > 0) {
         request_body["thinking"] = {
             {"type", "enabled"},

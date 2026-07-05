@@ -1295,6 +1295,11 @@ struct ContextDriftConfig {
     int check_interval_turns = 3;
     int fingerprint_window = 20;
     bool rate_normalized = false;  // F5: scale penalties by rate (count/turns) instead of flat weight
+    // Rationale: floor on the rate-normalized penalty as a fraction of the base
+    // weight. Without it, an adversary who knows the rate formula can pace drift
+    // (one deviation every N turns) so dilution drives each penalty toward zero —
+    // the boiling-frog attack. A firing signal always pays at least this fraction.
+    double rate_normalized_floor = 0.5;
     // Rationale: 0.2 = partial recovery (20% of full coherence). Prevents full reset after a single
     // correct action, requiring sustained good behavior to fully recover. Analogous to credit
     // restoration: recent good conduct helps but doesn't erase history immediately.
@@ -2047,6 +2052,10 @@ struct AgentConfig {
     std::string api_key_env = "ANTHROPIC_API_KEY";  // primary key env var
     std::vector<std::string> api_key_envs;      // rotation keys [primary, alt1, alt2, ...]
     int max_tokens = 4096;
+    // Floor on effective max_tokens (0 = no floor). Ratchet raise-only: prevents
+    // an operator from crippling an agent mid-run by shrinking its token budget
+    // below a working minimum. Effective request budget = max(max_tokens, min_tokens).
+    int min_tokens = 0;
     int thinking_budget = -1;  // -1=provider default, 0=disable, >0=budget in tokens
     std::string system_prompt;
     std::vector<std::string> tools;

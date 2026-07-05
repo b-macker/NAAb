@@ -1185,8 +1185,9 @@ automatically.
     "check_interval_turns": 3,
     "fingerprint_window": 10,
     "rate_normalized": false,
+    "rate_normalized_floor": 0.5,
     "coherence_recovery_amount": 0.2,
-    "coherence_natural_healing": 0.0,
+    "coherence_natural_healing": 0.02,
     "temporal_decay_enabled": false,
     "temporal_decay_per_minute": 0.01,
     "temporal_decay_grace_minutes": 1.0,
@@ -1237,8 +1238,9 @@ Key CDD signals:
 
 Key CDD options:
 - **rate_normalized**: scale penalties by `count/turns_analyzed` instead of flat weight
+- **rate_normalized_floor**: minimum fraction of the base weight a firing signal always pays when rate_normalized is on (0.5 default) — prevents slow-paced drift from diluting penalties toward zero
 - **coherence_recovery_amount**: coherence restored at pipeline stage transitions (0.2 default)
-- **coherence_natural_healing**: coherence recovered per turn when no signals fire (0.0 default)
+- **coherence_natural_healing**: coherence recovered per turn when no signals fire (engine default 0.0 = disabled; 0.02 recommended so agents can realistically recover within their lifetime)
 - **coherence_acceleration**: second-order derivative factor in reality checkpoint composite
 - **temporal_decay_enabled**: coherence erodes over time when idle (grace period + per-minute rate)
 - **adaptive_baseline_enabled**: observe normal signal rates for N turns before penalizing deviations (mean + k*stddev threshold)

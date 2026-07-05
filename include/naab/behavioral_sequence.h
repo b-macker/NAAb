@@ -8,6 +8,7 @@
 #include <mutex>
 #include <chrono>
 #include <optional>
+#include <set>
 
 namespace naab {
 namespace governance {
@@ -117,6 +118,7 @@ struct SignalBaseline {
 // --- Context Drift State (per agent handle) ---
 struct DriftState {
     int handle_id = 0;
+    std::string config_name;              // govern.json agent name this handle was created from
     double coherence_score = 1.0;         // starts at 1.0, decays
     int contradictions = 0;
     int repeated_failures = 0;
@@ -348,6 +350,22 @@ public:
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);
 
+    // Bind the govern.json agent name to a handle's drift state (for scoped
+    // per-agent resets on config reload)
+    void setAgentConfigName(int handle_id, const std::string& name);
+
+    // Scoped rate-window reset after an operator config change: for handles
+    // belonging to a changed agent, re-snapshot cumulative signal counters and
+    // restart the post-baseline rate window. Learned baseline statistics
+    // (mean/stddev/baseline_complete) and coherence are preserved, so repeated
+    // reloads cannot buy a grace period — with post_baseline_checks == 0 the
+    // adaptive path is skipped and the full base penalty applies.
+    // new_system_prompts maps agent name → new system_prompt; when the mandate
+    // changed, mandate keywords are re-derived against the new prompt.
+    void onAgentConfigChanged(
+        const std::set<std::string>& changed_agents,
+        const std::unordered_map<std::string, std::string>& new_system_prompts);
+
     void reset();
 
 private:
@@ -358,6 +376,7 @@ private:
 
     std::string computeFingerprint(const std::vector<RuntimeEvent>& events) const;
     bool isCircular(const DriftState& state, const std::string& fingerprint) const;
+    static void snapshotSignalCounters(DriftState& state);
 };
 
 } // namespace governance
