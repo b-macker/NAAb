@@ -3577,16 +3577,29 @@ bool GovernanceEngine::reloadIfChanged() {
 
         // Verify signature — reject unsigned changes
         if (!verifyFileSignature(loaded_path_)) {
-            fmt::print(stderr, "[governance] Reload rejected: signature verification failed\n");
-            logAuditEvent("governance_reload_rejected", "governance_config",
-                "Signature verification failed on govern.json reload");
-            writeAgentTelemetry("CONFIG_ADJUSTMENT", {
-                {"accepted", "false"},
-                {"reason", "signature"},
-            });
-            loaded_mtime_ns_ = current_mtime;
+            // Suppress duplicate log/telemetry when the same mtime fails repeatedly.
+            // The retry is still attempted (verification re-runs each call) but
+            // we only emit diagnostics once per mtime to prevent log flooding.
+            if (current_mtime != last_sig_fail_mtime_) {
+                fmt::print(stderr, "[governance] Reload rejected: signature verification failed\n");
+                logAuditEvent("governance_reload_rejected", "governance_config",
+                    "Signature verification failed on govern.json reload");
+                writeAgentTelemetry("CONFIG_ADJUSTMENT", {
+                    {"accepted", "false"},
+                    {"reason", "signature"},
+                });
+                last_sig_fail_mtime_ = current_mtime;
+            }
+            // NOTE: intentionally NOT caching mtime on signature failure.
+            // The .sig sidecar can be updated (by a re-signing subprocess)
+            // without changing govern.json's mtime. Caching here would
+            // prevent future reloadIfChanged() calls from retrying after
+            // the signature becomes valid.
             return false;
         }
+
+        // Signature verified — clear the failure tracker
+        last_sig_fail_mtime_ = 0;
 
         // Apply minimum enforcement levels to new rules
         enforceMinimumLevelsOnRules(new_rules);

@@ -3301,6 +3301,7 @@ private:
 
     // --- Mid-run reload state (Governance Under Survivability) ---
     int64_t loaded_mtime_ns_ = 0;                 // govern.json mtime as nanoseconds (fs clock epoch)
+    int64_t last_sig_fail_mtime_ = 0;             // mtime of last signature-failed reload (suppress duplicate logs)
     int reload_count_ = 0;                        // reloads applied this run
     std::vector<std::string> pending_notices_;    // notices from last reload
     mutable std::mutex notices_mutex_;            // guards pending_notices_
