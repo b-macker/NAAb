@@ -229,6 +229,9 @@ struct DriftState {
     int consecutive_high_pressure_turns = 0;
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
     int signals_fired_this_turn = 0;
+    std::array<int, NUM_CDD_SIGNALS> last_turn_fired = {};      // per-signal fire counts for most recent turn
+    std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
+    double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
 
     // Recovery tracking (Phase 4a)
     int last_recovery_turn = -1;              // turn of last coherence recovery (-1 = never)
@@ -325,6 +328,9 @@ public:
     std::unordered_map<std::string, double> getAllAgentCoherences() const;
 
     bool isEnabled() const;
+
+    // Signal name lookup (index → human-readable name)
+    static const char* signalName(int idx);
 
     // Telemetry: total turns analyzed
     size_t totalTurnsAnalyzed() const;

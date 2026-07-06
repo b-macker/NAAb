@@ -630,6 +630,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         if (drift_opt) {
             state["coherence"] = NaabVal::makeDouble(drift_opt->coherence_score);
             state["coherence_velocity"] = NaabVal::makeDouble(drift_opt->coherence_velocity);
+            state["min_coherence"] = NaabVal::makeDouble(drift_opt->min_coherence_lifetime);
             state["contradictions"] = NaabVal::makeInt(drift_opt->contradictions);
             state["circular_actions"] = NaabVal::makeInt(drift_opt->circular_action_count);
             state["repeated_failures"] = NaabVal::makeInt(drift_opt->repeated_failures);
@@ -3572,14 +3573,33 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 snprintf(vel,  sizeof(vel),  "%.4f", drift_state->coherence_velocity);
                 snprintf(acc,  sizeof(acc),  "%.4f", drift_state->coherence_acceleration);
                 snprintf(pres, sizeof(pres), "%.4f", drift_state->last_pressure_score);
+                // Build per-signal fired + penalty detail strings
+                std::string fired_names, penalty_detail;
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (drift_state->last_turn_fired[i] > 0) {
+                        if (!fired_names.empty()) fired_names += ",";
+                        fired_names += governance::ContextDriftAnalyzer::signalName(i);
+                    }
+                    if (drift_state->last_turn_penalties[i] > 0.0) {
+                        if (!penalty_detail.empty()) penalty_detail += ",";
+                        char pbuf[64];
+                        snprintf(pbuf, sizeof(pbuf), "%s=%.4f",
+                                 governance::ContextDriftAnalyzer::signalName(i),
+                                 drift_state->last_turn_penalties[i]);
+                        penalty_detail += pbuf;
+                    }
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
+                    {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
                     {"coherence",        coh},
                     {"velocity",         vel},
                     {"acceleration",     acc},
                     {"pressure",         pres},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
+                    {"signals_detail",   fired_names},
+                    {"penalties_detail", penalty_detail},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"}
@@ -3588,6 +3608,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // CDD ran but drift analyzer has no state yet (before first check_interval_turns)
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
+                    {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
                     {"governance_level", level_str},
                     {"drift_detected",   "false"},
@@ -3618,6 +3639,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
                 gov_engine->writeAgentTelemetry("SEMANTIC_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
+                    {"config_name",            config_name},
                     {"turn",                   std::to_string(current_turn)},
                     {"semantic_stability",      ss_str},
                     {"semantic_stability_count", std::to_string(drift_state->semantic_stability_count)},
@@ -3664,6 +3686,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
                 gov_engine->writeAgentTelemetry("RECONCILIATION_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
+                    {"config_name",            config_name},
                     {"turn",                   std::to_string(current_turn)},
                     {"tool_integrity_count",   std::to_string(drift_state->tool_integrity_count)},
                     {"claim_mismatch_count",   std::to_string(drift_state->claim_result_mismatch_count)},
@@ -3686,6 +3709,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                          drift_state ? drift_state->coherence_score : 0.0);
                 gov_engine->writeAgentTelemetry("GOVERNANCE_LEVEL_CHANGE", {
                     {"handle_id",  std::to_string(handle_id)},
+                    {"config_name", config_name},
                     {"turn",       std::to_string(current_turn)},
                     {"from_level", from_str},
                     {"to_level",   level_str},
@@ -3825,6 +3849,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 for (double v : drift_st->prompt_alignment_history) pa_sum += v;
                 cdd["prompt_alignment"] = pa_sum / static_cast<double>(drift_st->prompt_alignment_history.size());
             }
+            // Per-signal fired names + penalty breakdown for this turn
+            {
+                nlohmann::json fired_arr = nlohmann::json::array();
+                nlohmann::json pen_obj = nlohmann::json::object();
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (drift_st->last_turn_fired[i] > 0)
+                        fired_arr.push_back(governance::ContextDriftAnalyzer::signalName(i));
+                    if (drift_st->last_turn_penalties[i] > 0.0)
+                        pen_obj[governance::ContextDriftAnalyzer::signalName(i)] = drift_st->last_turn_penalties[i];
+                }
+                cdd["signals_fired_names"] = fired_arr;
+                if (!pen_obj.empty())
+                    cdd["penalties"] = pen_obj;
+            }
+            cdd["min_coherence"] = drift_st->min_coherence_lifetime;
             transcript_entry["cdd"] = cdd;
         }
         // Governance context
@@ -3850,9 +3889,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             std::string w = health_warnings;
             if (w.size() > 300) w = w.substr(0, 300) + "...";
             gov_engine->writeAgentTelemetry("GOVERNANCE_HEALTH_WARNING", {
-                {"handle_id", std::to_string(handle_id)},
-                {"turn",      std::to_string(current_turn)},
-                {"warning",   w}
+                {"handle_id",  std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",       std::to_string(current_turn)},
+                {"warning",    w}
             });
         }
     }
@@ -4616,13 +4656,36 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
             if (drift_state) {
+                // Build per-signal detail for commit-path CDD_TURN
+                std::string c_fired, c_penalty;
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (drift_state->last_turn_fired[i] > 0) {
+                        if (!c_fired.empty()) c_fired += ",";
+                        c_fired += governance::ContextDriftAnalyzer::signalName(i);
+                    }
+                    if (drift_state->last_turn_penalties[i] > 0.0) {
+                        if (!c_penalty.empty()) c_penalty += ",";
+                        char pb[64];
+                        snprintf(pb, sizeof(pb), "%s=%.4f",
+                                 governance::ContextDriftAnalyzer::signalName(i),
+                                 drift_state->last_turn_penalties[i]);
+                        c_penalty += pb;
+                    }
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
-                    {"handle_id",      std::to_string(handle_id)},
-                    {"turn",           std::to_string(current_turn)},
-                    {"coherence",      fmt::format("{:.4f}", drift_state->coherence_score)},
-                    {"signals_fired",  std::to_string(drift_state->signals_fired_this_turn)},
-                    {"drift_detected", drift_err.empty() ? "false" : "true"},
-                    {"source",         "agent.commit"}
+                    {"handle_id",        std::to_string(handle_id)},
+                    {"config_name",      config_name},
+                    {"turn",             std::to_string(current_turn)},
+                    {"coherence",        fmt::format("{:.4f}", drift_state->coherence_score)},
+                    {"velocity",         fmt::format("{:.4f}", drift_state->coherence_velocity)},
+                    {"acceleration",     fmt::format("{:.4f}", drift_state->coherence_acceleration)},
+                    {"pressure",         fmt::format("{:.4f}", drift_state->last_pressure_score)},
+                    {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
+                    {"signals_detail",   c_fired},
+                    {"penalties_detail", c_penalty},
+                    {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
+                    {"drift_detected",   drift_err.empty() ? "false" : "true"},
+                    {"source",           "agent.commit"}
                 });
             }
         }

@@ -88,7 +88,7 @@ fn apply_operator_adjustments(adjustments, current_phase) {
     let read_result = process.run("cat", ["govern.json"])
     if read_result.exit_code != 0 {
         print("[operator] Failed to read govern.json via shell")
-        return false
+        return "read_failed"
     }
     let config = json.parse(read_result.stdout)
     let changes_made = false
@@ -167,7 +167,7 @@ fn apply_operator_adjustments(adjustments, current_phase) {
 
     if !changes_made {
         print("[operator] No valid changes to apply")
-        return false
+        return "no_valid_changes"
     }
 
     let new_json = json.stringify(config, 2)
@@ -177,7 +177,7 @@ fn apply_operator_adjustments(adjustments, current_phase) {
     let write_result = process.run("mv", ["_govern_pending.json", "govern.json"])
     if write_result.exit_code != 0 {
         print("[operator] Failed to write govern.json: " + write_result.stderr)
-        return false
+        return "write_failed"
     }
     let sign_args = ["--sign-governance"]
     if len(signing_key_path) > 0 {
@@ -186,8 +186,9 @@ fn apply_operator_adjustments(adjustments, current_phase) {
     let sign_result = process.run(naab_binary, sign_args)
     if sign_result.exit_code != 0 {
         print("[operator] WARNING: re-signing failed: " + sign_result.stderr)
+        return "sign_failed"
     }
-    return sign_result.exit_code == 0
+    return ""
 }
 
 fn validate_code(ops_code, main_code, test_code, ops_pattern) {
@@ -356,12 +357,12 @@ main {
         if action == "adjust" && decision.get("adjustments") != null {
             let adj = decision["adjustments"]
             let phase = context.get("phase") ?? ""
-            let ok = apply_operator_adjustments(adj, phase)
-            if ok {
+            let rejection = apply_operator_adjustments(adj, phase)
+            if rejection == "" {
                 tracking["adjustments_made"] = tracking["adjustments_made"] + 1
                 print("OPERATOR|adjustment_applied|count=" + string(tracking["adjustments_made"]))
             } else {
-                print("OPERATOR|adjustment_rejected|ratchet_or_sign_failure")
+                print("OPERATOR|adjustment_rejected|" + rejection)
             }
         }
 

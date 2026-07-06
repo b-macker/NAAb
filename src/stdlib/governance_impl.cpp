@@ -345,6 +345,19 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
     result["governance_epoch"] = NaabVal::makeInt(engine->getGovernanceEpoch());
     // Min coherence across all tracked agents
     result["coherence"] = NaabVal::makeDouble(engine->getMinAgentCoherence());
+
+    // T6: Telemetry for governance.health() queries
+    if (engine->getRules().telemetry_output.enabled) {
+        engine->writeAgentTelemetry("GOVERNANCE_HEALTH_QUERY", {
+            {"verdict", std::string(verdict_str)},
+            {"coherence", std::to_string(engine->getMinAgentCoherence())},
+            {"epoch", std::to_string(engine->getGovernanceEpoch())},
+            {"consecutive_passes", std::to_string(pulse.consecutive_passes)},
+            {"bsd_connected", pulse.bsd_connected ? "true" : "false"},
+            {"cdd_connected", pulse.cdd_connected ? "true" : "false"},
+        });
+    }
+
     return NaabVal::makeDict(std::move(result));
 }
 
