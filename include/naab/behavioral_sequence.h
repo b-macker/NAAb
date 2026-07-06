@@ -83,7 +83,7 @@ struct SequenceMatchResult {
 };
 
 // CDD signal indices for generic adaptive baseline
-static constexpr int NUM_CDD_SIGNALS = 20;
+static constexpr int NUM_CDD_SIGNALS = 21;
 enum CddSignalId : int {
     SIG_CIRCULAR = 0,              // S1
     SIG_REPEATED_FAILURES = 1,     // S2
@@ -104,7 +104,8 @@ enum CddSignalId : int {
     SIG_PERSONA_FINGERPRINT = 16,  // S17
     SIG_TOOL_CHAIN_INTEGRITY = 17, // S18
     SIG_CLAIM_RESULT = 18,         // S19
-    SIG_PROMPT_COMPLIANCE = 19     // S20 — off-topic prompt compliance
+    SIG_PROMPT_COMPLIANCE = 19,    // S20 — off-topic prompt compliance
+    SIG_RESPONSE_REPETITION = 20   // S21 — verbatim response repetition
 };
 
 struct SignalBaseline {
@@ -200,6 +201,10 @@ struct DriftState {
     std::unordered_set<std::string> turn_prompt_keywords;  // per-turn (set before CDD, cleared after)
     std::deque<double> prompt_alignment_history;            // rolling window of prompt-to-mandate overlap
     int prompt_compliance_count = 0;                        // turns where off-topic prompt was complied with
+
+    // Response repetition — detect verbatim duplicate responses
+    std::deque<std::string> response_fingerprints;  // recent content_fingerprint values
+    int response_repetition_count = 0;              // turns with exact duplicate response
 
     // Escalation effectiveness tracking — measure whether level changes improve behavior
     int escalation_turn = -1;                      // turn when last escalation occurred (-1 = never)
@@ -312,6 +317,12 @@ public:
 
     // Get drift state for decision_trace (returns copy — safe across threads)
     std::optional<DriftState> getDriftState(int handle_id) const;
+
+    // Get minimum coherence across all tracked agents
+    double getMinCoherence() const;
+
+    // Get per-agent coherence map (config_name → coherence_score)
+    std::unordered_map<std::string, double> getAllAgentCoherences() const;
 
     bool isEnabled() const;
 

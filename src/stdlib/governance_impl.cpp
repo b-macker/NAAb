@@ -343,6 +343,8 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
     result["transcript_connected"] = NaabVal::makeBool(pulse.transcript_connected);
     // Evidence epoch — monotonic state transition counter
     result["governance_epoch"] = NaabVal::makeInt(engine->getGovernanceEpoch());
+    // Min coherence across all tracked agents
+    result["coherence"] = NaabVal::makeDouble(engine->getMinAgentCoherence());
     return NaabVal::makeDict(std::move(result));
 }
 

@@ -207,7 +207,7 @@ static const std::unordered_set<std::string> kStopWords = {
     "each", "more", "like", "just", "some", "when", "then",
     "into", "here", "been", "both", "want", "used", "them", "than",
     "what", "were", "they", "does", "done", "very", "much", "most",
-    "only", "over", "such", "should", "would", "could", "about",
+    "over", "such", "should", "would", "could", "about",
     "other", "their", "there", "which", "these", "those", "being",
     "after", "before",
     "sure", "great", "lets", "following", "below",
@@ -658,6 +658,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["tool_integrity_count"] = NaabVal::makeInt(drift_opt->tool_integrity_count);
             state["claim_mismatch_count"] = NaabVal::makeInt(drift_opt->claim_result_mismatch_count);
             state["prompt_compliance_count"] = NaabVal::makeInt(drift_opt->prompt_compliance_count);
+            state["response_repetition_count"] = NaabVal::makeInt(drift_opt->response_repetition_count);
             if (!drift_opt->claim_accuracy_history.empty()) {
                 double ca_sum = 0;
                 for (double v : drift_opt->claim_accuracy_history) ca_sum += v;
@@ -701,6 +702,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["tool_integrity_count"] = NaabVal::makeInt(0);
             state["claim_mismatch_count"] = NaabVal::makeInt(0);
             state["prompt_compliance_count"] = NaabVal::makeInt(0);
+            state["response_repetition_count"] = NaabVal::makeInt(0);
             state["claim_accuracy"] = NaabVal::makeDouble(1.0);
             state["mandate_alignment"] = NaabVal::makeDouble(0.0);
             state["escalation_turn"] = NaabVal::makeInt(-1);
@@ -3578,6 +3580,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"acceleration",     acc},
                     {"pressure",         pres},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
+                    {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"}
                 });
@@ -3628,6 +3631,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"tool_integrity_count",    std::to_string(drift_state->tool_integrity_count)},
                     {"claim_mismatch_count",   std::to_string(drift_state->claim_result_mismatch_count)},
                     {"prompt_compliance_count", std::to_string(drift_state->prompt_compliance_count)},
+                    {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"mandate_alignment",       ma_str},
                     {"keywords_count",          std::to_string(response_keywords.size())}
                 });

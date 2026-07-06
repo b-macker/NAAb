@@ -2706,6 +2706,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("claim_accuracy_min") && th["claim_accuracy_min"].is_number()) cfg.thresholds.claim_accuracy_min = std::max(0.0, std::min(1.0, th["claim_accuracy_min"].get<double>()));
             if (th.contains("prompt_compliance_mandate_min") && th["prompt_compliance_mandate_min"].is_number()) cfg.thresholds.prompt_compliance_mandate_min = std::max(0.0, std::min(1.0, th["prompt_compliance_mandate_min"].get<double>()));
             if (th.contains("prompt_compliance_response_min_tokens") && th["prompt_compliance_response_min_tokens"].is_number_integer()) cfg.thresholds.prompt_compliance_response_min_tokens = std::max(0, th["prompt_compliance_response_min_tokens"].get<int>());
+            if (th.contains("response_repetition_lookback") && th["response_repetition_lookback"].is_number_integer()) cfg.thresholds.response_repetition_lookback = std::max(1, th["response_repetition_lookback"].get<int>());
         }
         parseRationale(cd, cfg.rationale);
         if (cd.contains("signals") && cd["signals"].is_object()) {
@@ -2730,6 +2731,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("tool_chain_integrity") && sig["tool_chain_integrity"].is_boolean()) cfg.signals.tool_chain_integrity = sig["tool_chain_integrity"].get<bool>();
             if (sig.contains("claim_result_reconciliation") && sig["claim_result_reconciliation"].is_boolean()) cfg.signals.claim_result_reconciliation = sig["claim_result_reconciliation"].get<bool>();
             if (sig.contains("prompt_compliance") && sig["prompt_compliance"].is_boolean()) cfg.signals.prompt_compliance = sig["prompt_compliance"].get<bool>();
+            if (sig.contains("response_repetition") && sig["response_repetition"].is_boolean()) cfg.signals.response_repetition = sig["response_repetition"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -2754,6 +2756,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("tool_chain_integrity") && w["tool_chain_integrity"].is_number()) cfg.weights.tool_chain_integrity = w["tool_chain_integrity"].get<double>();
             if (w.contains("claim_result_reconciliation") && w["claim_result_reconciliation"].is_number()) cfg.weights.claim_result_reconciliation = w["claim_result_reconciliation"].get<double>();
             if (w.contains("prompt_compliance") && w["prompt_compliance"].is_number()) cfg.weights.prompt_compliance = w["prompt_compliance"].get<double>();
+            if (w.contains("response_repetition") && w["response_repetition"].is_number()) cfg.weights.response_repetition = std::clamp(w["response_repetition"].get<double>(), 0.0, 1.0);
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];

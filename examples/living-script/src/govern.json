@@ -25,6 +25,7 @@
   "telemetry": {
     "enabled": true,
     "output_file": "telemetry.jsonl",
+    "deduplicate_checks": true,
     "tamper_evidence": {
       "enabled": true,
       "algorithm": "sha256",
@@ -276,7 +277,13 @@
     "mandate_reinforcement_interval": 5,
     "coherence_correction_enabled": true,
     "coherence_correction_threshold": 0.85,
-    "coherence_correction_cooldown_turns": 3
+    "coherence_correction_cooldown_turns": 3,
+    "output_admissibility": {
+      "enabled": true,
+      "threshold": 0.60,
+      "action": "quarantine",
+      "inadmissible_history": "commit"
+    }
   },
 
   "advisory_escalation": {

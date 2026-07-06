@@ -31,7 +31,7 @@ static const std::unordered_set<std::string> kStopWords = {
     "each", "more", "like", "just", "some", "when", "then",
     "into", "here", "been", "both", "want", "used", "them", "than",
     "what", "were", "they", "does", "done", "very", "much", "most",
-    "only", "over", "such", "should", "would", "could", "about",
+    "over", "such", "should", "would", "could", "about",
     "other", "their", "there", "which", "these", "those", "being",
     "after", "before",
     "sure", "great", "lets", "following", "below",
@@ -1298,6 +1298,40 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
+    // Signal 21: Response repetition — detect verbatim duplicate responses via content fingerprint
+    if (config_->signals.response_repetition) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE &&
+                !ev.content_fingerprint.empty()) {
+                bool duplicate = false;
+                for (const auto& prev_fp : state.response_fingerprints) {
+                    if (ev.content_fingerprint == prev_fp) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (duplicate) {
+                    state.response_repetition_count++;
+                    turn_fired[SIG_RESPONSE_REPETITION]++;
+                    if (!in_baseline) {
+                        double p = adaptive_penalty(config_->weights.response_repetition,
+                                                    state.response_repetition_count, SIG_RESPONSE_REPETITION);
+                        if (p > 0.0) {
+                            state.coherence_score -= p;
+                            state.signals_fired_this_turn++;
+                        }
+                    }
+                }
+                state.response_fingerprints.push_back(ev.content_fingerprint);
+                while (static_cast<int>(state.response_fingerprints.size()) >
+                       config_->thresholds.response_repetition_lookback) {
+                    state.response_fingerprints.pop_front();
+                }
+                break;  // one AGENT_RESPONSE per turn
+            }
+        }
+    }
+
     // Signal 11: Mandate alignment — continuous system_prompt keyword adherence
     if (config_->signals.mandate_alignment && !state.mandate_keywords.empty()) {
         for (const auto& ev : turn_events) {
@@ -1798,6 +1832,25 @@ std::optional<DriftState> ContextDriftAnalyzer::getDriftState(int handle_id) con
     auto it = drift_states_.find(handle_id);
     if (it == drift_states_.end()) return std::nullopt;
     return it->second;
+}
+
+double ContextDriftAnalyzer::getMinCoherence() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    double min_c = 1.0;
+    for (const auto& [hid, st] : drift_states_) {
+        if (st.coherence_score < min_c) min_c = st.coherence_score;
+    }
+    return min_c;
+}
+
+std::unordered_map<std::string, double> ContextDriftAnalyzer::getAllAgentCoherences() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::unordered_map<std::string, double> result;
+    for (const auto& [hid, st] : drift_states_) {
+        std::string key = st.config_name.empty() ? std::to_string(hid) : st.config_name;
+        result[key] = st.coherence_score;
+    }
+    return result;
 }
 
 std::string ContextDriftAnalyzer::computeFingerprint(
