@@ -136,6 +136,8 @@ fn apply_operator_adjustments(adjustments, current_phase) {
                 if array.contains(allowed_circuit_fields, cb_fields[k]) {
                     config["circuit_breaker"][cb_fields[k]] = adjustments[agent_name][cb_fields[k]]
                     changes_made = true
+                } else {
+                    print("[operator] Skipped unknown circuit_breaker field: " + cb_fields[k])
                 }
                 k = k + 1
             }
@@ -145,6 +147,7 @@ fn apply_operator_adjustments(adjustments, current_phase) {
             while j < fields.length() {
                 let field = fields[j]
                 if !array.contains(allowed_agent_fields, field) {
+                    print("[operator] Skipped unknown field: " + field + " for " + agent_name)
                     j = j + 1
                     continue
                 }
@@ -161,6 +164,8 @@ fn apply_operator_adjustments(adjustments, current_phase) {
                 changes_made = true
                 j = j + 1
             }
+        } else {
+            print("[operator] Skipped unknown agent: " + agent_name)
         }
         i = i + 1
     }

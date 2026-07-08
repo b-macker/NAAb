@@ -4672,6 +4672,10 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                         c_penalty += pb;
                     }
                 }
+                int c_level = static_cast<int>(gov_engine->getGovernanceLevel());
+                const char* c_level_names[] = {"normal", "elevated", "high", "critical"};
+                const char* c_level_str = (c_level >= 0 && c_level <= 3)
+                    ? c_level_names[c_level] : "unknown";
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
@@ -4684,6 +4688,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     {"signals_detail",   c_fired},
                     {"penalties_detail", c_penalty},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
+                    {"governance_level", c_level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"},
                     {"source",           "agent.commit"}
                 });
