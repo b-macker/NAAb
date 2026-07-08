@@ -36,8 +36,26 @@ fn get_coherence(resp) {
 }
 
 fn safe_send(handle, message) {
-    try { return agent.send(handle, message) }
-    catch (e) { return {"error": string(e)} }
+    try {
+        let resp = agent.send(handle, message)
+        let adm = resp.get("admissibility")
+        if adm != null && adm.get("admissible") == false {
+            print("[governance] Response quarantined (coherence: " + string(adm.get("coherence_score")) + ")")
+        }
+        return resp
+    } catch (e) {
+        return {"error": string(e)}
+    }
+}
+
+fn check_coherence(handle, name) {
+    let c = agent.coherence(handle)
+    if c < 0.3 {
+        print("[governance] " + name + " coherence critically low (" + string(c) + "), resetting")
+        agent.reset(handle)
+        return true
+    }
+    return false
 }
 
 fn read_telemetry_summary() {
@@ -629,6 +647,7 @@ main {
 
                 // Developer implements in operations.py
                 if handles.get("developer") != null {
+                    check_coherence(handles["developer"], "developer")
                     let dev_msg = ""
                     if len(operator_msg_prefix) > 0 { dev_msg = operator_msg_prefix + "\n\n" }
                     dev_msg = dev_msg + "ADD this feature to operations.py:\n" + guidance
@@ -652,6 +671,7 @@ main {
                     print("TURN|developer|feat" + string(feat_num) + "_ops|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
                     // Developer updates test file
+                    check_coherence(handles["developer"], "developer")
                     let test_msg = "Add tests for this new feature ONLY:\n" + trimmed
                     test_msg = test_msg + "\n\nDo NOT modify existing tests. Only ADD new test functions."
                     test_msg = test_msg + "\n\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput the COMPLETE file with new tests added. pytest with fixture. ```python fences. Code only."
@@ -689,6 +709,7 @@ main {
                     feat_fix_msg = feat_fix_msg + "\n\n" + invariants
                     feat_fix_msg = feat_fix_msg + "\nEXISTING METHODS (do NOT modify): " + existing_methods
                     feat_fix_msg = feat_fix_msg + "\n\nCurrent code:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
+                    check_coherence(handles["developer"], "developer")
                     let fresp = safe_send(handles["developer"], feat_fix_msg)
                     tracking["total_sends"] = tracking["total_sends"] + 1
                     if fresp.get("error") == null {
@@ -760,6 +781,7 @@ main {
             pytest_fix_msg = pytest_fix_msg + "\n" + invariants
             pytest_fix_msg = pytest_fix_msg + "\nFix ONLY the failing parts. Do NOT rewrite the whole file."
             pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed operations.py. ```python fences. Code only."
+            check_coherence(handles["developer"], "developer")
             let pfresp = safe_send(handles["developer"], pytest_fix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if pfresp.get("error") == null {
@@ -800,6 +822,7 @@ main {
         let main_msg = "Update main.py to support ALL calculator operations: " + existing_methods
         main_msg = main_msg + ".\nCurrent main.py:\n```python\n" + main_code + "\n```"
         main_msg = main_msg + "\nAdd all operations to --op choices. Handle memory ops (no second arg) and evaluate (string expression). ```python fences. Code only."
+        check_coherence(handles["developer"], "developer")
         let mresp = safe_send(handles["developer"], main_msg)
         tracking["total_sends"] = tracking["total_sends"] + 1
         if mresp.get("error") == null {

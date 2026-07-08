@@ -2008,6 +2008,27 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
     }
 }
 
+int ContextDriftAnalyzer::updateQuarantineStreak(int handle_id, bool quarantined) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    if (quarantined) {
+        state.consecutive_quarantines++;
+    } else {
+        state.consecutive_quarantines = 0;
+    }
+    return state.consecutive_quarantines;
+}
+
+void ContextDriftAnalyzer::resetDriftState(int handle_id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    if (it == drift_states_.end()) return;
+    std::string cfg_name = it->second.config_name;
+    it->second = DriftState{};
+    it->second.handle_id = handle_id;
+    it->second.config_name = cfg_name;
+}
+
 // Snapshot cumulative signal counters into signal_baselines[].snapshot
 // (17 signals with counters; S6/S7 have no cumulative counter and stay at 0).
 // Used at baseline completion and on scoped config-change resets — the

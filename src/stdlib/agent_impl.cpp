@@ -660,6 +660,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["claim_mismatch_count"] = NaabVal::makeInt(drift_opt->claim_result_mismatch_count);
             state["prompt_compliance_count"] = NaabVal::makeInt(drift_opt->prompt_compliance_count);
             state["response_repetition_count"] = NaabVal::makeInt(drift_opt->response_repetition_count);
+            state["consecutive_quarantines"] = NaabVal::makeInt(drift_opt->consecutive_quarantines);
             if (!drift_opt->claim_accuracy_history.empty()) {
                 double ca_sum = 0;
                 for (double v : drift_opt->claim_accuracy_history) ca_sum += v;
@@ -704,6 +705,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["claim_mismatch_count"] = NaabVal::makeInt(0);
             state["prompt_compliance_count"] = NaabVal::makeInt(0);
             state["response_repetition_count"] = NaabVal::makeInt(0);
+            state["consecutive_quarantines"] = NaabVal::makeInt(0);
             state["claim_accuracy"] = NaabVal::makeDouble(1.0);
             state["mandate_alignment"] = NaabVal::makeDouble(0.0);
             state["escalation_turn"] = NaabVal::makeInt(-1);
@@ -3774,6 +3776,31 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // Update quarantine streak counter and enforce max_quarantine_streak
+    int current_streak = 0;
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+        current_streak = gov_engine->updateQuarantineStreak(handle_id, !output_admissible);
+
+        int max_streak = gov_engine->getRules().circuit_breaker.output_admissibility.max_quarantine_streak;
+        if (max_streak > 0 && current_streak >= max_streak) {
+            gov_engine->writeAgentTelemetry("QUARANTINE_STREAK_EXCEEDED", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",        std::to_string(current_turn)},
+                {"streak",      std::to_string(current_streak)},
+                {"max_allowed", std::to_string(max_streak)}
+            });
+            throw governance::GovernanceHardError(fmt::format(
+                "Agent exceeded maximum quarantine streak\n\n"
+                "  Consecutive quarantined responses: {}\n"
+                "  Maximum allowed: {}\n"
+                "  Agent: {}\n  Turn: {}\n\n"
+                "  The agent has produced too many inadmissible responses.\n",
+                current_streak, max_streak, config_name, current_turn));
+        }
+    }
+
     // Split commit, state half: append conversation history now that the turn
     // has passed CDD and the output-admissibility gate. Blocked turns (throws
     // above) never reach this point, so inadmissible content cannot poison the
@@ -4030,6 +4057,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (!output_admissible) {
             adm["action"] = NaabVal::makeString(
                 gov_engine->getRules().circuit_breaker.output_admissibility.action);
+            adm["quarantine_streak"] = NaabVal::makeInt(current_streak);
         }
         result["admissibility"] = NaabVal::makeDict(std::move(adm));
     }
@@ -4729,6 +4757,30 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     config_name, current_turn,
                     oa_result.coherence_score, oa_result.threshold);
             }
+        }
+    }
+
+    // Update quarantine streak counter (commit path)
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+        int streak = gov_engine->updateQuarantineStreak(handle_id, !output_admissible);
+        int max_streak = gov_engine->getRules().circuit_breaker.output_admissibility.max_quarantine_streak;
+        if (max_streak > 0 && streak >= max_streak) {
+            gov_engine->writeAgentTelemetry("QUARANTINE_STREAK_EXCEEDED", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",        std::to_string(current_turn)},
+                {"streak",      std::to_string(streak)},
+                {"max_allowed", std::to_string(max_streak)},
+                {"source",      "agent.commit"}
+            });
+            throw governance::GovernanceHardError(fmt::format(
+                "Agent exceeded maximum quarantine streak\n\n"
+                "  Consecutive quarantined responses: {}\n"
+                "  Maximum allowed: {}\n"
+                "  Agent: {}\n  Turn: {}\n\n"
+                "  The agent has produced too many inadmissible responses.\n",
+                streak, max_streak, config_name, current_turn));
         }
     }
 
@@ -5645,6 +5697,147 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// agent.coherence(handle) — current coherence score (0.0-1.0)
+// ============================================================================
+static NaabVal agentCoherence(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isDict())
+        throw std::runtime_error(
+            "Agent error: agent.coherence requires an agent handle\n\n"
+            "  Expected: agent.coherence(handle)\n\n"
+            "  Help:\n"
+            "  - Returns the current coherence score (0.0-1.0) for the agent\n"
+            "  - Returns 1.0 if no drift state exists yet\n");
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    auto* ge = governance::GovernanceEngine::getCurrent();
+    if (ge && ge->isActive()) {
+        auto drift_opt = ge->getDriftState(handle_id);
+        if (drift_opt)
+            return NaabVal::makeDouble(drift_opt->coherence_score);
+    }
+    return NaabVal::makeDouble(1.0);
+}
+
+// ============================================================================
+// agent.reset(handle) — reset conversation and coherence state
+// ============================================================================
+static NaabVal agentReset(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isDict())
+        throw std::runtime_error(
+            "Agent error: agent.reset requires an agent handle\n\n"
+            "  Expected: agent.reset(handle)\n\n"
+            "  Help:\n"
+            "  - Resets conversation history and coherence state\n"
+            "  - The agent keeps its config but starts a fresh conversation\n");
+
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    auto& handle = args[0].asDict();
+
+    // Capture pre-reset state for telemetry
+    int turn_at_reset = 0;
+    double coherence_at_reset = 1.0;
+
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->isActive()) {
+        auto drift_opt = gov_engine->getDriftState(handle_id);
+        if (drift_opt)
+            coherence_at_reset = drift_opt->coherence_score;
+    }
+
+    const auto* config = findAgentConfig(config_name);
+
+    // Reset AgentTracker (preserve nonce, config_name, key_offset)
+    // LOCK ORDERING: acquire s_agent_mutex first, release, THEN call
+    // resetDriftState() which acquires ContextDriftAnalyzer::mutex_.
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto it = s_trackers.find(handle_id);
+        if (it != s_trackers.end()) {
+            auto& t = it->second;
+            turn_at_reset = t.turns;
+            t.turns = 0;
+            t.input_tokens = 0;
+            t.output_tokens = 0;
+            t.truncation_count = 0;
+            t.last_reinforcement_turn = -100;
+            t.last_correction_turn = -100;
+            t.last_challenge_turn = -100;
+            t.challenges_passed = 0;
+            t.challenges_failed = 0;
+            t.tool_calls_total = 0;
+            t.tool_calls_blocked = 0;
+            t.tool_total_latency_ms = 0;
+            if (config && config->standing_lease_turns > 0) {
+                t.lease_granted_turn = 0;
+                t.lease_expires_turn = config->standing_lease_turns;
+            }
+            if (config && config->standing_lease_seconds > 0) {
+                t.lease_granted_time = std::chrono::steady_clock::now();
+            }
+        }
+        s_pending_proposals.erase(handle_id);
+    }
+    // s_agent_mutex released — safe to call into governance engine
+
+    // Reset DriftState (fresh coherence=1.0, all counters zero)
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->resetDriftState(handle_id);
+
+        // Re-initialize mandate keywords from system_prompt
+        if (config && !config->system_prompt.empty() &&
+            (gov_engine->getRules().context_drift.signals.mandate_alignment ||
+             gov_engine->getRules().context_drift.signals.prompt_compliance)) {
+            std::unordered_set<std::string> mandate_kw;
+            extractKeywords(config->system_prompt, mandate_kw);
+            if (!mandate_kw.empty()) {
+                gov_engine->initializeMandateKeywords(handle_id, mandate_kw);
+            }
+        }
+    }
+
+    // Reset handle dict fields
+    handle["messages"] = NaabVal::makeList({});
+    handle["turns"] = NaabVal::makeInt(0);
+    handle["input_tokens"] = NaabVal::makeInt(0);
+    handle["output_tokens"] = NaabVal::makeInt(0);
+    handle["environment"] = buildEnvironmentDict(handle_id, config_name);
+
+    // Telemetry
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->writeAgentTelemetry("AGENT_RESET", {
+            {"handle_id",         std::to_string(handle_id)},
+            {"config_name",       config_name},
+            {"turn_at_reset",     std::to_string(turn_at_reset)},
+            {"coherence_at_reset", fmt::format("{:.4f}", coherence_at_reset)},
+        });
+    }
+
+    // Transcript
+    if (gov_engine && gov_engine->isActive() && gov_engine->isTranscriptAgent(config_name)) {
+        nlohmann::json te;
+        te["type"] = "agent_reset";
+        te["handle_id"] = handle_id;
+        te["agent"] = config_name;
+        te["turn_at_reset"] = turn_at_reset;
+        te["coherence_at_reset"] = coherence_at_reset;
+        auto now = std::chrono::system_clock::now();
+        auto t_val = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf;
+#ifdef _WIN32
+        localtime_s(&tm_buf, &t_val);
+#else
+        localtime_r(&t_val, &tm_buf);
+#endif
+        char ts_buf[32];
+        std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+        te["timestamp"] = std::string(ts_buf);
+        te["run_id"] = gov_engine->getRunId();
+        gov_engine->writeAgentTranscript(te.dump());
+    }
+
+    return args[0];
+}
+
+// ============================================================================
 // Module Interface
 // ============================================================================
 
@@ -5653,7 +5846,8 @@ bool AgentModule::hasFunction(const std::string& name) const {
         "create", "send", "run", "messages", "usage",
         "batch", "fan_out", "pipeline", "check",
         "key_health", "dispatch_status", "environment",
-        "register_tool", "extract_code", "propose", "commit"
+        "register_tool", "extract_code", "propose", "commit",
+        "coherence", "reset"
     };
     return functions.count(name) > 0;
 }
@@ -5678,10 +5872,12 @@ NaabVal AgentModule::call(
     if (function_name == "extract_code") return agentExtractCode(args);
     if (function_name == "propose") return agentPropose(args);
     if (function_name == "commit") return agentCommit(args);
+    if (function_name == "coherence") return agentCoherence(args);
+    if (function_name == "reset") return agentReset(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit, coherence, reset\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -5695,7 +5891,9 @@ NaabVal AgentModule::call(
         "  - agent.key_health(name) — key rotation status: active vs dead keys\n"
         "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n"
         "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n"
-        "  - agent.register_tool(name, fn, schema) — register function as LLM-callable tool\n",
+        "  - agent.register_tool(name, fn, schema) — register function as LLM-callable tool\n"
+        "  - agent.coherence(handle) — current coherence score (0.0-1.0)\n"
+        "  - agent.reset(handle) — reset conversation and coherence state\n",
         function_name));
 }
 

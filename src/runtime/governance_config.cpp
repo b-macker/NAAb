@@ -2917,6 +2917,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Per-tool-call admissibility gate
             if (oa.contains("gate_tool_calls") && oa["gate_tool_calls"].is_boolean())
                 oac.gate_tool_calls = oa["gate_tool_calls"].get<bool>();
+            // Maximum consecutive quarantined responses before hard-blocking
+            if (oa.contains("max_quarantine_streak") && oa["max_quarantine_streak"].is_number_integer())
+                oac.max_quarantine_streak = std::max(0, oa["max_quarantine_streak"].get<int>());
         }
         parseRationale(cbj, cfg.rationale);
     }
@@ -3500,6 +3503,18 @@ static bool checkRatchetViolation(
         violations.push_back("output_admissibility.gate_tool_calls: true -> false (loosened)");
     else if (!old_oa.gate_tool_calls && new_oa.gate_tool_calls)
         notices.push_back("output_admissibility.gate_tool_calls: false -> true (tightened)");
+    // Quarantine streak: 0=disabled=loosest. Removing limit or increasing N = loosening.
+    if (old_oa.max_quarantine_streak > 0 && new_oa.max_quarantine_streak == 0)
+        violations.push_back("output_admissibility.max_quarantine_streak: removed (loosened)");
+    else if (new_oa.max_quarantine_streak > old_oa.max_quarantine_streak && old_oa.max_quarantine_streak > 0)
+        violations.push_back(fmt::format("output_admissibility.max_quarantine_streak: {} -> {} (loosened)",
+            old_oa.max_quarantine_streak, new_oa.max_quarantine_streak));
+    else if (new_oa.max_quarantine_streak < old_oa.max_quarantine_streak && new_oa.max_quarantine_streak > 0)
+        notices.push_back(fmt::format("output_admissibility.max_quarantine_streak: {} -> {} (tightened)",
+            old_oa.max_quarantine_streak, new_oa.max_quarantine_streak));
+    else if (old_oa.max_quarantine_streak == 0 && new_oa.max_quarantine_streak > 0)
+        notices.push_back(fmt::format("output_admissibility.max_quarantine_streak: disabled -> {} (tightened)",
+            new_oa.max_quarantine_streak));
 
     // --- Context Drift ratchet ---
     // rate_normalized: disabling mid-run restores flat per-event penalties

@@ -1612,6 +1612,9 @@ struct CircuitBreakerConfig {
         std::string inadmissible_history = "commit";
         // Gate tool execution on current coherence/pulse before each tool call.
         bool gate_tool_calls = false;
+        // Maximum consecutive quarantined responses before hard-blocking the agent.
+        // 0 = disabled (no streak limit). Ratchet: removing limit (N->0) is loosening.
+        int max_quarantine_streak = 0;
     } output_admissibility;
 };
 
@@ -3011,6 +3014,12 @@ public:
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);
+
+    // Update quarantine streak: increments on quarantine, resets on admissible.
+    int updateQuarantineStreak(int handle_id, bool quarantined);
+
+    // Reset drift state for a specific handle (agent.reset() — fresh conversation).
+    void resetDriftState(int handle_id);
 
     // Reality checkpoint: get pressure data for response dict
     struct CheckpointData {

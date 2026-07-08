@@ -7261,6 +7261,14 @@ void GovernanceEngine::recordEscalation(
     drift_analyzer_.recordEscalation(handle_id, from_level, to_level);
 }
 
+int GovernanceEngine::updateQuarantineStreak(int handle_id, bool quarantined) {
+    return drift_analyzer_.updateQuarantineStreak(handle_id, quarantined);
+}
+
+void GovernanceEngine::resetDriftState(int handle_id) {
+    drift_analyzer_.resetDriftState(handle_id);
+}
+
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
     int handle_id, int turn) const {
     CheckpointData data;

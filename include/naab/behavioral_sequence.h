@@ -232,6 +232,7 @@ struct DriftState {
     std::array<int, NUM_CDD_SIGNALS> last_turn_fired = {};      // per-signal fire counts for most recent turn
     std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
     double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
+    int consecutive_quarantines = 0;                               // output admissibility quarantine streak
 
     // Recovery tracking (Phase 4a)
     int last_recovery_turn = -1;              // turn of last coherence recovery (-1 = never)
@@ -343,6 +344,14 @@ public:
 
     // F15: Recover coherence (e.g., at pipeline stage transitions)
     void resetCoherence(int handle_id, double amount);
+
+    // Update quarantine streak: increments on quarantine, resets on admissible.
+    // Returns current streak count after update.
+    int updateQuarantineStreak(int handle_id, bool quarantined);
+
+    // Reset drift state for a specific handle (fresh DriftState, preserves handle_id + config_name).
+    // Used by agent.reset() to give a degraded agent a clean slate.
+    void resetDriftState(int handle_id);
 
     // Initialize mandate keywords from system_prompt (for mandate alignment signal)
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
