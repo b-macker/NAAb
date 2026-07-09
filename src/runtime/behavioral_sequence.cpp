@@ -1,5 +1,6 @@
 #include "naab/governance.h"
 #include "naab/behavioral_sequence.h"
+#include "naab/keyword_extract.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -24,32 +25,10 @@ static std::string normalizeEventTypeName(const std::string& raw) {
     return s;
 }
 
-// Stop words: English function words >3 chars + LLM response boilerplate.
-// No programming terms — those are domain-relevant for coding assistants.
-static const std::unordered_set<std::string> kStopWords = {
-    "that", "this", "with", "from", "have", "your", "will", "also",
-    "each", "more", "like", "just", "some", "when", "then",
-    "into", "here", "been", "both", "want", "used", "them", "than",
-    "what", "were", "they", "does", "done", "very", "much", "most",
-    "over", "such", "should", "would", "could", "about",
-    "other", "their", "there", "which", "these", "those", "being",
-    "after", "before",
-    "sure", "great", "lets", "following", "below",
-    "approach", "solution", "need", "look"
-};
-
-// Extract keywords (>3 chars) from text, lowercased — local version for CDD signals
+// Keyword extraction shared with agent_impl.cpp (include/naab/keyword_extract.h) —
+// CDD signal keywords must come from the same tokenizer as mandate/response keywords.
 static void extractKeywordsLocal(const std::string& text, std::unordered_set<std::string>& out) {
-    std::string current;
-    for (char c : text) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        } else {
-            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
-            current.clear();
-        }
-    }
-    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
+    naab::keywords::extractKeywords(text, out);
 }
 
 // Extract ordered plan steps from agent response text.

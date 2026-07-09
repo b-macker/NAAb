@@ -7,6 +7,7 @@
 #include "naab/naab_val.h"
 #include "naab/governance.h"
 #include "naab/agent_provider.h"
+#include "naab/keyword_extract.h"
 #include "naab/thread_pool.h"
 #include "naab/sandbox.h"
 #include <nlohmann/json.hpp>
@@ -200,33 +201,9 @@ static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
     return true;
 }
 
-// Stop words: English function words >3 chars + LLM response boilerplate.
-// No programming terms — those are domain-relevant for coding assistants.
-static const std::unordered_set<std::string> kStopWords = {
-    "that", "this", "with", "from", "have", "your", "will", "also",
-    "each", "more", "like", "just", "some", "when", "then",
-    "into", "here", "been", "both", "want", "used", "them", "than",
-    "what", "were", "they", "does", "done", "very", "much", "most",
-    "over", "such", "should", "would", "could", "about",
-    "other", "their", "there", "which", "these", "those", "being",
-    "after", "before",
-    "sure", "great", "lets", "following", "below",
-    "approach", "solution", "need", "look"
-};
-
-// Extract >3-char lowercase keywords from text (stop words filtered)
-static void extractKeywords(const std::string& text, std::unordered_set<std::string>& out) {
-    std::string current;
-    for (char c : text) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        } else {
-            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
-            current.clear();
-        }
-    }
-    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
-}
+// Keyword extraction shared with CDD (include/naab/keyword_extract.h) —
+// mandate/instruction/response keywords must come from the same tokenizer.
+using naab::keywords::extractKeywords;
 
 // Strip a single markdown code fence wrapping the entire response.
 // LLMs frequently wrap JSON/code in ```json ... ``` or ``` ... ```

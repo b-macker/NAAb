@@ -280,6 +280,12 @@ echo -e "${CYAN}--- Group A2: Keyword & Jaccard Math ---${NC}"
 # A06: Keyword extraction spec test
 # extractKeywords() splits on non-alphanumeric, lowercases, keeps >3 chars.
 # We verify this in NAAb so our test assumptions about keyword sets are correct.
+# NOTE: the real extractor is code-aware — whole tokens (asserted here) are
+# still always emitted, and camelCase/digit-boundary tokens ADDITIONALLY emit
+# their component words (TodoItem -> todoitem + todo + item), with English
+# stop words AND code-syntax stop words (return, self, ...) filtered. The
+# C++-path behavior is verified in test_code_aware_keywords.sh; this NAAb
+# model covers the base tokenizer contract only.
 WORKDIR=$(setup_workdir)
 cat > "$WORKDIR/govern.json" << 'GOVEOF'
 { "version": "5.0", "mode": "enforce", "security": { "sandbox_level": "elevated" } }
