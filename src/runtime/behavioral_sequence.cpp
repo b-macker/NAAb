@@ -1,5 +1,6 @@
 #include "naab/governance.h"
 #include "naab/behavioral_sequence.h"
+#include "naab/keyword_extract.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -24,32 +25,10 @@ static std::string normalizeEventTypeName(const std::string& raw) {
     return s;
 }
 
-// Stop words: English function words >3 chars + LLM response boilerplate.
-// No programming terms — those are domain-relevant for coding assistants.
-static const std::unordered_set<std::string> kStopWords = {
-    "that", "this", "with", "from", "have", "your", "will", "also",
-    "each", "more", "like", "just", "some", "when", "then",
-    "into", "here", "been", "both", "want", "used", "them", "than",
-    "what", "were", "they", "does", "done", "very", "much", "most",
-    "over", "such", "should", "would", "could", "about",
-    "other", "their", "there", "which", "these", "those", "being",
-    "after", "before",
-    "sure", "great", "lets", "following", "below",
-    "approach", "solution", "need", "look"
-};
-
-// Extract keywords (>3 chars) from text, lowercased — local version for CDD signals
+// Keyword extraction shared with agent_impl.cpp (include/naab/keyword_extract.h) —
+// CDD signal keywords must come from the same tokenizer as mandate/response keywords.
 static void extractKeywordsLocal(const std::string& text, std::unordered_set<std::string>& out) {
-    std::string current;
-    for (char c : text) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        } else {
-            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
-            current.clear();
-        }
-    }
-    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
+    naab::keywords::extractKeywords(text, out);
 }
 
 // Extract ordered plan steps from agent response text.
@@ -876,8 +855,16 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     std::array<int, NUM_CDD_SIGNALS> turn_fired = {};
     std::array<double, NUM_CDD_SIGNALS> turn_penalties = {};
 
+    // Per-agent signal overrides (context_drift_signals): an override bit
+    // wins over the global context_drift.signals config for this handle.
+    auto sig_on = [&state](bool global_enabled, int sig) -> bool {
+        if (state.signal_override_mask & (1u << sig))
+            return ((state.signal_override_values >> sig) & 1u) != 0;
+        return global_enabled;
+    };
+
     // Signal 1: Circular actions (same fingerprint repeats)
-    if (config_->signals.circular_actions && isCircular(state, fp)) {
+    if (sig_on(config_->signals.circular_actions, SIG_CIRCULAR) && isCircular(state, fp)) {
         state.circular_action_count++;
         turn_fired[SIG_CIRCULAR]++;
         if (!in_baseline) {
@@ -891,7 +878,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 2: Repeated failures (same error string seen multiple times)
-    if (config_->signals.repeated_failures && !error_if_any.empty()) {
+    if (sig_on(config_->signals.repeated_failures, SIG_REPEATED_FAILURES) && !error_if_any.empty()) {
         // Infrastructure errors (API failures, network errors) are categorically different
         // from behavioral drift — a flaky API is not the agent misbehaving.
         bool is_infrastructure = (error_if_any.size() >= 15 &&
@@ -943,7 +930,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 3: Scope creep (new event types appearing that weren't seen before)
-    if (config_->signals.scope_creep && !turn_types.empty()) {
+    if (sig_on(config_->signals.scope_creep, SIG_SCOPE_CREEP) && !turn_types.empty()) {
         int new_types = 0;
         for (const auto& t : turn_types) {
             if (state.seen_event_types.find(t) == state.seen_event_types.end()) {
@@ -972,7 +959,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Signal 5: Vocabulary contraction (action diversity shrinking over time)
     // Detects "narrowing paths that still appear formally open"
-    if (config_->signals.vocabulary_contraction && !turn_types.empty()) {
+    if (sig_on(config_->signals.vocabulary_contraction, SIG_VOCAB_CONTRACTION) && !turn_types.empty()) {
         state.per_turn_types.push_back(turn_types);
         if (static_cast<int>(state.per_turn_types.size()) > config_->fingerprint_window) {
             state.per_turn_types.pop_front();
@@ -1032,7 +1019,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 4: Intent contradictions (denied capability → alternative path)
-    if (config_->signals.intent_contradictions && !turn_events.empty()) {
+    if (sig_on(config_->signals.intent_contradictions, SIG_CONTRADICTIONS) && !turn_events.empty()) {
         // Map event types to capability categories
         auto capCategory = [](RuntimeEventType t) -> std::string {
             switch (t) {
@@ -1096,7 +1083,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Signal 6: Coherence velocity (rapid decay detection)
     // Fires when coherence is dropping faster than -0.15 per turn
-    if (config_->signals.coherence_velocity && state.coherence_history.size() >= 2) {
+    if (sig_on(config_->signals.coherence_velocity, SIG_COHERENCE_VELOCITY) && state.coherence_history.size() >= 2) {
         size_t n = state.coherence_history.size();
         double prev_velocity = state.coherence_velocity;
         state.coherence_velocity = state.coherence_history[n - 1] - state.coherence_history[n - 2];
@@ -1115,7 +1102,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Signal 7: Capability underutilization (F9)
     // Map events to capabilities and track exercised set
-    if (config_->signals.capability_underutilization) {
+    if (sig_on(config_->signals.capability_underutilization, SIG_CAPABILITY_UNDERUTIL)) {
         if (state.first_event_turn < 0) state.first_event_turn = turn_number;
 
         for (const auto& ev : turn_events) {
@@ -1150,7 +1137,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Signal 8: Response quality — content ratio too low (mostly thinking, little output)
     // Gemini: candidatesTokenCount = content only, thoughtsTokenCount = separate.
     // Ratio = content / (content + thinking) = proportion of generation that is useful.
-    if (config_->signals.response_quality) {
+    if (sig_on(config_->signals.response_quality, SIG_RESPONSE_QUALITY)) {
         for (const auto& ev : turn_events) {
             double total_gen = static_cast<double>(ev.output_tokens + ev.thinking_tokens);
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && total_gen > 0) {
@@ -1173,7 +1160,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 9: Thinking collapse — thinking tokens dropped >50% from baseline mean
-    if (config_->signals.thinking_collapse) {
+    if (sig_on(config_->signals.thinking_collapse, SIG_THINKING_COLLAPSE)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE) {
                 state.thinking_history.push_back(ev.thinking_tokens);
@@ -1217,7 +1204,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Signal 12: Context growth — detect prompt bloat (input tokens exceeding baseline)
     // As context grows, high-signal tokens get diluted, degrading all other signals.
-    if (config_->signals.context_growth) {
+    if (sig_on(config_->signals.context_growth, SIG_CONTEXT_GROWTH)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && ev.input_tokens > 0) {
                 state.input_tokens_history.push_back(ev.input_tokens);
@@ -1273,7 +1260,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 10: Semantic stability (F19) — topic shift detection via Jaccard similarity
-    if (config_->signals.semantic_stability) {
+    if (sig_on(config_->signals.semantic_stability, SIG_SEMANTIC_STABILITY)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 if (!state.prev_response_keywords.empty()) {
@@ -1313,7 +1300,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 21: Response repetition — detect verbatim duplicate responses via content fingerprint
-    if (config_->signals.response_repetition) {
+    if (sig_on(config_->signals.response_repetition, SIG_RESPONSE_REPETITION)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE &&
                 !ev.content_fingerprint.empty()) {
@@ -1348,7 +1335,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 11: Mandate alignment — continuous system_prompt keyword adherence
-    if (config_->signals.mandate_alignment && !state.mandate_keywords.empty()) {
+    if (sig_on(config_->signals.mandate_alignment, SIG_MANDATE_ALIGNMENT) && !state.mandate_keywords.empty()) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 int found = 0;
@@ -1384,7 +1371,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 13: Instruction recall — check if agent references earlier user instructions
-    if (config_->signals.instruction_recall && !state.instruction_keywords.empty()) {
+    if (sig_on(config_->signals.instruction_recall, SIG_INSTRUCTION_RECALL) && !state.instruction_keywords.empty()) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 int found = 0;
@@ -1414,7 +1401,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Signal 14: Plan drift — detect divergence from stated multi-step plan
     // Plan steps are extracted by extractPlanFromResponse() called from agent_impl.cpp.
     // Here we only check which step the current response addresses.
-    if (config_->signals.plan_drift && !state.plan_step_keywords.empty()) {
+    if (sig_on(config_->signals.plan_drift, SIG_PLAN_DRIFT) && !state.plan_step_keywords.empty()) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 {
@@ -1473,7 +1460,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 15: Entity consistency — detect contradictory entity-context associations
-    if (config_->signals.entity_consistency) {
+    if (sig_on(config_->signals.entity_consistency, SIG_ENTITY_CONSISTENCY)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 auto current_entities = extractEntityContext(ev.content_keywords);
@@ -1520,7 +1507,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Signal 16: Instruction conflict — detect contradictory user instructions
     // Checks if the latest instruction in the history conflicts with any prior one.
     // Conflict = high topic keyword overlap + negation marker present.
-    if (config_->signals.instruction_conflict && state.instruction_history.size() >= 2) {
+    if (sig_on(config_->signals.instruction_conflict, SIG_INSTRUCTION_CONFLICT) && state.instruction_history.size() >= 2) {
         const auto& latest = state.instruction_history.back();
         bool conflict_found = false;
         // Check latest against all prior instructions in window
@@ -1558,7 +1545,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 17: Persona fingerprint — detect linguistic style shifts
-    if (config_->signals.persona_fingerprint) {
+    if (sig_on(config_->signals.persona_fingerprint, SIG_PERSONA_FINGERPRINT)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 int kw_count = static_cast<int>(ev.content_keywords.size());
@@ -1612,7 +1599,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Compares tool result keywords stored by recordToolResult() against response keywords.
     // If agent references a tool but its response keywords have low overlap with actual
     // tool results, the agent may be fabricating or misremembering tool output.
-    if (config_->signals.tool_chain_integrity && !state.tool_result_keywords.empty()) {
+    if (sig_on(config_->signals.tool_chain_integrity, SIG_TOOL_CHAIN_INTEGRITY) && !state.tool_result_keywords.empty()) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 // Check each tool's result keywords against response
@@ -1655,7 +1642,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Checks whether agent response claims success/error that contradicts actual tool outcome.
     // Unlike Signal 18 (keyword recall), this detects STATUS misrepresentation:
     // agent says "successfully updated" when tool returned an error.
-    if (config_->signals.claim_result_reconciliation && !state.tool_last_outcome.empty()) {
+    if (sig_on(config_->signals.claim_result_reconciliation, SIG_CLAIM_RESULT) && !state.tool_last_outcome.empty()) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 bool mismatch_detected = false;
@@ -1728,7 +1715,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 20: Prompt compliance — detect off-topic prompt compliance
-    if (config_->signals.prompt_compliance && !state.mandate_keywords.empty() &&
+    if (sig_on(config_->signals.prompt_compliance, SIG_PROMPT_COMPLIANCE) && !state.mandate_keywords.empty() &&
         !state.turn_prompt_keywords.empty()) {
         // Gate 1: Is the prompt off-topic? (low overlap with mandate keywords)
         int prompt_mandate_found = 0;
@@ -2024,9 +2011,13 @@ void ContextDriftAnalyzer::resetDriftState(int handle_id) {
     auto it = drift_states_.find(handle_id);
     if (it == drift_states_.end()) return;
     std::string cfg_name = it->second.config_name;
+    uint32_t ov_mask = it->second.signal_override_mask;
+    uint32_t ov_values = it->second.signal_override_values;
     it->second = DriftState{};
     it->second.handle_id = handle_id;
     it->second.config_name = cfg_name;
+    it->second.signal_override_mask = ov_mask;
+    it->second.signal_override_values = ov_values;
 }
 
 // Snapshot cumulative signal counters into signal_baselines[].snapshot
@@ -2060,14 +2051,48 @@ void ContextDriftAnalyzer::setAgentConfigName(int handle_id, const std::string& 
     drift_states_[handle_id].config_name = name;
 }
 
+// Compute override bitmasks from a context_drift_signals map. Unknown keys
+// are skipped (config parse warns about them at load time).
+static void computeSignalMasks(const std::map<std::string, bool>& overrides,
+                               uint32_t& mask, uint32_t& values) {
+    mask = 0;
+    values = 0;
+    for (const auto& [key, enabled] : overrides) {
+        for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+            if (key == kCddSignalKeys[i]) {
+                mask |= (1u << i);
+                if (enabled) values |= (1u << i);
+                break;
+            }
+        }
+    }
+}
+
+void ContextDriftAnalyzer::setSignalOverrides(
+    int handle_id, const std::map<std::string, bool>& overrides) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    computeSignalMasks(overrides, state.signal_override_mask,
+                       state.signal_override_values);
+}
+
 void ContextDriftAnalyzer::onAgentConfigChanged(
     const std::set<std::string>& changed_agents,
-    const std::unordered_map<std::string, std::string>& new_system_prompts) {
+    const std::unordered_map<std::string, std::string>& new_system_prompts,
+    const std::unordered_map<std::string, std::map<std::string, bool>>&
+        new_signal_overrides) {
     if (changed_agents.empty()) return;
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto& [handle_id, state] : drift_states_) {
         if (state.config_name.empty() || !changed_agents.count(state.config_name)) {
             continue;
+        }
+        // Re-bind per-agent signal overrides so live handles pick up the
+        // (ratchet-validated) new context_drift_signals immediately.
+        auto ov = new_signal_overrides.find(state.config_name);
+        if (ov != new_signal_overrides.end()) {
+            computeSignalMasks(ov->second, state.signal_override_mask,
+                               state.signal_override_values);
         }
         // Restart the rate-measurement window only: pre-change signal counts no
         // longer count against the post-change rate. Learned baseline stats
@@ -2106,7 +2131,12 @@ void ContextDriftAnalyzer::addInstructionKeywords(
         state.instruction_keywords.insert(kw);
     }
     // Also store per-turn keyword set for instruction conflict detection
-    if (config_ && config_->signals.instruction_conflict && !keywords.empty()) {
+    // (per-agent context_drift_signals override wins over the global config)
+    bool conflict_on = config_ && config_->signals.instruction_conflict;
+    if (state.signal_override_mask & (1u << SIG_INSTRUCTION_CONFLICT)) {
+        conflict_on = ((state.signal_override_values >> SIG_INSTRUCTION_CONFLICT) & 1u) != 0;
+    }
+    if (conflict_on && !keywords.empty()) {
         state.instruction_history.push_back(keywords);
         int window = config_->thresholds.instruction_conflict_window;
         while (static_cast<int>(state.instruction_history.size()) > window) {

@@ -478,6 +478,64 @@ main {
     tracking["phases_completed"].push("IMPLEMENT")
 
     // ================================================================
+    // Level 6 (mid-run): operator can request the specialist at ANY consult.
+    // Deliberately defined here, AFTER ops_code exists — consult_operator is
+    // defined before ops_code and its closure cannot act on create_agent,
+    // which is why decisions must be handled at the call sites via this fn.
+    // ================================================================
+    let specialist_created = false
+    fn handle_specialist_request(decision, phase_label) {
+        if decision.get("action") != "create_agent" { return false }
+        if specialist_created || handles.get("specialist") != null {
+            print("SPECIALIST|" + phase_label + "|already_exists")
+            return false
+        }
+        if len(ops_code) < 20 {
+            print("SPECIALIST|" + phase_label + "|skipped_no_code")
+            return false
+        }
+        print("SPECIALIST|" + phase_label + "|creating")
+        try {
+            let specialist = agent.create("specialist")
+            handles["specialist"] = specialist
+            specialist_created = true
+            let task = decision.get("task") ?? "Review the calculator operations.py for code quality: edge cases, consistency, type hints, docstrings, and robustness. Keep ALL existing methods and behavior."
+            let spec_msg = string(task) + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE improved operations.py. ```python fences. Code only."
+            let resp = safe_send(specialist, spec_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if resp.get("error") == null {
+                track("specialist", resp)
+                let improved = agent.extract_code(resp.get("content") ?? "", "python")
+                // Adopt only if it parses AND still matches the base method
+                // pattern — the specialist must improve, not replace, the API
+                let adopt = false
+                if len(improved) > 20 {
+                    file.write("_spec_check.py", improved)
+                    let chk = process.run("python3", ["-c", "import ast; ast.parse(open('_spec_check.py').read())"])
+                    try { file.delete("_spec_check.py") } catch (e) {}
+                    let conv = orchestra.enforce_convergence(improved, {pattern: ops_pattern})
+                    adopt = chk.exit_code == 0 && (conv.get("valid") ?? false)
+                }
+                if adopt {
+                    ops_code = improved
+                    tracking["specialist_consults"] = (tracking.get("specialist_consults") ?? 0) + 1
+                    print("SPECIALIST|" + phase_label + "|adopted|len=" + string(len(ops_code)))
+                } else {
+                    print("SPECIALIST|" + phase_label + "|output_rejected|len=" + string(len(improved)))
+                }
+                print("SPECIALIST|" + phase_label + "|c=" + string(tracking["coherences"].get("specialist") ?? -1))
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+                print("SPECIALIST|" + phase_label + "|send_error")
+            }
+            return true
+        } catch (e) {
+            print("SPECIALIST|" + phase_label + "|create_error=" + string(e))
+            return false
+        }
+    }
+
+    // ================================================================
     // PHASE 3: REFINE — iterative test/fix/validate/review loop
     // ================================================================
     print("PHASE|REFINE|start")
@@ -582,7 +640,8 @@ main {
         let dev_c = tracking["coherences"].get("developer") ?? -1
         let dev_min = tracking["min_coherences"].get("developer") ?? -1
         let iter_ctx = {"phase": "REFINE", "event": "iteration_complete", "iteration": iteration, "verdict": verdict, "developer_coherence": dev_c, "developer_min_coherence": dev_min, "ops_len": len(ops_code), "question": "Iteration " + string(iteration) + " verdict: " + verdict + ". Developer coherence: " + string(dev_c) + " (min: " + string(dev_min) + "). Adjust if coherence dropping."}
-        consult_operator(iter_ctx)
+        let iter_decision = consult_operator(iter_ctx)
+        handle_specialist_request(iter_decision, "REFINE")
 
         print("REFINE_ITER|" + string(iteration) + "|end|verdict=" + verdict)
     }
@@ -802,8 +861,9 @@ main {
 
         // Consult operator after each feature
         let dc = tracking["coherences"].get("developer") ?? -1
-        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "feature_num": feat_num, "requirement": trimmed, "ops_len": len(ops_code), "test_len": len(test_code), "developer_coherence": dc, "question": "Feature " + string(feat_num) + " done. Developer coherence: " + string(dc) + ". Code grew from " + string(prev_ops_len) + " to " + string(len(ops_code)) + " chars. Adjust if drift detected."}
-        consult_operator(feat_ctx)
+        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "feature_num": feat_num, "requirement": trimmed, "ops_len": len(ops_code), "test_len": len(test_code), "developer_coherence": dc, "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Feature " + string(feat_num) + " done. Developer coherence: " + string(dc) + ". Code grew from " + string(prev_ops_len) + " to " + string(len(ops_code)) + " chars. Adjust if drift detected."}
+        let feat_decision = consult_operator(feat_ctx)
+        handle_specialist_request(feat_decision, "FEATURES")
 
         prev_ops_len = len(ops_code)
         print("FEATURE|" + string(feat_num) + "|complete")
@@ -915,34 +975,9 @@ main {
     // ================================================================
     print("PHASE|DYNAMIC|start")
 
-    let dynamic_ctx = {"phase": "DYNAMIC", "event": "all_complete", "features_processed": tracking["features_processed"], "iterations": tracking["refinement_iterations"], "total_sends": tracking["total_sends"], "all_phases": tracking["phases_completed"], "question": "All features implemented and reviewed. Does the team need a specialist for final polish? If developer coherence dropped or code quality issues, request action: create_agent with agent_name: specialist. Otherwise action: none."}
+    let dynamic_ctx = {"phase": "DYNAMIC", "event": "all_complete", "features_processed": tracking["features_processed"], "iterations": tracking["refinement_iterations"], "total_sends": tracking["total_sends"], "all_phases": tracking["phases_completed"], "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "All features implemented and reviewed. Does the team need a specialist for final polish? If developer coherence dropped or code quality issues, request action: create_agent with agent_name: specialist (specialist_consults shows whether one already ran mid-run). Otherwise action: none."}
     let team_decision = consult_operator(dynamic_ctx)
-
-    if team_decision.get("action") == "create_agent" {
-        print("DYNAMIC|creating specialist agent")
-        try {
-            let specialist = agent.create("specialist")
-            handles["specialist"] = specialist
-
-            let task = team_decision.get("task") ?? "Review the complete calculator operations.py for edge cases, consistency, and robustness across all features."
-            let spec_msg = task + "\nCurrent code:\n```python\n" + ops_code + "\n```\nRewrite COMPLETE improved version. ```python fences. Code only."
-            let spec_resp = safe_send(specialist, spec_msg)
-            tracking["total_sends"] = tracking["total_sends"] + 1
-            if spec_resp.get("error") == null {
-                track("specialist", spec_resp)
-                let improved = agent.extract_code(spec_resp.get("content") ?? "", "python")
-                if len(improved) > len(ops_code) {
-                    ops_code = improved
-                    print("DYNAMIC|specialist_improved|len=" + string(len(ops_code)))
-                }
-                print("DYNAMIC|specialist|c=" + string(tracking["coherences"].get("specialist") ?? -1))
-            } else {
-                tracking["send_errors"] = tracking["send_errors"] + 1
-            }
-        } catch (e) {
-            print("DYNAMIC|specialist_create_error=" + string(e))
-        }
-    }
+    handle_specialist_request(team_decision, "DYNAMIC")
     tracking["phases_completed"].push("DYNAMIC")
 
     // ================================================================
@@ -950,7 +985,7 @@ main {
     // ================================================================
     print("PHASE|MEMORY|saving")
 
-    let mem_ctx = {"phase": "MEMORY", "event": "run_complete", "total_sends": tracking["total_sends"], "adjustments_made": tracking["adjustments_made"], "refinement_iterations": tracking["refinement_iterations"], "features_processed": tracking["features_processed"], "feature_names": tracking["feature_names"], "approved": tracking["final_verdict"], "phases": tracking["phases_completed"], "coherences": tracking["coherences"], "min_coherences": tracking["min_coherences"], "question": "Run complete with " + string(tracking["features_processed"]) + " features added. Summarize observations for next run. How did coherence evolve? Which agents drifted? Recommend field adjustments."}
+    let mem_ctx = {"phase": "MEMORY", "event": "run_complete", "total_sends": tracking["total_sends"], "adjustments_made": tracking["adjustments_made"], "refinement_iterations": tracking["refinement_iterations"], "features_processed": tracking["features_processed"], "feature_names": tracking["feature_names"], "approved": tracking["final_verdict"], "phases": tracking["phases_completed"], "coherences": tracking["coherences"], "min_coherences": tracking["min_coherences"], "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Run complete with " + string(tracking["features_processed"]) + " features added. Summarize observations for next run (specialist_consults is the ACTUAL number of specialist reviews that ran — 0 means no specialist was ever created). How did coherence evolve? Which agents drifted? Recommend field adjustments."}
     let memory_decision = consult_operator(mem_ctx)
 
     let obs = memory_decision.get("observations")

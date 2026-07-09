@@ -2127,6 +2127,12 @@ struct AgentConfig {
         std::unordered_map<std::string, std::string> regex_checks;  // field → regex pattern to match
     };
     OutputContract output_contract;  // empty = no contract enforcement
+
+    // Per-agent CDD signal overrides — keys are the canonical signal config
+    // names (kCddSignalKeys); value overrides the global context_drift.signals
+    // setting for handles of this agent. Ratchet: disabling a signal that was
+    // effectively enabled mid-run is a violation.
+    std::map<std::string, bool> context_drift_signals;
 };
 
 // ============================================================================
@@ -2995,6 +3001,9 @@ public:
 
     // Initialize mandate keywords for semantic mandate alignment signal
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Bind per-agent CDD signal overrides (context_drift_signals) to a handle
+    void setSignalOverrides(int handle_id, const std::map<std::string, bool>& overrides);
 
     // Add instruction keywords from user prompts (for instruction recall signal)
     void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

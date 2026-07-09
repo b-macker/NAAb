@@ -7,6 +7,7 @@
 #include "naab/naab_val.h"
 #include "naab/governance.h"
 #include "naab/agent_provider.h"
+#include "naab/keyword_extract.h"
 #include "naab/thread_pool.h"
 #include "naab/sandbox.h"
 #include <nlohmann/json.hpp>
@@ -200,32 +201,21 @@ static bool isKeyDead(const std::string& key_env, int cooldown_seconds,
     return true;
 }
 
-// Stop words: English function words >3 chars + LLM response boilerplate.
-// No programming terms — those are domain-relevant for coding assistants.
-static const std::unordered_set<std::string> kStopWords = {
-    "that", "this", "with", "from", "have", "your", "will", "also",
-    "each", "more", "like", "just", "some", "when", "then",
-    "into", "here", "been", "both", "want", "used", "them", "than",
-    "what", "were", "they", "does", "done", "very", "much", "most",
-    "over", "such", "should", "would", "could", "about",
-    "other", "their", "there", "which", "these", "those", "being",
-    "after", "before",
-    "sure", "great", "lets", "following", "below",
-    "approach", "solution", "need", "look"
-};
+// Keyword extraction shared with CDD (include/naab/keyword_extract.h) —
+// mandate/instruction/response keywords must come from the same tokenizer.
+using naab::keywords::extractKeywords;
 
-// Extract >3-char lowercase keywords from text (stop words filtered)
-static void extractKeywords(const std::string& text, std::unordered_set<std::string>& out) {
-    std::string current;
-    for (char c : text) {
-        if (std::isalnum(static_cast<unsigned char>(c))) {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        } else {
-            if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
-            current.clear();
-        }
+// Effective per-agent CDD signal toggle: the agent's context_drift_signals
+// override wins over the global context_drift.signals config. Pre-CDD gates
+// must use this so a per-agent-enabled signal still gets its inputs when the
+// global toggle is off (and vice versa).
+static bool effectiveSignal(const governance::AgentConfig* config,
+                            bool global_enabled, const char* key) {
+    if (config) {
+        auto it = config->context_drift_signals.find(key);
+        if (it != config->context_drift_signals.end()) return it->second;
     }
-    if (current.size() > 3 && !kStopWords.count(current)) out.insert(current);
+    return global_enabled;
 }
 
 // Strip a single markdown code fence wrapping the entire response.
@@ -661,6 +651,17 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["prompt_compliance_count"] = NaabVal::makeInt(drift_opt->prompt_compliance_count);
             state["response_repetition_count"] = NaabVal::makeInt(drift_opt->response_repetition_count);
             state["consecutive_quarantines"] = NaabVal::makeInt(drift_opt->consecutive_quarantines);
+            // Per-agent CDD signal overrides (context_drift_signals), when any
+            if (drift_opt->signal_override_mask != 0) {
+                std::unordered_map<std::string, NaabVal> sig_ov;
+                for (int si = 0; si < governance::NUM_CDD_SIGNALS; si++) {
+                    if (drift_opt->signal_override_mask & (1u << si)) {
+                        sig_ov[governance::kCddSignalKeys[si]] = NaabVal::makeBool(
+                            ((drift_opt->signal_override_values >> si) & 1u) != 0);
+                    }
+                }
+                state["cdd_signal_overrides"] = NaabVal::makeDict(std::move(sig_ov));
+            }
             if (!drift_opt->claim_accuracy_history.empty()) {
                 double ca_sum = 0;
                 for (double v : drift_opt->claim_accuracy_history) ca_sum += v;
@@ -1017,6 +1018,12 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         }
     }
 
+    // Bind per-agent CDD signal overrides at creation so the propose path
+    // (which never calls setAgentContext-driven init) is covered too
+    if (engine && engine->isActive() && !config->context_drift_signals.empty()) {
+        engine->setSignalOverrides(handle_id, config->context_drift_signals);
+    }
+
     std::unordered_map<std::string, NaabVal> handle;
     handle["__agent_handle"] = NaabVal::makeBool(true);
     handle["__nonce"] = NaabVal::makeString(nonce);
@@ -1070,6 +1077,7 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         cfg["retry_max_attempts"] = config->retry.max_attempts;
         if (!config->allowed_actions.empty()) cfg["allowed_actions"] = config->allowed_actions;
         if (!config->output_contract.format.empty()) cfg["output_contract_format"] = config->output_contract.format;
+        if (!config->context_drift_signals.empty()) cfg["context_drift_signals"] = config->context_drift_signals;
         te["config"] = cfg;
 
         engine->writeAgentTranscript(te.dump());
@@ -1501,8 +1509,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Initialize mandate keywords on first send (for mandate alignment + prompt compliance signals)
     if (gov_engine && gov_engine->isActive() && current_turn == 0 &&
         !config->system_prompt.empty() &&
-        (gov_engine->getRules().context_drift.signals.mandate_alignment ||
-         gov_engine->getRules().context_drift.signals.prompt_compliance)) {
+        (effectiveSignal(config, gov_engine->getRules().context_drift.signals.mandate_alignment, "mandate_alignment") ||
+         effectiveSignal(config, gov_engine->getRules().context_drift.signals.prompt_compliance, "prompt_compliance"))) {
         std::unordered_set<std::string> mandate_kw;
         extractKeywords(config->system_prompt, mandate_kw);
         if (!mandate_kw.empty()) {
@@ -1515,7 +1523,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Extract instruction keywords from user prompt (for instruction recall signal)
     if (gov_engine && gov_engine->isActive() && !message.empty() &&
-        gov_engine->getRules().context_drift.signals.instruction_recall) {
+        effectiveSignal(config, gov_engine->getRules().context_drift.signals.instruction_recall, "instruction_recall")) {
         std::unordered_set<std::string> instr_kw;
         extractKeywords(message, instr_kw);
         if (!instr_kw.empty()) {
@@ -1525,7 +1533,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Route prompt keywords to CDD for prompt compliance signal (S20)
     if (gov_engine && gov_engine->isActive() && !message.empty() &&
-        gov_engine->getRules().context_drift.signals.prompt_compliance) {
+        effectiveSignal(config, gov_engine->getRules().context_drift.signals.prompt_compliance, "prompt_compliance")) {
         std::unordered_set<std::string> prompt_kw;
         extractKeywords(message, prompt_kw);
         if (!prompt_kw.empty()) {
@@ -2914,7 +2922,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                 // Record tool result keywords for CDD tool chain integrity signal
                 if (gov_engine && gov_engine->isActive() && tool_success &&
-                    gov_engine->getRules().context_drift.signals.tool_chain_integrity &&
+                    effectiveSignal(config, gov_engine->getRules().context_drift.signals.tool_chain_integrity, "tool_chain_integrity") &&
                     !tool_result_str.empty()) {
                     std::unordered_set<std::string> result_kw;
                     extractKeywords(tool_result_str, result_kw);
@@ -2926,7 +2934,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // Record tool outcome for claim-result reconciliation signal
                 // NOT gated on tool_success — records both success and failure
                 if (gov_engine && gov_engine->isActive() &&
-                    gov_engine->getRules().context_drift.signals.claim_result_reconciliation) {
+                    effectiveSignal(config, gov_engine->getRules().context_drift.signals.claim_result_reconciliation, "claim_result_reconciliation")) {
                     gov_engine->recordToolOutcome(handle_id, tc.name, tool_success);
                 }
 
@@ -3544,7 +3552,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             extractKeywords(agent_resp.content, response_keywords);
         }
         // Plan drift: extract plan steps from response (only first response with 2+ steps)
-        if (gov_engine->getRules().context_drift.signals.plan_drift &&
+        if (effectiveSignal(config, gov_engine->getRules().context_drift.signals.plan_drift, "plan_drift") &&
             !agent_resp.content.empty()) {
             gov_engine->extractPlanFromResponse(handle_id, agent_resp.content);
         }
@@ -3619,8 +3627,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
             // SEMANTIC_TURN: emit when semantic signals are enabled and have data
             if (drift_state && gov_engine->getRules().telemetry_output.enabled &&
-                (gov_engine->getRules().context_drift.signals.semantic_stability ||
-                 gov_engine->getRules().context_drift.signals.mandate_alignment)) {
+                (effectiveSignal(config, gov_engine->getRules().context_drift.signals.semantic_stability, "semantic_stability") ||
+                 effectiveSignal(config, gov_engine->getRules().context_drift.signals.mandate_alignment, "mandate_alignment"))) {
                 std::string ma_str = "N/A";
                 if (!drift_state->mandate_alignment_history.empty()) {
                     double ma_sum = 0;
@@ -3661,7 +3669,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 });
             }
             // RECONCILIATION_TURN: pair agent claims with observed reality
-            if (drift_state && gov_engine->getRules().context_drift.signals.claim_result_reconciliation) {
+            if (drift_state && effectiveSignal(config, gov_engine->getRules().context_drift.signals.claim_result_reconciliation, "claim_result_reconciliation")) {
                 std::string claim_accuracy_str = "N/A";
                 if (!drift_state->claim_accuracy_history.empty()) {
                     double ca_sum = 0;
@@ -5784,8 +5792,8 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
 
         // Re-initialize mandate keywords from system_prompt
         if (config && !config->system_prompt.empty() &&
-            (gov_engine->getRules().context_drift.signals.mandate_alignment ||
-             gov_engine->getRules().context_drift.signals.prompt_compliance)) {
+            (effectiveSignal(config, gov_engine->getRules().context_drift.signals.mandate_alignment, "mandate_alignment") ||
+             effectiveSignal(config, gov_engine->getRules().context_drift.signals.prompt_compliance, "prompt_compliance"))) {
             std::unordered_set<std::string> mandate_kw;
             extractKeywords(config->system_prompt, mandate_kw);
             if (!mandate_kw.empty()) {
