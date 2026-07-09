@@ -207,7 +207,7 @@ static const std::unordered_set<std::string> kStopWords = {
     "each", "more", "like", "just", "some", "when", "then",
     "into", "here", "been", "both", "want", "used", "them", "than",
     "what", "were", "they", "does", "done", "very", "much", "most",
-    "only", "over", "such", "should", "would", "could", "about",
+    "over", "such", "should", "would", "could", "about",
     "other", "their", "there", "which", "these", "those", "being",
     "after", "before",
     "sure", "great", "lets", "following", "below",
@@ -630,6 +630,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         if (drift_opt) {
             state["coherence"] = NaabVal::makeDouble(drift_opt->coherence_score);
             state["coherence_velocity"] = NaabVal::makeDouble(drift_opt->coherence_velocity);
+            state["min_coherence"] = NaabVal::makeDouble(drift_opt->min_coherence_lifetime);
             state["contradictions"] = NaabVal::makeInt(drift_opt->contradictions);
             state["circular_actions"] = NaabVal::makeInt(drift_opt->circular_action_count);
             state["repeated_failures"] = NaabVal::makeInt(drift_opt->repeated_failures);
@@ -658,6 +659,8 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["tool_integrity_count"] = NaabVal::makeInt(drift_opt->tool_integrity_count);
             state["claim_mismatch_count"] = NaabVal::makeInt(drift_opt->claim_result_mismatch_count);
             state["prompt_compliance_count"] = NaabVal::makeInt(drift_opt->prompt_compliance_count);
+            state["response_repetition_count"] = NaabVal::makeInt(drift_opt->response_repetition_count);
+            state["consecutive_quarantines"] = NaabVal::makeInt(drift_opt->consecutive_quarantines);
             if (!drift_opt->claim_accuracy_history.empty()) {
                 double ca_sum = 0;
                 for (double v : drift_opt->claim_accuracy_history) ca_sum += v;
@@ -701,6 +704,8 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["tool_integrity_count"] = NaabVal::makeInt(0);
             state["claim_mismatch_count"] = NaabVal::makeInt(0);
             state["prompt_compliance_count"] = NaabVal::makeInt(0);
+            state["response_repetition_count"] = NaabVal::makeInt(0);
+            state["consecutive_quarantines"] = NaabVal::makeInt(0);
             state["claim_accuracy"] = NaabVal::makeDouble(1.0);
             state["mandate_alignment"] = NaabVal::makeDouble(0.0);
             state["escalation_turn"] = NaabVal::makeInt(-1);
@@ -3570,14 +3575,34 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 snprintf(vel,  sizeof(vel),  "%.4f", drift_state->coherence_velocity);
                 snprintf(acc,  sizeof(acc),  "%.4f", drift_state->coherence_acceleration);
                 snprintf(pres, sizeof(pres), "%.4f", drift_state->last_pressure_score);
+                // Build per-signal fired + penalty detail strings
+                std::string fired_names, penalty_detail;
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (drift_state->last_turn_fired[i] > 0) {
+                        if (!fired_names.empty()) fired_names += ",";
+                        fired_names += governance::ContextDriftAnalyzer::signalName(i);
+                    }
+                    if (drift_state->last_turn_penalties[i] > 0.0) {
+                        if (!penalty_detail.empty()) penalty_detail += ",";
+                        char pbuf[64];
+                        snprintf(pbuf, sizeof(pbuf), "%s=%.4f",
+                                 governance::ContextDriftAnalyzer::signalName(i),
+                                 drift_state->last_turn_penalties[i]);
+                        penalty_detail += pbuf;
+                    }
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
+                    {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
                     {"coherence",        coh},
                     {"velocity",         vel},
                     {"acceleration",     acc},
                     {"pressure",         pres},
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
+                    {"signals_detail",   fired_names},
+                    {"penalties_detail", penalty_detail},
+                    {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"}
                 });
@@ -3585,6 +3610,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // CDD ran but drift analyzer has no state yet (before first check_interval_turns)
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
+                    {"config_name",      config_name},
                     {"turn",             std::to_string(current_turn)},
                     {"governance_level", level_str},
                     {"drift_detected",   "false"},
@@ -3615,6 +3641,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
                 gov_engine->writeAgentTelemetry("SEMANTIC_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
+                    {"config_name",            config_name},
                     {"turn",                   std::to_string(current_turn)},
                     {"semantic_stability",      ss_str},
                     {"semantic_stability_count", std::to_string(drift_state->semantic_stability_count)},
@@ -3628,6 +3655,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"tool_integrity_count",    std::to_string(drift_state->tool_integrity_count)},
                     {"claim_mismatch_count",   std::to_string(drift_state->claim_result_mismatch_count)},
                     {"prompt_compliance_count", std::to_string(drift_state->prompt_compliance_count)},
+                    {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"mandate_alignment",       ma_str},
                     {"keywords_count",          std::to_string(response_keywords.size())}
                 });
@@ -3660,6 +3688,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
                 gov_engine->writeAgentTelemetry("RECONCILIATION_TURN", {
                     {"handle_id",              std::to_string(handle_id)},
+                    {"config_name",            config_name},
                     {"turn",                   std::to_string(current_turn)},
                     {"tool_integrity_count",   std::to_string(drift_state->tool_integrity_count)},
                     {"claim_mismatch_count",   std::to_string(drift_state->claim_result_mismatch_count)},
@@ -3682,6 +3711,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                          drift_state ? drift_state->coherence_score : 0.0);
                 gov_engine->writeAgentTelemetry("GOVERNANCE_LEVEL_CHANGE", {
                     {"handle_id",  std::to_string(handle_id)},
+                    {"config_name", config_name},
                     {"turn",       std::to_string(current_turn)},
                     {"from_level", from_str},
                     {"to_level",   level_str},
@@ -3743,6 +3773,31 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"coherence", oa_result.coherence_score},
                 {"threshold", oa_result.threshold}
             };
+        }
+    }
+
+    // Update quarantine streak counter and enforce max_quarantine_streak
+    int current_streak = 0;
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+        current_streak = gov_engine->updateQuarantineStreak(handle_id, !output_admissible);
+
+        int max_streak = gov_engine->getRules().circuit_breaker.output_admissibility.max_quarantine_streak;
+        if (max_streak > 0 && current_streak >= max_streak) {
+            gov_engine->writeAgentTelemetry("QUARANTINE_STREAK_EXCEEDED", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",        std::to_string(current_turn)},
+                {"streak",      std::to_string(current_streak)},
+                {"max_allowed", std::to_string(max_streak)}
+            });
+            throw governance::GovernanceHardError(fmt::format(
+                "Agent exceeded maximum quarantine streak\n\n"
+                "  Consecutive quarantined responses: {}\n"
+                "  Maximum allowed: {}\n"
+                "  Agent: {}\n  Turn: {}\n\n"
+                "  The agent has produced too many inadmissible responses.\n",
+                current_streak, max_streak, config_name, current_turn));
         }
     }
 
@@ -3821,6 +3876,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 for (double v : drift_st->prompt_alignment_history) pa_sum += v;
                 cdd["prompt_alignment"] = pa_sum / static_cast<double>(drift_st->prompt_alignment_history.size());
             }
+            // Per-signal fired names + penalty breakdown for this turn
+            {
+                nlohmann::json fired_arr = nlohmann::json::array();
+                nlohmann::json pen_obj = nlohmann::json::object();
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (drift_st->last_turn_fired[i] > 0)
+                        fired_arr.push_back(governance::ContextDriftAnalyzer::signalName(i));
+                    if (drift_st->last_turn_penalties[i] > 0.0)
+                        pen_obj[governance::ContextDriftAnalyzer::signalName(i)] = drift_st->last_turn_penalties[i];
+                }
+                cdd["signals_fired_names"] = fired_arr;
+                if (!pen_obj.empty())
+                    cdd["penalties"] = pen_obj;
+            }
+            cdd["min_coherence"] = drift_st->min_coherence_lifetime;
             transcript_entry["cdd"] = cdd;
         }
         // Governance context
@@ -3846,9 +3916,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             std::string w = health_warnings;
             if (w.size() > 300) w = w.substr(0, 300) + "...";
             gov_engine->writeAgentTelemetry("GOVERNANCE_HEALTH_WARNING", {
-                {"handle_id", std::to_string(handle_id)},
-                {"turn",      std::to_string(current_turn)},
-                {"warning",   w}
+                {"handle_id",  std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",       std::to_string(current_turn)},
+                {"warning",    w}
             });
         }
     }
@@ -3986,6 +4057,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         if (!output_admissible) {
             adm["action"] = NaabVal::makeString(
                 gov_engine->getRules().circuit_breaker.output_admissibility.action);
+            adm["quarantine_streak"] = NaabVal::makeInt(current_streak);
         }
         result["admissibility"] = NaabVal::makeDict(std::move(adm));
     }
@@ -4612,13 +4684,41 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
         {
             auto drift_state = gov_engine->getDriftState(handle_id);
             if (drift_state) {
+                // Build per-signal detail for commit-path CDD_TURN
+                std::string c_fired, c_penalty;
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (drift_state->last_turn_fired[i] > 0) {
+                        if (!c_fired.empty()) c_fired += ",";
+                        c_fired += governance::ContextDriftAnalyzer::signalName(i);
+                    }
+                    if (drift_state->last_turn_penalties[i] > 0.0) {
+                        if (!c_penalty.empty()) c_penalty += ",";
+                        char pb[64];
+                        snprintf(pb, sizeof(pb), "%s=%.4f",
+                                 governance::ContextDriftAnalyzer::signalName(i),
+                                 drift_state->last_turn_penalties[i]);
+                        c_penalty += pb;
+                    }
+                }
+                int c_level = static_cast<int>(gov_engine->getGovernanceLevel());
+                const char* c_level_names[] = {"normal", "elevated", "high", "critical"};
+                const char* c_level_str = (c_level >= 0 && c_level <= 3)
+                    ? c_level_names[c_level] : "unknown";
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
-                    {"handle_id",      std::to_string(handle_id)},
-                    {"turn",           std::to_string(current_turn)},
-                    {"coherence",      fmt::format("{:.4f}", drift_state->coherence_score)},
-                    {"signals_fired",  std::to_string(drift_state->signals_fired_this_turn)},
-                    {"drift_detected", drift_err.empty() ? "false" : "true"},
-                    {"source",         "agent.commit"}
+                    {"handle_id",        std::to_string(handle_id)},
+                    {"config_name",      config_name},
+                    {"turn",             std::to_string(current_turn)},
+                    {"coherence",        fmt::format("{:.4f}", drift_state->coherence_score)},
+                    {"velocity",         fmt::format("{:.4f}", drift_state->coherence_velocity)},
+                    {"acceleration",     fmt::format("{:.4f}", drift_state->coherence_acceleration)},
+                    {"pressure",         fmt::format("{:.4f}", drift_state->last_pressure_score)},
+                    {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
+                    {"signals_detail",   c_fired},
+                    {"penalties_detail", c_penalty},
+                    {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
+                    {"governance_level", c_level_str},
+                    {"drift_detected",   drift_err.empty() ? "false" : "true"},
+                    {"source",           "agent.commit"}
                 });
             }
         }
@@ -4657,6 +4757,30 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     config_name, current_turn,
                     oa_result.coherence_score, oa_result.threshold);
             }
+        }
+    }
+
+    // Update quarantine streak counter (commit path)
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
+        int streak = gov_engine->updateQuarantineStreak(handle_id, !output_admissible);
+        int max_streak = gov_engine->getRules().circuit_breaker.output_admissibility.max_quarantine_streak;
+        if (max_streak > 0 && streak >= max_streak) {
+            gov_engine->writeAgentTelemetry("QUARANTINE_STREAK_EXCEEDED", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"turn",        std::to_string(current_turn)},
+                {"streak",      std::to_string(streak)},
+                {"max_allowed", std::to_string(max_streak)},
+                {"source",      "agent.commit"}
+            });
+            throw governance::GovernanceHardError(fmt::format(
+                "Agent exceeded maximum quarantine streak\n\n"
+                "  Consecutive quarantined responses: {}\n"
+                "  Maximum allowed: {}\n"
+                "  Agent: {}\n  Turn: {}\n\n"
+                "  The agent has produced too many inadmissible responses.\n",
+                streak, max_streak, config_name, current_turn));
         }
     }
 
@@ -5573,6 +5697,147 @@ static NaabVal agentPipeline(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// agent.coherence(handle) — current coherence score (0.0-1.0)
+// ============================================================================
+static NaabVal agentCoherence(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isDict())
+        throw std::runtime_error(
+            "Agent error: agent.coherence requires an agent handle\n\n"
+            "  Expected: agent.coherence(handle)\n\n"
+            "  Help:\n"
+            "  - Returns the current coherence score (0.0-1.0) for the agent\n"
+            "  - Returns 1.0 if no drift state exists yet\n");
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    auto* ge = governance::GovernanceEngine::getCurrent();
+    if (ge && ge->isActive()) {
+        auto drift_opt = ge->getDriftState(handle_id);
+        if (drift_opt)
+            return NaabVal::makeDouble(drift_opt->coherence_score);
+    }
+    return NaabVal::makeDouble(1.0);
+}
+
+// ============================================================================
+// agent.reset(handle) — reset conversation and coherence state
+// ============================================================================
+static NaabVal agentReset(std::vector<NaabVal>& args) {
+    if (args.empty() || !args[0].isDict())
+        throw std::runtime_error(
+            "Agent error: agent.reset requires an agent handle\n\n"
+            "  Expected: agent.reset(handle)\n\n"
+            "  Help:\n"
+            "  - Resets conversation history and coherence state\n"
+            "  - The agent keeps its config but starts a fresh conversation\n");
+
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    auto& handle = args[0].asDict();
+
+    // Capture pre-reset state for telemetry
+    int turn_at_reset = 0;
+    double coherence_at_reset = 1.0;
+
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->isActive()) {
+        auto drift_opt = gov_engine->getDriftState(handle_id);
+        if (drift_opt)
+            coherence_at_reset = drift_opt->coherence_score;
+    }
+
+    const auto* config = findAgentConfig(config_name);
+
+    // Reset AgentTracker (preserve nonce, config_name, key_offset)
+    // LOCK ORDERING: acquire s_agent_mutex first, release, THEN call
+    // resetDriftState() which acquires ContextDriftAnalyzer::mutex_.
+    {
+        std::lock_guard<std::mutex> lock(s_agent_mutex);
+        auto it = s_trackers.find(handle_id);
+        if (it != s_trackers.end()) {
+            auto& t = it->second;
+            turn_at_reset = t.turns;
+            t.turns = 0;
+            t.input_tokens = 0;
+            t.output_tokens = 0;
+            t.truncation_count = 0;
+            t.last_reinforcement_turn = -100;
+            t.last_correction_turn = -100;
+            t.last_challenge_turn = -100;
+            t.challenges_passed = 0;
+            t.challenges_failed = 0;
+            t.tool_calls_total = 0;
+            t.tool_calls_blocked = 0;
+            t.tool_total_latency_ms = 0;
+            if (config && config->standing_lease_turns > 0) {
+                t.lease_granted_turn = 0;
+                t.lease_expires_turn = config->standing_lease_turns;
+            }
+            if (config && config->standing_lease_seconds > 0) {
+                t.lease_granted_time = std::chrono::steady_clock::now();
+            }
+        }
+        s_pending_proposals.erase(handle_id);
+    }
+    // s_agent_mutex released — safe to call into governance engine
+
+    // Reset DriftState (fresh coherence=1.0, all counters zero)
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->resetDriftState(handle_id);
+
+        // Re-initialize mandate keywords from system_prompt
+        if (config && !config->system_prompt.empty() &&
+            (gov_engine->getRules().context_drift.signals.mandate_alignment ||
+             gov_engine->getRules().context_drift.signals.prompt_compliance)) {
+            std::unordered_set<std::string> mandate_kw;
+            extractKeywords(config->system_prompt, mandate_kw);
+            if (!mandate_kw.empty()) {
+                gov_engine->initializeMandateKeywords(handle_id, mandate_kw);
+            }
+        }
+    }
+
+    // Reset handle dict fields
+    handle["messages"] = NaabVal::makeList({});
+    handle["turns"] = NaabVal::makeInt(0);
+    handle["input_tokens"] = NaabVal::makeInt(0);
+    handle["output_tokens"] = NaabVal::makeInt(0);
+    handle["environment"] = buildEnvironmentDict(handle_id, config_name);
+
+    // Telemetry
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->writeAgentTelemetry("AGENT_RESET", {
+            {"handle_id",         std::to_string(handle_id)},
+            {"config_name",       config_name},
+            {"turn_at_reset",     std::to_string(turn_at_reset)},
+            {"coherence_at_reset", fmt::format("{:.4f}", coherence_at_reset)},
+        });
+    }
+
+    // Transcript
+    if (gov_engine && gov_engine->isActive() && gov_engine->isTranscriptAgent(config_name)) {
+        nlohmann::json te;
+        te["type"] = "agent_reset";
+        te["handle_id"] = handle_id;
+        te["agent"] = config_name;
+        te["turn_at_reset"] = turn_at_reset;
+        te["coherence_at_reset"] = coherence_at_reset;
+        auto now = std::chrono::system_clock::now();
+        auto t_val = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf;
+#ifdef _WIN32
+        localtime_s(&tm_buf, &t_val);
+#else
+        localtime_r(&t_val, &tm_buf);
+#endif
+        char ts_buf[32];
+        std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+        te["timestamp"] = std::string(ts_buf);
+        te["run_id"] = gov_engine->getRunId();
+        gov_engine->writeAgentTranscript(te.dump());
+    }
+
+    return args[0];
+}
+
+// ============================================================================
 // Module Interface
 // ============================================================================
 
@@ -5581,7 +5846,8 @@ bool AgentModule::hasFunction(const std::string& name) const {
         "create", "send", "run", "messages", "usage",
         "batch", "fan_out", "pipeline", "check",
         "key_health", "dispatch_status", "environment",
-        "register_tool", "extract_code", "propose", "commit"
+        "register_tool", "extract_code", "propose", "commit",
+        "coherence", "reset"
     };
     return functions.count(name) > 0;
 }
@@ -5606,10 +5872,12 @@ NaabVal AgentModule::call(
     if (function_name == "extract_code") return agentExtractCode(args);
     if (function_name == "propose") return agentPropose(args);
     if (function_name == "commit") return agentCommit(args);
+    if (function_name == "coherence") return agentCoherence(args);
+    if (function_name == "reset") return agentReset(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit, coherence, reset\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -5623,7 +5891,9 @@ NaabVal AgentModule::call(
         "  - agent.key_health(name) — key rotation status: active vs dead keys\n"
         "  - agent.dispatch_status() — run-level dispatch counters and hard stop status\n"
         "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n"
-        "  - agent.register_tool(name, fn, schema) — register function as LLM-callable tool\n",
+        "  - agent.register_tool(name, fn, schema) — register function as LLM-callable tool\n"
+        "  - agent.coherence(handle) — current coherence score (0.0-1.0)\n"
+        "  - agent.reset(handle) — reset conversation and coherence state\n",
         function_name));
 }
 

@@ -2800,11 +2800,13 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
 
 void GovernanceEngine::printDashboard() const {
     std::lock_guard<std::mutex> lock(results_mutex_);
-    int passed = 0, blocked = 0;
+    int passed = 0, blocked = 0, warned = 0;
     std::map<std::string, int> block_counts;
     for (const auto& r : check_results_) {
         if (r.passed) {
             passed++;
+        } else if (r.level == EnforcementLevel::ADVISORY) {
+            warned++;
         } else {
             blocked++;
             block_counts[r.rule_name]++;
@@ -2833,7 +2835,10 @@ void GovernanceEngine::printDashboard() const {
     fprintf(stderr, "%s\n", config_line.c_str());
     if (reload_count_ > 0)
         fprintf(stderr, "Reloads:    %d mid-run reload(s) applied\n", reload_count_);
-    fprintf(stderr, "Checks:     %d passed, %d blocked\n", passed, blocked);
+    if (warned > 0)
+        fprintf(stderr, "Checks:     %d passed, %d blocked, %d advisory\n", passed, blocked, warned);
+    else
+        fprintf(stderr, "Checks:     %d passed, %d blocked\n", passed, blocked);
     if (pulse_.refusal_count > 0)
         fprintf(stderr, "Refusals:   %d attested\n", pulse_.refusal_count);
     if (!top_rule.empty())
@@ -2910,6 +2915,20 @@ void GovernanceEngine::printDashboard() const {
             fprintf(stderr, "CDD:        coherence=%.2f vel=%.3f accel=%.3f (%zu turns analyzed)\n",
                     state->coherence_score, state->coherence_velocity,
                     state->coherence_acceleration, drift_analyzer_.totalTurnsAnalyzed());
+            // Per-agent coherence summary (multi-agent runs)
+            auto agent_coherences = drift_analyzer_.getAllAgentCoherences();
+            if (agent_coherences.size() > 1) {
+                double min_c = 1.0;
+                std::string agents_str;
+                for (const auto& [name, c] : agent_coherences) {
+                    if (!agents_str.empty()) agents_str += " ";
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "%s=%.2f", name.c_str(), c);
+                    agents_str += buf;
+                    if (c < min_c) min_c = c;
+                }
+                fprintf(stderr, "CDD agents: %s min=%.2f\n", agents_str.c_str(), min_c);
+            }
             if (rules().context_drift.reality_checkpoint.enabled &&
                 state->last_pressure_score > 0.0) {
                 fprintf(stderr, "Checkpoint: pressure=%.2f (%d consecutive)\n",
@@ -2939,6 +2958,10 @@ void GovernanceEngine::printDashboard() const {
                     fprintf(stderr, ", effectiveness=%+.2f (%d-turn window)", eff, eff_w);
                 }
                 fprintf(stderr, "\n");
+            }
+            if (state->response_repetition_count > 0) {
+                fprintf(stderr, "Repetition: %d verbatim duplicate(s) detected\n",
+                        state->response_repetition_count);
             }
             if (state->prompt_compliance_count > 0) {
                 fprintf(stderr, "Compliance: %d off-topic compliance events",
@@ -6538,24 +6561,30 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
     }
 
     // Check 3: Perfect coherence (1.0) after 10+ turns → suspicious
-    // Suppress during adaptive baseline (coherence hasn't been penalized yet)
-    // and for a few turns after recovery (recovery resets to 1.0)
-    int handle_id = current_agent_handle_.load(std::memory_order_relaxed);
-    auto state = drift_analyzer_.getDriftState(handle_id);
-    if (state && turn >= 10 && state->coherence_score >= 1.0) {
-        bool suppress = false;
-        // During baseline, coherence is expected to stay at 1.0
-        if (!state->baseline_complete) suppress = true;
-        // After recovery, coherence is reset to 1.0 — allow a cooldown window
-        if (state->last_recovery_turn >= 0 &&
-            turn - state->last_recovery_turn <= 3) suppress = true;
-        // Post-baseline grace: coherence 1.0 is expected right after baseline
-        // completes because penalties were suppressed during the window
-        if (state->baseline_completed_turn >= 0 &&
-            turn - state->baseline_completed_turn <= 3) suppress = true;
-        if (!suppress) {
-            warnings += fmt::format("WARNING: Perfect coherence (1.0) after {} turns "
-                "(possible detection bypass)\n", turn);
+    // Checks ALL agents — only warns if every agent is at 1.0.
+    // Suppress during adaptive baseline and post-recovery windows.
+    auto agent_coherences = drift_analyzer_.getAllAgentCoherences();
+    if (!agent_coherences.empty() && turn >= 10) {
+        bool all_perfect = true;
+        bool any_suppressed = false;
+        for (const auto& [name, c] : agent_coherences) {
+            if (c < 1.0) { all_perfect = false; break; }
+        }
+        if (all_perfect) {
+            // Suppress if any agent is in baseline or recovery window
+            int handle_id = current_agent_handle_.load(std::memory_order_relaxed);
+            auto state = drift_analyzer_.getDriftState(handle_id);
+            if (state) {
+                if (!state->baseline_complete) any_suppressed = true;
+                if (state->last_recovery_turn >= 0 &&
+                    turn - state->last_recovery_turn <= 3) any_suppressed = true;
+                if (state->baseline_completed_turn >= 0 &&
+                    turn - state->baseline_completed_turn <= 3) any_suppressed = true;
+            }
+            if (!any_suppressed) {
+                warnings += fmt::format("WARNING: Perfect coherence (1.0) after {} turns "
+                    "(possible detection bypass)\n", turn);
+            }
         }
     }
 
@@ -7192,6 +7221,10 @@ std::optional<governance::DriftState> GovernanceEngine::getDriftState(int handle
     return drift_analyzer_.getDriftState(handle_id);
 }
 
+double GovernanceEngine::getMinAgentCoherence() const {
+    return drift_analyzer_.getMinCoherence();
+}
+
 void GovernanceEngine::initializeMandateKeywords(
     int handle_id, const std::unordered_set<std::string>& keywords) {
     drift_analyzer_.initializeMandateKeywords(handle_id, keywords);
@@ -7226,6 +7259,14 @@ void GovernanceEngine::setTurnPromptKeywords(
 void GovernanceEngine::recordEscalation(
     int handle_id, int from_level, int to_level) {
     drift_analyzer_.recordEscalation(handle_id, from_level, to_level);
+}
+
+int GovernanceEngine::updateQuarantineStreak(int handle_id, bool quarantined) {
+    return drift_analyzer_.updateQuarantineStreak(handle_id, quarantined);
+}
+
+void GovernanceEngine::resetDriftState(int handle_id) {
+    drift_analyzer_.resetDriftState(handle_id);
 }
 
 GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(

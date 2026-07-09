@@ -4,6 +4,7 @@
 #include "naab/orchestra.h"
 #include "naab/naab_val.h"
 #include "naab/interpreter.h"
+#include "naab/governance.h"
 #include <fmt/core.h>
 #include <regex>
 #include <nlohmann/json.hpp>
@@ -244,6 +245,20 @@ interpreter::NaabVal orchestraEnforceConvergence(std::vector<interpreter::NaabVa
     result_dict["valid"] = interpreter::NaabVal::makeBool(is_valid);
     if (!validation_error.empty()) {
         result_dict["error"] = interpreter::NaabVal::makeString(validation_error);
+    }
+
+    // T5: Telemetry for convergence checks
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->getRules().telemetry_output.enabled) {
+        std::string pattern_str;
+        if (spec.find("pattern") != spec.end() && spec.at("pattern").isString())
+            pattern_str = spec.at("pattern").asString();
+        gov_engine->writeAgentTelemetry("CONVERGENCE_CHECK", {
+            {"valid", is_valid ? "true" : "false"},
+            {"pattern", pattern_str},
+            {"error", validation_error},
+            {"response_length", std::to_string(response.size())},
+        });
     }
 
     return interpreter::NaabVal::makeDict(std::move(result_dict));

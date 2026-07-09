@@ -1340,6 +1340,7 @@ struct ContextDriftConfig {
         bool tool_chain_integrity = true;      // fire when agent misrepresents tool results
         bool claim_result_reconciliation = true; // fire when agent misrepresents tool success/failure status
         bool prompt_compliance = true;           // fire when agent complies with off-topic prompts
+        bool response_repetition = true;         // fire when agent produces verbatim duplicate responses
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1371,6 +1372,7 @@ struct ContextDriftConfig {
         double tool_chain_integrity = 0.08;   // moderate — misrepresenting tool results indicates hallucination
         double claim_result_reconciliation = 0.12; // moderate-high — status misrepresentation is unambiguous hallucination
         double prompt_compliance = 0.10;             // moderate-high — complying with off-topic prompts is unambiguous drift
+        double response_repetition = 0.15;           // moderate-high — verbatim repetition is a strong drift indicator
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -1459,6 +1461,9 @@ struct ContextDriftConfig {
         // Short refusals ("I can only help with todo apps") are typically <50 tokens.
         // Full compliance ("Here's a fibonacci function...") is typically >100 tokens.
         int prompt_compliance_response_min_tokens = 50;
+        // 5 responses: check previous 5 responses for exact fingerprint match.
+        // Small window avoids stale matches while catching stuck-in-a-loop patterns.
+        int response_repetition_lookback = 5;
     } thresholds;
 
     // Reality Checkpoint: composite operational pressure detection
@@ -1607,6 +1612,9 @@ struct CircuitBreakerConfig {
         std::string inadmissible_history = "commit";
         // Gate tool execution on current coherence/pulse before each tool call.
         bool gate_tool_calls = false;
+        // Maximum consecutive quarantined responses before hard-blocking the agent.
+        // 0 = disabled (no streak limit). Ratchet: removing limit (N->0) is loosening.
+        int max_quarantine_streak = 0;
     } output_admissibility;
 };
 
@@ -2982,6 +2990,9 @@ public:
     // Agent environment: get drift state for environment dict
     std::optional<governance::DriftState> getDriftState(int handle_id) const;
 
+    // Get minimum coherence across all tracked agents (for multi-agent dashboard/health)
+    double getMinAgentCoherence() const;
+
     // Initialize mandate keywords for semantic mandate alignment signal
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
@@ -3003,6 +3014,12 @@ public:
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);
+
+    // Update quarantine streak: increments on quarantine, resets on admissible.
+    int updateQuarantineStreak(int handle_id, bool quarantined);
+
+    // Reset drift state for a specific handle (agent.reset() — fresh conversation).
+    void resetDriftState(int handle_id);
 
     // Reality checkpoint: get pressure data for response dict
     struct CheckpointData {
@@ -3301,6 +3318,7 @@ private:
 
     // --- Mid-run reload state (Governance Under Survivability) ---
     int64_t loaded_mtime_ns_ = 0;                 // govern.json mtime as nanoseconds (fs clock epoch)
+    int64_t last_sig_fail_mtime_ = 0;             // mtime of last signature-failed reload (suppress duplicate logs)
     int reload_count_ = 0;                        // reloads applied this run
     std::vector<std::string> pending_notices_;    // notices from last reload
     mutable std::mutex notices_mutex_;            // guards pending_notices_

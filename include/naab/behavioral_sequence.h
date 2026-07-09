@@ -83,7 +83,7 @@ struct SequenceMatchResult {
 };
 
 // CDD signal indices for generic adaptive baseline
-static constexpr int NUM_CDD_SIGNALS = 20;
+static constexpr int NUM_CDD_SIGNALS = 21;
 enum CddSignalId : int {
     SIG_CIRCULAR = 0,              // S1
     SIG_REPEATED_FAILURES = 1,     // S2
@@ -104,7 +104,8 @@ enum CddSignalId : int {
     SIG_PERSONA_FINGERPRINT = 16,  // S17
     SIG_TOOL_CHAIN_INTEGRITY = 17, // S18
     SIG_CLAIM_RESULT = 18,         // S19
-    SIG_PROMPT_COMPLIANCE = 19     // S20 — off-topic prompt compliance
+    SIG_PROMPT_COMPLIANCE = 19,    // S20 — off-topic prompt compliance
+    SIG_RESPONSE_REPETITION = 20   // S21 — verbatim response repetition
 };
 
 struct SignalBaseline {
@@ -201,6 +202,10 @@ struct DriftState {
     std::deque<double> prompt_alignment_history;            // rolling window of prompt-to-mandate overlap
     int prompt_compliance_count = 0;                        // turns where off-topic prompt was complied with
 
+    // Response repetition — detect verbatim duplicate responses
+    std::deque<std::string> response_fingerprints;  // recent content_fingerprint values
+    int response_repetition_count = 0;              // turns with exact duplicate response
+
     // Escalation effectiveness tracking — measure whether level changes improve behavior
     int escalation_turn = -1;                      // turn when last escalation occurred (-1 = never)
     int escalation_from_level = 0;                 // governance level before escalation
@@ -224,6 +229,10 @@ struct DriftState {
     int consecutive_high_pressure_turns = 0;
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
     int signals_fired_this_turn = 0;
+    std::array<int, NUM_CDD_SIGNALS> last_turn_fired = {};      // per-signal fire counts for most recent turn
+    std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
+    double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
+    int consecutive_quarantines = 0;                               // output admissibility quarantine streak
 
     // Recovery tracking (Phase 4a)
     int last_recovery_turn = -1;              // turn of last coherence recovery (-1 = never)
@@ -313,7 +322,16 @@ public:
     // Get drift state for decision_trace (returns copy — safe across threads)
     std::optional<DriftState> getDriftState(int handle_id) const;
 
+    // Get minimum coherence across all tracked agents
+    double getMinCoherence() const;
+
+    // Get per-agent coherence map (config_name → coherence_score)
+    std::unordered_map<std::string, double> getAllAgentCoherences() const;
+
     bool isEnabled() const;
+
+    // Signal name lookup (index → human-readable name)
+    static const char* signalName(int idx);
 
     // Telemetry: total turns analyzed
     size_t totalTurnsAnalyzed() const;
@@ -326,6 +344,14 @@ public:
 
     // F15: Recover coherence (e.g., at pipeline stage transitions)
     void resetCoherence(int handle_id, double amount);
+
+    // Update quarantine streak: increments on quarantine, resets on admissible.
+    // Returns current streak count after update.
+    int updateQuarantineStreak(int handle_id, bool quarantined);
+
+    // Reset drift state for a specific handle (fresh DriftState, preserves handle_id + config_name).
+    // Used by agent.reset() to give a degraded agent a clean slate.
+    void resetDriftState(int handle_id);
 
     // Initialize mandate keywords from system_prompt (for mandate alignment signal)
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
