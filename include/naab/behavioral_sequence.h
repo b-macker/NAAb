@@ -3,6 +3,7 @@
 #include <vector>
 #include <array>
 #include <deque>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
@@ -107,6 +108,38 @@ enum CddSignalId : int {
     SIG_PROMPT_COMPLIANCE = 19,    // S20 — off-topic prompt compliance
     SIG_RESPONSE_REPETITION = 20   // S21 — verbatim response repetition
 };
+
+// Canonical govern.json signal config keys, indexed by CddSignalId. These are
+// the keys accepted in the global context_drift.signals block and the
+// per-agent context_drift_signals block. NOTE: several differ from the
+// signalName() telemetry names (circular_actions, vocabulary_contraction,
+// intent_contradictions, claim_result_reconciliation).
+static constexpr const char* kCddSignalKeys[NUM_CDD_SIGNALS] = {
+    "circular_actions",              // SIG_CIRCULAR
+    "repeated_failures",             // SIG_REPEATED_FAILURES
+    "scope_creep",                   // SIG_SCOPE_CREEP
+    "intent_contradictions",         // SIG_CONTRADICTIONS
+    "vocabulary_contraction",        // SIG_VOCAB_CONTRACTION
+    "coherence_velocity",            // SIG_COHERENCE_VELOCITY
+    "capability_underutilization",   // SIG_CAPABILITY_UNDERUTIL
+    "response_quality",              // SIG_RESPONSE_QUALITY
+    "thinking_collapse",             // SIG_THINKING_COLLAPSE
+    "semantic_stability",            // SIG_SEMANTIC_STABILITY
+    "mandate_alignment",             // SIG_MANDATE_ALIGNMENT
+    "context_growth",                // SIG_CONTEXT_GROWTH
+    "instruction_recall",            // SIG_INSTRUCTION_RECALL
+    "plan_drift",                    // SIG_PLAN_DRIFT
+    "entity_consistency",            // SIG_ENTITY_CONSISTENCY
+    "instruction_conflict",          // SIG_INSTRUCTION_CONFLICT
+    "persona_fingerprint",           // SIG_PERSONA_FINGERPRINT
+    "tool_chain_integrity",          // SIG_TOOL_CHAIN_INTEGRITY
+    "claim_result_reconciliation",   // SIG_CLAIM_RESULT
+    "prompt_compliance",             // SIG_PROMPT_COMPLIANCE
+    "response_repetition"            // SIG_RESPONSE_REPETITION
+};
+
+// Per-handle signal override bitmasks fit in 32 bits.
+static_assert(NUM_CDD_SIGNALS <= 32, "signal override masks are uint32_t");
 
 struct SignalBaseline {
     int snapshot = 0;       // cumulative counter at baseline completion
@@ -247,6 +280,13 @@ struct DriftState {
     int context_growth_count = 0;             // turns where input tokens exceeded baseline by factor
     std::deque<int> input_tokens_history;      // rolling window of input token counts
     double input_tokens_baseline_mean = -1.0;  // established after baseline window completes
+
+    // Per-agent signal overrides (from the agent's context_drift_signals
+    // govern.json block). Bit i set in the mask means signal i has an
+    // override; the value bit then wins over the global signals config.
+    // Preserved across resetDriftState() like config_name.
+    uint32_t signal_override_mask = 0;
+    uint32_t signal_override_values = 0;
 };
 
 // --- Event Ring Buffer + Sequence Pattern Matcher ---
@@ -380,6 +420,11 @@ public:
     // per-agent resets on config reload)
     void setAgentConfigName(int handle_id, const std::string& name);
 
+    // Bind per-agent signal overrides (context_drift_signals) to a handle.
+    // Unknown keys are ignored (config parse already warns on them).
+    void setSignalOverrides(int handle_id,
+                            const std::map<std::string, bool>& overrides);
+
     // Scoped rate-window reset after an operator config change: for handles
     // belonging to a changed agent, re-snapshot cumulative signal counters and
     // restart the post-baseline rate window. Learned baseline statistics
@@ -388,9 +433,13 @@ public:
     // adaptive path is skipped and the full base penalty applies.
     // new_system_prompts maps agent name → new system_prompt; when the mandate
     // changed, mandate keywords are re-derived against the new prompt.
+    // new_signal_overrides maps agent name → new context_drift_signals block;
+    // matching handles get their override masks recomputed.
     void onAgentConfigChanged(
         const std::set<std::string>& changed_agents,
-        const std::unordered_map<std::string, std::string>& new_system_prompts);
+        const std::unordered_map<std::string, std::string>& new_system_prompts,
+        const std::unordered_map<std::string, std::map<std::string, bool>>&
+            new_signal_overrides = {});
 
     void reset();
 

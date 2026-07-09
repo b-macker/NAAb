@@ -2447,6 +2447,28 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                             if (pattern.is_string()) agent.output_contract.regex_checks[field] = pattern.get<std::string>();
                     }
                 }
+
+                // Per-agent CDD signal overrides (keys = canonical signal
+                // config names; unknown keys warn instead of silently
+                // fail-opening on a typo)
+                if (cfg_json.contains("context_drift_signals") &&
+                    cfg_json["context_drift_signals"].is_object()) {
+                    for (auto& [sig_key, sig_val] : cfg_json["context_drift_signals"].items()) {
+                        bool known = false;
+                        for (int si = 0; si < NUM_CDD_SIGNALS; si++) {
+                            if (sig_key == kCddSignalKeys[si]) { known = true; break; }
+                        }
+                        if (!known) {
+                            fprintf(stderr,
+                                "[governance] Warning: unknown context_drift_signals key \"%s\" for agent \"%s\"\n",
+                                sig_key.c_str(), agent.name.c_str());
+                            continue;
+                        }
+                        if (sig_val.is_boolean()) {
+                            agent.context_drift_signals[sig_key] = sig_val.get<bool>();
+                        }
+                    }
+                }
             }
 
             rules_.agents.push_back(agent);
@@ -3066,6 +3088,34 @@ static int levelToInt(EnforcementLevel level) {
     }
 }
 
+// Read a context_drift Signals toggle by CddSignalId index (kCddSignalKeys order).
+static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
+    switch (idx) {
+        case SIG_CIRCULAR:             return s.circular_actions;
+        case SIG_REPEATED_FAILURES:    return s.repeated_failures;
+        case SIG_SCOPE_CREEP:          return s.scope_creep;
+        case SIG_CONTRADICTIONS:       return s.intent_contradictions;
+        case SIG_VOCAB_CONTRACTION:    return s.vocabulary_contraction;
+        case SIG_COHERENCE_VELOCITY:   return s.coherence_velocity;
+        case SIG_CAPABILITY_UNDERUTIL: return s.capability_underutilization;
+        case SIG_RESPONSE_QUALITY:     return s.response_quality;
+        case SIG_THINKING_COLLAPSE:    return s.thinking_collapse;
+        case SIG_SEMANTIC_STABILITY:   return s.semantic_stability;
+        case SIG_MANDATE_ALIGNMENT:    return s.mandate_alignment;
+        case SIG_CONTEXT_GROWTH:       return s.context_growth;
+        case SIG_INSTRUCTION_RECALL:   return s.instruction_recall;
+        case SIG_PLAN_DRIFT:           return s.plan_drift;
+        case SIG_ENTITY_CONSISTENCY:   return s.entity_consistency;
+        case SIG_INSTRUCTION_CONFLICT: return s.instruction_conflict;
+        case SIG_PERSONA_FINGERPRINT:  return s.persona_fingerprint;
+        case SIG_TOOL_CHAIN_INTEGRITY: return s.tool_chain_integrity;
+        case SIG_CLAIM_RESULT:         return s.claim_result_reconciliation;
+        case SIG_PROMPT_COMPLIANCE:    return s.prompt_compliance;
+        case SIG_RESPONSE_REPETITION:  return s.response_repetition;
+        default:                       return true;
+    }
+}
+
 // Check that new_r is at least as strict as old_r. Returns true if ratchet OK.
 // Populates violations (loosening attempts) and notices (tightening changes).
 static bool checkRatchetViolation(
@@ -3245,6 +3295,29 @@ static bool checkRatchetViolation(
         // Model chain changes
         if (new_agent.model_chain != old_agent->model_chain || new_agent.model != old_agent->model)
             notices.push_back(fmt::format("agent.{}.model: chain updated", new_agent.name));
+
+        // Per-agent CDD signal overrides: compare EFFECTIVE values (override
+        // wins over the global signals toggle), but only where the override
+        // itself changed — inherited global changes are ratcheted globally.
+        for (int si = 0; si < NUM_CDD_SIGNALS; si++) {
+            const char* key = kCddSignalKeys[si];
+            auto oo = old_agent->context_drift_signals.find(key);
+            auto no = new_agent.context_drift_signals.find(key);
+            bool old_has = oo != old_agent->context_drift_signals.end();
+            bool new_has = no != new_agent.context_drift_signals.end();
+            if (old_has == new_has && (!old_has || oo->second == no->second))
+                continue;  // override unchanged
+            bool old_eff = old_has ? oo->second : cddSignalValue(old_r.context_drift.signals, si);
+            bool new_eff = new_has ? no->second : cddSignalValue(new_r.context_drift.signals, si);
+            if (old_eff && !new_eff)
+                violations.push_back(fmt::format(
+                    "agent.{}.context_drift_signals.{}: enabled -> disabled (loosened)",
+                    new_agent.name, key));
+            else if (!old_eff && new_eff)
+                notices.push_back(fmt::format(
+                    "agent.{}.context_drift_signals.{}: disabled -> enabled (tightened)",
+                    new_agent.name, key));
+        }
 
         // api_base: any mid-run endpoint change is a violation (traffic redirection)
         if (new_agent.api_base != old_agent->api_base)
@@ -3531,6 +3604,25 @@ static bool checkRatchetViolation(
     else if (new_r.context_drift.rate_normalized_floor > old_r.context_drift.rate_normalized_floor)
         notices.push_back(fmt::format("context_drift.rate_normalized_floor: {:.2f} -> {:.2f} (tightened)",
             old_r.context_drift.rate_normalized_floor, new_r.context_drift.rate_normalized_floor));
+    // Per-signal toggles: disabling a signal mid-run removes a detection channel
+    for (int si = 0; si < NUM_CDD_SIGNALS; si++) {
+        bool old_on = cddSignalValue(old_r.context_drift.signals, si);
+        bool new_on = cddSignalValue(new_r.context_drift.signals, si);
+        if (old_on && !new_on)
+            violations.push_back(fmt::format(
+                "context_drift.signals.{}: enabled -> disabled (loosened)", kCddSignalKeys[si]));
+        else if (!old_on && new_on)
+            notices.push_back(fmt::format(
+                "context_drift.signals.{}: disabled -> enabled (tightened)", kCddSignalKeys[si]));
+    }
+    // exclude_infrastructure_errors: enabling exclusion shrinks what
+    // repeated_failures can see, so false->true is the loosening direction
+    if (!old_r.context_drift.signals.exclude_infrastructure_errors &&
+        new_r.context_drift.signals.exclude_infrastructure_errors)
+        violations.push_back("context_drift.signals.exclude_infrastructure_errors: false -> true (loosened)");
+    else if (old_r.context_drift.signals.exclude_infrastructure_errors &&
+             !new_r.context_drift.signals.exclude_infrastructure_errors)
+        notices.push_back("context_drift.signals.exclude_infrastructure_errors: true -> false (tightened)");
 
     return violations.empty();
 }
@@ -3551,7 +3643,8 @@ static bool agentBehaviorFieldsDiffer(const AgentConfig& a, const AgentConfig& b
            a.min_tokens != b.min_tokens ||
            a.thinking_budget != b.thinking_budget ||
            a.context_window != b.context_window ||
-           a.context_strategy != b.context_strategy;
+           a.context_strategy != b.context_strategy ||
+           a.context_drift_signals != b.context_drift_signals;
 }
 
 bool GovernanceEngine::reloadIfChanged() {
@@ -3741,7 +3834,14 @@ bool GovernanceEngine::reloadIfChanged() {
         // scored as agent drift. Only the rate window restarts — learned
         // baselines and coherence are preserved (see onAgentConfigChanged).
         if (new_rp->context_drift.enabled && !changed_agents.empty()) {
-            drift_analyzer_.onAgentConfigChanged(changed_agents, changed_system_prompts);
+            std::unordered_map<std::string, std::map<std::string, bool>> changed_overrides;
+            for (const auto& na : new_rp->agents) {
+                if (changed_agents.count(na.name)) {
+                    changed_overrides[na.name] = na.context_drift_signals;
+                }
+            }
+            drift_analyzer_.onAgentConfigChanged(changed_agents, changed_system_prompts,
+                                                 changed_overrides);
         }
 
         // C3: restart telemetry forwarder if webhook config changed

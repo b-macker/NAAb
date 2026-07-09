@@ -7235,6 +7235,11 @@ void GovernanceEngine::addInstructionKeywords(
     drift_analyzer_.addInstructionKeywords(handle_id, keywords);
 }
 
+void GovernanceEngine::setSignalOverrides(
+    int handle_id, const std::map<std::string, bool>& overrides) {
+    drift_analyzer_.setSignalOverrides(handle_id, overrides);
+}
+
 void GovernanceEngine::extractPlanFromResponse(
     int handle_id, const std::string& response_text) {
     drift_analyzer_.extractPlanFromResponse(handle_id, response_text);
