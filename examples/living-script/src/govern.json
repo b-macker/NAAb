@@ -284,7 +284,8 @@
       "enabled": true,
       "threshold": 0.60,
       "action": "quarantine",
-      "inadmissible_history": "commit"
+      "inadmissible_history": "commit",
+      "max_quarantine_streak": 5
     }
   },
 

@@ -265,6 +265,27 @@ fn validate_code(ops_code, main_code, test_code, ops_pattern) {
     return results
 }
 
+// Short pytest digest from a validate_code() result, for reviewer prompts —
+// the reviewer votes on objective test results, not just code appearance.
+fn pytest_summary(val) {
+    if val.get("pytest_exit") == null { return "" }
+    let s = "\n\nLATEST PYTEST RESULTS (exit code " + string(val.get("pytest_exit"))
+    if val.get("pytest_passed") == true {
+        s = s + ", all tests PASSED):"
+    } else {
+        s = s + ", FAILURES PRESENT — vote REJECTED and name the failing tests):"
+    }
+    let plines = string.split(string(val.get("pytest_output") ?? ""), "\n")
+    let pi = 0
+    if plines.length() > 8 { pi = plines.length() - 8 }
+    while pi < plines.length() {
+        let pl = string.trim(plines[pi])
+        if len(pl) > 0 { s = s + "\n" + pl }
+        pi = pi + 1
+    }
+    return s
+}
+
 main {
     let start_time = time.now()
 
@@ -316,12 +337,26 @@ main {
             let prev = tracking["min_coherences"].get(name)
             if prev == null || c < prev { tracking["min_coherences"][name] = c }
         }
+        let quarantine_streak = 0
         let env_data = resp.get("environment")
         if env_data != null {
             let state = env_data.get("state")
             if state != null {
                 let cp = state.get("challenges_passed") ?? 0
                 if cp > tracking["challenge_passes"] { tracking["challenge_passes"] = cp }
+                quarantine_streak = state.get("consecutive_quarantines") ?? 0
+            }
+        }
+        // Post-send guards (developer only): gradual coherence decline can
+        // slip past the pre-send checks (each send drops it a little, never
+        // crossing 0.3 at check time), and a quarantine streak in the
+        // 0.3-0.6 band must be broken by reset BEFORE the engine's
+        // max_quarantine_streak backstop hard-stops the whole run.
+        if name == "developer" && handles.get("developer") != null {
+            let was_reset = check_coherence(handles["developer"], "developer")
+            if !was_reset && quarantine_streak >= 3 {
+                print("[governance] developer quarantine streak " + string(quarantine_streak) + ", resetting")
+                agent.reset(handles["developer"])
             }
         }
     }
@@ -612,10 +647,10 @@ main {
             vk = vk + 1
         }
 
-        // Step 4: Reviewer votes
+        // Step 4: Reviewer votes (with the step-3 pytest results in view)
         let verdict = "REVIEW"
         if handles.get("reviewer") != null && len(ops_code) > 20 {
-            let review_msg = "Review this Python calculator for production quality. Check: type hints on ALL methods, docstrings, proper error handling (ValueError for divide-by-zero), history returns a COPY (list.copy() or list[:]), clear_history. Vote APPROVED only if ALL present. REJECTED with specific issues.\n```python\n" + ops_code + "\n```"
+            let review_msg = "Review this Python calculator for production quality. Check: type hints on ALL methods, docstrings, proper error handling (ValueError for divide-by-zero), history returns a COPY (list.copy() or list[:]), clear_history. Vote APPROVED only if ALL present AND pytest passes. REJECTED with specific issues.\n```python\n" + ops_code + "\n```" + pytest_summary(val)
             let resp = safe_send(handles["reviewer"], review_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
@@ -932,21 +967,22 @@ main {
                 tracking["send_errors"] = tracking["send_errors"] + 1
             }
             print("TURN|developer|final_fix" + string(final_iter) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
+        }
 
-            // Re-validate after fix
-            let fr_val = validate_code(ops_code, main_code, test_code, ops_pattern)
-            let fr_keys = fr_val.keys()
-            let frk = 0
-            while frk < fr_keys.length() {
-                print("VALIDATE|final_fix" + string(final_iter) + "|" + fr_keys[frk] + "=" + string(fr_val[fr_keys[frk]]))
-                frk = frk + 1
-            }
+        // Validate (incl. pytest) so the reviewer votes on objective results,
+        // not just code appearance — covers post-fix state on retry iterations
+        let fin_val = validate_code(ops_code, main_code, test_code, ops_pattern)
+        let fin_keys = fin_val.keys()
+        let fnk = 0
+        while fnk < fin_keys.length() {
+            print("VALIDATE|final" + string(final_iter) + "|" + fin_keys[fnk] + "=" + string(fin_val[fin_keys[fnk]]))
+            fnk = fnk + 1
         }
 
         // Reviewer evaluates
         if handles.get("reviewer") != null && len(ops_code) > 20 {
             let feats = string(tracking["features_processed"])
-            let final_msg = "Final review of the evolved calculator. Started with basic arithmetic, now has " + feats + " additional features. Review for:\n1. Code organization — all features coexist cleanly\n2. Type hints and docstrings on ALL methods\n3. Error handling (ValueError for divide-by-zero, edge cases)\n4. History tracking works for ALL operations including new ones\n5. No regressions from feature additions (get_history MUST return a copy)\n\nVote APPROVED or REJECTED with specific issues.\n```python\n" + ops_code + "\n```"
+            let final_msg = "Final review of the evolved calculator. Started with basic arithmetic, now has " + feats + " additional features. Review for:\n1. Code organization — all features coexist cleanly\n2. Type hints and docstrings on ALL methods\n3. Error handling (ValueError for divide-by-zero, edge cases)\n4. History tracking works for ALL operations including new ones\n5. No regressions from feature additions (get_history MUST return a copy)\n\nVote APPROVED or REJECTED with specific issues. APPROVED requires pytest passing.\n```python\n" + ops_code + "\n```" + pytest_summary(fin_val)
             let resp = safe_send(handles["reviewer"], final_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
