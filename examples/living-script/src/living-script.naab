@@ -1002,6 +1002,9 @@ main {
     }
     print("FINAL_REVIEW|verdict=" + string(final_approved))
     print("FINAL_REVIEW|iterations=" + string(final_iter))
+    // FINAL_REVIEW is the authoritative verdict — without this, the REFINE
+    // verdict set earlier is what memory/summary report as "approved"
+    tracking["final_verdict"] = final_approved
 
     consult_operator({"phase": "FINAL_REVIEW", "event": "final_review_complete", "features": tracking["features_processed"], "ops_len": len(ops_code), "final_approved": final_approved, "final_iterations": final_iter, "question": "Final review done (" + string(final_iter) + " iterations, approved=" + string(final_approved) + "). How did team handle feature evolution?"})
     tracking["phases_completed"].push("FINAL_REVIEW")
