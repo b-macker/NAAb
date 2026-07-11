@@ -37,9 +37,11 @@ SUITES_SKIPPED=0
 # channel; the subprocess fallback evaluates them to null and warns
 # "Python support not available". Invariants 4 and 5 are entirely
 # NAAb→Python value roundtrips, so they can only run on embedded builds.
+# The probe must live under tests/ so the upward govern.json search succeeds
+# (the binary refuses to run without a governance config in scope).
 PYTHON_VALUES_OK=0
-PY_PROBE_DIR=$(mktemp -d)
-cat > "$PY_PROBE_DIR/probe.naab" << 'EOF'
+PY_PROBE="$SCRIPT_DIR/.python_value_probe_$$.naab"
+cat > "$PY_PROBE" << 'EOF'
 main {
     let x = <<python
 41 + 1
@@ -47,10 +49,10 @@ main {
     print("PROBE=", x)
 }
 EOF
-if timeout 30s "$NAAB_BIN" run "$PY_PROBE_DIR/probe.naab" 2>/dev/null | grep -q "PROBE= 42"; then
+if timeout 30s "$NAAB_BIN" run "$PY_PROBE" 2>/dev/null | grep -q "PROBE= 42"; then
     PYTHON_VALUES_OK=1
 fi
-rm -rf "$PY_PROBE_DIR"
+rm -f "$PY_PROBE"
 
 # --- Invariant 1: Governance Transparency ---
 echo ""
