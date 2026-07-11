@@ -98,7 +98,7 @@
       "standing_lease_turns": 20,
       "context_window": 20,
       "context_strategy": "summary",
-      "context_drift_signals": { "semantic_stability": false },
+      "context_drift_signals": { "semantic_stability": false, "response_repetition": false },
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
