@@ -35,7 +35,8 @@ We are committed to providing a welcoming and inclusive environment. Please:
 - C++ compiler (clang++ 10+ or g++ 9+)
 - CMake 3.15+
 - SQLite3
-- Python 3.8+ (optional)
+- Python 3.8+ with dev headers and `pybind11` (optional — required for the
+  embedded Python executor; without it `<<python>>` expression blocks return null)
 - Git
 
 ### Areas for Contribution

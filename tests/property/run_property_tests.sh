@@ -30,6 +30,27 @@ echo ""
 
 SUITES_PASSED=0
 SUITES_FAILED=0
+SUITES_SKIPPED=0
+
+# Probe: do <<python>> expression blocks return values on this build?
+# Only the embedded (pybind11) executor gives bare expressions a value
+# channel; the subprocess fallback evaluates them to null and warns
+# "Python support not available". Invariants 4 and 5 are entirely
+# NAAb→Python value roundtrips, so they can only run on embedded builds.
+PYTHON_VALUES_OK=0
+PY_PROBE_DIR=$(mktemp -d)
+cat > "$PY_PROBE_DIR/probe.naab" << 'EOF'
+main {
+    let x = <<python
+41 + 1
+    >>
+    print("PROBE=", x)
+}
+EOF
+if timeout 30s "$NAAB_BIN" run "$PY_PROBE_DIR/probe.naab" 2>/dev/null | grep -q "PROBE= 42"; then
+    PYTHON_VALUES_OK=1
+fi
+rm -rf "$PY_PROBE_DIR"
 
 # --- Invariant 1: Governance Transparency ---
 echo ""
@@ -59,7 +80,12 @@ fi
 
 # --- Invariant 4: Polyglot Differential ---
 echo ""
-if bash "$SCRIPT_DIR/test_polyglot_differential.sh"; then
+if [ "$PYTHON_VALUES_OK" -ne 1 ]; then
+    echo "--- Invariant 4: Polyglot Differential (NAAb vs Python) ---"
+    echo "  SKIPPED: Python support not available for expression values"
+    echo "  (embedded Python executor not built — install pybind11 and rebuild)"
+    SUITES_SKIPPED=$((SUITES_SKIPPED + 1))
+elif bash "$SCRIPT_DIR/test_polyglot_differential.sh"; then
     SUITES_PASSED=$((SUITES_PASSED + 1))
 else
     SUITES_FAILED=$((SUITES_FAILED + 1))
@@ -67,7 +93,12 @@ fi
 
 # --- Invariant 5: Serialization Boundary Audit ---
 echo ""
-if bash "$SCRIPT_DIR/test_serialization_audit.sh"; then
+if [ "$PYTHON_VALUES_OK" -ne 1 ]; then
+    echo "--- Serialization Boundary Audit ---"
+    echo "  SKIPPED: Python support not available for expression values"
+    echo "  (embedded Python executor not built — install pybind11 and rebuild)"
+    SUITES_SKIPPED=$((SUITES_SKIPPED + 1))
+elif bash "$SCRIPT_DIR/test_serialization_audit.sh"; then
     SUITES_PASSED=$((SUITES_PASSED + 1))
 else
     SUITES_FAILED=$((SUITES_FAILED + 1))
@@ -95,6 +126,9 @@ echo "==============================================="
 echo "  PROPERTY TEST SUMMARY"
 echo "==============================================="
 echo "  Suites passed: $SUITES_PASSED / $((SUITES_PASSED + SUITES_FAILED))"
+if [ $SUITES_SKIPPED -gt 0 ]; then
+    echo "  Suites skipped: $SUITES_SKIPPED (Python value blocks unavailable on this build)"
+fi
 if [ $SUITES_FAILED -eq 0 ]; then
     echo "  ALL INVARIANTS HOLD"
     exit 0

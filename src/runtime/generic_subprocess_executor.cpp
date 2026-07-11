@@ -5,6 +5,7 @@
 #include "naab/sandbox.h" // For security sandbox
 #include "naab/resource_limits.h" // Enterprise security: Resource limits
 #include "naab/audit_logger.h" // For security audit logging
+#include <atomic>       // For one-time warning flag
 #include <climits>      // For INT_MIN, INT_MAX
 #include <cstdio>       // For popen, pclose
 #include <array>        // For std::array
@@ -347,6 +348,20 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
 
     // Empty result → null
     if (result.empty()) {
+        // Python expression blocks only yield values through the embedded
+        // executor (pybind11 build). Under this subprocess fallback a bare
+        // expression prints nothing, so the block silently becomes null —
+        // warn once so the missing build dependency is visible (the test
+        // runner also keys its missing-executor classification on this text).
+        if (language_id_ == "python") {
+            static std::atomic<bool> warned{false};
+            if (!warned.exchange(true)) {
+                fmt::print(stderr,
+                    "[polyglot] Python support not available for expression values: "
+                    "the block produced no output, so it evaluates to null. "
+                    "Install pybind11 and rebuild to enable the embedded Python executor.\n");
+            }
+        }
         return naab::interpreter::NaabVal::makeNull();
     }
 

@@ -29,13 +29,16 @@ naab-lang --version
 - SQLite3 development libraries
 - OpenSSL development libraries
 - libcurl development libraries
-- Python3 development libraries (optional, for polyglot)
+- Python3 development libraries + `pybind11` (optional, for polyglot — without
+  pybind11 the embedded Python executor is not built and `<<python>>`
+  expression blocks evaluate to null via the subprocess fallback)
 
 ### Linux (Ubuntu/Debian)
 
 ```bash
 sudo apt-get install cmake ninja-build libsqlite3-dev python3-dev \
   libssl-dev libffi-dev libcurl4-openssl-dev pkg-config
+python3 -m pip install pybind11   # enables the embedded Python executor
 
 git clone --recursive https://github.com/b-macker/NAAb.git
 cd NAAb
@@ -48,6 +51,7 @@ sudo cp build/naab-lang build/naab-gov /usr/local/bin/
 
 ```bash
 brew install cmake ninja openssl@3 sqlite3 pkg-config curl
+python3 -m pip install pybind11   # enables the embedded Python executor
 
 git clone --recursive https://github.com/b-macker/NAAb.git
 cd NAAb
@@ -73,6 +77,7 @@ cmake --build build --config Release
 
 ```bash
 pkg install cmake ninja clang libsqlite python openssl libcurl pkg-config
+pip install pybind11   # enables the embedded Python executor
 
 git clone --recursive https://github.com/b-macker/NAAb.git
 cd NAAb

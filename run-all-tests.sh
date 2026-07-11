@@ -133,6 +133,11 @@ EXPECTED_ERROR_TESTS["test_persistent_runtime_gov.naab"]=1 # languages.blocked (
 # executors should stay here even if they pass on Termux.
 declare -A MISSING_EXECUTOR_TESTS
 MISSING_EXECUTOR_TESTS["polyglot_optimization_test.naab"]=1   # needs numpy, Go, Nim, Ruby
+# feature_showcase pipes a Python value block into JavaScript; on non-pybind11
+# builds the block's print() output becomes the value (string), so the JS stage
+# fails without emitting the "Python support not available" marker. Passes on
+# builds with the embedded Python executor.
+MISSING_EXECUTOR_TESTS["feature_showcase.naab"]=1
 
 # Category 2b: Tests that use 'use BLOCK-...' syntax requiring --tree-walk mode.
 # VM mode rejects this syntax with "Compiler error: 'use BLOCK-...' block-loading
@@ -258,11 +263,11 @@ run_test() {
             NEEDS_TREE_WALK=$((NEEDS_TREE_WALK + 1))
             echo "  XFAIL: $test_name (needs --tree-walk)"
         elif [ -f "$output_file" ] && grep -q "Python support not available" "$output_file"; then
-            # NOTE: this message is printed only by the tree-walker Interpreter
-            # ctor when <Python.h> was absent at compile time. VM-mode runs and
-            # pybind11-less-but-Python.h-present builds never emit it — those
-            # use the GenericSubprocessExecutor fallback instead (which, since
-            # the F7 fix, returns expression values via __NAAB_RETURN__).
+            # Emitted by two build-dependent paths: the tree-walker Interpreter
+            # ctor when <Python.h> was absent at compile time, and (both engines)
+            # the GenericSubprocessExecutor fallback on non-pybind11 builds when
+            # an expression-position <<python>> block yields no output (bare
+            # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
         elif [ $exit_code -eq 124 ]; then

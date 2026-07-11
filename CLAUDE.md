@@ -15,6 +15,8 @@ mkdir -p build && cd build && cmake .. && make naab-lang -j4
 
 Binary lands at `build/naab-lang`. A second CLI, `naab-gov` (`src/cli/gov_main.cpp`), builds via `make naab-gov` for standalone govern.json work.
 
+**Python polyglot dependency**: the embedded Python executor requires python3 dev headers AND the `pybind11` module (`python3 -m pip install pybind11`) at cmake time — watch for `✓ pybind11` vs `⚠ pybind11 not found (Python executor disabled)` in the configure output. Without it, `<<python>>` expression blocks fall back to the subprocess executor and evaluate to null (a one-time `[polyglot] Python support not available for expression values` stderr warning fires; `run-all-tests.sh` classifies affected tests as missing-executor XFAILs and the property suite skips invariants 4/5). Fresh containers also need `git submodule update --init` and `libcurl4-openssl-dev` — the SessionStart hook `.claude/hooks/session-start.sh` handles all three.
+
 ## Test
 
 ```bash
