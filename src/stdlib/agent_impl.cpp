@@ -575,6 +575,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             }
             state["challenges_passed"] = NaabVal::makeInt(t.challenges_passed);
             state["challenges_failed"] = NaabVal::makeInt(t.challenges_failed);
+            state["truncation_count"] = NaabVal::makeInt(t.truncation_count);
             // Standing Lease: remaining turns before re-authorization required
             if (t.lease_expires_turn > 0) {
                 state["lease_remaining"] = NaabVal::makeInt(
@@ -1527,7 +1528,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::unordered_set<std::string> instr_kw;
         extractKeywords(message, instr_kw);
         if (!instr_kw.empty()) {
-            gov_engine->addInstructionKeywords(handle_id, instr_kw);
+            // Windowing: history turns actually sent (user/assistant pairs) plus
+            // the current prompt, which is always sent. 0 = no windowing.
+            int visible_turns = 0;
+            if (windowing_active) {
+                visible_turns = static_cast<int>((msg_list.size() - start_idx) / 2) + 1;
+            }
+            gov_engine->addInstructionKeywords(handle_id, instr_kw, visible_turns);
         }
     }
 
@@ -4963,6 +4970,7 @@ static NaabVal agentUsage(std::vector<NaabVal>& args) {
     result["turns"] = NaabVal::makeInt(tracker.turns);
     result["retries"] = NaabVal::makeInt(tracker.retries);
     result["fallbacks"] = NaabVal::makeInt(tracker.fallbacks);
+    result["truncation_count"] = NaabVal::makeInt(tracker.truncation_count);
     result["total_latency_ms"] = NaabVal::makeInt(static_cast<int>(tracker.total_latency_ms));
     // Tool execution counters (L5)
     if (tracker.tool_calls_total > 0) {

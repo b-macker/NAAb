@@ -40,6 +40,12 @@ proposed transition ──► admission ──► execution ──► admissibil
   conversation history. For quarantine/attest actions,
   `output_admissibility.inadmissible_history` controls disposition:
   `"commit"` (default, response stays in context) or `"exclude"`.
+  With `"commit"`, degraded content re-enters the context of every later
+  turn, so `output_admissibility.max_quarantine_streak` (default 5,
+  `0` = disabled) caps consecutive quarantined responses: exceeding it
+  throws `GovernanceHardError`, terminating the degradation loop instead
+  of letting quarantined output poison the conversation indefinitely.
+  Ratchet: removing or raising the streak limit mid-run is a violation.
 
 ## Selective adjudication (propose → select → commit)
 

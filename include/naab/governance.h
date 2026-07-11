@@ -1614,7 +1614,9 @@ struct CircuitBreakerConfig {
         bool gate_tool_calls = false;
         // Maximum consecutive quarantined responses before hard-blocking the agent.
         // 0 = disabled (no streak limit). Ratchet: removing limit (N->0) is loosening.
-        int max_quarantine_streak = 0;
+        // Default 5: quarantine+commit otherwise loops forever with degraded content
+        // poisoning the context of every subsequent turn.
+        int max_quarantine_streak = 5;
     } output_admissibility;
 };
 
@@ -3005,8 +3007,10 @@ public:
     // Bind per-agent CDD signal overrides (context_drift_signals) to a handle
     void setSignalOverrides(int handle_id, const std::map<std::string, bool>& overrides);
 
-    // Add instruction keywords from user prompts (for instruction recall signal)
-    void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+    // Add instruction keywords from user prompts (for instruction recall signal).
+    // visible_turns: turns visible in the context window sent (0 = no windowing).
+    void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords,
+                                int visible_turns = 0);
 
     // Extract plan steps from agent response (for plan drift signal)
     void extractPlanFromResponse(int handle_id, const std::string& response_text);

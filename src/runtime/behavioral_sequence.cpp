@@ -1370,16 +1370,32 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
-    // Signal 13: Instruction recall — check if agent references earlier user instructions
+    // Signal 13: Instruction recall — check if agent references earlier user instructions.
+    // With context windowing active (instruction_visible_turns > 0), measure only
+    // against keywords from turns the agent actually saw — otherwise the denominator
+    // grows with dropped turns and the penalty becomes structurally inevitable.
     if (sig_on(config_->signals.instruction_recall, SIG_INSTRUCTION_RECALL) && !state.instruction_keywords.empty()) {
+        const std::unordered_set<std::string>* effective_kw = &state.instruction_keywords;
+        std::unordered_set<std::string> windowed_kw;
+        if (state.instruction_visible_turns > 0 && !state.instruction_keywords_per_turn.empty()) {
+            size_t n = std::min(state.instruction_keywords_per_turn.size(),
+                                static_cast<size_t>(state.instruction_visible_turns));
+            for (size_t i = state.instruction_keywords_per_turn.size() - n;
+                 i < state.instruction_keywords_per_turn.size(); i++) {
+                windowed_kw.insert(state.instruction_keywords_per_turn[i].begin(),
+                                   state.instruction_keywords_per_turn[i].end());
+            }
+            effective_kw = &windowed_kw;
+        }
         for (const auto& ev : turn_events) {
-            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty() &&
+                !effective_kw->empty()) {
                 int found = 0;
-                for (const auto& kw : state.instruction_keywords) {
+                for (const auto& kw : *effective_kw) {
                     if (ev.content_keywords.count(kw)) found++;
                 }
                 double recall = static_cast<double>(found) /
-                                static_cast<double>(state.instruction_keywords.size());
+                                static_cast<double>(effective_kw->size());
                 if (recall < config_->thresholds.instruction_recall_min) {
                     state.instruction_recall_count++;
                     turn_fired[SIG_INSTRUCTION_RECALL]++;
@@ -2124,11 +2140,22 @@ void ContextDriftAnalyzer::initializeMandateKeywords(
 }
 
 void ContextDriftAnalyzer::addInstructionKeywords(
-    int handle_id, const std::unordered_set<std::string>& keywords) {
+    int handle_id, const std::unordered_set<std::string>& keywords, int visible_turns) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     for (const auto& kw : keywords) {
         state.instruction_keywords.insert(kw);
+    }
+    // Per-turn set for window-aware instruction recall. When context windowing
+    // is active the agent never sees dropped turns, so recall must be measured
+    // only against keywords from turns actually sent. The ratchet only tightens
+    // context_window mid-run, so pruning to the current window is safe.
+    state.instruction_keywords_per_turn.push_back(keywords);
+    state.instruction_visible_turns = visible_turns;
+    if (visible_turns > 0) {
+        while (static_cast<int>(state.instruction_keywords_per_turn.size()) > visible_turns) {
+            state.instruction_keywords_per_turn.pop_front();
+        }
     }
     // Also store per-turn keyword set for instruction conflict detection
     // (per-agent context_drift_signals override wins over the global config)

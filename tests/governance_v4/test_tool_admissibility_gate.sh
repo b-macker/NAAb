@@ -173,7 +173,8 @@ cat > "$WDIR/govern.json" << GOVEOF
             "enabled": true,
             "threshold": 0.95,
             "action": "quarantine",
-            "gate_tool_calls": true
+            "gate_tool_calls": true,
+            "max_quarantine_streak": 0
         }
     },
     "agents": {

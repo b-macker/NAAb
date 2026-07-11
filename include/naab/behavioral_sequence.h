@@ -195,7 +195,9 @@ struct DriftState {
     int mandate_drift_count = 0;                        // turns where rolling mean dropped below threshold
 
     // Instruction recall — tracks mid-conversation user instruction keywords
-    std::unordered_set<std::string> instruction_keywords;  // accumulated from user prompts
+    std::unordered_set<std::string> instruction_keywords;  // accumulated from user prompts (full history; used by challenge summaries)
+    std::deque<std::unordered_set<std::string>> instruction_keywords_per_turn;  // one entry per agent.send()
+    int instruction_visible_turns = 0;                     // turns visible in last send's context window (0 = unlimited)
     int instruction_recall_count = 0;                      // turns where recall dropped below threshold
 
     // Plan drift — tracks execution against stated plan steps
@@ -396,8 +398,11 @@ public:
     // Initialize mandate keywords from system_prompt (for mandate alignment signal)
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
-    // Add instruction keywords from user prompts (for instruction recall signal)
-    void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+    // Add instruction keywords from user prompts (for instruction recall signal).
+    // visible_turns: how many turns (including this prompt) fit in the context
+    // window actually sent to the agent; 0 = no windowing (all turns visible).
+    void addInstructionKeywords(int handle_id, const std::unordered_set<std::string>& keywords,
+                                int visible_turns = 0);
 
     // Extract plan steps from agent response text (for plan drift signal)
     // Only extracts on first call per handle; subsequent calls are no-ops.
