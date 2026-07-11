@@ -22,7 +22,7 @@ SIGNING_KEY="$TMPBASE/test-key.pem"
 
 PASS=0; FAIL=0; SKIP=0
 
-cleanup() { teardown_isolated_trust; rm -rf "$TMPBASE"; }
+cleanup() { [ -n "${STUB_PID:-}" ] && kill "$STUB_PID" 2>/dev/null; teardown_isolated_trust; rm -rf "$TMPBASE"; }
 trap cleanup EXIT
 
 check() {
@@ -405,6 +405,119 @@ OUTPUT=$(cd "$DIR" && "$NAAB" --governance-dashboard test.naab 2>&1) && EC=0 || 
 check "OA10a" "Exits cleanly" "0" "$EC"
 # threshold=5.0 should be clamped to 1.0
 check_grep "OA10b" "Threshold clamped to 1.00" "threshold=1.00" "$OUTPUT"
+
+# ═══════════════════════════════════════════════════════════
+# OA11/OA12: max_quarantine_streak — default 5 terminates the
+# quarantine+commit degradation loop; explicit 0 disables.
+# Requires the local agent stub for real quarantined sends.
+# ═══════════════════════════════════════════════════════════
+export FAKE_KEY_OA_TEST="fake-key-oa-streak-test"
+STUB_PID=""
+start_stub() {  # $1=fixture $2=workdir
+    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
+    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
+    STUB_PID=$!
+    for _ in $(seq 1 50); do
+        grep -q READY "$2/stub.log" 2>/dev/null && return 0
+        sleep 0.1
+    done
+    return 1
+}
+stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null || true; wait "$STUB_PID" 2>/dev/null || true; STUB_PID=""; }
+
+# Both sections: threshold 0.99 so the first CDD penalty (zero instruction
+# recall against the evasive stub reply) makes every turn inadmissible.
+write_streak_config() {  # $1=dir $2=extra_oa_fields (may be empty)
+    cat > "$1/govern.json" << GOVEOF
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "OA quarantine streak test",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1 },
+  "circuit_breaker": {
+    "enabled": true,
+    "output_admissibility": {
+      "enabled": true,
+      "threshold": 0.99,
+      "action": "quarantine"$2
+    }
+  },
+  "agents": {
+    "test_agent": {
+      "provider": "gemini",
+      "model": "stub-model",
+      "api_base": "http://127.0.0.1:$STUB_PORT",
+      "api_key_env": "FAKE_KEY_OA_TEST",
+      "max_tokens": 100,
+      "max_turns": 20
+    }
+  }
+}
+GOVEOF
+}
+
+write_streak_script() {  # $1=dir
+    cat > "$1/test.naab" << 'NAABEOF'
+use agent
+
+main {
+    let h = agent.create("test_agent")
+    let sent = 0
+    for i in 0..10 {
+        let r = agent.send(h, "please summarize the quarterly revenue figures now")
+        sent = sent + 1
+    }
+    print("SENT=" + string(sent))
+}
+NAABEOF
+}
+
+echo ""
+echo "--- OA11: Default max_quarantine_streak=5 hard-blocks the loop ---"
+DIR="$TMPBASE/oa11"
+mkdir -p "$DIR"
+cat > "$DIR/fixture.json" << 'EOF'
+{"responses": [
+  {"content": "evasive unrelated rambling reply", "output_tokens": 20}
+]}
+EOF
+start_stub "$DIR/fixture.json" "$DIR" || { echo "  SKIP [OA11] stub failed to start"; SKIP=$((SKIP + 1)); }
+if [ -n "$STUB_PID" ]; then
+    write_streak_config "$DIR" ""
+    sign_govern "$DIR"
+    write_streak_script "$DIR"
+    OUTPUT=$(cd "$DIR" && timeout 60s "$NAAB" test.naab 2>&1) && EC=0 || EC=$?
+    stop_stub
+    check "OA11a" "Streak breach exits 3 (GovernanceHardError)" "3" "$EC"
+    check_grep "OA11b" "Streak error surfaced" "maximum quarantine streak" "$OUTPUT"
+    check_grep "OA11c" "QUARANTINE_STREAK_EXCEEDED telemetry" "QUARANTINE_STREAK_EXCEEDED" "$(cat "$DIR/telemetry.jsonl" 2>/dev/null)"
+    check_not_grep "OA11d" "Loop terminated before completing all sends" "SENT=10" "$OUTPUT"
+fi
+
+echo ""
+echo "--- OA12: Explicit max_quarantine_streak=0 disables the limit ---"
+DIR="$TMPBASE/oa12"
+mkdir -p "$DIR"
+cat > "$DIR/fixture.json" << 'EOF'
+{"responses": [
+  {"content": "evasive unrelated rambling reply", "output_tokens": 20}
+]}
+EOF
+start_stub "$DIR/fixture.json" "$DIR" || { echo "  SKIP [OA12] stub failed to start"; SKIP=$((SKIP + 1)); }
+if [ -n "$STUB_PID" ]; then
+    write_streak_config "$DIR" ',
+      "max_quarantine_streak": 0'
+    sign_govern "$DIR"
+    write_streak_script "$DIR"
+    OUTPUT=$(cd "$DIR" && timeout 60s "$NAAB" test.naab 2>&1) && EC=0 || EC=$?
+    stop_stub
+    check "OA12a" "Unlimited quarantines exit cleanly" "0" "$EC"
+    check_grep "OA12b" "All sends completed despite quarantines" "SENT=10" "$OUTPUT"
+    check_not_grep "OA12c" "No streak telemetry when disabled" "QUARANTINE_STREAK_EXCEEDED" "$(cat "$DIR/telemetry.jsonl" 2>/dev/null)"
+fi
 
 echo ""
 echo "================================================"

@@ -7231,8 +7231,8 @@ void GovernanceEngine::initializeMandateKeywords(
 }
 
 void GovernanceEngine::addInstructionKeywords(
-    int handle_id, const std::unordered_set<std::string>& keywords) {
-    drift_analyzer_.addInstructionKeywords(handle_id, keywords);
+    int handle_id, const std::unordered_set<std::string>& keywords, int visible_turns) {
+    drift_analyzer_.addInstructionKeywords(handle_id, keywords, visible_turns);
 }
 
 void GovernanceEngine::setSignalOverrides(
