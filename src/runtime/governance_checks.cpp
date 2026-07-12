@@ -6640,7 +6640,8 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "pipeline_separation", "temporal_coupling",
         "subprocess_scrub_mode", "allowed_subprocess_vars",
         "blocked_subprocess_vars", "blocked_subprocess_prefixes",
-        "codegen"
+        "codegen",
+        "scoring_calibration"
     };
 
     try {

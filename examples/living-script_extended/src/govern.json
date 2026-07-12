@@ -77,6 +77,7 @@
       "standing_lease_turns": 20,
       "context_window": 20,
       "context_strategy": "summary",
+      "context_drift_signals": { "prompt_compliance": false },
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
@@ -100,6 +101,7 @@
       "context_window": 20,
       "context_strategy": "summary",
       "context_drift_signals": { "semantic_stability": false, "response_repetition": false },
+      "propose_candidates_max": 2,
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
@@ -122,6 +124,7 @@
       "standing_lease_turns": 20,
       "context_window": 20,
       "context_strategy": "summary",
+      "context_drift_signals": { "context_growth": false },
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
@@ -166,6 +169,31 @@
       "context_strategy": "summary",
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "judge": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 1024,
+      "thinking_budget": 0,
+      "max_turns": 5,
+      "max_total_tokens": 50000,
+      "system_prompt": "You are a code quality judge. Review Python code and vote APPROVED or REJECTED. Be strict: reject if type hints, docstrings, error handling, or history tracking are missing or incorrect. Start your response with your vote: APPROVED or REJECTED.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 5,
+      "context_window": 5,
+      "context_strategy": "recent",
+      "output_contract": {
+        "format": "text",
+        "regex_checks": { "verdict": "APPROVED|REJECTED" }
+      },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     }
   },
 
@@ -185,7 +213,7 @@
   "exposure_tracking": {
     "enabled": true,
     "max_autonomous_actions": 300,
-    "max_unique_agents": 8,
+    "max_unique_agents": 10,
     "coherence_floor": 0.05,
     "level": "advisory",
     "max_pipeline_depth": 4,
@@ -214,7 +242,9 @@
     "rate_normalized": false,
     "coherence_recovery_amount": 0.25,
     "coherence_natural_healing": 0.03,
-    "temporal_decay_enabled": false,
+    "temporal_decay_enabled": true,
+    "temporal_decay_per_minute": 0.001,
+    "temporal_decay_grace_minutes": 5,
     "adaptive_baseline_enabled": true,
     "adaptive_baseline_window": 3,
     "adaptive_baseline_sensitivity": 2.0,
@@ -308,6 +338,36 @@
     "enabled": true,
     "yellow_threshold": 15,
     "red_threshold": 50
+  },
+
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": ["python"],
+    "max_code_size_bytes": 50000,
+    "max_cumulative_calls": 10,
+    "timeout_seconds": 30,
+    "allow_tainted_code": true
+  },
+
+  "scorers": {
+    "code_quality": {
+      "enabled": true,
+      "default_weight": 3,
+      "rule_weights": {
+        "missing_type_hints": 5,
+        "missing_docstrings": 3,
+        "history_copy": 8
+      },
+      "green_threshold": 0,
+      "yellow_threshold": 10,
+      "red_threshold": 20
+    }
+  },
+
+  "scoring_calibration": {
+    "enabled": true,
+    "path": ".naab/scoring-calibration.json",
+    "auto_save": false
   },
 
   "governance": {

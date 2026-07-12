@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
 # ============================================================
-# Living Script Example — Three-Layer Architecture
+# Living Script EXTENDED — Three-Layer Architecture + Advanced Governance
 #
 # Script layer  → defines team, task, data flow
 # Operator layer → agent that reads telemetry, adjusts govern.json
 # Engine layer  → govern.json + CDD + circuit breaker + ratchet
 #
-# Builds a calculator that EVOLVES through 3 feature additions:
+# Builds a calculator that EVOLVES through 4 feature additions:
 #   Base:    add, subtract, multiply, divide + history
 #   Feat 1:  power (x^y) and modulo (%)
 #   Feat 2:  memory system (store, recall, clear)
 #   Feat 3:  expression parser (evaluate string expressions)
+#   Feat 4:  plugin system (register, run, list plugins)
 #
-# Each feature goes through architect → developer → validate → operator
-# plus iterative refinement with tester/reviewer feedback.
+# Extended governance surface:
+#   Level 7:  Propose/commit + codegen validation
+#   Level 8:  Parallel review with fan-out + consensus
+#   Level 9:  Structured scoring with governance.scorer
+#   Level 10: Preflight validation (agent.check, codegen discovery)
+#   Level 11: Batch/pipeline orchestration (agent.batch, agent.pipeline)
+#   Level 12: Introspection & observability (agent.environment/usage/messages/
+#             key_health/dispatch_status/register_tool/run, governance queries,
+#             codegen.run/run_with_args)
 #
 # Requires: GK1 env var with a Gemini API key
-# Expected runtime: 2-5 minutes (~35-50 API calls)
+# Expected runtime: 4-8 minutes (~55-75 API calls)
 # ============================================================
 set -uo pipefail
 
@@ -62,14 +70,14 @@ setup_workdir() {
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
-echo -e "${CYAN}|  Living Script: Three-Layer Architecture Example             |${NC}"
-echo -e "${CYAN}|  (evolving calculator — 3 feature additions + refinement)    |${NC}"
+echo -e "${CYAN}|  Living Script EXTENDED: Advanced Governance Surface          |${NC}"
+echo -e "${CYAN}|  (4 features + propose/commit + fan-out + scoring)           |${NC}"
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 28); do
+    for i in $(seq 1 70); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -80,9 +88,10 @@ else
     echo "Add power(base, exponent) and modulo(a, b) operations to the Calculator class" > "$WORKDIR/input/requirement-001.txt"
     echo "Add a memory system: memory_store(value), memory_recall() returns stored value, memory_clear() resets to None. Memory persists across operations." > "$WORKDIR/input/requirement-002.txt"
     echo "Add an evaluate(expression: str) method that parses and evaluates simple math expressions like '2 + 3 * 4' respecting operator precedence" > "$WORKDIR/input/requirement-003.txt"
+    echo "Add a plugin system: register_plugin(name, func), run_plugin(name, *args), list_plugins() returns list of registered plugin names. Plugins persist for the calculator's lifetime." > "$WORKDIR/input/requirement-004.txt"
 
-    echo -e "${CYAN}Running living script (~2-5 minutes with feature evolution)...${NC}"
-    echo -e "${CYAN}Config: 4 workers + operator, 3 features, max 3 refine cycles${NC}"
+    echo -e "${CYAN}Running living script (~3-7 minutes with feature evolution)...${NC}"
+    echo -e "${CYAN}Config: 4 workers + operator + 2 judges, 4 features, extended governance${NC}"
     echo ""
 
     OUTPUT=$(cd "$WORKDIR" && timeout 1800 "$NAAB" --governance-dashboard "living-script.naab" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
@@ -200,7 +209,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
-    for phase in DESIGN IMPLEMENT REFINE FEATURES FINAL_REVIEW; do
+    for phase in PREFLIGHT DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION; do
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
@@ -302,6 +311,254 @@ assert 'refinement_iterations' in d
         pass "L5-08" "Developer fixed pytest failures ($PYTEST_FIXES fixes)"
     else
         skip "L5-08" "No pytest failures to fix (tests passed)"
+    fi
+
+    # 4th feature (plugin system)
+    if [ "$FEATURES" -ge 4 ]; then
+        pass "L5-09" "All 4 features processed ($FEATURES)"
+    elif [ "$FEATURES" -ge 3 ]; then
+        pass "L5-09" "3+ features processed ($FEATURES, expected 4)"
+    else
+        fail "L5-09" "Too few features processed" "got $FEATURES, expected 4"
+    fi
+
+    # ============================================================
+    # L7: PROPOSE/COMMIT (Level 7)
+    # ============================================================
+    echo -e "${CYAN}Level 7: Propose/Commit${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|PROPOSE_SELECT|"; then
+        pass "L7-01" "Propose/Select phase reached"
+    else
+        fail "L7-01" "Propose/Select phase not reached"
+    fi
+
+    PROPOSE_CANDIDATES=$(echo "$OUTPUT" | grep -oP 'PROPOSE_SELECT\|candidates=\K[0-9]+' | tail -1)
+    PROPOSE_CANDIDATES=${PROPOSE_CANDIDATES:-0}
+    if [ "$PROPOSE_CANDIDATES" -ge 1 ]; then
+        pass "L7-02" "Candidates generated ($PROPOSE_CANDIDATES)"
+    else
+        fail "L7-02" "No candidates generated"
+    fi
+
+    if echo "$OUTPUT" | grep -q "PROPOSE_SELECT|committed=true"; then
+        pass "L7-03" "Proposal committed"
+    else
+        fail "L7-03" "No proposal committed"
+    fi
+
+    CODEGEN_RESULT=$(echo "$OUTPUT" | grep -oP 'codegen=\K\w+' | tail -1)
+    if [ "${CODEGEN_RESULT:-}" = "pass" ]; then
+        pass "L7-04" "Codegen syntax validation passed"
+    elif [ "${CODEGEN_RESULT:-}" = "fail" ]; then
+        fail "L7-04" "Codegen syntax validation failed"
+    else
+        skip "L7-04" "Codegen validation not reached"
+    fi
+
+    # ============================================================
+    # L8: PARALLEL REVIEW (Level 8)
+    # ============================================================
+    echo -e "${CYAN}Level 8: Parallel Review${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|PARALLEL_REVIEW|"; then
+        pass "L8-01" "Parallel review phase reached"
+    else
+        fail "L8-01" "Parallel review phase not reached"
+    fi
+
+    PAR_VOTES=$(echo "$OUTPUT" | grep -oP 'PARALLEL_REVIEW\|votes=\K[0-9]+' | head -1)
+    PAR_VOTES=${PAR_VOTES:-0}
+    if [ "$PAR_VOTES" -ge 2 ]; then
+        pass "L8-02" "Fan-out votes collected ($PAR_VOTES)"
+    elif [ "$PAR_VOTES" -ge 1 ]; then
+        pass "L8-02" "Partial fan-out votes ($PAR_VOTES, expected 2)"
+    else
+        fail "L8-02" "No fan-out votes collected"
+    fi
+
+    PAR_VERDICT=$(echo "$OUTPUT" | grep -oP 'PARALLEL_REVIEW\|.*verdict=\K\w+' | head -1)
+    if [ -n "${PAR_VERDICT:-}" ]; then
+        pass "L8-03" "Consensus verdict: $PAR_VERDICT"
+    else
+        fail "L8-03" "No consensus verdict"
+    fi
+
+    # ============================================================
+    # L9: STRUCTURED SCORING (Level 9)
+    # ============================================================
+    echo -e "${CYAN}Level 9: Structured Scoring${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|SCORING|"; then
+        pass "L9-01" "Scoring phase reached"
+    else
+        fail "L9-01" "Scoring phase not reached"
+    fi
+
+    SCORE_FINDINGS=$(echo "$OUTPUT" | grep -oP 'SCORING\|.*findings=\K[0-9]+' | head -1)
+    if [ -n "${SCORE_FINDINGS:-}" ]; then
+        pass "L9-02" "Governance findings recorded ($SCORE_FINDINGS findings)"
+    else
+        fail "L9-02" "No governance findings"
+    fi
+
+    SCORE_VERDICT=$(echo "$OUTPUT" | grep -oP 'SCORING\|.*verdict=\K\w+' | head -1)
+    if [ -n "${SCORE_VERDICT:-}" ]; then
+        pass "L9-03" "Score verdict: $SCORE_VERDICT"
+    else
+        fail "L9-03" "No score verdict"
+    fi
+
+    # ============================================================
+    # L10: PREFLIGHT (validation + discovery)
+    # ============================================================
+    echo -e "${CYAN}Level 10: Preflight Validation${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|PREFLIGHT|start"; then
+        pass "L10-01" "Preflight phase reached"
+    else
+        fail "L10-01" "Preflight phase not reached"
+    fi
+
+    PREFLIGHT_CHECKS=$(echo "$OUTPUT" | grep -oP 'PREFLIGHT\|agent_checks=\K[0-9]+' | head -1)
+    if [ "${PREFLIGHT_CHECKS:-0}" -ge 7 ]; then
+        pass "L10-02" "All 7 agent configs validated ($PREFLIGHT_CHECKS checks)"
+    else
+        fail "L10-02" "Agent config validation incomplete" "got ${PREFLIGHT_CHECKS:-0}, expected 7"
+    fi
+
+    if echo "$OUTPUT" | grep -q "PREFLIGHT|invalid_check=handled"; then
+        pass "L10-03" "Invalid config handled gracefully"
+    else
+        fail "L10-03" "Invalid config not handled"
+    fi
+
+    if echo "$OUTPUT" | grep -q "PREFLIGHT|codegen_enabled=true"; then
+        pass "L10-04" "Codegen enabled confirmed"
+    else
+        fail "L10-04" "Codegen not enabled"
+    fi
+
+    if echo "$OUTPUT" | grep -q "PREFLIGHT|.*has_python=true"; then
+        pass "L10-05" "Python in supported languages"
+    else
+        fail "L10-05" "Python not in supported languages"
+    fi
+
+    # ============================================================
+    # L11: BATCH/PIPELINE (parallel + sequential orchestration)
+    # ============================================================
+    echo -e "${CYAN}Level 11: Batch & Pipeline${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|BATCH_PIPELINE|start"; then
+        pass "L11-01" "Batch/Pipeline phase reached"
+    else
+        fail "L11-01" "Batch/Pipeline phase not reached"
+    fi
+
+    BATCH_RESP=$(echo "$OUTPUT" | grep -oP 'BATCH_PIPELINE\|batch_responses=\K[0-9]+' | head -1)
+    if [ "${BATCH_RESP:-0}" -ge 2 ]; then
+        pass "L11-02" "Batch returned responses ($BATCH_RESP)"
+    else
+        fail "L11-02" "Batch returned insufficient responses" "got ${BATCH_RESP:-0}, expected 2"
+    fi
+
+    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|pipeline_ok=true"; then
+        pass "L11-03" "Pipeline chaining succeeded"
+    else
+        fail "L11-03" "Pipeline chaining failed"
+    fi
+
+    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|seq_plan=true"; then
+        pass "L11-04" "Sequential refinement plan created"
+    else
+        fail "L11-04" "Sequential refinement plan failed"
+    fi
+
+    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|.*seq_plan_pattern=sequential_refinement"; then
+        pass "L11-05" "Sequential refinement plan valid"
+    else
+        fail "L11-05" "Sequential refinement plan pattern mismatch"
+    fi
+
+    # ============================================================
+    # L12: INTROSPECTION (observability + extended codegen)
+    # ============================================================
+    echo -e "${CYAN}Level 12: Introspection${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|INTROSPECTION|start"; then
+        pass "L12-01" "Introspection phase reached"
+    else
+        fail "L12-01" "Introspection phase not reached"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|environment|"; then
+        pass "L12-02" "agent.environment() returned data"
+    else
+        fail "L12-02" "agent.environment() failed"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|usage|"; then
+        pass "L12-03" "agent.usage() returned data"
+    else
+        fail "L12-03" "agent.usage() failed"
+    fi
+
+    MSGS_COUNT=$(echo "$OUTPUT" | grep -oP 'INTROSPECTION\|messages\|count=\K[0-9]+' | head -1)
+    if [ "${MSGS_COUNT:-0}" -ge 1 ]; then
+        pass "L12-04" "agent.messages() returned history ($MSGS_COUNT messages)"
+    else
+        fail "L12-04" "agent.messages() returned no history"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|key_health|"; then
+        pass "L12-05" "agent.key_health() returned data"
+    else
+        fail "L12-05" "agent.key_health() failed"
+    fi
+
+    DISPATCH_CALLS=$(echo "$OUTPUT" | grep -oP 'INTROSPECTION\|dispatch\|calls=\K[0-9]+' | head -1)
+    if [ "${DISPATCH_CALLS:-0}" -ge 10 ]; then
+        pass "L12-06" "agent.dispatch_status() shows calls ($DISPATCH_CALLS)"
+    else
+        fail "L12-06" "agent.dispatch_status() too few calls" "got ${DISPATCH_CALLS:-0}"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|register_tool=true"; then
+        pass "L12-07" "agent.register_tool() succeeded"
+    else
+        fail "L12-07" "agent.register_tool() failed"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|agent_run|"; then
+        pass "L12-08" "agent.run() one-shot succeeded"
+    else
+        fail "L12-08" "agent.run() failed"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|calibrate|success=true"; then
+        pass "L12-09" "governance.calibrate() succeeded"
+    else
+        fail "L12-09" "governance.calibrate() failed"
+    fi
+
+    OVERRIDE_COUNT=$(echo "$OUTPUT" | grep -oP 'INTROSPECTION\|calibration_overrides=\K[0-9]+' | head -1)
+    if [ "${OVERRIDE_COUNT:-0}" -ge 1 ]; then
+        pass "L12-10" "governance.calibration() has overrides ($OVERRIDE_COUNT)"
+    else
+        fail "L12-10" "governance.calibration() returned no overrides"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|codegen_run=OK"; then
+        pass "L12-11" "codegen.run() executed"
+    else
+        fail "L12-11" "codegen.run() failed"
+    fi
+
+    if echo "$OUTPUT" | grep -q "INTROSPECTION|codegen_args=OK"; then
+        pass "L12-12" "codegen.run_with_args() executed"
+    else
+        fail "L12-12" "codegen.run_with_args() failed"
     fi
 
     # ============================================================
@@ -439,6 +696,42 @@ print('true' if ok else 'false')
     echo ""
     echo -e "${CYAN}Feature Evolution:${NC}"
     echo "$OUTPUT" | grep -E '^(FEATURE\||REACTIVE\|)' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Propose/Commit:${NC}"
+    echo "$OUTPUT" | grep '^PROPOSE_SELECT|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Parallel Review:${NC}"
+    echo "$OUTPUT" | grep '^PARALLEL_REVIEW|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Scoring:${NC}"
+    echo "$OUTPUT" | grep '^SCORING|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Preflight:${NC}"
+    echo "$OUTPUT" | grep '^PREFLIGHT|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Batch/Pipeline:${NC}"
+    echo "$OUTPUT" | grep '^BATCH_PIPELINE|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Introspection:${NC}"
+    echo "$OUTPUT" | grep '^INTROSPECTION|' | while read -r line; do
         echo -e "  ${CYAN}$line${NC}"
     done
 
