@@ -7109,17 +7109,35 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             // F6: Update system-wide governance level from sustained pressure
             const auto& cb = rules().circuit_breaker;
             if (cb.enabled) {
-                int level = 0;
-                if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) level = 3;
-                else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) level = 2;
-                else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) level = 1;
+                int target = 0;
+                if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) target = 3;
+                else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) target = 2;
+                else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) target = 1;
 
                 // Pulse escalation: raises per-call floor (never below pressure-computed level)
-                if (pv == PulseVerdict::IMPAIRED && level < 2) level = 2;
-                else if (pv == PulseVerdict::DEGRADED && level < 1) level = 1;
+                if (pv == PulseVerdict::IMPAIRED && target < 2) target = 2;
+                else if (pv == PulseVerdict::DEGRADED && target < 1) target = 1;
+
+                // De-escalation hysteresis: escalation applies immediately, but
+                // stepping DOWN requires deescalate_sustained consecutive calm
+                // turns and moves one level at a time. Without this, a single
+                // below-threshold composite sample dropped the level straight to
+                // NORMAL — removing scrutiny exactly when a decaying agent
+                // briefly looked calm.
+                int prev_level = governance_level_.load(std::memory_order_relaxed);
+                int level = prev_level;
+                if (target >= prev_level) {
+                    level = target;
+                    deescalate_calm_turns_.store(0, std::memory_order_relaxed);
+                } else {
+                    int calm = deescalate_calm_turns_.fetch_add(1, std::memory_order_relaxed) + 1;
+                    if (calm >= std::max(1, cb.deescalate_sustained)) {
+                        level = prev_level - 1;
+                        deescalate_calm_turns_.store(0, std::memory_order_relaxed);
+                    }
+                }
 
                 // Evidence Epoch: governance level change invalidates prior evidence
-                int prev_level = governance_level_.load(std::memory_order_relaxed);
                 if (level != prev_level) {
                     governance_epoch_++;
                     {

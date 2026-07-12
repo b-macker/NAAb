@@ -47,6 +47,25 @@ proposed transition ──► admission ──► execution ──► admissibil
   of letting quarantined output poison the conversation indefinitely.
   Ratchet: removing or raising the streak limit mid-run is a violation.
 
+  A quarantined response contaminates state through two distinct
+  channels, and `inadmissible_history` governs only one of them:
+
+  - **Model-context channel** — with `"commit"`, the degraded response is
+    replayed to the model on every later turn (subject to context
+    windowing). `"exclude"` closes this channel: the model never re-reads
+    its quarantined output (the paired user message is also dropped to
+    preserve role alternation, so the agent "forgets" the exchange).
+  - **CDD-state channel** — context-drift scoring runs *before* the
+    admissibility gate, so DriftState (response fingerprints, entity
+    contexts, semantic-stability keywords, the coherence penalty itself)
+    absorbs the quarantined response under BOTH settings. This is by
+    design: the gate's own verdict is derived from that evidence, and
+    governance cannot un-see behavior that actually occurred.
+
+  Choose `"exclude"` to stop degraded output from steering the model;
+  do not expect it to reset governance's memory of the turn — only
+  `agent.reset()` clears drift state.
+
 ## Selective adjudication (propose → select → commit)
 
 `agent.propose(handle, message, n)` executes the full pre-send gauntlet

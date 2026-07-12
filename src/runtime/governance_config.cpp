@@ -2721,6 +2721,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("instruction_recall_min") && th["instruction_recall_min"].is_number()) cfg.thresholds.instruction_recall_min = std::max(0.0, std::min(1.0, th["instruction_recall_min"].get<double>()));
             if (th.contains("plan_step_overlap_min") && th["plan_step_overlap_min"].is_number()) cfg.thresholds.plan_step_overlap_min = std::max(0.0, std::min(1.0, th["plan_step_overlap_min"].get<double>()));
             if (th.contains("entity_context_min_overlap") && th["entity_context_min_overlap"].is_number()) cfg.thresholds.entity_context_min_overlap = std::max(0.0, std::min(1.0, th["entity_context_min_overlap"].get<double>()));
+            if (th.contains("entity_context_window") && th["entity_context_window"].is_number_integer()) cfg.thresholds.entity_context_window = std::max(1, th["entity_context_window"].get<int>());
             if (th.contains("instruction_conflict_topic_overlap") && th["instruction_conflict_topic_overlap"].is_number()) cfg.thresholds.instruction_conflict_topic_overlap = std::max(0.0, std::min(1.0, th["instruction_conflict_topic_overlap"].get<double>()));
             if (th.contains("instruction_conflict_window") && th["instruction_conflict_window"].is_number_integer()) cfg.thresholds.instruction_conflict_window = std::max(2, th["instruction_conflict_window"].get<int>());
             if (th.contains("persona_deviation_factor") && th["persona_deviation_factor"].is_number()) cfg.thresholds.persona_deviation_factor = std::max(1.0, th["persona_deviation_factor"].get<double>());
@@ -2864,6 +2865,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("elevated_sustained") && cbj["elevated_sustained"].is_number_integer()) cfg.elevated_sustained = cbj["elevated_sustained"].get<int>();
         if (cbj.contains("high_sustained") && cbj["high_sustained"].is_number_integer()) cfg.high_sustained = cbj["high_sustained"].get<int>();
         if (cbj.contains("critical_sustained") && cbj["critical_sustained"].is_number_integer()) cfg.critical_sustained = cbj["critical_sustained"].get<int>();
+        if (cbj.contains("deescalate_sustained") && cbj["deescalate_sustained"].is_number_integer()) cfg.deescalate_sustained = std::max(1, cbj["deescalate_sustained"].get<int>());
         if (cbj.contains("step_up_enabled") && cbj["step_up_enabled"].is_boolean()) cfg.step_up_enabled = cbj["step_up_enabled"].get<bool>();
         if (cbj.contains("step_up_at_level") && cbj["step_up_at_level"].is_string()) cfg.step_up_at_level = cbj["step_up_at_level"].get<std::string>();
         if (cbj.contains("step_up_challenge") && cbj["step_up_challenge"].is_string()) cfg.step_up_challenge = cbj["step_up_challenge"].get<std::string>();
@@ -3535,6 +3537,15 @@ static bool checkRatchetViolation(
     else if (new_r.advisory_escalation.soft_after < old_r.advisory_escalation.soft_after)
         notices.push_back(fmt::format("advisory_escalation.soft_after: {} -> {} (tightened)",
             old_r.advisory_escalation.soft_after, new_r.advisory_escalation.soft_after));
+
+    // --- De-escalation hysteresis ratchet ---
+    // Fewer calm turns before stepping the governance level down = loosening
+    if (new_r.circuit_breaker.deescalate_sustained < old_r.circuit_breaker.deescalate_sustained)
+        violations.push_back(fmt::format("circuit_breaker.deescalate_sustained: {} -> {} (loosened)",
+            old_r.circuit_breaker.deescalate_sustained, new_r.circuit_breaker.deescalate_sustained));
+    else if (new_r.circuit_breaker.deescalate_sustained > old_r.circuit_breaker.deescalate_sustained)
+        notices.push_back(fmt::format("circuit_breaker.deescalate_sustained: {} -> {} (tightened)",
+            old_r.circuit_breaker.deescalate_sustained, new_r.circuit_breaker.deescalate_sustained));
 
     // --- Output Admissibility ratchet ---
     auto& old_oa = old_r.circuit_breaker.output_admissibility;
