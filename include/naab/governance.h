@@ -1357,7 +1357,10 @@ struct ContextDriftConfig {
         double contradiction = 0.2;
         double repeated_failure = 0.05;
         double vocabulary_contraction = 0.15;
-        double coherence_velocity = 0.12;     // F1: moderate — velocity drop is a derivative signal
+        double coherence_velocity = 0.12;     // INERT: S6 is detection-only (velocity = last turn's
+                                              // net penalty, so a direct penalty double-counts and
+                                              // cascades); it escalates via the pressure composite
+                                              // instead. Field kept for config compatibility.
         double capability_underutilization = 0.1; // F9: low — may be legitimate deferred usage
         double semantic_stability = 0.1;       // F19: low — topic shifts are common in exploration
         double mandate_alignment = 0.12;       // moderate — mandate drift is a stronger signal than topic shift
@@ -1439,6 +1442,12 @@ struct ContextDriftConfig {
         // keywords, the agent may be confusing entities or mixing state. Normal variation
         // in how an entity is described stays above 30-40%.
         double entity_context_min_overlap = 0.25;
+        // 5: number of recent per-sighting context sets kept per entity. A contradiction
+        // means the current context matches NONE of the recent sightings (max Jaccard
+        // below entity_context_min_overlap). Bounding the window keeps the comparison
+        // frame stable — an unbounded historical union dilutes overlap toward zero for
+        // any evolving agent, making the signal structurally inevitable.
+        int entity_context_window = 5;
         // 0.40: two instructions sharing >40% topic keywords are about the same subject.
         // Combined with presence of negation markers, indicates a contradiction.
         double instruction_conflict_topic_overlap = 0.40;
@@ -1545,6 +1554,12 @@ struct CircuitBreakerConfig {
     int elevated_sustained = 2;
     int high_sustained = 3;
     int critical_sustained = 4;
+    // De-escalation hysteresis: consecutive turns where the freshly computed
+    // target level sits BELOW the current level before stepping down ONE level.
+    // Without this, a single calm composite sample dropped the level straight
+    // to NORMAL — escalation was sustained but de-escalation was instant, so
+    // scrutiny disappeared exactly when a decaying agent briefly looked calm.
+    int deescalate_sustained = 2;
     // Step-up challenge at elevated governance levels
     bool step_up_enabled = false;
     std::string step_up_at_level = "elevated";
@@ -3226,6 +3241,10 @@ private:
 
     // F6: System-wide governance level
     std::atomic<int> governance_level_{0};  // GovernanceLevel::NORMAL
+    // De-escalation hysteresis: consecutive turns where the computed target
+    // level sat below governance_level_. Stepping down one level requires
+    // circuit_breaker.deescalate_sustained such turns (escalation stays instant).
+    std::atomic<int> deescalate_calm_turns_{0};
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json

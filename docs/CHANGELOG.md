@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CDD `entity_consistency` (S15) unbounded-denominator false positive** — entity context is now a bounded deque of per-sighting keyword sets (`thresholds.entity_context_window`, default 5); a contradiction means the current context matches NONE of the recent sightings (max Jaccard below `entity_context_min_overlap`). The previous accumulated union mathematically diluted overlap toward zero, making the signal fire every turn forever for any evolving agent.
+- **CDD `coherence_velocity` (S6) penalty cascade** — S6 is now detection-only. Coherence changes only via penalties, so the velocity was exactly last turn's net penalty; the direct penalty double-counted evidence and fed the next velocity reading (self-sustaining cascade, reproduced: a clean turn was penalized 0.12 solely because the previous turn was penalized). S6 still fires into telemetry, dashboard, and circuit-breaker pressure escalation; `weights.coherence_velocity` is inert.
+- **Instant governance de-escalation** — stepping the system-wide level down now requires `circuit_breaker.deescalate_sustained` (default 2) consecutive calm turns and moves one level at a time; escalation remains immediate. Previously a single below-threshold composite sample dropped the level straight to NORMAL. Lowering `deescalate_sustained` mid-run is a ratchet violation.
+- **Contextual step-up challenges quizzed undelivered prompts** — instruction/prompt keyword bookkeeping moved after the admission and step-up gates in `agentSend()`, so challenges only grade information the agent actually received. Fresh handles now fall through to the (gradeable) mandate challenge instead of a structurally unpassable instruction challenge; blocked sends no longer record keywords for never-delivered prompts.
+- **CDD skipped the first turn of every handle** — `DriftState.last_checked_turn` now initializes to -1 (event turns start at 0, and the 0 default made the interval guard silently skip turn 0: no fingerprint, no entity baseline, no recall check for the first response).
+- **S21 `response_repetition` prefix-hash false positives** — response fingerprints now hash the FULL content instead of the first 200 chars; responses sharing only an opening (e.g. identical import blocks) no longer register as verbatim duplicates.
+
+### Documentation
+- `docs/transition-admissibility.md` — documented the two distinct contamination channels of a quarantined response (model-context vs CDD-state) and what `inadmissible_history: "exclude"` does and does not clear.
+
 ## [1.1.0] - 2026-04-23
 
 ### Added

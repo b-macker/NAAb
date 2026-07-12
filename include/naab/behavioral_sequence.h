@@ -160,7 +160,9 @@ struct DriftState {
     int scope_creep_count = 0;
     std::deque<std::string> turn_fingerprints;  // hash of actions per turn
     std::deque<std::string> recent_errors;      // last N error messages
-    int last_checked_turn = 0;
+    int last_checked_turn = -1;  // -1 so turn 0 is analyzed: agent event turns
+                                 // start at 0, and 0 - 0 < check_interval made
+                                 // CDD skip the first send of every handle
     std::unordered_set<std::string> seen_event_types;  // historical unique type abbreviations
     std::deque<std::unordered_set<std::string>> per_turn_types;  // action types per turn (sliding window)
     int vocabulary_contraction_count = 0;  // narrowing action diversity
@@ -206,8 +208,12 @@ struct DriftState {
     int plan_last_step_matched = -1;                                     // index of last matched step
     int plan_drift_count = 0;                                            // turns with drift detected
 
-    // Entity consistency — tracks entity-context associations across turns
-    std::unordered_map<std::string, std::unordered_set<std::string>> entity_context;  // entity → context keywords
+    // Entity consistency — tracks entity-context associations across turns.
+    // Per-sighting sets (newest last), bounded to thresholds.entity_context_window.
+    // Comparing against recent sightings instead of an ever-growing union keeps
+    // the Jaccard denominator bounded — an unbounded union mathematically decays
+    // overlap toward zero for any evolving agent, firing S15 forever.
+    std::unordered_map<std::string, std::deque<std::unordered_set<std::string>>> entity_context;
     int entity_consistency_count = 0;                                    // turns with entity contradiction
 
     // Instruction conflict — detect contradictory user instructions

@@ -1081,8 +1081,13 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.prev_turn_blocked_caps = this_turn_blocked;
     }
 
-    // Signal 6: Coherence velocity (rapid decay detection)
-    // Fires when coherence is dropping faster than -0.15 per turn
+    // Signal 6: Coherence velocity (rapid decay detection) — detection-only.
+    // Coherence only changes through signal penalties and recovery, so the
+    // velocity is exactly last turn's net penalty total. Subtracting coherence
+    // for it re-punishes already-punished evidence and feeds the next velocity
+    // reading — a self-sustaining cascade. The signal therefore fires (telemetry,
+    // dashboard, signal-density/pressure escalation via the circuit breaker's
+    // coherence_acceleration factor) but applies NO direct coherence penalty.
     if (sig_on(config_->signals.coherence_velocity, SIG_COHERENCE_VELOCITY) && state.coherence_history.size() >= 2) {
         size_t n = state.coherence_history.size();
         double prev_velocity = state.coherence_velocity;
@@ -1091,12 +1096,6 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
         if (state.coherence_velocity < config_->thresholds.velocity_drop) {
             turn_fired[SIG_COHERENCE_VELOCITY]++;
-            if (!in_baseline) {
-                double p_vel = base_penalty(config_->weights.coherence_velocity, 1);
-                state.coherence_score -= p_vel;
-                turn_penalties[SIG_COHERENCE_VELOCITY] += p_vel;
-                state.signals_fired_this_turn++;
-            }
         }
     }
 
@@ -1475,32 +1474,46 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
-    // Signal 15: Entity consistency — detect contradictory entity-context associations
+    // Signal 15: Entity consistency — detect contradictory entity-context associations.
+    // A contradiction means the current context matches NONE of the entity's recent
+    // sightings (max Jaccard below threshold). Comparing per-sighting instead of
+    // against an accumulated union keeps the denominator bounded — the union grows
+    // monotonically, so overlap against it decays toward zero for any evolving agent.
+    // An entity also legitimately lives in several contexts (definition site vs.
+    // usage site); only a context resembling no recent sighting is a contradiction.
     if (sig_on(config_->signals.entity_consistency, SIG_ENTITY_CONSISTENCY)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 auto current_entities = extractEntityContext(ev.content_keywords);
                 bool contradiction_found = false;
+                int window = std::max(1, config_->thresholds.entity_context_window);
                 for (const auto& [entity, current_ctx] : current_entities) {
                     auto it = state.entity_context.find(entity);
                     if (it != state.entity_context.end() && !it->second.empty() &&
-                        !current_ctx.empty()) {
-                        // Compute Jaccard between historical and current context
-                        size_t intersection = 0;
-                        for (const auto& kw : current_ctx) {
-                            if (it->second.count(kw)) intersection++;
+                        !current_ctx.empty() && !contradiction_found) {
+                        // Max Jaccard between current context and each recent sighting
+                        double best_overlap = 0.0;
+                        for (const auto& sighting : it->second) {
+                            if (sighting.empty()) continue;
+                            size_t intersection = 0;
+                            for (const auto& kw : current_ctx) {
+                                if (sighting.count(kw)) intersection++;
+                            }
+                            size_t union_size = sighting.size() + current_ctx.size() - intersection;
+                            double overlap = union_size > 0 ?
+                                static_cast<double>(intersection) / static_cast<double>(union_size) : 1.0;
+                            if (overlap > best_overlap) best_overlap = overlap;
                         }
-                        size_t union_size = it->second.size() + current_ctx.size() - intersection;
-                        double overlap = union_size > 0 ?
-                            static_cast<double>(intersection) / static_cast<double>(union_size) : 1.0;
-                        if (overlap < config_->thresholds.entity_context_min_overlap) {
+                        if (best_overlap < config_->thresholds.entity_context_min_overlap) {
                             contradiction_found = true;
-                            break;
                         }
                     }
-                    // Merge current context into historical (accumulate, don't replace)
-                    auto& hist = state.entity_context[entity];
-                    for (const auto& kw : current_ctx) hist.insert(kw);
+                    // Record current context as a new sighting (bounded window)
+                    auto& sightings = state.entity_context[entity];
+                    sightings.push_back(current_ctx);
+                    while (static_cast<int>(sightings.size()) > window) {
+                        sightings.pop_front();
+                    }
                 }
                 if (contradiction_found) {
                     state.entity_consistency_count++;

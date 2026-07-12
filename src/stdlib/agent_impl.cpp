@@ -352,6 +352,16 @@ static double scoreContextualChallengeRatio(const std::string& response,
     return static_cast<double>(found) / static_cast<double>(expected_keywords.size());
 }
 
+// Union of an entity's recent per-sighting context sets (DriftState.entity_context
+// stores a bounded deque of sightings; consumers that need "all recent context
+// keywords" flatten it through here).
+static std::unordered_set<std::string> entityContextUnion(
+    const std::deque<std::unordered_set<std::string>>& sightings) {
+    std::unordered_set<std::string> u;
+    for (const auto& s : sightings) u.insert(s.begin(), s.end());
+    return u;
+}
+
 // Build a mechanical summary preamble from DriftState metadata for challenge context.
 // Returns empty string if no metadata is available.
 static std::string buildChallengeSummary(const governance::DriftState& ds, int current_turn) {
@@ -403,23 +413,21 @@ static std::string buildChallengeSummary(const governance::DriftState& ds, int c
         summary += ".";
     }
 
-    // Key entities (top 5 by context keyword count)
+    // Key entities (top 5 by windowed context keyword count)
     if (!ds.entity_context.empty()) {
-        std::vector<std::pair<std::string, size_t>> entities;
-        for (const auto& [ent, ctx] : ds.entity_context) {
-            entities.push_back({ent, ctx.size()});
+        std::vector<std::pair<std::string, std::unordered_set<std::string>>> entities;
+        for (const auto& [ent, sightings] : ds.entity_context) {
+            entities.push_back({ent, entityContextUnion(sightings)});
         }
         std::sort(entities.begin(), entities.end(),
-                  [](const auto& a, const auto& b) { return a.second > b.second; });
+                  [](const auto& a, const auto& b) { return a.second.size() > b.second.size(); });
         summary += " Key entities:";
         for (size_t i = 0; i < entities.size() && i < 5; i++) {
-            const auto& ent = entities[i].first;
-            summary += (i == 0 ? " " : ", ") + ent;
-            auto it = ds.entity_context.find(ent);
-            if (it != ds.entity_context.end() && !it->second.empty()) {
+            summary += (i == 0 ? " " : ", ") + entities[i].first;
+            if (!entities[i].second.empty()) {
                 summary += " (";
                 int kcount = 0;
-                for (const auto& kw : it->second) {
+                for (const auto& kw : entities[i].second) {
                     if (kcount >= 4) break;
                     summary += (kcount == 0 ? "" : ", ") + kw;
                     kcount++;
@@ -1522,31 +1530,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
-    // Extract instruction keywords from user prompt (for instruction recall signal)
-    if (gov_engine && gov_engine->isActive() && !message.empty() &&
-        effectiveSignal(config, gov_engine->getRules().context_drift.signals.instruction_recall, "instruction_recall")) {
-        std::unordered_set<std::string> instr_kw;
-        extractKeywords(message, instr_kw);
-        if (!instr_kw.empty()) {
-            // Windowing: history turns actually sent (user/assistant pairs) plus
-            // the current prompt, which is always sent. 0 = no windowing.
-            int visible_turns = 0;
-            if (windowing_active) {
-                visible_turns = static_cast<int>((msg_list.size() - start_idx) / 2) + 1;
-            }
-            gov_engine->addInstructionKeywords(handle_id, instr_kw, visible_turns);
-        }
-    }
-
-    // Route prompt keywords to CDD for prompt compliance signal (S20)
-    if (gov_engine && gov_engine->isActive() && !message.empty() &&
-        effectiveSignal(config, gov_engine->getRules().context_drift.signals.prompt_compliance, "prompt_compliance")) {
-        std::unordered_set<std::string> prompt_kw;
-        extractKeywords(message, prompt_kw);
-        if (!prompt_kw.empty()) {
-            gov_engine->setTurnPromptKeywords(handle_id, prompt_kw);
-        }
-    }
+    // NOTE: instruction/prompt keyword bookkeeping happens AFTER the admission
+    // and step-up gates (below) — recording the pending prompt here would let
+    // contextual challenges quiz the agent on a message it never received, and
+    // would leak the undelivered prompt into summary-mode preambles.
 
     // Transcript: first-turn config snapshot
     if (transcript_active && current_turn == 0 && config) {
@@ -1785,13 +1772,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 }
                                 // Priority 4: entity — test entity awareness
                                 if (challenge_type == "mandate" && !challenge_ds->entity_context.empty()) {
-                                    // Pick entity with most context keywords
+                                    // Pick entity with most windowed context keywords
                                     std::string best_entity;
-                                    size_t best_size = 0;
-                                    for (const auto& [ent, ctx] : challenge_ds->entity_context) {
-                                        if (ctx.size() > best_size) {
+                                    std::unordered_set<std::string> best_ctx;
+                                    for (const auto& [ent, sightings] : challenge_ds->entity_context) {
+                                        auto ctx = entityContextUnion(sightings);
+                                        if (ctx.size() > best_ctx.size()) {
                                             best_entity = ent;
-                                            best_size = ctx.size();
+                                            best_ctx = std::move(ctx);
                                         }
                                     }
                                     if (!best_entity.empty()) {
@@ -1799,7 +1787,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         challenge_text = "What is " + best_entity +
                                             " and how does it relate to your current task? "
                                             "Answer in one sentence, then proceed.";
-                                        contextual_expected_keywords = challenge_ds->entity_context.at(best_entity);
+                                        contextual_expected_keywords = std::move(best_ctx);
                                     }
                                 }
                         }
@@ -2036,6 +2024,38 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         nlohmann::json tool_names = nlohmann::json::array();
         for (const auto& td : initial_tool_defs) tool_names.push_back(td.name);
         transcript_entry["tools_sent"] = tool_names;
+    }
+
+    // ── CDD keyword bookkeeping — runs only after all pre-send gates passed ──
+    // The message is now guaranteed to be delivered, so its keywords may enter
+    // the state that contextual challenges and summary preambles draw from.
+    // Blocked sends (admission denial, failed step-up) never record keywords
+    // for a prompt the agent never saw.
+
+    // Extract instruction keywords from user prompt (for instruction recall signal)
+    if (gov_engine && gov_engine->isActive() && !message.empty() &&
+        effectiveSignal(config, gov_engine->getRules().context_drift.signals.instruction_recall, "instruction_recall")) {
+        std::unordered_set<std::string> instr_kw;
+        extractKeywords(message, instr_kw);
+        if (!instr_kw.empty()) {
+            // Windowing: history turns actually sent (user/assistant pairs) plus
+            // the current prompt, which is always sent. 0 = no windowing.
+            int visible_turns = 0;
+            if (windowing_active) {
+                visible_turns = static_cast<int>((msg_list.size() - start_idx) / 2) + 1;
+            }
+            gov_engine->addInstructionKeywords(handle_id, instr_kw, visible_turns);
+        }
+    }
+
+    // Route prompt keywords to CDD for prompt compliance signal (S20)
+    if (gov_engine && gov_engine->isActive() && !message.empty() &&
+        effectiveSignal(config, gov_engine->getRules().context_drift.signals.prompt_compliance, "prompt_compliance")) {
+        std::unordered_set<std::string> prompt_kw;
+        extractKeywords(message, prompt_kw);
+        if (!prompt_kw.empty()) {
+            gov_engine->setTurnPromptKeywords(handle_id, prompt_kw);
+        }
     }
 
     // ── Mandate reinforcement & coherence correction injection ──
@@ -3548,13 +3568,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     // Behavioral sequence: emit agent.response event + context drift check
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().behavioral_sequences.enabled) {
-        // Content-aware fingerprint: hash first 200 chars of response so CDD
-        // can distinguish different responses (breaks mechanical "ARAS" pattern)
+        // Content-aware fingerprint: hash the FULL response so S21 means byte-
+        // identical repetition. A prefix hash false-positives on responses that
+        // merely share a preamble (code answers opening with the same imports).
         std::string cfp;
         std::unordered_set<std::string> response_keywords;
         if (!agent_resp.content.empty()) {
-            cfp = security::CryptoUtils::sha256(
-                agent_resp.content.substr(0, std::min(agent_resp.content.size(), size_t(200))));
+            cfp = security::CryptoUtils::sha256(agent_resp.content);
             // Extract keywords for semantic analysis (reuse existing extractKeywords)
             extractKeywords(agent_resp.content, response_keywords);
         }
@@ -4686,8 +4706,9 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
         std::string cfp;
         std::unordered_set<std::string> response_keywords;
         if (!selected.content.empty()) {
-            cfp = security::CryptoUtils::sha256(selected.content.substr(0,
-                std::min(selected.content.size(), size_t(200))));
+            // Full-content fingerprint — same rationale as the send path: S21
+            // detects byte-identical repetition, prefix hashes false-positive.
+            cfp = security::CryptoUtils::sha256(selected.content);
             extractKeywords(selected.content, response_keywords);
         }
         int event_turn = gov_engine->getCurrentAgentTurn();
