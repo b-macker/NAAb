@@ -222,7 +222,6 @@ fn validate_code(ops_code, main_code, test_code, ops_pattern) {
         let check = process.run("python3", ["-c", "import ast; ast.parse(open('_ops_check.py').read()); print('SYNTAX_OK')"])
         results["ops_syntax"] = check.exit_code == 0
         total_checks = total_checks + 1
-        try { file.delete("_ops_check.py") } catch (e) {}
         let conv = orchestra.enforce_convergence(ops_code, {pattern: ops_pattern})
         results["ops_convergence"] = conv.get("valid") ?? false
         total_checks = total_checks + 1
@@ -232,7 +231,6 @@ fn validate_code(ops_code, main_code, test_code, ops_pattern) {
         let check = process.run("python3", ["-c", "import ast; ast.parse(open('_main_check.py').read()); print('SYNTAX_OK')"])
         results["main_syntax"] = check.exit_code == 0
         total_checks = total_checks + 1
-        try { file.delete("_main_check.py") } catch (e) {}
     }
     if len(test_code) > 20 {
         let conv = orchestra.enforce_convergence(test_code, {pattern: "def test_|assert"})
@@ -547,7 +545,6 @@ main {
                 if len(improved) > 20 {
                     file.write("_spec_check.py", improved)
                     let chk = process.run("python3", ["-c", "import ast; ast.parse(open('_spec_check.py').read())"])
-                    try { file.delete("_spec_check.py") } catch (e) {}
                     let conv = orchestra.enforce_convergence(improved, {pattern: ops_pattern})
                     adopt = chk.exit_code == 0 && (conv.get("valid") ?? false)
                 }
@@ -836,7 +833,7 @@ main {
             invariants = invariants + " Also: power() raises ValueError for complex results, modulo() raises ValueError on zero."
         }
         if fname == "requirement-002.txt" {
-            invariants = invariants + " Also: memory_recall() raises ValueError when empty, memory_store() records to history."
+            invariants = invariants + " Also: memory_recall() returns None when no value is stored (do NOT raise ValueError), memory_store() records to history."
         }
         if fname == "requirement-003.txt" {
             invariants = invariants + " Also: evaluate() records ONE history entry (not intermediate steps), uses ast.parse not eval()."
