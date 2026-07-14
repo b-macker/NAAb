@@ -99,7 +99,7 @@
       "standing_lease_turns": 20,
       "context_window": 20,
       "context_strategy": "summary",
-      "context_drift_signals": { "semantic_stability": false, "response_repetition": false },
+      "context_drift_signals": { "semantic_stability": false },
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
@@ -240,6 +240,8 @@
       "entity_consistency": 0.04
     },
     "thresholds": {
+      "context_growth_factor": 5.0,
+      "instruction_recall_min": 0.05,
       "velocity_drop": -0.15,
       "circular_lookback": 3,
       "scope_creep_min_history": 3,

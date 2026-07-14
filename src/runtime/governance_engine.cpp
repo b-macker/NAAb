@@ -7129,11 +7129,29 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 if (target >= prev_level) {
                     level = target;
                     deescalate_calm_turns_.store(0, std::memory_order_relaxed);
+                    // Remember which handle is applying pressure — its calm,
+                    // not a sibling's, is what de-escalation must observe.
+                    if (target > 0) {
+                        deescalate_pressure_handle_.store(state->handle_id,
+                                                          std::memory_order_relaxed);
+                    }
                 } else {
-                    int calm = deescalate_calm_turns_.fetch_add(1, std::memory_order_relaxed) + 1;
-                    if (calm >= std::max(1, cb.deescalate_sustained)) {
-                        level = prev_level - 1;
-                        deescalate_calm_turns_.store(0, std::memory_order_relaxed);
+                    // Calm turns only count when they come from the handle that
+                    // raised/held the level. A calm sibling neither advances nor
+                    // resets the counter — otherwise two interleaved turns from
+                    // a well-behaved agent would step down the scrutiny that a
+                    // still-degraded agent earned.
+                    int pressure_handle =
+                        deescalate_pressure_handle_.load(std::memory_order_relaxed);
+                    if (pressure_handle == 0 || pressure_handle == state->handle_id) {
+                        int calm = deescalate_calm_turns_.fetch_add(1, std::memory_order_relaxed) + 1;
+                        if (calm >= std::max(1, cb.deescalate_sustained)) {
+                            level = prev_level - 1;
+                            deescalate_calm_turns_.store(0, std::memory_order_relaxed);
+                            if (level == 0) {
+                                deescalate_pressure_handle_.store(0, std::memory_order_relaxed);
+                            }
+                        }
                     }
                 }
 
