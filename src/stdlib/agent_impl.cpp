@@ -1962,7 +1962,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         if (passed) {
                             gov_engine->recoverCoherence(handle_id);
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_PASS", {
+                                {"handle_id", std::to_string(handle_id)},
                                 {"agent", config_name},
+                                {"config_name", config_name},
                                 {"turn", std::to_string(current_turn)},
                                 {"challenge_type", challenge_type},
                                 {"response_length", std::to_string(challenge_result.response.content.size())},
@@ -1975,7 +1977,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             });
                         } else {
                             gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_FAIL", {
+                                {"handle_id", std::to_string(handle_id)},
                                 {"agent", config_name},
+                                {"config_name", config_name},
                                 {"turn", std::to_string(current_turn)},
                                 {"challenge_type", challenge_type},
                                 {"response_length", std::to_string(challenge_result.response.content.size())},
@@ -2137,11 +2141,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             char coh[32];
             snprintf(coh, sizeof(coh), "%.4f", injection_coherence);
             gov_engine->writeAgentTelemetry("MANDATE_INJECTION", {
-                {"handle_id", std::to_string(handle_id)},
-                {"turn",      std::to_string(current_turn)},
-                {"type",      injection_type},
-                {"agent",     config_name},
-                {"coherence", coh}
+                {"handle_id",   std::to_string(handle_id)},
+                {"turn",        std::to_string(current_turn)},
+                {"type",        injection_type},
+                {"agent",       config_name},
+                {"config_name", config_name},
+                {"coherence",   coh}
             });
             if (transcript_active) {
                 transcript_entry["mandate_injection"] = {
