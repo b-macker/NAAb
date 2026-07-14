@@ -184,6 +184,18 @@ if echo "$OUTPUT" | grep -q "B_CONTENT=quarterly ledger data summarized"; then
 else
     fail "F-04" "Send did not complete" "$(echo "$OUTPUT" | tail -3)"
 fi
+# Telemetry attribution: challenge events carry handle_id and config_name
+# (previously only under the non-standard "agent" key).
+if echo "$CHAL" | grep -q '"config_name":"bravo"'; then
+    pass "F-05" "Challenge telemetry includes config_name attribution"
+else
+    fail "F-05" "Challenge telemetry missing config_name" "$CHAL"
+fi
+if echo "$CHAL" | grep -qE '"handle_id":"[0-9]+"'; then
+    pass "F-06" "Challenge telemetry includes handle_id"
+else
+    fail "F-06" "Challenge telemetry missing handle_id" "$CHAL"
+fi
 
 echo ""
 echo "================================================"
