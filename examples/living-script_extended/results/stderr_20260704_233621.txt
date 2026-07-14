@@ -1,0 +1,45 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-28104/work-28104-11250/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] WARNING behavioral_sequences.cross_agent_file_relay
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-28104/work-28104-11250/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+
+[governance] Summary (mode: enforce): 41 passed, 2 warnings, 0 blocked
+  ⚠ behavioral_sequences.cross_agent_file_relay [advisory]  WARN
+
+[governance] Telemetry: 44 events written to telemetry.jsonl
+-- Governance: PASS (43 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     41 passed, 2 blocked
+Top block:  behavioral_sequences.cross_agent_file_relay (2 violations)
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+Risk score: 6 (green) [15/50]
+  +6  behavioral_sequences.cross_agent_file_relay (2x @3)
+Telemetry:  43 events → telemetry.jsonl
+BSD:        66 events, 2 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (21 turns analyzed)
+Exposure:   21 autonomous actions, 5 unique agents
+Dispatch:   21 calls (0 retries, 77963 tokens, 41904ms)
+Pulse:      HEALTHY (43 checks, 14 consecutive passes, epoch 0)
+────────────────────────────────

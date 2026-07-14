@@ -1,7 +1,7 @@
 {
   "version": "5.0",
   "mode": "enforce",
-  "description": "Living Script: 3-layer architecture (Script/Operator/Engine). Calculator evolves through 3 feature additions with iterative refinement.",
+  "description": "Living Script: 3-layer architecture (Script/Operator/Engine). Calculator evolves through 4 feature additions with 18 governance levels.",
 
   "languages": {
     "allowed": ["python"],

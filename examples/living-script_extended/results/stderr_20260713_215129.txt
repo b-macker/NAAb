@@ -1,0 +1,21 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-15186/work-15186-6720/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "action", "reasoning", "adjustments", "create_agent", "observations", "message_prefix"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("error") returned null — available keys: "success", "role", "usage", "trace", "content", "admissibility", "environment"
+[governance] WARNING behavioral_sequences.cross_agent_file_relay
+[governance] WARNING context_drift.coherence_loss
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[governance] WARNING context_drift.coherence_loss
+[governance] Telemetry: 19 events written to telemetry.jsonl

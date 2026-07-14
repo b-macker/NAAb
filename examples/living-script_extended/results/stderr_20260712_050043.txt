@@ -1,0 +1,64 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-20758/work-20758-4771/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("error") returned null — available keys: "success", "role", "usage", "trace", "content", "admissibility", "environment"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] WARNING context_drift.coherence_loss
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[governance] WARNING context_drift.coherence_loss
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[SANDBOX VIOLATION] file.delete on '_spec_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Reload rejected: ratchet violation(s): agent.developer.max_tokens: 3072 -> 1200 (below min_tokens floor 2048)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[hint] dict.get("judge") returned null — available keys: "specialist", "reviewer", "operator", "tester", "developer", "architect"
+
+[governance] Summary (mode: enforce): 143 passed, 4 warnings, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 24 events written to telemetry.jsonl
+-- Governance: PASS (147 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    2 mid-run reload(s) applied
+Checks:     143 passed, 0 blocked, 4 advisory
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 12 (green) [15/50]
+  +12  context_drift.coherence_loss (4x @3)
+Telemetry:  147 events → telemetry.jsonl
+BSD:        190 events (40 evicted), 0 patterns matched
+CDD:        coherence=0.98 vel=-0.045 accel=-0.045 (51 turns analyzed)
+CDD agents: developer=0.61 architect=1.00 operator=0.98 tester=1.00 reviewer=1.00 specialist=1.00 judge=1.00 min=0.61
+Escalation: level 0->1 at turn 3
+Compliance: 2 off-topic compliance events, prompt_alignment=0.10
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   51 autonomous actions, 7 unique agents
+Budget:     developer: 46 remaining (consumed 4)
+Dispatch:   56 calls (1 retries, 608681 tokens, 237330ms)
+Codegen:    1 calls (0 blocked, 18ms)
+Pulse:      HEALTHY (147 checks, 40 consecutive passes, epoch 6)
+────────────────────────────────

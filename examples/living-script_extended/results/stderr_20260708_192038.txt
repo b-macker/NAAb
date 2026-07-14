@@ -1,0 +1,72 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-1112/work-1112-11245/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING context_drift.coherence_loss
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[governance] WARNING context_drift.coherence_loss
+Agent 'tester': 4/4 responses truncated (100%) — consider increasing max_tokens or reducing prompt size
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+
+[governance] Summary (mode: enforce): 122 passed, 2 warnings, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 12 events written to telemetry.jsonl
+-- Governance: PASS (124 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    4 mid-run reload(s) applied
+Checks:     122 passed, 0 blocked, 2 advisory
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 6 (green) [15/50]
+  +6  context_drift.coherence_loss (2x @3)
+Telemetry:  124 events → telemetry.jsonl
+BSD:        166 events (16 evicted), 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (42 turns analyzed)
+CDD agents: architect=1.00 operator=1.00 developer=1.00 tester=1.00 reviewer=1.00 min=1.00
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   42 autonomous actions, 5 unique agents
+Budget:     developer: 48 remaining (consumed 2)
+Dispatch:   43 calls (0 retries, 370678 tokens, 139760ms)
+Pulse:      HEALTHY (124 checks, 40 consecutive passes, epoch 8)
+────────────────────────────────

@@ -1,0 +1,80 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-8381/work-8381-8703/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[hint] dict.get("error") returned null — available keys: "success", "role", "usage", "trace", "content", "admissibility", "environment"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING context_drift.coherence_loss
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 2 change(s) applied
+[hint] dict.get("batch_0") returned null — available keys: "specialist", "reviewer", "operator", "tester", "developer", "architect"
+[hint] dict.get("batch_1") returned null — did you mean "batch_0"?
+[hint] dict.get("pipeline_final") returned null — available keys: "batch_1", "batch_0", "specialist", "reviewer", "operator", "tester", "developer", "architect"
+[hint] dict.get("stage_index") returned null — did you mean "stage"?
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("governance_level") returned null — did you mean "governance_epoch"?
+[hint] dict.get("bsd_events") returned null — did you mean "bsd_connected"?
+[hint] dict.get("cdd_turns_analyzed") returned null — did you mean "cdd_connected"?
+[hint] dict.get("context_strategy") returned null — did you mean "context_window"?
+[hint] dict.get("PROMPT_SCAN") returned null — available keys: "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("ADMISSION_EVAL") returned null — available keys: "PROMPT_SCAN", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("AGENT_RESPONSE") returned null — available keys: "PROMPT_SCAN", "ADMISSION_EVAL", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("RESPONSE_SCAN") returned null — available keys: "PROMPT_SCAN", "AGENT_RESPONSE", "ADMISSION_EVAL", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("CDD_TURN") returned null — available keys: "RESPONSE_SCAN", "PROMPT_SCAN", "AGENT_RESPONSE", "ADMISSION_EVAL", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("SEMANTIC_TURN") returned null — available keys: "CDD_TURN", "GOVERNANCE_HEALTH_QUERY", "AGENT_RESPONSE", "RESPONSE_SCAN", "PROMPT_SCAN", "ADMISSION_EVAL"
+[hint] dict.get("RECONCILIATION_TURN") returned null — available keys: "CDD_TURN", "SEMANTIC_TURN", "GOVERNANCE_HEALTH_QUERY", "AGENT_RESPONSE", "RESPONSE_SCAN", "PROMPT_SCAN", "ADMISSION_EVAL"
+[hint] dict.get("OUTPUT_ADMISSIBILITY_EVAL") returned null — available keys: "RECONCILIATION_TURN", "CDD_TURN", "SEMANTIC_TURN", "GOVERNANCE_HEALTH_QUERY", "AGENT_RESPONSE", "RESPONSE_SCAN", "PROMPT_SCAN", "ADMISSION_EVAL"
+[hint] dict.get("CONVERGENCE_CHECK") returned null — did you mean "CONFIG_ADJUSTMENT"?
+[hint] dict.get("AGENT_PROPOSE") returned null — did you mean "AGENT_RESPONSE"?
+[hint] dict.get("AGENT_PROPOSAL_COMMIT") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("GOVERNANCE_LEVEL_CHANGE") returned null — did you mean "GOVERNANCE_HEALTH_QUERY"?
+[hint] dict.get("AGENT_CHALLENGE_PASS") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("OUTPUT_INADMISSIBLE") returned null — did you mean "OUTPUT_ADMISSIBILITY_EVAL"?
+[hint] dict.get("AGENT_TOOL_REGISTERED") returned null — did you mean "AGENT_PROPOSE"?
+[governance] WARNING behavioral_sequences.codegen_rapid_fire
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("error_message") returned null — available keys: "valid"
+
+[governance] Summary (mode: enforce): 174 passed, 3 warnings, 0 blocked
+  ⚠ behavioral_sequences.codegen_rapid_fire [advisory]  WARN
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 31 events written to telemetry.jsonl
+-- Governance: PASS (177 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    6 mid-run reload(s) applied
+Checks:     174 passed, 0 blocked, 3 advisory
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: behavioral_sequences.codegen_rapid_fire — project governance policy.
+Risk score: 9 (green) [15/50]
+  +6  context_drift.coherence_loss (2x @3)
+  +3  behavioral_sequences.codegen_rapid_fire
+Telemetry:  177 events → telemetry.jsonl
+BSD:        249 events (99 evicted), 1 patterns matched
+CDD:        coherence=0.98 vel=-0.045 accel=-0.045 (57 turns analyzed)
+CDD agents: architect=1.00 developer=0.39 tester=0.95 operator=0.98 reviewer=1.00 specialist=1.00 judge=1.00 min=0.39
+Escalation: level 1->0 at turn 5
+Compliance: 1 off-topic compliance events, prompt_alignment=0.10
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   57 autonomous actions, 7 unique agents
+Budget:     tester: 49 remaining (consumed 1)
+Budget:     developer: 48 remaining (consumed 2)
+Dispatch:   61 calls (0 retries, 771709 tokens, 187949ms)
+Codegen:    6 calls (0 blocked, 24ms)
+Pulse:      HEALTHY (177 checks, 13 consecutive passes, epoch 10)
+────────────────────────────────

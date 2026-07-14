@@ -1,0 +1,77 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-19503/work-19503-10472/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[hint] dict.get("error") returned null — available keys: "success", "role", "usage", "trace", "content", "admissibility", "environment"
+[governance] WARNING behavioral_sequences.cross_agent_file_relay
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "adjustments", "observations", "message_prefix", "action", "reasoning", "specialist"
+WARNING: Perfect coherence (1.0) after 23 turns (possible detection bypass)
+WARNING: Perfect coherence (1.0) after 24 turns (possible detection bypass)
+WARNING: Perfect coherence (1.0) after 25 turns (possible detection bypass)
+WARNING: Perfect coherence (1.0) after 26 turns (possible detection bypass)
+[hint] dict.get("batch_0") returned null — available keys: "specialist", "reviewer", "operator", "tester", "developer", "architect"
+[hint] dict.get("batch_1") returned null — did you mean "batch_0"?
+[hint] dict.get("pipeline_final") returned null — available keys: "batch_1", "batch_0", "specialist", "reviewer", "operator", "tester", "developer", "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[hint] dict.get("context_strategy") returned null — did you mean "context_window"?
+[hint] dict.get("strategy") returned null — available keys: "thinking_budget", "context_window", "max_total_tokens", "risk_budget", "timeout_seconds", "min_tokens", "max_tokens", "max_turns"
+[hint] dict.get("PROMPT_SCAN") returned null — available keys: "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("ADMISSION_EVAL") returned null — available keys: "PROMPT_SCAN", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("AGENT_RESPONSE") returned null — available keys: "PROMPT_SCAN", "ADMISSION_EVAL", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("RESPONSE_SCAN") returned null — available keys: "PROMPT_SCAN", "AGENT_RESPONSE", "ADMISSION_EVAL", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("CDD_TURN") returned null — available keys: "RESPONSE_SCAN", "PROMPT_SCAN", "AGENT_RESPONSE", "ADMISSION_EVAL", "GOVERNANCE_HEALTH_QUERY"
+[hint] dict.get("SEMANTIC_TURN") returned null — available keys: "CDD_TURN", "GOVERNANCE_HEALTH_QUERY", "AGENT_RESPONSE", "RESPONSE_SCAN", "PROMPT_SCAN", "ADMISSION_EVAL"
+[hint] dict.get("RECONCILIATION_TURN") returned null — available keys: "CDD_TURN", "SEMANTIC_TURN", "GOVERNANCE_HEALTH_QUERY", "AGENT_RESPONSE", "RESPONSE_SCAN", "PROMPT_SCAN", "ADMISSION_EVAL"
+[hint] dict.get("OUTPUT_ADMISSIBILITY_EVAL") returned null — available keys: "RECONCILIATION_TURN", "CDD_TURN", "SEMANTIC_TURN", "GOVERNANCE_HEALTH_QUERY", "AGENT_RESPONSE", "RESPONSE_SCAN", "PROMPT_SCAN", "ADMISSION_EVAL"
+[hint] dict.get("CONVERGENCE_CHECK") returned null — did you mean "CONFIG_ADJUSTMENT"?
+[hint] dict.get("AGENT_PROPOSE") returned null — did you mean "AGENT_RESPONSE"?
+[hint] dict.get("AGENT_PROPOSAL_COMMIT") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("AGENT_CHALLENGE_PASS") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("GOVERNANCE_HEALTH_WARNING") returned null — did you mean "GOVERNANCE_HEALTH_QUERY"?
+[hint] dict.get("AGENT_RETRY") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("GOVERNANCE_LEVEL_CHANGE") returned null — did you mean "GOVERNANCE_HEALTH_WARNING"?
+[hint] dict.get("AGENT_TOOL_REGISTERED") returned null — did you mean "AGENT_RETRY"?
+[governance] WARNING behavioral_sequences.codegen_rapid_fire
+[hint] dict.get("error_message") returned null — available keys: "valid"
+
+[governance] Summary (mode: enforce): 182 passed, 2 warnings, 0 blocked
+  ⚠ behavioral_sequences.codegen_rapid_fire [advisory]  WARN
+  ⚠ behavioral_sequences.cross_agent_file_relay [advisory]  WARN
+
+[governance] Telemetry: 32 events written to telemetry.jsonl
+-- Governance: PASS (184 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    5 mid-run reload(s) applied
+Checks:     182 passed, 0 blocked, 2 advisory
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+  Detail:   Warning: behavioral_sequences.codegen_rapid_fire — project governance policy.
+Risk score: 6 (green) [15/50]
+  +3  behavioral_sequences.codegen_rapid_fire
+  +3  behavioral_sequences.cross_agent_file_relay
+Telemetry:  184 events → telemetry.jsonl
+BSD:        270 events (120 evicted), 2 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (64 turns analyzed)
+CDD agents: architect=1.00 developer=1.00 tester=1.00 operator=1.00 reviewer=1.00 specialist=1.00 judge=1.00 min=1.00
+Compliance: 1 off-topic compliance events, prompt_alignment=0.09
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   64 autonomous actions, 7 unique agents
+Budget:     tester: 49 remaining (consumed 1)
+Dispatch:   77 calls (1 retries, 760653 tokens, 222454ms)
+Codegen:    6 calls (0 blocked, 22ms)
+Pulse:      DEGRADED (184 checks, 13 consecutive passes, epoch 7)
+────────────────────────────────

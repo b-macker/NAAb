@@ -1,0 +1,53 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-19250/work-19250-16596/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-19250/work-19250-16596/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-19250/work-19250-16596/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-19250/work-19250-16596/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[governance] Telemetry: 100 events written to telemetry.jsonl
+-- Governance: PASS (100 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     100 passed, 0 blocked
+Telemetry:  100 events → telemetry.jsonl
+BSD:        150 events, 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (42 turns analyzed)
+Exposure:   42 autonomous actions, 6 unique agents
+Dispatch:   43 calls (0 retries, 530129 tokens, 150569ms)
+Pulse:      HEALTHY (100 checks, 42 consecutive passes, epoch 4)
+────────────────────────────────

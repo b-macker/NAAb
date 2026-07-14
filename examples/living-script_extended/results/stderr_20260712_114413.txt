@@ -1,0 +1,68 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Warning: Unknown key "scoring_calibration"
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-15738/work-15738-26053/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[SANDBOX VIOLATION] file.delete on '_spec_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("batch_0") returned null — available keys: "specialist", "reviewer", "operator", "tester", "developer", "architect"
+[hint] dict.get("batch_1") returned null — did you mean "batch_0"?
+[agent] Response truncated: output hit max_tokens=1024 (handle=5)
+        Increase max_tokens in govern.json
+[hint] dict.get("pipeline_final") returned null — available keys: "batch_1", "batch_0", "specialist", "reviewer", "operator", "tester", "developer", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+WARNING: Perfect coherence (1.0) after 27 turns (possible detection bypass)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+WARNING: Perfect coherence (1.0) after 11 turns (possible detection bypass)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[governance] Telemetry: 22 events written to telemetry.jsonl
+-- Governance: PASS (194 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    5 mid-run reload(s) applied
+Checks:     194 passed, 0 blocked
+Telemetry:  194 events → telemetry.jsonl
+BSD:        252 events (102 evicted), 0 patterns matched
+CDD:        coherence=0.97 vel=0.000 accel=0.000 (64 turns analyzed)
+CDD agents: architect=1.00 developer=1.00 tester=1.00 operator=0.97 reviewer=1.00 specialist=1.00 judge=1.00 min=0.97
+Escalation: level 1->0 at turn 7
+Compliance: 1 off-topic compliance events, prompt_alignment=0.09
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   64 autonomous actions, 7 unique agents
+Dispatch:   70 calls (0 retries, 724982 tokens, 190448ms)
+Codegen:    2 calls (0 blocked, 2ms)
+Pulse:      HEALTHY (194 checks, 58 consecutive passes, epoch 13)
+────────────────────────────────

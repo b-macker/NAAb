@@ -1,0 +1,430 @@
+PHASE|INIT|creating team
+INIT_AGENTS: 5
+PHASE|PREFLIGHT|start
+PREFLIGHT|agent_checks=7|all_valid=true
+PREFLIGHT|invalid_check=handled|valid=false
+PREFLIGHT|codegen_enabled=true|has_python=true|languages=1
+PREFLIGHT|parse_findings=0
+PREFLIGHT|baseline_health=healthy|baseline_epoch=0
+PHASE|DESIGN|start
+TURN|architect|design|c=1
+OPERATOR|action=adjust|reasoning=The design phase is complete with perfect coherence. Moving into implementation, I am increasing the token budget to accommodate complex code blocks and setting a prefix to ensure the modularity required for later stages is baked into the initial implementation.
+OPERATOR|adjustment_applied|count=1
+OPERATOR|set_msg_prefix|len=80
+PHASE|IMPLEMENT|start
+TURN|developer|ops|c=1
+TURN|developer|main|c=1
+TURN|developer|test|c=1
+CODE|ops=2387|main=727|test=1282
+OPERATOR|action=none|reasoning=Coherence remains at 1.0 across all agents. The codebase is expanding cleanly, and no drift is detected. I will maintain current settings as the team is operating at peak efficiency.
+OPERATOR|set_msg_prefix|len=73
+PHASE|REFINE|start
+REFINE_ITER|1|start
+TURN|tester|iter1|c=1
+REFINE|developer_rewrote|len=3871
+TURN|developer|fix1|c=1
+TURN|developer|testfix1|c=1
+PYTEST|exit=1
+PYTEST|E   ValueError: could not convert string to float: 'a'
+PYTEST|=========================== short test summary info ============================
+PYTEST|FAILED test_calc.py::test_evaluate_invalid_syntax - ValueError: could not con...
+PYTEST|========================= 1 failed, 9 passed in 0.07s ==========================
+VALIDATE|ops_syntax=true
+VALIDATE|ops_convergence=true
+VALIDATE|test_convergence=true
+VALIDATE|pytest_passed=false
+VALIDATE|pytest_exit=1
+VALIDATE|pytest_output============================== test session starts ==============================
+collected 10 items
+
+test_calc.py .......F..                                                  [100%]
+
+=================================== FAILURES ===================================
+_________________________ test_evaluate_invalid_syntax _________________________
+test_calc.py:51: in test_evaluate_invalid_syntax
+    calc.evaluate("1 + 'a'")
+operations.py:96: in evaluate
+    result = _eval(tree.body)
+             ^^^^^^^^^^^^^^^^
+operations.py:82: in _eval
+    right = _eval(node.right)
+            ^^^^^^^^^^^^^^^^^
+operations.py:79: in _eval
+    return float(node.value)
+           ^^^^^^^^^^^^^^^^^
+E   ValueError: could not convert string to float: 'a'
+=========================== short test summary info ============================
+FAILED test_calc.py::test_evaluate_invalid_syntax - ValueError: could not con...
+========================= 1 failed, 9 passed in 0.07s ==========================
+
+VALIDATE|main_syntax=true
+VALIDATE|total_checks=5
+TURN|reviewer|iter1|c=1
+REVIEW|iter=1|verdict=REJECTED
+OPERATOR|action=create_agent|reasoning=Iteration 1 was rejected despite high coherence. I am introducing a 'specialist' agent to perform a deep-dive code quality review to identify why the logic is failing tests even while maintaining high team alignment.
+OPERATOR|set_msg_prefix|len=81
+SPECIALIST|REFINE|creating
+SPECIALIST|REFINE|adopted|len=3991
+SPECIALIST|REFINE|c=1
+REFINE_ITER|1|end|verdict=REJECTED
+REFINE_ITER|2|start
+TURN|tester|iter2|c=1
+REFINE|developer_rewrote|len=4329
+TURN|developer|fix2|c=1
+TURN|developer|testfix2|c=1
+PYTEST|exit=0
+PYTEST|test_calc.py ..........                                                  [100%]
+PYTEST|============================== 10 passed in 0.03s ==============================
+VALIDATE|ops_syntax=true
+VALIDATE|ops_convergence=true
+VALIDATE|test_convergence=true
+VALIDATE|pytest_passed=true
+VALIDATE|pytest_exit=0
+VALIDATE|pytest_output============================== test session starts ==============================
+collected 10 items
+
+test_calc.py ..........                                                  [100%]
+
+============================== 10 passed in 0.03s ==============================
+
+VALIDATE|main_syntax=true
+VALIDATE|total_checks=5
+TURN|reviewer|iter2|c=1
+REVIEW|iter=2|verdict=APPROVED
+REFINE|approved_at_iteration=2
+OPERATOR|action=observe|reasoning=Iteration 2 is approved and team coherence is at a perfect 1.0. No adjustments or additional interventions are necessary as the project is successfully moving forward.
+OPERATOR|set_msg_prefix|len=78
+REFINE_ITER|2|end|verdict=APPROVED
+REFINE|total_iterations=2|approved=true
+PHASE|PROPOSE_SELECT|start
+PROPOSE_SELECT|candidates=2
+PROPOSE_SELECT|committed=true
+[PY ADAPTER ERROR] Python execution error: SyntaxError: invalid syntax (<unknown>, line 35)
+
+  Hint: Python syntax error in polyglot block.
+  - Line numbers in the error may be OFFSET by variable bindings.
+    NAAb prepends bound variables (e.g. <<python[var1]) as Python
+    assignments before your code. If the error line doesn't match
+    your code, subtract the number of bound variables.
+  - If binding a large JSON string, the serialized value may contain
+    characters that break Python parsing. Try json.loads() instead
+    of binding complex data directly.
+  - Check for NAAb string interpolation conflicts ($ characters)
+  - For complex Python, use an external .py script via <<sh
+
+PROPOSE_SELECT|codegen_error={"message": Codegen error: codegen.run_strict() execution failed
+
+  Language: python
+  Exit code: 1
+
+  Error output:
+  Python execution error: Python execution error: SyntaxError: invalid syntax (<unknown>, line 35)
+
+  at <script>() [/data/data/com.termux/files/usr/tmp/living-script-8381/work-8381-8703/living-script.naab:0]}
+PROPOSE_SELECT|candidates=2|committed=true|codegen=fail
+PHASE|FEATURES|start
+PHASE|REACTIVE|start
+REACTIVE|scanning|found=4 requirements
+REACTIVE|found=requirement-001.txt
+FEATURE|1|start|Add power(base, exponent) and modulo(a, b) operations to the Calculator class
+TURN|architect|feature1|c=1
+FEATURE|1|ops_updated|len=5330
+TURN|developer|feat1_ops|c=0.915
+TURN|developer|feat1_test|c=0.86
+TURN|tester|feat1|c=1
+FEATURE|1|developer_fixed|len=5427
+TURN|developer|feat1_fix|c=0.86
+PYTEST|exit=0
+PYTEST|test_calc.py .............                                               [100%]
+PYTEST|============================== 13 passed in 0.04s ==============================
+VALIDATE|feat1|ops_syntax=true
+VALIDATE|feat1|ops_convergence=true
+VALIDATE|feat1|test_convergence=true
+VALIDATE|feat1|pytest_passed=true
+VALIDATE|feat1|pytest_exit=0
+VALIDATE|feat1|main_syntax=true
+VALIDATE|feat1|total_checks=5
+OPERATOR|action=adjust|reasoning=Developer coherence has dropped to 0.86. While not critical, it indicates potential fatigue or complexity overload as the codebase grows. Shifting to 'recent' context helps the developer stay focused on the immediate task at hand rather than extraneous historical noise, improving alignment.
+OPERATOR|adjustment_applied|count=2
+OPERATOR|set_msg_prefix|len=115
+FEATURE|1|complete
+REACTIVE|found=requirement-002.txt
+FEATURE|2|start|Add a memory system: memory_store(value), memory_recall() returns stored value, memory_clear() resets to None. Memory persists across operations.
+TURN|architect|feature2|c=1
+FEATURE|2|ops_updated|len=5920
+TURN|developer|feat2_ops|c=0.805
+TURN|developer|feat2_test|c=1
+TURN|tester|feat2|c=1
+FEATURE|2|developer_fixed|len=6218
+TURN|developer|feat2_fix|c=0.945
+PYTEST|exit=0
+PYTEST|test_calc.py ...............                                             [100%]
+PYTEST|============================== 15 passed in 0.04s ==============================
+VALIDATE|feat2|ops_syntax=true
+VALIDATE|feat2|ops_convergence=true
+VALIDATE|feat2|test_convergence=true
+VALIDATE|feat2|pytest_passed=true
+VALIDATE|feat2|pytest_exit=0
+VALIDATE|feat2|main_syntax=true
+VALIDATE|feat2|total_checks=5
+OPERATOR|action=none|reasoning=Developer coherence has rebounded to 0.945 following the previous adjustment. The feature implementation was successful and the team is operating well within acceptable coherence bounds. No changes are required.
+OPERATOR|set_msg_prefix|len=90
+FEATURE|2|complete
+REACTIVE|found=requirement-003.txt
+FEATURE|3|start|Add an evaluate(expression: str) method that parses and evaluates simple math expressions like '2 + 3 * 4' respecting operator precedence
+TURN|architect|feature3|c=1
+FEATURE|3|ops_updated|len=6163
+TURN|developer|feat3_ops|c=0.945
+TURN|developer|feat3_test|c=0.7625
+TURN|tester|feat3|c=1
+FEATURE|3|developer_fixed|len=7029
+TURN|developer|feat3_fix|c=0.7625
+PYTEST|exit=1
+PYTEST|FAILED test_calc.py::test_evaluate_div_zero - AssertionError: assert 1 == 0
+PYTEST|FAILED test_calc.py::test_evaluate_syntax_and_types - IndexError: pop from em...
+PYTEST|FAILED test_calc.py::test_evaluate_history - AssertionError: assert 'evaluate...
+PYTEST|========================= 3 failed, 14 passed in 0.08s =========================
+VALIDATE|feat3|ops_syntax=true
+VALIDATE|feat3|ops_convergence=true
+VALIDATE|feat3|test_convergence=true
+VALIDATE|feat3|pytest_passed=false
+VALIDATE|feat3|pytest_exit=1
+VALIDATE|feat3|main_syntax=true
+VALIDATE|feat3|total_checks=5
+PYTEST_FIX|sending failure names to developer
+PYTEST_FIX|developer_fixed|ops=6072
+TURN|developer|pytest_fix3|c=0.7075
+OPERATOR|action=adjust|reasoning=Developer coherence has fallen to 0.707, approaching the 0.7 threshold for window tightening. Switching to 'summary' context strategy will force the developer to focus on high-level architecture rather than potentially noisy past interaction details, helping stabilize the output for complex tasks like expression parsing.
+OPERATOR|adjustment_applied|count=3
+OPERATOR|set_msg_prefix|len=119
+FEATURE|3|complete
+REACTIVE|found=requirement-004.txt
+FEATURE|4|start|Add a plugin system: register_plugin(name, func), run_plugin(name, *args), list_plugins() returns list of registered plugin names. Plugins persist for the calculator's lifetime.
+TURN|architect|feature4|c=1
+FEATURE|4|ops_updated|len=6687
+TURN|developer|feat4_ops|c=0.7075
+[governance] Response quarantined (coherence: 0.5475)
+TURN|developer|feat4_test|c=0.5475
+TURN|tester|feat4|c=1
+[governance] Response quarantined (coherence: 0.5475)
+FEATURE|4|developer_fixed|len=6875
+TURN|developer|feat4_fix|c=0.5475
+PYTEST|exit=1
+PYTEST|FAILED test_calc.py::test_history_growth_new_ops - TypeError: 'HistoryEntry' ...
+PYTEST|FAILED test_calc.py::test_evaluate_precedence - TypeError: Unsupported operat...
+PYTEST|FAILED test_calc.py::test_evaluate_history - TypeError: 'HistoryEntry' object...
+PYTEST|========================= 5 failed, 14 passed in 0.10s =========================
+VALIDATE|feat4|ops_syntax=true
+VALIDATE|feat4|ops_convergence=true
+VALIDATE|feat4|test_convergence=true
+VALIDATE|feat4|pytest_passed=false
+VALIDATE|feat4|pytest_exit=1
+VALIDATE|feat4|main_syntax=true
+VALIDATE|feat4|total_checks=5
+PYTEST_FIX|sending failure names to developer
+[governance] Response quarantined (coherence: 0.3875)
+PYTEST_FIX|developer_fixed|ops=6811
+TURN|developer|pytest_fix4|c=0.3875
+OPERATOR|action=adjust|reasoning=Developer coherence has dropped to 0.38, well below the 0.6 threshold. The developer is struggling with the current context. I am forcing a summary strategy, tightening the context window to 10 to clear cognitive noise, and reducing token overhead to force concise, focused code updates.
+OPERATOR|adjustment_applied|count=4
+OPERATOR|set_msg_prefix|len=132
+FEATURE|4|complete
+FEATURES|total=4
+[governance] Response quarantined (coherence: 0.3875)
+MAIN_UPDATED|len=1881
+TURN|developer|main_update|c=0.3875
+PHASE|PARALLEL_REVIEW|start
+PARALLEL_REVIEW|votes=2|verdict=REJECTED|majority=2
+PARALLEL_REVIEW|final_verdict=REJECTED
+PHASE|BATCH_PIPELINE|start
+BATCH_PIPELINE|batch_responses=2
+BATCH_PIPELINE|provenance_present=true|stage=-1|model=gemini-3.1-flash-lite|upstream_coherence=0.955
+BATCH_PIPELINE|pipeline_ok=true|pipeline_len=1429
+BATCH_PIPELINE|seq_plan=true|seq_plan_pattern=sequential_refinement|seq_plan_iterations=2
+PHASE|FINAL_REVIEW|start
+PYTEST|exit=1
+PYTEST|FAILED test_calc.py::test_evaluate_precedence - TypeError: Unsupported operat...
+PYTEST|FAILED test_calc.py::test_evaluate_history - AssertionError: assert 'evaluate...
+PYTEST|FAILED test_calc.py::test_plugin_system - ValueError: Plugin 'nonexistent' no...
+PYTEST|========================= 3 failed, 16 passed in 0.10s =========================
+FINAL_REVIEW|iter=1|verdict=REJECTED
+TURN|reviewer|final1|c=1
+TURN|developer|final_fix2|c=0.3875
+PYTEST|exit=1
+PYTEST|FAILED test_calc.py::test_evaluate_precedence - TypeError: Unsupported operat...
+PYTEST|FAILED test_calc.py::test_evaluate_history - AssertionError: assert 'evaluate...
+PYTEST|FAILED test_calc.py::test_plugin_system - ValueError: Plugin 'nonexistent' no...
+PYTEST|========================= 3 failed, 16 passed in 0.09s =========================
+VALIDATE|final_fix2|ops_syntax=true
+VALIDATE|final_fix2|ops_convergence=true
+VALIDATE|final_fix2|test_convergence=true
+VALIDATE|final_fix2|pytest_passed=false
+VALIDATE|final_fix2|pytest_exit=1
+VALIDATE|final_fix2|pytest_output============================== test session starts ==============================
+collected 19 items
+
+test_calc.py ...............FFF.                                         [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_evaluate_precedence ___________________________
+test_calc.py:105: in test_evaluate_precedence
+    assert calc.evaluate("2 + 3 ^ 2") == 11.0
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+operations.py:175: in evaluate
+    result = _eval(tree.body)
+             ^^^^^^^^^^^^^^^^
+operations.py:172: in _eval
+    raise TypeError(f"Unsupported operation or syntax: {type(node)}")
+E   TypeError: Unsupported operation or syntax: <class 'ast.BinOp'>
+____________________________ test_evaluate_history _____________________________
+test_calc.py:110: in test_evaluate_history
+    assert history[-1][0] == "add"
+E   AssertionError: assert 'evaluate' == 'add'
+E     
+E     - add
+E     + evaluate
+______________________________ test_plugin_system ______________________________
+test_calc.py:123: in test_plugin_system
+    calc.run_plugin("nonexistent", 1)
+operations.py:126: in run_plugin
+    raise ValueError(f"Plugin '{name}' not found.")
+E   ValueError: Plugin 'nonexistent' not found.
+=========================== short test summary info ============================
+FAILED test_calc.py::test_evaluate_precedence - TypeError: Unsupported operat...
+FAILED test_calc.py::test_evaluate_history - AssertionError: assert 'evaluate...
+FAILED test_calc.py::test_plugin_system - ValueError: Plugin 'nonexistent' no...
+========================= 3 failed, 16 passed in 0.09s =========================
+
+VALIDATE|final_fix2|main_syntax=true
+VALIDATE|final_fix2|total_checks=5
+PYTEST|exit=1
+PYTEST|FAILED test_calc.py::test_evaluate_precedence - TypeError: Unsupported operat...
+PYTEST|FAILED test_calc.py::test_evaluate_history - AssertionError: assert 'evaluate...
+PYTEST|FAILED test_calc.py::test_plugin_system - ValueError: Plugin 'nonexistent' no...
+PYTEST|========================= 3 failed, 16 passed in 0.09s =========================
+FINAL_REVIEW|iter=2|verdict=REJECTED
+TURN|reviewer|final2|c=1
+FINAL_REVIEW|verdict=false
+FINAL_REVIEW|iterations=2
+OPERATOR|action=adjust|reasoning=The final review failed (approved=false) and developer coherence remains critically low at 0.387. The team has reached a state of cognitive saturation. I am maintaining the restrictive window and strategy to force the developer to focus on the essential structural requirements identified by the Architect.
+OPERATOR|adjustment_applied|count=5
+OPERATOR|set_msg_prefix|len=144
+PHASE|SCORING|start
+SCORING|score=0|verdict=green|findings=0
+PHASE|INTROSPECTION|start
+INTROSPECTION|environment|max_tokens=2048|coherence=0.3875|context_window=10|tools_enabled=false
+INTROSPECTION|usage|retries=0|fallbacks=0|truncations=0|latency_ms=99097
+INTROSPECTION|messages|count=46
+INTROSPECTION|key_health|available=6|active=[GK1, GK2, GK3, GK4, GK5, GK6]|dead=[]
+INTROSPECTION|dispatch|calls=58|tokens=759441|hard_stopped=false
+INTROSPECTION|register_tool=true
+INTROSPECTION|agent_run|len=16
+INTROSPECTION|findings_count=1
+INTROSPECTION|raw_score=3
+INTROSPECTION|calibrate|success=true|rule=missing_docstrings
+INTROSPECTION|calibration_overrides=1
+INTROSPECTION|codegen_run=OK
+INTROSPECTION|codegen_args=OK
+INTROSPECTION|complete
+PHASE|RATCHET|start
+[operator] BLOCKED: context_window can only decrease (10 -> 50)
+[operator] No valid changes to apply
+RATCHET|loosen_blocked=true|result=no_valid_changes
+[operator] BLOCKED: context_window can only decrease (10 -> 12)
+[operator] No valid changes to apply
+RATCHET|tighten_ok=false|result=no_valid_changes
+[operator] Skipped unknown field: system_prompt for developer
+[operator] No valid changes to apply
+RATCHET|field_blocked=true|result=no_valid_changes
+RATCHET|free_adjust_ok=true|result=
+PHASE|HEALTH_PULSE|start
+HEALTH_PULSE|verdict=healthy|coherence=0.3875|level=unknown|epoch=9
+HEALTH_PULSE|bsd_events=-1|cdd_turns=-1
+HEALTH_PULSE|baseline_verdict=healthy|baseline_epoch=0
+HEALTH_PULSE|epoch_advanced=true
+PHASE|LEASE_EPOCH|start
+LEASE_EPOCH|developer|lease=9|epoch=9|coherence=0.3875
+LEASE_EPOCH|developer|challenges_p=1|challenges_f=0|truncations=0
+LEASE_EPOCH|developer|ctx_window=10|ctx_strategy=unknown|thinking=1024|min_tokens=2048
+LEASE_EPOCH|reviewer|lease=15|epoch=9|coherence=1
+LEASE_EPOCH|reviewer|challenges_p=0|challenges_f=0|truncations=0
+LEASE_EPOCH|reviewer|ctx_window=15|ctx_strategy=unknown|thinking=0|min_tokens=0
+LEASE_EPOCH|developer|cdd_overrides=2|keys=[semantic_stability, response_repetition]
+PHASE|TELEMETRY_AUDIT|start
+TELEMETRY_AUDIT|unique_types=20|total_events=488
+TELEMETRY_AUDIT|type=AGENT_TOOL_REGISTERED|count=1
+TELEMETRY_AUDIT|type=OUTPUT_INADMISSIBLE|count=4
+TELEMETRY_AUDIT|type=GOVERNANCE_LEVEL_CHANGE|count=2
+TELEMETRY_AUDIT|type=AGENT_PROPOSE|count=1
+TELEMETRY_AUDIT|type=MANDATE_INJECTION|count=10
+TELEMETRY_AUDIT|type=AGENT_PROPOSAL_COMMIT|count=1
+TELEMETRY_AUDIT|type=CONVERGENCE_CHECK|count=19
+TELEMETRY_AUDIT|type=CONFIG_ADJUSTMENT|count=5
+TELEMETRY_AUDIT|type=RECONCILIATION_TURN|count=54
+TELEMETRY_AUDIT|type=CDD_TURN|count=55
+TELEMETRY_AUDIT|type=SEMANTIC_TURN|count=54
+TELEMETRY_AUDIT|type=GOVERNANCE_HEALTH_QUERY|count=2
+TELEMETRY_AUDIT|type=POLYGLOT_EXEC|count=3
+TELEMETRY_AUDIT|type=AGENT_RESPONSE|count=54
+TELEMETRY_AUDIT|type=RESPONSE_SCAN|count=54
+TELEMETRY_AUDIT|type=OUTPUT_ADMISSIBILITY_EVAL|count=55
+TELEMETRY_AUDIT|type=AGENT_CHALLENGE_PASS|count=3
+TELEMETRY_AUDIT|type=CODEGEN_EXEC|count=3
+TELEMETRY_AUDIT|type=PROMPT_SCAN|count=54
+TELEMETRY_AUDIT|type=ADMISSION_EVAL|count=54
+TELEMETRY_AUDIT|expected_found=5|expected_total=5
+PHASE|CODEGEN_BOUNDARY|start
+[PY ADAPTER ERROR] Python execution error: SyntaxError: invalid syntax (<string>, line 1)
+
+  Hint: Python syntax error in polyglot block.
+  - Line numbers in the error may be OFFSET by variable bindings.
+    NAAb prepends bound variables (e.g. <<python[var1]) as Python
+    assignments before your code. If the error line doesn't match
+    your code, subtract the number of bound variables.
+  - If binding a large JSON string, the serialized value may contain
+    characters that break Python parsing. Try json.loads() instead
+    of binding complex data directly.
+  - Check for NAAb string interpolation conflicts ($ characters)
+  - For complex Python, use an external .py script via <<sh
+
+CODEGEN_BOUNDARY|strict_invalid=threw|snippet={"message": Codegen error: codegen.run_strict() execution failed
+
+  Language: py
+CODEGEN_BOUNDARY|strict_threw=true
+CODEGEN_BOUNDARY|run_output={"output": 42, "exit_code": 0, "language": python, "duration_ms": 1}
+CODEGEN_BOUNDARY|args_output={"output": 42, "exit_code": 0, "language": python, "duration_ms": 1}
+CODEGEN_BOUNDARY|languages=1|has_python=true
+CODEGEN_BOUNDARY|still_enabled=true
+PHASE|DYNAMIC|start
+OPERATOR|action=none|reasoning=The project lifecycle has concluded. While developer coherence suffered during the final feature implementation, the specialist agent has already been utilized earlier in the pipeline. No further automated refinements are feasible given the project status is 'complete'.
+OPERATOR|set_msg_prefix|len=100
+PHASE|MEMORY|saving
+OPERATOR|action=none|reasoning=The run is complete. The specialist was effectively deployed after the first rejection, stabilizing the team temporarily. However, the final two features caused a significant coherence degradation (down to 0.387), indicating that the current architectural design for the 'Calculator' class hit a complexity ceiling.
+OPERATOR|set_msg_prefix|len=79
+MEMORY|saved|run=1
+SUMMARY_AGENTS_CREATED: 8
+SUMMARY_TOTAL_SENDS: 57
+SUMMARY_SEND_ERRORS: 1
+SUMMARY_ADJUSTMENTS: 5
+SUMMARY_ITERATIONS: 2
+SUMMARY_APPROVED: false
+SUMMARY_FEATURES: 4
+SUMMARY_PHASES: [PREFLIGHT, DESIGN, IMPLEMENT, REFINE, PROPOSE_SELECT, FEATURES, PARALLEL_REVIEW, BATCH_PIPELINE, FINAL_REVIEW, SCORING, INTROSPECTION, RATCHET, HEALTH_PULSE, LEASE_EPOCH, TELEMETRY_AUDIT, CODEGEN_BOUNDARY, DYNAMIC]
+SUMMARY_ELAPSED: 221.366999864578
+CODE_EXTRACT|operations.py|extracted=true|len=6811
+CODE_EXTRACT|main.py|extracted=true|len=1881
+CODE_EXTRACT|test_calc.py|extracted=true|len=4384
+CONVERGENCE|operations.py|valid=true|error=
+CONVERGENCE|operations.py|pattern=def add|def subtract|def multiply|def divide|def power|def modulo|def memory_store|def memory_recall|def memory_clear|def evaluate|def register_plugin|def run_plugin|def list_plugins
+CONVERGENCE|main.py|valid=true|error=
+CONVERGENCE|test_calc.py|valid=true|error=
+AGENT_STATE|operator|c=0.985|min=0.955|cp=1
+AGENT_STATE|architect|c=1|min=1|cp=1
+AGENT_STATE|developer|c=0.3875|min=0.3875|cp=1
+AGENT_STATE|tester|c=1|min=1|cp=1
+AGENT_STATE|reviewer|c=1|min=1|cp=1
+AGENT_STATE|specialist|c=1|min=1|cp=1
+TELEM_EVENTS: 516
+TELEM_CHAIN: true
+HEALTH: healthy
+=== LIVING SCRIPT COMPLETE ===

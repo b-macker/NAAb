@@ -17,6 +17,15 @@
 // Level 7: Propose/commit with codegen validation
 // Level 8: Parallel review with fan-out + consensus
 // Level 9: Structured scoring with governance.scorer
+// Level 10: Preflight validation (agent.check, codegen discovery)
+// Level 11: Batch/pipeline orchestration (agent.batch, agent.pipeline)
+// Level 12: Introspection (agent.environment/usage/messages/key_health/dispatch_status)
+// Level 13: Ratchet enforcement (one-way tightening, blocked fields)
+// Level 14: Upstream provenance (pipeline stage traceability)
+// Level 15: Governance health pulse (verdict progression, epoch tracking)
+// Level 16: Lease & epoch observability (per-agent lease, CDD signal overrides)
+// Level 17: Telemetry event audit (event type coverage verification)
+// Level 18: Codegen boundary (strict failure path, variable injection)
 
 use agent
 use file
@@ -464,6 +473,17 @@ main {
         print("PREFLIGHT|parse_findings=" + string(parsed.length()))
     } catch (e) {
         print("PREFLIGHT|parse_findings_error=" + string(e))
+    }
+
+    // Baseline governance health for progression tracking (Level 15)
+    let baseline_health = {}
+    try {
+        baseline_health = governance.health()
+        let bv = baseline_health.get("verdict") ?? "unknown"
+        let be = baseline_health.get("governance_epoch") ?? -1
+        print("PREFLIGHT|baseline_health=" + bv + "|baseline_epoch=" + string(be))
+    } catch (e) {
+        print("PREFLIGHT|baseline_health_error=" + string(e))
     }
 
     tracking["phases_completed"].push("PREFLIGHT")
@@ -1146,6 +1166,7 @@ main {
     // agent.pipeline — chain tester output into reviewer
     let pipeline_ok = false
     let pipeline_len = 0
+    let pipeline_provenance = false
     if handles.get("tester") != null && handles.get("reviewer") != null && len(ops_code) > 20 {
         try {
             let snippet = ops_code
@@ -1160,6 +1181,23 @@ main {
                 pipeline_len = len(pipe_content)
                 pipeline_ok = pipeline_len > 5
                 track("pipeline_final", pipe_result)
+                // Check upstream provenance (Level 14)
+                let pipe_env = pipe_result.get("environment")
+                if pipe_env != null {
+                    let pipe_state = pipe_env.get("state") ?? {}
+                    let prov = pipe_state.get("upstream_provenance")
+                    if prov != null {
+                        pipeline_provenance = true
+                        let prov_stage = prov.get("stage") ?? prov.get("stage_index") ?? -1
+                        let prov_model = prov.get("model_used") ?? prov.get("model") ?? "unknown"
+                        let prov_coh = prov.get("coherence_at_output") ?? prov.get("coherence") ?? -1
+                        let prov_keys = prov.keys()
+                        print("BATCH_PIPELINE|provenance_present=true|stage=" + string(prov_stage) + "|model=" + prov_model + "|upstream_coherence=" + string(prov_coh))
+                        print("BATCH_PIPELINE|provenance_keys=" + string(prov_keys))
+                    } else {
+                        print("BATCH_PIPELINE|provenance_present=false|note=first_stage_or_unavailable")
+                    }
+                }
             } else {
                 tracking["send_errors"] = tracking["send_errors"] + 1
             }
@@ -1456,6 +1494,232 @@ main {
 
     print("INTROSPECTION|complete")
     tracking["phases_completed"].push("INTROSPECTION")
+
+    // ================================================================
+    // PHASE: RATCHET — one-way ratchet enforcement (Level 13)
+    // ================================================================
+    print("PHASE|RATCHET|start")
+
+    // Test 1: Try to LOOSEN context_window (must be blocked by tighten-only guard)
+    let ratchet_loosen_result = apply_operator_adjustments(
+        {"developer": {"context_window": 50}}, "RATCHET"
+    )
+    let ratchet_loosen_blocked = ratchet_loosen_result != ""
+    print("RATCHET|loosen_blocked=" + string(ratchet_loosen_blocked) + "|result=" + ratchet_loosen_result)
+
+    // Test 2: Tighten context_window (should succeed — one-way ratchet allows decrease)
+    // Read current value first — operator may have already tightened during the run
+    let cur_cfg = json.parse(process.run("cat", ["govern.json"]).stdout)
+    let cur_window = cur_cfg["agents"]["developer"].get("context_window") ?? 20
+    let tighten_to = cur_window - 1
+    if tighten_to < 1 { tighten_to = 1 }
+    print("RATCHET|tighten_from=" + string(cur_window) + "|tighten_to=" + string(tighten_to))
+    let ratchet_tighten_result = apply_operator_adjustments(
+        {"developer": {"context_window": tighten_to}}, "RATCHET"
+    )
+    let ratchet_tighten_ok = ratchet_tighten_result == ""
+    print("RATCHET|tighten_ok=" + string(ratchet_tighten_ok) + "|result=" + ratchet_tighten_result)
+
+    // Test 3: Non-allowed field (system_prompt not in allowed_agent_fields)
+    let ratchet_field_result = apply_operator_adjustments(
+        {"developer": {"system_prompt": "hijack attempt"}}, "RATCHET"
+    )
+    let ratchet_field_blocked = ratchet_field_result != ""
+    print("RATCHET|field_blocked=" + string(ratchet_field_blocked) + "|result=" + ratchet_field_result)
+
+    // Test 4: Free adjustment (max_tokens can increase freely)
+    let ratchet_free_result = apply_operator_adjustments(
+        {"developer": {"max_tokens": 4096}}, "RATCHET"
+    )
+    let ratchet_free_ok = ratchet_free_result == ""
+    print("RATCHET|free_adjust_ok=" + string(ratchet_free_ok) + "|result=" + ratchet_free_result)
+
+    tracking["phases_completed"].push("RATCHET")
+
+    // ================================================================
+    // PHASE: HEALTH_PULSE — governance health progression (Level 15)
+    // ================================================================
+    print("PHASE|HEALTH_PULSE|start")
+
+    try {
+        let hp = governance.health()
+        let hp_verdict = hp.get("verdict") ?? "unknown"
+        let hp_coherence = hp.get("coherence") ?? -1
+        let hp_epoch = hp.get("governance_epoch") ?? -1
+        print("HEALTH_PULSE|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch))
+        // Report all available keys for visibility
+        let hp_keys = hp.keys()
+        print("HEALTH_PULSE|available_keys=" + string(hp_keys))
+
+        // Compare with baseline from PREFLIGHT
+        let base_v = baseline_health.get("verdict") ?? "unknown"
+        let base_e = baseline_health.get("governance_epoch") ?? -1
+        print("HEALTH_PULSE|baseline_verdict=" + base_v + "|baseline_epoch=" + string(base_e))
+        print("HEALTH_PULSE|epoch_advanced=" + string(hp_epoch > base_e))
+    } catch (e) {
+        print("HEALTH_PULSE|error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("HEALTH_PULSE")
+
+    // ================================================================
+    // PHASE: LEASE_EPOCH — standing lease & epoch observability (Level 16)
+    // ================================================================
+    print("PHASE|LEASE_EPOCH|start")
+
+    // Query lease, epoch, challenges, and context config from multiple agents
+    let lease_agents = ["developer", "operator", "reviewer"]
+    let lai = 0
+    while lai < lease_agents.length() {
+        let la_name = lease_agents[lai]
+        if handles.get(la_name) != null {
+            try {
+                let la_env = agent.environment(handles[la_name])
+                let la_state = la_env.get("state") ?? {}
+                let la_limits = la_env.get("limits") ?? {}
+                let lease_rem = la_state.get("lease_remaining") ?? -1
+                let la_epoch = la_state.get("governance_epoch") ?? -1
+                let la_coh = la_state.get("coherence") ?? -1
+                let la_chall_p = la_state.get("challenges_passed") ?? 0
+                let la_chall_f = la_state.get("challenges_failed") ?? 0
+                let la_trunc = la_state.get("truncation_count") ?? 0
+                let la_ctx_win = la_limits.get("context_window") ?? -1
+                let la_ctx_strat = la_limits.get("context_strategy") ?? la_limits.get("strategy") ?? "unset"
+                let la_thinking = la_limits.get("thinking_budget") ?? -1
+                let la_min_tok = la_limits.get("min_tokens") ?? 0
+                print("LEASE_EPOCH|" + la_name + "|lease=" + string(lease_rem) + "|epoch=" + string(la_epoch) + "|coherence=" + string(la_coh))
+                print("LEASE_EPOCH|" + la_name + "|challenges_p=" + string(la_chall_p) + "|challenges_f=" + string(la_chall_f) + "|truncations=" + string(la_trunc))
+                print("LEASE_EPOCH|" + la_name + "|ctx_window=" + string(la_ctx_win) + "|ctx_strategy=" + la_ctx_strat + "|thinking=" + string(la_thinking) + "|min_tokens=" + string(la_min_tok))
+            } catch (e) {
+                print("LEASE_EPOCH|" + la_name + "|error=" + string(e))
+            }
+        }
+        lai = lai + 1
+    }
+
+    // CDD signal overrides visibility (developer has semantic_stability=false, response_repetition=false)
+    if handles.get("developer") != null {
+        try {
+            let dev_env = agent.environment(handles["developer"])
+            let dev_state = dev_env.get("state") ?? {}
+            let cdd_overrides = dev_state.get("cdd_signal_overrides")
+            if cdd_overrides != null {
+                let override_keys = cdd_overrides.keys()
+                print("LEASE_EPOCH|developer|cdd_overrides=" + string(override_keys.length()) + "|keys=" + string(override_keys))
+            } else {
+                print("LEASE_EPOCH|developer|cdd_overrides=none")
+            }
+        } catch (e) {
+            print("LEASE_EPOCH|developer|cdd_overrides_error=" + string(e))
+        }
+    }
+
+    tracking["phases_completed"].push("LEASE_EPOCH")
+
+    // ================================================================
+    // PHASE: TELEMETRY_AUDIT — event type coverage (Level 17)
+    // ================================================================
+    print("PHASE|TELEMETRY_AUDIT|start")
+
+    try {
+        let traw = file.read("telemetry.jsonl")
+        let tlines = string.split(string.trim(traw), "\n")
+        let event_types = {}
+        let tli = 0
+        while tli < tlines.length() {
+            if string.length(string.trim(tlines[tli])) > 2 {
+                try {
+                    let ev = json.parse(tlines[tli])
+                    let etype = ev.get("event_type") ?? ev.get("type") ?? "unknown"
+                    event_types[etype] = (event_types.get(etype) ?? 0) + 1
+                } catch (e) {}
+            }
+            tli = tli + 1
+        }
+        let type_names = event_types.keys()
+        print("TELEMETRY_AUDIT|unique_types=" + string(type_names.length()) + "|total_events=" + string(tlines.length()))
+
+        // Print each event type and count
+        let eti = 0
+        while eti < type_names.length() {
+            print("TELEMETRY_AUDIT|type=" + type_names[eti] + "|count=" + string(event_types[type_names[eti]]))
+            eti = eti + 1
+        }
+
+        // Check for key governance event types that should be present after a full run
+        let expected_types = ["ADMISSION_EVAL", "AGENT_RESPONSE", "CDD_TURN", "SEMANTIC_TURN", "CONFIG_ADJUSTMENT"]
+        let found_expected = 0
+        let exi = 0
+        while exi < expected_types.length() {
+            if event_types.get(expected_types[exi]) != null {
+                found_expected = found_expected + 1
+            }
+            exi = exi + 1
+        }
+        print("TELEMETRY_AUDIT|expected_found=" + string(found_expected) + "|expected_total=" + string(expected_types.length()))
+    } catch (e) {
+        print("TELEMETRY_AUDIT|error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("TELEMETRY_AUDIT")
+
+    // ================================================================
+    // PHASE: CODEGEN_BOUNDARY — codegen strict failure path (Level 18)
+    // ================================================================
+    print("PHASE|CODEGEN_BOUNDARY|start")
+
+    // Test 1: codegen.run_strict with INVALID Python — must throw
+    let codegen_strict_threw = false
+    try {
+        codegen.run_strict("python", "def broken(:\n    pass")
+        print("CODEGEN_BOUNDARY|strict_invalid=NO_THROW")
+    } catch (e) {
+        codegen_strict_threw = true
+        let err_str = string(e)
+        if len(err_str) > 80 { err_str = string.substring(err_str, 0, 80) }
+        print("CODEGEN_BOUNDARY|strict_invalid=threw|snippet=" + err_str)
+    }
+    print("CODEGEN_BOUNDARY|strict_threw=" + string(codegen_strict_threw))
+
+    // Test 2: codegen.run with valid code that produces verifiable output
+    try {
+        let cg_out = codegen.run("python", "print(7 * 6, end='')")
+        print("CODEGEN_BOUNDARY|run_output=" + string(cg_out))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|run_error=" + string(e))
+    }
+
+    // Test 3: codegen.run_with_args — variable injection with arithmetic verification
+    try {
+        let cg_args = codegen.run_with_args("python", "result = x * y\nprint(result, end='')", {"x": 7, "y": 6})
+        print("CODEGEN_BOUNDARY|args_output=" + string(cg_args))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|args_error=" + string(e))
+    }
+
+    // Test 4: codegen.supported_languages — verify runtime language enumeration
+    try {
+        let cg_langs = codegen.supported_languages()
+        let has_py = false
+        let cli = 0
+        while cli < cg_langs.length() {
+            if cg_langs[cli] == "python" { has_py = true }
+            cli = cli + 1
+        }
+        print("CODEGEN_BOUNDARY|languages=" + string(cg_langs.length()) + "|has_python=" + string(has_py))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|languages_error=" + string(e))
+    }
+
+    // Test 5: codegen cumulative call tracking (is_enabled reflects remaining budget)
+    try {
+        let still_enabled = codegen.is_enabled()
+        print("CODEGEN_BOUNDARY|still_enabled=" + string(still_enabled))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|enabled_error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("CODEGEN_BOUNDARY")
 
     // ================================================================
     // PHASE 6: DYNAMIC — operator-driven team adjustment (Level 6)

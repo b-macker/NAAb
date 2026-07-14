@@ -1,0 +1,11 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-26528/work-26528-2495/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] WARNING behavioral_sequences.cross_agent_file_relay
+[governance] Telemetry: 20 events written to telemetry.jsonl

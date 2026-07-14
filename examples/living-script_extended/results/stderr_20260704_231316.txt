@@ -1,0 +1,25 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-17422/work-17422-16327/govern.json (mode: enforce)
+[hint] dict.get("developer") returned null — available keys: "operator"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("tester") returned null — available keys: "developer", "operator"
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator"
+[hint] dict.get("architect") returned null — available keys: "reviewer", "tester", "developer", "operator"
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[hint] dict.get("specialist") returned null — available keys: "architect", "reviewer", "tester", "developer", "operator"
+[governance] Telemetry: 32 events written to telemetry.jsonl
+-- Governance: PASS (32 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     32 passed, 0 blocked
+Telemetry:  32 events → telemetry.jsonl
+BSD:        42 events, 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (13 turns analyzed)
+Exposure:   13 autonomous actions, 5 unique agents
+Dispatch:   14 calls (0 retries, 15115 tokens, 22160ms)
+Pulse:      HEALTHY (32 checks, 30 consecutive passes, epoch 0)
+────────────────────────────────

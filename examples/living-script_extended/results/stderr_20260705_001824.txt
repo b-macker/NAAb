@@ -1,0 +1,84 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-12744/work-12744-12729/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] WARNING behavioral_sequences.cross_agent_file_relay
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-12744/work-12744-12729/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-12744/work-12744-12729/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[governance] WARNING context_drift.coherence_loss
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-12744/work-12744-12729/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=2048 (handle=3)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-12744/work-12744-12729/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=2048 (handle=3)
+        Increase max_tokens in govern.json
+[governance] Risk score 15 reached yellow threshold 15 (red threshold: 50)
+[governance] Top contributor: context_drift.coherence_loss (+9)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+
+[governance] Summary (mode: enforce): 86 passed, 6 warnings, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+  ⚠ behavioral_sequences.cross_agent_file_relay [advisory]  WARN
+
+[governance] Telemetry: 93 events written to telemetry.jsonl
+-- Governance: PASS (92 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     86 passed, 6 blocked
+Top block:  behavioral_sequences.cross_agent_file_relay (3 violations)
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 18 (YELLOW) [15/50]
+  +9  context_drift.coherence_loss (3x @3)
+  +9  behavioral_sequences.cross_agent_file_relay (3x @3)
+Telemetry:  92 events → telemetry.jsonl
+BSD:        138 events, 3 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (40 turns analyzed)
+Compliance: 1 off-topic compliance events, prompt_alignment=0.12
+Exposure:   40 autonomous actions, 5 unique agents
+Budget:     developer: 47 remaining (consumed 3)
+Dispatch:   40 calls (0 retries, 410078 tokens, 110311ms)
+Pulse:      HEALTHY (92 checks, 8 consecutive passes, epoch 0)
+────────────────────────────────

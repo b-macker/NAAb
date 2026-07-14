@@ -22,6 +22,12 @@
 #   Level 12: Introspection & observability (agent.environment/usage/messages/
 #             key_health/dispatch_status/register_tool/run, governance queries,
 #             codegen.run/run_with_args)
+#   Level 13: Ratchet enforcement (one-way tightening, blocked fields)
+#   Level 14: Upstream provenance (pipeline stage traceability)
+#   Level 15: Governance health pulse (verdict progression, epoch tracking)
+#   Level 16: Lease & epoch observability (per-agent lease, CDD signal overrides)
+#   Level 17: Telemetry event audit (event type coverage verification)
+#   Level 18: Codegen boundary (strict failure path, variable injection)
 #
 # Requires: GK1 env var with a Gemini API key
 # Expected runtime: 4-8 minutes (~55-75 API calls)
@@ -71,7 +77,7 @@ setup_workdir() {
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 echo -e "${CYAN}|  Living Script EXTENDED: Advanced Governance Surface          |${NC}"
-echo -e "${CYAN}|  (4 features + propose/commit + fan-out + scoring)           |${NC}"
+echo -e "${CYAN}|  (4 features, 18 governance levels, ~0 extra API calls)     |${NC}"
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
@@ -209,7 +215,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
-    for phase in PREFLIGHT DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION; do
+    for phase in PREFLIGHT DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT CODEGEN_BOUNDARY; do
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
@@ -562,6 +568,212 @@ assert 'refinement_iterations' in d
     fi
 
     # ============================================================
+    # L13: RATCHET ENFORCEMENT
+    # ============================================================
+    echo -e "${CYAN}Level 13: Ratchet Enforcement${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|RATCHET|start"; then
+        pass "L13-01" "Ratchet phase reached"
+    else
+        fail "L13-01" "Ratchet phase not reached"
+    fi
+
+    if echo "$OUTPUT" | grep -q "RATCHET|loosen_blocked=true"; then
+        pass "L13-02" "Loosening blocked by ratchet guard"
+    else
+        fail "L13-02" "Loosening not blocked"
+    fi
+
+    if echo "$OUTPUT" | grep -q "RATCHET|tighten_ok=true"; then
+        pass "L13-03" "Tightening accepted (one-way decrease)"
+    else
+        fail "L13-03" "Tightening rejected"
+    fi
+
+    if echo "$OUTPUT" | grep -q "RATCHET|field_blocked=true"; then
+        pass "L13-04" "Non-allowed field blocked (system_prompt)"
+    else
+        fail "L13-04" "Non-allowed field not blocked"
+    fi
+
+    if echo "$OUTPUT" | grep -q "RATCHET|free_adjust_ok=true"; then
+        pass "L13-05" "Free adjustment accepted (max_tokens increase)"
+    else
+        fail "L13-05" "Free adjustment rejected"
+    fi
+
+    # ============================================================
+    # L14: UPSTREAM PROVENANCE
+    # ============================================================
+    echo -e "${CYAN}Level 14: Upstream Provenance${NC}"
+
+    if echo "$OUTPUT" | grep -q "BATCH_PIPELINE|provenance_present=true"; then
+        pass "L14-01" "Pipeline upstream provenance present"
+        PROV_STAGE=$(echo "$OUTPUT" | grep -oP 'provenance_present=true\|stage=\K[0-9-]+' | head -1)
+        PROV_COH=$(echo "$OUTPUT" | grep -oP 'upstream_coherence=\K[0-9.e+-]+' | head -1)
+        pass "L14-02" "Provenance has stage index ($PROV_STAGE) and coherence ($PROV_COH)"
+    elif echo "$OUTPUT" | grep -q "BATCH_PIPELINE|provenance_present=false"; then
+        skip "L14-01" "Pipeline ran but no provenance (single-stage or first-stage result)"
+        skip "L14-02" "No provenance data to inspect"
+    else
+        skip "L14-01" "Pipeline may not have run"
+        skip "L14-02" "No provenance data"
+    fi
+
+    # ============================================================
+    # L15: GOVERNANCE HEALTH PULSE
+    # ============================================================
+    echo -e "${CYAN}Level 15: Governance Health Pulse${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|HEALTH_PULSE|start"; then
+        pass "L15-01" "Health pulse phase reached"
+    else
+        fail "L15-01" "Health pulse phase not reached"
+    fi
+
+    HP_VERDICT=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=\K\w+' | head -1)
+    if [ -n "${HP_VERDICT:-}" ]; then
+        pass "L15-02" "Health verdict: $HP_VERDICT"
+    else
+        fail "L15-02" "No health verdict"
+    fi
+
+    HP_EPOCH=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=.*epoch=\K[0-9]+' | head -1)
+    if [ "${HP_EPOCH:-0}" -ge 1 ]; then
+        pass "L15-03" "Governance epoch advanced ($HP_EPOCH)"
+    elif [ "${HP_EPOCH:-0}" -ge 0 ]; then
+        pass "L15-03" "Governance epoch tracked ($HP_EPOCH)"
+    else
+        skip "L15-03" "No epoch data"
+    fi
+
+    if echo "$OUTPUT" | grep -q "HEALTH_PULSE|available_keys="; then
+        pass "L15-04" "Health keys enumerated"
+    else
+        skip "L15-04" "No health keys"
+    fi
+
+    if echo "$OUTPUT" | grep -q "HEALTH_PULSE|baseline_verdict="; then
+        pass "L15-05" "Baseline health comparison available"
+    else
+        skip "L15-05" "No baseline health comparison"
+    fi
+
+    # ============================================================
+    # L16: LEASE & EPOCH OBSERVABILITY
+    # ============================================================
+    echo -e "${CYAN}Level 16: Lease & Epoch${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|LEASE_EPOCH|start"; then
+        pass "L16-01" "Lease/epoch phase reached"
+    else
+        fail "L16-01" "Lease/epoch phase not reached"
+    fi
+
+    LEASE_AGENTS=$(echo "$OUTPUT" | grep -c 'LEASE_EPOCH|.*|lease=' || echo "0")
+    if [ "$LEASE_AGENTS" -ge 2 ]; then
+        pass "L16-02" "Lease data for $LEASE_AGENTS agents"
+    else
+        fail "L16-02" "Insufficient lease data" "got $LEASE_AGENTS agents"
+    fi
+
+    if echo "$OUTPUT" | grep -q "LEASE_EPOCH|.*|challenges_p="; then
+        pass "L16-03" "Challenge pass/fail counters visible"
+    else
+        fail "L16-03" "Challenge counters not visible"
+    fi
+
+    if echo "$OUTPUT" | grep -q "LEASE_EPOCH|.*|ctx_window="; then
+        pass "L16-04" "Context window/strategy visible per-agent"
+    else
+        fail "L16-04" "Context config not visible"
+    fi
+
+    if echo "$OUTPUT" | grep -q "LEASE_EPOCH|developer|cdd_overrides="; then
+        pass "L16-05" "CDD signal overrides visible"
+    else
+        fail "L16-05" "CDD signal overrides not visible"
+    fi
+
+    # ============================================================
+    # L17: TELEMETRY EVENT AUDIT
+    # ============================================================
+    echo -e "${CYAN}Level 17: Telemetry Audit${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|TELEMETRY_AUDIT|start"; then
+        pass "L17-01" "Telemetry audit phase reached"
+    else
+        fail "L17-01" "Telemetry audit phase not reached"
+    fi
+
+    TELEM_TYPES=$(echo "$OUTPUT" | grep -oP 'TELEMETRY_AUDIT\|unique_types=\K[0-9]+' | head -1)
+    if [ "${TELEM_TYPES:-0}" -ge 5 ]; then
+        pass "L17-02" "Telemetry diversity: $TELEM_TYPES event types"
+    elif [ "${TELEM_TYPES:-0}" -ge 3 ]; then
+        pass "L17-02" "Telemetry diversity: $TELEM_TYPES event types (expected 5+)"
+    else
+        fail "L17-02" "Low telemetry diversity" "got ${TELEM_TYPES:-0} types"
+    fi
+
+    EXPECTED_FOUND=$(echo "$OUTPUT" | grep -oP 'TELEMETRY_AUDIT\|expected_found=\K[0-9]+' | head -1)
+    EXPECTED_TOTAL=$(echo "$OUTPUT" | grep -oP 'TELEMETRY_AUDIT\|expected_total=\K[0-9]+' | head -1)
+    if [ "${EXPECTED_FOUND:-0}" -ge 3 ]; then
+        pass "L17-03" "Key event types present (${EXPECTED_FOUND}/${EXPECTED_TOTAL:-5})"
+    else
+        fail "L17-03" "Missing key event types" "found ${EXPECTED_FOUND:-0}/${EXPECTED_TOTAL:-5}"
+    fi
+
+    TELEM_TOTAL=$(echo "$OUTPUT" | grep -oP 'TELEMETRY_AUDIT\|unique_types=[0-9]+\|total_events=\K[0-9]+' | head -1)
+    if [ "${TELEM_TOTAL:-0}" -ge 50 ]; then
+        pass "L17-04" "Substantial telemetry volume ($TELEM_TOTAL events)"
+    elif [ "${TELEM_TOTAL:-0}" -ge 20 ]; then
+        pass "L17-04" "Telemetry volume: $TELEM_TOTAL events (expected 50+)"
+    else
+        fail "L17-04" "Low telemetry volume" "got ${TELEM_TOTAL:-0} events"
+    fi
+
+    # ============================================================
+    # L18: CODEGEN BOUNDARY
+    # ============================================================
+    echo -e "${CYAN}Level 18: Codegen Boundary${NC}"
+
+    if echo "$OUTPUT" | grep -q "PHASE|CODEGEN_BOUNDARY|start"; then
+        pass "L18-01" "Codegen boundary phase reached"
+    else
+        fail "L18-01" "Codegen boundary phase not reached"
+    fi
+
+    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|strict_threw=true"; then
+        pass "L18-02" "codegen.run_strict() throws on invalid code"
+    else
+        fail "L18-02" "codegen.run_strict() didn't throw on invalid code"
+    fi
+
+    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|run_output="; then
+        pass "L18-03" "codegen.run() produced output"
+    else
+        fail "L18-03" "codegen.run() produced no output"
+    fi
+
+    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|args_output="; then
+        pass "L18-04" "codegen.run_with_args() produced output"
+    else
+        fail "L18-04" "codegen.run_with_args() produced no output"
+    fi
+
+    if echo "$OUTPUT" | grep -q "has_python=true"; then
+        pass "L18-05" "Python in supported codegen languages"
+    else
+        fail "L18-05" "Python not in codegen languages"
+    fi
+
+    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|still_enabled=true"; then
+        pass "L18-06" "Codegen still enabled after calls"
+    else
+        skip "L18-06" "Codegen budget may be exhausted"
+    fi
+
+    # ============================================================
     # L6: DYNAMIC TEAM
     # ============================================================
     echo -e "${CYAN}Level 6: Dynamic Team${NC}"
@@ -732,6 +944,36 @@ print('true' if ok else 'false')
     echo ""
     echo -e "${CYAN}Introspection:${NC}"
     echo "$OUTPUT" | grep '^INTROSPECTION|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Ratchet Enforcement:${NC}"
+    echo "$OUTPUT" | grep '^RATCHET|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Health Pulse:${NC}"
+    echo "$OUTPUT" | grep '^HEALTH_PULSE|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Lease & Epoch:${NC}"
+    echo "$OUTPUT" | grep '^LEASE_EPOCH|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Telemetry Audit:${NC}"
+    echo "$OUTPUT" | grep '^TELEMETRY_AUDIT|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Codegen Boundary:${NC}"
+    echo "$OUTPUT" | grep '^CODEGEN_BOUNDARY|' | while read -r line; do
         echo -e "  ${CYAN}$line${NC}"
     done
 

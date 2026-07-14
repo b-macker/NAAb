@@ -1,0 +1,336 @@
+
+[0;36m+==============================================================+[0m
+[0;36m|  Living Script EXTENDED: Advanced Governance Surface          |[0m
+[0;36m|  (4 features + propose/commit + fan-out + scoring)           |[0m
+[0;36m+==============================================================+[0m
+
+[0;36mRunning living script (~3-7 minutes with feature evolution)...[0m
+[0;36mConfig: 4 workers + operator + 2 judges, 4 features, extended governance[0m
+
+
+[0;36m--- Output (last 100 lines) ---[0m
+VALIDATE|final_fix2|ops_convergence=true
+VALIDATE|final_fix2|test_convergence=true
+VALIDATE|final_fix2|pytest_passed=false
+VALIDATE|final_fix2|pytest_exit=1
+VALIDATE|final_fix2|pytest_output============================== test session starts ==============================
+collected 19 items
+
+test_calc.py ............F..F...                                         [100%]
+
+=================================== FAILURES ===================================
+______________________ test_evaluate_non_numeric_constant ______________________
+test_calc.py:82: in test_evaluate_non_numeric_constant
+    calc.evaluate("'string_not_allowed'")
+operations.py:145: in evaluate
+    result = _eval(tree, 0)
+             ^^^^^^^^^^^^^^
+operations.py:140: in _eval
+    return _eval(node.body, depth + 1)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+operations.py:112: in _eval
+    return self.validate_input(node.value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+operations.py:45: in validate_input
+    raise TypeError(f"Expected int or float, got {type(value).__name__}")
+E   TypeError: Expected int or float, got str
+_________________________________ test_memory __________________________________
+test_calc.py:97: in test_memory
+    assert calc.memory_recall() is None
+           ^^^^^^^^^^^^^^^^^^^^
+operations.py:204: in memory_recall
+    raise ValueError("Memory is empty.")
+E   ValueError: Memory is empty.
+=========================== short test summary info ============================
+FAILED test_calc.py::test_evaluate_non_numeric_constant - TypeError: Expected...
+FAILED test_calc.py::test_memory - ValueError: Memory is empty.
+========================= 2 failed, 17 passed in 0.09s =========================
+
+VALIDATE|final_fix2|main_syntax=true
+VALIDATE|final_fix2|total_checks=5
+PYTEST|exit=1
+PYTEST|=========================== short test summary info ============================
+PYTEST|FAILED test_calc.py::test_evaluate_non_numeric_constant - TypeError: Expected...
+PYTEST|FAILED test_calc.py::test_memory - ValueError: Memory is empty.
+PYTEST|========================= 2 failed, 17 passed in 0.09s =========================
+FINAL_REVIEW|iter=2|verdict=REJECTED
+TURN|reviewer|final2|c=1
+FINAL_REVIEW|verdict=false
+FINAL_REVIEW|iterations=2
+OPERATOR|action=observe|reasoning=Coherence has rebounded to 0.92 after the final review phase adjustments. The project is nearing completion; stability is preferred over further structural changes at this stage.
+OPERATOR|set_msg_prefix|len=104
+PHASE|SCORING|start
+SCORING|score=0|verdict=green|findings=0
+PHASE|INTROSPECTION|start
+INTROSPECTION|environment|max_tokens=3072|coherence=0.92|context_window=20|tools_enabled=false
+INTROSPECTION|usage|retries=0|fallbacks=0|truncations=0|latency_ms=114552
+INTROSPECTION|messages|count=46
+INTROSPECTION|key_health|available=6|active=[GK1, GK2, GK3, GK4, GK5, GK6]|dead=[]
+INTROSPECTION|dispatch|calls=65|tokens=782348|hard_stopped=false
+INTROSPECTION|register_tool=true
+INTROSPECTION|agent_run|len=16
+INTROSPECTION|findings_count=1
+INTROSPECTION|raw_score=3
+INTROSPECTION|calibrate|success=false|rule=missing_docstrings
+INTROSPECTION|calibration_overrides=0
+INTROSPECTION|codegen_run=OK
+INTROSPECTION|codegen_args=OK
+INTROSPECTION|complete
+PHASE|DYNAMIC|start
+OPERATOR|action=none|reasoning=All features implemented, final review concluded with high developer coherence (0.92), and a specialist was already utilized during the project to ensure architectural integrity. No further intervention is required.
+OPERATOR|set_msg_prefix|len=71
+PHASE|MEMORY|saving
+OPERATOR|action=none|reasoning=The run successfully concluded. Coherence dipped during the implementation of the expression parser (Feature 3) and plugin system (Feature 4), bottoming out at 0.67, but stabilized due to adaptive context strategies (Summary) and specialist oversight. Specialist consultation was highly effective in rectifying the drift.
+OPERATOR|set_msg_prefix|len=90
+MEMORY|saved|run=1
+SUMMARY_AGENTS_CREATED: 8
+SUMMARY_TOTAL_SENDS: 56
+SUMMARY_SEND_ERRORS: 1
+SUMMARY_ADJUSTMENTS: 4
+SUMMARY_ITERATIONS: 2
+SUMMARY_APPROVED: false
+SUMMARY_FEATURES: 4
+SUMMARY_PHASES: [PREFLIGHT, DESIGN, IMPLEMENT, REFINE, PROPOSE_SELECT, FEATURES, PARALLEL_REVIEW, BATCH_PIPELINE, FINAL_REVIEW, SCORING, INTROSPECTION, DYNAMIC]
+SUMMARY_ELAPSED: 232.90700006485
+CODE_EXTRACT|operations.py|extracted=true|len=8388
+CODE_EXTRACT|main.py|extracted=true|len=2680
+CODE_EXTRACT|test_calc.py|extracted=true|len=4588
+CONVERGENCE|operations.py|valid=true|error=
+CONVERGENCE|operations.py|pattern=def add|def subtract|def multiply|def divide|def power|def modulo|def memory_store|def memory_recall|def memory_clear|def evaluate|def register_plugin|def run_plugin|def list_plugins
+CONVERGENCE|main.py|valid=true|error=
+CONVERGENCE|test_calc.py|valid=true|error=
+AGENT_STATE|operator|c=1|min=0.955|cp=2
+AGENT_STATE|architect|c=1|min=1|cp=2
+AGENT_STATE|developer|c=0.92|min=0.67|cp=2
+AGENT_STATE|tester|c=1|min=1|cp=2
+AGENT_STATE|reviewer|c=1|min=1|cp=2
+AGENT_STATE|specialist|c=1|min=1|cp=2
+TELEM_EVENTS: 504
+TELEM_CHAIN: true
+HEALTH: degraded
+=== LIVING SCRIPT COMPLETE ===
+[0;36m--- End Output ---[0m
+
+[0;36mExtracted: agents=8 sends=56 errors=1[0m
+[0;36m          iterations=2 approved=false features=4 adjustments=4[0m
+
+[0;36mLevel 1: Operator Tuning[0m
+  [0;32mPASS[0m [L1-01] Team created (8 agents incl. operator)
+  [0;32mPASS[0m [L1-02] Operator consulted (11 times)
+  [0;32mPASS[0m [L1-03] Adjustments tracked (4 applied)
+[0;36mLevel 2: Outcome Validation[0m
+  [0;32mPASS[0m [L2-01] Polyglot validation ran (52 checks)
+  [0;32mPASS[0m [L2-02] operations.py passes convergence
+  [0;32mPASS[0m [L2-03] test_calc.py passes convergence
+  [0;32mPASS[0m [L2-04] Pytest executed (9 runs)
+[0;36mLevel 3: Cross-Run Memory[0m
+  [0;32mPASS[0m [L3-01] Memory file saved
+  [0;32mPASS[0m [L3-02] Memory has run_count + features + refinement data
+[0;36mLevel 4: Phase Transitions & Evolution[0m
+  [0;32mPASS[0m [L4-PREFLIGHT] Phase PREFLIGHT reached
+  [0;32mPASS[0m [L4-DESIGN] Phase DESIGN reached
+  [0;32mPASS[0m [L4-IMPLEMENT] Phase IMPLEMENT reached
+  [0;32mPASS[0m [L4-REFINE] Phase REFINE reached
+  [0;32mPASS[0m [L4-PROPOSE_SELECT] Phase PROPOSE_SELECT reached
+  [0;32mPASS[0m [L4-FEATURES] Phase FEATURES reached
+  [0;32mPASS[0m [L4-PARALLEL_REVIEW] Phase PARALLEL_REVIEW reached
+  [0;32mPASS[0m [L4-BATCH_PIPELINE] Phase BATCH_PIPELINE reached
+  [0;32mPASS[0m [L4-FINAL_REVIEW] Phase FINAL_REVIEW reached
+  [0;32mPASS[0m [L4-SCORING] Phase SCORING reached
+  [0;32mPASS[0m [L4-INTROSPECTION] Phase INTROSPECTION reached
+  [0;32mPASS[0m [L4-ITER] Refinement ran 2 iterations
+  [0;32mPASS[0m [L4-REWRITE] Developer rewrote code (2 times)
+  [0;32mPASS[0m [L4-REVIEW] Reviewer voted 4 times
+[0;36mLevel 5: Environmental Reactivity & Features[0m
+  [0;32mPASS[0m [L5-01] Requirement files detected (4)
+  [0;32mPASS[0m [L5-02] Features processed (4)
+  [0;32mPASS[0m [L5-03] Code evolved substantially (ops=8388 chars)
+  [0;32mPASS[0m [L5-04] Feature cycles completed (4)
+  [0;32mPASS[0m [L5-05] Tester reviewed during features (4 reviews)
+  [0;32mPASS[0m [L5-06] Developer fixed tester issues during features (4 fixes)
+  [0;32mPASS[0m [L5-07] main.py updated for all operations (len=2680)
+  [0;32mPASS[0m [L5-08] Developer fixed pytest failures (3 fixes)
+  [0;32mPASS[0m [L5-09] All 4 features processed (4)
+[0;36mLevel 7: Propose/Commit[0m
+  [0;32mPASS[0m [L7-01] Propose/Select phase reached
+  [0;32mPASS[0m [L7-02] Candidates generated (2)
+  [0;32mPASS[0m [L7-03] Proposal committed
+  [0;32mPASS[0m [L7-04] Codegen syntax validation passed
+[0;36mLevel 8: Parallel Review[0m
+  [0;32mPASS[0m [L8-01] Parallel review phase reached
+  [0;32mPASS[0m [L8-02] Fan-out votes collected (2)
+  [0;32mPASS[0m [L8-03] Consensus verdict: REVIEW
+[0;36mLevel 9: Structured Scoring[0m
+  [0;32mPASS[0m [L9-01] Scoring phase reached
+  [0;32mPASS[0m [L9-02] Governance findings recorded (0 findings)
+  [0;32mPASS[0m [L9-03] Score verdict: green
+[0;36mLevel 10: Preflight Validation[0m
+  [0;32mPASS[0m [L10-01] Preflight phase reached
+  [0;32mPASS[0m [L10-02] All 7 agent configs validated (7 checks)
+  [0;32mPASS[0m [L10-03] Invalid config handled gracefully
+  [0;32mPASS[0m [L10-04] Codegen enabled confirmed
+  [0;32mPASS[0m [L10-05] Python in supported languages
+[0;36mLevel 11: Batch & Pipeline[0m
+  [0;32mPASS[0m [L11-01] Batch/Pipeline phase reached
+  [0;32mPASS[0m [L11-02] Batch returned responses (2)
+  [0;32mPASS[0m [L11-03] Pipeline chaining succeeded
+  [0;32mPASS[0m [L11-04] Sequential refinement plan created
+  [0;32mPASS[0m [L11-05] Sequential refinement plan valid
+[0;36mLevel 12: Introspection[0m
+  [0;32mPASS[0m [L12-01] Introspection phase reached
+  [0;32mPASS[0m [L12-02] agent.environment() returned data
+  [0;32mPASS[0m [L12-03] agent.usage() returned data
+  [0;32mPASS[0m [L12-04] agent.messages() returned history (46 messages)
+  [0;32mPASS[0m [L12-05] agent.key_health() returned data
+  [0;32mPASS[0m [L12-06] agent.dispatch_status() shows calls (65)
+  [0;32mPASS[0m [L12-07] agent.register_tool() succeeded
+  [0;32mPASS[0m [L12-08] agent.run() one-shot succeeded
+  [0;31mFAIL[0m [L12-09] governance.calibrate() failed
+  [0;31mFAIL[0m [L12-10] governance.calibration() returned no overrides
+  [0;32mPASS[0m [L12-11] codegen.run() executed
+  [0;32mPASS[0m [L12-12] codegen.run_with_args() executed
+[0;36mLevel 6: Dynamic Team[0m
+  [0;32mPASS[0m [L6-01] Dynamic team phase reached
+[0;36mTelemetry & Health[0m
+  [0;32mPASS[0m [T01] Telemetry hash chain valid
+  [0;32mPASS[0m [H01] Governance health: degraded
+  [0;32mPASS[0m [C01] Code extraction (3/3 files)
+  [0;32mPASS[0m [C02] Substantial API calls (56 sends, 1 errors)
+  [0;32mPASS[0m [C03] Developer CDD varied (min=0.67)
+  [0;32mPASS[0m [C04] Final review verdict recorded (2 iterations)
+  [0;32mPASS[0m [C05] Final review fix loop activated (2 iterations, 1 fixes)
+[0;36mCross-Run Memory Test[0m
+  [0;32mPASS[0m [L3-03] Second run loaded prior memory (runs=1)
+
+[0;36mPer-Agent Final State:[0m
+  [0;36moperator c=1|min=0.955|cp=2[0m
+  [0;36marchitect c=1|min=1|cp=2[0m
+  [0;36mdeveloper c=0.92|min=0.67|cp=2[0m
+  [0;36mtester c=1|min=1|cp=2[0m
+  [0;36mreviewer c=1|min=1|cp=2[0m
+  [0;36mspecialist c=1|min=1|cp=2[0m
+
+[0;36mCode Extraction:[0m
+  [0;36mCODE_EXTRACT|operations.py|extracted=true|len=8388[0m
+  [0;36mCODE_EXTRACT|main.py|extracted=true|len=2680[0m
+  [0;36mCODE_EXTRACT|test_calc.py|extracted=true|len=4588[0m
+
+[0;36mConvergence:[0m
+  [0;36mCONVERGENCE|operations.py|valid=true|error=[0m
+  [0;36mCONVERGENCE|operations.py|pattern=def add|def subtract|def multiply|def divide|def power|def modulo|def memory_store|def memory_recall|def memory_clear|def evaluate|def register_plugin|def run_plugin|def list_plugins[0m
+  [0;36mCONVERGENCE|main.py|valid=true|error=[0m
+  [0;36mCONVERGENCE|test_calc.py|valid=true|error=[0m
+
+[0;36mRefinement History:[0m
+  [0;36mREFINE_ITER|1|start[0m
+  [0;36mREFINE|developer_rewrote|len=3853[0m
+  [0;36mREVIEW|iter=1|verdict=REJECTED[0m
+  [0;36mREFINE_ITER|1|end|verdict=REJECTED[0m
+  [0;36mREFINE_ITER|2|start[0m
+  [0;36mREFINE|developer_rewrote|len=4320[0m
+  [0;36mREVIEW|iter=2|verdict=APPROVED[0m
+  [0;36mREFINE|approved_at_iteration=2[0m
+  [0;36mREFINE_ITER|2|end|verdict=APPROVED[0m
+  [0;36mREFINE|total_iterations=2|approved=true[0m
+
+[0;36mFeature Evolution:[0m
+  [0;36mREACTIVE|scanning|found=4 requirements[0m
+  [0;36mREACTIVE|found=requirement-001.txt[0m
+  [0;36mFEATURE|1|start|Add power(base, exponent) and modulo(a, b) operations to the Calculator class[0m
+  [0;36mFEATURE|1|ops_updated|len=5229[0m
+  [0;36mFEATURE|1|developer_fixed|len=6272[0m
+  [0;36mFEATURE|1|complete[0m
+  [0;36mREACTIVE|found=requirement-002.txt[0m
+  [0;36mFEATURE|2|start|Add a memory system: memory_store(value), memory_recall() returns stored value, memory_clear() resets to None. Memory persists across operations.[0m
+  [0;36mFEATURE|2|ops_updated|len=6721[0m
+  [0;36mFEATURE|2|developer_fixed|len=7378[0m
+  [0;36mFEATURE|2|complete[0m
+  [0;36mREACTIVE|found=requirement-003.txt[0m
+  [0;36mFEATURE|3|start|Add an evaluate(expression: str) method that parses and evaluates simple math expressions like '2 + 3 * 4' respecting operator precedence[0m
+  [0;36mFEATURE|3|ops_updated|len=7082[0m
+  [0;36mFEATURE|3|developer_fixed|len=7618[0m
+  [0;36mFEATURE|3|complete[0m
+  [0;36mREACTIVE|found=requirement-004.txt[0m
+  [0;36mFEATURE|4|start|Add a plugin system: register_plugin(name, func), run_plugin(name, *args), list_plugins() returns list of registered plugin names. Plugins persist for the calculator's lifetime.[0m
+  [0;36mFEATURE|4|developer_fixed|len=8880[0m
+  [0;36mFEATURE|4|complete[0m
+
+[0;36mPropose/Commit:[0m
+  [0;36mPROPOSE_SELECT|candidates=2[0m
+  [0;36mPROPOSE_SELECT|committed=true[0m
+  [0;36mPROPOSE_SELECT|candidates=2|committed=true|codegen=pass[0m
+
+[0;36mParallel Review:[0m
+  [0;36mPARALLEL_REVIEW|votes=2|verdict=REVIEW|majority=2[0m
+  [0;36mPARALLEL_REVIEW|final_verdict=REVIEW[0m
+
+[0;36mScoring:[0m
+  [0;36mSCORING|score=0|verdict=green|findings=0[0m
+
+[0;36mPreflight:[0m
+  [0;36mPREFLIGHT|agent_checks=7|all_valid=true[0m
+  [0;36mPREFLIGHT|invalid_check=handled|valid=false[0m
+  [0;36mPREFLIGHT|codegen_enabled=true|has_python=true|languages=1[0m
+  [0;36mPREFLIGHT|parse_findings=0[0m
+
+[0;36mBatch/Pipeline:[0m
+  [0;36mBATCH_PIPELINE|batch_responses=2[0m
+  [0;36mBATCH_PIPELINE|pipeline_ok=true|pipeline_len=2093[0m
+  [0;36mBATCH_PIPELINE|seq_plan=true|seq_plan_pattern=sequential_refinement|seq_plan_iterations=2[0m
+
+[0;36mIntrospection:[0m
+  [0;36mINTROSPECTION|environment|max_tokens=3072|coherence=0.92|context_window=20|tools_enabled=false[0m
+  [0;36mINTROSPECTION|usage|retries=0|fallbacks=0|truncations=0|latency_ms=114552[0m
+  [0;36mINTROSPECTION|messages|count=46[0m
+  [0;36mINTROSPECTION|key_health|available=6|active=[GK1, GK2, GK3, GK4, GK5, GK6]|dead=[][0m
+  [0;36mINTROSPECTION|dispatch|calls=65|tokens=782348|hard_stopped=false[0m
+  [0;36mINTROSPECTION|register_tool=true[0m
+  [0;36mINTROSPECTION|agent_run|len=16[0m
+  [0;36mINTROSPECTION|findings_count=1[0m
+  [0;36mINTROSPECTION|raw_score=3[0m
+  [0;36mINTROSPECTION|calibrate|success=false|rule=missing_docstrings[0m
+  [0;36mINTROSPECTION|calibration_overrides=0[0m
+  [0;36mINTROSPECTION|codegen_run=OK[0m
+  [0;36mINTROSPECTION|codegen_args=OK[0m
+  [0;36mINTROSPECTION|complete[0m
+
+[0;36mStderr Cross-Validation:[0m
+  Stderr size: 5419 bytes
+
+[0;36m--- Stderr (first 25 lines) ---[0m
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-11721/work-11721-23023/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Reload rejected: ratchet violation(s): agent.developer.max_tokens: 3072 -> 1500 (below min_tokens floor 2048)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("error") returned null — available keys: "success", "role", "usage", "trace", "content", "admissibility", "environment"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Reload rejected: ratchet violation(s): agent.developer.max_tokens: 3072 -> 1500 (below min_tokens floor 2048)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[SANDBOX VIOLATION] file.delete on '_spec_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[0;36m--- End Stderr ---[0m
+
+[0;36mGovernance Health: degraded[0m
+
+[0;36m================================================[0m
+  [0;32mPASS: 71[0m  [0;31mFAIL: 2[0m  [1;33mSKIP: 0[0m  TOTAL: 73
+
+[0;31mFailures:
+  [L12-09] governance.calibrate() failed
+  [L12-10] governance.calibration() returned no overrides[0m
+[0;36m================================================[0m

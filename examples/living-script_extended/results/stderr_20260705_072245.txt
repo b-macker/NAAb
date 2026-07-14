@@ -1,0 +1,115 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[agent] Response truncated: thinking=1832 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[agent] Response truncated: thinking=1374 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[agent] Response truncated: thinking=1382 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+WARNING: Perfect coherence (1.0) after 12 turns (possible detection bypass)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[agent] Response truncated: thinking=840 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[agent] Response truncated: thinking=1085 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[agent] Response truncated: thinking=1387 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[agent] Response truncated: thinking=914 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: thinking=1540 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[agent] Response truncated: thinking=722 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[governance] WARNING context_drift.coherence_loss
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: thinking=858 exceeded budget=256, max_tokens=2048 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-26886/work-26886-16478/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+WARNING: Perfect coherence (1.0) after 11 turns (possible detection bypass)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+
+[governance] Summary (mode: enforce): 126 passed, 2 warnings, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 129 events written to telemetry.jsonl
+-- Governance: PASS (128 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     126 passed, 2 blocked
+Top block:  context_drift.coherence_loss (2 violations)
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 6 (green) [15/50]
+  +6  context_drift.coherence_loss (2x @3)
+Telemetry:  128 events → telemetry.jsonl
+BSD:        190 events (40 evicted), 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (50 turns analyzed)
+Exposure:   50 autonomous actions, 6 unique agents
+Budget:     developer: 48 remaining (consumed 2)
+Dispatch:   52 calls (0 retries, 634241 tokens, 147015ms)
+Pulse:      HEALTHY (128 checks, 23 consecutive passes, epoch 4)
+────────────────────────────────

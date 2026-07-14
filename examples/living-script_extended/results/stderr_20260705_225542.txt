@@ -1,0 +1,58 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-12581/work-12581-8071/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[hint] dict.get("context_strategy") returned null — available keys: "architect", "operator", "tester", "specialist", "reviewer", "developer"
+[hint] dict.get("max_tokens") returned null — available keys: "architect", "operator", "tester", "specialist", "reviewer", "developer"
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] WARNING context_drift.coherence_loss
+[hint] dict.get("context_window") returned null — available keys: "architect", "operator", "tester", "specialist", "reviewer", "developer"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] WARNING exposure_tracking
+[governance] Risk score 15 reached yellow threshold 15 (red threshold: 50)
+[governance] Top contributor: context_drift.coherence_loss (+9)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("error_message") returned null — available keys: "valid"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+
+[governance] Summary (mode: enforce): 100 passed, 10 warnings, 0 blocked
+  ⚠ exposure_tracking                   [advisory]  WARN
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 14 events written to telemetry.jsonl
+-- Governance: PASS (110 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     100 passed, 0 blocked, 10 advisory
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 30 (YELLOW) [15/50]
+  +15  exposure_tracking (5x @3)
+  +15  context_drift.coherence_loss (5x @3)
+Telemetry:  110 events → telemetry.jsonl
+BSD:        143 events, 0 patterns matched
+CDD:        coherence=0.86 vel=0.000 accel=0.000 (42 turns analyzed)
+CDD agents: architect=1.00 operator=0.86 developer=0.00 tester=1.00 reviewer=1.00 min=0.00
+Repetition: 1 verbatim duplicate(s) detected
+Compliance: 1 off-topic compliance events, prompt_alignment=0.10
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   42 autonomous actions, 5 unique agents
+Budget:     developer: 45 remaining (consumed 5)
+Dispatch:   42 calls (0 retries, 536541 tokens, 133947ms)
+Pulse:      HEALTHY (110 checks, 10 consecutive passes, epoch 0)
+────────────────────────────────

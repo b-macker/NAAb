@@ -1,0 +1,20 @@
+Error: [2 errors found]
+
+Parse error in work-15277-17305/living-script.naab/ at line 103, column 29: Expected ')'
+  Got: '+'
+    101 |                     if proposed > current && current > 0 {
+    102 |                         print("[operator] BLOCKED: " + field + " can only decrease ("
+  > 103 |                             + string(current) + " -> " + string(proposed) + ")")
+                                      ^
+    104 |                         j = j + 1
+
+  Expected Expected ')' but got '+'
+
+
+Parse error in work-15277-17305/living-script.naab/ at line 223, column 13: Expected ')'
+  Got: '+'
+    221 |         let action = decision.get("action") ?? "none"
+    222 |         print("OPERATOR|action = <redacted>|reasoning = <redacted>reasoning") ?? ""))
+                      ^
+
+  Expected Expected ')' but got '+'

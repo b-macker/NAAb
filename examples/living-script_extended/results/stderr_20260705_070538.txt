@@ -1,0 +1,74 @@
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-23785/work-23785-827/govern.json (mode: enforce)
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("tester") returned null — available keys: "developer", "operator", "architect"
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("reviewer") returned null — available keys: "tester", "developer", "operator", "architect"
+[governance] WARNING behavioral_sequences.cross_agent_file_relay
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-23785/work-23785-827/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[agent] Response truncated: output hit max_tokens=1024 (handle=4)
+        Increase max_tokens in govern.json
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-23785/work-23785-827/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[governance] Warning: step_up_keyword_threshold 0.15 is below minimum 0.2 — clamped to 0.2
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] INTEGRITY BLOCK: /data/data/com.termux/files/usr/tmp/living-script-23785/work-23785-827/govern.json signature does not match any trusted key.
+  The Ed25519 signature was checked against 1 trusted key(s) — none matched.
+  This file may have been signed with an untrusted key or tampered with.
+[governance] Reload rejected: signature verification failed
+[governance] WARNING context_drift.coherence_loss
+[SANDBOX VIOLATION] file.delete on '_ops_check.py': FS_DELETE capability required
+[SANDBOX VIOLATION] file.delete on '_main_check.py': FS_DELETE capability required
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "operator", "architect"
+WARNING: Perfect coherence (1.0) after 10 turns (possible detection bypass)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+
+[governance] Summary (mode: enforce): 85 passed, 4 warnings, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+  ⚠ behavioral_sequences.cross_agent_file_relay [advisory]  WARN
+
+[governance] Telemetry: 90 events written to telemetry.jsonl
+-- Governance: PASS (89 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     85 passed, 4 blocked
+Top block:  behavioral_sequences.cross_agent_file_relay (3 violations)
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+  Detail:   Warning: behavioral_sequences.cross_agent_file_relay — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 12 (green) [15/50]
+  +9  behavioral_sequences.cross_agent_file_relay (3x @3)
+  +3  context_drift.coherence_loss
+Telemetry:  89 events → telemetry.jsonl
+BSD:        136 events, 3 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (41 turns analyzed)
+Compliance: 1 off-topic compliance events, prompt_alignment=0.10
+Exposure:   41 autonomous actions, 6 unique agents
+Budget:     developer: 49 remaining (consumed 1)
+Dispatch:   41 calls (0 retries, 379659 tokens, 97029ms)
+Pulse:      HEALTHY (89 checks, 8 consecutive passes, epoch 0)
+────────────────────────────────
