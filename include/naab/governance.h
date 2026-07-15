@@ -3245,6 +3245,11 @@ private:
     // level sat below governance_level_. Stepping down one level requires
     // circuit_breaker.deescalate_sustained such turns (escalation stays instant).
     std::atomic<int> deescalate_calm_turns_{0};
+    // Handle whose pressure most recently raised or held the level. Calm turns
+    // count toward de-escalation only when they come from THIS handle — a calm
+    // sibling agent says nothing about the degraded one (all handles share the
+    // system-wide governance level). 0 = none recorded.
+    std::atomic<int> deescalate_pressure_handle_{0};
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json

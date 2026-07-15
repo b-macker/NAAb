@@ -512,7 +512,13 @@ main {
         print("TURN|architect|design|c=" + string(tracking["coherences"].get("architect") ?? -1))
     }
 
-    consult_operator({"phase": "DESIGN", "event": "design_complete", "spec_length": string.length(spec), "question": "Design phase complete. Review telemetry. Adjust before implementation?"})
+    // A create_agent decision here can't be honored yet (ops_code doesn't
+    // exist until IMPLEMENT) — stash it and replay it as soon as code exists.
+    let pending_specialist_request = null
+    let design_decision = consult_operator({"phase": "DESIGN", "event": "design_complete", "spec_length": string.length(spec), "question": "Design phase complete. Review telemetry. Adjust before implementation?"})
+    if design_decision.get("action") == "create_agent" {
+        pending_specialist_request = design_decision
+    }
     tracking["phases_completed"].push("DESIGN")
 
     // ================================================================
@@ -563,7 +569,7 @@ main {
         print("CODE|ops=" + string(len(ops_code)) + "|main=" + string(len(main_code)) + "|test=" + string(len(test_code)))
     }
 
-    consult_operator({"phase": "IMPLEMENT", "event": "code_written", "ops_len": len(ops_code), "main_len": len(main_code), "test_len": len(test_code), "question": "Initial code written. Check developer coherence. Pre-refinement adjustments?"})
+    let impl_decision = consult_operator({"phase": "IMPLEMENT", "event": "code_written", "ops_len": len(ops_code), "main_len": len(main_code), "test_len": len(test_code), "question": "Initial code written. Check developer coherence. Pre-refinement adjustments?"})
     tracking["phases_completed"].push("IMPLEMENT")
 
     // ================================================================
@@ -623,6 +629,14 @@ main {
             return false
         }
     }
+
+    // Honor the earliest-phase specialist requests now that both ops_code and
+    // the handler exist. The handler's own guards (already-exists, no-code)
+    // make these calls safe no-ops when nothing was requested or code is empty.
+    if pending_specialist_request != null {
+        handle_specialist_request(pending_specialist_request, "DESIGN")
+    }
+    handle_specialist_request(impl_decision, "IMPLEMENT")
 
     // ================================================================
     // PHASE 3: REFINE — iterative test/fix/validate/review loop
