@@ -1,6 +1,8 @@
 #include "naab/governance.h"
 #include "naab/behavioral_sequence.h"
 #include "naab/keyword_extract.h"
+#include "naab/crypto_utils.h"
+#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -1877,6 +1879,111 @@ std::optional<DriftState> ContextDriftAnalyzer::getDriftState(int handle_id) con
     auto it = drift_states_.find(handle_id);
     if (it == drift_states_.end()) return std::nullopt;
     return it->second;
+}
+
+std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
+    auto st = getDriftState(handle_id);  // copy — no lock held while building
+    if (!st) return "";
+    const DriftState& s = *st;
+
+    // Digest of a keyword set: SHA-256 over the sorted, newline-joined words.
+    // Preserves replay comparability without persisting content.
+    auto set_digest = [](const std::unordered_set<std::string>& set) {
+        std::vector<std::string> v(set.begin(), set.end());
+        std::sort(v.begin(), v.end());
+        std::string cat;
+        for (const auto& w : v) { cat += w; cat += '\n'; }
+        return security::CryptoUtils::sha256(cat);
+    };
+    auto set_entry = [&set_digest](const std::unordered_set<std::string>& set) {
+        nlohmann::json e;
+        e["count"] = set.size();
+        e["digest"] = set_digest(set);
+        return e;
+    };
+
+    nlohmann::json j;
+    j["handle_id"] = s.handle_id;
+    j["config_name"] = s.config_name;
+    j["coherence_score"] = s.coherence_score;
+    j["coherence_velocity"] = s.coherence_velocity;
+    j["coherence_acceleration"] = s.coherence_acceleration;
+    j["min_coherence_lifetime"] = s.min_coherence_lifetime;
+    j["turns_analyzed"] = s.turns_analyzed;
+    j["last_checked_turn"] = s.last_checked_turn;
+    j["contradictions"] = s.contradictions;
+    j["repeated_failures"] = s.repeated_failures;
+    j["signals_fired_this_turn"] = s.signals_fired_this_turn;
+    j["last_pressure_score"] = s.last_pressure_score;
+    j["inherited_pressure"] = s.inherited_pressure;
+    j["pipeline_depth"] = s.pipeline_depth;
+    j["consecutive_high_pressure_turns"] = s.consecutive_high_pressure_turns;
+    j["consecutive_quarantines"] = s.consecutive_quarantines;
+    j["last_recovery_turn"] = s.last_recovery_turn;
+    j["baseline_complete"] = s.baseline_complete;
+    j["baseline_turns_counted"] = s.baseline_turns_counted;
+    j["persona_baseline_mean"] = s.persona_baseline_mean;
+    j["persona_baseline_stddev"] = s.persona_baseline_stddev;
+    j["thinking_baseline_mean"] = s.thinking_baseline_mean;
+    j["input_tokens_baseline_mean"] = s.input_tokens_baseline_mean;
+    j["signal_override_mask"] = s.signal_override_mask;
+    j["signal_override_values"] = s.signal_override_values;
+
+    nlohmann::json counts;
+    counts["vocabulary_contraction"] = s.vocabulary_contraction_count;
+    counts["semantic_stability"] = s.semantic_stability_count;
+    counts["mandate_drift"] = s.mandate_drift_count;
+    counts["instruction_recall"] = s.instruction_recall_count;
+    counts["plan_drift"] = s.plan_drift_count;
+    counts["entity_consistency"] = s.entity_consistency_count;
+    counts["instruction_conflict"] = s.instruction_conflict_count;
+    counts["persona_drift"] = s.persona_drift_count;
+    counts["tool_integrity"] = s.tool_integrity_count;
+    counts["claim_result_mismatch"] = s.claim_result_mismatch_count;
+    counts["prompt_compliance"] = s.prompt_compliance_count;
+    counts["response_repetition"] = s.response_repetition_count;
+    counts["response_quality"] = s.response_quality_count;
+    counts["thinking_collapse"] = s.thinking_collapse_count;
+    counts["context_growth"] = s.context_growth_count;
+    counts["circular_action"] = s.circular_action_count;
+    counts["scope_creep"] = s.scope_creep_count;
+    j["counts"] = counts;
+
+    nlohmann::json fired = nlohmann::json::array();
+    nlohmann::json penalties = nlohmann::json::array();
+    nlohmann::json baselines = nlohmann::json::array();
+    for (int i = 0; i < NUM_CDD_SIGNALS; ++i) {
+        fired.push_back(s.last_turn_fired[i]);
+        penalties.push_back(s.last_turn_penalties[i]);
+        nlohmann::json b;
+        b["mean"] = s.signal_baselines[i].mean;
+        b["stddev"] = s.signal_baselines[i].stddev;
+        baselines.push_back(b);
+    }
+    j["last_turn_fired"] = fired;
+    j["last_turn_penalties"] = penalties;
+    j["signal_baselines"] = baselines;
+
+    nlohmann::json windows;
+    windows["turn_fingerprints"] = s.turn_fingerprints.size();
+    windows["recent_errors"] = s.recent_errors.size();
+    windows["coherence_history"] = s.coherence_history.size();
+    windows["semantic_stability_history"] = s.semantic_stability_history.size();
+    windows["mandate_alignment_history"] = s.mandate_alignment_history.size();
+    windows["claim_accuracy_history"] = s.claim_accuracy_history.size();
+    windows["prompt_alignment_history"] = s.prompt_alignment_history.size();
+    windows["instruction_history"] = s.instruction_history.size();
+    windows["response_fingerprints"] = s.response_fingerprints.size();
+    windows["entity_count"] = s.entity_context.size();
+    j["windows"] = windows;
+
+    j["mandate_keywords"] = set_entry(s.mandate_keywords);
+    j["instruction_keywords"] = set_entry(s.instruction_keywords);
+    j["prev_response_keywords"] = set_entry(s.prev_response_keywords);
+    j["last_response_fingerprint"] = s.response_fingerprints.empty()
+        ? std::string() : s.response_fingerprints.back();
+
+    return j.dump();
 }
 
 double ContextDriftAnalyzer::getMinCoherence() const {

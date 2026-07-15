@@ -68,3 +68,48 @@ recover → drift) that never accumulates enough penalty to trigger
 intervention — especially combined with rate normalization. Healing stays a
 fixed per-turn rate; the engine default remains 0.0 (opt-in) with 0.02 as the
 recommended template value.
+
+## Reshaped: telemetry hash chain is file-anchored, not process-anchored
+
+The tamper-evident chain originally seeded `prev_hash` from the constant
+`chain_genesis` on every process start. Each run's chain was internally
+sound, but nothing linked run N's final hash to run N+1's first event —
+deleting an entire run from a shared JSONL file was undetectable, and the
+verifier reported a false BREAK at every legitimate run boundary, making
+multi-run files unverifiable in practice. The chain is now anchored to the
+output file: every write seeds `prev_hash` from the file's last chained
+event (read under the same flock that serializes writers), so runs and
+flock-serialized concurrent processes link into one continuous chain. A
+`RunStart` anchor explicitly commits to the predecessor's tail hash and a
+`RunEnd` anchor declares the run's chained event count. The verifier treats
+pre-continuity genesis re-seeds as `LEGACY RESTART` warnings so old files
+remain verifiable. The audit chain gets the same tail-seed on first write.
+
+Residual limitations, accepted deliberately:
+
+- **Trailing truncation of the final run** (deleting its tail after removing
+  `RunEnd`, or deleting the entire final run) is only advisory-detectable —
+  a crash is indistinguishable from truncation without an external witness.
+  Mitigation is `telemetry.forwarding` (webhook/SIEM), which ships events
+  off-host as they occur.
+- **The evidence writer lives in the governed process.** The chain detects
+  after-the-fact file tampering; it cannot prove a compromised process wrote
+  honest events in the first place. HMAC keys (`tamper_evidence.hmac_key_env`)
+  raise the bar — an attacker without the key cannot re-forge the chain.
+
+Evidence collection is ratchet-protected: disabling
+`telemetry.tamper_evidence`, `telemetry.decision_snapshots`,
+`audit.tamper_evidence`, or `telemetry.transcript` mid-run is a ratchet
+violation — evidence switches are one-way once enabled.
+
+## Reshaped: transcripts stay outside the chain but are committed into it
+
+The agent transcript remains a plain audit/debug log (no hash chain of its
+own — by design, it is opt-in and content-heavy). Instead, every written
+entry now carries an `entry_hash` (SHA-256 of the entry as built, before the
+hash field is added), and when the telemetry chain is active a chained
+`TRANSCRIPT_REF` event commits that hash into the tamper-evident record.
+Editing a transcript entry after the fact breaks its recomputed hash against
+the chained reference. Chaining the transcript directly was rejected: it
+would couple the debug log's availability to the evidence chain and bloat
+the hash-verified surface with full prompt/response content.

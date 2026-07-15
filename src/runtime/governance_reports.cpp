@@ -66,6 +66,10 @@ extern thread_local Interpreter* g_current_interpreter;  // defined in interpret
 namespace naab {
 namespace governance {
 
+// Defined below (after computeHash): tail-read of the last chained hash in a
+// JSONL file, used to anchor hash chains to the file across runs/processes.
+static std::string readLastChainedHash(const std::string& path);
+
 // --- Audit Trail ---
 void GovernanceEngine::logAuditEvent(const std::string& event_type,
                                       const std::string& rule_name,
@@ -90,8 +94,14 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
     std::string rationale = lookupRationale(rule_name);
     if (!rationale.empty()) entry["rationale"] = rationale;
 
-    // Tamper-evident hash chain
+    // Tamper-evident hash chain — seed from the file's tail on this process's
+    // first audit write so the chain links across runs instead of restarting
+    // at genesis (which made whole-run deletion undetectable).
     if (rules().audit.tamper_evidence.enabled) {
+        if (last_audit_hash_.empty()) {
+            std::string tail = readLastChainedHash(output_file);
+            if (!tail.empty()) last_audit_hash_ = tail;
+        }
         entry["prev_hash"] = last_audit_hash_.empty()
             ? rules().audit.tamper_evidence.chain_genesis
             : last_audit_hash_;
@@ -183,6 +193,119 @@ std::string GovernanceEngine::computeHash(const std::string& data,
     return security::CryptoUtils::sha256(data);
 }
 
+// ISO timestamp for chain anchor events (RunStart/RunEnd)
+static std::string isoTimestampNow() {
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
+    char ts_buf[32];
+    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+    return std::string(ts_buf);
+}
+
+// Read the hash of the last chained event in a JSONL file. Scans backward at
+// most 64KB from the end for the last line carrying a "hash" field. Returns ""
+// when the file is missing, empty, or has no chained events in the window.
+// Callers hold the file's flock, so the tail is stable during the read.
+static std::string readLastChainedHash(const std::string& path) {
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs.is_open()) return "";
+    ifs.seekg(0, std::ios::end);
+    std::streamoff size = ifs.tellg();
+    if (size <= 0) return "";
+    const std::streamoff kWindow = 64 * 1024;
+    std::streamoff start = size > kWindow ? size - kWindow : 0;
+    ifs.seekg(start);
+    std::string window(static_cast<size_t>(size - start), '\0');
+    ifs.read(&window[0], size - start);
+    window.resize(static_cast<size_t>(ifs.gcount()));
+
+    size_t pos = window.size();
+    while (pos > 0) {
+        size_t nl = window.rfind('\n', pos - 1);
+        size_t line_start = (nl == std::string::npos) ? 0 : nl + 1;
+        std::string line = window.substr(line_start, pos - line_start);
+        // Match "hash":" exactly — the leading quote excludes "prev_hash".
+        if (line.find("\"hash\":\"") != std::string::npos) {
+            try {
+                auto ev = nlohmann::json::parse(line);
+                if (ev.contains("hash") && ev["hash"].is_string()) {
+                    return ev["hash"].get<std::string>();
+                }
+            } catch (...) {
+                // Partial line at the window boundary or corrupt JSON —
+                // keep scanning toward the file start.
+            }
+        }
+        if (nl == std::string::npos || nl == 0) break;
+        pos = nl;
+    }
+    return "";
+}
+
+// File-anchored chain: prev_hash for the next event comes from the output
+// file's tail (authoritative — links across runs and flock-serialized
+// concurrent writers), falling back to the in-memory hash, then genesis.
+// Lazily writes the RunStart anchor before this process's first chained
+// event. Requires telemetry_hash_mutex_ held and fp open + flocked.
+std::string GovernanceEngine::chainPrevLocked(FILE* fp) const {
+    const auto& te = rules().telemetry_output.tamper_evidence;
+    // Flush buffered writes first: batched writers (writeTelemetry's check
+    // loop) hold fp across many events, and the tail read below goes to the
+    // file on disk — unflushed lines would make it return a stale hash.
+    fflush(fp);
+    std::string prev = readLastChainedHash(rules().telemetry_output.output_file);
+    if (prev.empty()) {
+        prev = last_telemetry_hash_.empty() ? te.chain_genesis
+                                            : last_telemetry_hash_;
+    }
+    if (!run_start_emitted_) {
+        run_start_emitted_ = true;
+        nlohmann::json rs;
+        rs["run_id"] = run_id_;
+        rs["agent_id"] = agent_id_;
+        rs["event_type"] = "RunStart";
+        rs["timestamp"] = isoTimestampNow();
+#ifndef _WIN32
+        rs["pid"] = static_cast<long>(getpid());
+#endif
+        rs["prev_hash"] = prev;
+        last_telemetry_hash_ = computeHash(rs.dump(), te);
+        rs["hash"] = last_telemetry_hash_;
+        checkedWrite(fp, rs.dump() + "\n", telemetry_write_failures_);
+        chained_events_this_run_++;
+        prev = last_telemetry_hash_;
+    }
+    return prev;
+}
+
+// RunEnd anchor: declares this run's chained event count so the verifier can
+// detect trailing truncation of a run. Written once, at report time.
+void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const {
+    const auto& te = rules().telemetry_output.tamper_evidence;
+    if (!te.enabled) return;
+    std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
+    if (run_end_emitted_) return;
+    run_end_emitted_ = true;
+    nlohmann::json re;
+    re["run_id"] = run_id_;
+    re["agent_id"] = agent_id_;
+    re["event_type"] = "RunEnd";
+    re["timestamp"] = timestamp;
+    re["prev_hash"] = chainPrevLocked(fp);
+    // Count includes RunStart, all chained events, and this RunEnd itself.
+    re["chained_events"] = chained_events_this_run_ + 1;
+    last_telemetry_hash_ = computeHash(re.dump(), te);
+    re["hash"] = last_telemetry_hash_;
+    checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_);
+    chained_events_this_run_++;
+}
+
 int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
     const std::string& hmac_key) {
     std::ifstream ifs(filepath);
@@ -190,25 +313,62 @@ int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
         fprintf(stderr, "Error: cannot open %s\n", filepath.c_str());
         return 1;
     }
+
+    // Per-run accounting: RunStart/RunEnd anchors + chained event counts.
+    struct RunInfo {
+        long long chained = 0;
+        bool has_start = false;
+        bool has_end = false;
+        long long declared = -1;   // RunEnd's chained_events field
+        int last_event_num = 0;    // file position of the run's last chained event
+    };
+    std::vector<std::pair<std::string, RunInfo>> runs;  // insertion-ordered
+    auto runFor = [&runs](const std::string& rid) -> RunInfo& {
+        for (auto& [id, info] : runs) {
+            if (id == rid) return info;
+        }
+        runs.emplace_back(rid, RunInfo{});
+        return runs.back().second;
+    };
+
     std::string line;
     int event_num = 0;
     int chained_events = 0;
+    long long unchained_lines = 0;
     std::string expected_prev_hash;
+    std::string file_genesis;  // prev_hash of the file's first chained event
     int breaks = 0;
+    int legacy_restarts = 0;
+    int warnings = 0;
+
     while (std::getline(ifs, line)) {
         if (line.empty()) continue;
         event_num++;
         try {
             auto ev = nlohmann::json::parse(line);
-            if (!ev.contains("hash") || !ev.contains("prev_hash")) continue;
+            if (!ev.contains("hash") || !ev.contains("prev_hash")) {
+                unchained_lines++;
+                continue;
+            }
             chained_events++;
             std::string stored_hash = ev["hash"].get<std::string>();
             std::string prev_hash = ev["prev_hash"].get<std::string>();
+            if (file_genesis.empty()) file_genesis = prev_hash;
             if (!expected_prev_hash.empty() && prev_hash != expected_prev_hash) {
-                fprintf(stderr, "BREAK at event %d: prev_hash mismatch\n"
-                    "  expected: %s\n  got:      %s\n", event_num,
-                    expected_prev_hash.c_str(), prev_hash.c_str());
-                breaks++;
+                // Pre-continuity writers restarted the chain at genesis every
+                // run. The file's first prev_hash IS its genesis value, so a
+                // mismatch that re-uses it is a legacy restart, not tampering.
+                if (prev_hash == file_genesis) {
+                    fprintf(stderr, "LEGACY RESTART at event %d: chain re-seeded "
+                        "from genesis (pre-continuity writer)\n", event_num);
+                    legacy_restarts++;
+                    warnings++;
+                } else {
+                    fprintf(stderr, "BREAK at event %d: prev_hash mismatch\n"
+                        "  expected: %s\n  got:      %s\n", event_num,
+                        expected_prev_hash.c_str(), prev_hash.c_str());
+                    breaks++;
+                }
             }
             auto ev_copy = ev;
             ev_copy.erase("hash");
@@ -224,19 +384,64 @@ int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
                 breaks++;
             }
             expected_prev_hash = stored_hash;
+
+            // Run accounting
+            std::string rid = ev.value("run_id", std::string());
+            RunInfo& info = runFor(rid);
+            info.chained++;
+            info.last_event_num = event_num;
+            std::string etype = ev.value("event_type", std::string());
+            if (etype == "RunStart") info.has_start = true;
+            if (etype == "RunEnd") {
+                info.has_end = true;
+                if (ev.contains("chained_events") &&
+                    ev["chained_events"].is_number()) {
+                    info.declared = ev["chained_events"].get<long long>();
+                }
+            }
         } catch (const nlohmann::json::parse_error&) {
             fprintf(stderr, "CORRUPT at event %d: invalid JSON\n", event_num);
             breaks++;
         }
     }
+
+    // Per-run completeness. Interior deletions/truncations are already hard
+    // BREAKs via prev_hash linkage; RunEnd accounting adds (a) count
+    // cross-checks and (b) an advisory for runs that never closed — the final
+    // run's missing RunEnd is indistinguishable from a crash, so it warns
+    // rather than breaks.
+    int last_chained_event = 0;
+    for (const auto& [rid, info] : runs) {
+        if (info.last_event_num > last_chained_event)
+            last_chained_event = info.last_event_num;
+    }
+    for (const auto& [rid, info] : runs) {
+        const char* rid_str = rid.empty() ? "(no run_id)" : rid.c_str();
+        if (info.has_end && info.declared >= 0 && info.declared != info.chained) {
+            fprintf(stderr, "BREAK in run %s: RunEnd declares %lld chained "
+                "events but %lld observed\n", rid_str, info.declared, info.chained);
+            breaks++;
+        } else if (info.has_start && !info.has_end) {
+            bool is_final = (info.last_event_num == last_chained_event);
+            fprintf(stderr, "WARNING: run %s has no RunEnd (%s)\n", rid_str,
+                is_final ? "final run — possibly crashed or still running"
+                         : "possibly crashed; chain continuity above is authoritative");
+            warnings++;
+        }
+    }
+
     if (chained_events == 0) {
         fprintf(stdout, "No chained events found in %s (%d lines read)\n",
                 filepath.c_str(), event_num);
         return 0;
     }
+    fprintf(stdout, "Scanned %d lines: %d chained events across %zu run(s), "
+            "%lld unchained line(s)\n",
+            event_num, chained_events, runs.size(), unchained_lines);
     if (breaks == 0) {
-        fprintf(stdout, "Chain verified: %d chained events (%d total lines), no breaks\n",
-                chained_events, event_num);
+        fprintf(stdout, "Chain verified: %d chained events, no breaks"
+                " (%d warning(s), %d legacy restart(s))\n",
+                chained_events, warnings, legacy_restarts);
         return 0;
     } else {
         fprintf(stderr, "Chain BROKEN: %d break(s) in %d chained events (%d total lines)\n",
@@ -373,12 +578,11 @@ void GovernanceEngine::emitRefusalAttestation(
     // Tamper-evident hash chain (shared with writeTelemetry/writeAgentTelemetry)
     if (rules().telemetry_output.tamper_evidence.enabled) {
         std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-        ev["prev_hash"] = last_telemetry_hash_.empty()
-            ? rules().telemetry_output.tamper_evidence.chain_genesis
-            : last_telemetry_hash_;
+        ev["prev_hash"] = chainPrevLocked(fp.get());
         last_telemetry_hash_ = computeHash(ev.dump(),
             rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
+        chained_events_this_run_++;
     }
 
     std::string line = ev.dump() + "\n";
@@ -463,12 +667,11 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
     // Tamper-evident hash chain
     if (rules().telemetry_output.tamper_evidence.enabled) {
         std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-        ev["prev_hash"] = last_telemetry_hash_.empty()
-            ? rules().telemetry_output.tamper_evidence.chain_genesis
-            : last_telemetry_hash_;
+        ev["prev_hash"] = chainPrevLocked(fp.get());
         last_telemetry_hash_ = computeHash(ev.dump(),
             rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
+        chained_events_this_run_++;
     }
 
     std::string line = ev.dump() + "\n";
@@ -1279,12 +1482,11 @@ void GovernanceEngine::writeTelemetry() const {
         // Tamper-evident hash chain for telemetry entries
         if (rules().telemetry_output.tamper_evidence.enabled) {
             std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-            ev["prev_hash"] = last_telemetry_hash_.empty()
-                ? rules().telemetry_output.tamper_evidence.chain_genesis
-                : last_telemetry_hash_;
+            ev["prev_hash"] = chainPrevLocked(fp.get());
             last_telemetry_hash_ = computeHash(ev.dump(),
                 rules().telemetry_output.tamper_evidence);
             ev["hash"] = last_telemetry_hash_;
+            chained_events_this_run_++;
         }
 
         std::string line = ev.dump() + "\n";
@@ -1313,12 +1515,11 @@ void GovernanceEngine::writeTelemetry() const {
         summary["deduplicated"] = dedup_count;
         if (rules().telemetry_output.tamper_evidence.enabled) {
             std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-            summary["prev_hash"] = last_telemetry_hash_.empty()
-                ? rules().telemetry_output.tamper_evidence.chain_genesis
-                : last_telemetry_hash_;
+            summary["prev_hash"] = chainPrevLocked(fp.get());
             last_telemetry_hash_ = computeHash(summary.dump(),
                 rules().telemetry_output.tamper_evidence);
             summary["hash"] = last_telemetry_hash_;
+            chained_events_this_run_++;
         }
         std::string sline = summary.dump() + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
@@ -1345,12 +1546,11 @@ void GovernanceEngine::writeTelemetry() const {
         snap["score_breakdown"] = breakdown;
         if (rules().telemetry_output.tamper_evidence.enabled) {
             std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-            snap["prev_hash"] = last_telemetry_hash_.empty()
-                ? rules().telemetry_output.tamper_evidence.chain_genesis
-                : last_telemetry_hash_;
+            snap["prev_hash"] = chainPrevLocked(fp.get());
             last_telemetry_hash_ = computeHash(snap.dump(),
                 rules().telemetry_output.tamper_evidence);
             snap["hash"] = last_telemetry_hash_;
+            chained_events_this_run_++;
         }
         std::string sline = snap.dump() + "\n";
         if (checkedWrite(fp.get(), sline, telemetry_write_failures_))
@@ -1361,6 +1561,10 @@ void GovernanceEngine::writeTelemetry() const {
             if (fwd) fwd->enqueue(snap.dump());
         }
     }
+
+    // RunEnd anchor: declares this run's chained event count so the verifier
+    // can detect trailing truncation. Emitted once, after all other events.
+    emitRunEnd(fp.get(), timestamp);
 
     // fp_deleter handles flock(LOCK_UN) + fclose automatically.
 
@@ -1414,18 +1618,26 @@ void GovernanceEngine::writeAgentTelemetry(
     ev["event_type"] = event_type;
     ev["timestamp"] = std::string(ts_buf);
     for (const auto& [k, v] : fields) {
+        // cdd_snapshot carries a pre-serialized JSON object (decision-state
+        // snapshot) — embed it structurally so it is queryable and covered
+        // by the event hash as one object.
+        if (k == "cdd_snapshot") {
+            try {
+                ev[k] = nlohmann::json::parse(v);
+                continue;
+            } catch (...) { /* fall through to string */ }
+        }
         ev[k] = error::ErrorSanitizer::sanitizeFilePaths(v);
     }
 
     // Tamper-evident hash chain
     if (rules().telemetry_output.tamper_evidence.enabled) {
         std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-        ev["prev_hash"] = last_telemetry_hash_.empty()
-            ? rules().telemetry_output.tamper_evidence.chain_genesis
-            : last_telemetry_hash_;
+        ev["prev_hash"] = chainPrevLocked(fp.get());
         last_telemetry_hash_ = computeHash(ev.dump(),
             rules().telemetry_output.tamper_evidence);
         ev["hash"] = last_telemetry_hash_;
+        chained_events_this_run_++;
     }
 
     std::string line = ev.dump() + "\n";
@@ -1447,6 +1659,33 @@ void GovernanceEngine::writeAgentTelemetry(
 void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
     if (!rules().transcript.enabled || rules().transcript.output_file.empty()) return;
 
+    // entry_hash is computed over the entry as the caller built it (without
+    // the entry_hash field), then embedded in the written line and — when the
+    // telemetry hash chain is active — committed into the chain via a
+    // TRANSCRIPT_REF event. The transcript itself stays outside the chain
+    // (audit/debug log by design), but tampering with an entry becomes
+    // detectable against the chained reference.
+    std::string entry_hash = security::CryptoUtils::sha256(json_line);
+    std::string out_line = json_line;
+    std::unordered_map<std::string, std::string> ref_fields;
+    ref_fields["entry_hash"] = entry_hash;
+    try {
+        auto j = nlohmann::json::parse(json_line);
+        j["entry_hash"] = entry_hash;
+        out_line = j.dump();
+        // Correlation fields for matching the reference to the entry
+        if (j.contains("type") && j["type"].is_string())
+            ref_fields["entry_type"] = j["type"].get<std::string>();
+        if (j.contains("handle_id"))
+            ref_fields["handle_id"] = j["handle_id"].dump();
+        if (j.contains("turn"))
+            ref_fields["turn"] = j["turn"].dump();
+        if (j.contains("agent") && j["agent"].is_string())
+            ref_fields["config_name"] = j["agent"].get<std::string>();
+    } catch (...) {
+        // Not valid JSON — write as-is; the reference still commits to it.
+    }
+
     auto fp_deleter = [](FILE* f) {
 #ifndef _WIN32
         ::flock(fileno(f), LOCK_UN);
@@ -1462,8 +1701,14 @@ void GovernanceEngine::writeAgentTranscript(const std::string& json_line) {
     }
 #endif
 
-    std::string line = json_line + "\n";
+    std::string line = out_line + "\n";
     checkedWrite(fp.get(), line, telemetry_write_failures_);
+
+    // Cross-reference into the tamper-evident telemetry chain
+    if (rules().telemetry_output.enabled &&
+        rules().telemetry_output.tamper_evidence.enabled) {
+        writeAgentTelemetry("TRANSCRIPT_REF", ref_fields);
+    }
 }
 
 bool GovernanceEngine::isTranscriptAgent(const std::string& agent_name) const {
