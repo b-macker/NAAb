@@ -11,6 +11,7 @@
 // Zero overhead when no govern.json exists.
 // Every rule is configurable and can be turned off.
 
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -2019,6 +2020,10 @@ struct TelemetryOutputConfig {
     bool enabled = false;
     std::string output_file;  // JSONL path, append mode
     TamperEvidenceConfig tamper_evidence;  // hash chain for telemetry entries
+    // Per-decision CDD state snapshots attached to SEMANTIC_TURN and
+    // OUTPUT_ADMISSIBILITY_EVAL events (replay-grade evidence). Ratchet:
+    // disabling mid-run is a violation.
+    bool decision_snapshots = false;
 
     // --- Forwarding (webhook/SIEM) ---
     std::string webhook_url;            // POST endpoint for JSON event batches
@@ -2610,6 +2615,10 @@ public:
     void writeTelemetry() const;
     void writeAgentTelemetry(const std::string& event_type,
         const std::unordered_map<std::string, std::string>& fields);
+    // Per-decision CDD state snapshot as a compact JSON string ("" when the
+    // handle has no drift state). Attached to telemetry events when
+    // telemetry.decision_snapshots is enabled.
+    std::string snapshotCddState(int handle_id) const;
 
     // --- Agent interaction transcript ---
     void writeAgentTranscript(const std::string& json_line);
@@ -3329,6 +3338,19 @@ private:
     // Audit trail
     std::string last_audit_hash_;
     mutable std::string last_telemetry_hash_;
+    // File-anchored telemetry chain state (all guarded by telemetry_hash_mutex_).
+    // The chain links across runs and processes: prev_hash is seeded from the
+    // output file's tail, not from the constant genesis, on every write.
+    mutable bool run_start_emitted_ = false;
+    mutable bool run_end_emitted_ = false;
+    mutable long long chained_events_this_run_ = 0;
+    // Returns the prev_hash for the next chained event (file tail → in-memory →
+    // genesis) and lazily writes the RunStart anchor on this process's first
+    // chained event. Requires telemetry_hash_mutex_ held and fp open+locked.
+    std::string chainPrevLocked(FILE* fp) const;
+    // Writes the chained RunEnd anchor (once) declaring this run's chained
+    // event count. Locks telemetry_hash_mutex_ internally.
+    void emitRunEnd(FILE* fp, const std::string& timestamp) const;
     mutable std::mutex audit_mutex_;
     std::atomic<int> audit_write_failures_{0};
     mutable std::atomic<int> telemetry_write_failures_{0};

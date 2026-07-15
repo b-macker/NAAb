@@ -370,6 +370,11 @@ public:
     // Get drift state for decision_trace (returns copy — safe across threads)
     std::optional<DriftState> getDriftState(int handle_id) const;
 
+    // Compact JSON snapshot of the decision-relevant drift state for a handle:
+    // scalars, counters, baselines, window sizes, and keyword-set digests —
+    // never raw content. Returns "" when the handle has no drift state.
+    std::string snapshotState(int handle_id) const;
+
     // Get minimum coherence across all tracked agents
     double getMinCoherence() const;
 

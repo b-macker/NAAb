@@ -2159,6 +2159,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (env_val) rules_.telemetry_output.tamper_evidence.hmac_key = env_val;
             }
         }
+        if (tel.contains("decision_snapshots") && tel["decision_snapshots"].is_boolean())
+            rules_.telemetry_output.decision_snapshots = tel["decision_snapshots"].get<bool>();
 
         // Forwarding config
         if (tel.contains("webhook_url") && tel["webhook_url"].is_string())
@@ -3599,6 +3601,26 @@ static bool checkRatchetViolation(
     else if (old_oa.max_quarantine_streak == 0 && new_oa.max_quarantine_streak > 0)
         notices.push_back(fmt::format("output_admissibility.max_quarantine_streak: disabled -> {} (tightened)",
             new_oa.max_quarantine_streak));
+
+    // --- Telemetry evidence ratchet ---
+    // Turning off evidence collection mid-run destroys the audit record of
+    // whatever follows — all four are one-way switches once enabled.
+    if (old_r.telemetry_output.tamper_evidence.enabled && !new_r.telemetry_output.tamper_evidence.enabled)
+        violations.push_back("telemetry.tamper_evidence.enabled: true -> false (loosened)");
+    else if (!old_r.telemetry_output.tamper_evidence.enabled && new_r.telemetry_output.tamper_evidence.enabled)
+        notices.push_back("telemetry.tamper_evidence.enabled: false -> true (tightened)");
+    if (old_r.telemetry_output.decision_snapshots && !new_r.telemetry_output.decision_snapshots)
+        violations.push_back("telemetry.decision_snapshots: true -> false (loosened)");
+    else if (!old_r.telemetry_output.decision_snapshots && new_r.telemetry_output.decision_snapshots)
+        notices.push_back("telemetry.decision_snapshots: false -> true (tightened)");
+    if (old_r.audit.tamper_evidence.enabled && !new_r.audit.tamper_evidence.enabled)
+        violations.push_back("audit.tamper_evidence.enabled: true -> false (loosened)");
+    else if (!old_r.audit.tamper_evidence.enabled && new_r.audit.tamper_evidence.enabled)
+        notices.push_back("audit.tamper_evidence.enabled: false -> true (tightened)");
+    if (old_r.transcript.enabled && !new_r.transcript.enabled)
+        violations.push_back("telemetry.transcript.enabled: true -> false (loosened)");
+    else if (!old_r.transcript.enabled && new_r.transcript.enabled)
+        notices.push_back("telemetry.transcript.enabled: false -> true (tightened)");
 
     // --- Context Drift ratchet ---
     // rate_normalized: disabling mid-run restores flat per-event penalties

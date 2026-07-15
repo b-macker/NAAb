@@ -6266,6 +6266,11 @@ void GovernanceEngine::recoverCoherence(int handle_id) {
         rules().context_drift.coherence_recovery_amount);
 }
 
+std::string GovernanceEngine::snapshotCddState(int handle_id) const {
+    if (!rules().telemetry_output.decision_snapshots) return "";
+    return drift_analyzer_.snapshotState(handle_id);
+}
+
 // Read-only copy of pipeline depth, synced from agent_impl.cpp via setPipelineDepth().
 // Thread-local fallback for call sites without a handle; the per-handle map in
 // pipeline_depths_ is authoritative and survives cross-thread hops
@@ -6466,7 +6471,7 @@ GovernanceEngine::checkOutputAdmissibility(
 
     if (state->coherence_score >= oac.threshold && !pulse_override) {
         // Pass — emit telemetry
-        writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", {
+        std::unordered_map<std::string, std::string> oa_fields = {
             {"handle_id",   std::to_string(handle_id)},
             {"config_name", agent_config},
             {"turn",        std::to_string(turn)},
@@ -6474,7 +6479,10 @@ GovernanceEngine::checkOutputAdmissibility(
             {"coherence",   fmt::format("{:.4f}", state->coherence_score)},
             {"threshold",   fmt::format("{:.4f}", oac.threshold)},
             {"action",      oac.action}
-        });
+        };
+        std::string snap = snapshotCddState(handle_id);
+        if (!snap.empty()) oa_fields["cdd_snapshot"] = snap;
+        writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", oa_fields);
         return result;  // pass
     }
 
@@ -6487,7 +6495,7 @@ GovernanceEngine::checkOutputAdmissibility(
             state->coherence_score, oac.threshold, agent_config));
 
     // Emit telemetry BEFORE potential throw (enforce throws for "block")
-    writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", {
+    std::unordered_map<std::string, std::string> oa_fields = {
         {"handle_id",   std::to_string(handle_id)},
         {"config_name", agent_config},
         {"turn",        std::to_string(turn)},
@@ -6496,7 +6504,10 @@ GovernanceEngine::checkOutputAdmissibility(
         {"threshold",   fmt::format("{:.4f}", oac.threshold)},
         {"action",      oac.action},
         {"pulse_override", pulse_override ? "true" : "false"}
-    });
+    };
+    std::string oa_snap = snapshotCddState(handle_id);
+    if (!oa_snap.empty()) oa_fields["cdd_snapshot"] = oa_snap;
+    writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", oa_fields);
 
     if (oac.action == "block") {
         // enforce() throws directly — GovernanceHardError for HARD/SOFT,

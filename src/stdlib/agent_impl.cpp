@@ -3679,7 +3679,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     snprintf(ss_buf, sizeof(ss_buf), "%.4f", ss_mean);
                     ss_str = ss_buf;
                 }
-                gov_engine->writeAgentTelemetry("SEMANTIC_TURN", {
+                std::unordered_map<std::string, std::string> semantic_fields = {
                     {"handle_id",              std::to_string(handle_id)},
                     {"config_name",            config_name},
                     {"turn",                   std::to_string(current_turn)},
@@ -3698,7 +3698,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"mandate_alignment",       ma_str},
                     {"keywords_count",          std::to_string(response_keywords.size())}
-                });
+                };
+                // Per-decision CDD snapshot (telemetry.decision_snapshots)
+                std::string cdd_snap = gov_engine->snapshotCddState(handle_id);
+                if (!cdd_snap.empty()) semantic_fields["cdd_snapshot"] = cdd_snap;
+                gov_engine->writeAgentTelemetry("SEMANTIC_TURN", semantic_fields);
             }
             // RECONCILIATION_TURN: pair agent claims with observed reality
             if (drift_state && effectiveSignal(config, gov_engine->getRules().context_drift.signals.claim_result_reconciliation, "claim_result_reconciliation")) {
