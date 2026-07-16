@@ -31,6 +31,11 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; 
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2"; }
 
+IS_WINDOWS=false
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+    IS_WINDOWS=true
+fi
+
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 STUB_PID=""
@@ -239,6 +244,9 @@ fi
 # Group E: mid-run global disable = ratchet violation
 # ============================================================
 echo -e "${CYAN}--- Group E: mid-run disable is a ratchet violation ---${NC}"
+if $IS_WINDOWS; then
+    skip "E-01" "mid-run file swap requires POSIX file semantics"
+else
 WDIR="$TEST_TMP/e"; mkdir -p "$WDIR"
 printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
 start_stub "$WDIR/fixture.json" "$WDIR" || { skip "E-00" "stub failed"; STUB_PORT=0; }
@@ -281,6 +289,7 @@ if grep -q "ratchet violation" "$WDIR/stderr.txt" 2>/dev/null && grep -q "valida
     pass "E-01" "mid-run disable of validation_outcome rejected as ratchet violation"
 else
     fail "E-01" "mid-run disable not rejected" "$(grep -i 'ratchet\|reload' "$WDIR/stderr.txt" 2>/dev/null | head -2)"
+fi
 fi
 fi
 fi
