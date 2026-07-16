@@ -902,6 +902,20 @@ main {
             print("TURN|developer|pytest_fix" + string(feat_num) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
         }
 
+        // Final validation status for this feature. If pytest failed initially, a
+        // single fix was attempted above — re-validate so completion isn't marked
+        // on still-broken code.
+        let feat_passed = fval.get("pytest_passed") == true
+        if fval.get("pytest_passed") == false {
+            let reval = validate_code(ops_code, main_code, test_code, ops_pattern)
+            feat_passed = reval.get("pytest_passed") == true
+            print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
+        }
+        // Feed the ground-truth outcome into the developer's coherence (S22 signal).
+        if handles.get("developer") != null {
+            let _rv = agent.record_validation(handles["developer"], feat_passed)
+        }
+
         tracking["features_processed"] = tracking["features_processed"] + 1
         tracking["feature_names"].push(trimmed)
 
@@ -912,7 +926,13 @@ main {
         handle_specialist_request(feat_decision, "FEATURES")
 
         prev_ops_len = len(ops_code)
-        print("FEATURE|" + string(feat_num) + "|complete")
+        // Gate the completion marker on validation: don't claim "complete" for a
+        // feature whose tests still fail.
+        if feat_passed {
+            print("FEATURE|" + string(feat_num) + "|complete")
+        } else {
+            print("FEATURE|" + string(feat_num) + "|incomplete")
+        }
         fi = fi + 1
     }
 

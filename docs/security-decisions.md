@@ -113,3 +113,41 @@ Editing a transcript entry after the fact breaks its recomputed hash against
 the chained reference. Chaining the transcript directly was rejected: it
 would couple the debug log's availability to the evidence chain and bloat
 the hash-verified surface with full prompt/response content.
+
+## Investigated: do detection-only CDD signals pump governance pressure?
+
+A living-script run analysis inferred that `entity_consistency` (S15) — which
+fires in detection at nearly every developer turn but is absorbed by the
+adaptive baseline (zero coherence penalty) — was nonetheless driving pressure
+escalation (governance level → elevated) and triggering wasteful step-up
+challenges. Tracing the code disproves the premise: `signal_density` (circuit
+breaker Factor 3) reads `signals_fired_this_turn`, and that counter is
+incremented behind the **same** `if (p > 0.0)` gate as the coherence penalty
+(`behavioral_sequence.cpp`, e.g. the S19/S22 blocks). An absorbed firing has
+`p == 0`, so it increments only `turn_fired[]`/the cumulative counter
+(telemetry) and contributes **zero** to `signal_density`. Detection-only or
+baseline-absorbed signals therefore cannot pump pressure through signal
+density.
+
+The escalation observed was signal-independent: conversation-depth (Factor 4,
+rises monotonically with turn count on long sessions), temporal coherence
+decay, and `coherence_velocity` (S6) feeding Factor 7 (`coherence_acceleration`)
+by design. No engine change is warranted for the "detection-only signals pump
+pressure" claim — the engine already behaves as desired. Benign long-session
+escalation is a tuning matter (`circuit_breaker.elevated_sustained`,
+`expected_conversation_depth`) handled per-config, not in the engine.
+
+## Added: S22 validation_outcome uses a flat penalty, never adaptive baselining
+
+The S22 signal folds external ground-truth (pytest / `enforce_convergence`
+pass-fail) into coherence via `agent.record_validation()`. It deliberately uses
+`base_penalty` (flat, `rate_normalized_floor`-guaranteed) rather than
+`adaptive_penalty`. Adaptive baselining returns 0 once a signal's post-baseline
+rate sits at/below its learned mean — correct for heuristic signals, but wrong
+for ground truth: an agent that fails tests every turn during the baseline
+window would train a "failure is normal" mean and then have subsequent failures
+absorbed to zero, recreating the exact "coherence 1.0 through rejected code"
+blindness the signal exists to close. A failing test is objective evidence the
+output is wrong and must always cost coherence. Consequently S22 is excluded
+from `snapshotSignalCounters` (the adaptive-baseline snapshot map), alongside
+S6/S7 which are also non-baseline signals.

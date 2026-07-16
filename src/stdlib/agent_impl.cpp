@@ -2321,6 +2321,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 }
                 gov_engine->writeAgentTelemetry("AGENT_RESPONSE", {
                     {"handle_id", std::to_string(handle_id)},
+                    {"config_name", config_name},
                     {"model", current_model},
                     {"api_key_env", key_env},
                     {"latency_ms", std::to_string(attempt_ms)},
@@ -5884,6 +5885,48 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
+// agent.record_validation(handle, passed) — report external ground-truth
+// validation outcome (pytest / orchestra.enforce_convergence) for the handle's
+// most recent turn. Feeds the S22 validation_outcome CDD signal: a failing
+// result costs coherence on the next recordTurn. Called by the orchestration
+// script (operator/harness ground truth), not by the agent itself.
+// ============================================================================
+static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
+    if (args.size() < 2 || !args[0].isDict() || !args[1].isBool())
+        throw std::runtime_error(
+            "Agent error: agent.record_validation requires (handle, passed)\n\n"
+            "  Expected: agent.record_validation(handle, passed)\n\n"
+            "  Help:\n"
+            "  - handle: an agent handle from agent.create()\n"
+            "  - passed: bool — did this turn's output pass external validation\n"
+            "    (e.g. pytest, orchestra.enforce_convergence)?\n\n"
+            "  Example:\n"
+            "    let v = validate_code(...)\n"
+            "    agent.record_validation(dev, v.get(\"pytest_passed\"))\n");
+
+    auto [config_name, handle_id] = validateHandle(args[0]);
+    bool passed = args[1].asBool();
+
+    auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->recordValidationOutcome(handle_id, passed);
+        if (gov_engine->getRules().telemetry_output.enabled) {
+            gov_engine->writeAgentTelemetry("VALIDATION_RECORDED", {
+                {"handle_id",   std::to_string(handle_id)},
+                {"config_name", config_name},
+                {"passed",      passed ? "true" : "false"},
+            });
+        }
+    }
+
+    std::unordered_map<std::string, NaabVal> result;
+    result["recorded"] = NaabVal::makeBool(true);
+    result["handle_id"] = NaabVal::makeInt(handle_id);
+    result["passed"] = NaabVal::makeBool(passed);
+    return NaabVal::makeDict(std::move(result));
+}
+
+// ============================================================================
 // Module Interface
 // ============================================================================
 
@@ -5893,7 +5936,7 @@ bool AgentModule::hasFunction(const std::string& name) const {
         "batch", "fan_out", "pipeline", "check",
         "key_health", "dispatch_status", "environment",
         "register_tool", "extract_code", "propose", "commit",
-        "coherence", "reset"
+        "coherence", "reset", "record_validation"
     };
     return functions.count(name) > 0;
 }
@@ -5920,10 +5963,11 @@ NaabVal AgentModule::call(
     if (function_name == "commit") return agentCommit(args);
     if (function_name == "coherence") return agentCoherence(args);
     if (function_name == "reset") return agentReset(args);
+    if (function_name == "record_validation") return agentRecordValidation(args);
 
     throw std::runtime_error(fmt::format(
         "Agent error: Unknown function 'agent.{}'\n\n"
-        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit, coherence, reset\n\n"
+        "  Available functions: create, send, run, messages, usage, batch, fan_out, pipeline, check, key_health, dispatch_status, environment, register_tool, propose, commit, coherence, reset, record_validation\n\n"
         "  Help:\n"
         "  - agent.create(name) — create agent handle from govern.json config\n"
         "  - agent.send(handle, msg) — send message, get response\n"
@@ -5939,7 +5983,8 @@ NaabVal AgentModule::call(
         "  - agent.environment(handle) — current environment snapshot: limits, state, coherence\n"
         "  - agent.register_tool(name, fn, schema) — register function as LLM-callable tool\n"
         "  - agent.coherence(handle) — current coherence score (0.0-1.0)\n"
-        "  - agent.reset(handle) — reset conversation and coherence state\n",
+        "  - agent.reset(handle) — reset conversation and coherence state\n"
+        "  - agent.record_validation(handle, passed) — report external validation outcome (pytest/convergence) into coherence\n",
         function_name));
 }
 
