@@ -1342,6 +1342,7 @@ struct ContextDriftConfig {
         bool claim_result_reconciliation = true; // fire when agent misrepresents tool success/failure status
         bool prompt_compliance = true;           // fire when agent complies with off-topic prompts
         bool response_repetition = true;         // fire when agent produces verbatim duplicate responses
+        bool validation_outcome = true;          // S22: fire when a turn's output failed external validation (pytest/convergence). Zero-cost until agent.record_validation() feeds a result.
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1377,6 +1378,7 @@ struct ContextDriftConfig {
         double claim_result_reconciliation = 0.12; // moderate-high — status misrepresentation is unambiguous hallucination
         double prompt_compliance = 0.10;             // moderate-high — complying with off-topic prompts is unambiguous drift
         double response_repetition = 0.15;           // moderate-high — verbatim repetition is a strong drift indicator
+        double validation_outcome = 0.15;            // S22: high — a failed test is unambiguous ground-truth that the output is wrong. Flat penalty (base_penalty), never baseline-absorbed.
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -3045,6 +3047,9 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Record external validation outcome (S22) — forwards to the drift analyzer.
+    void recordValidationOutcome(int handle_id, bool passed);
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

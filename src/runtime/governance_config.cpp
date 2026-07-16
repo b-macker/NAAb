@@ -2757,6 +2757,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("claim_result_reconciliation") && sig["claim_result_reconciliation"].is_boolean()) cfg.signals.claim_result_reconciliation = sig["claim_result_reconciliation"].get<bool>();
             if (sig.contains("prompt_compliance") && sig["prompt_compliance"].is_boolean()) cfg.signals.prompt_compliance = sig["prompt_compliance"].get<bool>();
             if (sig.contains("response_repetition") && sig["response_repetition"].is_boolean()) cfg.signals.response_repetition = sig["response_repetition"].get<bool>();
+            if (sig.contains("validation_outcome") && sig["validation_outcome"].is_boolean()) cfg.signals.validation_outcome = sig["validation_outcome"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -2782,6 +2783,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("claim_result_reconciliation") && w["claim_result_reconciliation"].is_number()) cfg.weights.claim_result_reconciliation = w["claim_result_reconciliation"].get<double>();
             if (w.contains("prompt_compliance") && w["prompt_compliance"].is_number()) cfg.weights.prompt_compliance = w["prompt_compliance"].get<double>();
             if (w.contains("response_repetition") && w["response_repetition"].is_number()) cfg.weights.response_repetition = std::clamp(w["response_repetition"].get<double>(), 0.0, 1.0);
+            if (w.contains("validation_outcome") && w["validation_outcome"].is_number()) cfg.weights.validation_outcome = std::clamp(w["validation_outcome"].get<double>(), 0.0, 1.0);
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -3116,6 +3118,7 @@ static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
         case SIG_CLAIM_RESULT:         return s.claim_result_reconciliation;
         case SIG_PROMPT_COMPLIANCE:    return s.prompt_compliance;
         case SIG_RESPONSE_REPETITION:  return s.response_repetition;
+        case SIG_VALIDATION:           return s.validation_outcome;
         default:                       return true;
     }
 }

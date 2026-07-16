@@ -30,6 +30,11 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; 
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2"; }
 
+IS_WINDOWS=false
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+    IS_WINDOWS=true
+fi
+
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 STUB_PID=""
@@ -436,6 +441,11 @@ fi
 # ============================================================
 echo -e "${CYAN}--- Group D: evidence ratchet ---${NC}"
 
+if $IS_WINDOWS; then
+    skip "D-01" "mid-run file swap requires POSIX file semantics"
+    skip "D-02" "mid-run file swap requires POSIX file semantics"
+    skip "D-03" "mid-run file swap requires POSIX file semantics"
+else
 WDIR="$TEST_TMP/group_d"; mkdir -p "$WDIR"
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [
@@ -508,6 +518,7 @@ if (cd "$WDIR" && "$NAAB" --verify-telemetry-chain telemetry.jsonl >/dev/null 2>
     pass "D-03" "chain remains verifiable after rejected reload"
 else
     fail "D-03" "chain broken after rejected reload"
+fi
 fi
 fi
 fi

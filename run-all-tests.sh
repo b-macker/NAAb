@@ -1489,6 +1489,32 @@ else
     echo "  test_propose_commit.sh: not found, skipping"
 fi
 
+# Evidence chain hardening (cross-run continuity, decision snapshots, transcript refs)
+EVIDENCE_CHAIN_SCRIPT="tests/governance_v4/test_evidence_chain.sh"
+if [ -f "$EVIDENCE_CHAIN_SCRIPT" ]; then
+    if bash "$EVIDENCE_CHAIN_SCRIPT" 2>&1; then
+        echo "  test_evidence_chain.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_evidence_chain.sh")
+    fi
+else
+    echo "  test_evidence_chain.sh: not found, skipping"
+fi
+
+# S22 validation_outcome signal + agent.record_validation (stub-backed)
+VALIDATION_SIGNAL_SCRIPT="tests/governance_v4/test_validation_signal.sh"
+if [ -f "$VALIDATION_SIGNAL_SCRIPT" ]; then
+    if bash "$VALIDATION_SIGNAL_SCRIPT" 2>&1; then
+        echo "  test_validation_signal.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_validation_signal.sh")
+    fi
+else
+    echo "  test_validation_signal.sh: not found, skipping"
+fi
+
 # Per-tool-call admissibility gate (stub-backed)
 TOOL_GATE_SCRIPT="tests/governance_v4/test_tool_admissibility_gate.sh"
 if [ -f "$TOOL_GATE_SCRIPT" ]; then

@@ -264,12 +264,16 @@ assert 'refinement_iterations' in d
         fail "L5-03" "Code didn't grow enough" "ops=$FINAL_OPS_LEN chars, expected 2000+"
     fi
 
-    # Feature completion markers
-    FEAT_COMPLETE=$(echo "$OUTPUT" | grep -c 'FEATURE|.*|complete' || echo "0")
-    if [ "$FEAT_COMPLETE" -ge 2 ]; then
-        pass "L5-04" "Feature cycles completed ($FEAT_COMPLETE)"
+    # Feature cycle markers. Completion is now gated on validation: a feature
+    # that passes pytest emits |complete, one that still fails emits |incomplete.
+    # Count both as "the loop ran a cycle."
+    FEAT_CYCLES=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|(complete|incomplete)' || echo "0")
+    FEAT_COMPLETE=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|complete' || echo "0")
+    FEAT_INCOMPLETE=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|incomplete' || echo "0")
+    if [ "$FEAT_CYCLES" -ge 2 ]; then
+        pass "L5-04" "Feature cycles ran ($FEAT_CYCLES: $FEAT_COMPLETE complete, $FEAT_INCOMPLETE incomplete)"
     else
-        fail "L5-04" "Feature cycles incomplete" "only $FEAT_COMPLETE completed"
+        fail "L5-04" "Feature cycles did not run" "only $FEAT_CYCLES cycles"
     fi
 
     # Tester reviewed during feature additions (Gap 1 fix)

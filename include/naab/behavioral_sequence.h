@@ -84,7 +84,7 @@ struct SequenceMatchResult {
 };
 
 // CDD signal indices for generic adaptive baseline
-static constexpr int NUM_CDD_SIGNALS = 21;
+static constexpr int NUM_CDD_SIGNALS = 22;
 enum CddSignalId : int {
     SIG_CIRCULAR = 0,              // S1
     SIG_REPEATED_FAILURES = 1,     // S2
@@ -106,7 +106,8 @@ enum CddSignalId : int {
     SIG_TOOL_CHAIN_INTEGRITY = 17, // S18
     SIG_CLAIM_RESULT = 18,         // S19
     SIG_PROMPT_COMPLIANCE = 19,    // S20 — off-topic prompt compliance
-    SIG_RESPONSE_REPETITION = 20   // S21 — verbatim response repetition
+    SIG_RESPONSE_REPETITION = 20,  // S21 — verbatim response repetition
+    SIG_VALIDATION = 21            // S22 — external validation (pytest/convergence) failure
 };
 
 // Canonical govern.json signal config keys, indexed by CddSignalId. These are
@@ -135,7 +136,8 @@ static constexpr const char* kCddSignalKeys[NUM_CDD_SIGNALS] = {
     "tool_chain_integrity",          // SIG_TOOL_CHAIN_INTEGRITY
     "claim_result_reconciliation",   // SIG_CLAIM_RESULT
     "prompt_compliance",             // SIG_PROMPT_COMPLIANCE
-    "response_repetition"            // SIG_RESPONSE_REPETITION
+    "response_repetition",           // SIG_RESPONSE_REPETITION
+    "validation_outcome"             // SIG_VALIDATION
 };
 
 // Per-handle signal override bitmasks fit in 32 bits.
@@ -246,6 +248,16 @@ struct DriftState {
     // Response repetition — detect verbatim duplicate responses
     std::deque<std::string> response_fingerprints;  // recent content_fingerprint values
     int response_repetition_count = 0;              // turns with exact duplicate response
+
+    // Validation outcome (S22) — external ground-truth pass/fail (pytest,
+    // orchestra.enforce_convergence) reported by the orchestration script via
+    // agent.record_validation(). Consumed once by the next recordTurn, then
+    // cleared. Uses a flat penalty (base_penalty) — NOT adaptive baselining —
+    // so persistent failure always costs coherence and can never be
+    // "normalized" into an accepted baseline.
+    bool has_validation_result = false;   // a result was recorded for this turn
+    bool last_validation_passed = true;   // the recorded outcome
+    int validation_failure_count = 0;     // cumulative failing turns (telemetry + rate_normalized)
 
     // Escalation effectiveness tracking — measure whether level changes improve behavior
     int escalation_turn = -1;                      // turn when last escalation occurred (-1 = never)
@@ -425,6 +437,11 @@ public:
 
     // Record tool execution outcome for claim-result reconciliation
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
+
+    // Record external validation outcome (S22) — ground-truth pass/fail from
+    // the orchestration script (pytest, enforce_convergence). Consumed once by
+    // the next recordTurn.
+    void recordValidationOutcome(int handle_id, bool passed);
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

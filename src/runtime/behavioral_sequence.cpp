@@ -1335,6 +1335,30 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
+    // Signal 22: Validation outcome — external ground-truth pass/fail reported by
+    // the orchestration script via agent.record_validation(). Unlike the other
+    // signals this uses base_penalty (flat), NOT adaptive_penalty: a failing test
+    // is objective evidence the output is wrong, and letting the adaptive baseline
+    // "normalize" persistent failure would recreate the blindness this signal
+    // exists to close (coherence 1.0 through rejected code).
+    if (sig_on(config_->signals.validation_outcome, SIG_VALIDATION) && state.has_validation_result) {
+        if (!state.last_validation_passed) {
+            state.validation_failure_count++;
+            turn_fired[SIG_VALIDATION]++;
+            if (!in_baseline) {
+                double p = base_penalty(config_->weights.validation_outcome,
+                                        state.validation_failure_count);
+                if (p > 0.0) {
+                    state.coherence_score -= p;
+                    turn_penalties[SIG_VALIDATION] += p;
+                    state.signals_fired_this_turn++;
+                }
+            }
+        }
+        // Consume the latched result — one validation outcome per turn.
+        state.has_validation_result = false;
+    }
+
     // Signal 11: Mandate alignment — continuous system_prompt keyword adherence
     if (sig_on(config_->signals.mandate_alignment, SIG_MANDATE_ALIGNMENT) && !state.mandate_keywords.empty()) {
         for (const auto& ev : turn_events) {
@@ -1942,6 +1966,7 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     counts["claim_result_mismatch"] = s.claim_result_mismatch_count;
     counts["prompt_compliance"] = s.prompt_compliance_count;
     counts["response_repetition"] = s.response_repetition_count;
+    counts["validation_failure"] = s.validation_failure_count;
     counts["response_quality"] = s.response_quality_count;
     counts["thinking_collapse"] = s.thinking_collapse_count;
     counts["context_growth"] = s.context_growth_count;
@@ -2027,7 +2052,8 @@ const char* ContextDriftAnalyzer::signalName(int idx) {
         "tool_chain_integrity",  // 17 S18
         "claim_result",          // 18 S19
         "prompt_compliance",     // 19 S20
-        "response_repetition"    // 20 S21
+        "response_repetition",   // 20 S21
+        "validation_outcome"     // 21 S22
     };
     if (idx < 0 || idx >= NUM_CDD_SIGNALS) return "unknown";
     return names[idx];
@@ -2318,6 +2344,14 @@ void ContextDriftAnalyzer::recordToolOutcome(
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     state.tool_last_outcome[tool_name] = success;
+}
+
+void ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    // Latch the ground-truth result; the next recordTurn consumes and clears it.
+    state.has_validation_result = true;
+    state.last_validation_passed = passed;
 }
 
 void ContextDriftAnalyzer::setTurnPromptKeywords(

@@ -1044,6 +1044,21 @@ main {
             print("TURN|developer|pytest_fix" + string(feat_num) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
         }
 
+        // Determine the FINAL validation status for this feature. If pytest failed
+        // initially, a single fix was attempted above — re-validate to see whether
+        // it actually passes now, so completion isn't marked on still-broken code.
+        let feat_passed = fval.get("pytest_passed") == true
+        if fval.get("pytest_passed") == false {
+            let reval = validate_code(ops_code, main_code, test_code, ops_pattern)
+            feat_passed = reval.get("pytest_passed") == true
+            print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
+        }
+        // Feed the ground-truth outcome into the developer's coherence (S22 signal):
+        // a feature that never passes tests must erode coherence, not read as clean.
+        if handles.get("developer") != null {
+            let _rv = agent.record_validation(handles["developer"], feat_passed)
+        }
+
         tracking["features_processed"] = tracking["features_processed"] + 1
         tracking["feature_names"].push(trimmed)
 
@@ -1054,7 +1069,13 @@ main {
         handle_specialist_request(feat_decision, "FEATURES")
 
         prev_ops_len = len(ops_code)
-        print("FEATURE|" + string(feat_num) + "|complete")
+        // Gate the completion marker on validation: don't claim "complete" for a
+        // feature whose tests still fail. (run.sh L5-04 counts complete|incomplete.)
+        if feat_passed {
+            print("FEATURE|" + string(feat_num) + "|complete")
+        } else {
+            print("FEATURE|" + string(feat_num) + "|incomplete")
+        }
         fi = fi + 1
     }
 
@@ -1598,7 +1619,9 @@ main {
                 let la_chall_f = la_state.get("challenges_failed") ?? 0
                 let la_trunc = la_state.get("truncation_count") ?? 0
                 let la_ctx_win = la_limits.get("context_window") ?? -1
-                let la_ctx_strat = la_limits.get("context_strategy") ?? la_limits.get("strategy") ?? "unset"
+                // context_strategy is exposed at the environment top level, not under limits
+                // (buildEnvironmentDict: limits.context_window vs env.context_strategy).
+                let la_ctx_strat = la_env.get("context_strategy") ?? "unset"
                 let la_thinking = la_limits.get("thinking_budget") ?? -1
                 let la_min_tok = la_limits.get("min_tokens") ?? 0
                 print("LEASE_EPOCH|" + la_name + "|lease=" + string(lease_rem) + "|epoch=" + string(la_epoch) + "|coherence=" + string(la_coh))
