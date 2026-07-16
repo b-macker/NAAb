@@ -44,7 +44,7 @@ secret
 }
 EOF
 
-out=$("$NAAB" "$WORKDIR/test_t1.naab" --vm 2>&1) || true
+out=$(timeout 15 "$NAAB" "$WORKDIR/test_t1.naab" --vm 2>&1) || true
 if echo "$out" | grep -qi "taint\|blocked\|governance\|sink\|denied"; then
     ok "http.post blocked — taint propagated through polyglot block"
 else
@@ -70,7 +70,7 @@ clean + "_processed"
 }
 EOF
 
-out=$("$NAAB" "$WORKDIR/test_t2.naab" --vm 2>&1) || ec=$?
+out=$(timeout 15 "$NAAB" "$WORKDIR/test_t2.naab" --vm 2>&1) || ec=$?
 ec=${ec:-0}
 # V-GOV-006: polyglot output is ALWAYS tainted → http.post must be blocked.
 # If Python is unavailable the polyglot block itself fails (different error).
@@ -90,7 +90,7 @@ echo ""
 # T3: Same script as T1 but with --no-governance → must run without error
 # ---------------------------------------------------------------------------
 echo "[T3] With --no-governance, taint laundering script runs without governance block"
-out=$("$NAAB" "$WORKDIR/test_t1.naab" --vm --no-governance 2>&1) || ec=$?
+out=$(timeout 15 "$NAAB" "$WORKDIR/test_t1.naab" --vm --no-governance 2>&1) || ec=$?
 ec=${ec:-0}
 if echo "$out" | grep -qi "taint\|governance block\|hard block"; then
     fail "governance fired despite --no-governance: ${out:0:120}"

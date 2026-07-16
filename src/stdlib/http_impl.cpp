@@ -258,6 +258,12 @@ interpreter::NaabVal performRequest(
 
     // Set timeout (in milliseconds)
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeout_ms));
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, std::min(static_cast<long>(timeout_ms), 10000L));
+
+    // Required for thread safety and Python interop — curl must not use
+    // signal-based DNS timeouts (SIGALRM) because Python's Py_Initialize()
+    // replaces signal handlers, causing curl_easy_perform() to hang on DNS.
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     // Follow redirects
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
