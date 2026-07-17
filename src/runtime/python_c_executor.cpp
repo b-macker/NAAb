@@ -193,10 +193,13 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         PyRun_SimpleString(scrub_code.str().c_str());
     }
 
-    // OS-level containment: set RLIMIT_NPROC=0 to prevent Python from forking
-    // (subprocess.run, os.system, os.fork all fail with EAGAIN)
-    // This is process-wide but safe: NAAb doesn't fork during in-process Python execution.
-    // RAII guard restores NPROC on all exit paths (normal, exception, early return).
+    // OS-level containment: set RLIMIT_NPROC soft limit to 0 to prevent Python
+    // from forking (subprocess.run, os.system, os.fork all fail with EAGAIN).
+    // Only the soft limit is lowered — the hard limit is preserved so the RAII
+    // guard can restore the original value.  Lowering the hard limit to 0 is
+    // irreversible for non-root processes (setrlimit returns EPERM), which would
+    // permanently break any code that needs to create threads (e.g. libcurl's
+    // threaded DNS resolver).
 #ifndef _WIN32
     struct NprocGuard {
         struct rlimit saved = {0, 0};
@@ -207,7 +210,7 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         auto containment = SubprocessContainment::fromCurrentSandbox("python3");
         if (containment.block_fork) {
             getrlimit(RLIMIT_NPROC, &nproc_guard.saved);
-            struct rlimit zero = {0, 0};
+            struct rlimit zero = {0, nproc_guard.saved.rlim_max};
             setrlimit(RLIMIT_NPROC, &zero);
             nproc_guard.active = true;
         }
