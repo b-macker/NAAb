@@ -258,6 +258,8 @@ interpreter::NaabVal performRequest(
 
     // Set timeout (in milliseconds)
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeout_ms));
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, std::min(static_cast<long>(timeout_ms), 10000L));
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     // Follow redirects
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
