@@ -1307,6 +1307,12 @@ struct ContextDriftConfig {
     double coherence_recovery_amount = 0.2;
     double coherence_recovery_cap = 1.0;     // Maximum coherence after recovery (< 1.0 for diminishing returns)
     double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
+    // Rationale: half the S22 validation_outcome weight (0.15), so an agent that
+    // eventually fixes failing code can climb back out of the penalty loop, while
+    // oscillating fail/pass stays net-negative. Credited only on a fail→pass
+    // transition (credits <= failures — recording passes cannot pump coherence).
+    // Ratchet: raising mid-run is a loosening violation.
+    double validation_recovery_amount = 0.075;
     // Temporal trust decay — coherence erodes over time even when idle
     bool temporal_decay_enabled = false;
     // Rationale: 0.01/min = 100 minutes from full coherence (1.0) to zero if completely idle.
@@ -3049,7 +3055,8 @@ public:
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
 
     // Record external validation outcome (S22) — forwards to the drift analyzer.
-    void recordValidationOutcome(int handle_id, bool passed);
+    void recordValidationOutcome(int handle_id, bool passed,
+        const std::unordered_set<std::string>& detail_keywords = {});
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

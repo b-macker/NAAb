@@ -249,3 +249,76 @@ input to the economy; #85 changed what the economy does with that input.
 - Jul 15 / Jul 17 run figures: measured in the prior analysis session from files
   on the originating device (not committed to this repository); marked as such
   wherever used.
+
+---
+
+## Follow-up: the Jul 18 run
+
+The Jul 18 run executed on the harness fixes from this branch (105/105 checks,
+first-ever L5-07 pass) and provided the cleanest evidence yet for where the
+remaining failure mass lives. All Jul 18 figures below were measured in the
+follow-up forensic session from files on the originating device (not committed
+here), like the Jul 15/17 figures above.
+
+### Four-run comparison
+
+| Metric | Jul 15 | Jul 17 r1 | Jul 17 r2 | Jul 18 |
+|---|---|---|---|---|
+| Harness pass/fail/skip | 104/0/1 | 104/0/1 | 45/66/8¹ | 105/0/0 |
+| Features complete | 4/4² | 1/4 | crashed | 2/4 |
+| Final approved | true | false | — | false |
+| Send errors | 0 | 3 | crash | 0 |
+| Dev min coherence | 0.915 | 0.65 | 0.44 | 0.7275 |
+| Health | healthy | healthy | — | degraded |
+| Challenges pass/fail | 8/0 | 2/0 | 3/0 | 15/1³ |
+
+¹ Pre-dates the governance-kill harness handling added on this branch.
+² Pre-#85 unconditional "complete" — see §2.3(a); not comparable to later runs.
+³ Telemetry count across all run_id segments; the results file under-reported
+(12) because per-handle `AGENT_STATE` counters reset between the two script
+invocations — closed by the telemetry-wide challenge count now emitted by both
+harnesses.
+
+### What the Jul 18 forensics established
+
+1. **S22 is the dominant coherence killer, exactly as designed and exactly as
+   predicted in §2.3(b).** The developer's fatal cascade (T22: −0.15
+   `validation_outcome` → 0.805; T26: triple-stack → 0.7275) tracks repeated
+   pytest failures on a division-by-zero defect the developer could not fix.
+   No quarantine, no OA fail (floor 0.7275 > 0.60 threshold) — the run survived
+   but was rejected.
+2. **The penalty loop had no exit.** A passing validation earned zero credit
+   (`behavioral_sequence.cpp` S22 pass branch was empty), so even a fixed
+   feature could not recover what its failures cost. Addressed on this branch:
+   fail→pass transitions now credit `context_drift.validation_recovery_amount`
+   (default 0.075; transition-gated so credits ≤ failures; ratchet-protected).
+3. **Challenges validated recall, not competence.** The developer passed
+   step-up challenges at 0.667 keyword overlap (T25) while its code failed
+   pytest — challenges quizzed instructions the agent remembered perfectly.
+   Addressed on this branch: new priority-0 `validation` contextual challenge
+   type, grounded in the failure detail now carried by
+   `agent.record_validation(handle, passed, detail)`.
+4. **The fix loop starved the model of the defect.** The pytest-fix prompt sent
+   only FAILED test *names* — the developer never saw `ZeroDivisionError` vs
+   the expected exception type, and failed the same fix twice. Addressed on
+   this branch: fix prompts now include pytest short-traceback `E `-lines
+   (capped), and the developer system_prompt + test prompts pin a single
+   exception convention (caller-facing errors are always `ValueError`),
+   removing the feature-3/4 exception-type mismatch class.
+5. **Features 3–4 remain a model-capability ceiling.** Across every run since
+   Jul 15, `evaluate()` and the plugin system defeat the model while features
+   1–2 complete. The interventions above shrink the blast radius of that
+   ceiling (recoverable coherence, defect-grounded challenges, actionable fix
+   prompts); they do not raise the ceiling itself.
+
+### Evidence index (Jul 18 additions)
+
+- S22 recovery: `src/runtime/behavioral_sequence.cpp` (S22 consume block),
+  `context_drift.validation_recovery_amount` in `include/naab/governance.h`,
+  ratchet in `src/runtime/governance_config.cpp` (`compareForRatchet`)
+- Validation challenge: `src/stdlib/agent_impl.cpp` (priority-0 selection,
+  `agentRecordValidation` detail arg), `DriftState.validation_failure_keywords`
+- Script/prompt changes: both `examples/living-script*/src/living-script.naab`
+  and `src/govern.json` (exception-convention invariant, `E `-line detail,
+  `record_validation` detail arg)
+- Jul 18 run figures: follow-up forensic session, originating device.

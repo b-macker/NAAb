@@ -363,7 +363,7 @@ main {
     let ops_pattern = "def add|def subtract|def multiply|def divide"
 
     // Short invariant reminder — full list is in system_prompt to reduce CDD noise
-    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_history returns .copy(), type hints, docstrings)."
+    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_history returns .copy(), type hints, docstrings, ALL caller-facing errors are ValueError — never bare ZeroDivisionError/TypeError, never custom exception classes)."
 
     // Existing method list — grows as features are added
     let existing_methods = "add, subtract, multiply, divide, get_history, clear_history"
@@ -636,7 +636,7 @@ main {
             print("TURN|developer|fix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
             // Update tests for found issues
-            let testfix_msg = "Update test_calc.py to cover issues found:\n" + tester_feedback + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 8 tests. ```python fences. Code only."
+            let testfix_msg = "Update test_calc.py to cover issues found:\n" + tester_feedback + "\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 8 tests. ```python fences. Code only."
             resp = safe_send(handles["developer"], testfix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
@@ -725,6 +725,7 @@ main {
 
     let feat_num = 0
     let prev_ops_len = len(ops_code)
+    let last_fail_detail = ""
     let fi = 0
     while fi < req_files.length() {
         let fname = req_files[fi]
@@ -778,7 +779,8 @@ main {
                     // Developer updates test file
                     check_coherence(handles["developer"], "developer")
                     let test_msg = "Add tests for this new feature ONLY:\n" + trimmed
-                    test_msg = test_msg + "\n\nDo NOT modify existing tests. Only ADD new test functions."
+                    test_msg = test_msg + "\n\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes."
+                    test_msg = test_msg + "\nDo NOT modify existing tests. Only ADD new test functions."
                     test_msg = test_msg + "\n\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput the COMPLETE file with new tests added. pytest with fixture. ```python fences. Code only."
                     resp = safe_send(handles["developer"], test_msg)
                     tracking["total_sends"] = tracking["total_sends"] + 1
@@ -864,21 +866,29 @@ main {
             fvk = fvk + 1
         }
 
-        // If pytest failed, send ONLY the failing test names (not full output) for 1 fix attempt
+        // If pytest failed, send the failing test names PLUS the exception detail
+        // lines ("E ..." from --tb=short) for 1 fix attempt. Names alone are not
+        // enough: without seeing "ZeroDivisionError" vs the expected exception
+        // type, the model cannot know WHAT to fix.
         if fval.get("pytest_passed") == false && handles.get("developer") != null {
             let pytest_out = fval.get("pytest_output") ?? ""
-            // Extract just FAILED/ERROR lines — not the full traceback
             let plines = string.split(pytest_out, "\n")
             let fail_names = ""
             let pfi = 0
             while pfi < plines.length() {
                 let pl = string.trim(plines[pfi])
+                let raw = plines[pfi]
                 if string.contains(pl, "FAILED") || string.contains(pl, "ERROR") || string.contains(pl, "SyntaxError") {
+                    fail_names = fail_names + pl + "\n"
+                } else if string.starts_with(raw, "E ") && len(fail_names) < 1500 {
+                    // pytest short-traceback detail: the assertion/exception line
                     fail_names = fail_names + pl + "\n"
                 }
                 pfi = pfi + 1
             }
+            if len(fail_names) > 1800 { fail_names = string.substring(fail_names, 0, 1800) + "\n[truncated]" }
             if len(fail_names) < 10 { fail_names = "Tests failed to collect (likely SyntaxError in operations.py or test_calc.py)" }
+            last_fail_detail = fail_names
             print("PYTEST_FIX|sending failure names to developer")
             let pytest_fix_msg = ""
             if len(operator_msg_prefix) > 0 { pytest_fix_msg = operator_msg_prefix + "\n\n" }
@@ -912,8 +922,13 @@ main {
             print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
         }
         // Feed the ground-truth outcome into the developer's coherence (S22 signal).
+        // The failure detail grounds the "validation" step-up challenge type.
         if handles.get("developer") != null {
-            let _rv = agent.record_validation(handles["developer"], feat_passed)
+            if feat_passed {
+                let _rv = agent.record_validation(handles["developer"], true)
+            } else {
+                let _rv = agent.record_validation(handles["developer"], false, last_fail_detail)
+            }
         }
 
         tracking["features_processed"] = tracking["features_processed"] + 1

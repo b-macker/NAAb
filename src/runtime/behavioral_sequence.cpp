@@ -1341,9 +1341,11 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // is objective evidence the output is wrong, and letting the adaptive baseline
     // "normalize" persistent failure would recreate the blindness this signal
     // exists to close (coherence 1.0 through rejected code).
+    state.last_validation_recovery = 0.0;
     if (sig_on(config_->signals.validation_outcome, SIG_VALIDATION) && state.has_validation_result) {
         if (!state.last_validation_passed) {
             state.validation_failure_count++;
+            state.last_consumed_validation_failed = true;
             turn_fired[SIG_VALIDATION]++;
             if (!in_baseline) {
                 double p = base_penalty(config_->weights.validation_outcome,
@@ -1353,6 +1355,17 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                     turn_penalties[SIG_VALIDATION] += p;
                     state.signals_fired_this_turn++;
                 }
+            }
+        } else if (state.last_consumed_validation_failed) {
+            // Fail→pass transition: the agent actually fixed its output. Credit
+            // a partial recovery (default: half the S22 weight, so oscillating
+            // fail/pass stays net-negative). Only the transition earns credit —
+            // recording repeated passes cannot pump coherence.
+            state.last_consumed_validation_failed = false;
+            double credit = config_->validation_recovery_amount;
+            if (credit > 0.0) {
+                state.coherence_score = std::min(1.0, state.coherence_score + credit);
+                state.last_validation_recovery = credit;
             }
         }
         // Consume the latched result — one validation outcome per turn.
@@ -2346,12 +2359,21 @@ void ContextDriftAnalyzer::recordToolOutcome(
     state.tool_last_outcome[tool_name] = success;
 }
 
-void ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed) {
+void ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
+    const std::unordered_set<std::string>& detail_keywords) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     // Latch the ground-truth result; the next recordTurn consumes and clears it.
     state.has_validation_result = true;
     state.last_validation_passed = passed;
+    // Failure detail grounds the "validation" step-up challenge type. Replaced
+    // on each failure so challenges always quiz the CURRENT defect; cleared on
+    // a pass so a fixed agent stops drawing competence challenges.
+    if (passed) {
+        state.validation_failure_keywords.clear();
+    } else if (!detail_keywords.empty()) {
+        state.validation_failure_keywords = detail_keywords;
+    }
 }
 
 void ContextDriftAnalyzer::setTurnPromptKeywords(

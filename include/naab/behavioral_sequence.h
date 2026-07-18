@@ -258,6 +258,15 @@ struct DriftState {
     bool has_validation_result = false;   // a result was recorded for this turn
     bool last_validation_passed = true;   // the recorded outcome
     int validation_failure_count = 0;     // cumulative failing turns (telemetry + rate_normalized)
+    // Recovery on fail→pass transition only: pass-spam earns at most one credit
+    // per preceding failure (credits <= failures), so recording passes cannot
+    // pump coherence.
+    bool last_consumed_validation_failed = false;  // most recently CONSUMED outcome was a failure
+    double last_validation_recovery = 0.0;         // recovery credit applied this turn (telemetry)
+    // Failure detail keywords from agent.record_validation(handle, false, detail)
+    // — grounds the "validation" step-up challenge type in the actual defect.
+    // Replaced on each recorded failure, cleared on a recorded pass.
+    std::unordered_set<std::string> validation_failure_keywords;
 
     // Escalation effectiveness tracking — measure whether level changes improve behavior
     int escalation_turn = -1;                      // turn when last escalation occurred (-1 = never)
@@ -440,8 +449,10 @@ public:
 
     // Record external validation outcome (S22) — ground-truth pass/fail from
     // the orchestration script (pytest, enforce_convergence). Consumed once by
-    // the next recordTurn.
-    void recordValidationOutcome(int handle_id, bool passed);
+    // the next recordTurn. Optional detail keywords (extracted from e.g. pytest
+    // failure output) ground the "validation" step-up challenge type.
+    void recordValidationOutcome(int handle_id, bool passed,
+        const std::unordered_set<std::string>& detail_keywords = {});
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
