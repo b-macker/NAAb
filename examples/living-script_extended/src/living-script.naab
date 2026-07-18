@@ -872,6 +872,25 @@ main {
         print("REACTIVE|found=" + fname)
         print("FEATURE|" + string(feat_num) + "|start|" + trimmed)
 
+        // Per-feature error-semantics CONTRACT — one sentence shared verbatim by
+        // the ops prompt, the test prompt, and the fix prompts, so code and tests
+        // are written against the same behavior instead of re-deriving it
+        // independently (the Jul 18 feature-2 coin flip: the developer was told
+        // "recall returns None, do NOT raise" while the tests expected ValueError).
+        let feat_contract = ""
+        if fname == "requirement-001.txt" {
+            feat_contract = "power() raises ValueError for complex results; modulo() raises ValueError on zero."
+        }
+        if fname == "requirement-002.txt" {
+            feat_contract = "memory_recall() with nothing stored returns None — that is NOT an error: do not raise, and do not write a test expecting a raise; memory_store() with a non-numeric value raises ValueError; memory_store() records to history."
+        }
+        if fname == "requirement-003.txt" {
+            feat_contract = "evaluate() records ONE history entry (not intermediate steps) and uses ast.parse not eval(); invalid or malformed expressions (including division by zero) raise ValueError."
+        }
+        if fname == "requirement-004.txt" {
+            feat_contract = "run_plugin() raises ValueError for unregistered plugins; register_plugin() raises ValueError for duplicate names or non-callable plugins."
+        }
+
         // Architect analyzes impact
         if handles.get("architect") != null && len(trimmed) > 5 {
             let arch_msg = "New feature requirement for the calculator:\n" + trimmed + "\n\nCurrent Calculator class has: add, subtract, multiply, divide, get_history, clear_history."
@@ -894,6 +913,7 @@ main {
                     dev_msg = dev_msg + "ADD this feature to operations.py:\n" + guidance
                     dev_msg = dev_msg + "\n\nRequirement: " + trimmed
                     dev_msg = dev_msg + "\n\n" + invariants
+                    if len(feat_contract) > 0 { dev_msg = dev_msg + "\nCONTRACT for this feature (code MUST match): " + feat_contract }
                     dev_msg = dev_msg + "\nEXISTING METHODS (do NOT modify): " + existing_methods
                     dev_msg = dev_msg + "\nOnly ADD new methods for this feature. Do not rewrite or change existing methods."
                     dev_msg = dev_msg + "\n\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE file with the new methods added. ```python fences. Code only."
@@ -915,7 +935,9 @@ main {
                     // Developer updates test file
                     check_coherence(handles["developer"], "developer")
                     let test_msg = "Add tests for this new feature ONLY:\n" + trimmed
+                    if len(feat_contract) > 0 { test_msg = test_msg + "\n\nCONTRACT (tests MUST match this exactly): " + feat_contract }
                     test_msg = test_msg + "\n\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes."
+                    test_msg = test_msg + "\n\nCurrent operations.py (write tests against THESE method signatures — do not guess names):\n```python\n" + ops_code + "\n```"
                     test_msg = test_msg + "\nDo NOT modify existing tests. Only ADD new test functions."
                     test_msg = test_msg + "\n\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput the COMPLETE file with new tests added. pytest with fixture. ```python fences. Code only."
                     resp = safe_send(handles["developer"], test_msg)
@@ -983,17 +1005,10 @@ main {
             existing_methods = existing_methods + ", " + new_methods
         }
         // Feature-specific reminders (lightweight — full invariants in system_prompt)
-        if fname == "requirement-001.txt" {
-            invariants = invariants + " Also: power() raises ValueError for complex results, modulo() raises ValueError on zero."
-        }
-        if fname == "requirement-002.txt" {
-            invariants = invariants + " Also: memory_recall() returns None when no value is stored (do NOT raise ValueError), memory_store() records to history."
-        }
-        if fname == "requirement-003.txt" {
-            invariants = invariants + " Also: evaluate() records ONE history entry (not intermediate steps), uses ast.parse not eval()."
-        }
-        if fname == "requirement-004.txt" {
-            invariants = invariants + " Also: run_plugin() raises ValueError for unregistered plugins, register_plugin() raises ValueError for duplicate names."
+        // (Accumulates the shared CONTRACT so later features and the refinement
+        // fix prompts keep honoring earlier features' error semantics.)
+        if len(feat_contract) > 0 {
+            invariants = invariants + " Also: " + feat_contract
         }
 
         // Validate evolved code (includes pytest)
@@ -1007,13 +1022,16 @@ main {
             fvk = fvk + 1
         }
 
-        // If pytest failed, send the failing test names PLUS the exception detail
-        // lines ("E ..." from --tb=short) for 1 fix attempt. Names alone are not
-        // enough: without seeing "ZeroDivisionError" vs the expected exception
-        // type, the model cannot know WHAT to fix (Jul 18 run: two failed fix
-        // attempts on the same division-by-zero bug it never saw).
-        if fval.get("pytest_passed") == false && handles.get("developer") != null {
-            let pytest_out = fval.get("pytest_output") ?? ""
+        // Pytest fix loop — up to 2 attempts, re-validating after each. Attempt 1
+        // fixes operations.py against the failure detail. Attempt 2 additionally
+        // shows test_calc.py and the feature CONTRACT: if a failing test
+        // contradicts the contract, the developer may fix the TEST instead —
+        // never to weaken assertions that match the contract.
+        let cur_val = fval
+        let fix_attempt = 0
+        while cur_val.get("pytest_passed") == false && fix_attempt < 2 && handles.get("developer") != null {
+            fix_attempt = fix_attempt + 1
+            let pytest_out = cur_val.get("pytest_output") ?? ""
             let plines = string.split(pytest_out, "\n")
             let fail_names = ""
             let pfi = 0
@@ -1036,32 +1054,43 @@ main {
             if len(operator_msg_prefix) > 0 { pytest_fix_msg = operator_msg_prefix + "\n\n" }
             pytest_fix_msg = pytest_fix_msg + "Pytest FAILED after adding: " + trimmed + "\nFailing tests:\n" + fail_names
             pytest_fix_msg = pytest_fix_msg + "\n" + invariants
-            pytest_fix_msg = pytest_fix_msg + "\nFix ONLY the failing parts. Do NOT rewrite the whole file."
-            pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed operations.py. ```python fences. Code only."
+            if len(feat_contract) > 0 { pytest_fix_msg = pytest_fix_msg + "\nCONTRACT for this feature: " + feat_contract }
+            if fix_attempt == 1 {
+                pytest_fix_msg = pytest_fix_msg + "\nFix ONLY the failing parts. Do NOT rewrite the whole file."
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed operations.py. ```python fences. Code only."
+            } else {
+                pytest_fix_msg = pytest_fix_msg + "\nSECOND ATTEMPT. If a failing test CONTRADICTS the CONTRACT above, output the corrected COMPLETE test_calc.py instead; otherwise output the corrected COMPLETE operations.py. NEVER weaken or delete assertions that match the contract."
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```"
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput exactly ONE complete file. ```python fences. Code only."
+            }
             check_coherence(handles["developer"], "developer")
             let pfresp = safe_send(handles["developer"], pytest_fix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if pfresp.get("error") == null {
                 track("developer", pfresp)
                 post_send_check(handles["developer"], pfresp, "developer")
-                let fixed_ops = agent.extract_code(pfresp.get("content") ?? "", "python")
-                if len(fixed_ops) > 20 {
-                    ops_code = fixed_ops
-                    print("PYTEST_FIX|developer_fixed|ops=" + string(len(ops_code)))
+                let fixed = agent.extract_code(pfresp.get("content") ?? "", "python")
+                if len(fixed) > 20 {
+                    if fix_attempt > 1 && string.contains(fixed, "def test_") {
+                        test_code = fixed
+                        print("PYTEST_FIX|developer_fixed|tests=" + string(len(test_code)))
+                    } else {
+                        ops_code = fixed
+                        print("PYTEST_FIX|developer_fixed|ops=" + string(len(ops_code)))
+                    }
                 }
             } else {
                 tracking["send_errors"] = tracking["send_errors"] + 1
             }
             print("TURN|developer|pytest_fix" + string(feat_num) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
+            cur_val = validate_code(ops_code, main_code, test_code, ops_pattern)
+            print("VALIDATE|feat" + string(feat_num) + "|attempt" + string(fix_attempt) + "_pytest_passed=" + string(cur_val.get("pytest_passed") == true))
         }
 
-        // Determine the FINAL validation status for this feature. If pytest failed
-        // initially, a single fix was attempted above — re-validate to see whether
-        // it actually passes now, so completion isn't marked on still-broken code.
-        let feat_passed = fval.get("pytest_passed") == true
+        // FINAL validation status for this feature (the fix loop re-validated
+        // after each attempt), so completion isn't marked on still-broken code.
+        let feat_passed = cur_val.get("pytest_passed") == true
         if fval.get("pytest_passed") == false {
-            let reval = validate_code(ops_code, main_code, test_code, ops_pattern)
-            feat_passed = reval.get("pytest_passed") == true
             print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
         }
         // Feed the ground-truth outcome into the developer's coherence (S22 signal):
@@ -1081,7 +1110,9 @@ main {
 
         // Consult operator after each feature
         let dc = tracking["coherences"].get("developer") ?? -1
-        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "feature_num": feat_num, "requirement": trimmed, "ops_len": len(ops_code), "test_len": len(test_code), "developer_coherence": dc, "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Feature " + string(feat_num) + " done. Developer coherence: " + string(dc) + ". Code grew from " + string(prev_ops_len) + " to " + string(len(ops_code)) + " chars. Adjust if drift detected."}
+        let feat_status_txt = " INCOMPLETE — pytest still failing."
+        if feat_passed { feat_status_txt = " complete." }
+        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "validation_passed": feat_passed, "feature_num": feat_num, "requirement": trimmed, "ops_len": len(ops_code), "test_len": len(test_code), "developer_coherence": dc, "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Feature " + string(feat_num) + feat_status_txt + " Developer coherence: " + string(dc) + ". Code grew from " + string(prev_ops_len) + " to " + string(len(ops_code)) + " chars. Adjust if drift detected."}
         let feat_decision = consult_operator(feat_ctx)
         handle_specialist_request(feat_decision, "FEATURES")
 

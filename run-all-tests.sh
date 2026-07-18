@@ -1517,6 +1517,19 @@ else
     echo "  test_validation_signal.sh: not found, skipping"
 fi
 
+# Step-up challenge failure path (stub-backed, deterministic)
+CHALLENGE_FAIL_SCRIPT="tests/governance_v4/test_challenge_fail_path.sh"
+if [ -f "$CHALLENGE_FAIL_SCRIPT" ]; then
+    if bash "$CHALLENGE_FAIL_SCRIPT" 2>&1; then
+        echo "  test_challenge_fail_path.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_challenge_fail_path.sh")
+    fi
+else
+    echo "  test_challenge_fail_path.sh: not found, skipping"
+fi
+
 # Per-tool-call admissibility gate (stub-backed)
 TOOL_GATE_SCRIPT="tests/governance_v4/test_tool_admissibility_gate.sh"
 if [ -f "$TOOL_GATE_SCRIPT" ]; then
