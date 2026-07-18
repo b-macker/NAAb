@@ -23,6 +23,11 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 
+# Provenance: stamp which source revision and binary produced each results file,
+# so run-to-run comparisons never have to reconstruct the binary from timestamps.
+BUILD_COMMIT=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)
+BINARY_MTIME=$(date -r "$NAAB" '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || echo unknown)
+
 if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
     _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 else
@@ -37,6 +42,36 @@ PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0; TOTAL=0; FAILURES=""
 pass() { local id="$1" desc="$2"; PASS_COUNT=$((PASS_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${GREEN}PASS${NC} [$id] $desc"; }
 fail() { local id="$1" desc="$2" detail="${3:-}"; FAIL_COUNT=$((FAIL_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${RED}FAIL${NC} [$id] $desc"; [ -n "$detail" ] && echo -e "       ${RED}-> $detail${NC}"; FAILURES="${FAILURES}\n  [$id] $desc${detail:+ -- $detail}"; }
 skip() { local id="$1" desc="$2"; SKIP_COUNT=$((SKIP_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${YELLOW}SKIP${NC} [$id] $desc"; }
+
+# ------------------------------------------------------------
+# Governance-kill classification.
+#
+# When an agent exceeds max_quarantine_streak, the engine throws an
+# uncatchable GovernanceHardError: main.cpp prints
+# "Error: Agent exceeded maximum quarantine streak" to stdout and exits 3.
+# That is governance succeeding, not the harness failing — so checks on
+# phases the script never reached are reported as SKIP, not FAIL.
+# Detection is deliberately narrow (exit 3 AND the streak message): timeouts,
+# crashes, and other HARD governance blocks are still treated as failures.
+# ------------------------------------------------------------
+GOV_KILL=""
+
+detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or nothing
+    if [ "$1" -eq 3 ] && echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
+        echo "quarantine_streak"
+    fi
+}
+
+# fail(), except the check is reported as SKIP when the run was governance-
+# killed — for checks whose thresholds can only be unmet because the run was
+# truncated (counts, phase markers, end-of-run summary markers).
+gk_fail() {  # $1=id, $2=desc, $3=detail
+    if [ -n "$GOV_KILL" ]; then
+        skip "$1" "$2 (truncated by governance kill: $GOV_KILL)"
+    else
+        fail "$1" "$2" "${3:-}"
+    fi
+}
 
 # Trust store isolation
 source "$SCRIPT_DIR/../../tests/helpers/trust_setup.sh"
@@ -93,6 +128,24 @@ else
     echo -e "${CYAN}--- End Output ---${NC}"
     echo ""
 
+    GOV_KILL=$(detect_gov_kill "$EXIT_CODE" "$OUTPUT")
+    if [ -n "$GOV_KILL" ]; then
+        echo -e "${YELLOW}================================================================${NC}"
+        echo -e "${YELLOW}  GOVERNANCE KILL: $GOV_KILL -- run terminated by design.${NC}"
+        echo -e "${YELLOW}  An agent exceeded max_quarantine_streak. Levels the script${NC}"
+        echo -e "${YELLOW}  never reached are reported as SKIP, not FAIL.${NC}"
+        echo -e "${YELLOW}================================================================${NC}"
+        echo ""
+        # The kill must be attributable: the engine emits QUARANTINE_STREAK_EXCEEDED
+        # telemetry BEFORE throwing. Exit 3 + streak message with no telemetry
+        # event would be a genuine bug, not an expected outcome.
+        if grep -q "QUARANTINE_STREAK_EXCEEDED" "$WORKDIR/telemetry.jsonl" 2>/dev/null; then
+            pass "GK-01" "Governance kill attributable (QUARANTINE_STREAK_EXCEEDED in telemetry)"
+        else
+            fail "GK-01" "Unattributable governance kill" "exit 3 + streak message but no QUARANTINE_STREAK_EXCEEDED telemetry event"
+        fi
+    fi
+
     # ============================================================
     # Extract values
     # ============================================================
@@ -122,7 +175,7 @@ else
     if [ "$AGENTS_CREATED" -ge 4 ]; then
         pass "L1-01" "Team created ($AGENTS_CREATED agents incl. operator)"
     else
-        fail "L1-01" "Agent creation" "only $AGENTS_CREATED agents"
+        gk_fail "L1-01" "Agent creation" "only $AGENTS_CREATED agents"
     fi
 
     OP_ACTIONS=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=' || echo "0")
@@ -131,7 +184,7 @@ else
     elif [ "$OP_ACTIONS" -ge 5 ]; then
         pass "L1-02" "Operator consulted ($OP_ACTIONS times, expected 8+)"
     else
-        fail "L1-02" "Insufficient operator consultations" "got $OP_ACTIONS, expected >= 8"
+        gk_fail "L1-02" "Insufficient operator consultations" "got $OP_ACTIONS, expected >= 8"
     fi
 
     pass "L1-03" "Adjustments tracked ($ADJUSTMENTS applied)"
@@ -145,21 +198,21 @@ else
     if [ "$VALIDATE_RAN" -gt 0 ]; then
         pass "L2-01" "Polyglot validation ran ($VALIDATE_RAN checks)"
     else
-        fail "L2-01" "No validation output"
+        gk_fail "L2-01" "No validation output"
     fi
 
     OPS_CONV=$(echo "$OUTPUT" | grep 'CONVERGENCE|operations.py|valid=true' | head -1)
     if [ -n "$OPS_CONV" ]; then
         pass "L2-02" "operations.py passes convergence"
     else
-        fail "L2-02" "operations.py convergence failed"
+        gk_fail "L2-02" "operations.py convergence failed"
     fi
 
     TEST_CONV=$(echo "$OUTPUT" | grep 'CONVERGENCE|test_calc.py|valid=true' | head -1)
     if [ -n "$TEST_CONV" ]; then
         pass "L2-03" "test_calc.py passes convergence"
     else
-        fail "L2-03" "test_calc.py convergence failed"
+        gk_fail "L2-03" "test_calc.py convergence failed"
     fi
 
     # Pytest actually ran
@@ -178,7 +231,7 @@ else
     if [ -f "$WORKDIR/memory/observations.json" ]; then
         pass "L3-01" "Memory file saved"
     else
-        fail "L3-01" "Memory file not found"
+        gk_fail "L3-01" "Memory file not found"
     fi
 
     if [ -f "$WORKDIR/memory/observations.json" ]; then
@@ -190,7 +243,7 @@ assert 'features_processed' in d and d['features_processed'] >= 1
 assert 'refinement_iterations' in d
 " 2>/dev/null \
             && pass "L3-02" "Memory has run_count + features + refinement data" \
-            || fail "L3-02" "Memory missing expected fields"
+            || gk_fail "L3-02" "Memory missing expected fields"
     else
         skip "L3-02" "No memory file to check"
     fi
@@ -204,7 +257,7 @@ assert 'refinement_iterations' in d
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
-            fail "L4-$phase" "Phase $phase not reached"
+            gk_fail "L4-$phase" "Phase $phase not reached"
         fi
     done
 
@@ -212,7 +265,7 @@ assert 'refinement_iterations' in d
     if [ "$ITERATIONS" -ge 1 ]; then
         pass "L4-ITER" "Refinement ran $ITERATIONS iterations"
     else
-        fail "L4-ITER" "No refinement iterations"
+        gk_fail "L4-ITER" "No refinement iterations"
     fi
 
     # Developer rewrote code during refinement
@@ -220,7 +273,7 @@ assert 'refinement_iterations' in d
     if [ "$REWRITES" -gt 0 ]; then
         pass "L4-REWRITE" "Developer rewrote code ($REWRITES times)"
     else
-        fail "L4-REWRITE" "No code rewrites during refinement"
+        gk_fail "L4-REWRITE" "No code rewrites during refinement"
     fi
 
     # Review verdicts tracked
@@ -228,7 +281,7 @@ assert 'refinement_iterations' in d
     if [ "$REVIEWS" -gt 0 ]; then
         pass "L4-REVIEW" "Reviewer voted $REVIEWS times"
     else
-        fail "L4-REVIEW" "No review verdicts"
+        gk_fail "L4-REVIEW" "No review verdicts"
     fi
 
     # ============================================================
@@ -242,7 +295,7 @@ assert 'refinement_iterations' in d
     elif [ "$REACTIVE_FOUND" -ge 1 ]; then
         pass "L5-01" "Requirement file detected ($REACTIVE_FOUND, expected 3)"
     else
-        fail "L5-01" "No reactive events detected"
+        gk_fail "L5-01" "No reactive events detected"
     fi
 
     if [ "$FEATURES" -ge 2 ]; then
@@ -250,7 +303,7 @@ assert 'refinement_iterations' in d
     elif [ "$FEATURES" -ge 1 ]; then
         pass "L5-02" "Feature processed ($FEATURES, expected 3)"
     else
-        fail "L5-02" "No features processed"
+        gk_fail "L5-02" "No features processed"
     fi
 
     # Code grew with features (operations.py should be substantially larger)
@@ -261,7 +314,7 @@ assert 'refinement_iterations' in d
     elif [ "$FINAL_OPS_LEN" -ge 1000 ]; then
         pass "L5-03" "Code grew with features (ops=$FINAL_OPS_LEN chars)"
     else
-        fail "L5-03" "Code didn't grow enough" "ops=$FINAL_OPS_LEN chars, expected 2000+"
+        gk_fail "L5-03" "Code didn't grow enough" "ops=$FINAL_OPS_LEN chars, expected 2000+"
     fi
 
     # Feature cycle markers. Completion is now gated on validation: a feature
@@ -273,7 +326,7 @@ assert 'refinement_iterations' in d
     if [ "$FEAT_CYCLES" -ge 2 ]; then
         pass "L5-04" "Feature cycles ran ($FEAT_CYCLES: $FEAT_COMPLETE complete, $FEAT_INCOMPLETE incomplete)"
     else
-        fail "L5-04" "Feature cycles did not run" "only $FEAT_CYCLES cycles"
+        gk_fail "L5-04" "Feature cycles did not run" "only $FEAT_CYCLES cycles"
     fi
 
     # Tester reviewed during feature additions (Gap 1 fix)
@@ -281,7 +334,7 @@ assert 'refinement_iterations' in d
     if [ "$FEAT_TESTER" -ge 1 ]; then
         pass "L5-05" "Tester reviewed during features ($FEAT_TESTER reviews)"
     else
-        fail "L5-05" "No tester review during feature additions"
+        gk_fail "L5-05" "No tester review during feature additions"
     fi
 
     # Developer fixed issues found by tester during features
@@ -316,7 +369,7 @@ assert 'refinement_iterations' in d
     if echo "$OUTPUT" | grep -q "PHASE|DYNAMIC|"; then
         pass "L6-01" "Dynamic team phase reached"
     else
-        fail "L6-01" "Dynamic phase not reached"
+        gk_fail "L6-01" "Dynamic phase not reached"
     fi
 
     # ============================================================
@@ -347,7 +400,7 @@ print('true' if ok else 'false')
     if [ "${HEALTH:-}" = "healthy" ] || [ "${HEALTH:-}" = "degraded" ]; then
         pass "H01" "Governance health: $HEALTH"
     else
-        fail "H01" "Governance health: ${HEALTH:-unknown}"
+        gk_fail "H01" "Governance health: ${HEALTH:-unknown}"
     fi
 
     # Code extraction
@@ -355,7 +408,7 @@ print('true' if ok else 'false')
     if [ "$FILES_EXTRACTED" -ge 2 ]; then
         pass "C01" "Code extraction ($FILES_EXTRACTED/3 files)"
     else
-        fail "C01" "Code extraction failed" "only $FILES_EXTRACTED/3 files"
+        gk_fail "C01" "Code extraction failed" "only $FILES_EXTRACTED/3 files"
     fi
 
     # Total sends — with features we expect 30+
@@ -364,7 +417,7 @@ print('true' if ok else 'false')
     elif [ "$TOTAL_SENDS" -ge 20 ]; then
         pass "C02" "Acceptable API calls ($TOTAL_SENDS sends, $SEND_ERRORS errors)"
     else
-        fail "C02" "Too few API calls" "got $TOTAL_SENDS, expected 30+"
+        gk_fail "C02" "Too few API calls" "got $TOTAL_SENDS, expected 30+"
     fi
 
     # Developer coherence varied (CDD fired from many turns)
@@ -402,15 +455,24 @@ print('true' if ok else 'false')
     # ============================================================
     echo -e "${CYAN}Cross-Run Memory Test${NC}"
 
-    # Restore original govern.json (operator may have modified it during run 1)
-    cp "$SCRIPT_DIR/src/govern.json" "$WORKDIR/govern.json"
-    (cd "$WORKDIR" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
-
-    OUTPUT2=$(cd "$WORKDIR" && timeout 1800 "$NAAB" --governance-dashboard "living-script.naab" 2>/dev/null) && EXIT2=0 || EXIT2=$?
-    if echo "$OUTPUT2" | grep -q "MEMORY|loaded|runs=1"; then
-        pass "L3-03" "Second run loaded prior memory (runs=1)"
+    if [ -n "$GOV_KILL" ]; then
+        # Run 1 was governance-killed before saving memory — a second run can't
+        # load what was never written, so don't spend the API budget proving it.
+        skip "L3-03" "Cross-run test skipped (governance kill in run 1)"
     else
-        fail "L3-03" "Second run didn't load memory"
+        # Restore original govern.json (operator may have modified it during run 1)
+        cp "$SCRIPT_DIR/src/govern.json" "$WORKDIR/govern.json"
+        (cd "$WORKDIR" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+
+        OUTPUT2=$(cd "$WORKDIR" && timeout 1800 "$NAAB" --governance-dashboard "living-script.naab" 2>/dev/null) && EXIT2=0 || EXIT2=$?
+        GOV_KILL2=$(detect_gov_kill "$EXIT2" "$OUTPUT2")
+        if echo "$OUTPUT2" | grep -q "MEMORY|loaded|runs=1"; then
+            pass "L3-03" "Second run loaded prior memory (runs=1)"
+        elif [ -n "$GOV_KILL2" ]; then
+            skip "L3-03" "Second run governance-killed ($GOV_KILL2) before memory report"
+        else
+            fail "L3-03" "Second run didn't load memory"
+        fi
     fi
 
     # ============================================================
@@ -464,13 +526,17 @@ fi
 echo ""
 echo -e "${CYAN}================================================${NC}"
 echo -e "  ${GREEN}PASS: $PASS_COUNT${NC}  ${RED}FAIL: $FAIL_COUNT${NC}  ${YELLOW}SKIP: $SKIP_COUNT${NC}  TOTAL: $TOTAL"
+[ -n "$GOV_KILL" ] && echo -e "  ${YELLOW}GOVERNANCE KILL: $GOV_KILL (run terminated by design; unreached levels skipped)${NC}"
 [ -n "$FAILURES" ] && echo -e "\n${RED}Failures:${FAILURES}${NC}"
 echo -e "${CYAN}================================================${NC}"
 
 mkdir -p "$RESULTS_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"total\": $TOTAL}" > "$RESULTS_DIR/summary.json"
-[ -n "${OUTPUT:-}" ] && echo "$OUTPUT" > "$RESULTS_DIR/results_${TIMESTAMP}.txt"
+echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"total\": $TOTAL, \"governance_kill\": \"${GOV_KILL:-}\", \"commit\": \"$BUILD_COMMIT\"}" > "$RESULTS_DIR/summary.json"
+[ -n "${OUTPUT:-}" ] && {
+    echo "# commit=$BUILD_COMMIT binary=$NAAB binary_mtime=$BINARY_MTIME governance_kill=${GOV_KILL:-none}"
+    echo "$OUTPUT"
+} > "$RESULTS_DIR/results_${TIMESTAMP}.txt"
 [ -f "${STDERR_FILE:-/dev/null}" ] && cp "$STDERR_FILE" "$RESULTS_DIR/stderr_${TIMESTAMP}.txt" 2>/dev/null || true
 [ -f "${WORKDIR:-/dev/null}/telemetry.jsonl" ] && cp "$WORKDIR/telemetry.jsonl" "$RESULTS_DIR/telemetry_${TIMESTAMP}.jsonl" 2>/dev/null || true
 [ -f "${WORKDIR:-/dev/null}/transcript.jsonl" ] && cp "$WORKDIR/transcript.jsonl" "$RESULTS_DIR/transcript_${TIMESTAMP}.jsonl" 2>/dev/null || true
