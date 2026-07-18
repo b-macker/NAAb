@@ -322,3 +322,50 @@ harnesses.
   and `src/govern.json` (exception-convention invariant, `E `-line detail,
   `record_validation` detail arg)
 - Jul 18 run figures: follow-up forensic session, originating device.
+
+---
+
+## Round 3: post-#88 live confirmation and the feature-2 contract fix
+
+The first live run on the #88 changes went APPROVED (105/105 harness, 3/4
+features, coherence floor 0.86, tokens back to 746K). Forensics on that run
+(follow-up session, originating device) confirmed each intervention with exact
+values: one S22 recovery of +0.075 fired only on the fail→pass transition
+(VR2→VR3), a `validation`-type challenge fired grounded in 9 failure-detail
+keywords and passed at 0.667, feature 3's division-by-zero and feature 4's
+exception types were correct on first attempt. The "ghost run" in that
+telemetry file is the harness's own L3-03 cross-run invocation (second
+`run_id` segment in the same file, by design) — analyses must filter by
+`run_id`.
+
+**Feature 2's coin flip had a locatable cause.** The per-feature reminder
+`"memory_recall() returns None when no value is stored (do NOT raise
+ValueError)"` was appended to `invariants` AFTER that feature's ops and test
+prompts had already been sent — so it reached only the fix prompts and later
+features, while the test prompt's blanket "invalid input MUST be tested with
+pytest.raises(ValueError)" line pushed the tests the opposite way, and the
+test prompt never saw the ops code at all. Two independently-derived,
+contradictory contracts.
+
+Interventions in this round (scripts/harness/tests only — no engine changes):
+
+1. **Shared per-feature CONTRACT**: error semantics for each feature are now
+   one string computed at feature start and included verbatim in the ops
+   prompt, the test prompt, and the fix prompts; the test prompt additionally
+   embeds the current `operations.py` so tests are written against real
+   signatures.
+2. **Two-attempt fix loop**: PYTEST_FIX now retries up to twice with
+   re-validation between attempts; attempt 2 shows both files plus the
+   contract and may fix a test only where it contradicts the contract.
+3. **Operator ground truth**: the post-feature operator consult now carries
+   `validation_passed` and states complete/INCOMPLETE explicitly (the
+   post-#88 run's operator had misread an incomplete feature as complete).
+4. **`challenge_failure` kill kind**: a failed step-up challenge throws
+   GovernanceHardError (exit 3) — the same designed-kill class as the
+   quarantine streak. Both harnesses now classify it (`detect_gov_kill`),
+   with GK-01 attributability against `AGENT_CHALLENGE_FAIL` telemetry.
+5. **Deterministic challenge-failure coverage**:
+   `tests/governance_v4/test_challenge_fail_path.sh` forces both challenge
+   outcomes with the loopback stub (off-topic answer → FAIL → exit 3 +
+   telemetry; on-topic answer → PASS → run completes), closing the gap where
+   the fail path had never been exercised outside live-model luck.

@@ -60,7 +60,8 @@ skip() { local id="$1" desc="$2"; SKIP_COUNT=$((SKIP_COUNT + 1)); TOTAL=$((TOTAL
 # ------------------------------------------------------------
 # Governance-kill classification.
 #
-# When an agent exceeds max_quarantine_streak, the engine throws an
+# When an agent exceeds max_quarantine_streak (or fails a step-up
+# challenge), the engine throws an
 # uncatchable GovernanceHardError: main.cpp prints
 # "Error: Agent exceeded maximum quarantine streak" to stdout and exits 3.
 # That is governance succeeding, not the harness failing — so checks on
@@ -73,6 +74,8 @@ GOV_KILL=""
 detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or nothing
     if [ "$1" -eq 3 ] && echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
         echo "quarantine_streak"
+    elif [ "$1" -eq 3 ] && echo "$2" | grep -q "Step-up challenge failed"; then
+        echo "challenge_failure"
     fi
 }
 
@@ -159,17 +162,18 @@ else
     if [ -n "$GOV_KILL" ]; then
         echo -e "${YELLOW}================================================================${NC}"
         echo -e "${YELLOW}  GOVERNANCE KILL: $GOV_KILL -- run terminated by design.${NC}"
-        echo -e "${YELLOW}  An agent exceeded max_quarantine_streak. Levels the script${NC}"
-        echo -e "${YELLOW}  never reached are reported as SKIP, not FAIL.${NC}"
+        echo -e "${YELLOW}  Levels the script never reached are reported as SKIP, not FAIL.${NC}"
         echo -e "${YELLOW}================================================================${NC}"
         echo ""
-        # The kill must be attributable: the engine emits QUARANTINE_STREAK_EXCEEDED
-        # telemetry BEFORE throwing. Exit 3 + streak message with no telemetry
-        # event would be a genuine bug, not an expected outcome.
-        if grep -q "QUARANTINE_STREAK_EXCEEDED" "$WORKDIR/telemetry.jsonl" 2>/dev/null; then
-            pass "GK-01" "Governance kill attributable (QUARANTINE_STREAK_EXCEEDED in telemetry)"
+        # The kill must be attributable: the engine emits the matching telemetry
+        # event BEFORE throwing (QUARANTINE_STREAK_EXCEEDED / AGENT_CHALLENGE_FAIL).
+        # Exit 3 + kill message with no telemetry event would be a genuine bug.
+        GK_EVENT="QUARANTINE_STREAK_EXCEEDED"
+        [ "$GOV_KILL" = "challenge_failure" ] && GK_EVENT="AGENT_CHALLENGE_FAIL"
+        if grep -q "$GK_EVENT" "$WORKDIR/telemetry.jsonl" 2>/dev/null; then
+            pass "GK-01" "Governance kill attributable ($GK_EVENT in telemetry)"
         else
-            fail "GK-01" "Unattributable governance kill" "exit 3 + streak message but no QUARANTINE_STREAK_EXCEEDED telemetry event"
+            fail "GK-01" "Unattributable governance kill" "exit 3 + kill message but no $GK_EVENT telemetry event"
         fi
     fi
 
