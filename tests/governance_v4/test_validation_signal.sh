@@ -11,6 +11,10 @@
 # Group D: per-agent override disables it
 # Group E: mid-run global disable = ratchet violation
 # Group F: W1 — AGENT_RESPONSE carries config_name
+# Group G: fail→pass transition earns partial recovery credit
+# Group H: pass-spam earns no extra credit
+# Group I: mid-run raise of validation_recovery_amount = ratchet violation
+# Group J: detail arg — keywords recorded + validation challenge type
 # ============================================================
 set -uo pipefail
 
@@ -317,6 +321,201 @@ if grep -E '"event_type":"AGENT_RESPONSE"' "$WDIR/tele.jsonl" 2>/dev/null | grep
     pass "F-01" "AGENT_RESPONSE carries config_name=developer"
 else
     fail "F-01" "AGENT_RESPONSE missing config_name" "$(grep '"AGENT_RESPONSE"' "$WDIR/tele.jsonl" | head -1)"
+fi
+fi
+
+# ============================================================
+# Group G+H: fail→pass recovery credit; pass-spam earns nothing
+# ============================================================
+echo -e "${CYAN}--- Group G+H: recovery on fail→pass transition ---${NC}"
+WDIR="$TEST_TMP/g"; mkdir -p "$WDIR"
+printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "G-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+# Disable keyword signals so only S22 (and its recovery) moves coherence
+mk_govern "$STUB_PORT" ', "context_drift_signals": {"semantic_stability": false, "instruction_recall": false, "entity_consistency": false, "mandate_alignment": false, "coherence_velocity": false, "persona_fingerprint": false, "instruction_conflict": false, "context_growth": false, "response_repetition": false, "prompt_compliance": false}' > "$WDIR/govern.json"; sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement add")
+    let _f = agent.record_validation(h, false)
+    let r2 = agent.send(h, "implement subtract")
+    let c_after_fail = agent.coherence(h)
+    let _p = agent.record_validation(h, true)
+    let r3 = agent.send(h, "implement multiply")
+    let c_after_pass = agent.coherence(h)
+    let _p2 = agent.record_validation(h, true)
+    let r4 = agent.send(h, "implement divide")
+    let c_after_spam = agent.coherence(h)
+    print("C_FAIL=" + string(c_after_fail))
+    print("C_PASS=" + string(c_after_pass))
+    print("C_SPAM=" + string(c_after_spam))
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+CF=$(echo "$OUT" | grep '^C_FAIL=' | sed 's/.*=//')
+CP=$(echo "$OUT" | grep '^C_PASS=' | sed 's/.*=//')
+CS=$(echo "$OUT" | grep '^C_SPAM=' | sed 's/.*=//')
+if [ -n "$CF" ] && [ -n "$CP" ] && awk "BEGIN{exit !($CP > $CF + 0.05)}"; then
+    pass "G-01" "fail→pass transition recovered coherence ($CF -> $CP)"
+else
+    fail "G-01" "no recovery on fail→pass" "c_fail=$CF c_pass=$CP"
+fi
+if [ -n "$CP" ] && awk "BEGIN{exit !($CP < 1.0)}"; then
+    pass "G-02" "recovery is partial — coherence stays below 1.0 ($CP)"
+else
+    fail "G-02" "recovery fully erased the failure" "c_pass=$CP"
+fi
+if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_recovery=+'; then
+    pass "G-03" "validation_recovery credit surfaced in CDD_TURN penalties_detail"
+else
+    fail "G-03" "no validation_recovery in telemetry" "$(grep '"CDD_TURN"' "$WDIR/tele.jsonl" | grep -o '"penalties_detail":"[^"]*"' | tail -2)"
+fi
+# H: the second recorded pass (no preceding failure) must earn nothing
+if [ -n "$CP" ] && [ -n "$CS" ] && awk "BEGIN{exit !($CS <= $CP + 0.001)}"; then
+    pass "H-01" "pass-spam earned no extra credit ($CP -> $CS)"
+else
+    fail "H-01" "repeated pass pumped coherence" "c_pass=$CP c_spam=$CS"
+fi
+fi
+
+# ============================================================
+# Group I: mid-run RAISE of validation_recovery_amount = ratchet violation
+# ============================================================
+echo -e "${CYAN}--- Group I: raising recovery credit is a ratchet violation ---${NC}"
+if $IS_WINDOWS; then
+    skip "I-01" "mid-run file swap requires POSIX file semantics"
+else
+WDIR="$TEST_TMP/i"; mkdir -p "$WDIR"
+printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "I-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+LOOSE_I="{\"version\":\"5.0\",\"mode\":\"enforce\",\"security\":{\"sandbox_level\":\"elevated\"},\"telemetry\":{\"enabled\":true,\"output_file\":\"tele.jsonl\"},\"behavioral_sequences\":{\"enabled\":true},\"context_drift\":{\"enabled\":true,\"level\":\"advisory\",\"check_interval_turns\":1,\"validation_recovery_amount\":0.5},\"capabilities\":{\"shell\":{\"enabled\":true}},\"agents\":{\"developer\":{\"provider\":\"gemini\",\"model\":\"stub-model\",\"api_base\":\"http://127.0.0.1:$STUB_PORT\",\"api_key_env\":\"FAKE_KEY_VALSIG\",\"max_tokens\":100,\"max_turns\":20}}}"
+LOOSE_I_SIG=$(presign "$LOOSE_I")
+if [ -z "$LOOSE_I_SIG" ]; then skip "I-01" "presign failed"; stop_stub; else
+export NAAB_LOOSE_I_JSON="$LOOSE_I" NAAB_LOOSE_I_SIG="$LOOSE_I_SIG"
+cat > "$WDIR/govern.json" <<EOF
+{
+  "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "tele.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1, "validation_recovery_amount": 0.075 },
+  "capabilities": { "shell": { "enabled": true } },
+  "agents": { "developer": { "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$STUB_PORT",
+      "api_key_env": "FAKE_KEY_VALSIG", "max_tokens": 100, "max_turns": 20 } }
+}
+EOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement add")
+    let _ = <<shell
+sleep 1.2
+printf '%s' "$NAAB_LOOSE_I_JSON" > govern.json
+printf '%s' "$NAAB_LOOSE_I_SIG" > govern.json.sig
+>>
+    let r2 = agent.send(h, "implement subtract")
+    print("DONE")
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 40s "$NAAB" test.naab 2>"$WDIR/stderr.txt") || true
+stop_stub
+if grep -q "ratchet violation" "$WDIR/stderr.txt" 2>/dev/null && grep -q "validation_recovery_amount" "$WDIR/stderr.txt" 2>/dev/null; then
+    pass "I-01" "mid-run raise of validation_recovery_amount rejected as ratchet violation"
+else
+    fail "I-01" "mid-run raise not rejected" "$(grep -i 'ratchet\|reload' "$WDIR/stderr.txt" 2>/dev/null | head -2)"
+fi
+fi
+fi
+fi
+
+# ============================================================
+# Group J: detail arg — keywords recorded + validation challenge type
+# ============================================================
+echo -e "${CYAN}--- Group J: failure detail grounds the validation challenge ---${NC}"
+WDIR="$TEST_TMP/j"; mkdir -p "$WDIR"
+printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "J-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+# Escalation staging (mirrors test_challenge_first_turn.sh): S22 firing feeds
+# signal_density, which alone drives the level to ELEVATED, where step-up fires.
+cat > "$WDIR/govern.json" <<EOF
+{
+  "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "tele.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": {
+    "enabled": true, "level": "advisory", "check_interval_turns": 1,
+    "signals": {
+      "circular_actions": false, "repeated_failures": false, "scope_creep": false,
+      "intent_contradictions": false, "coherence_velocity": false,
+      "response_quality": false, "thinking_collapse": false,
+      "semantic_stability": false, "mandate_alignment": false,
+      "context_growth": false, "instruction_recall": false, "plan_drift": false,
+      "entity_consistency": false, "instruction_conflict": false,
+      "persona_fingerprint": false, "tool_chain_integrity": false,
+      "claim_result_reconciliation": false, "prompt_compliance": false,
+      "response_repetition": false, "validation_outcome": true
+    },
+    "reality_checkpoint": {
+      "enabled": false, "pressure_threshold": 0.5, "signal_density_divisor": 1,
+      "weights": {
+        "coherence_proximity": 0, "risk_score_proximity": 0,
+        "signal_density": 1.0, "conversation_depth": 0,
+        "bsd_partial_progress": 0, "pipeline_inherited": 0,
+        "coherence_acceleration": 0, "codegen_pressure": 0,
+        "bsd_eviction_pressure": 0, "semantic_deviation": 0
+      }
+    }
+  },
+  "circuit_breaker": {
+    "enabled": true, "elevated_threshold": 0.5, "elevated_sustained": 1,
+    "deescalate_sustained": 5,
+    "step_up_enabled": true, "step_up_contextual": true,
+    "step_up_at_level": "elevated"
+  },
+  "agents": { "developer": { "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$STUB_PORT",
+      "api_key_env": "FAKE_KEY_VALSIG", "max_tokens": 100, "max_turns": 20 } }
+}
+EOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement divide")
+    let _f = agent.record_validation(h, false, "FAILED test_divide_by_zero: divide raised ZeroDivisionError, expected ValueError for zero divisor")
+    let r2 = agent.send(h, "fix the divide operation")
+    let r3 = agent.send(h, "add divide docstring")
+    print("DONE")
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+if grep -E '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -qE '"detail_keywords":"[1-9]'; then
+    pass "J-01" "VALIDATION_RECORDED carries detail_keywords count"
+else
+    fail "J-01" "no detail_keywords in VALIDATION_RECORDED" "$(grep 'VALIDATION_RECORDED' "$WDIR/tele.jsonl" | head -1)"
+fi
+CHAL_J=$(grep -E '"event_type":"AGENT_CHALLENGE_(PASS|FAIL)"' "$WDIR/tele.jsonl" 2>/dev/null | head -1)
+if [ -n "$CHAL_J" ]; then
+    pass "J-02" "step-up challenge fired after validation-failure escalation"
+    if echo "$CHAL_J" | grep -q '"challenge_type":"validation"'; then
+        pass "J-03" "challenge type is 'validation' (competence, grounded in the defect)"
+    else
+        fail "J-03" "challenge did not use validation type" "$CHAL_J"
+    fi
+else
+    fail "J-02" "no challenge fired" "$(grep -c CDD_TURN "$WDIR/tele.jsonl" 2>/dev/null) CDD turns"
+    skip "J-03" "no challenge to inspect"
 fi
 fi
 

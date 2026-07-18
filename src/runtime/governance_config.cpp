@@ -2696,6 +2696,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("coherence_recovery_amount") && cd["coherence_recovery_amount"].is_number()) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
         if (cd.contains("coherence_recovery_cap") && cd["coherence_recovery_cap"].is_number()) cfg.coherence_recovery_cap = cd["coherence_recovery_cap"].get<double>();
         if (cd.contains("coherence_natural_healing") && cd["coherence_natural_healing"].is_number()) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
+        if (cd.contains("validation_recovery_amount") && cd["validation_recovery_amount"].is_number()) cfg.validation_recovery_amount = std::max(0.0, std::min(1.0, cd["validation_recovery_amount"].get<double>()));
         if (cd.contains("temporal_decay_enabled") && cd["temporal_decay_enabled"].is_boolean()) cfg.temporal_decay_enabled = cd["temporal_decay_enabled"].get<bool>();
         if (cd.contains("temporal_decay_per_minute") && cd["temporal_decay_per_minute"].is_number()) cfg.temporal_decay_per_minute = std::max(0.0, cd["temporal_decay_per_minute"].get<double>());
         if (cd.contains("temporal_decay_grace_minutes") && cd["temporal_decay_grace_minutes"].is_number()) cfg.temporal_decay_grace_minutes = std::max(0.0, cd["temporal_decay_grace_minutes"].get<double>());
@@ -3640,6 +3641,13 @@ static bool checkRatchetViolation(
     else if (new_r.context_drift.rate_normalized_floor > old_r.context_drift.rate_normalized_floor)
         notices.push_back(fmt::format("context_drift.rate_normalized_floor: {:.2f} -> {:.2f} (tightened)",
             old_r.context_drift.rate_normalized_floor, new_r.context_drift.rate_normalized_floor));
+    // Raising the validation recovery credit = loosening (failures cost less net)
+    if (new_r.context_drift.validation_recovery_amount > old_r.context_drift.validation_recovery_amount)
+        violations.push_back(fmt::format("context_drift.validation_recovery_amount: {:.3f} -> {:.3f} (loosened — validation failures recover more cheaply)",
+            old_r.context_drift.validation_recovery_amount, new_r.context_drift.validation_recovery_amount));
+    else if (new_r.context_drift.validation_recovery_amount < old_r.context_drift.validation_recovery_amount)
+        notices.push_back(fmt::format("context_drift.validation_recovery_amount: {:.3f} -> {:.3f} (tightened)",
+            old_r.context_drift.validation_recovery_amount, new_r.context_drift.validation_recovery_amount));
     // Per-signal toggles: disabling a signal mid-run removes a detection channel
     for (int si = 0; si < NUM_CDD_SIGNALS; si++) {
         bool old_on = cddSignalValue(old_r.context_drift.signals, si);

@@ -1122,13 +1122,21 @@ fi
 echo ""
 echo -e "${CYAN}================================================${NC}"
 echo -e "  ${GREEN}PASS: $PASS_COUNT${NC}  ${RED}FAIL: $FAIL_COUNT${NC}  ${YELLOW}SKIP: $SKIP_COUNT${NC}  TOTAL: $TOTAL"
+# Challenge counts from the WHOLE telemetry file (all run_id segments) — the
+# per-handle AGENT_STATE counts under-report across the two script invocations.
+CH_PASS=0; CH_FAIL=0
+if [ -f "${WORKDIR:-/nonexistent}/telemetry.jsonl" ]; then
+    CH_PASS=$(grep -c 'AGENT_CHALLENGE_PASS' "$WORKDIR/telemetry.jsonl" || true)
+    CH_FAIL=$(grep -c 'AGENT_CHALLENGE_FAIL' "$WORKDIR/telemetry.jsonl" || true)
+    echo -e "  ${CYAN}Challenges (telemetry, all run segments): pass=$CH_PASS fail=$CH_FAIL${NC}"
+fi
 [ -n "$GOV_KILL" ] && echo -e "  ${YELLOW}GOVERNANCE KILL: $GOV_KILL (run terminated by design; unreached levels skipped)${NC}"
 [ -n "$FAILURES" ] && echo -e "\n${RED}Failures:${FAILURES}${NC}"
 echo -e "${CYAN}================================================${NC}"
 
 mkdir -p "$RESULTS_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"total\": $TOTAL, \"governance_kill\": \"${GOV_KILL:-}\", \"commit\": \"$BUILD_COMMIT\"}" > "$RESULTS_DIR/summary.json"
+echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"total\": $TOTAL, \"governance_kill\": \"${GOV_KILL:-}\", \"commit\": \"$BUILD_COMMIT\", \"challenges_pass\": $CH_PASS, \"challenges_fail\": $CH_FAIL}" > "$RESULTS_DIR/summary.json"
 [ -n "${OUTPUT:-}" ] && {
     echo "# commit=$BUILD_COMMIT binary=$NAAB binary_mtime=$BINARY_MTIME governance_kill=${GOV_KILL:-none}"
     echo "$OUTPUT"

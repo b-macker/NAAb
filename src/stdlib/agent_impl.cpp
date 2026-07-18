@@ -1737,6 +1737,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         }
 
                         if (cb.step_up_contextual && challenge_ds) {
+                                // Priority 0: validation — competence, not recall. When the
+                                // agent's most recent output failed external validation
+                                // (agent.record_validation with detail), quiz it on the
+                                // actual defect. An agent that can only recite instructions
+                                // while its code fails tests should not pass step-up.
+                                if (challenge_type == "mandate" && !challenge_ds->validation_failure_keywords.empty()) {
+                                    challenge_type = "validation";
+                                    challenge_text = "Your most recent output failed external "
+                                        "validation (tests failed). In one or two sentences, "
+                                        "state which behavior failed and how you will fix it, "
+                                        "then proceed.";
+                                    contextual_expected_keywords = challenge_ds->validation_failure_keywords;
+                                }
                                 // Priority 1: tool_result — test recall of actual tool output
                                 if (challenge_type == "mandate" && !challenge_ds->tool_result_keywords.empty()) {
                                     // Pick most recently recorded tool (last in iteration order)
@@ -3632,6 +3645,13 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         penalty_detail += pbuf;
                     }
                 }
+                if (drift_state->last_validation_recovery > 0.0) {
+                    if (!penalty_detail.empty()) penalty_detail += ",";
+                    char rbuf[64];
+                    snprintf(rbuf, sizeof(rbuf), "validation_recovery=+%.4f",
+                             drift_state->last_validation_recovery);
+                    penalty_detail += rbuf;
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
@@ -4745,6 +4765,13 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                                  drift_state->last_turn_penalties[i]);
                         c_penalty += pb;
                     }
+                }
+                if (drift_state->last_validation_recovery > 0.0) {
+                    if (!c_penalty.empty()) c_penalty += ",";
+                    char rb[64];
+                    snprintf(rb, sizeof(rb), "validation_recovery=+%.4f",
+                             drift_state->last_validation_recovery);
+                    c_penalty += rb;
                 }
                 int c_level = static_cast<int>(gov_engine->getGovernanceLevel());
                 const char* c_level_names[] = {"normal", "elevated", "high", "critical"};
@@ -5885,36 +5912,50 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
 }
 
 // ============================================================================
-// agent.record_validation(handle, passed) — report external ground-truth
-// validation outcome (pytest / orchestra.enforce_convergence) for the handle's
-// most recent turn. Feeds the S22 validation_outcome CDD signal: a failing
-// result costs coherence on the next recordTurn. Called by the orchestration
-// script (operator/harness ground truth), not by the agent itself.
+// agent.record_validation(handle, passed [, detail]) — report external
+// ground-truth validation outcome (pytest / orchestra.enforce_convergence) for
+// the handle's most recent turn. Feeds the S22 validation_outcome CDD signal:
+// a failing result costs coherence on the next recordTurn; a fail→pass
+// transition earns a partial recovery credit. The optional detail string
+// (e.g. pytest failure lines) is keyword-extracted and grounds the
+// "validation" step-up challenge type in the actual defect. Called by the
+// orchestration script (operator/harness ground truth), not by the agent.
 // ============================================================================
 static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
-    if (args.size() < 2 || !args[0].isDict() || !args[1].isBool())
+    if (args.size() < 2 || !args[0].isDict() || !args[1].isBool() ||
+        (args.size() >= 3 && !args[2].isString() && !args[2].isNull()))
         throw std::runtime_error(
-            "Agent error: agent.record_validation requires (handle, passed)\n\n"
-            "  Expected: agent.record_validation(handle, passed)\n\n"
+            "Agent error: agent.record_validation requires (handle, passed [, detail])\n\n"
+            "  Expected: agent.record_validation(handle, passed [, detail])\n\n"
             "  Help:\n"
             "  - handle: an agent handle from agent.create()\n"
             "  - passed: bool — did this turn's output pass external validation\n"
-            "    (e.g. pytest, orchestra.enforce_convergence)?\n\n"
+            "    (e.g. pytest, orchestra.enforce_convergence)?\n"
+            "  - detail: optional string describing WHAT failed (e.g. pytest\n"
+            "    failure lines) — grounds step-up challenges in the defect\n\n"
             "  Example:\n"
             "    let v = validate_code(...)\n"
-            "    agent.record_validation(dev, v.get(\"pytest_passed\"))\n");
+            "    agent.record_validation(dev, v.get(\"pytest_passed\"), v.get(\"pytest_output\"))\n");
 
     auto [config_name, handle_id] = validateHandle(args[0]);
     bool passed = args[1].asBool();
+    std::string detail;
+    if (args.size() >= 3 && args[2].isString()) detail = args[2].asString();
+
+    std::unordered_set<std::string> detail_keywords;
+    if (!passed && !detail.empty()) {
+        extractKeywords(detail, detail_keywords);
+    }
 
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
     if (gov_engine && gov_engine->isActive()) {
-        gov_engine->recordValidationOutcome(handle_id, passed);
+        gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords);
         if (gov_engine->getRules().telemetry_output.enabled) {
             gov_engine->writeAgentTelemetry("VALIDATION_RECORDED", {
-                {"handle_id",   std::to_string(handle_id)},
-                {"config_name", config_name},
-                {"passed",      passed ? "true" : "false"},
+                {"handle_id",       std::to_string(handle_id)},
+                {"config_name",     config_name},
+                {"passed",          passed ? "true" : "false"},
+                {"detail_keywords", std::to_string(detail_keywords.size())},
             });
         }
     }
