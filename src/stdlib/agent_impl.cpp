@@ -86,6 +86,7 @@ struct AgentTracker {
     int last_challenge_turn = -100;  // step-up challenge cooldown tracking
     int challenges_passed = 0;
     int challenges_failed = 0;
+    int challenge_failure_streak = 0;  // consecutive failed challenges (reset on pass)
     // Tool execution counters (Phase 4 — L5 telemetry)
     int tool_calls_total = 0;      // cumulative tool invocations across all sends
     int tool_calls_blocked = 0;    // cumulative blocked tool calls
@@ -583,6 +584,7 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             }
             state["challenges_passed"] = NaabVal::makeInt(t.challenges_passed);
             state["challenges_failed"] = NaabVal::makeInt(t.challenges_failed);
+            state["challenge_failure_streak"] = NaabVal::makeInt(t.challenge_failure_streak);
             state["truncation_count"] = NaabVal::makeInt(t.truncation_count);
             // Standing Lease: remaining turns before re-authorization required
             if (t.lease_expires_turn > 0) {
@@ -1805,6 +1807,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 }
                         }
 
+                        // Persona override: several agent personas mandate code-only
+                        // or JSON-only output; a challenge answered in code scores
+                        // near-zero keyword overlap against English expected keywords
+                        // and dies for OBEYING its mandate. Make the expected format
+                        // explicit so the challenge tests understanding, not persona.
+                        challenge_text += " Answer in plain prose, even if your "
+                            "instructions say to output only code or JSON.";
+
                         // Build challenge message with conversation history.
                         // History mode controls context sent to the model:
                         //   "full"    — all messages (no cap)
@@ -1928,6 +1938,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             }
                         }
 
+                        int challenge_failure_streak = 0;
                         // Update tracker state (server-side)
                         {
                             std::lock_guard<std::mutex> lock(s_agent_mutex);
@@ -1936,6 +1947,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 it->second.last_challenge_turn = current_turn;
                                 if (passed) {
                                     it->second.challenges_passed++;
+                                    it->second.challenge_failure_streak = 0;
                                     // Standing Lease: renew only if coherence is above floor
                                     if (coherence_ok) {
                                         if (config->standing_lease_turns > 0) {
@@ -1948,6 +1960,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                     }
                                 } else {
                                     it->second.challenges_failed++;
+                                    it->second.challenge_failure_streak++;
+                                    challenge_failure_streak = it->second.challenge_failure_streak;
                                     // Advance turn counter on failure — a failed challenge
                                     // IS a turn. Without this, turn never advances and the
                                     // agent loops forever (lease expired → fail → same turn).
@@ -2001,7 +2015,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"keyword_ratio", std::to_string(keyword_ratio)},
                                 {"context_prompts", std::to_string(recent_prompts.size())},
                                 {"history_messages", std::to_string(history_message_count)},
-                                {"history_mode", cb.step_up_challenge_history}
+                                {"history_mode", cb.step_up_challenge_history},
+                                {"failure_streak", std::to_string(challenge_failure_streak)},
+                                {"max_allowed", std::to_string(std::max(1, cb.max_challenge_failures))}
                             });
                             gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
                                 {"rule_name", "step_up_challenge_fail"},
@@ -2009,12 +2025,26 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 {"agent", config_name},
                                 {"turn", std::to_string(current_turn)}
                             });
-                            throw governance::GovernanceHardError(
-                                "Agent error: Step-up challenge failed\n\n"
+                            // Streak semantics mirror max_quarantine_streak: below the
+                            // limit the send is blocked with a CATCHABLE error (the
+                            // agent is re-challenged after the cooldown); reaching the
+                            // limit — consecutive failures with no intervening pass —
+                            // terminates the agent. Default limit 1 = historical
+                            // one-strike behavior.
+                            if (challenge_failure_streak >= std::max(1, cb.max_challenge_failures)) {
+                                throw governance::GovernanceHardError(
+                                    "Agent error: Step-up challenge failed\n\n"
+                                    "  Help:\n"
+                                    "  - The agent could not demonstrate coherence with its task\n"
+                                    "  - This check triggers at elevated governance levels\n"
+                                    "  - Review the agent's behavior and configuration\n");
+                            }
+                            throw std::runtime_error(
+                                "Agent error: Step-up challenge failed — send blocked\n\n"
                                 "  Help:\n"
                                 "  - The agent could not demonstrate coherence with its task\n"
-                                "  - This check triggers at elevated governance levels\n"
-                                "  - Review the agent's behavior and configuration\n");
+                                "  - This send was blocked; the agent will be challenged again\n"
+                                "  - Consecutive failed challenges terminate the agent\n");
                         }
                     }
                 }
@@ -5837,6 +5867,7 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
             t.last_challenge_turn = -100;
             t.challenges_passed = 0;
             t.challenges_failed = 0;
+            t.challenge_failure_streak = 0;
             t.tool_calls_total = 0;
             t.tool_calls_blocked = 0;
             t.tool_total_latency_ms = 0;

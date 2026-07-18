@@ -556,7 +556,7 @@ main {
         print("TURN|developer|main|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
         // test_calc.py
-        resp = safe_send(handles["developer"], "Write test_calc.py with pytest. Test all 4 operations with multiple values, get_history returns a copy (modifying returned list doesn't affect internal), clear_history empties it, divide-by-zero raises ValueError. Use @pytest.fixture for calculator instance. At least 8 test functions. ```python fences. Code only.")
+        resp = safe_send(handles["developer"], "Write test_calc.py with pytest. Test all 4 operations with multiple values, get_history returns a copy (modifying returned list doesn't affect internal), clear_history empties it, divide-by-zero raises ValueError. Use @pytest.fixture for calculator instance. At least 8 test functions. Test ONLY the methods listed — do NOT write tests for methods that do not exist yet. ```python fences. Code only.")
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
@@ -693,7 +693,7 @@ main {
             print("TURN|developer|fix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
             // Update tests for found issues
-            let testfix_msg = "Update test_calc.py to cover issues found:\n" + tester_feedback + "\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 8 tests. ```python fences. Code only."
+            let testfix_msg = "Update test_calc.py to cover issues found:\n" + tester_feedback + "\nTest ONLY methods that exist in the CURRENT operations.py below — do NOT write tests for methods that do not exist yet.\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 8 tests. ```python fences. Code only."
             resp = safe_send(handles["developer"], testfix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
@@ -885,7 +885,7 @@ main {
             feat_contract = "memory_recall() with nothing stored returns None — that is NOT an error: do not raise, and do not write a test expecting a raise; memory_store() with a non-numeric value raises ValueError; memory_store() records to history."
         }
         if fname == "requirement-003.txt" {
-            feat_contract = "evaluate() records ONE history entry (not intermediate steps) and uses ast.parse not eval(); invalid or malformed expressions (including division by zero) raise ValueError."
+            feat_contract = "evaluate() records ONE history entry (not intermediate steps) and uses ast.parse not eval(); invalid or malformed expressions (including division by zero) raise ValueError; standard operator precedence and left-associativity apply (evaluate has no side rules: 1 - 2 + 3 is 2, 2 + 3 * 4 is 14)."
         }
         if fname == "requirement-004.txt" {
             feat_contract = "run_plugin() raises ValueError for unregistered plugins; register_plugin() raises ValueError for duplicate names or non-callable plugins."
@@ -1059,7 +1059,7 @@ main {
                 pytest_fix_msg = pytest_fix_msg + "\nFix ONLY the failing parts. Do NOT rewrite the whole file."
                 pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed operations.py. ```python fences. Code only."
             } else {
-                pytest_fix_msg = pytest_fix_msg + "\nSECOND ATTEMPT. If a failing test CONTRADICTS the CONTRACT above, output the corrected COMPLETE test_calc.py instead; otherwise output the corrected COMPLETE operations.py. NEVER weaken or delete assertions that match the contract."
+                pytest_fix_msg = pytest_fix_msg + "\nSECOND ATTEMPT. If a failing test CONTRADICTS the CONTRACT above, output the corrected COMPLETE test_calc.py instead; otherwise output the corrected COMPLETE operations.py. NEVER weaken or delete assertions that match the contract. Tests for methods that do NOT exist in operations.py may be removed."
                 pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```"
                 pytest_fix_msg = pytest_fix_msg + "\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput exactly ONE complete file. ```python fences. Code only."
             }
