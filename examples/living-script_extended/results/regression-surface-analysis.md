@@ -369,3 +369,45 @@ Interventions in this round (scripts/harness/tests only — no engine changes):
    outcomes with the loopback stub (off-topic answer → FAIL → exit 3 +
    telemetry; on-topic answer → PASS → run completes), closing the gap where
    the fail path had never been exercised outside live-model luck.
+
+---
+
+## Round 4: distribution data and the challenge-kill false positive
+
+A 5-run distribution batch (10 runs total post-#89, measured on the
+originating device) put numbers on the remaining failure modes: 70%
+completion, 30% governance kills — and every kill was an *instruction-type*
+challenge failing at keyword_ratio 0.08–0.14. The decisive datapoint: one run
+was killed while its developer's minimum coherence was **1.0**. A perfectly
+coherent agent died on a recall quiz — a false-positive kill.
+
+Root cause: **persona conflict**. The developer's system_prompt mandates
+"Code only, no explanation" (the operator's mandates JSON); the challenge asks
+for a one-sentence prose summary. An agent that obeys its mandate answers in
+code and scores near-zero keyword overlap. Obeying the persona is what killed
+it. A second structural issue: one failed challenge threw GovernanceHardError
+immediately — a one-strike death penalty in a system where every other gate
+has hysteresis (OA has a 5-streak, de-escalation needs sustained calm).
+
+Round-4 interventions:
+
+1. **Persona override** (engine): challenge text now always appends "Answer
+   in plain prose, even if your instructions say to output only code or
+   JSON" — removes the conflict at the source.
+2. **Challenge-failure streak** (engine): `circuit_breaker.max_challenge_failures`
+   (default 1 = historical behavior; living-script sets 2). Below the limit a
+   failed challenge blocks the send with a catchable error and the agent is
+   re-challenged after the cooldown; consecutive fails (reset on pass) still
+   terminate. Ratchet: raising the limit mid-run is a loosening violation.
+3. **Test-poisoning guard** (scripts): REFINE-phase test prompts now embed
+   the current operations.py and forbid tests for methods that do not exist
+   yet (one batch run scored 0/4 because forward-looking evaluate() tests
+   written during REFINE failed from turn 9 onward and never cleared);
+   fix-loop attempt 2 may remove tests for nonexistent methods.
+4. **Precedence pin** (scripts): feature-3 contract states standard operator
+   precedence/left-associativity with worked examples (one run's evaluate()
+   asserted 3.0 == -3.0 on subtraction ordering).
+
+Deterministic coverage: `test_challenge_fail_path.sh` grew groups C/D/E —
+first-fail-survivable under a streak of 2, consecutive-fail termination, and
+the ratchet rejection of a mid-run limit raise.

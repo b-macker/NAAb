@@ -308,6 +308,7 @@
     "step_up_contextual_threshold": 0.15,
     "step_up_challenge_history": "summary",
     "step_up_history_recent_count": 10,
+    "max_challenge_failures": 2,
     "mandate_reinforcement_enabled": true,
     "mandate_reinforcement_interval": 5,
     "coherence_correction_enabled": true,

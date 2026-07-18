@@ -1579,6 +1579,15 @@ struct CircuitBreakerConfig {
     // 3 turns cooldown: prevents challenge fatigue — too frequent challenges degrade
     // agent performance. Matches pulse cooldown for consistency.
     int step_up_cooldown_turns = 3;
+    // Consecutive failed step-up challenges before the agent is terminated
+    // (GovernanceHardError). Below the limit, a failed challenge blocks the
+    // send with a CATCHABLE error and the agent is re-challenged after the
+    // cooldown — mirrors output_admissibility.max_quarantine_streak, giving
+    // challenges the same hysteresis as every other gate instead of a
+    // one-strike death penalty (live runs showed agents at coherence 1.0
+    // killed for paraphrasing a recall answer). Default 1 preserves the
+    // historical one-strike behavior. Ratchet: raising mid-run is loosening.
+    int max_challenge_failures = 1;
     // 0.4 = 40% keyword overlap: the agent's challenge response must contain at least
     // 40% of the combined system_prompt + recent user prompt key terms. High enough to
     // catch unrelated or evasive responses, low enough to allow paraphrasing. Minimum
