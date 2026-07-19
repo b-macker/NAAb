@@ -2697,6 +2697,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("coherence_recovery_cap") && cd["coherence_recovery_cap"].is_number()) cfg.coherence_recovery_cap = cd["coherence_recovery_cap"].get<double>();
         if (cd.contains("coherence_natural_healing") && cd["coherence_natural_healing"].is_number()) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
         if (cd.contains("validation_recovery_amount") && cd["validation_recovery_amount"].is_number()) cfg.validation_recovery_amount = std::max(0.0, std::min(1.0, cd["validation_recovery_amount"].get<double>()));
+        if (cd.contains("adaptive_absorption_limit") && cd["adaptive_absorption_limit"].is_number_integer()) cfg.adaptive_absorption_limit = std::max(0, cd["adaptive_absorption_limit"].get<int>());
+        if (cd.contains("response_min_output_tokens") && cd["response_min_output_tokens"].is_number_integer()) cfg.thresholds.response_min_output_tokens = std::max(1, cd["response_min_output_tokens"].get<int>());
         if (cd.contains("temporal_decay_enabled") && cd["temporal_decay_enabled"].is_boolean()) cfg.temporal_decay_enabled = cd["temporal_decay_enabled"].get<bool>();
         if (cd.contains("temporal_decay_per_minute") && cd["temporal_decay_per_minute"].is_number()) cfg.temporal_decay_per_minute = std::max(0.0, cd["temporal_decay_per_minute"].get<double>());
         if (cd.contains("temporal_decay_grace_minutes") && cd["temporal_decay_grace_minutes"].is_number()) cfg.temporal_decay_grace_minutes = std::max(0.0, cd["temporal_decay_grace_minutes"].get<double>());
@@ -2759,6 +2761,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sig.contains("prompt_compliance") && sig["prompt_compliance"].is_boolean()) cfg.signals.prompt_compliance = sig["prompt_compliance"].get<bool>();
             if (sig.contains("response_repetition") && sig["response_repetition"].is_boolean()) cfg.signals.response_repetition = sig["response_repetition"].get<bool>();
             if (sig.contains("validation_outcome") && sig["validation_outcome"].is_boolean()) cfg.signals.validation_outcome = sig["validation_outcome"].get<bool>();
+            if (sig.contains("response_degenerate") && sig["response_degenerate"].is_boolean()) cfg.signals.response_degenerate = sig["response_degenerate"].get<bool>();
             if (sig.contains("exclude_infrastructure_errors") && sig["exclude_infrastructure_errors"].is_boolean()) cfg.signals.exclude_infrastructure_errors = sig["exclude_infrastructure_errors"].get<bool>();
         }
         if (cd.contains("weights") && cd["weights"].is_object()) {
@@ -2785,6 +2788,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (w.contains("prompt_compliance") && w["prompt_compliance"].is_number()) cfg.weights.prompt_compliance = w["prompt_compliance"].get<double>();
             if (w.contains("response_repetition") && w["response_repetition"].is_number()) cfg.weights.response_repetition = std::clamp(w["response_repetition"].get<double>(), 0.0, 1.0);
             if (w.contains("validation_outcome") && w["validation_outcome"].is_number()) cfg.weights.validation_outcome = std::clamp(w["validation_outcome"].get<double>(), 0.0, 1.0);
+            if (w.contains("response_degenerate") && w["response_degenerate"].is_number()) cfg.weights.response_degenerate = std::clamp(w["response_degenerate"].get<double>(), 0.0, 1.0);
         }
         if (cd.contains("reality_checkpoint") && cd["reality_checkpoint"].is_object()) {
             auto& rc = cd["reality_checkpoint"];
@@ -3121,6 +3125,7 @@ static bool cddSignalValue(const ContextDriftConfig::Signals& s, int idx) {
         case SIG_PROMPT_COMPLIANCE:    return s.prompt_compliance;
         case SIG_RESPONSE_REPETITION:  return s.response_repetition;
         case SIG_VALIDATION:           return s.validation_outcome;
+        case SIG_RESPONSE_DEGENERATE:  return s.response_degenerate;
         default:                       return true;
     }
 }
@@ -3651,6 +3656,22 @@ static bool checkRatchetViolation(
     else if (new_r.context_drift.rate_normalized_floor > old_r.context_drift.rate_normalized_floor)
         notices.push_back(fmt::format("context_drift.rate_normalized_floor: {:.2f} -> {:.2f} (tightened)",
             old_r.context_drift.rate_normalized_floor, new_r.context_drift.rate_normalized_floor));
+    // Adaptive absorption limit: 0 = unlimited absorption = loosest. Removing
+    // the limit or raising N = loosening (persistent absorbed drift stays free
+    // for longer).
+    {
+        int old_lim = old_r.context_drift.adaptive_absorption_limit;
+        int new_lim = new_r.context_drift.adaptive_absorption_limit;
+        if (old_lim > 0 && new_lim == 0)
+            violations.push_back("context_drift.adaptive_absorption_limit: removed (loosened)");
+        else if (new_lim > old_lim && old_lim > 0)
+            violations.push_back(fmt::format("context_drift.adaptive_absorption_limit: {} -> {} (loosened)", old_lim, new_lim));
+        else if (new_lim < old_lim && new_lim > 0)
+            notices.push_back(fmt::format("context_drift.adaptive_absorption_limit: {} -> {} (tightened)", old_lim, new_lim));
+        else if (old_lim == 0 && new_lim > 0)
+            notices.push_back(fmt::format("context_drift.adaptive_absorption_limit: unlimited -> {} (tightened)", new_lim));
+    }
+
     // Raising the validation recovery credit = loosening (failures cost less net)
     if (new_r.context_drift.validation_recovery_amount > old_r.context_drift.validation_recovery_amount)
         violations.push_back(fmt::format("context_drift.validation_recovery_amount: {:.3f} -> {:.3f} (loosened — validation failures recover more cheaply)",

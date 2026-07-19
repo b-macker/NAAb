@@ -411,3 +411,46 @@ Round-4 interventions:
 Deterministic coverage: `test_challenge_fail_path.sh` grew groups C/D/E —
 first-fail-survivable under a streak of 2, consecutive-fail termination, and
 the ratchet rejection of a mid-run limit raise.
+
+---
+
+## Round 5: CDD edge cases from the Jul 19 forensics
+
+Three engine-level findings from the Jul 19 run, with one important correction
+to the proposed fix. The investigator's patch for baseline absorption (a
+blanket floor inside `adaptive_penalty`) was rejected by regression-surface
+trace: it would rewrite the economy of all 19 adaptive call sites at once,
+kill JSON-output agents whose structural firings are *correctly* absorbed
+(contradicting the same report's finding #4 — the operator at
+mandate_alignment 0.045 by construction), and couple absorbed firings into
+`signal_density` pressure. Also: the "penalty listed while signals_fired=0"
+telemetry evidence is partly a stale-display artifact — `last_turn_*` arrays
+persist in DriftState between interval-skipped checks.
+
+Interventions:
+
+1. **Adaptive absorption cap** (`context_drift.adaptive_absorption_limit`,
+   default 0 = unlimited = historical behavior): only N *consecutive* fully-
+   absorbed post-baseline firings trigger `base_penalty`. Structural cases
+   keep the proper lever — per-agent signal overrides; the living-script
+   operator now disables `mandate_alignment` that way. Ratchet-protected.
+2. **S23 `response_degenerate`** (default OFF): fires on `output_tokens <
+   response_min_output_tokens` (default 8) — the 8-byte reviewer "APPROVED"
+   case. Scored adaptively so terse-by-design judges self-absorb under
+   baselining. Living-script enables it.
+3. **Propose candidate diversity**: candidates 1+ step temperature (+0.15,
+   cap 1.5) on a local config copy — near-identical candidates from identical
+   sampling params made selection a no-op. History and config untouched.
+4. **Finding #4 (operator mandate_alignment ~0)** — config-only fix as the
+   investigator concluded: per-agent `context_drift_signals` disable.
+
+Coverage: `test_absorption_degenerate.sh` (default-off, flat-fire,
+self-absorption, cap trigger, cap ratchet, propose temperature stepping).
+
+Bonus find from the group-C test failure during development: S21
+(`response_repetition`) and S23 both score through `adaptive_penalty`, but
+`snapshotSignalCounters()` had no snapshot entry for either — post-baseline
+rates read N× the true rate and the baseline **never absorbed** them. S21 had
+carried this latent bug since its introduction; both mappings are now fixed
+and the exact declining-penalty series (0.08 → 0.0533 → 0.0311 → 0.02) that
+exposed it is reproduced in the test.

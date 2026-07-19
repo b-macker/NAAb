@@ -39,6 +39,7 @@
 
   "agents": {
     "operator": {
+      "context_drift_signals": { "mandate_alignment": false },
       "provider": "gemini",
       "model": "gemini-3.1-flash-lite",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
@@ -218,6 +219,8 @@
     "adaptive_baseline_enabled": true,
     "adaptive_baseline_window": 3,
     "adaptive_baseline_sensitivity": 2.0,
+    "adaptive_absorption_limit": 6,
+    "response_min_output_tokens": 8,
     "signals": {
       "circular_actions": true,
       "repeated_failures": true,
@@ -226,7 +229,8 @@
       "coherence_velocity": true,
       "semantic_stability": true,
       "mandate_alignment": true,
-      "prompt_compliance": true
+      "prompt_compliance": true,
+      "response_degenerate": true
     },
     "weights": {
       "circular": 0.06,

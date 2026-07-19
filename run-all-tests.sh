@@ -1530,6 +1530,19 @@ else
     echo "  test_challenge_fail_path.sh: not found, skipping"
 fi
 
+# S23 response_degenerate + adaptive absorption cap + propose diversity (stub-backed)
+ABSORB_SCRIPT="tests/governance_v4/test_absorption_degenerate.sh"
+if [ -f "$ABSORB_SCRIPT" ]; then
+    if bash "$ABSORB_SCRIPT" 2>&1; then
+        echo "  test_absorption_degenerate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_absorption_degenerate.sh")
+    fi
+else
+    echo "  test_absorption_degenerate.sh: not found, skipping"
+fi
+
 # Per-tool-call admissibility gate (stub-backed)
 TOOL_GATE_SCRIPT="tests/governance_v4/test_tool_admissibility_gate.sh"
 if [ -f "$TOOL_GATE_SCRIPT" ]; then
