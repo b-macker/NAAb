@@ -1714,14 +1714,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     }
                 }
                 if (should_challenge) {
-                    // Find a usable key for the challenge call
+                    // Find a usable key for the challenge call.
+                    // Start from current key_offset (same round-robin as regular sends)
+                    // so the challenge doesn't always hit the first key.
                     std::string challenge_key;
-                    for (const auto& k : keys) {
-                        std::string resolved = runtime::resolveApiKey(k);
+                    size_t challenge_key_start = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(s_agent_mutex);
+                        auto t_it = s_trackers.find(handle_id);
+                        if (t_it != s_trackers.end()) challenge_key_start = t_it->second.key_offset;
+                    }
+                    for (size_t k = 0; k < keys.size(); k++) {
+                        size_t idx = (challenge_key_start + k) % keys.size();
+                        std::string resolved = runtime::resolveApiKey(keys[idx]);
                         if (!resolved.empty()) {
                             std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                            if (!isKeyDead(k, config->retry.key_retry_after_seconds)) {
+                            if (!isKeyDead(keys[idx], config->retry.key_retry_after_seconds)) {
                                 challenge_key = resolved;
+                                challenge_key_start = idx + 1;
                                 break;
                             }
                         }
@@ -1879,9 +1889,46 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         governance::AgentConfig challenge_config = *config;
                         challenge_config.model = models[0];
 
-                        s_dispatch.total_calls++;
-                        auto challenge_result = runtime::callAgentWithStatus(
-                            challenge_config, challenge_key, challenge_msgs.dump());
+                        // Retry challenge across available keys on transient errors
+                        // (429 rate limit, 5xx server error). Without this, a single
+                        // 429 auto-fails the challenge and counts toward the streak.
+                        runtime::ProviderResult challenge_result;
+                        {
+                            int max_challenge_attempts = std::min(static_cast<int>(keys.size()), 3);
+                            size_t ck_offset = challenge_key_start;
+                            for (int ca = 0; ca < max_challenge_attempts; ca++) {
+                                // Rotate key on retry (round-robin from current offset)
+                                if (ca > 0) {
+                                    challenge_key.clear();
+                                    for (size_t k = 0; k < keys.size(); k++) {
+                                        size_t idx = (ck_offset + k) % keys.size();
+                                        std::string resolved = runtime::resolveApiKey(keys[idx]);
+                                        if (!resolved.empty()) {
+                                            std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                                            if (!isKeyDead(keys[idx], config->retry.key_retry_after_seconds)) {
+                                                challenge_key = resolved;
+                                                ck_offset = idx + 1;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (challenge_key.empty()) break;
+                                    if (config->retry.backoff_ms > 0) {
+                                        std::this_thread::sleep_for(
+                                            std::chrono::milliseconds(config->retry.backoff_ms));
+                                    }
+                                }
+                                s_dispatch.total_calls++;
+                                challenge_result = runtime::callAgentWithStatus(
+                                    challenge_config, challenge_key, challenge_msgs.dump());
+                                int chttp = challenge_result.http_status;
+                                if (challenge_result.response.success ||
+                                    (chttp != 429 && chttp != 500 && chttp != 502
+                                     && chttp != 503 && chttp != 504)) {
+                                    break;  // success or non-retryable error
+                                }
+                            }
+                        }
 
                         // Extract recent user messages for context-aware scoring
                         std::vector<std::string> recent_prompts;
@@ -1906,9 +1953,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             }
                         }
 
+                        // Infrastructure failure: if the challenge API call failed due
+                        // to rate limiting or server error, the agent is not at fault.
+                        // Skip the challenge entirely (don't count as pass or fail).
+                        int challenge_http = challenge_result.http_status;
+                        bool challenge_infra_fail = !challenge_result.response.success &&
+                            (challenge_http == 429 || challenge_http >= 500);
+
+                        // If infrastructure failure (429/5xx after retries), skip
+                        // the entire challenge evaluation — the agent is not at fault.
+                        // Update last_challenge_turn to prevent re-trigger next turn,
+                        // then fall through to the normal send path.
+                        if (challenge_infra_fail) {
+                            std::lock_guard<std::mutex> lock(s_agent_mutex);
+                            auto it2 = s_trackers.find(handle_id);
+                            if (it2 != s_trackers.end()) {
+                                it2->second.last_challenge_turn = current_turn;
+                            }
+                        }
+
                         bool passed = false;
                         double keyword_ratio = -1.0;
-                        if (challenge_result.response.success) {
+                        if (!challenge_infra_fail && challenge_result.response.success) {
                             if (challenge_type != "mandate" && !contextual_expected_keywords.empty()) {
                                 // Contextual challenge: score against expected keywords
                                 keyword_ratio = scoreContextualChallengeRatio(
@@ -1937,6 +2003,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 coherence_ok = false;
                             }
                         }
+
+                        if (challenge_infra_fail) {
+                            // Infrastructure failure handled above — skip scoring/throw.
+                            // Fall through to normal send path.
+                        } else {
 
                         int challenge_failure_streak = 0;
                         // Update tracker state (server-side)
@@ -2046,6 +2117,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 "  - This send was blocked; the agent will be challenged again\n"
                                 "  - Consecutive failed challenges terminate the agent\n");
                         }
+                        } // end if (!challenge_infra_fail) else block
                     }
                 }
             }
