@@ -843,8 +843,23 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             double threshold = bl.mean +
                 config_->adaptive_baseline_sensitivity * std::max(bl.stddev, 0.1);
 
-            if (current_rate <= threshold) return 0.0;
+            if (current_rate <= threshold) {
+                // Absorption cap: the baseline learned this firing rate as
+                // "normal", but a signal that fires and is fully absorbed for
+                // many CONSECUTIVE checks is persistent drift the baseline
+                // normalized, not noise. After the limit, charge base_penalty
+                // (which carries the rate floor). 0 = unlimited absorption.
+                // The counter resets when the signal pays or goes quiet — see
+                // the end-of-recordTurn reset.
+                state.consecutive_absorbed[sig]++;
+                if (config_->adaptive_absorption_limit > 0 &&
+                    state.consecutive_absorbed[sig] > config_->adaptive_absorption_limit) {
+                    return base_penalty(weight, count);
+                }
+                return 0.0;
+            }
 
+            state.consecutive_absorbed[sig] = 0;
             double excess = current_rate - threshold;
             return weight * std::min(excess / std::max(threshold, 0.01), 1.0);
         }
@@ -1156,6 +1171,36 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Signal 23: Response degenerate — near-empty output (e.g. a 1-token
+    // "APPROVED" from a reviewer asked for a reasoned verdict; live runs showed
+    // an 8-byte response sailing through every gate). Token-based:
+    // output_tokens below thresholds.response_min_output_tokens, ignoring
+    // events where the provider reported no token counts. Scored through
+    // adaptive_penalty so terse-BY-DESIGN agents self-absorb under baselining,
+    // while an agent whose baseline is substantive output pays when it
+    // collapses to degenerate replies. Default off.
+    if (sig_on(config_->signals.response_degenerate, SIG_RESPONSE_DEGENERATE)) {
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_RESPONSE &&
+                ev.output_tokens > 0 &&
+                ev.output_tokens < config_->thresholds.response_min_output_tokens) {
+                state.response_degenerate_count++;
+                turn_fired[SIG_RESPONSE_DEGENERATE]++;
+                if (!in_baseline) {
+                    double p = adaptive_penalty(config_->weights.response_degenerate,
+                                                state.response_degenerate_count,
+                                                SIG_RESPONSE_DEGENERATE);
+                    if (p > 0.0) {
+                        state.coherence_score -= p;
+                        turn_penalties[SIG_RESPONSE_DEGENERATE] += p;
+                        state.signals_fired_this_turn++;
+                    }
+                }
+                break;  // one AGENT_RESPONSE per turn
             }
         }
     }
@@ -1873,6 +1918,11 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         }
     }
 
+    // A signal that stopped firing this check breaks its absorbed streak — the
+    // absorption cap targets CONSECUTIVE fully-absorbed firings only.
+    for (int sig = 0; sig < NUM_CDD_SIGNALS; sig++) {
+        if (turn_fired[sig] == 0) state.consecutive_absorbed[sig] = 0;
+    }
     state.last_turn_fired = turn_fired;
     state.last_turn_penalties = turn_penalties;
 
@@ -1980,6 +2030,7 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     counts["prompt_compliance"] = s.prompt_compliance_count;
     counts["response_repetition"] = s.response_repetition_count;
     counts["validation_failure"] = s.validation_failure_count;
+    counts["response_degenerate"] = s.response_degenerate_count;
     counts["response_quality"] = s.response_quality_count;
     counts["thinking_collapse"] = s.thinking_collapse_count;
     counts["context_growth"] = s.context_growth_count;
@@ -2066,7 +2117,8 @@ const char* ContextDriftAnalyzer::signalName(int idx) {
         "claim_result",          // 18 S19
         "prompt_compliance",     // 19 S20
         "response_repetition",   // 20 S21
-        "validation_outcome"     // 21 S22
+        "validation_outcome",    // 21 S22
+        "response_degenerate"    // 22 S23
     };
     if (idx < 0 || idx >= NUM_CDD_SIGNALS) return "unknown";
     return names[idx];
@@ -2218,6 +2270,12 @@ void ContextDriftAnalyzer::snapshotSignalCounters(DriftState& state) {
     state.signal_baselines[SIG_TOOL_CHAIN_INTEGRITY].snapshot = state.tool_integrity_count;
     state.signal_baselines[SIG_CLAIM_RESULT].snapshot = state.claim_result_mismatch_count;
     state.signal_baselines[SIG_PROMPT_COMPLIANCE].snapshot = state.prompt_compliance_count;
+    // S21/S23 score through adaptive_penalty too — a missing snapshot here
+    // inflates post_count by the baseline-era fires, so the post-baseline rate
+    // reads N× the true rate and the baseline never absorbs (S23 was caught by
+    // test_absorption_degenerate.sh group C; S21 had the same latent gap).
+    state.signal_baselines[SIG_RESPONSE_REPETITION].snapshot = state.response_repetition_count;
+    state.signal_baselines[SIG_RESPONSE_DEGENERATE].snapshot = state.response_degenerate_count;
 }
 
 void ContextDriftAnalyzer::setAgentConfigName(int handle_id, const std::string& name) {

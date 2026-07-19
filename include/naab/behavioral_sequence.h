@@ -84,7 +84,7 @@ struct SequenceMatchResult {
 };
 
 // CDD signal indices for generic adaptive baseline
-static constexpr int NUM_CDD_SIGNALS = 22;
+static constexpr int NUM_CDD_SIGNALS = 23;
 enum CddSignalId : int {
     SIG_CIRCULAR = 0,              // S1
     SIG_REPEATED_FAILURES = 1,     // S2
@@ -107,7 +107,8 @@ enum CddSignalId : int {
     SIG_CLAIM_RESULT = 18,         // S19
     SIG_PROMPT_COMPLIANCE = 19,    // S20 — off-topic prompt compliance
     SIG_RESPONSE_REPETITION = 20,  // S21 — verbatim response repetition
-    SIG_VALIDATION = 21            // S22 — external validation (pytest/convergence) failure
+    SIG_VALIDATION = 21,           // S22 — external validation (pytest/convergence) failure
+    SIG_RESPONSE_DEGENERATE = 22   // S23 — degenerate (near-empty) response
 };
 
 // Canonical govern.json signal config keys, indexed by CddSignalId. These are
@@ -137,7 +138,8 @@ static constexpr const char* kCddSignalKeys[NUM_CDD_SIGNALS] = {
     "claim_result_reconciliation",   // SIG_CLAIM_RESULT
     "prompt_compliance",             // SIG_PROMPT_COMPLIANCE
     "response_repetition",           // SIG_RESPONSE_REPETITION
-    "validation_outcome"             // SIG_VALIDATION
+    "validation_outcome",            // SIG_VALIDATION
+    "response_degenerate"            // SIG_RESPONSE_DEGENERATE
 };
 
 // Per-handle signal override bitmasks fit in 32 bits.
@@ -291,6 +293,10 @@ struct DriftState {
     int consecutive_high_pressure_turns = 0;
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
     int signals_fired_this_turn = 0;
+    // Consecutive post-baseline checks where a firing signal was fully absorbed
+    // by the adaptive baseline (penalty 0). Reset when the signal pays or goes
+    // quiet. Drives context_drift.adaptive_absorption_limit.
+    std::array<int, NUM_CDD_SIGNALS> consecutive_absorbed = {};
     std::array<int, NUM_CDD_SIGNALS> last_turn_fired = {};      // per-signal fire counts for most recent turn
     std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
     double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
@@ -301,6 +307,7 @@ struct DriftState {
 
     // Response quality tracking (Phase 1b/1c)
     int response_quality_count = 0;           // turns where content ratio was below threshold
+    int response_degenerate_count = 0;        // turns with a near-empty (degenerate) response
     int thinking_collapse_count = 0;          // turns where thinking dropped >50% from baseline
     std::deque<int> thinking_history;          // rolling window of thinking token counts
     double thinking_baseline_mean = -1.0;     // established after baseline window completes

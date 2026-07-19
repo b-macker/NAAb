@@ -4502,6 +4502,15 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
     int total_prop_tokens_in = 0, total_prop_tokens_out = 0;
 
     for (int i = 0; i < n; i++) {
+        // Candidate diversity: identical prompt + identical sampling params
+        // produce near-identical candidates on low-variance models, making
+        // selection a no-op. Candidate 0 keeps the configured temperature (the
+        // faithful baseline); later candidates step it up. Local value copy —
+        // no config mutation, no history contamination (pp.user_message stores
+        // the original prompt), and proposals commit no state by design.
+        call_config.temperature = (i == 0)
+            ? config->temperature
+            : std::min(1.5, config->temperature + 0.15 * i);
         // Pick first alive resolvable key
         std::string api_key;
         for (const auto& k : keys) {

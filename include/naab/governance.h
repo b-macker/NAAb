@@ -1301,6 +1301,15 @@ struct ContextDriftConfig {
     // (one deviation every N turns) so dilution drives each penalty toward zero —
     // the boiling-frog attack. A firing signal always pays at least this fraction.
     double rate_normalized_floor = 0.5;
+    // Adaptive-absorption cap: a signal that keeps firing but is fully absorbed
+    // by the learned baseline (penalty 0) starts paying base_penalty after this
+    // many CONSECUTIVE absorbed post-baseline checks. 0 = unlimited absorption
+    // (historical behavior). Distinguishes persistent drift the baseline
+    // normalized from occasional absorbed noise; structurally-firing signals on
+    // by-design agents (JSON-output operator vs English-keyword mandate) should
+    // instead be disabled per-agent via context_drift_signals. Ratchet: raising
+    // or removing the limit mid-run is a loosening violation.
+    int adaptive_absorption_limit = 0;
     // Rationale: 0.2 = partial recovery (20% of full coherence). Prevents full reset after a single
     // correct action, requiring sustained good behavior to fully recover. Analogous to credit
     // restoration: recent good conduct helps but doesn't erase history immediately.
@@ -1349,6 +1358,12 @@ struct ContextDriftConfig {
         bool prompt_compliance = true;           // fire when agent complies with off-topic prompts
         bool response_repetition = true;         // fire when agent produces verbatim duplicate responses
         bool validation_outcome = true;          // S22: fire when a turn's output failed external validation (pytest/convergence). Zero-cost until agent.record_validation() feeds a result.
+        // S23: fire when a response is degenerate (near-empty: output_tokens below
+        // thresholds.response_min_output_tokens). DEFAULT OFF — terse-by-design
+        // agents (single-word verdict judges) would fire constantly; under adaptive
+        // baselining structural terseness self-absorbs, so configs that enable this
+        // should typically also enable adaptive_baseline.
+        bool response_degenerate = false;
         bool exclude_infrastructure_errors = true; // exclude API/network errors from repeated_failures signal
     } signals;
     // Weights control how much each signal reduces coherence per occurrence.
@@ -1385,6 +1400,7 @@ struct ContextDriftConfig {
         double prompt_compliance = 0.10;             // moderate-high — complying with off-topic prompts is unambiguous drift
         double response_repetition = 0.15;           // moderate-high — verbatim repetition is a strong drift indicator
         double validation_outcome = 0.15;            // S22: high — a failed test is unambiguous ground-truth that the output is wrong. Flat penalty (base_penalty), never baseline-absorbed.
+        double response_degenerate = 0.08;           // S23: a near-empty response from an agent whose baseline is substantive output.
     } weights;
 
     // Signal detection thresholds — tune sensitivity of individual CDD signals.
@@ -1393,6 +1409,11 @@ struct ContextDriftConfig {
         // -0.15: a 15% coherence drop in one turn. Normal turns show ≤5% variation;
         // -0.15 is 3x normal noise, filtering jitter while catching real drops.
         double velocity_drop = -0.15;
+        // S23: responses below this many output tokens are degenerate (a 1-token
+        // "APPROVED" from a reviewer asked for a reasoned verdict). 8 tokens ~= one
+        // short sentence fragment — low enough that legitimately concise answers
+        // never trip it without baselining.
+        int response_min_output_tokens = 8;
         // 3 turns: same fingerprint appearing in 3 consecutive turns is a strong repeat
         // signal. 2 would be too noisy (legitimate retry); 4+ misses fast loops.
         int circular_lookback = 3;
