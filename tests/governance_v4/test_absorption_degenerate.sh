@@ -40,6 +40,13 @@ skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2";
 IS_WINDOWS=false
 if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then IS_WINDOWS=true; fi
 
+# Stub-backed HTTP tests hang on Windows/MSYS2 due to signal propagation and
+# process cleanup issues. Skip entirely — Linux CI validates the behavior.
+if $IS_WINDOWS; then
+    echo "  SKIP: test_absorption_degenerate.sh — stub-backed tests not supported on Windows/MSYS2"
+    exit 0
+fi
+
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 STUB_PID=""

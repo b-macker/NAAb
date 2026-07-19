@@ -436,7 +436,7 @@ NAAB_EOF
         "weights": { "circular": 0.05 },
         "reality_checkpoint": {
             "enabled": true,
-            "level": "soft",
+            "level": "detect",
             "pressure_threshold": 0.1,
             "sustained_turns_required": 2,
             "min_turns_between_checkpoints": 1,
