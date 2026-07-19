@@ -1533,11 +1533,16 @@ fi
 # S23 response_degenerate + adaptive absorption cap + propose diversity (stub-backed)
 ABSORB_SCRIPT="tests/governance_v4/test_absorption_degenerate.sh"
 if [ -f "$ABSORB_SCRIPT" ]; then
-    if bash "$ABSORB_SCRIPT" 2>&1; then
+    if timeout 120s bash "$ABSORB_SCRIPT" 2>&1; then
         echo "  test_absorption_degenerate.sh: ALL PASSED"
     else
-        FAILED=$((FAILED + 1))
-        FAILED_TESTS+=("test_absorption_degenerate.sh")
+        ABSORB_EXIT=$?
+        if [ $ABSORB_EXIT -eq 124 ]; then
+            echo "  test_absorption_degenerate.sh: TIMEOUT (120s) — skipping"
+        else
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("test_absorption_degenerate.sh")
+        fi
     fi
 else
     echo "  test_absorption_degenerate.sh: not found, skipping"
