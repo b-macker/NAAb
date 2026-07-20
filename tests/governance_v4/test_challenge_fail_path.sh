@@ -20,6 +20,10 @@
 #          the run completes.
 # Group D: max_challenge_failures=2 — two consecutive fails terminate (exit 3).
 # Group E: raising max_challenge_failures mid-run = ratchet violation.
+# Group F: step_up_on_inadmissible — sub-OA coherence draws a challenge with
+#          the engine-global level still NORMAL (pressure weights zeroed);
+#          control run without the flag gets no challenge.
+# Group G: disabling step_up_on_inadmissible mid-run = ratchet violation.
 #
 # Escalation staging mirrors test_challenge_first_turn.sh: S22 fires once
 # (validation failure), signal_density alone drives the level to ELEVATED,
@@ -392,6 +396,193 @@ if grep -q "ratchet violation" "$WDIR/stderr.txt" 2>/dev/null && grep -q "max_ch
     pass "E-01" "mid-run raise of max_challenge_failures rejected as ratchet violation"
 else
     fail "E-01" "mid-run raise not rejected" "$(grep -i 'ratchet\|reload' "$WDIR/stderr.txt" 2>/dev/null | head -2)"
+fi
+fi
+fi
+fi
+
+# ============================================================
+# Group F: coherence-floor trigger — recovery ladder in the sub-OA dead zone
+# ============================================================
+echo -e "${CYAN}--- Group F: sub-OA coherence draws a challenge at NORMAL level ---${NC}"
+# Pressure weights all zero => engine-global level stays NORMAL, so the ONLY
+# way a challenge can fire is the coherence-floor trigger. Three consumed S22
+# failures put coherence at 0.55 (< OA threshold 0.60) by send 4.
+mk_govern_floor() {  # $1=port $2=step_up_on_inadmissible(true/false)
+    cat <<EOF
+{
+  "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "tele.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": {
+    "enabled": true, "level": "advisory", "check_interval_turns": 1,
+    "signals": {
+      "circular_actions": false, "repeated_failures": false, "scope_creep": false,
+      "intent_contradictions": false, "coherence_velocity": false,
+      "response_quality": false, "thinking_collapse": false,
+      "semantic_stability": false, "mandate_alignment": false,
+      "context_growth": false, "instruction_recall": false, "plan_drift": false,
+      "entity_consistency": false, "instruction_conflict": false,
+      "persona_fingerprint": false, "tool_chain_integrity": false,
+      "claim_result_reconciliation": false, "prompt_compliance": false,
+      "response_repetition": false, "validation_outcome": true
+    },
+    "reality_checkpoint": {
+      "enabled": false, "pressure_threshold": 0.5, "signal_density_divisor": 1,
+      "weights": {
+        "coherence_proximity": 0, "risk_score_proximity": 0,
+        "signal_density": 0, "conversation_depth": 0,
+        "bsd_partial_progress": 0, "pipeline_inherited": 0,
+        "coherence_acceleration": 0, "codegen_pressure": 0,
+        "bsd_eviction_pressure": 0, "semantic_deviation": 0
+      }
+    }
+  },
+  "circuit_breaker": {
+    "enabled": true, "elevated_threshold": 0.5, "elevated_sustained": 2,
+    "deescalate_sustained": 5,
+    "step_up_enabled": true, "step_up_contextual": true,
+    "step_up_at_level": "elevated",
+    "step_up_on_inadmissible": $2,
+    "output_admissibility": {
+      "enabled": true, "threshold": 0.60, "action": "quarantine",
+      "inadmissible_history": "exclude", "max_quarantine_streak": 0
+    }
+  },
+  "agents": { "developer": { "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$1",
+      "api_key_env": "FAKE_KEY_CHALFAIL", "max_tokens": 100, "max_turns": 20 } }
+}
+EOF
+}
+FLOOR_FIXTURE='{"responses": [
+  {"content": "def divide(a, b): return a / b  # implemented divide", "output_tokens": 30},
+  {"content": "def divide(a, b): return a / b  # fix attempt one", "output_tokens": 30},
+  {"content": "def divide(a, b): return a / b  # fix attempt two", "output_tokens": 30},
+  {"content": "def divide(a, b): return a / b  # fix attempt three", "output_tokens": 30},
+  {"content": "The divide test failed because divide raised ZeroDivisionError instead of ValueError for a zero divisor. I will catch ZeroDivisionError and raise ValueError, then proceed.", "output_tokens": 40},
+  {"content": "def divide(a, b): return a / b  # final version", "output_tokens": 30}
+]}'
+FLOOR_NAAB='use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement divide")
+    let _a = agent.record_validation(h, false, "FAILED test_divide_by_zero: divide raised ZeroDivisionError, expected ValueError for zero divisor")
+    let r2 = agent.send(h, "fix the divide operation")
+    let _b = agent.record_validation(h, false, "FAILED test_divide_by_zero: divide raised ZeroDivisionError, expected ValueError for zero divisor")
+    let r3 = agent.send(h, "fix the divide operation again")
+    let _c = agent.record_validation(h, false, "FAILED test_divide_by_zero: divide raised ZeroDivisionError, expected ValueError for zero divisor")
+    let r4 = agent.send(h, "fix the divide operation once more")
+    print("COH_AFTER_FAILS=" + string(agent.coherence(h)))
+    let r5 = agent.send(h, "add the divide docstring")
+    print("SEND5_OK|coh=" + string(agent.coherence(h)))
+}'
+# F-on: flag enabled — challenge fires, passes, coherence recovers
+WDIR="$TEST_TMP/f_on"; mkdir -p "$WDIR"
+printf '%s' "$FLOOR_FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || skip "F-01" "stub failed"
+if [ -n "$STUB_PID" ]; then
+mk_govern_floor "$STUB_PORT" true > "$WDIR/govern.json"; sign_govern "$WDIR"
+printf '%s' "$FLOOR_NAAB" > "$WDIR/test.naab"
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1); EXIT_F=$?
+stop_stub
+COH_F=$(echo "$OUT" | grep COH_AFTER_FAILS | sed 's/.*=//')
+if [ -n "${COH_F:-}" ] && awk "BEGIN{exit !($COH_F < 0.60)}"; then
+    pass "F-01" "Staging valid: coherence below OA threshold after 3 failed validations ($COH_F)"
+else
+    fail "F-01" "Staging broken" "coherence=$COH_F $(echo "$OUT" | tail -2)"
+fi
+CHAL_F=$(grep '"event_type":"AGENT_CHALLENGE_PASS"' "$WDIR/tele.jsonl" 2>/dev/null | head -1)
+if [ -n "$CHAL_F" ]; then
+    pass "F-02" "Coherence-floor trigger fired a challenge with level NORMAL"
+else
+    fail "F-02" "No challenge despite sub-OA coherence + flag on" "$(grep -c GOVERNANCE_LEVEL_CHANGE "$WDIR/tele.jsonl" 2>/dev/null) level changes"
+fi
+if [ "$EXIT_F" -eq 0 ] && echo "$OUT" | grep -q "SEND5_OK"; then
+    RECOV=$(echo "$OUT" | grep SEND5_OK | sed 's/.*coh=//')
+    if awk "BEGIN{exit !($RECOV > $COH_F)}"; then
+        pass "F-03" "Challenge pass recovered coherence ($COH_F -> $RECOV); run completed"
+    else
+        fail "F-03" "No recovery after challenge pass" "before=$COH_F after=$RECOV"
+    fi
+else
+    fail "F-03" "Run did not complete" "exit=$EXIT_F"
+fi
+fi
+# F-off: control — same staging, flag absent (default false): no challenge
+WDIR="$TEST_TMP/f_off"; mkdir -p "$WDIR"
+printf '%s' "$FLOOR_FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || skip "F-04" "stub failed"
+if [ -n "$STUB_PID" ]; then
+mk_govern_floor "$STUB_PORT" false > "$WDIR/govern.json"; sign_govern "$WDIR"
+printf '%s' "$FLOOR_NAAB" > "$WDIR/test.naab"
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+if ! grep -qE '"event_type":"AGENT_CHALLENGE_(PASS|FAIL)"' "$WDIR/tele.jsonl" 2>/dev/null; then
+    pass "F-04" "Control: no challenge without the flag (default-off preserved)"
+else
+    fail "F-04" "Challenge fired without the flag"
+fi
+fi
+
+# ============================================================
+# Group G: disabling step_up_on_inadmissible mid-run = ratchet violation
+# ============================================================
+echo -e "${CYAN}--- Group G: disabling the floor trigger is a ratchet violation ---${NC}"
+IS_WINDOWS_G=false
+if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then IS_WINDOWS_G=true; fi
+if $IS_WINDOWS_G; then
+    skip "G-01" "mid-run file swap requires POSIX file semantics"
+else
+WDIR="$TEST_TMP/g"; mkdir -p "$WDIR"
+printf '%s' "$FLOOR_FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || skip "G-01" "stub failed"
+if [ -n "$STUB_PID" ]; then
+presign_g() {
+    local pdir="$TEST_TMP/.presign_g"; mkdir -p "$pdir"
+    printf '%s' "$1" > "$pdir/govern.json"; sign_govern "$pdir"
+    cat "$pdir/govern.json.sig" 2>/dev/null || echo ""; rm -rf "$pdir"
+}
+LOOSE_G="{\"version\":\"5.0\",\"mode\":\"enforce\",\"security\":{\"sandbox_level\":\"elevated\"},\"telemetry\":{\"enabled\":true,\"output_file\":\"tele.jsonl\"},\"behavioral_sequences\":{\"enabled\":true},\"context_drift\":{\"enabled\":true,\"level\":\"advisory\",\"check_interval_turns\":1},\"circuit_breaker\":{\"enabled\":true,\"step_up_enabled\":true,\"step_up_on_inadmissible\":false},\"capabilities\":{\"shell\":{\"enabled\":true}},\"agents\":{\"developer\":{\"provider\":\"gemini\",\"model\":\"stub-model\",\"api_base\":\"http://127.0.0.1:$STUB_PORT\",\"api_key_env\":\"FAKE_KEY_CHALFAIL\",\"max_tokens\":100,\"max_turns\":20}}}"
+LOOSE_G_SIG=$(presign_g "$LOOSE_G")
+if [ -z "$LOOSE_G_SIG" ]; then skip "G-01" "presign failed"; stop_stub; else
+export NAAB_LOOSE_G_JSON="$LOOSE_G" NAAB_LOOSE_G_SIG="$LOOSE_G_SIG"
+cat > "$WDIR/govern.json" <<EOF
+{
+  "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "tele.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1 },
+  "circuit_breaker": { "enabled": true, "step_up_enabled": true, "step_up_on_inadmissible": true },
+  "capabilities": { "shell": { "enabled": true } },
+  "agents": { "developer": { "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$STUB_PORT",
+      "api_key_env": "FAKE_KEY_CHALFAIL", "max_tokens": 100, "max_turns": 20 } }
+}
+EOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement divide")
+    let _ = <<shell
+sleep 1.2
+printf '%s' "$NAAB_LOOSE_G_JSON" > govern.json
+printf '%s' "$NAAB_LOOSE_G_SIG" > govern.json.sig
+>>
+    let r2 = agent.send(h, "fix the divide operation")
+    print("DONE")
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 40s "$NAAB" test.naab 2>"$WDIR/stderr.txt") || true
+stop_stub
+if grep -q "ratchet violation" "$WDIR/stderr.txt" 2>/dev/null && grep -q "step_up_on_inadmissible" "$WDIR/stderr.txt" 2>/dev/null; then
+    pass "G-01" "mid-run disable of step_up_on_inadmissible rejected as ratchet violation"
+else
+    fail "G-01" "mid-run disable not rejected" "$(grep -i 'ratchet\|reload' "$WDIR/stderr.txt" 2>/dev/null | head -2)"
 fi
 fi
 fi

@@ -100,7 +100,7 @@
       "standing_lease_turns": 20,
       "context_window": 20,
       "context_strategy": "summary",
-      "context_drift_signals": { "semantic_stability": false },
+      "context_drift_signals": { "semantic_stability": false, "instruction_conflict": false },
       "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
@@ -283,6 +283,7 @@
     "step_up_challenge_history": "summary",
     "step_up_history_recent_count": 10,
     "max_challenge_failures": 2,
+    "step_up_on_inadmissible": true,
     "mandate_reinforcement_enabled": true,
     "mandate_reinforcement_interval": 5,
     "coherence_correction_enabled": true,
@@ -292,7 +293,7 @@
       "enabled": true,
       "threshold": 0.60,
       "action": "quarantine",
-      "inadmissible_history": "commit",
+      "inadmissible_history": "exclude",
       "max_quarantine_streak": 5
     }
   },

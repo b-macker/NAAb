@@ -1600,6 +1600,16 @@ struct CircuitBreakerConfig {
     // 3 turns cooldown: prevents challenge fatigue — too frequent challenges degrade
     // agent performance. Matches pulse cooldown for consistency.
     int step_up_cooldown_turns = 3;
+    // Coherence-floor challenge trigger: when true (and output_admissibility is
+    // enabled), a handle whose CDD coherence is below the OA threshold draws a
+    // step-up challenge on its next send regardless of the engine-global
+    // governance level. Closes the sub-OA dead zone where the quarantine
+    // streak (kill path) accrues every send while level re-escalation (the
+    // normal challenge trigger) needs elevated_sustained pressure samples —
+    // the recovery ladder must not be slower than the kill path. Cooldown and
+    // max_challenge_failures still apply. Default false (no behavior change).
+    // Ratchet: disabling mid-run is a loosening violation.
+    bool step_up_on_inadmissible = false;
     // Consecutive failed step-up challenges before the agent is terminated
     // (GovernanceHardError). Below the limit, a failed challenge blocks the
     // send with a CATCHABLE error and the agent is re-challenged after the
