@@ -2881,6 +2881,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("step_up_min_words") && cbj["step_up_min_words"].is_number_integer()) cfg.step_up_min_words = std::max(1, cbj["step_up_min_words"].get<int>());
         if (cbj.contains("step_up_cooldown_turns") && cbj["step_up_cooldown_turns"].is_number_integer()) cfg.step_up_cooldown_turns = std::max(0, cbj["step_up_cooldown_turns"].get<int>());
         if (cbj.contains("max_challenge_failures") && cbj["max_challenge_failures"].is_number_integer()) cfg.max_challenge_failures = std::max(1, cbj["max_challenge_failures"].get<int>());
+        if (cbj.contains("step_up_on_inadmissible") && cbj["step_up_on_inadmissible"].is_boolean()) cfg.step_up_on_inadmissible = cbj["step_up_on_inadmissible"].get<bool>();
         if (cbj.contains("step_up_keyword_threshold") && cbj["step_up_keyword_threshold"].is_number()) {
             double val = std::max(0.0, std::min(1.0, cbj["step_up_keyword_threshold"].get<double>()));
             if (val < 0.2) {
@@ -3611,6 +3612,13 @@ static bool checkRatchetViolation(
     else if (old_oa.max_quarantine_streak == 0 && new_oa.max_quarantine_streak > 0)
         notices.push_back(fmt::format("output_admissibility.max_quarantine_streak: disabled -> {} (tightened)",
             new_oa.max_quarantine_streak));
+
+    // Coherence-floor challenge trigger: disabling removes the sub-OA recovery
+    // ladder = loosening.
+    if (old_r.circuit_breaker.step_up_on_inadmissible && !new_r.circuit_breaker.step_up_on_inadmissible)
+        violations.push_back("circuit_breaker.step_up_on_inadmissible: true -> false (loosened — sub-OA recovery ladder removed)");
+    else if (!old_r.circuit_breaker.step_up_on_inadmissible && new_r.circuit_breaker.step_up_on_inadmissible)
+        notices.push_back("circuit_breaker.step_up_on_inadmissible: false -> true (tightened)");
 
     // Challenge-failure streak: minimum 1 (one-strike). Raising N = loosening
     // (more failed challenges tolerated before termination).

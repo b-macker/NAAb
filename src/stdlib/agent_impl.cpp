@@ -1702,7 +1702,24 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     }
                 }
             }
-            if (static_cast<int>(level) >= required_level || lease_expired) {
+            // Coherence-floor trigger (step_up_on_inadmissible): a handle whose
+            // CDD coherence sits below the OA threshold is in the sub-OA dead
+            // zone — every send quarantines toward the streak kill, while the
+            // engine-global level (the normal challenge trigger) needs
+            // elevated_sustained pressure samples to re-escalate. The recovery
+            // ladder (challenge pass = +coherence_recovery_amount) must not be
+            // slower than the kill path, so offer the challenge immediately.
+            // Cooldown and max_challenge_failures still apply.
+            bool coherence_inadmissible = false;
+            if (cb.step_up_on_inadmissible && cb.output_admissibility.enabled) {
+                auto floor_ds = gov_engine->getDriftState(handle_id);
+                if (floor_ds && floor_ds->coherence_score <
+                        cb.output_admissibility.threshold) {
+                    coherence_inadmissible = true;
+                }
+            }
+            if (static_cast<int>(level) >= required_level || lease_expired ||
+                coherence_inadmissible) {
                 // Check cooldown from tracker (server-side, immune to handle mutation)
                 bool should_challenge = false;
                 {
@@ -3767,7 +3784,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"penalties_detail", penalty_detail},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
-                    {"drift_detected",   drift_err.empty() ? "false" : "true"}
+                    {"drift_detected",   drift_err.empty() ? "false" : "true"},
+                    // false = interval-skipped: recordTurn did NOT analyze this
+                    // turn, so coherence/signals_detail above are STALE state
+                    // from the last analyzed check (a display artifact that has
+                    // misled multiple forensic passes — see check_interval_turns)
+                    {"analyzed", drift_state->last_checked_turn == event_turn ? "true" : "false"}
                 });
             } else {
                 // CDD ran but drift analyzer has no state yet (before first check_interval_turns)
@@ -4902,6 +4924,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", c_level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"},
+                    {"analyzed", drift_state->last_checked_turn == event_turn ? "true" : "false"},
                     {"source",           "agent.commit"}
                 });
             }

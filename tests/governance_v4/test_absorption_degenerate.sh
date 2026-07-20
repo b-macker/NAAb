@@ -17,6 +17,8 @@
 #          (0 = unlimited = loosest).
 # Group F: agent.propose() candidate diversity — temperature steps per
 #          candidate (visible in the stub's captured request bodies).
+# Group G: CDD_TURN "analyzed" field — interval-skipped turns are flagged
+#          false (their coherence/signals_detail are stale re-shown state).
 # ============================================================
 set -uo pipefail
 
@@ -309,6 +311,36 @@ if echo "$TEMPS" | grep -q "1.15" && echo "$TEMPS" | grep -q "1.3"; then
     pass "F-02" "Stepped temperatures present in candidate requests ($(echo $TEMPS | tr '\n' ' '))"
 else
     fail "F-02" "No temperature diversity in requests" "temps=[$TEMPS]"
+fi
+fi
+
+# ============================================================
+# Group G: "analyzed" telemetry flag on interval-skipped turns
+# ============================================================
+echo -e "${CYAN}--- Group G: interval-skipped CDD_TURN events carry analyzed=false ---${NC}"
+WDIR="$TEST_TMP/g_analyzed"; mkdir -p "$WDIR"
+printf '%s' "$TERSE_FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || skip "G-01" "stub failed"
+if [ -n "$STUB_PID" ]; then
+# Same all-signals-off config but check_interval_turns=2: every other send is
+# interval-skipped, so its CDD_TURN re-shows stale state and must say so.
+mk_govern "$STUB_PORT" false false 0 "" | sed 's/"check_interval_turns": 1/"check_interval_turns": 2/' > "$WDIR/govern.json"
+sign_govern "$WDIR"
+printf '%s' "$SIX_SENDS" > "$WDIR/test.naab"
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+AN_TRUE=$(grep '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -c '"analyzed":"true"' || true)
+AN_FALSE=$(grep '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -c '"analyzed":"false"' || true)
+if [ "${AN_TRUE:-0}" -ge 2 ] && [ "${AN_FALSE:-0}" -ge 2 ]; then
+    pass "G-01" "CDD_TURN carries analyzed flag (true=$AN_TRUE, false=$AN_FALSE at interval 2)"
+else
+    fail "G-01" "analyzed flag missing or wrong split" "true=$AN_TRUE false=$AN_FALSE"
+fi
+UNMARKED=$(grep '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -vc '"analyzed":"' || true)
+if [ "${UNMARKED:-1}" -eq 0 ]; then
+    pass "G-02" "Every CDD_TURN event carries the analyzed field"
+else
+    fail "G-02" "$UNMARKED CDD_TURN events missing analyzed field"
 fi
 fi
 

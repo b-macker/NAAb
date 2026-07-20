@@ -454,3 +454,18 @@ rates read N× the true rate and the baseline **never absorbed** them. S21 had
 carried this latent bug since its introduction; both mappings are now fixed
 and the exact declining-penalty series (0.08 → 0.0533 → 0.0311 → 0.02) that
 exposed it is reproduced in the test.
+
+---
+
+## Round 6: the sub-OA dead zone, validated and closed
+
+Deep verification of the post-#93 forensics (T26 cliff, coherence 0.445, no
+recovery) confirmed three findings, corrected one, and sharpened the engine gap:
+
+| Device finding | Verdict after code trace |
+|---|---|
+| "Healing suppressed on alternating turns" | **NOT a bug** — healing applies only on analyzed checks (`check_interval_turns: 2`) and is proportional (`1/(1+signals_fired)`); the observed −0.085 = −0.10 (S16) + 0.015 (half-healing) matches the code exactly. The "suppressed" turns are the stale CDD_TURN display artifact — now flagged by a new `analyzed` telemetry field. |
+| "No challenge after OA breach" | **Confirmed, sharpened**: challenges required engine-global level ≥ elevated; after a de-escalation, re-escalation needs `elevated_sustained: 2` pressure samples (≈4 turns at interval 2) while the quarantine streak (max 5) accrues per send — the recovery ladder was structurally slower than the kill path. Closed by `circuit_breaker.step_up_on_inadmissible` (default off; living-script on): sub-OA coherence draws a challenge on the next send, cooldown and `max_challenge_failures` still applying. |
+| "inadmissible_history commit is a bad default" | Default confirmed (`governance.h`), fixed in **config** (commit→exclude, the tightening direction) — the engine default stays for compatibility. |
+| "S16 fires every round for the developer" | **Confirmed — and it is a round-5 config regression of ours**: the absorption cap converted S16 from permanently-absorbed (free) to permanently-paying (0.10/check), because S16 is structural for this agent — our own CONTRACT lines supply the negation markers ("do NOT raise") that S16 keys on. The cap's design prescribes the per-agent disable we skipped: `instruction_conflict: false` for the developer, now applied. Lesson recorded in CLAUDE.md: enabling the cap requires auditing which signals fire structurally per agent. |
+| "S22 exemption from absorption is dangerous" | Correct by design, unchanged — the T26 cliff was S16(structural) + S22(real), and removing the structural half removes the cliff. |
