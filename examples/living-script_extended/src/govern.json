@@ -83,7 +83,6 @@
       "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
     },
     "developer": {
-      "context_drift_signals": { "semantic_stability": false, "instruction_conflict": false },
       "provider": "gemini",
       "model": "gemini-3.1-flash-lite",
       "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
