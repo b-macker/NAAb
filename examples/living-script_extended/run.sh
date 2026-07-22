@@ -6,12 +6,12 @@
 # Operator layer → agent that reads telemetry, adjusts govern.json
 # Engine layer  → govern.json + CDD + circuit breaker + ratchet
 #
-# Builds a calculator that EVOLVES through 4 feature additions:
-#   Base:    add, subtract, multiply, divide + history
-#   Feat 1:  power (x^y) and modulo (%)
-#   Feat 2:  memory system (store, recall, clear)
-#   Feat 3:  expression parser (evaluate string expressions)
-#   Feat 4:  plugin system (register, run, list plugins)
+# Builds a Python data pipeline framework that EVOLVES through 4 feature additions:
+#   Base:    Pipeline with stages, schema validation, transforms, audit log
+#   Feat 1:  Aggregation engine (group_by, aggregate, having)
+#   Feat 2:  Error recovery (retry, dead letter queue, circuit breaker)
+#   Feat 3:  Computed fields + method chaining (fluent API)
+#   Feat 4:  Import/export + statistics (JSON I/O, pipeline metrics)
 #
 # Extended governance surface:
 #   Level 7:  Propose/commit + codegen validation
@@ -28,6 +28,8 @@
 #   Level 16: Lease & epoch observability (per-agent lease, CDD signal overrides)
 #   Level 17: Telemetry event audit (event type coverage verification)
 #   Level 18: Codegen boundary (strict failure path, variable injection)
+#   Level 19: Tool execution (registered tools, tool loop, gate_tool_calls)
+#   Level 20: Separation of duties (allowed_actions enforcement)
 #
 # Requires: GK1 env var with a Gemini API key
 # Expected runtime: 4-8 minutes (~55-75 API calls)
@@ -126,14 +128,14 @@ setup_workdir() {
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
-echo -e "${CYAN}|  Living Script EXTENDED: Advanced Governance Surface          |${NC}"
-echo -e "${CYAN}|  (4 features, 18 governance levels, ~0 extra API calls)     |${NC}"
+echo -e "${CYAN}|  Living Script EXTENDED: Data Pipeline Framework              |${NC}"
+echo -e "${CYAN}|  (4 features, 20 governance levels, tools + separation)     |${NC}"
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 70); do
+    for i in $(seq 1 120); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -141,13 +143,13 @@ else
     STDERR_FILE="$TEST_TMP/stderr.log"
 
     # Level 5: Place 3 requirement files for feature evolution
-    echo "Add power(base, exponent) and modulo(a, b) operations to the Calculator class" > "$WORKDIR/input/requirement-001.txt"
-    echo "Add a memory system: memory_store(value), memory_recall() returns stored value, memory_clear() resets to None. Memory persists across operations." > "$WORKDIR/input/requirement-002.txt"
-    echo "Add an evaluate(expression: str) method that parses and evaluates simple math expressions like '2 + 3 * 4' respecting operator precedence" > "$WORKDIR/input/requirement-003.txt"
-    echo "Add a plugin system: register_plugin(name, func), run_plugin(name, *args), list_plugins() returns list of registered plugin names. Plugins persist for the calculator's lifetime." > "$WORKDIR/input/requirement-004.txt"
+    echo "Add aggregation methods to Pipeline: group_by(records, key_field) raises PipelineError if key_field missing, aggregate(groups, field, func_name) supports sum/avg/count/min/max and raises PipelineError for unknown func_name, having(groups, predicate) filters groups." > "$WORKDIR/input/requirement-001.txt"
+    echo "Add error recovery to Pipeline: retry_stage(name, transform_fn, max_retries=3) retries failed stages, get_dead_letters() returns self._dead_letters.copy(), failed records go to dead letter queue after retries exhausted." > "$WORKDIR/input/requirement-002.txt"
+    echo "Add computed fields to Pipeline: add_computed_field(name, compute_fn) adds derived field to each record, compute_fn receives record dict and returns value, method returns self for chaining (fluent API), raises PipelineError if name empty or compute_fn not callable." > "$WORKDIR/input/requirement-003.txt"
+    echo "Add import/export to Pipeline: export_json(records, filepath) writes records to JSON, import_json(filepath) reads records returning list of Record objects, get_statistics() returns dict with total_records_processed/stages_executed/error_count, file I/O errors wrapped as PipelineError." > "$WORKDIR/input/requirement-004.txt"
 
-    echo -e "${CYAN}Running living script (~3-7 minutes with feature evolution)...${NC}"
-    echo -e "${CYAN}Config: 4 workers + operator + 2 judges, 4 features, extended governance${NC}"
+    echo -e "${CYAN}Running living script (~4-8 minutes with feature evolution)...${NC}"
+    echo -e "${CYAN}Config: 4 workers + operator + 2 judges, 4 features, tools + separation${NC}"
     echo ""
 
     OUTPUT=$(cd "$WORKDIR" && timeout 1800 "$NAAB" --governance-dashboard "living-script.naab" 2>"$STDERR_FILE") && EXIT_CODE=0 || EXIT_CODE=$?
@@ -193,9 +195,11 @@ else
     APPROVED=$(echo "$OUTPUT" | grep -oP 'SUMMARY_APPROVED: \K\w+' | head -1)
     FEATURES=$(echo "$OUTPUT" | grep -oP 'SUMMARY_FEATURES: \K[0-9]+' | head -1)
     FEATURES=${FEATURES:-0}
+    TOOL_CALLS=$(echo "$OUTPUT" | grep -oP 'SUMMARY_TOOL_CALLS: \K[0-9]+' | head -1)
+    TOOL_CALLS=${TOOL_CALLS:-0}
 
     echo -e "${CYAN}Extracted: agents=$AGENTS_CREATED sends=$TOTAL_SENDS errors=$SEND_ERRORS${NC}"
-    echo -e "${CYAN}          iterations=$ITERATIONS approved=$APPROVED features=$FEATURES adjustments=$ADJUSTMENTS${NC}"
+    echo -e "${CYAN}          iterations=$ITERATIONS approved=$APPROVED features=$FEATURES adjustments=$ADJUSTMENTS tools=$TOOL_CALLS${NC}"
     echo ""
 
     # ============================================================
@@ -232,18 +236,18 @@ else
         gk_fail "L2-01" "No validation output"
     fi
 
-    OPS_CONV=$(echo "$OUTPUT" | grep 'CONVERGENCE|operations.py|valid=true' | head -1)
+    OPS_CONV=$(echo "$OUTPUT" | grep 'CONVERGENCE|pipeline.py|valid=true' | head -1)
     if [ -n "$OPS_CONV" ]; then
-        pass "L2-02" "operations.py passes convergence"
+        pass "L2-02" "pipeline.py passes convergence"
     else
-        gk_fail "L2-02" "operations.py convergence failed"
+        gk_fail "L2-02" "pipeline.py convergence failed"
     fi
 
-    TEST_CONV=$(echo "$OUTPUT" | grep 'CONVERGENCE|test_calc.py|valid=true' | head -1)
+    TEST_CONV=$(echo "$OUTPUT" | grep 'CONVERGENCE|test_pipeline.py|valid=true' | head -1)
     if [ -n "$TEST_CONV" ]; then
-        pass "L2-03" "test_calc.py passes convergence"
+        pass "L2-03" "test_pipeline.py passes convergence"
     else
-        gk_fail "L2-03" "test_calc.py convergence failed"
+        gk_fail "L2-03" "test_pipeline.py convergence failed"
     fi
 
     # Pytest actually ran
@@ -284,7 +288,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
-    for phase in PREFLIGHT DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT CODEGEN_BOUNDARY; do
+    for phase in TOOL_REGISTRATION PREFLIGHT DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT CODEGEN_BOUNDARY; do
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
@@ -337,15 +341,15 @@ assert 'refinement_iterations' in d
         gk_fail "L5-02" "No features processed"
     fi
 
-    # Code grew with features (operations.py should be substantially larger)
-    FINAL_OPS_LEN=$(echo "$OUTPUT" | grep 'CODE_EXTRACT|operations.py' | grep -oP 'len=\K[0-9]+' | head -1)
+    # Code grew with features (pipeline.py should be substantially larger)
+    FINAL_OPS_LEN=$(echo "$OUTPUT" | grep 'CODE_EXTRACT|pipeline.py' | grep -oP 'len=\K[0-9]+' | head -1)
     FINAL_OPS_LEN=${FINAL_OPS_LEN:-0}
     if [ "$FINAL_OPS_LEN" -ge 2000 ]; then
-        pass "L5-03" "Code evolved substantially (ops=$FINAL_OPS_LEN chars)"
+        pass "L5-03" "Code evolved substantially (pipeline=$FINAL_OPS_LEN chars)"
     elif [ "$FINAL_OPS_LEN" -ge 1000 ]; then
-        pass "L5-03" "Code grew with features (ops=$FINAL_OPS_LEN chars)"
+        pass "L5-03" "Code grew with features (pipeline=$FINAL_OPS_LEN chars)"
     else
-        gk_fail "L5-03" "Code didn't grow enough" "ops=$FINAL_OPS_LEN chars, expected 2000+"
+        gk_fail "L5-03" "Code didn't grow enough" "pipeline=$FINAL_OPS_LEN chars, expected 2000+"
     fi
 
     # Feature cycle markers. Completion is now gated on validation: a feature
@@ -377,12 +381,13 @@ assert 'refinement_iterations' in d
         skip "L5-06" "No tester-driven fixes during features (tester found no issues)"
     fi
 
-    # main.py updated for new features
-    if echo "$OUTPUT" | grep -q "MAIN_UPDATED|"; then
-        MAIN_LEN=$(echo "$OUTPUT" | grep 'CODE_EXTRACT|main.py' | grep -oP 'len=\K[0-9]+' | head -1)
-        pass "L5-07" "main.py updated for all operations (len=${MAIN_LEN:-?})"
+    # models.py extracted (data structures for pipeline)
+    MODELS_LEN=$(echo "$OUTPUT" | grep 'CODE_EXTRACT|models.py' | grep -oP 'len=\K[0-9]+' | head -1)
+    MODELS_LEN=${MODELS_LEN:-0}
+    if [ "$MODELS_LEN" -ge 100 ]; then
+        pass "L5-07" "models.py extracted (len=$MODELS_LEN)"
     else
-        skip "L5-07" "main.py not updated"
+        skip "L5-07" "models.py not extracted"
     fi
 
     # Pytest fix loop (developer fixed failing tests)
@@ -393,7 +398,7 @@ assert 'refinement_iterations' in d
         skip "L5-08" "No pytest failures to fix (tests passed)"
     fi
 
-    # 4th feature (plugin system)
+    # 4th feature (import/export + statistics)
     if [ "$FEATURES" -ge 4 ]; then
         pass "L5-09" "All 4 features processed ($FEATURES)"
     elif [ "$FEATURES" -ge 3 ]; then
@@ -892,6 +897,86 @@ assert 'refinement_iterations' in d
     fi
 
     # ============================================================
+    # L19: TOOL EXECUTION
+    # ============================================================
+    echo -e "${CYAN}Level 19: Tool Execution${NC}"
+
+    if ! govkill_block "L19-*" 'PHASE|TOOL_REGISTRATION|'; then
+
+    if echo "$OUTPUT" | grep -q "PHASE|TOOL_REGISTRATION|start"; then
+        pass "L19-01" "Tool registration phase reached"
+    else
+        fail "L19-01" "Tool registration phase not reached"
+    fi
+
+    if echo "$OUTPUT" | grep -q "TOOL_REGISTRATION|validate_python=true"; then
+        pass "L19-02" "validate_python tool registered"
+    else
+        fail "L19-02" "validate_python tool not registered"
+    fi
+
+    if echo "$OUTPUT" | grep -q "TOOL_REGISTRATION|check_schema=true"; then
+        pass "L19-03" "check_schema tool registered"
+    else
+        fail "L19-03" "check_schema tool not registered"
+    fi
+
+    TOOLS_TOTAL=$(echo "$OUTPUT" | grep -oP 'TOOL_REGISTRATION\|total=\K[0-9]+' | head -1)
+    if [ "${TOOLS_TOTAL:-0}" -ge 2 ]; then
+        pass "L19-04" "Tools registered ($TOOLS_TOTAL total)"
+    else
+        fail "L19-04" "Insufficient tools registered" "got ${TOOLS_TOTAL:-0}, expected 2"
+    fi
+
+    if echo "$OUTPUT" | grep -q "PREFLIGHT|developer_tools_enabled="; then
+        pass "L19-05" "Developer tools_enabled reported in environment"
+    else
+        fail "L19-05" "Developer tools_enabled not reported"
+    fi
+
+    TOOL_TELEM=$(echo "$OUTPUT" | grep -oP 'TELEMETRY_AUDIT\|tool_events_found=\K[0-9]+' | head -1)
+    if [ "${TOOL_TELEM:-0}" -ge 1 ]; then
+        pass "L19-06" "Tool telemetry events found ($TOOL_TELEM types)"
+    else
+        skip "L19-06" "No tool telemetry events (LLM may not have called tools)"
+    fi
+
+    fi
+
+    # ============================================================
+    # L20: SEPARATION OF DUTIES
+    # ============================================================
+    echo -e "${CYAN}Level 20: Separation of Duties${NC}"
+
+    if ! govkill_block "L20-*" 'SEPARATION|'; then
+
+    if echo "$OUTPUT" | grep -q "SEPARATION|developer|allowed_actions="; then
+        pass "L20-01" "Developer allowed_actions visible"
+    else
+        fail "L20-01" "Developer allowed_actions not visible"
+    fi
+
+    if echo "$OUTPUT" | grep -q "SEPARATION|tester|allowed_actions="; then
+        pass "L20-02" "Tester allowed_actions visible"
+    else
+        fail "L20-02" "Tester allowed_actions not visible"
+    fi
+
+    if echo "$OUTPUT" | grep -q 'SEPARATION|developer|allowed_actions=.*TOOL_EXEC'; then
+        pass "L20-03" "Developer has TOOL_EXEC permission"
+    else
+        skip "L20-03" "Developer TOOL_EXEC not confirmed (may be in array format)"
+    fi
+
+    if echo "$OUTPUT" | grep -q 'SEPARATION|tester|.*network=false'; then
+        pass "L20-04" "Tester network access restricted"
+    else
+        skip "L20-04" "Tester network restriction not confirmed"
+    fi
+
+    fi
+
+    # ============================================================
     # L6: DYNAMIC TEAM
     # ============================================================
     echo -e "${CYAN}Level 6: Dynamic Team${NC}"
@@ -1105,6 +1190,18 @@ print('true' if ok else 'false')
     echo ""
     echo -e "${CYAN}Codegen Boundary:${NC}"
     echo "$OUTPUT" | grep '^CODEGEN_BOUNDARY|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Tool Registration:${NC}"
+    echo "$OUTPUT" | grep '^TOOL_REGISTRATION|' | while read -r line; do
+        echo -e "  ${CYAN}$line${NC}"
+    done
+
+    echo ""
+    echo -e "${CYAN}Separation of Duties:${NC}"
+    echo "$OUTPUT" | grep '^SEPARATION|' | while read -r line; do
         echo -e "  ${CYAN}$line${NC}"
     done
 

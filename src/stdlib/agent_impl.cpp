@@ -855,6 +855,24 @@ static NaabVal agentRegisterTool(std::vector<NaabVal>& args) {
                     auto pdesc_it = pdict.find("description");
                     if (pdesc_it != pdict.end() && pdesc_it->second.isString())
                         prop["description"] = pdesc_it->second.asString();
+                    // Pass through 'items' for array types (required by Gemini)
+                    auto items_it = pdict.find("items");
+                    if (items_it != pdict.end() && items_it->second.isDict()) {
+                        json items_obj;
+                        auto& idict = items_it->second.asDict();
+                        auto itype_it = idict.find("type");
+                        if (itype_it != idict.end() && itype_it->second.isString())
+                            items_obj["type"] = itype_it->second.asString();
+                        prop["items"] = items_obj;
+                    }
+                    // Pass through 'enum' for constrained values
+                    auto enum_it = pdict.find("enum");
+                    if (enum_it != pdict.end() && enum_it->second.isList()) {
+                        json enum_arr = json::array();
+                        for (auto& ev : enum_it->second.asList())
+                            if (ev.isString()) enum_arr.push_back(ev.asString());
+                        if (!enum_arr.empty()) prop["enum"] = enum_arr;
+                    }
                     properties[key] = prop;
                 }
             }

@@ -1,12 +1,12 @@
 // living-script.naab — Three-layer architecture: Script / Operator / Engine
 //
-// EXTENDED version: Builds a Python CLI calculator that EVOLVES through 4
-// feature additions, exercising advanced governance primitives.
-//   Base:    add, subtract, multiply, divide + history
-//   Feat 1:  power (x^y) and modulo (%) operations
-//   Feat 2:  memory system (store, recall, clear)
-//   Feat 3:  expression parser (evaluate "2+3*4" strings)
-//   Feat 4:  plugin system (register, run, list plugins)
+// EXTENDED version: Builds a Python data pipeline framework that EVOLVES
+// through 4 feature additions, exercising advanced governance primitives.
+//   Base:    Pipeline with stages, schema validation, transforms, audit log
+//   Feat 1:  Aggregation engine (group_by, aggregate, having)
+//   Feat 2:  Error recovery (retry, dead letter queue, circuit breaker)
+//   Feat 3:  Computed fields + method chaining (fluent API)
+//   Feat 4:  Import/export + statistics (JSON I/O, pipeline metrics)
 //
 // Level 1: Operator tunes team (reads telemetry, adjusts govern.json)
 // Level 2: Outcome validation (polyglot syntax + evolving convergence)
@@ -26,6 +26,8 @@
 // Level 16: Lease & epoch observability (per-agent lease, CDD signal overrides)
 // Level 17: Telemetry event audit (event type coverage verification)
 // Level 18: Codegen boundary (strict failure path, variable injection)
+// Level 19: Tool execution (registered tools, tool loop, gate_tool_calls)
+// Level 20: Separation of duties (allowed_actions enforcement)
 
 use agent
 use file
@@ -109,16 +111,6 @@ fn read_telemetry_summary() {
 }
 
 fn apply_operator_adjustments(adjustments, current_phase) {
-    // govern.json is self-protected (HARD block on file.read/write).
-    // Use process.run() to read/write through shell (SYS_EXEC path).
-    // system_prompt removed — rewrites fire persona_drift + entity_consistency in CDD,
-    // cratering coherence. Operator uses message_prefix for tactical guidance instead.
-
-    // CRITICAL: cache env vars BEFORE modifying govern.json.
-    // env.get() triggers checkEnvVarRead() → reloadIfChanged(). If called after mv
-    // but before re-signing, the premature reload sees modified govern.json with
-    // stale .sig → rejects → caches mtime. After signing, mtime is unchanged,
-    // so future reloads skip — the valid .sig is never checked.
     let signing_key_path = env.get("NAAB_SIGN_PATH", "")
     let naab_binary = env.get("NAAB_BINARY", "naab-lang")
 
@@ -135,9 +127,6 @@ fn apply_operator_adjustments(adjustments, current_phase) {
     let config = json.parse(read_result.stdout)
     let changes_made = false
 
-    // LLM sometimes sends flat adjustments ({"context_strategy": "recent"})
-    // instead of agent-wrapped ({"developer": {"context_strategy": "recent"}}).
-    // Auto-wrap flat fields as developer adjustments.
     let all_known_fields = allowed_agent_fields + allowed_circuit_fields
     let adj_names = adjustments.keys()
     let has_flat_fields = false
@@ -218,8 +207,6 @@ fn apply_operator_adjustments(adjustments, current_phase) {
     }
 
     let new_json = json.stringify(config, 2)
-    // file.write to govern.json is HARD-blocked (self-protection).
-    // Write to a temp file, then mv to replace — avoids argv truncation of 15KB+ JSON.
     file.write("_govern_pending.json", new_json)
     let write_result = process.run("mv", ["_govern_pending.json", "govern.json"])
     if write_result.exit_code != 0 {
@@ -238,23 +225,22 @@ fn apply_operator_adjustments(adjustments, current_phase) {
     return ""
 }
 
-fn validate_code(ops_code, main_code, test_code, ops_pattern) {
+fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
     let results = {}
     let total_checks = 0
-    if len(ops_code) > 20 {
-        file.write("_ops_check.py", ops_code)
-        let check = process.run("python3", ["-c", "import ast; ast.parse(open('_ops_check.py').read()); print('SYNTAX_OK')"])
-        results["ops_syntax"] = check.exit_code == 0
-        total_checks = total_checks + 1
-        // Skip file.delete — workdir is temporary, avoids FS_DELETE sandbox violations
-        let conv = orchestra.enforce_convergence(ops_code, {pattern: ops_pattern})
-        results["ops_convergence"] = conv.get("valid") ?? false
+    if len(models_code) > 20 {
+        file.write("_models_check.py", models_code)
+        let check = process.run("python3", ["-c", "import ast; ast.parse(open('_models_check.py').read()); print('SYNTAX_OK')"])
+        results["models_syntax"] = check.exit_code == 0
         total_checks = total_checks + 1
     }
-    if len(main_code) > 20 {
-        file.write("_main_check.py", main_code)
-        let check = process.run("python3", ["-c", "import ast; ast.parse(open('_main_check.py').read()); print('SYNTAX_OK')"])
-        results["main_syntax"] = check.exit_code == 0
+    if len(pipeline_code) > 20 {
+        file.write("_pipeline_check.py", pipeline_code)
+        let check = process.run("python3", ["-c", "import ast; ast.parse(open('_pipeline_check.py').read()); print('SYNTAX_OK')"])
+        results["pipeline_syntax"] = check.exit_code == 0
+        total_checks = total_checks + 1
+        let conv = orchestra.enforce_convergence(pipeline_code, {pattern: pipeline_pattern})
+        results["pipeline_convergence"] = conv.get("valid") ?? false
         total_checks = total_checks + 1
     }
     if len(test_code) > 20 {
@@ -262,19 +248,18 @@ fn validate_code(ops_code, main_code, test_code, ops_pattern) {
         results["test_convergence"] = conv.get("valid") ?? false
         total_checks = total_checks + 1
     }
-    // Run actual pytest if both ops and test code exist
-    if len(ops_code) > 20 && len(test_code) > 20 {
-        file.write("operations.py", ops_code)
-        file.write("test_calc.py", test_code)
-        let pytest_result = process.run("python3", ["-m", "pytest", "test_calc.py", "-v", "--tb=short", "--no-header", "-q"])
+    // Run actual pytest if pipeline and test code exist
+    if len(pipeline_code) > 20 && len(test_code) > 20 {
+        if len(models_code) > 20 { file.write("models.py", models_code) }
+        file.write("pipeline.py", pipeline_code)
+        file.write("test_pipeline.py", test_code)
+        let pytest_result = process.run("python3", ["-m", "pytest", "test_pipeline.py", "-v", "--tb=short", "--no-header", "-q"])
         results["pytest_exit"] = pytest_result.exit_code
         results["pytest_passed"] = pytest_result.exit_code == 0
         total_checks = total_checks + 1
-        // Extract pass/fail counts from pytest output
         let pytest_out = pytest_result.stdout + pytest_result.stderr
         results["pytest_output"] = pytest_out
         print("PYTEST|exit=" + string(pytest_result.exit_code))
-        // Show last few lines of pytest output (summary)
         let plines = string.split(pytest_out, "\n")
         let pi = 0
         if plines.length() > 5 { pi = plines.length() - 5 }
@@ -329,7 +314,8 @@ main {
         "total_sends": 0, "send_errors": 0, "adjustments_made": 0,
         "phases_completed": [], "coherences": {}, "min_coherences": {},
         "challenge_passes": 0, "refinement_iterations": 0, "final_verdict": "NONE",
-        "features_processed": 0, "feature_names": [], "agents_created": initial_agents
+        "features_processed": 0, "feature_names": [], "agents_created": initial_agents,
+        "tool_calls_total": 0
     }
 
     fn track(name, resp) {
@@ -346,21 +332,80 @@ main {
             if state != null {
                 let cp = state.get("challenges_passed") ?? 0
                 if cp > tracking["challenge_passes"] { tracking["challenge_passes"] = cp }
+                let tc = state.get("tool_calls_total") ?? 0
+                if tc > tracking["tool_calls_total"] { tracking["tool_calls_total"] = tc }
             }
         }
     }
 
     // Convergence pattern — evolves as features are added
-    let ops_pattern = "def add|def subtract|def multiply|def divide"
+    let pipeline_pattern = "class Pipeline|def add_stage|def execute|def validate|def get_audit_log"
 
-    // Short invariant reminder — full list is in system_prompt to reduce CDD noise
-    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_history returns .copy(), type hints, docstrings, ALL caller-facing errors are ValueError — never bare ZeroDivisionError/TypeError, never custom exception classes)."
+    // Short invariant reminder
+    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_audit_log returns .copy(), validate returns ValidationResult never raises, ALL errors are PipelineError, type hints, docstrings, execute appends to audit_log)."
 
     // Existing method list — grows as features are added
-    let existing_methods = "add, subtract, multiply, divide, get_history, clear_history"
+    let existing_methods = "add_stage, execute, validate, get_audit_log, clear_audit_log"
 
-    // Operator message prefix — operator can set this to inject reminders
+    // Operator message prefix
     let operator_msg_prefix = ""
+
+    // ================================================================
+    // LEVEL 19: Register tools for developer (before any sends)
+    // ================================================================
+    print("PHASE|TOOL_REGISTRATION|start")
+
+    let tools_registered = 0
+    try {
+        fn validate_python_tool(args) {
+            let code = args.get("code") ?? ""
+            if len(code) < 5 { return json.stringify({"valid": false, "error": "Code too short"}) }
+            file.write("_tool_check.py", code)
+            let result = process.run("python3", ["-c", "import ast; ast.parse(open('_tool_check.py').read()); print('OK')"])
+            if result.exit_code == 0 {
+                return json.stringify({"valid": true, "error": ""})
+            }
+            return json.stringify({"valid": false, "error": string.trim(result.stderr)})
+        }
+        let reg1 = agent.register_tool("validate_python", validate_python_tool, {
+            "description": "Validate Python code syntax using ast.parse",
+            "parameters": {"code": {"type": "string", "description": "Python source code to validate"}}
+        })
+        if reg1 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|validate_python=" + string(reg1))
+    } catch (e) {
+        print("TOOL_REGISTRATION|validate_python_error=" + string(e))
+    }
+
+    try {
+        fn check_schema_tool(args) {
+            let code = args.get("code") ?? ""
+            let required = args.get("required_patterns") ?? []
+            let missing = []
+            let ri = 0
+            while ri < required.length() {
+                if !string.contains(code, required[ri]) {
+                    missing.push(required[ri])
+                }
+                ri = ri + 1
+            }
+            return json.stringify({"all_present": missing.length() == 0, "missing": missing})
+        }
+        let reg2 = agent.register_tool("check_schema", check_schema_tool, {
+            "description": "Check that required patterns exist in code",
+            "parameters": {
+                "code": {"type": "string", "description": "Source code to check"},
+                "required_patterns": {"type": "array", "items": {"type": "string"}, "description": "List of strings that must appear in code"}
+            }
+        })
+        if reg2 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|check_schema=" + string(reg2))
+    } catch (e) {
+        print("TOOL_REGISTRATION|check_schema_error=" + string(e))
+    }
+
+    print("TOOL_REGISTRATION|total=" + string(tools_registered))
+    tracking["phases_completed"].push("TOOL_REGISTRATION")
 
     // ================================================================
     // OPERATOR CONSULTATION
@@ -413,7 +458,6 @@ main {
             }
         }
 
-        // Operator can set a message prefix for developer prompts
         let msg_prefix = decision.get("message_prefix")
         if msg_prefix != null && len(string(msg_prefix)) > 5 {
             operator_msg_prefix = string(msg_prefix)
@@ -428,7 +472,6 @@ main {
     // ================================================================
     print("PHASE|PREFLIGHT|start")
 
-    // agent.check — validate all 7 agent configs exist and are valid
     let config_names = ["operator", "architect", "developer", "tester", "reviewer", "specialist", "judge"]
     let valid_count = 0
     let ci = 0
@@ -442,7 +485,6 @@ main {
     let all_valid = valid_count == config_names.length()
     print("PREFLIGHT|agent_checks=" + string(valid_count) + "|all_valid=" + string(all_valid))
 
-    // agent.check — verify graceful handling of nonexistent config
     try {
         let bad_chk = agent.check("nonexistent_agent_xyz")
         let bad_valid = bad_chk.get("valid") ?? true
@@ -451,7 +493,6 @@ main {
         print("PREFLIGHT|invalid_check=handled|threw=" + string(e))
     }
 
-    // codegen.is_enabled + codegen.supported_languages
     try {
         let cg_enabled = codegen.is_enabled()
         let cg_langs = codegen.supported_languages()
@@ -466,16 +507,14 @@ main {
         print("PREFLIGHT|codegen_error=" + string(e))
     }
 
-    // governance.parse_findings — parse synthetic findings text
     try {
-        let test_findings_text = "Missing type hints on add() and subtract() methods. History should return a copy."
+        let test_findings_text = "Missing type hints on execute() method. Audit log should return a copy."
         let parsed = governance.parse_findings(test_findings_text)
         print("PREFLIGHT|parse_findings=" + string(parsed.length()))
     } catch (e) {
         print("PREFLIGHT|parse_findings_error=" + string(e))
     }
 
-    // Baseline governance health for progression tracking (Level 15)
     let baseline_health = {}
     try {
         baseline_health = governance.health()
@@ -486,20 +525,33 @@ main {
         print("PREFLIGHT|baseline_health_error=" + string(e))
     }
 
+    // Level 19: verify tool registration visible in environment
+    if handles.get("developer") != null {
+        try {
+            let dev_env = agent.environment(handles["developer"])
+            let perms = dev_env.get("permissions") ?? {}
+            let tools_on = perms.get("tools_enabled") ?? false
+            let tools_avail = perms.get("tools_available") ?? 0
+            print("PREFLIGHT|developer_tools_enabled=" + string(tools_on) + "|tools_available=" + string(tools_avail))
+        } catch (e) {
+            print("PREFLIGHT|developer_tools_error=" + string(e))
+        }
+    }
+
     tracking["phases_completed"].push("PREFLIGHT")
 
     // ================================================================
-    // PHASE 1: DESIGN — architect designs base calculator
+    // PHASE 1: DESIGN — architect designs data pipeline framework
     // ================================================================
     print("PHASE|DESIGN|start")
     let spec = ""
 
     if handles.get("architect") != null {
-        let design_msg = "Design a Python CLI calculator application with these files:\n"
-        design_msg = design_msg + "1. operations.py: Calculator class with add(a,b), subtract(a,b), multiply(a,b), divide(a,b), get_history(), clear_history(). Each op stores (op_name, a, b, result) tuple in self._history. divide raises ValueError on zero.\n"
-        design_msg = design_msg + "2. main.py: argparse CLI with --op flag and two positional float args. Print result and history.\n"
-        design_msg = design_msg + "3. test_calc.py: pytest tests for all 4 ops, history tracking, clear_history, divide-by-zero.\n\n"
-        design_msg = design_msg + "This calculator will be EXTENDED later with: power/modulo ops, memory system, expression parsing. Design for extensibility.\n"
+        let design_msg = "Design a Python data pipeline framework with these files:\n"
+        design_msg = design_msg + "1. models.py: Data structures — FieldType enum (STRING, INTEGER, FLOAT, BOOLEAN), Field dataclass (name, field_type, nullable, default), Schema dataclass (name, fields list), Record dataclass (data dict, optional schema), ValidationResult dataclass (valid bool, errors list), PipelineError exception class.\n"
+        design_msg = design_msg + "2. pipeline.py: Pipeline class that imports from models. Methods: __init__(name), add_stage(name, transform_fn) adds a processing stage, execute(records) runs all stages in order (each stage receives prior output, appends audit entry), validate(record, schema) returns ValidationResult, get_audit_log() returns copy of audit log, clear_audit_log(). Also include SchemaValidator class and TransformEngine class with static methods: map_records, filter_records, sort_records.\n"
+        design_msg = design_msg + "3. test_pipeline.py: pytest tests for Pipeline (add_stage, execute, validate, audit_log copy, clear), SchemaValidator, TransformEngine.\n\n"
+        design_msg = design_msg + "This pipeline will be EXTENDED later with: aggregation, error recovery, computed fields, import/export. Design for extensibility.\n"
         design_msg = design_msg + "Output complete spec with function signatures, types, and docstrings."
         let resp = safe_send(handles["architect"], design_msg)
         tracking["total_sends"] = tracking["total_sends"] + 1
@@ -512,8 +564,6 @@ main {
         print("TURN|architect|design|c=" + string(tracking["coherences"].get("architect") ?? -1))
     }
 
-    // A create_agent decision here can't be honored yet (ops_code doesn't
-    // exist until IMPLEMENT) — stash it and replay it as soon as code exists.
     let pending_specialist_request = null
     let design_decision = consult_operator({"phase": "DESIGN", "event": "design_complete", "spec_length": string.length(spec), "question": "Design phase complete. Review telemetry. Adjust before implementation?"})
     if design_decision.get("action") == "create_agent" {
@@ -525,38 +575,52 @@ main {
     // PHASE 2: IMPLEMENT — developer writes initial code
     // ================================================================
     print("PHASE|IMPLEMENT|start")
-    let ops_code = ""
-    let main_code = ""
+    let pipeline_code = ""
+    let models_code = ""
     let test_code = ""
 
     if handles.get("developer") != null {
-        // operations.py
-        let ops_msg = "Write operations.py based on this spec:\n" + spec
-        ops_msg = ops_msg + "\n\n" + invariants
-        ops_msg = ops_msg + "\nMUST include: Calculator class with add(a,b), subtract(a,b), multiply(a,b), divide(a,b) that raises ValueError on zero, get_history() returning self._history.copy(), clear_history(). Each op appends (op_name, a, b, result) to self._history. Type hints and docstrings on all methods. ```python fences. Code only."
-        let resp = safe_send(handles["developer"], ops_msg)
+        // models.py
+        let models_msg = "Write models.py with these data structures:\n"
+        models_msg = models_msg + "- FieldType enum: STRING, INTEGER, FLOAT, BOOLEAN\n"
+        models_msg = models_msg + "- Field dataclass: name (str), field_type (FieldType), nullable (bool, default False), default (Any, default None)\n"
+        models_msg = models_msg + "- Schema dataclass: name (str), fields (List[Field])\n"
+        models_msg = models_msg + "- Record dataclass: data (Dict[str, Any])\n"
+        models_msg = models_msg + "- ValidationResult dataclass: valid (bool), errors (List[str])\n"
+        models_msg = models_msg + "- PipelineError(Exception): custom exception class\n\n"
+        models_msg = models_msg + "Use dataclasses and enum. Type hints and docstrings on everything. ```python fences. Code only."
+        let resp = safe_send(handles["developer"], models_msg)
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
-            ops_code = agent.extract_code(resp.get("content") ?? "", "python")
+            models_code = agent.extract_code(resp.get("content") ?? "", "python")
         } else {
             tracking["send_errors"] = tracking["send_errors"] + 1
         }
-        print("TURN|developer|ops|c=" + string(tracking["coherences"].get("developer") ?? -1))
+        print("TURN|developer|models|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
-        // main.py
-        resp = safe_send(handles["developer"], "Write main.py with argparse CLI. Import Calculator from operations. Support --op add/sub/mul/div, two positional float args. Print result and full history. Handle ValueError from divide. ```python fences. Code only.")
+        // pipeline.py
+        let pipeline_msg = "Write pipeline.py based on this spec:\n" + spec
+        pipeline_msg = pipeline_msg + "\n\n" + invariants
+        pipeline_msg = pipeline_msg + "\nMUST include:\n"
+        pipeline_msg = pipeline_msg + "- Pipeline class with __init__(name), add_stage(name, transform_fn), execute(records) that runs stages in order and appends (stage_name, input_count, output_count, success) to self._audit_log, validate(record, schema) returning ValidationResult, get_audit_log() returning self._audit_log.copy(), clear_audit_log()\n"
+        pipeline_msg = pipeline_msg + "- SchemaValidator class with validate(record, schema) method\n"
+        pipeline_msg = pipeline_msg + "- TransformEngine class with static methods: map_records(records, fn), filter_records(records, predicate), sort_records(records, key, reverse=False)\n"
+        pipeline_msg = pipeline_msg + "- Import from models: Record, Schema, Field, FieldType, ValidationResult, PipelineError\n"
+        pipeline_msg = pipeline_msg + "- All errors must be PipelineError\n"
+        pipeline_msg = pipeline_msg + "```python fences. Code only."
+        resp = safe_send(handles["developer"], pipeline_msg)
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
-            main_code = agent.extract_code(resp.get("content") ?? "", "python")
+            pipeline_code = agent.extract_code(resp.get("content") ?? "", "python")
         } else {
             tracking["send_errors"] = tracking["send_errors"] + 1
         }
-        print("TURN|developer|main|c=" + string(tracking["coherences"].get("developer") ?? -1))
+        print("TURN|developer|pipeline|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
-        // test_calc.py
-        resp = safe_send(handles["developer"], "Write test_calc.py with pytest. Test all 4 operations with multiple values, get_history returns a copy (modifying returned list doesn't affect internal), clear_history empties it, divide-by-zero raises ValueError. Use @pytest.fixture for calculator instance. At least 8 test functions. Test ONLY the methods listed — do NOT write tests for methods that do not exist yet. ```python fences. Code only.")
+        // test_pipeline.py
+        resp = safe_send(handles["developer"], "Write test_pipeline.py with pytest. Import from models and pipeline. Test Pipeline (add_stage, execute with multiple stages, validate valid/invalid records, get_audit_log returns copy, clear_audit_log), SchemaValidator, and TransformEngine (map, filter, sort). Use @pytest.fixture for pipeline instance. At least 10 test functions. Test ONLY the classes and methods that exist. Invalid operations must raise PipelineError. ```python fences. Code only.")
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
@@ -566,17 +630,14 @@ main {
         }
         print("TURN|developer|test|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
-        print("CODE|ops=" + string(len(ops_code)) + "|main=" + string(len(main_code)) + "|test=" + string(len(test_code)))
+        print("CODE|pipeline=" + string(len(pipeline_code)) + "|models=" + string(len(models_code)) + "|test=" + string(len(test_code)))
     }
 
-    let impl_decision = consult_operator({"phase": "IMPLEMENT", "event": "code_written", "ops_len": len(ops_code), "main_len": len(main_code), "test_len": len(test_code), "question": "Initial code written. Check developer coherence. Pre-refinement adjustments?"})
+    let impl_decision = consult_operator({"phase": "IMPLEMENT", "event": "code_written", "pipeline_len": len(pipeline_code), "models_len": len(models_code), "test_len": len(test_code), "question": "Initial code written. Check developer coherence. Pre-refinement adjustments?"})
     tracking["phases_completed"].push("IMPLEMENT")
 
     // ================================================================
-    // Level 6 (mid-run): operator can request the specialist at ANY consult.
-    // Deliberately defined here, AFTER ops_code exists — consult_operator is
-    // defined before ops_code and its closure cannot act on create_agent,
-    // which is why decisions must be handled at the call sites via this fn.
+    // Level 6 (mid-run): specialist handler
     // ================================================================
     let specialist_created = false
     fn handle_specialist_request(decision, phase_label) {
@@ -585,7 +646,7 @@ main {
             print("SPECIALIST|" + phase_label + "|already_exists")
             return false
         }
-        if len(ops_code) < 20 {
+        if len(pipeline_code) < 20 {
             print("SPECIALIST|" + phase_label + "|skipped_no_code")
             return false
         }
@@ -595,26 +656,24 @@ main {
             handles["specialist"] = specialist
             specialist_created = true
             tracking["agents_created"] = tracking["agents_created"] + 1
-            let task = decision.get("task") ?? "Review the calculator operations.py for code quality: edge cases, consistency, type hints, docstrings, and robustness. Keep ALL existing methods and behavior."
-            let spec_msg = string(task) + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE improved operations.py. ```python fences. Code only."
+            let task = decision.get("task") ?? "Review pipeline.py for code quality: edge cases, consistency, type hints, docstrings, and robustness. Keep ALL existing methods and behavior."
+            let spec_msg = string(task) + "\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE improved pipeline.py. ```python fences. Code only."
             let resp = safe_send(specialist, spec_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
                 track("specialist", resp)
                 let improved = agent.extract_code(resp.get("content") ?? "", "python")
-                // Adopt only if it parses AND still matches the base method
-                // pattern — the specialist must improve, not replace, the API
                 let adopt = false
                 if len(improved) > 20 {
                     file.write("_spec_check.py", improved)
                     let chk = process.run("python3", ["-c", "import ast; ast.parse(open('_spec_check.py').read())"])
-                    let conv = orchestra.enforce_convergence(improved, {pattern: ops_pattern})
+                    let conv = orchestra.enforce_convergence(improved, {pattern: pipeline_pattern})
                     adopt = chk.exit_code == 0 && (conv.get("valid") ?? false)
                 }
                 if adopt {
-                    ops_code = improved
+                    pipeline_code = improved
                     tracking["specialist_consults"] = (tracking.get("specialist_consults") ?? 0) + 1
-                    print("SPECIALIST|" + phase_label + "|adopted|len=" + string(len(ops_code)))
+                    print("SPECIALIST|" + phase_label + "|adopted|len=" + string(len(pipeline_code)))
                 } else {
                     print("SPECIALIST|" + phase_label + "|output_rejected|len=" + string(len(improved)))
                 }
@@ -630,9 +689,6 @@ main {
         }
     }
 
-    // Honor the earliest-phase specialist requests now that both ops_code and
-    // the handler exist. The handler's own guards (already-exists, no-code)
-    // make these calls safe no-ops when nothing was requested or code is empty.
     if pending_specialist_request != null {
         handle_specialist_request(pending_specialist_request, "DESIGN")
     }
@@ -654,8 +710,8 @@ main {
         print("REFINE_ITER|" + string(iteration) + "|start")
 
         // Step 1: Tester reviews current code
-        if handles.get("tester") != null && len(ops_code) > 20 {
-            let test_msg = "Review this Python calculator code carefully. List ALL bugs, missing features, style issues. Check: type hints, docstrings, history returns copy, divide-by-zero, edge cases.\n```python\n" + ops_code + "\n```"
+        if handles.get("tester") != null && len(pipeline_code) > 20 {
+            let test_msg = "Review this Python data pipeline code carefully. List ALL bugs, missing features, style issues. Check: type hints, docstrings, audit log returns copy, PipelineError for all errors, validate returns ValidationResult, edge cases.\n```python\n" + pipeline_code + "\n```"
             let resp = safe_send(handles["tester"], test_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
@@ -667,33 +723,33 @@ main {
             print("TURN|tester|iter" + string(iteration) + "|c=" + string(tracking["coherences"].get("tester") ?? -1))
         }
 
-        // Step 2: Developer fixes operations.py
+        // Step 2: Developer fixes pipeline.py
         if handles.get("developer") != null && len(tester_feedback) > 10 {
             let fix_msg = ""
             if len(operator_msg_prefix) > 0 { fix_msg = operator_msg_prefix + "\n\n" }
-            fix_msg = fix_msg + "Fix these issues in operations.py:\n" + tester_feedback
+            fix_msg = fix_msg + "Fix these issues in pipeline.py:\n" + tester_feedback
             if len(reviewer_feedback) > 10 {
                 fix_msg = fix_msg + "\n\nAlso address reviewer feedback:\n" + reviewer_feedback
             }
             fix_msg = fix_msg + "\n\n" + invariants
             fix_msg = fix_msg + "\nDO NOT modify methods that have no issues. Only fix what is broken."
-            fix_msg = fix_msg + "\n\nCurrent code:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
+            fix_msg = fix_msg + "\n\nCurrent code:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
             let resp = safe_send(handles["developer"], fix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
                 track("developer", resp)
-                let new_ops = agent.extract_code(resp.get("content") ?? "", "python")
-                if len(new_ops) > 20 {
-                    ops_code = new_ops
-                    print("REFINE|developer_rewrote|len=" + string(len(ops_code)))
+                let new_pipeline = agent.extract_code(resp.get("content") ?? "", "python")
+                if len(new_pipeline) > 20 {
+                    pipeline_code = new_pipeline
+                    print("REFINE|developer_rewrote|len=" + string(len(pipeline_code)))
                 }
             } else {
                 tracking["send_errors"] = tracking["send_errors"] + 1
             }
             print("TURN|developer|fix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
-            // Update tests for found issues
-            let testfix_msg = "Update test_calc.py to cover issues found:\n" + tester_feedback + "\nTest ONLY methods that exist in the CURRENT operations.py below — do NOT write tests for methods that do not exist yet.\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 8 tests. ```python fences. Code only."
+            // Update tests
+            let testfix_msg = "Update test_pipeline.py to cover issues found:\n" + tester_feedback + "\nTest ONLY classes and methods that exist in the CURRENT pipeline.py below — do NOT write tests for methods that do not exist yet.\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nInvalid operations MUST be tested with pytest.raises(PipelineError)." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 10 tests. ```python fences. Code only."
             resp = safe_send(handles["developer"], testfix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
@@ -706,8 +762,8 @@ main {
             print("TURN|developer|testfix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
         }
 
-        // Step 3: Validate (Level 2 — polyglot)
-        let val = validate_code(ops_code, main_code, test_code, ops_pattern)
+        // Step 3: Validate
+        let val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
         let val_keys = val.keys()
         let vk = 0
         while vk < val_keys.length() {
@@ -717,8 +773,8 @@ main {
 
         // Step 4: Reviewer votes
         let verdict = "REVIEW"
-        if handles.get("reviewer") != null && len(ops_code) > 20 {
-            let review_msg = "Review this Python calculator for production quality. Check: type hints on ALL methods, docstrings, proper error handling (ValueError for divide-by-zero), history returns a COPY (list.copy() or list[:]), clear_history. Vote APPROVED only if ALL present. REJECTED with specific issues.\n```python\n" + ops_code + "\n```"
+        if handles.get("reviewer") != null && len(pipeline_code) > 20 {
+            let review_msg = "Review this Python data pipeline for production quality. Check: type hints on ALL methods, docstrings, proper error handling (PipelineError only), audit log returns a COPY, validate returns ValidationResult. Vote APPROVED only if ALL present. REJECTED with specific issues.\n```python\n" + pipeline_code + "\n```"
             let pytest_out = val.get("pytest_output") ?? ""
             if len(pytest_out) > 10 {
                 review_msg = review_msg + "\n\nPytest results:\n" + pytest_out
@@ -743,10 +799,9 @@ main {
             print("REFINE|approved_at_iteration=" + string(iteration))
         }
 
-        // Step 5: Consult operator
         let dev_c = tracking["coherences"].get("developer") ?? -1
         let dev_min = tracking["min_coherences"].get("developer") ?? -1
-        let iter_ctx = {"phase": "REFINE", "event": "iteration_complete", "iteration": iteration, "verdict": verdict, "developer_coherence": dev_c, "developer_min_coherence": dev_min, "ops_len": len(ops_code), "question": "Iteration " + string(iteration) + " verdict: " + verdict + ". Developer coherence: " + string(dev_c) + " (min: " + string(dev_min) + "). Adjust if coherence dropping."}
+        let iter_ctx = {"phase": "REFINE", "event": "iteration_complete", "iteration": iteration, "verdict": verdict, "developer_coherence": dev_c, "developer_min_coherence": dev_min, "pipeline_len": len(pipeline_code), "question": "Iteration " + string(iteration) + " verdict: " + verdict + ". Developer coherence: " + string(dev_c) + " (min: " + string(dev_min) + "). Adjust if coherence dropping."}
         let iter_decision = consult_operator(iter_ctx)
         handle_specialist_request(iter_decision, "REFINE")
 
@@ -767,22 +822,21 @@ main {
     let propose_candidates = 0
     let codegen_result = "skipped"
 
-    if handles.get("developer") != null && len(ops_code) > 20 {
+    if handles.get("developer") != null && len(pipeline_code) > 20 {
         check_coherence(handles["developer"], "developer")
-        let propose_msg = "Add a validate_input(value) method to the Calculator class that checks if the input is a valid number (int or float). Raise TypeError if not. Add type hint and docstring.\n\n" + invariants + "\n\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE file with validate_input added. ```python fences. Code only."
+        let propose_msg = "Add a get_stage_names() method to the Pipeline class that returns a list of all stage names added via add_stage(). Add type hint and docstring.\n\n" + invariants + "\n\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE file with get_stage_names added. ```python fences. Code only."
         try {
             let proposals = null
             try {
-                proposals = agent.propose(handles["developer"], propose_msg, 2)
+                proposals = agent.propose(handles["developer"], propose_msg, 3)
             } catch (e) {
-                // Re-authorize via send if step-up challenge blocks propose
                 if string(e).contains("step-up") {
                     print("PROPOSE_SELECT|step_up_reauth")
                     let reauth = agent.send(handles["developer"], "Confirm you are ready to proceed. Restate your current objective in one sentence.")
                     tracking["total_sends"] = tracking["total_sends"] + 1
                     track("developer", reauth)
                     post_send_check(handles["developer"], reauth, "developer")
-                    proposals = agent.propose(handles["developer"], propose_msg, 2)
+                    proposals = agent.propose(handles["developer"], propose_msg, 3)
                 } else {
                     throw e
                 }
@@ -792,11 +846,9 @@ main {
             print("PROPOSE_SELECT|candidates=" + string(propose_candidates))
 
             if propose_candidates > 0 {
-                // Select best admissible candidate
                 let selected = orchestra.select_admissible(proposals)
                 let best = selected.get("selected") ?? selected.get("candidates")
                 if best != null {
-                    // Commit the first/best candidate
                     let to_commit = best
                     if best.get("content") == null && best.length != null && best.length() > 0 {
                         to_commit = best[0]
@@ -807,17 +859,15 @@ main {
                     post_send_check(handles["developer"], committed, "developer")
                     let committed_code = agent.extract_code(committed.get("content") ?? "", "python")
                     if len(committed_code) > 20 {
-                        ops_code = committed_code
+                        pipeline_code = committed_code
                     }
                     print("PROPOSE_SELECT|committed=true")
                 }
             }
 
-            // Validate syntax via codegen
-            if len(ops_code) > 20 {
+            if len(pipeline_code) > 20 {
                 try {
-                    let escaped = string.replace(ops_code, "'", "\\'")
-                    codegen.run_strict("python", "import ast; ast.parse('''" + ops_code + "''')")
+                    codegen.run_strict("python", "import ast; ast.parse('''" + pipeline_code + "''')")
                     codegen_result = "pass"
                 } catch (e) {
                     codegen_result = "fail"
@@ -838,10 +888,8 @@ main {
     print("PHASE|FEATURES|start")
     print("PHASE|REACTIVE|start")
 
-    // Expected convergence patterns for each requirement file
-    let feature_patterns = {"requirement-001.txt": "def power|def modulo", "requirement-002.txt": "def memory_store|def memory_recall|def memory_clear", "requirement-003.txt": "def evaluate", "requirement-004.txt": "def register_plugin|def run_plugin|def list_plugins"}
+    let feature_patterns = {"requirement-001.txt": "def group_by|def aggregate", "requirement-002.txt": "def retry_stage|def get_dead_letters", "requirement-003.txt": "def add_computed_field", "requirement-004.txt": "def export_json|def import_json|def get_statistics"}
 
-    // Scan input/ for requirement files
     let req_files = []
     try {
         let all_files = file.list_dir("input")
@@ -859,7 +907,7 @@ main {
     print("REACTIVE|scanning|found=" + string(req_files.length()) + " requirements")
 
     let feat_num = 0
-    let prev_ops_len = len(ops_code)
+    let prev_pipeline_len = len(pipeline_code)
     let last_fail_detail = ""
     let fi = 0
     while fi < req_files.length() {
@@ -872,32 +920,27 @@ main {
         print("REACTIVE|found=" + fname)
         print("FEATURE|" + string(feat_num) + "|start|" + trimmed)
 
-        // Per-feature error-semantics CONTRACT — one sentence shared verbatim by
-        // the ops prompt, the test prompt, and the fix prompts, so code and tests
-        // are written against the same behavior instead of re-deriving it
-        // independently (the Jul 18 feature-2 coin flip: the developer was told
-        // "recall returns None, do NOT raise" while the tests expected ValueError).
         let feat_contract = ""
         if fname == "requirement-001.txt" {
-            feat_contract = "power() raises ValueError for complex results; modulo() raises ValueError on zero."
+            feat_contract = "group_by(records, key_field) raises PipelineError if key_field missing from any record; aggregate(groups, field, func_name) supports 'sum','avg','count','min','max' and raises PipelineError for unknown func_name; having(groups, predicate) filters groups by predicate function."
         }
         if fname == "requirement-002.txt" {
-            feat_contract = "memory_recall() with nothing stored returns None — that is NOT an error: do not raise, and do not write a test expecting a raise; memory_store() with a non-numeric value raises ValueError; memory_store() records to history."
+            feat_contract = "retry_stage(name, transform_fn, max_retries=3) retries failed stages up to max_retries times; get_dead_letters() returns self._dead_letters.copy() — NEVER return the internal list directly; failed records go to dead letter queue after all retries exhausted."
         }
         if fname == "requirement-003.txt" {
-            feat_contract = "evaluate() records ONE history entry (not intermediate steps) and uses ast.parse not eval(); invalid or malformed expressions (including division by zero) raise ValueError; standard operator precedence and left-associativity apply (evaluate has no side rules: 1 - 2 + 3 is 2, 2 + 3 * 4 is 14)."
+            feat_contract = "add_computed_field(name, compute_fn) adds a derived field to each record; compute_fn receives the record dict and returns the new field value; method returns self for chaining (fluent API); raises PipelineError if name is empty or compute_fn is not callable."
         }
         if fname == "requirement-004.txt" {
-            feat_contract = "run_plugin() raises ValueError for unregistered plugins; register_plugin() raises ValueError for duplicate names or non-callable plugins."
+            feat_contract = "export_json(records, filepath) writes records to JSON file; import_json(filepath) reads records from JSON file returning list of Record objects; get_statistics() returns dict with total_records_processed, stages_executed, error_count; all file I/O errors wrapped as PipelineError."
         }
 
         // Architect analyzes impact
         if handles.get("architect") != null && len(trimmed) > 5 {
-            let arch_msg = "New feature requirement for the calculator:\n" + trimmed + "\n\nCurrent Calculator class has: add, subtract, multiply, divide, get_history, clear_history."
+            let arch_msg = "New feature requirement for the data pipeline:\n" + trimmed + "\n\nCurrent Pipeline class has: " + existing_methods
             if tracking["features_processed"] > 0 {
                 arch_msg = arch_msg + "\nPreviously added features: " + string(tracking["feature_names"])
             }
-            arch_msg = arch_msg + "\n\nDesign the changes: specify exact new method names and signatures for the Calculator class. Keep all existing methods."
+            arch_msg = arch_msg + "\n\nDesign the changes: specify exact new method names and signatures for the Pipeline class. Keep all existing methods."
             let resp = safe_send(handles["architect"], arch_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
@@ -905,41 +948,40 @@ main {
                 let guidance = resp.get("content") ?? ""
                 print("TURN|architect|feature" + string(feat_num) + "|c=" + string(tracking["coherences"].get("architect") ?? -1))
 
-                // Developer implements in operations.py
                 if handles.get("developer") != null {
                     check_coherence(handles["developer"], "developer")
                     let dev_msg = ""
                     if len(operator_msg_prefix) > 0 { dev_msg = operator_msg_prefix + "\n\n" }
-                    dev_msg = dev_msg + "ADD this feature to operations.py:\n" + guidance
+                    dev_msg = dev_msg + "ADD this feature to pipeline.py:\n" + guidance
                     dev_msg = dev_msg + "\n\nRequirement: " + trimmed
                     dev_msg = dev_msg + "\n\n" + invariants
                     if len(feat_contract) > 0 { dev_msg = dev_msg + "\nCONTRACT for this feature (code MUST match): " + feat_contract }
                     dev_msg = dev_msg + "\nEXISTING METHODS (do NOT modify): " + existing_methods
                     dev_msg = dev_msg + "\nOnly ADD new methods for this feature. Do not rewrite or change existing methods."
-                    dev_msg = dev_msg + "\n\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE file with the new methods added. ```python fences. Code only."
+                    dev_msg = dev_msg + "\n\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE file with the new methods added. ```python fences. Code only."
                     resp = safe_send(handles["developer"], dev_msg)
                     tracking["total_sends"] = tracking["total_sends"] + 1
                     if resp.get("error") == null {
                         track("developer", resp)
                         post_send_check(handles["developer"], resp, "developer")
-                        let updated_ops = agent.extract_code(resp.get("content") ?? "", "python")
-                        if len(updated_ops) > 20 {
-                            ops_code = updated_ops
-                            print("FEATURE|" + string(feat_num) + "|ops_updated|len=" + string(len(ops_code)))
+                        let updated_pipeline = agent.extract_code(resp.get("content") ?? "", "python")
+                        if len(updated_pipeline) > 20 {
+                            pipeline_code = updated_pipeline
+                            print("FEATURE|" + string(feat_num) + "|pipeline_updated|len=" + string(len(pipeline_code)))
                         }
                     } else {
                         tracking["send_errors"] = tracking["send_errors"] + 1
                     }
-                    print("TURN|developer|feat" + string(feat_num) + "_ops|c=" + string(tracking["coherences"].get("developer") ?? -1))
+                    print("TURN|developer|feat" + string(feat_num) + "_pipeline|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
                     // Developer updates test file
                     check_coherence(handles["developer"], "developer")
                     let test_msg = "Add tests for this new feature ONLY:\n" + trimmed
                     if len(feat_contract) > 0 { test_msg = test_msg + "\n\nCONTRACT (tests MUST match this exactly): " + feat_contract }
-                    test_msg = test_msg + "\n\nInvalid input MUST be tested with pytest.raises(ValueError) — the calculator NEVER raises bare ZeroDivisionError/TypeError or custom exception classes."
-                    test_msg = test_msg + "\n\nCurrent operations.py (write tests against THESE method signatures — do not guess names):\n```python\n" + ops_code + "\n```"
+                    test_msg = test_msg + "\n\nInvalid input MUST be tested with pytest.raises(PipelineError)."
+                    test_msg = test_msg + "\n\nCurrent pipeline.py (write tests against THESE method signatures):\n```python\n" + pipeline_code + "\n```"
                     test_msg = test_msg + "\nDo NOT modify existing tests. Only ADD new test functions."
-                    test_msg = test_msg + "\n\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput the COMPLETE file with new tests added. pytest with fixture. ```python fences. Code only."
+                    test_msg = test_msg + "\n\nCurrent test_pipeline.py:\n```python\n" + test_code + "\n```\nOutput the COMPLETE file with new tests added. pytest with fixture. ```python fences. Code only."
                     resp = safe_send(handles["developer"], test_msg)
                     tracking["total_sends"] = tracking["total_sends"] + 1
                     if resp.get("error") == null {
@@ -957,9 +999,9 @@ main {
             }
         }
 
-        // Tester reviews evolved code for regressions and new-feature bugs
-        if handles.get("tester") != null && len(ops_code) > 20 {
-            let feat_test_msg = "Review this evolved calculator code. Feature just added: " + trimmed + "\nCheck for:\n1. Regressions — did existing methods break? (especially get_history returning a COPY)\n2. New feature bugs — edge cases, missing type hints, missing docstrings\n3. History tracking — new operations must record to self._history\nList ALL issues found.\n```python\n" + ops_code + "\n```"
+        // Tester reviews
+        if handles.get("tester") != null && len(pipeline_code) > 20 {
+            let feat_test_msg = "Review this evolved data pipeline code. Feature just added: " + trimmed + "\nCheck for:\n1. Regressions — did existing methods break? (especially get_audit_log returning a COPY)\n2. New feature bugs — edge cases, missing type hints, missing docstrings\n3. Error handling — all errors must be PipelineError\nList ALL issues found.\n```python\n" + pipeline_code + "\n```"
             let tresp = safe_send(handles["tester"], feat_test_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if tresp.get("error") == null {
@@ -967,24 +1009,23 @@ main {
                 let feat_tester_fb = tresp.get("content") ?? ""
                 print("TURN|tester|feat" + string(feat_num) + "|c=" + string(tracking["coherences"].get("tester") ?? -1))
 
-                // Developer fixes issues found by tester
                 if handles.get("developer") != null && len(feat_tester_fb) > 10 {
                     let feat_fix_msg = ""
                     if len(operator_msg_prefix) > 0 { feat_fix_msg = operator_msg_prefix + "\n\n" }
                     feat_fix_msg = feat_fix_msg + "Fix ONLY these issues (found after adding: " + trimmed + "):\n" + feat_tester_fb
                     feat_fix_msg = feat_fix_msg + "\n\n" + invariants
                     feat_fix_msg = feat_fix_msg + "\nEXISTING METHODS (do NOT modify): " + existing_methods
-                    feat_fix_msg = feat_fix_msg + "\n\nCurrent code:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
+                    feat_fix_msg = feat_fix_msg + "\n\nCurrent code:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
                     check_coherence(handles["developer"], "developer")
                     let fresp = safe_send(handles["developer"], feat_fix_msg)
                     tracking["total_sends"] = tracking["total_sends"] + 1
                     if fresp.get("error") == null {
                         track("developer", fresp)
                         post_send_check(handles["developer"], fresp, "developer")
-                        let fixed_ops = agent.extract_code(fresp.get("content") ?? "", "python")
-                        if len(fixed_ops) > 20 {
-                            ops_code = fixed_ops
-                            print("FEATURE|" + string(feat_num) + "|developer_fixed|len=" + string(len(ops_code)))
+                        let fixed_pipeline = agent.extract_code(fresp.get("content") ?? "", "python")
+                        if len(fixed_pipeline) > 20 {
+                            pipeline_code = fixed_pipeline
+                            print("FEATURE|" + string(feat_num) + "|developer_fixed|len=" + string(len(pipeline_code)))
                         }
                     } else {
                         tracking["send_errors"] = tracking["send_errors"] + 1
@@ -996,23 +1037,19 @@ main {
             }
         }
 
-        // Evolve convergence pattern and invariants with feature-specific methods
+        // Evolve convergence pattern
         let feat_pattern = feature_patterns.get(fname)
         if feat_pattern != null {
-            ops_pattern = ops_pattern + "|" + feat_pattern
-            // Grow the existing methods list so next feature knows what to preserve
+            pipeline_pattern = pipeline_pattern + "|" + feat_pattern
             let new_methods = string.replace(string.replace(feat_pattern, "def ", ""), "|", ", ")
             existing_methods = existing_methods + ", " + new_methods
         }
-        // Feature-specific reminders (lightweight — full invariants in system_prompt)
-        // (Accumulates the shared CONTRACT so later features and the refinement
-        // fix prompts keep honoring earlier features' error semantics.)
         if len(feat_contract) > 0 {
             invariants = invariants + " Also: " + feat_contract
         }
 
         // Validate evolved code (includes pytest)
-        let fval = validate_code(ops_code, main_code, test_code, ops_pattern)
+        let fval = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
         let fval_keys = fval.keys()
         let fvk = 0
         while fvk < fval_keys.length() {
@@ -1022,11 +1059,7 @@ main {
             fvk = fvk + 1
         }
 
-        // Pytest fix loop — up to 2 attempts, re-validating after each. Attempt 1
-        // fixes operations.py against the failure detail. Attempt 2 additionally
-        // shows test_calc.py and the feature CONTRACT: if a failing test
-        // contradicts the contract, the developer may fix the TEST instead —
-        // never to weaken assertions that match the contract.
+        // Pytest fix loop
         let cur_val = fval
         let fix_attempt = 0
         while cur_val.get("pytest_passed") == false && fix_attempt < 2 && handles.get("developer") != null {
@@ -1041,13 +1074,12 @@ main {
                 if string.contains(pl, "FAILED") || string.contains(pl, "ERROR") || string.contains(pl, "SyntaxError") {
                     fail_names = fail_names + pl + "\n"
                 } else if string.starts_with(raw, "E ") && len(fail_names) < 1500 {
-                    // pytest short-traceback detail: the assertion/exception line
                     fail_names = fail_names + pl + "\n"
                 }
                 pfi = pfi + 1
             }
             if len(fail_names) > 1800 { fail_names = string.substring(fail_names, 0, 1800) + "\n[truncated]" }
-            if len(fail_names) < 10 { fail_names = "Tests failed to collect (likely SyntaxError in operations.py or test_calc.py)" }
+            if len(fail_names) < 10 { fail_names = "Tests failed to collect (likely SyntaxError in pipeline.py or test_pipeline.py)" }
             last_fail_detail = fail_names
             print("PYTEST_FIX|sending failure names to developer")
             let pytest_fix_msg = ""
@@ -1057,11 +1089,11 @@ main {
             if len(feat_contract) > 0 { pytest_fix_msg = pytest_fix_msg + "\nCONTRACT for this feature: " + feat_contract }
             if fix_attempt == 1 {
                 pytest_fix_msg = pytest_fix_msg + "\nFix ONLY the failing parts. Do NOT rewrite the whole file."
-                pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed operations.py. ```python fences. Code only."
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE fixed pipeline.py. ```python fences. Code only."
             } else {
-                pytest_fix_msg = pytest_fix_msg + "\nSECOND ATTEMPT. If a failing test CONTRADICTS the CONTRACT above, output the corrected COMPLETE test_calc.py instead; otherwise output the corrected COMPLETE operations.py. NEVER weaken or delete assertions that match the contract. Tests for methods that do NOT exist in operations.py may be removed."
-                pytest_fix_msg = pytest_fix_msg + "\nCurrent operations.py:\n```python\n" + ops_code + "\n```"
-                pytest_fix_msg = pytest_fix_msg + "\nCurrent test_calc.py:\n```python\n" + test_code + "\n```\nOutput exactly ONE complete file. ```python fences. Code only."
+                pytest_fix_msg = pytest_fix_msg + "\nSECOND ATTEMPT. If a failing test CONTRADICTS the CONTRACT above, output the corrected COMPLETE test_pipeline.py instead; otherwise output the corrected COMPLETE pipeline.py. NEVER weaken or delete assertions that match the contract. Tests for methods that do NOT exist in pipeline.py may be removed."
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```"
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent test_pipeline.py:\n```python\n" + test_code + "\n```\nOutput exactly ONE complete file. ```python fences. Code only."
             }
             check_coherence(handles["developer"], "developer")
             let pfresp = safe_send(handles["developer"], pytest_fix_msg)
@@ -1075,28 +1107,22 @@ main {
                         test_code = fixed
                         print("PYTEST_FIX|developer_fixed|tests=" + string(len(test_code)))
                     } else {
-                        ops_code = fixed
-                        print("PYTEST_FIX|developer_fixed|ops=" + string(len(ops_code)))
+                        pipeline_code = fixed
+                        print("PYTEST_FIX|developer_fixed|pipeline=" + string(len(pipeline_code)))
                     }
                 }
             } else {
                 tracking["send_errors"] = tracking["send_errors"] + 1
             }
             print("TURN|developer|pytest_fix" + string(feat_num) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
-            cur_val = validate_code(ops_code, main_code, test_code, ops_pattern)
+            cur_val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
             print("VALIDATE|feat" + string(feat_num) + "|attempt" + string(fix_attempt) + "_pytest_passed=" + string(cur_val.get("pytest_passed") == true))
         }
 
-        // FINAL validation status for this feature (the fix loop re-validated
-        // after each attempt), so completion isn't marked on still-broken code.
         let feat_passed = cur_val.get("pytest_passed") == true
         if fval.get("pytest_passed") == false {
             print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
         }
-        // Feed the ground-truth outcome into the developer's coherence (S22 signal):
-        // a feature that never passes tests must erode coherence, not read as clean.
-        // The failure detail (failing test names + exception lines) grounds the
-        // "validation" step-up challenge type in the actual defect.
         if handles.get("developer") != null {
             if feat_passed {
                 let _rv = agent.record_validation(handles["developer"], true)
@@ -1108,17 +1134,14 @@ main {
         tracking["features_processed"] = tracking["features_processed"] + 1
         tracking["feature_names"].push(trimmed)
 
-        // Consult operator after each feature
         let dc = tracking["coherences"].get("developer") ?? -1
         let feat_status_txt = " INCOMPLETE — pytest still failing."
         if feat_passed { feat_status_txt = " complete." }
-        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "validation_passed": feat_passed, "feature_num": feat_num, "requirement": trimmed, "ops_len": len(ops_code), "test_len": len(test_code), "developer_coherence": dc, "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Feature " + string(feat_num) + feat_status_txt + " Developer coherence: " + string(dc) + ". Code grew from " + string(prev_ops_len) + " to " + string(len(ops_code)) + " chars. Adjust if drift detected."}
+        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "validation_passed": feat_passed, "feature_num": feat_num, "requirement": trimmed, "pipeline_len": len(pipeline_code), "test_len": len(test_code), "developer_coherence": dc, "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Feature " + string(feat_num) + feat_status_txt + " Developer coherence: " + string(dc) + ". Code grew from " + string(prev_pipeline_len) + " to " + string(len(pipeline_code)) + " chars. Adjust if drift detected."}
         let feat_decision = consult_operator(feat_ctx)
         handle_specialist_request(feat_decision, "FEATURES")
 
-        prev_ops_len = len(ops_code)
-        // Gate the completion marker on validation: don't claim "complete" for a
-        // feature whose tests still fail. (run.sh L5-04 counts complete|incomplete.)
+        prev_pipeline_len = len(pipeline_code)
         if feat_passed {
             print("FEATURE|" + string(feat_num) + "|complete")
         } else {
@@ -1134,27 +1157,6 @@ main {
     print("FEATURES|total=" + string(tracking["features_processed"]))
     tracking["phases_completed"].push("FEATURES")
 
-    // Update main.py to support all operations
-    if handles.get("developer") != null && tracking["features_processed"] > 0 {
-        let main_msg = "Update main.py to support ALL calculator operations: " + existing_methods
-        main_msg = main_msg + ".\nCurrent main.py:\n```python\n" + main_code + "\n```"
-        main_msg = main_msg + "\nAdd all operations to --op choices. Handle memory ops (no second arg) and evaluate (string expression). ```python fences. Code only."
-        check_coherence(handles["developer"], "developer")
-        let mresp = safe_send(handles["developer"], main_msg)
-        tracking["total_sends"] = tracking["total_sends"] + 1
-        if mresp.get("error") == null {
-            track("developer", mresp)
-            let updated_main = agent.extract_code(mresp.get("content") ?? "", "python")
-            if len(updated_main) > 20 {
-                main_code = updated_main
-                print("MAIN_UPDATED|len=" + string(len(main_code)))
-            }
-        } else {
-            tracking["send_errors"] = tracking["send_errors"] + 1
-        }
-        print("TURN|developer|main_update|c=" + string(tracking["coherences"].get("developer") ?? -1))
-    }
-
     // ================================================================
     // PHASE 4.5: PARALLEL_REVIEW — fan-out + consensus (Level 8)
     // ================================================================
@@ -1163,7 +1165,7 @@ main {
     let parallel_verdict = "SKIPPED"
     let parallel_votes = 0
 
-    if len(ops_code) > 20 {
+    if len(pipeline_code) > 20 {
         try {
             let judge1 = agent.create("judge")
             let judge2 = agent.create("judge")
@@ -1171,7 +1173,7 @@ main {
             handles["judge2"] = judge2
             tracking["agents_created"] = tracking["agents_created"] + 2
 
-            let judge_msg = "Review this Python calculator code. Vote APPROVED or REJECTED. Be strict.\n```python\n" + ops_code + "\n```"
+            let judge_msg = "Review this Python data pipeline framework code. Analyze the code quality in at least 3 sentences, then vote APPROVED or REJECTED. Be strict.\n```python\n" + pipeline_code + "\n```"
             let fan_results = agent.fan_out([judge1, judge2], judge_msg)
             tracking["total_sends"] = tracking["total_sends"] + 2
 
@@ -1214,13 +1216,12 @@ main {
     // ================================================================
     print("PHASE|BATCH_PIPELINE|start")
 
-    // agent.batch — send different messages to different agents in parallel
     let batch_ok = false
     let batch_count = 0
     if handles.get("architect") != null && handles.get("tester") != null {
         try {
-            let arch_prompt = "In one sentence, describe the overall architecture of this calculator: " + string(len(ops_code)) + " bytes of operations.py code."
-            let test_prompt = "In one sentence, what is the biggest test gap for a calculator with " + string(tracking["features_processed"]) + " features?"
+            let arch_prompt = "In one sentence, describe the overall architecture of this data pipeline framework: " + string(len(pipeline_code)) + " bytes of pipeline.py code."
+            let test_prompt = "In one sentence, what is the biggest test gap for a data pipeline with " + string(tracking["features_processed"]) + " features?"
             let batch_results = agent.batch(
                 [handles["architect"], handles["tester"]],
                 [arch_prompt, test_prompt]
@@ -1246,13 +1247,12 @@ main {
         }
     }
 
-    // agent.pipeline — chain tester output into reviewer
     let pipeline_ok = false
     let pipeline_len = 0
     let pipeline_provenance = false
-    if handles.get("tester") != null && handles.get("reviewer") != null && len(ops_code) > 20 {
+    if handles.get("tester") != null && handles.get("reviewer") != null && len(pipeline_code) > 20 {
         try {
-            let snippet = ops_code
+            let snippet = pipeline_code
             if len(snippet) > 500 { snippet = string.substring(snippet, 0, 500) + "..." }
             let pipe_result = agent.pipeline(
                 [handles["tester"], handles["reviewer"]],
@@ -1264,7 +1264,6 @@ main {
                 pipeline_len = len(pipe_content)
                 pipeline_ok = pipeline_len > 5
                 track("pipeline_final", pipe_result)
-                // Check upstream provenance (Level 14)
                 let pipe_env = pipe_result.get("environment")
                 if pipe_env != null {
                     let pipe_state = pipe_env.get("state") ?? {}
@@ -1291,11 +1290,10 @@ main {
         }
     }
 
-    // orchestra.sequential_refinement — create a refinement plan (no API calls)
     try {
         let seq_plan = orchestra.sequential_refinement(
             [handles["architect"], handles["developer"]],
-            "Suggest one improvement to the calculator code",
+            "Suggest one improvement to the data pipeline code",
             2
         )
         let plan_pattern = seq_plan.get("pattern") ?? ""
@@ -1320,7 +1318,6 @@ main {
     while final_iter < final_max_iter && !final_approved {
         final_iter = final_iter + 1
 
-        // If this is a retry, developer fixes based on reviewer feedback first
         if final_iter > 1 && handles.get("developer") != null && len(final_reviewer_fb) > 10 {
             check_coherence(handles["developer"], "developer")
             let fix_msg = ""
@@ -1328,7 +1325,7 @@ main {
             fix_msg = fix_msg + "The reviewer REJECTED the code. Fix ONLY these issues:\n" + final_reviewer_fb
             fix_msg = fix_msg + "\n\n" + invariants
             fix_msg = fix_msg + "\nEXISTING METHODS (do NOT modify unless fixing a specific issue): " + existing_methods
-            fix_msg = fix_msg + "\n\nCurrent operations.py:\n```python\n" + ops_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
+            fix_msg = fix_msg + "\n\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
             let fresp = safe_send(handles["developer"], fix_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if fresp.get("error") == null {
@@ -1336,16 +1333,15 @@ main {
                 post_send_check(handles["developer"], fresp, "developer")
                 let fixed = agent.extract_code(fresp.get("content") ?? "", "python")
                 if len(fixed) > 20 {
-                    ops_code = fixed
-                    print("FINAL_REVIEW|developer_fixed|iter=" + string(final_iter) + "|len=" + string(len(ops_code)))
+                    pipeline_code = fixed
+                    print("FINAL_REVIEW|developer_fixed|iter=" + string(final_iter) + "|len=" + string(len(pipeline_code)))
                 }
             } else {
                 tracking["send_errors"] = tracking["send_errors"] + 1
             }
             print("TURN|developer|final_fix" + string(final_iter) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
-            // Re-validate after fix
-            let fr_val = validate_code(ops_code, main_code, test_code, ops_pattern)
+            let fr_val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
             let fr_keys = fr_val.keys()
             let frk = 0
             while frk < fr_keys.length() {
@@ -1354,14 +1350,12 @@ main {
             }
         }
 
-        // Run validation to get pytest output for reviewer
-        let final_val = validate_code(ops_code, main_code, test_code, ops_pattern)
+        let final_val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
         let final_pytest_out = final_val.get("pytest_output") ?? ""
 
-        // Reviewer evaluates
-        if handles.get("reviewer") != null && len(ops_code) > 20 {
+        if handles.get("reviewer") != null && len(pipeline_code) > 20 {
             let feats = string(tracking["features_processed"])
-            let final_msg = "Final review of the evolved calculator. Started with basic arithmetic, now has " + feats + " additional features. Review for:\n1. Code organization — all features coexist cleanly\n2. Type hints and docstrings on ALL methods\n3. Error handling (ValueError for divide-by-zero, edge cases)\n4. History tracking works for ALL operations including new ones\n5. No regressions from feature additions (get_history MUST return a copy)\n\nVote APPROVED or REJECTED with specific issues.\n```python\n" + ops_code + "\n```"
+            let final_msg = "Final review of the evolved data pipeline framework. Started with basic stage execution and validation, now has " + feats + " additional features. Review for:\n1. Code organization — all features coexist cleanly\n2. Type hints and docstrings on ALL methods\n3. Error handling (PipelineError for all errors)\n4. Audit log tracking works for ALL operations\n5. No regressions from feature additions (get_audit_log MUST return a copy)\n\nVote APPROVED or REJECTED with specific issues.\n```python\n" + pipeline_code + "\n```"
             if len(final_pytest_out) > 10 {
                 final_msg = final_msg + "\n\nPytest results:\n" + final_pytest_out
             }
@@ -1386,7 +1380,7 @@ main {
     print("FINAL_REVIEW|verdict=" + string(final_approved))
     print("FINAL_REVIEW|iterations=" + string(final_iter))
 
-    consult_operator({"phase": "FINAL_REVIEW", "event": "final_review_complete", "features": tracking["features_processed"], "ops_len": len(ops_code), "final_approved": final_approved, "final_iterations": final_iter, "question": "Final review done (" + string(final_iter) + " iterations, approved=" + string(final_approved) + "). How did team handle feature evolution?"})
+    consult_operator({"phase": "FINAL_REVIEW", "event": "final_review_complete", "features": tracking["features_processed"], "pipeline_len": len(pipeline_code), "final_approved": final_approved, "final_iterations": final_iter, "question": "Final review done (" + string(final_iter) + " iterations, approved=" + string(final_approved) + "). How did team handle feature evolution?"})
     tracking["phases_completed"].push("FINAL_REVIEW")
 
     // ================================================================
@@ -1398,26 +1392,26 @@ main {
     let score_verdict = "SKIPPED"
     let score_findings = 0
 
-    if len(ops_code) > 20 {
+    if len(pipeline_code) > 20 {
         try {
             let scorer_handle = governance.scorer("code_quality")
 
-            // Check for type hints
-            if !string.contains(ops_code, "-> ") {
+            if !string.contains(pipeline_code, "-> ") {
                 governance.finding(scorer_handle, "missing_type_hints", "Methods lack return type hints", "living-script")
             }
 
-            // Check for docstrings
-            if !string.contains(ops_code, "\"\"\"") {
+            if !string.contains(pipeline_code, "\"\"\"") {
                 governance.finding(scorer_handle, "missing_docstrings", "Methods lack docstrings", "living-script")
             }
 
-            // Check history copy pattern
-            if string.contains(ops_code, "get_history") && !string.contains(ops_code, ".copy()") && !string.contains(ops_code, "[:]") {
-                governance.finding(scorer_handle, "history_copy", "get_history does not return a copy", "living-script")
+            if string.contains(pipeline_code, "get_audit_log") && !string.contains(pipeline_code, ".copy()") && !string.contains(pipeline_code, "[:]") {
+                governance.finding(scorer_handle, "audit_log_copy", "get_audit_log does not return a copy", "living-script")
             }
 
-            // Evaluate
+            if string.contains(pipeline_code, "raise TypeError") || string.contains(pipeline_code, "raise KeyError") || string.contains(pipeline_code, "raise ValueError") {
+                governance.finding(scorer_handle, "pipeline_error_only", "Code raises non-PipelineError exceptions", "living-script")
+            }
+
             let eval_result = governance.evaluate(scorer_handle)
             score_result = eval_result.get("score") ?? 0
             score_verdict = eval_result.get("zone") ?? "UNKNOWN"
@@ -1435,9 +1429,7 @@ main {
     // ================================================================
     print("PHASE|INTROSPECTION|start")
 
-    // --- Agent observability (no API calls) ---
-
-    // agent.environment — full state snapshot for developer
+    // agent.environment
     if handles.get("developer") != null {
         try {
             let dev_env = agent.environment(handles["developer"])
@@ -1445,12 +1437,16 @@ main {
             let env_state = dev_env.get("state") ?? {}
             let env_perms = dev_env.get("permissions") ?? {}
             print("INTROSPECTION|environment|max_tokens=" + string(env_limits.get("max_tokens") ?? 0) + "|coherence=" + string(env_state.get("coherence") ?? -1) + "|context_window=" + string(env_limits.get("context_window") ?? 0) + "|tools_enabled=" + string(env_perms.get("tools_enabled") ?? false))
+            // Level 19: tool execution stats
+            let tool_total = env_state.get("tool_calls_total") ?? 0
+            let tool_blocked = env_state.get("tool_calls_blocked") ?? 0
+            print("INTROSPECTION|tool_stats|calls=" + string(tool_total) + "|blocked=" + string(tool_blocked))
         } catch (e) {
             print("INTROSPECTION|environment_error=" + string(e))
         }
     }
 
-    // agent.usage — token/latency metrics for developer
+    // agent.usage
     if handles.get("developer") != null {
         try {
             let dev_usage = agent.usage(handles["developer"])
@@ -1464,7 +1460,7 @@ main {
         }
     }
 
-    // agent.messages — conversation history length for developer
+    // agent.messages
     if handles.get("developer") != null {
         try {
             let dev_msgs = agent.messages(handles["developer"])
@@ -1474,7 +1470,7 @@ main {
         }
     }
 
-    // agent.key_health — API key rotation status
+    // agent.key_health
     try {
         let kh = agent.key_health("developer")
         let avail = kh.get("available") ?? 0
@@ -1485,7 +1481,7 @@ main {
         print("INTROSPECTION|key_health_error=" + string(e))
     }
 
-    // agent.dispatch_status — run-level dispatch counters
+    // agent.dispatch_status
     try {
         let ds = agent.dispatch_status()
         let calls = ds.get("calls_made") ?? 0
@@ -1496,9 +1492,7 @@ main {
         print("INTROSPECTION|dispatch_error=" + string(e))
     }
 
-    // --- Tool registration (no API calls) ---
-
-    // agent.register_tool — register a dummy tool
+    // agent.register_tool — dummy tool for introspection testing
     try {
         fn introspection_probe(args) { return "probe_ok" }
         let reg = agent.register_tool("introspection_probe", introspection_probe, {
@@ -1510,9 +1504,7 @@ main {
         print("INTROSPECTION|register_tool_error=" + string(e))
     }
 
-    // --- One-shot agent test (1 API call) ---
-
-    // agent.run — one-shot convenience function
+    // agent.run
     try {
         let run_content = agent.run("tester", "Reply with exactly: INTROSPECTION_OK")
         tracking["total_sends"] = tracking["total_sends"] + 1
@@ -1522,9 +1514,7 @@ main {
         print("INTROSPECTION|agent_run_error=" + string(e))
     }
 
-    // --- Extended governance scoring (no API calls) ---
-
-    // governance.findings + governance.score — query from a new scorer
+    // governance.findings + governance.score
     let intro_findings_count = 0
     let intro_raw_score = 0
     try {
@@ -1539,7 +1529,7 @@ main {
         print("INTROSPECTION|scoring_error=" + string(e))
     }
 
-    // governance.calibrate — set an operator weight override
+    // governance.calibrate
     try {
         let cal_result = governance.calibrate("missing_docstrings", 1, "Reduced weight after introspection confirms docstrings present")
         let cal_success = cal_result.get("success") ?? false
@@ -1548,7 +1538,7 @@ main {
         print("INTROSPECTION|calibrate_error=" + string(e))
     }
 
-    // governance.calibration — read all calibration overrides
+    // governance.calibration
     try {
         let all_overrides = governance.calibration()
         let override_count = all_overrides.keys().length()
@@ -1557,9 +1547,7 @@ main {
         print("INTROSPECTION|calibration_error=" + string(e))
     }
 
-    // --- Extended codegen (local subprocess, no API calls) ---
-
-    // codegen.run — non-strict execution
+    // codegen.run
     try {
         let cg_result = codegen.run("python", "print('CODEGEN_RUN_OK')")
         print("INTROSPECTION|codegen_run=OK")
@@ -1567,7 +1555,7 @@ main {
         print("INTROSPECTION|codegen_run_error=" + string(e))
     }
 
-    // codegen.run_with_args — execution with variable bindings
+    // codegen.run_with_args
     try {
         let cg_args_result = codegen.run_with_args("python", "x = a + b\nprint(x)", {"a": 10, "b": 20})
         print("INTROSPECTION|codegen_args=OK")
@@ -1583,34 +1571,30 @@ main {
     // ================================================================
     print("PHASE|RATCHET|start")
 
-    // Test 1: Try to LOOSEN context_window (must be blocked by tighten-only guard)
     let ratchet_loosen_result = apply_operator_adjustments(
         {"developer": {"context_window": 50}}, "RATCHET"
     )
     let ratchet_loosen_blocked = ratchet_loosen_result != ""
     print("RATCHET|loosen_blocked=" + string(ratchet_loosen_blocked) + "|result=" + ratchet_loosen_result)
 
-    // Test 2: Tighten context_window (should succeed — one-way ratchet allows decrease)
-    // Read current value first — operator may have already tightened during the run
     let cur_cfg = json.parse(process.run("cat", ["govern.json"]).stdout)
     let cur_window = cur_cfg["agents"]["developer"].get("context_window") ?? 20
     let tighten_to = cur_window - 1
     if tighten_to < 1 { tighten_to = 1 }
     print("RATCHET|tighten_from=" + string(cur_window) + "|tighten_to=" + string(tighten_to))
+
     let ratchet_tighten_result = apply_operator_adjustments(
         {"developer": {"context_window": tighten_to}}, "RATCHET"
     )
     let ratchet_tighten_ok = ratchet_tighten_result == ""
     print("RATCHET|tighten_ok=" + string(ratchet_tighten_ok) + "|result=" + ratchet_tighten_result)
 
-    // Test 3: Non-allowed field (system_prompt not in allowed_agent_fields)
     let ratchet_field_result = apply_operator_adjustments(
         {"developer": {"system_prompt": "hijack attempt"}}, "RATCHET"
     )
     let ratchet_field_blocked = ratchet_field_result != ""
     print("RATCHET|field_blocked=" + string(ratchet_field_blocked) + "|result=" + ratchet_field_result)
 
-    // Test 4: Free adjustment (max_tokens can increase freely)
     let ratchet_free_result = apply_operator_adjustments(
         {"developer": {"max_tokens": 4096}}, "RATCHET"
     )
@@ -1630,11 +1614,9 @@ main {
         let hp_coherence = hp.get("coherence") ?? -1
         let hp_epoch = hp.get("governance_epoch") ?? -1
         print("HEALTH_PULSE|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch))
-        // Report all available keys for visibility
         let hp_keys = hp.keys()
         print("HEALTH_PULSE|available_keys=" + string(hp_keys))
 
-        // Compare with baseline from PREFLIGHT
         let base_v = baseline_health.get("verdict") ?? "unknown"
         let base_e = baseline_health.get("governance_epoch") ?? -1
         print("HEALTH_PULSE|baseline_verdict=" + base_v + "|baseline_epoch=" + string(base_e))
@@ -1650,7 +1632,6 @@ main {
     // ================================================================
     print("PHASE|LEASE_EPOCH|start")
 
-    // Query lease, epoch, challenges, and context config from multiple agents
     let lease_agents = ["developer", "operator", "reviewer"]
     let lai = 0
     while lai < lease_agents.length() {
@@ -1667,8 +1648,6 @@ main {
                 let la_chall_f = la_state.get("challenges_failed") ?? 0
                 let la_trunc = la_state.get("truncation_count") ?? 0
                 let la_ctx_win = la_limits.get("context_window") ?? -1
-                // context_strategy is exposed at the environment top level, not under limits
-                // (buildEnvironmentDict: limits.context_window vs env.context_strategy).
                 let la_ctx_strat = la_env.get("context_strategy") ?? "unset"
                 let la_thinking = la_limits.get("thinking_budget") ?? -1
                 let la_min_tok = la_limits.get("min_tokens") ?? 0
@@ -1682,7 +1661,7 @@ main {
         lai = lai + 1
     }
 
-    // CDD signal overrides visibility (developer has semantic_stability=false, response_repetition=false)
+    // CDD signal overrides visibility
     if handles.get("developer") != null {
         try {
             let dev_env = agent.environment(handles["developer"])
@@ -1696,6 +1675,29 @@ main {
             }
         } catch (e) {
             print("LEASE_EPOCH|developer|cdd_overrides_error=" + string(e))
+        }
+    }
+
+    // Level 20: separation of duties visibility
+    if handles.get("developer") != null {
+        try {
+            let dev_env = agent.environment(handles["developer"])
+            let perms = dev_env.get("permissions") ?? {}
+            let actions = perms.get("allowed_actions") ?? []
+            print("SEPARATION|developer|allowed_actions=" + string(actions))
+        } catch (e) {
+            print("SEPARATION|developer|error=" + string(e))
+        }
+    }
+    if handles.get("tester") != null {
+        try {
+            let test_env = agent.environment(handles["tester"])
+            let perms = test_env.get("permissions") ?? {}
+            let actions = perms.get("allowed_actions") ?? []
+            let net = perms.get("network_allowed") ?? true
+            print("SEPARATION|tester|allowed_actions=" + string(actions) + "|network=" + string(net))
+        } catch (e) {
+            print("SEPARATION|tester|error=" + string(e))
         }
     }
 
@@ -1724,14 +1726,13 @@ main {
         let type_names = event_types.keys()
         print("TELEMETRY_AUDIT|unique_types=" + string(type_names.length()) + "|total_events=" + string(tlines.length()))
 
-        // Print each event type and count
         let eti = 0
         while eti < type_names.length() {
             print("TELEMETRY_AUDIT|type=" + type_names[eti] + "|count=" + string(event_types[type_names[eti]]))
             eti = eti + 1
         }
 
-        // Check for key governance event types that should be present after a full run
+        // Check for key governance event types including tool events
         let expected_types = ["ADMISSION_EVAL", "AGENT_RESPONSE", "CDD_TURN", "SEMANTIC_TURN", "CONFIG_ADJUSTMENT"]
         let found_expected = 0
         let exi = 0
@@ -1742,6 +1743,22 @@ main {
             exi = exi + 1
         }
         print("TELEMETRY_AUDIT|expected_found=" + string(found_expected) + "|expected_total=" + string(expected_types.length()))
+
+        // Level 19: check for tool-related telemetry events
+        let tool_events = ["AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "AGENT_TOOL_REGISTERED"]
+        let tool_found = 0
+        let tei = 0
+        while tei < tool_events.length() {
+            if event_types.get(tool_events[tei]) != null {
+                tool_found = tool_found + 1
+            }
+            tei = tei + 1
+        }
+        print("TELEMETRY_AUDIT|tool_events_found=" + string(tool_found) + "|tool_events_checked=" + string(tool_events.length()))
+
+        // Check for advisory escalation events
+        let advisory_count = event_types.get("ADVISORY_ESCALATION") ?? 0
+        print("TELEMETRY_AUDIT|advisory_escalation_events=" + string(advisory_count))
     } catch (e) {
         print("TELEMETRY_AUDIT|error=" + string(e))
     }
@@ -1753,7 +1770,6 @@ main {
     // ================================================================
     print("PHASE|CODEGEN_BOUNDARY|start")
 
-    // Test 1: codegen.run_strict with INVALID Python — must throw
     let codegen_strict_threw = false
     try {
         codegen.run_strict("python", "def broken(:\n    pass")
@@ -1766,7 +1782,6 @@ main {
     }
     print("CODEGEN_BOUNDARY|strict_threw=" + string(codegen_strict_threw))
 
-    // Test 2: codegen.run with valid code that produces verifiable output
     try {
         let cg_out = codegen.run("python", "print(7 * 6, end='')")
         print("CODEGEN_BOUNDARY|run_output=" + string(cg_out))
@@ -1774,7 +1789,6 @@ main {
         print("CODEGEN_BOUNDARY|run_error=" + string(e))
     }
 
-    // Test 3: codegen.run_with_args — variable injection with arithmetic verification
     try {
         let cg_args = codegen.run_with_args("python", "result = x * y\nprint(result, end='')", {"x": 7, "y": 6})
         print("CODEGEN_BOUNDARY|args_output=" + string(cg_args))
@@ -1782,7 +1796,6 @@ main {
         print("CODEGEN_BOUNDARY|args_error=" + string(e))
     }
 
-    // Test 4: codegen.supported_languages — verify runtime language enumeration
     try {
         let cg_langs = codegen.supported_languages()
         let has_py = false
@@ -1796,7 +1809,6 @@ main {
         print("CODEGEN_BOUNDARY|languages_error=" + string(e))
     }
 
-    // Test 5: codegen cumulative call tracking (is_enabled reflects remaining budget)
     try {
         let still_enabled = codegen.is_enabled()
         print("CODEGEN_BOUNDARY|still_enabled=" + string(still_enabled))
@@ -1811,7 +1823,7 @@ main {
     // ================================================================
     print("PHASE|DYNAMIC|start")
 
-    let dynamic_ctx = {"phase": "DYNAMIC", "event": "all_complete", "features_processed": tracking["features_processed"], "iterations": tracking["refinement_iterations"], "total_sends": tracking["total_sends"], "all_phases": tracking["phases_completed"], "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "All features implemented and reviewed. Does the team need a specialist for final polish? If developer coherence dropped or code quality issues, request action: create_agent with agent_name: specialist (specialist_consults shows whether one already ran mid-run). Otherwise action: none."}
+    let dynamic_ctx = {"phase": "DYNAMIC", "event": "all_complete", "features_processed": tracking["features_processed"], "iterations": tracking["refinement_iterations"], "total_sends": tracking["total_sends"], "all_phases": tracking["phases_completed"], "specialist_consults": tracking.get("specialist_consults") ?? 0, "tool_calls_total": tracking["tool_calls_total"], "question": "All features implemented and reviewed. Does the team need a specialist for final polish? If developer coherence dropped or code quality issues, request action: create_agent with agent_name: specialist (specialist_consults shows whether one already ran mid-run). Otherwise action: none."}
     let team_decision = consult_operator(dynamic_ctx)
     handle_specialist_request(team_decision, "DYNAMIC")
     tracking["phases_completed"].push("DYNAMIC")
@@ -1821,7 +1833,7 @@ main {
     // ================================================================
     print("PHASE|MEMORY|saving")
 
-    let mem_ctx = {"phase": "MEMORY", "event": "run_complete", "total_sends": tracking["total_sends"], "adjustments_made": tracking["adjustments_made"], "refinement_iterations": tracking["refinement_iterations"], "features_processed": tracking["features_processed"], "feature_names": tracking["feature_names"], "approved": tracking["final_verdict"], "phases": tracking["phases_completed"], "coherences": tracking["coherences"], "min_coherences": tracking["min_coherences"], "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Run complete with " + string(tracking["features_processed"]) + " features added. Summarize observations for next run (specialist_consults is the ACTUAL number of specialist reviews that ran — 0 means no specialist was ever created). How did coherence evolve? Which agents drifted? Recommend field adjustments."}
+    let mem_ctx = {"phase": "MEMORY", "event": "run_complete", "total_sends": tracking["total_sends"], "adjustments_made": tracking["adjustments_made"], "refinement_iterations": tracking["refinement_iterations"], "features_processed": tracking["features_processed"], "feature_names": tracking["feature_names"], "approved": tracking["final_verdict"], "phases": tracking["phases_completed"], "coherences": tracking["coherences"], "min_coherences": tracking["min_coherences"], "specialist_consults": tracking.get("specialist_consults") ?? 0, "tool_calls": tracking["tool_calls_total"], "question": "Run complete with " + string(tracking["features_processed"]) + " features added. Summarize observations for next run (specialist_consults is the ACTUAL number of specialist reviews that ran — 0 means no specialist was ever created). How did coherence evolve? Which agents drifted? Recommend field adjustments."}
     let memory_decision = consult_operator(mem_ctx)
 
     let obs = memory_decision.get("observations")
@@ -1838,7 +1850,8 @@ main {
         "features_processed": tracking["features_processed"],
         "feature_names": tracking["feature_names"],
         "approved": tracking["final_verdict"],
-        "phases_completed": tracking["phases_completed"]
+        "phases_completed": tracking["phases_completed"],
+        "tool_calls_total": tracking["tool_calls_total"]
     }
     try {
         file.write(memory_path, json.stringify(new_memory, 2))
@@ -1859,32 +1872,33 @@ main {
     print("SUMMARY_APPROVED: " + string(tracking["final_verdict"]))
     print("SUMMARY_FEATURES: " + string(tracking["features_processed"]))
     print("SUMMARY_PHASES: " + string(tracking["phases_completed"]))
+    print("SUMMARY_TOOL_CALLS: " + string(tracking["tool_calls_total"]))
     print("SUMMARY_ELAPSED: " + string(elapsed))
 
     // Code extraction summary
-    print("CODE_EXTRACT|operations.py|extracted=" + string(len(ops_code) > 20) + "|len=" + string(len(ops_code)))
-    print("CODE_EXTRACT|main.py|extracted=" + string(len(main_code) > 20) + "|len=" + string(len(main_code)))
-    print("CODE_EXTRACT|test_calc.py|extracted=" + string(len(test_code) > 20) + "|len=" + string(len(test_code)))
+    print("CODE_EXTRACT|pipeline.py|extracted=" + string(len(pipeline_code) > 20) + "|len=" + string(len(pipeline_code)))
+    print("CODE_EXTRACT|models.py|extracted=" + string(len(models_code) > 20) + "|len=" + string(len(models_code)))
+    print("CODE_EXTRACT|test_pipeline.py|extracted=" + string(len(test_code) > 20) + "|len=" + string(len(test_code)))
 
-    // Final convergence with evolved pattern (includes all feature methods)
-    if len(ops_code) > 20 {
-        let conv = orchestra.enforce_convergence(ops_code, {pattern: ops_pattern})
+    // Final convergence with evolved pattern
+    if len(pipeline_code) > 20 {
+        let conv = orchestra.enforce_convergence(pipeline_code, {pattern: pipeline_pattern})
         let cv = string(conv.get("valid") ?? false)
         let ce = string(conv.get("error_message") ?? "")
-        print("CONVERGENCE|operations.py|valid=" + cv + "|error=" + ce)
-        print("CONVERGENCE|operations.py|pattern=" + ops_pattern)
+        print("CONVERGENCE|pipeline.py|valid=" + cv + "|error=" + ce)
+        print("CONVERGENCE|pipeline.py|pattern=" + pipeline_pattern)
     }
-    if len(main_code) > 20 {
-        let conv = orchestra.enforce_convergence(main_code, {pattern: "import|argparse|def"})
+    if len(models_code) > 20 {
+        let conv = orchestra.enforce_convergence(models_code, {pattern: "class|FieldType|Schema|Record|ValidationResult|PipelineError"})
         let cv = string(conv.get("valid") ?? false)
         let ce = string(conv.get("error_message") ?? "")
-        print("CONVERGENCE|main.py|valid=" + cv + "|error=" + ce)
+        print("CONVERGENCE|models.py|valid=" + cv + "|error=" + ce)
     }
     if len(test_code) > 20 {
         let conv = orchestra.enforce_convergence(test_code, {pattern: "def test_|assert"})
         let cv = string(conv.get("valid") ?? false)
         let ce = string(conv.get("error_message") ?? "")
-        print("CONVERGENCE|test_calc.py|valid=" + cv + "|error=" + ce)
+        print("CONVERGENCE|test_pipeline.py|valid=" + cv + "|error=" + ce)
     }
 
     // Per-agent coherence
