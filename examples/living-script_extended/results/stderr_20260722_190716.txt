@@ -1,0 +1,79 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-27671/work-27671-24437/govern.json (mode: enforce)
+[hint] dict.get("tools_available") returned null — did you mean "tools_enabled"?
+[hint] dict.get("tool_calls_total") returned null — did you mean "tool_integrity_count"?
+[hint] dict.get("operator") returned null — available keys: "architect"
+[hint] dict.get("developer") returned null — available keys: "operator", "architect"
+[hint] dict.get("specialist") returned null — available keys: "reviewer", "tester", "developer", "architect"
+[hint] dict.get("task") returned null — available keys: "action", "adjustments", "observations", "message_prefix", "reasoning"
+[hint] dict.get("tester") returned null — available keys: "specialist", "developer", "operator", "architect"
+[hint] dict.get("reviewer") returned null — available keys: "tester", "specialist", "developer", "operator", "architect"
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("error") returned null — available keys: "success", "role", "usage", "trace", "content", "admissibility", "environment"
+[agent] Response truncated: thinking=1413 exceeded budget=512, max_tokens=2048 (handle=4)
+        Increase thinking_budget or max_tokens in govern.json
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[agent] Response truncated: thinking=2363 exceeded budget=512, max_tokens=2048 (handle=4)
+        Increase thinking_budget or max_tokens in govern.json
+[agent] Response truncated: thinking=602 exceeded budget=1024, max_tokens=3072 (handle=3)
+        Increase thinking_budget or max_tokens in govern.json
+Agent 'tester': 3/5 responses truncated (60%) — consider increasing max_tokens or reducing prompt size
+[agent] Response truncated: thinking=1526 exceeded budget=512, max_tokens=2048 (handle=4)
+        Increase thinking_budget or max_tokens in govern.json
+[hint] dict.get("batch_0") returned null — available keys: "operator", "tester", "reviewer", "specialist", "developer", "architect"
+[hint] dict.get("batch_1") returned null — did you mean "batch_0"?
+[hint] dict.get("pipeline_final") returned null — available keys: "batch_1", "batch_0", "operator", "tester", "reviewer", "specialist", "developer", "architect"
+[governance] WARNING context_drift.coherence_loss
+[hint] dict.get("tool_calls_blocked") returned null — did you mean "tool_integrity_count"?
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[hint] dict.get("TRANSCRIPT_REF") returned null — available keys: "RunStart"
+[hint] dict.get("AGENT_TOOL_REGISTERED") returned null — available keys: "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("GOVERNANCE_HEALTH_QUERY") returned null — available keys: "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("PROMPT_SCAN") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("ADMISSION_EVAL") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN", "RunStart"
+[hint] dict.get("AGENT_RESPONSE") returned null — did you mean "AGENT_TOOL_REGISTERED"?
+[hint] dict.get("RESPONSE_SCAN") returned null — available keys: "ADMISSION_EVAL", "AGENT_RESPONSE", "GOVERNANCE_HEALTH_QUERY", "RunStart", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN"
+[hint] dict.get("CDD_TURN") returned null — available keys: "ADMISSION_EVAL", "RESPONSE_SCAN", "AGENT_RESPONSE", "GOVERNANCE_HEALTH_QUERY", "RunStart", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN"
+[hint] dict.get("CONFIG_ADJUSTMENT") returned null — did you mean "CONVERGENCE_CHECK"?
+[hint] dict.get("AGENT_PROPOSE") returned null — did you mean "AGENT_RESPONSE"?
+[hint] dict.get("AGENT_PROPOSAL_COMMIT") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("RESPONSE_TRUNCATED") returned null — did you mean "RESPONSE_SCAN"?
+[hint] dict.get("GOVERNANCE_LEVEL_CHANGE") returned null — did you mean "GOVERNANCE_HEALTH_QUERY"?
+[hint] dict.get("AGENT_CHALLENGE_PASS") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("AGENT_CHALLENGE_FAIL") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("AGENT_RETRY") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("AGENT_TOOL_CALL") returned null — did you mean "AGENT_RETRY"?
+[hint] dict.get("AGENT_TOOL_RESULT") returned null — did you mean "AGENT_RETRY"?
+[hint] dict.get("error_message") returned null — available keys: "valid"
+
+[governance] Summary (mode: enforce): 246 passed, 1 warning, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 31 events written to telemetry.jsonl
+-- Governance: PASS (247 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    4 mid-run reload(s) applied
+Checks:     246 passed, 0 blocked, 1 advisory
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Risk score: 3 (green) [15/50]
+  +3  context_drift.coherence_loss
+Telemetry:  247 events → telemetry.jsonl
+BSD:        295 events (145 evicted), 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (55 turns analyzed)
+CDD agents: developer=1.00 architect=0.72 judge=1.00 specialist=1.00 reviewer=0.63 operator=1.00 tester=0.76 min=0.63
+Compliance: 3 off-topic compliance events, prompt_alignment=0.10
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   55 autonomous actions, 7 unique agents
+Budget:     reviewer: 49 remaining (consumed 1)
+Dispatch:   65 calls (1 retries, 1168492 tokens, 308316ms)
+Codegen:    6 calls (0 blocked, 20ms)
+Pulse:      HEALTHY (247 checks, 53 consecutive passes, epoch 8)
+────────────────────────────────
