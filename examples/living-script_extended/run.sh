@@ -135,7 +135,7 @@ echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 120); do
+    for i in $(seq 1 125); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -222,7 +222,11 @@ else
         gk_fail "L1-02" "Insufficient operator consultations" "got $OP_ACTIONS, expected >= 8"
     fi
 
-    pass "L1-03" "Adjustments tracked ($ADJUSTMENTS applied)"
+    if [ "$ADJUSTMENTS" -ge 1 ]; then
+        pass "L1-03" "Adjustments tracked ($ADJUSTMENTS applied)"
+    else
+        gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)"
+    fi
 
     # ============================================================
     # L2: OUTCOME VALIDATION
@@ -256,6 +260,13 @@ else
         pass "L2-04" "Pytest executed ($PYTEST_RUNS runs)"
     else
         skip "L2-04" "No pytest execution"
+    fi
+
+    PYTEST_PASS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=0' || echo "0")
+    if [ "$PYTEST_PASS" -ge 1 ]; then
+        pass "L2-05" "Pytest passed at least once ($PYTEST_PASS runs with exit=0)"
+    else
+        gk_fail "L2-05" "No pytest run passed (0 exit=0 out of $PYTEST_RUNS runs)"
     fi
 
     # ============================================================
@@ -718,7 +729,11 @@ assert 'refinement_iterations' in d
         pass "L14-01" "Pipeline upstream provenance present"
         PROV_STAGE=$(echo "$OUTPUT" | grep -oP 'provenance_present=true\|stage=\K[0-9-]+' | head -1)
         PROV_COH=$(echo "$OUTPUT" | grep -oP 'upstream_coherence=\K[0-9.e+-]+' | head -1)
-        pass "L14-02" "Provenance has stage index ($PROV_STAGE) and coherence ($PROV_COH)"
+        if [ -n "$PROV_STAGE" ] && [ -n "$PROV_COH" ]; then
+            pass "L14-02" "Provenance has stage index ($PROV_STAGE) and coherence ($PROV_COH)"
+        else
+            gk_fail "L14-02" "Provenance present but missing fields (stage='$PROV_STAGE' coherence='$PROV_COH')"
+        fi
     elif echo "$OUTPUT" | grep -q "BATCH_PIPELINE|provenance_present=false"; then
         skip "L14-01" "Pipeline ran but no provenance (single-stage or first-stage result)"
         skip "L14-02" "No provenance data to inspect"
@@ -870,16 +885,30 @@ assert 'refinement_iterations' in d
         fail "L18-02" "codegen.run_strict() didn't throw on invalid code"
     fi
 
-    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|run_output="; then
-        pass "L18-03" "codegen.run() produced output"
+    CODEGEN_RUN_VAL=$(echo "$OUTPUT" | grep -oP 'CODEGEN_BOUNDARY\|run_output=\K.*' | head -1)
+    if [ -n "$CODEGEN_RUN_VAL" ]; then
+        pass "L18-03" "codegen.run() produced output: $CODEGEN_RUN_VAL"
+        if echo "$CODEGEN_RUN_VAL" | grep -q "42"; then
+            pass "L18-03b" "codegen.run() output contains expected value 42"
+        else
+            fail "L18-03b" "codegen.run() output '$CODEGEN_RUN_VAL' does not contain 42"
+        fi
     else
         fail "L18-03" "codegen.run() produced no output"
+        fail "L18-03b" "codegen.run() no output to verify"
     fi
 
-    if echo "$OUTPUT" | grep -q "CODEGEN_BOUNDARY|args_output="; then
-        pass "L18-04" "codegen.run_with_args() produced output"
+    CODEGEN_ARGS_VAL=$(echo "$OUTPUT" | grep -oP 'CODEGEN_BOUNDARY\|args_output=\K.*' | head -1)
+    if [ -n "$CODEGEN_ARGS_VAL" ]; then
+        pass "L18-04" "codegen.run_with_args() produced output: $CODEGEN_ARGS_VAL"
+        if echo "$CODEGEN_ARGS_VAL" | grep -q "42"; then
+            pass "L18-04b" "codegen.run_with_args() output contains expected value 42"
+        else
+            fail "L18-04b" "codegen.run_with_args() output '$CODEGEN_ARGS_VAL' does not contain 42"
+        fi
     else
         fail "L18-04" "codegen.run_with_args() produced no output"
+        fail "L18-04b" "codegen.run_with_args() no output to verify"
     fi
 
     if echo "$OUTPUT" | grep -q "has_python=true"; then

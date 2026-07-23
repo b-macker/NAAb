@@ -342,7 +342,7 @@ main {
     let pipeline_pattern = "class Pipeline|def add_stage|def execute|def validate|def get_audit_log"
 
     // Short invariant reminder
-    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_audit_log returns .copy(), validate returns ValidationResult never raises, ALL errors are PipelineError, type hints, docstrings, execute appends to audit_log)."
+    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_audit_log returns .copy(), validate() MUST return ValidationResult(valid=False, errors=[...]) on ANY error — NEVER raise — catch exceptions and convert to ValidationResult, ALL other errors are PipelineError, type hints, docstrings, execute appends to audit_log)."
 
     // Existing method list — grows as features are added
     let existing_methods = "add_stage, execute, validate, get_audit_log, clear_audit_log"
@@ -548,7 +548,7 @@ main {
 
     if handles.get("architect") != null {
         let design_msg = "Design a Python data pipeline framework with these files:\n"
-        design_msg = design_msg + "1. models.py: Data structures — FieldType enum (STRING, INTEGER, FLOAT, BOOLEAN), Field dataclass (name, field_type, nullable, default), Schema dataclass (name, fields list), Record dataclass (data dict, optional schema), ValidationResult dataclass (valid bool, errors list), PipelineError exception class.\n"
+        design_msg = design_msg + "1. models.py: Data structures — FieldType enum (STRING, INTEGER, FLOAT, BOOLEAN), Field dataclass (name, field_type, nullable, default), Schema dataclass (name, fields list), Record dataclass with ONLY one field: data (Dict[str, Any]) — do NOT add schema, metadata, or other fields to Record, ValidationResult dataclass (valid bool, errors list), PipelineError exception class.\n"
         design_msg = design_msg + "2. pipeline.py: Pipeline class that imports from models. Methods: __init__(name), add_stage(name, transform_fn) adds a processing stage, execute(records) runs all stages in order (each stage receives prior output, appends audit entry), validate(record, schema) returns ValidationResult, get_audit_log() returns copy of audit log, clear_audit_log(). Also include SchemaValidator class and TransformEngine class with static methods: map_records, filter_records, sort_records.\n"
         design_msg = design_msg + "3. test_pipeline.py: pytest tests for Pipeline (add_stage, execute, validate, audit_log copy, clear), SchemaValidator, TransformEngine.\n\n"
         design_msg = design_msg + "This pipeline will be EXTENDED later with: aggregation, error recovery, computed fields, import/export. Design for extensibility.\n"
@@ -774,7 +774,7 @@ main {
         // Step 4: Reviewer votes
         let verdict = "REVIEW"
         if handles.get("reviewer") != null && len(pipeline_code) > 20 {
-            let review_msg = "Review this Python data pipeline for production quality. Check: type hints on ALL methods, docstrings, proper error handling (PipelineError only), audit log returns a COPY, validate returns ValidationResult. Vote APPROVED only if ALL present. REJECTED with specific issues.\n```python\n" + pipeline_code + "\n```"
+            let review_msg = "Review this Python data pipeline for production quality. Check: type hints on ALL methods, docstrings, proper error handling (PipelineError only), audit log returns a COPY, validate returns ValidationResult. Vote APPROVED with a brief summary of what was verified, or REJECTED with specific numbered issues.\n```python\n" + pipeline_code + "\n```"
             let pytest_out = val.get("pytest_output") ?? ""
             if len(pytest_out) > 10 {
                 review_msg = review_msg + "\n\nPytest results:\n" + pytest_out
@@ -1355,7 +1355,7 @@ main {
 
         if handles.get("reviewer") != null && len(pipeline_code) > 20 {
             let feats = string(tracking["features_processed"])
-            let final_msg = "Final review of the evolved data pipeline framework. Started with basic stage execution and validation, now has " + feats + " additional features. Review for:\n1. Code organization — all features coexist cleanly\n2. Type hints and docstrings on ALL methods\n3. Error handling (PipelineError for all errors)\n4. Audit log tracking works for ALL operations\n5. No regressions from feature additions (get_audit_log MUST return a copy)\n\nVote APPROVED or REJECTED with specific issues.\n```python\n" + pipeline_code + "\n```"
+            let final_msg = "Final review of the evolved data pipeline framework. Started with basic stage execution and validation, now has " + feats + " additional features. Review for:\n1. Code organization — all features coexist cleanly\n2. Type hints and docstrings on ALL methods\n3. Error handling (PipelineError for all errors)\n4. Audit log tracking works for ALL operations\n5. No regressions from feature additions (get_audit_log MUST return a copy)\n\nVote APPROVED with a 1-2 sentence summary confirming all criteria are met, or REJECTED with specific issues.\n```python\n" + pipeline_code + "\n```"
             if len(final_pytest_out) > 10 {
                 final_msg = final_msg + "\n\nPytest results:\n" + final_pytest_out
             }
