@@ -1530,6 +1530,19 @@ else
     echo "  test_challenge_fail_path.sh: not found, skipping"
 fi
 
+# agent.extract_code() fence extraction (pure function, no API)
+EXTRACT_CODE_SCRIPT="tests/governance_v4/test_extract_code.sh"
+if [ -f "$EXTRACT_CODE_SCRIPT" ]; then
+    if bash "$EXTRACT_CODE_SCRIPT" 2>&1; then
+        echo "  test_extract_code.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_extract_code.sh")
+    fi
+else
+    echo "  test_extract_code.sh: not found, skipping"
+fi
+
 # S23 response_degenerate + adaptive absorption cap + propose diversity (stub-backed)
 ABSORB_SCRIPT="tests/governance_v4/test_absorption_degenerate.sh"
 if [ -f "$ABSORB_SCRIPT" ]; then
