@@ -1143,74 +1143,87 @@ static NaabVal agentExtractCode(std::vector<NaabVal>& args) {
         return NaabVal::makeString("");
     }
 
-    // Search for code fences (```language ... ```)
-    auto fence_start = response.find("```");
-    if (fence_start == std::string::npos) {
-        // No fence found — return response as-is
+    // Enumerate ALL fenced blocks, then select per the documented contract:
+    // "prefers matching lang hint, returns longest block if multiple found."
+    // (The old implementation examined only the first fence and, on a language
+    // mismatch, returned the entire response — so a wrong-tag or bare fence, or
+    // a leading non-target block, leaked prose + fences to the caller.)
+    struct FenceBlock { std::string lang; std::string body; };
+    std::vector<FenceBlock> blocks;
+
+    auto trim = [](std::string& s) {
+        while (!s.empty() && (s.back() == '\n' || s.back() == '\r' ||
+               s.back() == ' ' || s.back() == '\t')) {
+            s.pop_back();
+        }
+        while (!s.empty() && (s.front() == '\n' || s.front() == '\r' ||
+               s.front() == ' ' || s.front() == '\t')) {
+            s.erase(s.begin());
+        }
+    };
+
+    size_t scan = 0;
+    while (true) {
+        auto fence_start = response.find("```", scan);
+        if (fence_start == std::string::npos) break;
+
+        // The opening fence must be followed by a newline (the language tag, if
+        // any, sits between ``` and that newline). A bare ```\n is valid — its
+        // newline lands exactly at fence_start+3, which the old `<=` guard wrongly
+        // rejected; require only that the newline exists at/after fence_start+3.
+        auto line_end = response.find('\n', fence_start);
+        if (line_end == std::string::npos) break;  // dangling ``` with no newline
+        if (line_end < fence_start + 3) { scan = fence_start + 3; continue; }
+
+        // Closing fence is the next ``` after the opening fence line.
+        auto fence_end = response.find("```", line_end + 1);
+        if (fence_end == std::string::npos) break;  // no closing fence — stop
+
+        std::string lang = response.substr(fence_start + 3, line_end - fence_start - 3);
+        trim(lang);
+        std::string body = response.substr(line_end + 1, fence_end - line_end - 1);
+        trim(body);
+        blocks.push_back({lang, body});
+
+        scan = fence_end + 3;  // resume after the closing fence
+    }
+
+    if (blocks.empty()) {
+        // No fenced block found — return the response unchanged. Preserves the
+        // contract and the agent.send() auto-strip → extract_code chain, where
+        // a clean single block has already been de-fenced upstream.
         return NaabVal::makeString(response);
     }
 
-    // Find the end of the opening fence line (language tag)
-    auto line_end = response.find('\n', fence_start);
-    if (line_end == std::string::npos || line_end <= fence_start + 3) {
-        // No newline after fence or invalid fence format
-        return NaabVal::makeString(response);
+    // Case-insensitive bidirectional-substring language match (unchanged from
+    // the original single-fence logic).
+    auto lang_matches = [](const std::string& fence_lang, const std::string& hint) -> bool {
+        if (hint.empty() || fence_lang.empty()) return false;
+        std::string h = hint, f = fence_lang;
+        std::transform(h.begin(), h.end(), h.begin(), ::tolower);
+        std::transform(f.begin(), f.end(), f.begin(), ::tolower);
+        return f.find(h) != std::string::npos || h.find(f) != std::string::npos;
+    };
+
+    // Prefer the longest block whose language matches the hint; if none match
+    // (or no hint given), fall back to the longest block of any language — a
+    // model that mislabeled or omitted the tag still yields usable code.
+    const FenceBlock* best = nullptr;
+    if (!lang_hint.empty()) {
+        for (const auto& b : blocks) {
+            if (lang_matches(b.lang, lang_hint) &&
+                (!best || b.body.size() > best->body.size())) {
+                best = &b;
+            }
+        }
+    }
+    if (!best) {
+        for (const auto& b : blocks) {
+            if (!best || b.body.size() > best->body.size()) best = &b;
+        }
     }
 
-    // Extract the language tag (if any)
-    std::string fence_line = response.substr(fence_start + 3, line_end - fence_start - 3);
-    // Trim whitespace from fence line to get language
-    while (!fence_line.empty() && (fence_line.back() == ' ' || fence_line.back() == '\t' ||
-           fence_line.back() == '\r' || fence_line.back() == '\n')) {
-        fence_line.pop_back();
-    }
-    while (!fence_line.empty() && (fence_line.front() == ' ' || fence_line.front() == '\t')) {
-        fence_line.erase(fence_line.begin());
-    }
-
-    // If lang_hint is provided and fence has a language, prefer matching
-    // If no lang_hint, use the fence's language (or empty for no language)
-    bool lang_matches = true;
-    if (!lang_hint.empty() && !fence_line.empty()) {
-        // Check if the fence language matches the hint (case-insensitive, substring)
-        std::string hint_lower = lang_hint;
-        std::string fence_lower = fence_line;
-        std::transform(hint_lower.begin(), hint_lower.end(), hint_lower.begin(), ::tolower);
-        std::transform(fence_lower.begin(), fence_lower.end(), fence_lower.begin(), ::tolower);
-        lang_matches = (fence_lower.find(hint_lower) != std::string::npos ||
-                        hint_lower.find(fence_lower) != std::string::npos);
-    }
-
-    if (!lang_matches && !lang_hint.empty()) {
-        // Fence language doesn't match hint — skip this fence and look for next
-        // This is a more sophisticated version that can handle multiple fences
-        // For now, fall back to returning the response as-is if lang doesn't match
-        return NaabVal::makeString(response);
-    }
-
-    // Find the closing fence
-    auto fence_end = response.find("```", line_end);
-    if (fence_end == std::string::npos || fence_end <= line_end) {
-        // No closing fence or malformed
-        return NaabVal::makeString(response);
-    }
-
-    // Extract code between opening and closing fence lines
-    std::string extracted = response.substr(line_end + 1, fence_end - line_end - 1);
-
-    // Strip trailing whitespace/newlines from extracted code
-    while (!extracted.empty() && (extracted.back() == '\n' || extracted.back() == '\r' ||
-           extracted.back() == ' ' || extracted.back() == '\t')) {
-        extracted.pop_back();
-    }
-
-    // Strip leading whitespace/newlines from extracted code
-    while (!extracted.empty() && (extracted.front() == '\n' || extracted.front() == '\r' ||
-           extracted.front() == ' ' || extracted.front() == '\t')) {
-        extracted.erase(extracted.begin());
-    }
-
-    return NaabVal::makeString(extracted);
+    return NaabVal::makeString(best->body);
 }
 
 // ============================================================================
