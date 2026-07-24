@@ -136,17 +136,38 @@ jobs:
       - name: Fuzz interpreter
         # Fork mode + ignore_timeouts: the fuzzer inevitably generates
         # legitimately infinite programs (e.g. `while i < n { i = i + 0 }`),
-        # which are not engine bugs. Crashes/ASan/UBSan still fail the job.
+        # which are not engine bugs. Crashes/ASan still fail the job.
         # Real hang detection is covered by the grammar fuzzer, whose
         # generated programs terminate by construction.
+        #
+        # Fork mode propagates the LAST child's exit code even for ignored
+        # timeouts/OOMs (FuzzerFork.cpp: `ExitCode = Job->ExitCode;` is never
+        # reset for ignored classes), so the exit code cannot distinguish
+        # "timeouts occurred" from "crash found". Gate on artifacts instead:
+        # crashes/leaks always dump crash-*/leak-* to CWD before exiting
+        # (FuzzerLoop.cpp DumpCurrentUnit), while timeout-*/oom-* units are
+        # the ignored classes. -ignore_ooms=1 is the fork-mode default,
+        # spelled out here for clarity.
         run: |
+          rm -f crash-* leak-* oom-* timeout-*
+          set +e
           ./build-fuzz/fuzz/fuzz_interpreter fuzz-corpus-grown/interpreter \
             -max_total_time=600 -timeout=10 -max_len=10000 \
-            -fork=2 -ignore_timeouts=1 \
+            -fork=2 -ignore_timeouts=1 -ignore_ooms=1 \
             -print_final_stats=1
+          rc=$?
+          set -e
+          if compgen -G 'crash-*' > /dev/null || compgen -G 'leak-*' > /dev/null; then
+            echo "::error::libFuzzer wrote crash/leak artifacts (fuzzer exit code $rc)"
+            exit 1
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "Fuzzer exit code $rc with no crash/leak artifacts:" \
+                 "last fork job hit an ignored timeout/OOM; treating as pass"
+          fi
 
       - name: Upload crashes
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: libfuzzer-crashes
@@ -154,4 +175,5 @@ jobs:
             crash-*
             leak-*
             timeout-*
+            oom-*
           if-no-files-found: ignore

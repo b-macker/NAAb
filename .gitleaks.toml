@@ -31,6 +31,19 @@ paths = [
     '''docs/book/verification/.*/config/setup_pki\.sh''',
     '''blocks/library/.*''',
     '''include/naab/secure_string\.h''',
+    # File-precise entries for living fixture files with intentional dummy
+    # credentials (AWS example keys, loopback curl auth, sample JWTs, doc
+    # passwords). Exact files only — their directories stay fully scanned.
+    # Historical-only findings are pinned by fingerprint in .gitleaksignore.
+    '''tests/api/test_platform_fixes\.sh''',
+    '''tests/api/test_governance_c_api\.c''',
+    '''tests/api/test_governance_python\.py''',
+    '''tests/comprehensive/MONO_EXHAUSTIVE_TEST\.naab''',
+    '''tests/chapter_verification/MONO_EXHAUSTIVE_TEST\.naab''',
+    '''tests/chapter verification/MONO_EXHAUSTIVE_TEST\.naab''',
+    '''tests/chapter_verification/ch0_full_projects/GlobalTradeLogistics/main\.naab''',
+    '''tests/gorilla/test12_adversarial_agents/adversarial_agent_test\.naab''',
+    '''tests/robustness/test_instruction_following\.naab''',
 ]
 
 # Specific known false positives
