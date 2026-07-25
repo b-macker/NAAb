@@ -379,6 +379,7 @@ main {
         "tool_calls_total": 0,
         "governance_notices": [], "oa_quarantined": 0, "oa_admissible": 0,
         "oa_max_streak": 0, "oa_min_coherence": 2.0, "challenge_fails": 0,
+        "oa_commit_rejected": 0,
         "tool_calls_made_total": 0, "tool_loop_turns_total": 0
     }
 
@@ -420,17 +421,34 @@ main {
 
         // Output admissibility: the post-CDD gate fires on real runs and was
         // previously visible only as a stray print with nothing counting it.
+        //
+        // agent.send() and agent.commit() do NOT return the same admissibility
+        // shape. send() gives {admissible, coherence_score, threshold} plus
+        // {action, quarantine_streak} when it fails; commit() gives only
+        // {admissible, score}. Reading the send shape unconditionally printed a
+        // real commit rejection as "coherence=-1|threshold=-1|action=|streak=0"
+        // and counted it as a send quarantine, which it is not — no streak was
+        // involved and nothing was quarantined.
         let adm = resp.get("admissibility")
         if adm != null {
-            let adm_c = adm.get("coherence_score") ?? -1
+            let adm_c = adm.get("coherence_score") ?? adm.get("score") ?? -1
             if adm.get("admissible") == false {
-                tracking["oa_quarantined"] = tracking["oa_quarantined"] + 1
-                let streak = adm.get("quarantine_streak") ?? 0
-                if streak > tracking["oa_max_streak"] { tracking["oa_max_streak"] = streak }
-                if adm_c >= 0 && adm_c < tracking["oa_min_coherence"] {
-                    tracking["oa_min_coherence"] = adm_c
+                if adm.get("quarantine_streak") != null {
+                    // send(): a genuine post-CDD quarantine, streak-bearing.
+                    tracking["oa_quarantined"] = tracking["oa_quarantined"] + 1
+                    let streak = adm.get("quarantine_streak") ?? 0
+                    if streak > tracking["oa_max_streak"] { tracking["oa_max_streak"] = streak }
+                    if adm_c >= 0 && adm_c < tracking["oa_min_coherence"] {
+                        tracking["oa_min_coherence"] = adm_c
+                    }
+                    print("OA|" + name + "|inadmissible|coherence=" + string(adm_c) + "|threshold=" + string(adm.get("threshold") ?? -1) + "|action=" + string(adm.get("action") ?? "") + "|streak=" + string(streak))
+                } else {
+                    // commit(): the candidate was judged inadmissible on its
+                    // own score. Counted separately so it never inflates the
+                    // quarantine streak story.
+                    tracking["oa_commit_rejected"] = tracking["oa_commit_rejected"] + 1
+                    print("OA|" + name + "|commit_inadmissible|score=" + string(adm_c))
                 }
-                print("OA|" + name + "|inadmissible|coherence=" + string(adm_c) + "|threshold=" + string(adm.get("threshold") ?? -1) + "|action=" + string(adm.get("action") ?? "") + "|streak=" + string(streak))
             } else {
                 tracking["oa_admissible"] = tracking["oa_admissible"] + 1
             }
@@ -1643,6 +1661,34 @@ main {
     tracking["phases_completed"].push("CODEGEN_BOUNDARY")
 
     // ================================================================
+    // MEMORY CHECKPOINT — cross-run memory must survive a governance kill
+    // ================================================================
+    // The full memory record is written at the very end of the run, so every
+    // run that governance terminated mid-arc left memory/observations.json
+    // absent and the next run had nothing to load. Three consecutive runs
+    // failed the cross-run check for that reason alone, which says nothing
+    // about cross-run memory and everything about where the write sits.
+    // This checkpoint records the run as soon as the governance probes are
+    // done; the end-of-run save overwrites it with the complete record under
+    // the same run_count.
+    let run_count = (memory.get("run_count") ?? 0) + 1
+    try {
+        file.write(memory_path, json.stringify({
+            "run_count": run_count,
+            "last_run": time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S"),
+            "observations": "checkpoint written before FEATURES; run did not reach the end",
+            "checkpoint": true,
+            "phases_completed": tracking["phases_completed"],
+            "coherences": tracking["coherences"],
+            "min_coherences": tracking["min_coherences"]
+        }, 2))
+        print("MEMORY|checkpoint_saved|run=" + string(run_count))
+    } catch (e) {
+        print("MEMORY|checkpoint_error=" + string(e))
+    }
+
+
+    // ================================================================
     // PHASE 4: FEATURES — evolve code with new requirements (Level 5)
     // ================================================================
     print("PHASE|FEATURES|start")
@@ -2204,7 +2250,6 @@ main {
 
     let obs = memory_decision.get("observations")
     if obs == null { obs = memory_decision.get("reasoning") ?? "no observations" }
-    let run_count = (memory.get("run_count") ?? 0) + 1
     let new_memory = {
         "run_count": run_count,
         "last_run": time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S"),
@@ -2243,6 +2288,7 @@ main {
     print("SUMMARY_OA_QUARANTINED: " + string(tracking["oa_quarantined"]))
     print("SUMMARY_OA_ADMISSIBLE: " + string(tracking["oa_admissible"]))
     print("SUMMARY_OA_MAX_STREAK: " + string(tracking["oa_max_streak"]))
+    print("SUMMARY_OA_COMMIT_REJECTED: " + string(tracking["oa_commit_rejected"]))
     print("SUMMARY_GOV_NOTICES: " + string(tracking["governance_notices"].length()))
     print("SUMMARY_CHALLENGE_PASSES: " + string(tracking["challenge_passes"]))
     print("SUMMARY_CHALLENGE_FAILS: " + string(tracking["challenge_fails"]))
