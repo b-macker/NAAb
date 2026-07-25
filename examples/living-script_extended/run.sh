@@ -333,8 +333,15 @@ else
     PYTEST_PASS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=0' || true)
     if [ "$PYTEST_PASS" -ge 1 ]; then
         pass "L2-05" "Pytest passed at least once ($PYTEST_PASS runs with exit=0)"
+    elif [ "${PYTEST_RUNS:-0}" -ge 1 ]; then
+        # Deliberately NOT gk_fail. Pytest runs that actually happened and never
+        # passed are evidence, not absence of evidence, and a governance kill
+        # does not excuse them. Downgrading this on truncation let run 6 report
+        # zero failures while delivering less than run 4's three — the kill
+        # silently converted a real quality signal into a skip.
+        fail "L2-05" "No pytest run passed (0 exit=0 out of $PYTEST_RUNS runs that executed)"
     else
-        gk_fail "L2-05" "No pytest run passed (0 exit=0 out of $PYTEST_RUNS runs)"
+        gk_fail "L2-05" "Pytest never ran"
     fi
 
     # ============================================================
@@ -1735,6 +1742,13 @@ if [ -f "${WORKDIR:-/nonexistent}/telemetry.jsonl" ]; then
     echo -e "  ${CYAN}Challenges (telemetry, all run segments): pass=$CH_PASS fail=$CH_FAIL${NC}"
 fi
 [ -n "$GOV_KILL" ] && echo -e "  ${YELLOW}GOVERNANCE KILL: $GOV_KILL (run terminated by design; unreached levels skipped)${NC}"
+# A truncated run reports few failures because most checks never got to run.
+# Without this, "0 fail" on a killed run reads as better than "3 fail" on a
+# complete one, when it is strictly less information.
+if run_incomplete && [ "$SKIP_COUNT" -gt 0 ]; then
+    echo -e "  ${YELLOW}NOTE: $SKIP_COUNT of $TOTAL checks were never evaluated. A low FAIL count${NC}"
+    echo -e "  ${YELLOW}      on a truncated run means less was measured, not that more passed.${NC}"
+fi
 [ -n "$FAILURES" ] && echo -e "\n${RED}Failures:${FAILURES}${NC}"
 echo -e "${CYAN}================================================${NC}"
 
