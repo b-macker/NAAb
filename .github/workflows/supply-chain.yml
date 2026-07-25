@@ -42,7 +42,12 @@ jobs:
           GITLEAKS_VERSION: "8.30.1"
 
       - name: Upload Gitleaks SARIF
-        if: failure()
+        # Upload on green runs too: gitleaks writes a zero-result SARIF when
+        # clean, and code scanning only auto-closes open alerts when a newer
+        # analysis of the same category omits them. Upload-on-failure-only
+        # left the alerts from the historical full-history scan failures
+        # open with nothing to ever close them.
+        if: always() && hashFiles('results.sarif') != ''
         uses: github/codeql-action/upload-sarif@411c4c9a36b3fca4d674f06b6396b2c6d23522c6 # v3
         with:
           sarif_file: results.sarif

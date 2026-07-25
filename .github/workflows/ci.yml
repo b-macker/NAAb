@@ -64,3 +64,24 @@ jobs:
             -DENABLE_HARDENING=OFF ^
             -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
           ninja -C build naab-lang naab-gov -j%NUMBER_OF_PROCESSORS%
+
+  vscode-extension:
+    name: VS Code Extension Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: vscode-naab
+        run: npm ci
+
+      - name: Compile extension
+        working-directory: vscode-naab
+        run: npm run compile

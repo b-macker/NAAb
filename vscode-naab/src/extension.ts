@@ -10,7 +10,7 @@ import {
 
 let client: LanguageClient;
 
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
     // Get LSP server path from configuration
     const config = workspace.getConfiguration('naab');
     const serverPath = config.get<string>('lsp.serverPath') || 'naab-lsp';
@@ -40,8 +40,8 @@ export function activate(context: ExtensionContext) {
         clientOptions
     );
 
-    // Start client
-    client.start();
+    // Start client (returns a promise since vscode-languageclient v8)
+    await client.start();
 
     console.log('NAAb language client started');
 }
