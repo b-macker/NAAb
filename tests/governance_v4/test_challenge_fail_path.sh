@@ -589,6 +589,72 @@ fi
 fi
 
 # ============================================================
+# Group H: an EMPTY challenge response is a skip, not a failure
+#
+# Live run 8 died here. Three agents drew step-up challenges, the provider
+# returned HTTP 200 with no content, and the engine scored that as the agent
+# failing to demonstrate coherence: AGENT_CHALLENGE_FAIL with
+# keyword_ratio=-1.0, output_tokens=0, response_length=0, streak 2 of 2,
+# GovernanceHardError. Scoring empty text can only ever return -1.0 (word
+# count below step_up_min_words), so it was a challenge no agent could pass.
+#
+# The old challenge_infra_fail guard required !success AND (429 || >=5xx), so
+# a 200 carrying nothing missed it. Identical staging to Group D — the only
+# change is that the two challenge responses are empty instead of off-topic.
+# Under the old behavior this fixture exits 3; it must now complete.
+# ============================================================
+echo -e "${CYAN}--- Group H: empty challenge response skips, does not fail ---${NC}"
+WDIR="$TEST_TMP/h"; mkdir -p "$WDIR"
+# Only the CHALLENGE response is empty. A skipped challenge falls through to
+# the normal send, which consumes the next response — leaving that one empty
+# too would kill the run on the send path (exit 1) and prove nothing about
+# the challenge path. The last entry repeats once the list is exhausted.
+printf '%s' '{"responses": [
+  {"content": "def divide(a, b): return a / b  # implemented divide operation", "output_tokens": 30},
+  {"content": "def divide(a, b): return a / b  # attempting fix", "output_tokens": 30},
+  {"content": "", "output_tokens": 0},
+  {"content": "The divide test failed because divide raised ZeroDivisionError instead of ValueError for a zero divisor. I will catch ZeroDivisionError and raise ValueError, then proceed.", "output_tokens": 40}
+]}' > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "H-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+mk_govern "$STUB_PORT" ', "step_up_cooldown_turns": 0, "max_challenge_failures": 2' > "$WDIR/govern.json"; sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement divide")
+    let _f = agent.record_validation(h, false, "FAILED test_divide_by_zero: divide raised ZeroDivisionError, expected ValueError for zero divisor")
+    let r2 = agent.send(h, "fix the divide operation")
+    let r3 = agent.send(h, "add divide docstring")
+    let r4 = agent.send(h, "add divide docstring again")
+    print("SEND4_OK")
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>"$WDIR/stderr.txt"); EXIT_H=$?
+stop_stub
+if [ "$EXIT_H" -eq 0 ] && echo "$OUT" | grep -q "SEND4_OK"; then
+    pass "H-01" "Empty challenge response no longer terminates the run (exit 0)"
+else
+    fail "H-01" "Empty challenge response still kills the run" \
+         "exit=$EXIT_H s4=$(echo "$OUT" | grep -c SEND4_OK) reqs=$(ls "$WDIR"/req_*.json 2>/dev/null | wc -l) err=$( { grep -iE 'Agent error|^Error|error:' "$WDIR/stderr.txt"; echo "$OUT" | grep -iE 'Agent error|^Error'; } 2>/dev/null | head -2 | tr '\n' ' ')"
+fi
+if grep '"event_type":"AGENT_CHALLENGE_SKIPPED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"reason":"empty_response"'; then
+    pass "H-02" "Skip is auditable: AGENT_CHALLENGE_SKIPPED carries reason=empty_response"
+else
+    fail "H-02" "No AGENT_CHALLENGE_SKIPPED/empty_response telemetry" \
+         "$(grep -c CHALLENGE "$WDIR/tele.jsonl" 2>/dev/null) challenge events"
+fi
+# The precise regression: an empty response must not be scored at all. A
+# CHALLENGE_FAIL carrying keyword_ratio=-1.0 is the run 8 signature.
+if grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"keyword_ratio":"-1'; then
+    fail "H-03" "Empty response still scored as a challenge failure" \
+         "$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" | head -1)"
+else
+    pass "H-03" "No CHALLENGE_FAIL with keyword_ratio=-1 (run 8 signature absent)"
+fi
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))

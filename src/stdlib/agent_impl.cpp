@@ -2005,18 +2005,60 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         // to rate limiting or server error, the agent is not at fault.
                         // Skip the challenge entirely (don't count as pass or fail).
                         int challenge_http = challenge_result.http_status;
-                        bool challenge_infra_fail = !challenge_result.response.success &&
+                        bool challenge_transport_fail = !challenge_result.response.success &&
                             (challenge_http == 429 || challenge_http >= 500);
+
+                        // An HTTP 200 carrying no content is the same situation wearing
+                        // a success code, and it was previously scored as an agent
+                        // failure. Scoring empty text can only ever return -1.0 (word
+                        // count below step_up_min_words), so `passed` is false by
+                        // construction — a challenge the agent cannot pass however
+                        // coherent it is. That advanced challenge_failure_streak and,
+                        // at max_challenge_failures, terminated the run with
+                        // "the agent could not demonstrate coherence with its task"
+                        // when what actually happened is the provider returned nothing.
+                        //
+                        // The engine already treats content-empty-after-retries as its
+                        // own category on the normal send path (RESPONSE_SUPPRESSED);
+                        // this applies the same reading inside the challenge path. It
+                        // is the same challenge death spiral exclude_infrastructure_errors
+                        // guards against, arriving through empty content rather than 5xx.
+                        bool challenge_empty_response = challenge_result.response.content.empty();
+                        bool challenge_infra_fail = challenge_transport_fail || challenge_empty_response;
 
                         // If infrastructure failure (429/5xx after retries), skip
                         // the entire challenge evaluation — the agent is not at fault.
                         // Update last_challenge_turn to prevent re-trigger next turn,
                         // then fall through to the normal send path.
                         if (challenge_infra_fail) {
-                            std::lock_guard<std::mutex> lock(s_agent_mutex);
-                            auto it2 = s_trackers.find(handle_id);
-                            if (it2 != s_trackers.end()) {
-                                it2->second.last_challenge_turn = current_turn;
+                            {
+                                std::lock_guard<std::mutex> lock(s_agent_mutex);
+                                auto it2 = s_trackers.find(handle_id);
+                                if (it2 != s_trackers.end()) {
+                                    it2->second.last_challenge_turn = current_turn;
+                                }
+                            }
+                            // A skipped challenge previously left no record at all — not
+                            // for transport failures either. That makes the skip itself
+                            // un-auditable, which matters because skipping IS a bypass:
+                            // the send proceeds without step-up being demonstrated. An
+                            // agent able to produce empty responses on demand could
+                            // evade challenges invisibly. Emitting the skip is what
+                            // keeps that visible in telemetry rather than silent.
+                            if (gov_engine && gov_engine->isActive()) {
+                                gov_engine->writeAgentTelemetry("AGENT_CHALLENGE_SKIPPED", {
+                                    {"handle_id",       std::to_string(handle_id)},
+                                    {"agent",           config_name},
+                                    {"config_name",     config_name},
+                                    {"turn",            std::to_string(current_turn)},
+                                    {"challenge_type",  challenge_type},
+                                    {"reason",          challenge_transport_fail
+                                                            ? "transport"
+                                                            : "empty_response"},
+                                    {"http_status",     std::to_string(challenge_http)},
+                                    {"response_length", std::to_string(challenge_result.response.content.size())},
+                                    {"output_tokens",   std::to_string(challenge_result.response.output_tokens)}
+                                });
                             }
                         }
 
