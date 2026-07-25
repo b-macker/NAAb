@@ -1798,9 +1798,10 @@ main {
     // no_valid_changes. Nine CONFIG_ADJUSTMENT reloads in the last run carried
     // ratchet_notices="" — the engine-side ratchet had never once been asked to
     // refuse anything. This phase writes a properly SIGNED but loosened config
-    // (bypassing the script's guard entirely) and reads the engine's verdict
-    // back out of governance_notices on the next send. A valid signature must
-    // not be sufficient to loosen a running policy.
+    // (bypassing the script's guard entirely) and then reads the engine's
+    // verdict from CONFIG_ADJUSTMENT telemetry — not from governance_notices,
+    // which only ever carries ACCEPTED changes (see below). A valid signature
+    // must not be sufficient to loosen a running policy.
     print("PHASE|ENGINE_RATCHET|start")
 
     let er_notices_before = tracking["governance_notices"].length()
