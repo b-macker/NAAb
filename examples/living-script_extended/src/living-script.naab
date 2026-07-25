@@ -1090,6 +1090,558 @@ main {
     print("PROPOSE_SELECT|candidates=" + string(propose_candidates) + "|committed=" + string(propose_committed) + "|codegen=" + codegen_result)
     tracking["phases_completed"].push("PROPOSE_SELECT")
 
+    // ----------------------------------------------------------------
+    // Feature-independent governance probes run HERE, before the feature
+    // marathon, not after it. They have nothing to do with evolving the
+    // pipeline, but sitting downstream of a ~25-turn developer arc meant a
+    // single coherence excursion took them all out: two consecutive live
+    // runs ended in FEATURES and produced no verdict at all on the engine
+    // ratchet, transcript integrity, lease/epoch or codegen boundary.
+    // Ordering them ahead of FEATURES makes them reachable on every run;
+    // the feature arc that follows can then fail on its own merits.
+    // ----------------------------------------------------------------
+
+    // ================================================================
+    // PHASE: INTROSPECTION — runtime health report (Level 12)
+    // ================================================================
+    print("PHASE|INTROSPECTION|start")
+
+    // agent.environment
+    if handles.get("developer") != null {
+        try {
+            let dev_env = agent.environment(handles["developer"])
+            let env_limits = dev_env.get("limits") ?? {}
+            let env_state = dev_env.get("state") ?? {}
+            let env_perms = dev_env.get("permissions") ?? {}
+            print("INTROSPECTION|environment|max_tokens=" + string(env_limits.get("max_tokens") ?? 0) + "|coherence=" + string(env_state.get("coherence") ?? -1) + "|context_window=" + string(env_limits.get("context_window") ?? 0) + "|tools_enabled=" + string(env_perms.get("tools_enabled") ?? false))
+            // Level 19: tool execution stats
+            let tool_total = env_state.get("tool_calls_total") ?? 0
+            let tool_blocked = env_state.get("tool_calls_blocked") ?? 0
+            print("INTROSPECTION|tool_stats|calls=" + string(tool_total) + "|blocked=" + string(tool_blocked))
+        } catch (e) {
+            print("INTROSPECTION|environment_error=" + string(e))
+        }
+    }
+
+    // agent.usage
+    if handles.get("developer") != null {
+        try {
+            let dev_usage = agent.usage(handles["developer"])
+            let retries = dev_usage.get("retries") ?? 0
+            let fallbacks = dev_usage.get("fallbacks") ?? 0
+            let trunc = dev_usage.get("truncation_count") ?? 0
+            let latency = dev_usage.get("total_latency_ms") ?? 0
+            print("INTROSPECTION|usage|retries=" + string(retries) + "|fallbacks=" + string(fallbacks) + "|truncations=" + string(trunc) + "|latency_ms=" + string(latency))
+        } catch (e) {
+            print("INTROSPECTION|usage_error=" + string(e))
+        }
+    }
+
+    // agent.messages
+    if handles.get("developer") != null {
+        try {
+            let dev_msgs = agent.messages(handles["developer"])
+            print("INTROSPECTION|messages|count=" + string(dev_msgs.length()))
+        } catch (e) {
+            print("INTROSPECTION|messages_error=" + string(e))
+        }
+    }
+
+    // agent.key_health
+    try {
+        let kh = agent.key_health("developer")
+        let avail = kh.get("available") ?? 0
+        let active = kh.get("active") ?? 0
+        let dead = kh.get("dead") ?? 0
+        print("INTROSPECTION|key_health|available=" + string(avail) + "|active=" + string(active) + "|dead=" + string(dead))
+    } catch (e) {
+        print("INTROSPECTION|key_health_error=" + string(e))
+    }
+
+    // agent.dispatch_status
+    try {
+        let ds = agent.dispatch_status()
+        let calls = ds.get("calls_made") ?? 0
+        let tokens = ds.get("tokens_used") ?? 0
+        let stopped = ds.get("hard_stopped") ?? false
+        print("INTROSPECTION|dispatch|calls=" + string(calls) + "|tokens=" + string(tokens) + "|hard_stopped=" + string(stopped))
+    } catch (e) {
+        print("INTROSPECTION|dispatch_error=" + string(e))
+    }
+
+    // agent.register_tool — dummy tool for introspection testing
+    try {
+        // One schema property ("query") -> one positional parameter.
+        fn introspection_probe(query) { return "probe_ok" }
+        let reg = agent.register_tool("introspection_probe", introspection_probe, {
+            "description": "Dummy tool for introspection testing",
+            "parameters": {"query": {"type": "string", "description": "test query"}}
+        })
+        print("INTROSPECTION|register_tool=" + string(reg))
+    } catch (e) {
+        print("INTROSPECTION|register_tool_error=" + string(e))
+    }
+
+    // agent.run
+    try {
+        let run_content = agent.run("tester", "Reply with exactly: INTROSPECTION_OK")
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        print("INTROSPECTION|agent_run|len=" + string(len(run_content)))
+    } catch (e) {
+        tracking["send_errors"] = tracking["send_errors"] + 1
+        print("INTROSPECTION|agent_run_error=" + string(e))
+    }
+
+    // governance.findings + governance.score
+    let intro_findings_count = 0
+    let intro_raw_score = 0
+    try {
+        let intro_scorer = governance.scorer("code_quality")
+        governance.finding(intro_scorer, "introspection_test", "Test finding from introspection phase", "introspection")
+        let findings_arr = governance.findings(intro_scorer)
+        intro_findings_count = findings_arr.length()
+        intro_raw_score = governance.score(intro_scorer)
+        print("INTROSPECTION|findings_count=" + string(intro_findings_count))
+        print("INTROSPECTION|raw_score=" + string(intro_raw_score))
+    } catch (e) {
+        print("INTROSPECTION|scoring_error=" + string(e))
+    }
+
+    // governance.calibrate
+    try {
+        let cal_result = governance.calibrate("missing_docstrings", 1, "Reduced weight after introspection confirms docstrings present")
+        let cal_success = cal_result.get("success") ?? false
+        print("INTROSPECTION|calibrate|success=" + string(cal_success) + "|rule=" + string(cal_result.get("rule") ?? ""))
+    } catch (e) {
+        print("INTROSPECTION|calibrate_error=" + string(e))
+    }
+
+    // governance.calibration
+    try {
+        let all_overrides = governance.calibration()
+        let override_count = all_overrides.keys().length()
+        print("INTROSPECTION|calibration_overrides=" + string(override_count))
+    } catch (e) {
+        print("INTROSPECTION|calibration_error=" + string(e))
+    }
+
+    // codegen.run
+    try {
+        let cg_result = codegen.run("python", "print('CODEGEN_RUN_OK')")
+        print("INTROSPECTION|codegen_run=OK")
+    } catch (e) {
+        print("INTROSPECTION|codegen_run_error=" + string(e))
+    }
+
+    // codegen.run_with_args
+    try {
+        let cg_args_result = codegen.run_with_args("python", "x = a + b\nprint(x)", {"a": 10, "b": 20})
+        print("INTROSPECTION|codegen_args=OK")
+    } catch (e) {
+        print("INTROSPECTION|codegen_args_error=" + string(e))
+    }
+
+    print("INTROSPECTION|complete")
+    tracking["phases_completed"].push("INTROSPECTION")
+
+    // ================================================================
+    // PHASE: RATCHET — one-way ratchet enforcement (Level 13)
+    // ================================================================
+    print("PHASE|RATCHET|start")
+
+    let ratchet_loosen_result = apply_operator_adjustments(
+        {"developer": {"context_window": 50}}, "RATCHET"
+    )
+    let ratchet_loosen_blocked = ratchet_loosen_result != ""
+    print("RATCHET|loosen_blocked=" + string(ratchet_loosen_blocked) + "|result=" + ratchet_loosen_result)
+
+    let cur_cfg = json.parse(process.run("cat", ["govern.json"]).stdout)
+    let cur_window = cur_cfg["agents"]["developer"].get("context_window") ?? 20
+    let tighten_to = cur_window - 1
+    if tighten_to < 1 { tighten_to = 1 }
+    print("RATCHET|tighten_from=" + string(cur_window) + "|tighten_to=" + string(tighten_to))
+
+    let ratchet_tighten_result = apply_operator_adjustments(
+        {"developer": {"context_window": tighten_to}}, "RATCHET"
+    )
+    let ratchet_tighten_ok = ratchet_tighten_result == ""
+    print("RATCHET|tighten_ok=" + string(ratchet_tighten_ok) + "|result=" + ratchet_tighten_result)
+
+    let ratchet_field_result = apply_operator_adjustments(
+        {"developer": {"system_prompt": "hijack attempt"}}, "RATCHET"
+    )
+    let ratchet_field_blocked = ratchet_field_result != ""
+    print("RATCHET|field_blocked=" + string(ratchet_field_blocked) + "|result=" + ratchet_field_result)
+
+    let ratchet_free_result = apply_operator_adjustments(
+        {"developer": {"max_tokens": 4096}}, "RATCHET"
+    )
+    let ratchet_free_ok = ratchet_free_result == ""
+    print("RATCHET|free_adjust_ok=" + string(ratchet_free_ok) + "|result=" + ratchet_free_result)
+
+    tracking["phases_completed"].push("RATCHET")
+
+    // ================================================================
+    // PHASE: ENGINE_RATCHET — the engine's own ratchet, not the script's
+    // ================================================================
+    // Every check in the RATCHET phase above is answered by
+    // apply_operator_adjustments()'s allowlist, in NAAb, before the engine sees
+    // anything: "loosen_blocked" and "field_blocked" both come back as
+    // no_valid_changes. Nine CONFIG_ADJUSTMENT reloads in the last run carried
+    // ratchet_notices="" — the engine-side ratchet had never once been asked to
+    // refuse anything. This phase writes a properly SIGNED but loosened config
+    // (bypassing the script's guard entirely) and then reads the engine's
+    // verdict from CONFIG_ADJUSTMENT telemetry — not from governance_notices,
+    // which only ever carries ACCEPTED changes (see below). A valid signature
+    // must not be sufficient to loosen a running policy.
+    print("PHASE|ENGINE_RATCHET|start")
+
+    let er_notices_before = tracking["governance_notices"].length()
+    let er_write = "skipped"
+    let er_probe_ok = false
+    let er_restored = "not_attempted"
+
+    // Baselines: telemetry accumulates for the whole run, so the verdict has to
+    // be a delta rather than an absolute count.
+    let er_cfg_before = count_telemetry("CONFIG_ADJUSTMENT")
+    let er_ratchet_before = count_telemetry("\"reason\":\"ratchet\"")
+
+    let er_cfg = read_govern_raw()
+    if er_cfg != null && handles.get("tester") != null {
+        let er_oa = er_cfg["circuit_breaker"]["output_admissibility"]
+        let orig_threshold = er_oa.get("threshold") ?? 0.60
+        let orig_streak = er_oa.get("max_quarantine_streak") ?? 3
+        let orig_signal = er_cfg["context_drift"]["signals"].get("mandate_alignment") ?? true
+
+        // reloadIfChanged() compares mtime at ONE SECOND granularity, so a write
+        // landing in the same second as the previous load is skipped outright —
+        // the engine never sees it and the probe reports a false negative.
+        // Verified: the identical probe rejects or silently passes depending
+        // only on which side of a second boundary the write falls.
+        time.sleep(1.5)
+
+        // Three documented one-way fields, loosened at once: drop the
+        // admissibility threshold, raise the quarantine kill limit, and
+        // disable a CDD signal globally.
+        er_cfg["circuit_breaker"]["output_admissibility"]["threshold"] = 0.05
+        er_cfg["circuit_breaker"]["output_admissibility"]["max_quarantine_streak"] = 99
+        er_cfg["context_drift"]["signals"]["mandate_alignment"] = false
+        er_write = write_govern_raw(er_cfg)
+        print("ENGINE_RATCHET|loosened_write=" + er_write + "|threshold=" + string(orig_threshold) + "->0.05|streak=" + string(orig_streak) + "->99|mandate_alignment=" + string(orig_signal) + "->false")
+
+        if er_write == "" {
+            // Any send runs reloadIfChanged() first, which is where the ratchet
+            // is evaluated. The content is irrelevant to the probe, so it is
+            // deliberately an on-mandate, substantive question: a curt
+            // acknowledgement here would undershoot response_min_output_tokens
+            // and share no keywords with the tester's mandate, docking the
+            // agent's coherence for the sake of a config reload.
+            let er_probe = safe_send(handles["tester"], "In two or three sentences, what is the single biggest regression risk in a data pipeline that has just gained import/export methods?")
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            er_probe_ok = er_probe.get("error") == null
+            if er_probe_ok {
+                track("tester", er_probe)
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+
+            // Restore unconditionally. Raising the threshold back, lowering the
+            // streak limit and re-enabling the signal are all tightening moves,
+            // so the restore is itself ratchet-legal. Leaving the file loosened
+            // (or unsigned, if the write half-failed) would corrupt every phase
+            // after this one. Same one-second mtime guard as above, so the
+            // restore is actually observed rather than silently skipped.
+            time.sleep(1.5)
+            let er_cfg2 = read_govern_raw()
+            if er_cfg2 != null {
+                er_cfg2["circuit_breaker"]["output_admissibility"]["threshold"] = orig_threshold
+                er_cfg2["circuit_breaker"]["output_admissibility"]["max_quarantine_streak"] = orig_streak
+                er_cfg2["context_drift"]["signals"]["mandate_alignment"] = orig_signal
+                er_restored = write_govern_raw(er_cfg2)
+            } else {
+                er_restored = "reread_failed"
+            }
+            print("ENGINE_RATCHET|restored=" + er_restored)
+        }
+    }
+
+    let er_notices_after = tracking["governance_notices"].length()
+    print("ENGINE_RATCHET|probe_ok=" + string(er_probe_ok) + "|new_notices=" + string(er_notices_after - er_notices_before))
+
+    let eni = er_notices_before
+    while eni < er_notices_after {
+        print("ENGINE_RATCHET|notice=" + string(tracking["governance_notices"][eni]))
+        eni = eni + 1
+    }
+
+    // The refusal is NOT readable from governance_notices. reloadIfChanged()
+    // fills pending_notices_ only on the accepted path and returns early on a
+    // ratchet violation, so a script can observe config changes the engine TOOK
+    // but never one it REFUSED. The authoritative record of a refusal is the
+    // CONFIG_ADJUSTMENT telemetry event (accepted=false, reason=ratchet).
+    let er_cfg_after = count_telemetry("CONFIG_ADJUSTMENT")
+    let er_ratchet_after = count_telemetry("\"reason\":\"ratchet\"")
+
+    // Separating these two makes a false negative legible: "the engine looked
+    // and refused" and "the engine never looked" are different outcomes and
+    // only the first says anything about the ratchet.
+    let er_evaluated = er_cfg_after != er_cfg_before
+    let er_rejected_loosening = er_ratchet_after != er_ratchet_before
+    print("ENGINE_RATCHET|config_events=" + er_cfg_before + "->" + er_cfg_after + "|ratchet_events=" + er_ratchet_before + "->" + er_ratchet_after)
+    print("ENGINE_RATCHET|reload_evaluated=" + string(er_evaluated))
+    print("ENGINE_RATCHET|engine_rejected_loosening=" + string(er_rejected_loosening))
+    tracking["phases_completed"].push("ENGINE_RATCHET")
+
+    // ================================================================
+    // PHASE: HEALTH_PULSE — governance health progression (Level 15)
+    // ================================================================
+    print("PHASE|HEALTH_PULSE|start")
+
+    try {
+        let hp = governance.health()
+        let hp_verdict = hp.get("verdict") ?? "unknown"
+        let hp_coherence = hp.get("coherence") ?? -1
+        let hp_epoch = hp.get("governance_epoch") ?? -1
+        print("HEALTH_PULSE|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch))
+        let hp_keys = hp.keys()
+        print("HEALTH_PULSE|available_keys=" + string(hp_keys))
+
+        let base_v = baseline_health.get("verdict") ?? "unknown"
+        let base_e = baseline_health.get("governance_epoch") ?? -1
+        print("HEALTH_PULSE|baseline_verdict=" + base_v + "|baseline_epoch=" + string(base_e))
+        print("HEALTH_PULSE|epoch_advanced=" + string(hp_epoch > base_e))
+    } catch (e) {
+        print("HEALTH_PULSE|error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("HEALTH_PULSE")
+
+    // ================================================================
+    // PHASE: LEASE_EPOCH — standing lease & epoch observability (Level 16)
+    // ================================================================
+    print("PHASE|LEASE_EPOCH|start")
+
+    let lease_agents = ["developer", "operator", "reviewer"]
+    let lai = 0
+    while lai < lease_agents.length() {
+        let la_name = lease_agents[lai]
+        if handles.get(la_name) != null {
+            try {
+                let la_env = agent.environment(handles[la_name])
+                let la_state = la_env.get("state") ?? {}
+                let la_limits = la_env.get("limits") ?? {}
+                let lease_rem = la_state.get("lease_remaining") ?? -1
+                let la_epoch = la_state.get("governance_epoch") ?? -1
+                let la_coh = la_state.get("coherence") ?? -1
+                let la_chall_p = la_state.get("challenges_passed") ?? 0
+                let la_chall_f = la_state.get("challenges_failed") ?? 0
+                let la_trunc = la_state.get("truncation_count") ?? 0
+                let la_ctx_win = la_limits.get("context_window") ?? -1
+                let la_ctx_strat = la_env.get("context_strategy") ?? "unset"
+                let la_thinking = la_limits.get("thinking_budget") ?? -1
+                let la_min_tok = la_limits.get("min_tokens") ?? 0
+                print("LEASE_EPOCH|" + la_name + "|lease=" + string(lease_rem) + "|epoch=" + string(la_epoch) + "|coherence=" + string(la_coh))
+                print("LEASE_EPOCH|" + la_name + "|challenges_p=" + string(la_chall_p) + "|challenges_f=" + string(la_chall_f) + "|truncations=" + string(la_trunc))
+                print("LEASE_EPOCH|" + la_name + "|ctx_window=" + string(la_ctx_win) + "|ctx_strategy=" + la_ctx_strat + "|thinking=" + string(la_thinking) + "|min_tokens=" + string(la_min_tok))
+            } catch (e) {
+                print("LEASE_EPOCH|" + la_name + "|error=" + string(e))
+            }
+        }
+        lai = lai + 1
+    }
+
+    // CDD signal overrides visibility
+    if handles.get("developer") != null {
+        try {
+            let dev_env = agent.environment(handles["developer"])
+            let dev_state = dev_env.get("state") ?? {}
+            let cdd_overrides = dev_state.get("cdd_signal_overrides")
+            if cdd_overrides != null {
+                let override_keys = cdd_overrides.keys()
+                print("LEASE_EPOCH|developer|cdd_overrides=" + string(override_keys.length()) + "|keys=" + string(override_keys))
+            } else {
+                print("LEASE_EPOCH|developer|cdd_overrides=none")
+            }
+        } catch (e) {
+            print("LEASE_EPOCH|developer|cdd_overrides_error=" + string(e))
+        }
+    }
+
+    // Level 20: separation of duties visibility
+    if handles.get("developer") != null {
+        try {
+            let dev_env = agent.environment(handles["developer"])
+            let perms = dev_env.get("permissions") ?? {}
+            let actions = perms.get("allowed_actions") ?? []
+            print("SEPARATION|developer|allowed_actions=" + string(actions))
+        } catch (e) {
+            print("SEPARATION|developer|error=" + string(e))
+        }
+    }
+    if handles.get("tester") != null {
+        try {
+            let test_env = agent.environment(handles["tester"])
+            let perms = test_env.get("permissions") ?? {}
+            let actions = perms.get("allowed_actions") ?? []
+            let net = perms.get("network_allowed") ?? true
+            print("SEPARATION|tester|allowed_actions=" + string(actions) + "|network=" + string(net))
+        } catch (e) {
+            print("SEPARATION|tester|error=" + string(e))
+        }
+    }
+
+    tracking["phases_completed"].push("LEASE_EPOCH")
+
+    // ================================================================
+    // PHASE: TELEMETRY_AUDIT — event type coverage (Level 17)
+    // ================================================================
+    print("PHASE|TELEMETRY_AUDIT|start")
+
+    try {
+        let traw = file.read("telemetry.jsonl")
+        let tlines = string.split(string.trim(traw), "\n")
+        let event_types = {}
+        let tli = 0
+        while tli < tlines.length() {
+            if string.length(string.trim(tlines[tli])) > 2 {
+                try {
+                    let ev = json.parse(tlines[tli])
+                    let etype = ev.get("event_type") ?? ev.get("type") ?? "unknown"
+                    event_types[etype] = (event_types.get(etype) ?? 0) + 1
+                } catch (e) {}
+            }
+            tli = tli + 1
+        }
+        let type_names = event_types.keys()
+        print("TELEMETRY_AUDIT|unique_types=" + string(type_names.length()) + "|total_events=" + string(tlines.length()))
+
+        let eti = 0
+        while eti < type_names.length() {
+            print("TELEMETRY_AUDIT|type=" + type_names[eti] + "|count=" + string(event_types[type_names[eti]]))
+            eti = eti + 1
+        }
+
+        // Check for key governance event types including tool events
+        let expected_types = ["ADMISSION_EVAL", "AGENT_RESPONSE", "CDD_TURN", "SEMANTIC_TURN", "CONFIG_ADJUSTMENT"]
+        let found_expected = 0
+        let exi = 0
+        while exi < expected_types.length() {
+            if event_types.get(expected_types[exi]) != null {
+                found_expected = found_expected + 1
+            }
+            exi = exi + 1
+        }
+        print("TELEMETRY_AUDIT|expected_found=" + string(found_expected) + "|expected_total=" + string(expected_types.length()))
+
+        // Level 19: check for tool-related telemetry events
+        let tool_events = ["AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "AGENT_TOOL_REGISTERED"]
+        let tool_found = 0
+        let tei = 0
+        while tei < tool_events.length() {
+            if event_types.get(tool_events[tei]) != null {
+                tool_found = tool_found + 1
+            }
+            tei = tei + 1
+        }
+        print("TELEMETRY_AUDIT|tool_events_found=" + string(tool_found) + "|tool_events_checked=" + string(tool_events.length()))
+
+        // Check for advisory escalation events
+        let advisory_count = event_types.get("ADVISORY_ESCALATION") ?? 0
+        print("TELEMETRY_AUDIT|advisory_escalation_events=" + string(advisory_count))
+
+        // Consequence events — the ones that prove the engine ACTED rather than
+        // merely observed. Counting only ADMISSION_EVAL/CDD_TURN-style
+        // observation events made a run look fully governed even when nothing
+        // had ever been blocked, quarantined, challenged or escalated.
+        let consequence_types = ["OUTPUT_ADMISSIBILITY_EVAL", "OUTPUT_INADMISSIBLE", "AGENT_CHALLENGE_PASS", "AGENT_CHALLENGE_FAIL", "GOVERNANCE_LEVEL_CHANGE", "CONFIG_ADJUSTMENT", "VALIDATION_RECORDED", "BSD_MATCH", "RESPONSE_TRUNCATED", "AGENT_PROPOSE", "AGENT_PROPOSAL_COMMIT", "AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "TRANSCRIPT_REF"]
+        let consequence_found = 0
+        let cqi = 0
+        while cqi < consequence_types.length() {
+            let cnt = event_types.get(consequence_types[cqi]) ?? 0
+            if cnt > 0 { consequence_found = consequence_found + 1 }
+            print("TELEMETRY_AUDIT|consequence|" + consequence_types[cqi] + "=" + string(cnt))
+            cqi = cqi + 1
+        }
+        print("TELEMETRY_AUDIT|consequence_found=" + string(consequence_found) + "|consequence_total=" + string(consequence_types.length()))
+    } catch (e) {
+        print("TELEMETRY_AUDIT|error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("TELEMETRY_AUDIT")
+
+    // ================================================================
+    // PHASE: TRANSCRIPT_AUDIT — transcript integrity against the chain
+    // ================================================================
+    // The transcript is enabled in govern.json but nothing has ever read it
+    // back. It sits outside the telemetry hash chain by design, yet every entry
+    // carries an entry_hash that a chained TRANSCRIPT_REF event commits to, so
+    // entry count vs TRANSCRIPT_REF count is the cheap tamper check. Counting
+    // is done with grep/wc so a multi-MB transcript never enters script memory.
+    print("PHASE|TRANSCRIPT_AUDIT|start")
+
+    let ta_lines = count_lines_matching("transcript.jsonl", "")
+    let ta_hashed = count_lines_matching("transcript.jsonl", "\"entry_hash\":")
+    let ta_sends = count_lines_matching("transcript.jsonl", "\"type\":\"agent_send\"")
+    let ta_creates = count_lines_matching("transcript.jsonl", "\"type\":\"agent_create\"")
+    let ta_refs = count_telemetry("TRANSCRIPT_REF")
+    print("TRANSCRIPT_AUDIT|lines=" + ta_lines + "|entry_hash=" + ta_hashed + "|sends=" + ta_sends + "|creates=" + ta_creates + "|transcript_ref=" + ta_refs)
+    print("TRANSCRIPT_AUDIT|every_entry_hashed=" + string(len(ta_lines) > 0 && ta_lines == ta_hashed))
+    print("TRANSCRIPT_AUDIT|ref_matches_entries=" + string(len(ta_refs) > 0 && ta_refs == ta_lines))
+    tracking["phases_completed"].push("TRANSCRIPT_AUDIT")
+
+    // ================================================================
+    // PHASE: CODEGEN_BOUNDARY — codegen strict failure path (Level 18)
+    // ================================================================
+    print("PHASE|CODEGEN_BOUNDARY|start")
+
+    let codegen_strict_threw = false
+    try {
+        codegen.run_strict("python", "def broken(:\n    pass")
+        print("CODEGEN_BOUNDARY|strict_invalid=NO_THROW")
+    } catch (e) {
+        codegen_strict_threw = true
+        let err_str = string(e)
+        if len(err_str) > 80 { err_str = string.substring(err_str, 0, 80) }
+        print("CODEGEN_BOUNDARY|strict_invalid=threw|snippet=" + err_str)
+    }
+    print("CODEGEN_BOUNDARY|strict_threw=" + string(codegen_strict_threw))
+
+    try {
+        let cg_out = codegen.run("python", "print(7 * 6, end='')")
+        print("CODEGEN_BOUNDARY|run_output=" + string(cg_out))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|run_error=" + string(e))
+    }
+
+    try {
+        let cg_args = codegen.run_with_args("python", "result = x * y\nprint(result, end='')", {"x": 7, "y": 6})
+        print("CODEGEN_BOUNDARY|args_output=" + string(cg_args))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|args_error=" + string(e))
+    }
+
+    try {
+        let cg_langs = codegen.supported_languages()
+        let has_py = false
+        let cli = 0
+        while cli < cg_langs.length() {
+            if cg_langs[cli] == "python" { has_py = true }
+            cli = cli + 1
+        }
+        print("CODEGEN_BOUNDARY|languages=" + string(cg_langs.length()) + "|has_python=" + string(has_py))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|languages_error=" + string(e))
+    }
+
+    try {
+        let still_enabled = codegen.is_enabled()
+        print("CODEGEN_BOUNDARY|still_enabled=" + string(still_enabled))
+    } catch (e) {
+        print("CODEGEN_BOUNDARY|enabled_error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("CODEGEN_BOUNDARY")
+
     // ================================================================
     // PHASE 4: FEATURES — evolve code with new requirements (Level 5)
     // ================================================================
@@ -1631,547 +2183,6 @@ main {
     }
 
     tracking["phases_completed"].push("SCORING")
-
-    // ================================================================
-    // PHASE 5.6: INTROSPECTION — runtime health report (Level 12)
-    // ================================================================
-    print("PHASE|INTROSPECTION|start")
-
-    // agent.environment
-    if handles.get("developer") != null {
-        try {
-            let dev_env = agent.environment(handles["developer"])
-            let env_limits = dev_env.get("limits") ?? {}
-            let env_state = dev_env.get("state") ?? {}
-            let env_perms = dev_env.get("permissions") ?? {}
-            print("INTROSPECTION|environment|max_tokens=" + string(env_limits.get("max_tokens") ?? 0) + "|coherence=" + string(env_state.get("coherence") ?? -1) + "|context_window=" + string(env_limits.get("context_window") ?? 0) + "|tools_enabled=" + string(env_perms.get("tools_enabled") ?? false))
-            // Level 19: tool execution stats
-            let tool_total = env_state.get("tool_calls_total") ?? 0
-            let tool_blocked = env_state.get("tool_calls_blocked") ?? 0
-            print("INTROSPECTION|tool_stats|calls=" + string(tool_total) + "|blocked=" + string(tool_blocked))
-        } catch (e) {
-            print("INTROSPECTION|environment_error=" + string(e))
-        }
-    }
-
-    // agent.usage
-    if handles.get("developer") != null {
-        try {
-            let dev_usage = agent.usage(handles["developer"])
-            let retries = dev_usage.get("retries") ?? 0
-            let fallbacks = dev_usage.get("fallbacks") ?? 0
-            let trunc = dev_usage.get("truncation_count") ?? 0
-            let latency = dev_usage.get("total_latency_ms") ?? 0
-            print("INTROSPECTION|usage|retries=" + string(retries) + "|fallbacks=" + string(fallbacks) + "|truncations=" + string(trunc) + "|latency_ms=" + string(latency))
-        } catch (e) {
-            print("INTROSPECTION|usage_error=" + string(e))
-        }
-    }
-
-    // agent.messages
-    if handles.get("developer") != null {
-        try {
-            let dev_msgs = agent.messages(handles["developer"])
-            print("INTROSPECTION|messages|count=" + string(dev_msgs.length()))
-        } catch (e) {
-            print("INTROSPECTION|messages_error=" + string(e))
-        }
-    }
-
-    // agent.key_health
-    try {
-        let kh = agent.key_health("developer")
-        let avail = kh.get("available") ?? 0
-        let active = kh.get("active") ?? 0
-        let dead = kh.get("dead") ?? 0
-        print("INTROSPECTION|key_health|available=" + string(avail) + "|active=" + string(active) + "|dead=" + string(dead))
-    } catch (e) {
-        print("INTROSPECTION|key_health_error=" + string(e))
-    }
-
-    // agent.dispatch_status
-    try {
-        let ds = agent.dispatch_status()
-        let calls = ds.get("calls_made") ?? 0
-        let tokens = ds.get("tokens_used") ?? 0
-        let stopped = ds.get("hard_stopped") ?? false
-        print("INTROSPECTION|dispatch|calls=" + string(calls) + "|tokens=" + string(tokens) + "|hard_stopped=" + string(stopped))
-    } catch (e) {
-        print("INTROSPECTION|dispatch_error=" + string(e))
-    }
-
-    // agent.register_tool — dummy tool for introspection testing
-    try {
-        // One schema property ("query") -> one positional parameter.
-        fn introspection_probe(query) { return "probe_ok" }
-        let reg = agent.register_tool("introspection_probe", introspection_probe, {
-            "description": "Dummy tool for introspection testing",
-            "parameters": {"query": {"type": "string", "description": "test query"}}
-        })
-        print("INTROSPECTION|register_tool=" + string(reg))
-    } catch (e) {
-        print("INTROSPECTION|register_tool_error=" + string(e))
-    }
-
-    // agent.run
-    try {
-        let run_content = agent.run("tester", "Reply with exactly: INTROSPECTION_OK")
-        tracking["total_sends"] = tracking["total_sends"] + 1
-        print("INTROSPECTION|agent_run|len=" + string(len(run_content)))
-    } catch (e) {
-        tracking["send_errors"] = tracking["send_errors"] + 1
-        print("INTROSPECTION|agent_run_error=" + string(e))
-    }
-
-    // governance.findings + governance.score
-    let intro_findings_count = 0
-    let intro_raw_score = 0
-    try {
-        let intro_scorer = governance.scorer("code_quality")
-        governance.finding(intro_scorer, "introspection_test", "Test finding from introspection phase", "introspection")
-        let findings_arr = governance.findings(intro_scorer)
-        intro_findings_count = findings_arr.length()
-        intro_raw_score = governance.score(intro_scorer)
-        print("INTROSPECTION|findings_count=" + string(intro_findings_count))
-        print("INTROSPECTION|raw_score=" + string(intro_raw_score))
-    } catch (e) {
-        print("INTROSPECTION|scoring_error=" + string(e))
-    }
-
-    // governance.calibrate
-    try {
-        let cal_result = governance.calibrate("missing_docstrings", 1, "Reduced weight after introspection confirms docstrings present")
-        let cal_success = cal_result.get("success") ?? false
-        print("INTROSPECTION|calibrate|success=" + string(cal_success) + "|rule=" + string(cal_result.get("rule") ?? ""))
-    } catch (e) {
-        print("INTROSPECTION|calibrate_error=" + string(e))
-    }
-
-    // governance.calibration
-    try {
-        let all_overrides = governance.calibration()
-        let override_count = all_overrides.keys().length()
-        print("INTROSPECTION|calibration_overrides=" + string(override_count))
-    } catch (e) {
-        print("INTROSPECTION|calibration_error=" + string(e))
-    }
-
-    // codegen.run
-    try {
-        let cg_result = codegen.run("python", "print('CODEGEN_RUN_OK')")
-        print("INTROSPECTION|codegen_run=OK")
-    } catch (e) {
-        print("INTROSPECTION|codegen_run_error=" + string(e))
-    }
-
-    // codegen.run_with_args
-    try {
-        let cg_args_result = codegen.run_with_args("python", "x = a + b\nprint(x)", {"a": 10, "b": 20})
-        print("INTROSPECTION|codegen_args=OK")
-    } catch (e) {
-        print("INTROSPECTION|codegen_args_error=" + string(e))
-    }
-
-    print("INTROSPECTION|complete")
-    tracking["phases_completed"].push("INTROSPECTION")
-
-    // ================================================================
-    // PHASE: RATCHET — one-way ratchet enforcement (Level 13)
-    // ================================================================
-    print("PHASE|RATCHET|start")
-
-    let ratchet_loosen_result = apply_operator_adjustments(
-        {"developer": {"context_window": 50}}, "RATCHET"
-    )
-    let ratchet_loosen_blocked = ratchet_loosen_result != ""
-    print("RATCHET|loosen_blocked=" + string(ratchet_loosen_blocked) + "|result=" + ratchet_loosen_result)
-
-    let cur_cfg = json.parse(process.run("cat", ["govern.json"]).stdout)
-    let cur_window = cur_cfg["agents"]["developer"].get("context_window") ?? 20
-    let tighten_to = cur_window - 1
-    if tighten_to < 1 { tighten_to = 1 }
-    print("RATCHET|tighten_from=" + string(cur_window) + "|tighten_to=" + string(tighten_to))
-
-    let ratchet_tighten_result = apply_operator_adjustments(
-        {"developer": {"context_window": tighten_to}}, "RATCHET"
-    )
-    let ratchet_tighten_ok = ratchet_tighten_result == ""
-    print("RATCHET|tighten_ok=" + string(ratchet_tighten_ok) + "|result=" + ratchet_tighten_result)
-
-    let ratchet_field_result = apply_operator_adjustments(
-        {"developer": {"system_prompt": "hijack attempt"}}, "RATCHET"
-    )
-    let ratchet_field_blocked = ratchet_field_result != ""
-    print("RATCHET|field_blocked=" + string(ratchet_field_blocked) + "|result=" + ratchet_field_result)
-
-    let ratchet_free_result = apply_operator_adjustments(
-        {"developer": {"max_tokens": 4096}}, "RATCHET"
-    )
-    let ratchet_free_ok = ratchet_free_result == ""
-    print("RATCHET|free_adjust_ok=" + string(ratchet_free_ok) + "|result=" + ratchet_free_result)
-
-    tracking["phases_completed"].push("RATCHET")
-
-    // ================================================================
-    // PHASE: ENGINE_RATCHET — the engine's own ratchet, not the script's
-    // ================================================================
-    // Every check in the RATCHET phase above is answered by
-    // apply_operator_adjustments()'s allowlist, in NAAb, before the engine sees
-    // anything: "loosen_blocked" and "field_blocked" both come back as
-    // no_valid_changes. Nine CONFIG_ADJUSTMENT reloads in the last run carried
-    // ratchet_notices="" — the engine-side ratchet had never once been asked to
-    // refuse anything. This phase writes a properly SIGNED but loosened config
-    // (bypassing the script's guard entirely) and then reads the engine's
-    // verdict from CONFIG_ADJUSTMENT telemetry — not from governance_notices,
-    // which only ever carries ACCEPTED changes (see below). A valid signature
-    // must not be sufficient to loosen a running policy.
-    print("PHASE|ENGINE_RATCHET|start")
-
-    let er_notices_before = tracking["governance_notices"].length()
-    let er_write = "skipped"
-    let er_probe_ok = false
-    let er_restored = "not_attempted"
-
-    // Baselines: telemetry accumulates for the whole run, so the verdict has to
-    // be a delta rather than an absolute count.
-    let er_cfg_before = count_telemetry("CONFIG_ADJUSTMENT")
-    let er_ratchet_before = count_telemetry("\"reason\":\"ratchet\"")
-
-    let er_cfg = read_govern_raw()
-    if er_cfg != null && handles.get("tester") != null {
-        let er_oa = er_cfg["circuit_breaker"]["output_admissibility"]
-        let orig_threshold = er_oa.get("threshold") ?? 0.60
-        let orig_streak = er_oa.get("max_quarantine_streak") ?? 3
-        let orig_signal = er_cfg["context_drift"]["signals"].get("mandate_alignment") ?? true
-
-        // reloadIfChanged() compares mtime at ONE SECOND granularity, so a write
-        // landing in the same second as the previous load is skipped outright —
-        // the engine never sees it and the probe reports a false negative.
-        // Verified: the identical probe rejects or silently passes depending
-        // only on which side of a second boundary the write falls.
-        time.sleep(1.5)
-
-        // Three documented one-way fields, loosened at once: drop the
-        // admissibility threshold, raise the quarantine kill limit, and
-        // disable a CDD signal globally.
-        er_cfg["circuit_breaker"]["output_admissibility"]["threshold"] = 0.05
-        er_cfg["circuit_breaker"]["output_admissibility"]["max_quarantine_streak"] = 99
-        er_cfg["context_drift"]["signals"]["mandate_alignment"] = false
-        er_write = write_govern_raw(er_cfg)
-        print("ENGINE_RATCHET|loosened_write=" + er_write + "|threshold=" + string(orig_threshold) + "->0.05|streak=" + string(orig_streak) + "->99|mandate_alignment=" + string(orig_signal) + "->false")
-
-        if er_write == "" {
-            // Any send runs reloadIfChanged() first, which is where the ratchet
-            // is evaluated. The content is irrelevant to the probe, so it is
-            // deliberately an on-mandate, substantive question: a curt
-            // acknowledgement here would undershoot response_min_output_tokens
-            // and share no keywords with the tester's mandate, docking the
-            // agent's coherence for the sake of a config reload.
-            let er_probe = safe_send(handles["tester"], "In two or three sentences, what is the single biggest regression risk in a data pipeline that has just gained import/export methods?")
-            tracking["total_sends"] = tracking["total_sends"] + 1
-            er_probe_ok = er_probe.get("error") == null
-            if er_probe_ok {
-                track("tester", er_probe)
-            } else {
-                tracking["send_errors"] = tracking["send_errors"] + 1
-            }
-
-            // Restore unconditionally. Raising the threshold back, lowering the
-            // streak limit and re-enabling the signal are all tightening moves,
-            // so the restore is itself ratchet-legal. Leaving the file loosened
-            // (or unsigned, if the write half-failed) would corrupt every phase
-            // after this one. Same one-second mtime guard as above, so the
-            // restore is actually observed rather than silently skipped.
-            time.sleep(1.5)
-            let er_cfg2 = read_govern_raw()
-            if er_cfg2 != null {
-                er_cfg2["circuit_breaker"]["output_admissibility"]["threshold"] = orig_threshold
-                er_cfg2["circuit_breaker"]["output_admissibility"]["max_quarantine_streak"] = orig_streak
-                er_cfg2["context_drift"]["signals"]["mandate_alignment"] = orig_signal
-                er_restored = write_govern_raw(er_cfg2)
-            } else {
-                er_restored = "reread_failed"
-            }
-            print("ENGINE_RATCHET|restored=" + er_restored)
-        }
-    }
-
-    let er_notices_after = tracking["governance_notices"].length()
-    print("ENGINE_RATCHET|probe_ok=" + string(er_probe_ok) + "|new_notices=" + string(er_notices_after - er_notices_before))
-
-    let eni = er_notices_before
-    while eni < er_notices_after {
-        print("ENGINE_RATCHET|notice=" + string(tracking["governance_notices"][eni]))
-        eni = eni + 1
-    }
-
-    // The refusal is NOT readable from governance_notices. reloadIfChanged()
-    // fills pending_notices_ only on the accepted path and returns early on a
-    // ratchet violation, so a script can observe config changes the engine TOOK
-    // but never one it REFUSED. The authoritative record of a refusal is the
-    // CONFIG_ADJUSTMENT telemetry event (accepted=false, reason=ratchet).
-    let er_cfg_after = count_telemetry("CONFIG_ADJUSTMENT")
-    let er_ratchet_after = count_telemetry("\"reason\":\"ratchet\"")
-
-    // Separating these two makes a false negative legible: "the engine looked
-    // and refused" and "the engine never looked" are different outcomes and
-    // only the first says anything about the ratchet.
-    let er_evaluated = er_cfg_after != er_cfg_before
-    let er_rejected_loosening = er_ratchet_after != er_ratchet_before
-    print("ENGINE_RATCHET|config_events=" + er_cfg_before + "->" + er_cfg_after + "|ratchet_events=" + er_ratchet_before + "->" + er_ratchet_after)
-    print("ENGINE_RATCHET|reload_evaluated=" + string(er_evaluated))
-    print("ENGINE_RATCHET|engine_rejected_loosening=" + string(er_rejected_loosening))
-    tracking["phases_completed"].push("ENGINE_RATCHET")
-
-    // ================================================================
-    // PHASE: HEALTH_PULSE — governance health progression (Level 15)
-    // ================================================================
-    print("PHASE|HEALTH_PULSE|start")
-
-    try {
-        let hp = governance.health()
-        let hp_verdict = hp.get("verdict") ?? "unknown"
-        let hp_coherence = hp.get("coherence") ?? -1
-        let hp_epoch = hp.get("governance_epoch") ?? -1
-        print("HEALTH_PULSE|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch))
-        let hp_keys = hp.keys()
-        print("HEALTH_PULSE|available_keys=" + string(hp_keys))
-
-        let base_v = baseline_health.get("verdict") ?? "unknown"
-        let base_e = baseline_health.get("governance_epoch") ?? -1
-        print("HEALTH_PULSE|baseline_verdict=" + base_v + "|baseline_epoch=" + string(base_e))
-        print("HEALTH_PULSE|epoch_advanced=" + string(hp_epoch > base_e))
-    } catch (e) {
-        print("HEALTH_PULSE|error=" + string(e))
-    }
-
-    tracking["phases_completed"].push("HEALTH_PULSE")
-
-    // ================================================================
-    // PHASE: LEASE_EPOCH — standing lease & epoch observability (Level 16)
-    // ================================================================
-    print("PHASE|LEASE_EPOCH|start")
-
-    let lease_agents = ["developer", "operator", "reviewer"]
-    let lai = 0
-    while lai < lease_agents.length() {
-        let la_name = lease_agents[lai]
-        if handles.get(la_name) != null {
-            try {
-                let la_env = agent.environment(handles[la_name])
-                let la_state = la_env.get("state") ?? {}
-                let la_limits = la_env.get("limits") ?? {}
-                let lease_rem = la_state.get("lease_remaining") ?? -1
-                let la_epoch = la_state.get("governance_epoch") ?? -1
-                let la_coh = la_state.get("coherence") ?? -1
-                let la_chall_p = la_state.get("challenges_passed") ?? 0
-                let la_chall_f = la_state.get("challenges_failed") ?? 0
-                let la_trunc = la_state.get("truncation_count") ?? 0
-                let la_ctx_win = la_limits.get("context_window") ?? -1
-                let la_ctx_strat = la_env.get("context_strategy") ?? "unset"
-                let la_thinking = la_limits.get("thinking_budget") ?? -1
-                let la_min_tok = la_limits.get("min_tokens") ?? 0
-                print("LEASE_EPOCH|" + la_name + "|lease=" + string(lease_rem) + "|epoch=" + string(la_epoch) + "|coherence=" + string(la_coh))
-                print("LEASE_EPOCH|" + la_name + "|challenges_p=" + string(la_chall_p) + "|challenges_f=" + string(la_chall_f) + "|truncations=" + string(la_trunc))
-                print("LEASE_EPOCH|" + la_name + "|ctx_window=" + string(la_ctx_win) + "|ctx_strategy=" + la_ctx_strat + "|thinking=" + string(la_thinking) + "|min_tokens=" + string(la_min_tok))
-            } catch (e) {
-                print("LEASE_EPOCH|" + la_name + "|error=" + string(e))
-            }
-        }
-        lai = lai + 1
-    }
-
-    // CDD signal overrides visibility
-    if handles.get("developer") != null {
-        try {
-            let dev_env = agent.environment(handles["developer"])
-            let dev_state = dev_env.get("state") ?? {}
-            let cdd_overrides = dev_state.get("cdd_signal_overrides")
-            if cdd_overrides != null {
-                let override_keys = cdd_overrides.keys()
-                print("LEASE_EPOCH|developer|cdd_overrides=" + string(override_keys.length()) + "|keys=" + string(override_keys))
-            } else {
-                print("LEASE_EPOCH|developer|cdd_overrides=none")
-            }
-        } catch (e) {
-            print("LEASE_EPOCH|developer|cdd_overrides_error=" + string(e))
-        }
-    }
-
-    // Level 20: separation of duties visibility
-    if handles.get("developer") != null {
-        try {
-            let dev_env = agent.environment(handles["developer"])
-            let perms = dev_env.get("permissions") ?? {}
-            let actions = perms.get("allowed_actions") ?? []
-            print("SEPARATION|developer|allowed_actions=" + string(actions))
-        } catch (e) {
-            print("SEPARATION|developer|error=" + string(e))
-        }
-    }
-    if handles.get("tester") != null {
-        try {
-            let test_env = agent.environment(handles["tester"])
-            let perms = test_env.get("permissions") ?? {}
-            let actions = perms.get("allowed_actions") ?? []
-            let net = perms.get("network_allowed") ?? true
-            print("SEPARATION|tester|allowed_actions=" + string(actions) + "|network=" + string(net))
-        } catch (e) {
-            print("SEPARATION|tester|error=" + string(e))
-        }
-    }
-
-    tracking["phases_completed"].push("LEASE_EPOCH")
-
-    // ================================================================
-    // PHASE: TELEMETRY_AUDIT — event type coverage (Level 17)
-    // ================================================================
-    print("PHASE|TELEMETRY_AUDIT|start")
-
-    try {
-        let traw = file.read("telemetry.jsonl")
-        let tlines = string.split(string.trim(traw), "\n")
-        let event_types = {}
-        let tli = 0
-        while tli < tlines.length() {
-            if string.length(string.trim(tlines[tli])) > 2 {
-                try {
-                    let ev = json.parse(tlines[tli])
-                    let etype = ev.get("event_type") ?? ev.get("type") ?? "unknown"
-                    event_types[etype] = (event_types.get(etype) ?? 0) + 1
-                } catch (e) {}
-            }
-            tli = tli + 1
-        }
-        let type_names = event_types.keys()
-        print("TELEMETRY_AUDIT|unique_types=" + string(type_names.length()) + "|total_events=" + string(tlines.length()))
-
-        let eti = 0
-        while eti < type_names.length() {
-            print("TELEMETRY_AUDIT|type=" + type_names[eti] + "|count=" + string(event_types[type_names[eti]]))
-            eti = eti + 1
-        }
-
-        // Check for key governance event types including tool events
-        let expected_types = ["ADMISSION_EVAL", "AGENT_RESPONSE", "CDD_TURN", "SEMANTIC_TURN", "CONFIG_ADJUSTMENT"]
-        let found_expected = 0
-        let exi = 0
-        while exi < expected_types.length() {
-            if event_types.get(expected_types[exi]) != null {
-                found_expected = found_expected + 1
-            }
-            exi = exi + 1
-        }
-        print("TELEMETRY_AUDIT|expected_found=" + string(found_expected) + "|expected_total=" + string(expected_types.length()))
-
-        // Level 19: check for tool-related telemetry events
-        let tool_events = ["AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "AGENT_TOOL_REGISTERED"]
-        let tool_found = 0
-        let tei = 0
-        while tei < tool_events.length() {
-            if event_types.get(tool_events[tei]) != null {
-                tool_found = tool_found + 1
-            }
-            tei = tei + 1
-        }
-        print("TELEMETRY_AUDIT|tool_events_found=" + string(tool_found) + "|tool_events_checked=" + string(tool_events.length()))
-
-        // Check for advisory escalation events
-        let advisory_count = event_types.get("ADVISORY_ESCALATION") ?? 0
-        print("TELEMETRY_AUDIT|advisory_escalation_events=" + string(advisory_count))
-
-        // Consequence events — the ones that prove the engine ACTED rather than
-        // merely observed. Counting only ADMISSION_EVAL/CDD_TURN-style
-        // observation events made a run look fully governed even when nothing
-        // had ever been blocked, quarantined, challenged or escalated.
-        let consequence_types = ["OUTPUT_ADMISSIBILITY_EVAL", "OUTPUT_INADMISSIBLE", "AGENT_CHALLENGE_PASS", "AGENT_CHALLENGE_FAIL", "GOVERNANCE_LEVEL_CHANGE", "CONFIG_ADJUSTMENT", "VALIDATION_RECORDED", "BSD_MATCH", "RESPONSE_TRUNCATED", "AGENT_PROPOSE", "AGENT_PROPOSAL_COMMIT", "AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "TRANSCRIPT_REF"]
-        let consequence_found = 0
-        let cqi = 0
-        while cqi < consequence_types.length() {
-            let cnt = event_types.get(consequence_types[cqi]) ?? 0
-            if cnt > 0 { consequence_found = consequence_found + 1 }
-            print("TELEMETRY_AUDIT|consequence|" + consequence_types[cqi] + "=" + string(cnt))
-            cqi = cqi + 1
-        }
-        print("TELEMETRY_AUDIT|consequence_found=" + string(consequence_found) + "|consequence_total=" + string(consequence_types.length()))
-    } catch (e) {
-        print("TELEMETRY_AUDIT|error=" + string(e))
-    }
-
-    tracking["phases_completed"].push("TELEMETRY_AUDIT")
-
-    // ================================================================
-    // PHASE: TRANSCRIPT_AUDIT — transcript integrity against the chain
-    // ================================================================
-    // The transcript is enabled in govern.json but nothing has ever read it
-    // back. It sits outside the telemetry hash chain by design, yet every entry
-    // carries an entry_hash that a chained TRANSCRIPT_REF event commits to, so
-    // entry count vs TRANSCRIPT_REF count is the cheap tamper check. Counting
-    // is done with grep/wc so a multi-MB transcript never enters script memory.
-    print("PHASE|TRANSCRIPT_AUDIT|start")
-
-    let ta_lines = count_lines_matching("transcript.jsonl", "")
-    let ta_hashed = count_lines_matching("transcript.jsonl", "\"entry_hash\":")
-    let ta_sends = count_lines_matching("transcript.jsonl", "\"type\":\"agent_send\"")
-    let ta_creates = count_lines_matching("transcript.jsonl", "\"type\":\"agent_create\"")
-    let ta_refs = count_telemetry("TRANSCRIPT_REF")
-    print("TRANSCRIPT_AUDIT|lines=" + ta_lines + "|entry_hash=" + ta_hashed + "|sends=" + ta_sends + "|creates=" + ta_creates + "|transcript_ref=" + ta_refs)
-    print("TRANSCRIPT_AUDIT|every_entry_hashed=" + string(len(ta_lines) > 0 && ta_lines == ta_hashed))
-    print("TRANSCRIPT_AUDIT|ref_matches_entries=" + string(len(ta_refs) > 0 && ta_refs == ta_lines))
-    tracking["phases_completed"].push("TRANSCRIPT_AUDIT")
-
-    // ================================================================
-    // PHASE: CODEGEN_BOUNDARY — codegen strict failure path (Level 18)
-    // ================================================================
-    print("PHASE|CODEGEN_BOUNDARY|start")
-
-    let codegen_strict_threw = false
-    try {
-        codegen.run_strict("python", "def broken(:\n    pass")
-        print("CODEGEN_BOUNDARY|strict_invalid=NO_THROW")
-    } catch (e) {
-        codegen_strict_threw = true
-        let err_str = string(e)
-        if len(err_str) > 80 { err_str = string.substring(err_str, 0, 80) }
-        print("CODEGEN_BOUNDARY|strict_invalid=threw|snippet=" + err_str)
-    }
-    print("CODEGEN_BOUNDARY|strict_threw=" + string(codegen_strict_threw))
-
-    try {
-        let cg_out = codegen.run("python", "print(7 * 6, end='')")
-        print("CODEGEN_BOUNDARY|run_output=" + string(cg_out))
-    } catch (e) {
-        print("CODEGEN_BOUNDARY|run_error=" + string(e))
-    }
-
-    try {
-        let cg_args = codegen.run_with_args("python", "result = x * y\nprint(result, end='')", {"x": 7, "y": 6})
-        print("CODEGEN_BOUNDARY|args_output=" + string(cg_args))
-    } catch (e) {
-        print("CODEGEN_BOUNDARY|args_error=" + string(e))
-    }
-
-    try {
-        let cg_langs = codegen.supported_languages()
-        let has_py = false
-        let cli = 0
-        while cli < cg_langs.length() {
-            if cg_langs[cli] == "python" { has_py = true }
-            cli = cli + 1
-        }
-        print("CODEGEN_BOUNDARY|languages=" + string(cg_langs.length()) + "|has_python=" + string(has_py))
-    } catch (e) {
-        print("CODEGEN_BOUNDARY|languages_error=" + string(e))
-    }
-
-    try {
-        let still_enabled = codegen.is_enabled()
-        print("CODEGEN_BOUNDARY|still_enabled=" + string(still_enabled))
-    } catch (e) {
-        print("CODEGEN_BOUNDARY|enabled_error=" + string(e))
-    }
-
-    tracking["phases_completed"].push("CODEGEN_BOUNDARY")
 
     // ================================================================
     // PHASE 6: DYNAMIC — operator-driven team adjustment (Level 6)

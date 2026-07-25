@@ -101,10 +101,20 @@ GOV_KILL=""
 RUN_TRUNCATED=""
 
 detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or nothing
-    if [ "$1" -eq 3 ] && echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
+    [ "$1" -eq 3 ] || return 0
+    if echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
         echo "quarantine_streak"
-    elif [ "$1" -eq 3 ] && echo "$2" | grep -q "Step-up challenge failed"; then
+    elif echo "$2" | grep -q "Step-up challenge failed"; then
         echo "challenge_failure"
+    # Third kill path, and the least obvious: advisory_escalation turns the
+    # soft_after-th repeat of an ADVISORY rule into a hard block
+    # (g_governance_hard_block = true + refusal attestation, exit 3). The
+    # user-facing text still reads "[ADVISORY]", so matching on the two
+    # agent-kill messages alone reported a by-design termination as a mystery
+    # crash. The escalation banner only goes to stderr, hence the file check.
+    elif echo "$2" | grep -q "escalated after repeated occurrences" \
+         || grep -q "\[governance\] ESCALATED" "${STDERR_FILE:-/dev/null}" 2>/dev/null; then
+        echo "advisory_escalation"
     fi
 }
 
@@ -1247,9 +1257,13 @@ assert 'refinement_iterations' in d
         else
             fail "L19b-02" "Tool calls made but no per-result detail"
         fi
-        TOOL_CALL_EV=$(echo "$OUTPUT" | grep -oP 'TELEMETRY_AUDIT\|consequence\|AGENT_TOOL_CALL=\K[0-9]+' | head -1)
+        # Read the telemetry file directly rather than the TELEMETRY_AUDIT
+        # phase's summary line: a tool call is evidence about the tool path, and
+        # tying that evidence to whether a later phase was reached reported
+        # "no telemetry" for 6 events that had in fact been written.
+        TOOL_CALL_EV=$(grep -c '"event_type":"AGENT_TOOL_CALL"' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
         if [ "${TOOL_CALL_EV:-0}" -ge 1 ]; then
-            pass "L19b-03" "AGENT_TOOL_CALL telemetry emitted ($TOOL_CALL_EV)"
+            pass "L19b-03" "AGENT_TOOL_CALL telemetry emitted ($TOOL_CALL_EV events)"
         else
             fail "L19b-03" "Tool executed but no AGENT_TOOL_CALL telemetry"
         fi

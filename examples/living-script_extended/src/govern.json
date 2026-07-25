@@ -366,7 +366,7 @@
 
   "advisory_escalation": {
     "enabled": true,
-    "soft_after": 3,
+    "soft_after": 8,
     "weight_multiplier": 1.5
   },
 
