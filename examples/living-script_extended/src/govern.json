@@ -229,7 +229,7 @@
   "exposure_tracking": {
     "enabled": true,
     "max_autonomous_actions": 200,
-    "max_unique_agents": 10,
+    "max_unique_agents": 12,
     "coherence_floor": 0.10,
     "level": "advisory",
     "max_pipeline_depth": 4,

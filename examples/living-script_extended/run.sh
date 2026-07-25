@@ -95,6 +95,10 @@ skip() { local id="$1" desc="$2"; SKIP_COUNT=$((SKIP_COUNT + 1)); TOTAL=$((TOTAL
 # crashes, and other HARD governance blocks are still treated as failures.
 # ------------------------------------------------------------
 GOV_KILL=""
+# Set when the script stopped before its final marker for a reason that is NOT
+# a governance kill (runtime error, crash, hang). One truncated run otherwise
+# reports as ~87 separate failures, which buries the single root cause.
+RUN_TRUNCATED=""
 
 detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or nothing
     if [ "$1" -eq 3 ] && echo "$2" | grep -q "Agent exceeded maximum quarantine streak"; then
@@ -104,13 +108,22 @@ detect_gov_kill() {  # $1=exit code, $2=captured stdout — echoes kill kind, or
     fi
 }
 
+# Either condition means later phases were never reached, so their checks
+# describe the truncation rather than the behaviour they were written to test.
+run_incomplete() { [ -n "$GOV_KILL" ] || [ -n "$RUN_TRUNCATED" ]; }
+
+incomplete_reason() {
+    if [ -n "$GOV_KILL" ]; then echo "governance kill: $GOV_KILL"
+    else echo "run truncated: $RUN_TRUNCATED"; fi
+}
+
 # Skip an entire level block when the run was governance-killed before its
 # phase started. Returns 0 (= skip the block) only when GOV_KILL is set AND
 # the block's phase marker is absent. With no kill, a missing phase still
 # FAILs through the block's own checks — regression detection is unchanged.
 govkill_block() {  # $1=block label, $2=phase marker regex
-    if [ -n "$GOV_KILL" ] && ! echo "$OUTPUT" | grep -q "$2"; then
-        skip "$1" "not reached (governance kill: $GOV_KILL)"
+    if run_incomplete && ! echo "$OUTPUT" | grep -q "$2"; then
+        skip "$1" "not reached ($(incomplete_reason))"
         return 0
     fi
     return 1
@@ -120,8 +133,8 @@ govkill_block() {  # $1=block label, $2=phase marker regex
 # killed — for checks in partially-run phases whose thresholds can only be
 # unmet because the run was truncated (counts, end-of-run summary markers).
 gk_fail() {  # $1=id, $2=desc, $3=detail
-    if [ -n "$GOV_KILL" ]; then
-        skip "$1" "$2 (truncated by governance kill: $GOV_KILL)"
+    if run_incomplete; then
+        skip "$1" "$2 (unreached — $(incomplete_reason))"
     else
         fail "$1" "$2" "${3:-}"
     fi
@@ -158,7 +171,7 @@ echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 149); do
+    for i in $(seq 1 150); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -184,6 +197,28 @@ else
     echo ""
 
     GOV_KILL=$(detect_gov_kill "$EXIT_CODE" "$OUTPUT")
+
+    # Truncation that is NOT a governance kill: the script stopped without its
+    # final marker. Reported once, loudly, as its own failure — the downstream
+    # phase checks then SKIP instead of restating the same event ~87 times.
+    if [ -z "$GOV_KILL" ] && ! echo "$OUTPUT" | grep -q "=== LIVING SCRIPT COMPLETE ==="; then
+        LAST_PHASE=$(echo "$OUTPUT" | grep -oP '^PHASE\|\K[A-Z_]+' | tail -1)
+        RUN_TRUNCATED="exit=$EXIT_CODE, last phase=${LAST_PHASE:-none}"
+        echo -e "${RED}================================================================${NC}"
+        echo -e "${RED}  RUN TRUNCATED (not a governance kill): $RUN_TRUNCATED${NC}"
+        echo -e "${RED}  Later phases were never reached; their checks report as SKIP.${NC}"
+        echo -e "${RED}================================================================${NC}"
+        echo ""
+        echo -e "${YELLOW}--- last 15 stdout lines before truncation ---${NC}"
+        echo "$OUTPUT" | tail -15
+        echo -e "${YELLOW}--- last 15 stderr lines ---${NC}"
+        tail -15 "$STDERR_FILE" 2>/dev/null
+        echo ""
+        fail "R01" "Script terminated before completion" "$RUN_TRUNCATED (no governance kill — investigate stderr above)"
+    else
+        pass "R01" "Script ran to completion"
+    fi
+
     if [ -n "$GOV_KILL" ]; then
         echo -e "${YELLOW}================================================================${NC}"
         echo -e "${YELLOW}  GOVERNANCE KILL: $GOV_KILL -- run terminated by design.${NC}"

@@ -670,8 +670,21 @@ main {
     // registered two tools and finished with tool_calls_total=0, because the
     // model was never actually asked to use one — so the argument scan, result
     // scan, budget check and gate_tool_calls layers were never exercised and
-    // the tool-telemetry check could only ever SKIP. This phase asks directly,
-    // early, while the developer's context is still small.
+    // the tool-telemetry check could only ever SKIP.
+    //
+    // Two rules this probe has to respect, both learned the hard way. The first
+    // version asked the developer to answer "good=VALID / bad=INVALID", which is
+    // a ~6-token reply with no `def`/`class` in it: it undershot
+    // response_min_output_tokens (S23), violated the developer's own
+    // output_contract regex, and shared almost no keywords with a
+    // Python-developer mandate (S11). Aimed at the run's most coherence-critical
+    // agent on its first turn, it drove the developer from 1.0 to 0.53 and the
+    // run never reached the later phases. So:
+    //   1. the probe runs on its OWN handle — a fresh handle carries its own
+    //      DriftState, so whatever the probe costs cannot bleed into the
+    //      developer that has to survive the rest of the run;
+    //   2. the task is on-mandate and substantive — real Python in fences —
+    //      so a tool call is forced without inviting a degenerate response.
     print("PHASE|TOOL_EXEC|start")
 
     let te_calls = 0
@@ -680,29 +693,39 @@ main {
     let te_results = 0
     let te_neg_calls = -1
 
-    if handles.get("developer") != null && tools_registered > 0 {
-        let te_msg = "Use the validate_python tool to check each of these two snippets, then reply with exactly two lines: 'good=VALID' or 'good=INVALID', and 'bad=VALID' or 'bad=INVALID'.\n\ngood:\ndef add(a: int, b: int) -> int:\n    return a + b\n\nbad:\ndef broken(:\n    pass\n"
-        let te_resp = safe_send(handles["developer"], te_msg)
-        tracking["total_sends"] = tracking["total_sends"] + 1
-        if te_resp.get("error") == null {
-            track("developer", te_resp)
-            te_calls = te_resp.get("tool_calls_made") ?? 0
-            te_turns = te_resp.get("tool_loop_turns") ?? 0
-            te_exit = string(te_resp.get("tool_loop_exit_reason") ?? "none")
-            let trs = te_resp.get("tool_results")
-            if trs != null { te_results = trs.length() }
-        } else {
-            tracking["send_errors"] = tracking["send_errors"] + 1
+    if tools_registered > 0 {
+        try {
+            let tool_probe = agent.create("developer")
+            tracking["agents_created"] = tracking["agents_created"] + 1
+            let te_msg = "Write a Python function add(a: int, b: int) -> int that returns the sum, with a docstring. Before you answer, call the validate_python tool on your code to confirm it parses. Output the complete function in ```python fences. Code only."
+            let te_resp = safe_send(tool_probe, te_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if te_resp.get("error") == null {
+                // Tracked under its own name so the probe's coherence is never
+                // mistaken for the working developer's.
+                track("tool_probe", te_resp)
+                te_calls = te_resp.get("tool_calls_made") ?? 0
+                te_turns = te_resp.get("tool_loop_turns") ?? 0
+                te_exit = string(te_resp.get("tool_loop_exit_reason") ?? "none")
+                let trs = te_resp.get("tool_results")
+                if trs != null { te_results = trs.length() }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+        } catch (e) {
+            print("TOOL_EXEC|probe_error=" + string(e))
         }
     }
     print("TOOL_EXEC|calls=" + string(te_calls) + "|loop_turns=" + string(te_turns) + "|results=" + string(te_results) + "|exit=" + te_exit)
 
     // Negative control for the dual gate: the tester has tools_enabled=false
-    // and no TOOL_EXEC in allowed_actions, so the identical instruction must
+    // and no TOOL_EXEC in allowed_actions, so an equivalent instruction must
     // produce zero tool calls. Without this, a passing positive case cannot
     // distinguish "the gate allows the developer" from "the gate allows anyone".
+    // Phrased as a review task so the tester answers on-mandate and at length —
+    // a curt "NO_TOOLS" reply would itself trip the degenerate-response signal.
     if handles.get("tester") != null {
-        let neg = safe_send(handles["tester"], "Use the validate_python tool on 'def f(): pass' and report what it returned. If no tools are available to you, reply with exactly: NO_TOOLS.")
+        let neg = safe_send(handles["tester"], "Review this Python snippet and list every issue you find:\n```python\ndef f():\n    pass\n```\nIf a validate_python tool is available to you, call it first and say what it returned; if you have no tools available, review the snippet directly and say so.")
         tracking["total_sends"] = tracking["total_sends"] + 1
         if neg.get("error") == null {
             track("tester", neg)
@@ -1839,8 +1862,12 @@ main {
 
         if er_write == "" {
             // Any send runs reloadIfChanged() first, which is where the ratchet
-            // is evaluated and where the notices come from.
-            let er_probe = safe_send(handles["tester"], "Reply with exactly: RATCHET_PROBE")
+            // is evaluated. The content is irrelevant to the probe, so it is
+            // deliberately an on-mandate, substantive question: a curt
+            // acknowledgement here would undershoot response_min_output_tokens
+            // and share no keywords with the tester's mandate, docking the
+            // agent's coherence for the sake of a config reload.
+            let er_probe = safe_send(handles["tester"], "In two or three sentences, what is the single biggest regression risk in a data pipeline that has just gained import/export methods?")
             tracking["total_sends"] = tracking["total_sends"] + 1
             er_probe_ok = er_probe.get("error") == null
             if er_probe_ok {
