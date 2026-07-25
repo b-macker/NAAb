@@ -41,6 +41,17 @@
 #include <algorithm>  // For std::transform in string methods
 #include <chrono>     // Phase 1: Empirical profiling timing
 #include <functional> // For std::hash
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>  // GetCurrentThreadStackLimits — native stack guard (#96)
+#else
+#include <pthread.h>  // pthread stack bounds — native stack guard (#96)
+#endif
 
 // Python embedding support
 #ifdef __has_include
@@ -715,7 +726,76 @@ void Interpreter::execute(ast::Program& program) {
     program.accept(*this);
 }
 
+// ============================================================================
+// Native stack headroom guard (#96)
+// ============================================================================
+// The logical call-depth limit (MAX_CALL_STACK_DEPTH) cannot protect the
+// native stack: one NAAb-level call consumes many C++ frames whose size
+// varies wildly between builds (sanitizer frames run to kilobytes), so any
+// fixed call count either wastes usable depth or still overflows. Measure
+// the real resource instead: bytes remaining on this thread's stack,
+// checked on every eval/executeStmt entry.
+namespace {
+
+uintptr_t nativeStackLimitAddr() {
+    // Lowest address the guard lets the stack grow down to: this thread's
+    // stack base plus a safety margin (the stack grows downward on all
+    // supported targets).
+    uintptr_t lowest = 0;
+    size_t size = 0;
+#if defined(_WIN32)
+    ULONG_PTR low = 0, high = 0;
+    GetCurrentThreadStackLimits(&low, &high);
+    lowest = static_cast<uintptr_t>(low);
+    size = static_cast<size_t>(high - low);
+#elif defined(__APPLE__)
+    uintptr_t top = reinterpret_cast<uintptr_t>(pthread_get_stackaddr_np(pthread_self()));
+    size = pthread_get_stacksize_np(pthread_self());
+    lowest = top - size;
+#else
+    pthread_attr_t attr;
+    if (pthread_getattr_np(pthread_self(), &attr) == 0) {
+        void* base = nullptr;
+        if (pthread_attr_getstack(&attr, &base, &size) == 0) {
+            lowest = reinterpret_cast<uintptr_t>(base);
+        }
+        pthread_attr_destroy(&attr);
+    }
+    if (lowest == 0) {
+        // Fallback if stack bounds are unavailable: assume 8MB below here.
+        char probe;
+        size = 8 * 1024 * 1024;
+        lowest = reinterpret_cast<uintptr_t>(&probe) - size;
+    }
+#endif
+    // Margin: an eighth of the stack, clamped to [128KB, 1MB] — enough for
+    // the deepest visitor chain between two checks plus throw/unwind, while
+    // not starving small (e.g. 1MB Windows) thread stacks.
+    size_t margin = size / 8;
+    if (margin < 128 * 1024) margin = 128 * 1024;
+    if (margin > 1024 * 1024) margin = 1024 * 1024;
+    return lowest + margin;
+}
+
+inline bool nativeStackLow() {
+    thread_local const uintptr_t limit = nativeStackLimitAddr();
+    char probe;
+    return reinterpret_cast<uintptr_t>(&probe) < limit;
+}
+
+[[noreturn]] void throwNativeStackExhausted() {
+    throw naab::limits::RecursionLimitException(
+        "Recursion error: Program nesting exceeded the available stack\n\n"
+        "  Help:\n"
+        "  - A deeply recursive function or deeply nested expression ran out of stack space\n"
+        "  - Rewrite the recursion as a loop, or reduce the recursion depth\n"
+    );
+}
+
+}  // namespace
+
 NaabVal Interpreter::eval(ast::Expr& expr) {
+    if (nativeStackLow()) throwNativeStackExhausted();
     expr.accept(*this);
     return result_;
 }
@@ -787,6 +867,8 @@ NaabError Interpreter::createError(const std::string& message, ErrorType type) {
 }
 
 void Interpreter::executeStmt(ast::Stmt& stmt) {
+    if (nativeStackLow()) throwNativeStackExhausted();
+
     // Update current environment for debugger variable inspection
     if (debugger_ && debugger_->isActive()) {
         debugger_->setCurrentEnvironment(current_env_);

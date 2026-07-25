@@ -691,6 +691,27 @@ for sec_script in \
     fi
 done
 
+# --- Native Stack Guard Test (#96) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Native Stack Guard Test"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+STACK_GUARD_SCRIPT="tests/robustness/test_stack_guard.sh"
+if [ -f "$STACK_GUARD_SCRIPT" ]; then
+    if bash "$STACK_GUARD_SCRIPT" 2>&1; then
+        echo ""
+        echo "  test_stack_guard.sh: ALL PASSED"
+    else
+        echo ""
+        echo "  test_stack_guard.sh: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_stack_guard.sh")
+    fi
+else
+    echo "  test_stack_guard.sh: not found, skipping"
+fi
+
 # --- naab-gov CLI Tests (Phase 8.2) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

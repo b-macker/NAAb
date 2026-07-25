@@ -91,6 +91,31 @@ signature in `tests/fuzzing/known_findings.txt` MUST link to a section here.
   not full error text, so this divergence is absorbed structurally rather
   than through an allowlist entry.
 
+### REC-001: Recursion ceilings are engine-specific (accepted 2026-07-25)
+
+- **Is**: the VM fails calls beyond `FRAMES_MAX` (1024 heap-allocated frames,
+  so ~1022 usable NAAb depth) with `Stack overflow (call depth exceeded)`.
+  The tree-walker recurses natively and fails when the thread's real stack
+  headroom runs out (`Recursion error: Program nesting exceeded the available
+  stack` — the #96 guard in `eval()`/`executeStmt()`), which lands at a
+  build-dependent depth above the VM ceiling (~2-3k in Release, lower under
+  sanitizers whose frames are larger). The logical `MAX_CALL_STACK_DEPTH`
+  (10000) still applies as an upper bound in the tree-walker.
+- **Decision**: accepted — the tree-walker's ceiling is a physical resource
+  measurement, not a fixed count, so exact parity is impossible. Both
+  engines fail *cleanly* with a catchable error whose category matches the
+  differential harness's recursion/stack classification. Programs must stay
+  under the VM's 1024-frame ceiling to be portable.
+- **Fix**: `src/interpreter/interpreter.cpp` (`nativeStackLow()` headroom
+  guard, thread-aware via pthread/Win32 stack bounds). Previously the
+  tree-walker crashed with a native stack overflow (ASan SIGSEGV, nightly
+  fuzz run 29310717112) because `MAX_CALL_STACK_DEPTH` exceeded what the
+  8MB stack physically holds and argument evaluation recursed ahead of the
+  call-depth guard.
+- **Regression test / detector**: `tests/robustness/test_stack_guard.sh`
+  (both engines: deep recursion = clean nonzero exit, no signal; depth-200
+  succeeds).
+
 <!-- Add new entries above. Template:
 ### ID: title (status date)
 - **Was/Is**: behavior in each engine
