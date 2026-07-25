@@ -181,7 +181,7 @@ echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 151); do
+    for i in $(seq 1 153); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -359,6 +359,40 @@ else
         fi
     else
         pass "PIPE-01" "Initial pipeline.py extracted on the first attempt"
+    fi
+
+    # ============================================================
+    # MODELS: models.py must be importable
+    #
+    # models.py is written once in IMPLEMENT and no fix loop ever rewrites it,
+    # so if it cannot be imported every subsequent pytest run dies at collection
+    # on "from models import ...". Runs 4 and 5 failed 0/18 and 0/15 that way.
+    # ast.parse cannot catch it — a missing import is a runtime NameError.
+    # ============================================================
+    echo -e "${CYAN}models.py Importability${NC}"
+
+    if echo "$OUTPUT" | grep -q 'MODELS|import_ok=true'; then
+        pass "MODELS-01" "models.py imported cleanly on the first attempt"
+    elif echo "$OUTPUT" | grep -q 'MODELS|repaired=true'; then
+        MERR=$(echo "$OUTPUT" | grep -oP 'MODELS\|import_error=\K.*' | head -1)
+        pass "MODELS-01" "models.py was broken but repaired (${MERR:-unknown})"
+    elif echo "$OUTPUT" | grep -q 'MODELS|repaired=false'; then
+        MSTILL=$(echo "$OUTPUT" | grep -oP 'MODELS\|repaired=false\|still=\K.*' | head -1)
+        fail "MODELS-01" "models.py does not import and the repair failed" \
+             "${MSTILL:-unknown}; every pytest run will fail at collection"
+    else
+        skip "MODELS-01" "No models.py import result reported"
+    fi
+
+    # The per-validation view: if models.py stops importing, say so where the
+    # tests start failing rather than leaving it to be inferred from pytest.
+    if echo "$OUTPUT" | grep -q 'VALIDATE|.*models_imports=false'; then
+        fail "MODELS-02" "models.py unimportable during validation" \
+             "pytest cannot collect while this holds"
+    elif echo "$OUTPUT" | grep -q 'VALIDATE|.*models_imports=true'; then
+        pass "MODELS-02" "models.py importable at validation time"
+    else
+        skip "MODELS-02" "No models_imports validation result"
     fi
 
     # ============================================================

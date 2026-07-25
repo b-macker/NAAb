@@ -286,6 +286,27 @@ fn write_govern_raw(config) {
     return ""
 }
 
+// Import-check a module rather than just parsing it. ast.parse accepts a file
+// that uses Any without importing it — that is a runtime NameError, not a
+// syntax error — so the syntax check applied to models.py was structurally
+// incapable of catching its most likely defect. Returns "" when the module
+// imports cleanly, otherwise the error line.
+fn python_import_error(filename, source) {
+    file.write(filename, source)
+    let mod = string.replace(filename, ".py", "")
+    let r = process.run("python3", ["-c", "import " + mod])
+    if r.exit_code == 0 { return "" }
+    let combined = r.stdout + r.stderr
+    let lines = string.split(string.trim(combined), "\n")
+    let li = lines.length() - 1
+    while li >= 0 {
+        let l = string.trim(lines[li])
+        if len(l) > 0 { return l }
+        li = li - 1
+    }
+    return "import failed (no detail)"
+}
+
 fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
     let results = {}
     let total_checks = 0
@@ -293,6 +314,12 @@ fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
         file.write("_models_check.py", models_code)
         let check = process.run("python3", ["-c", "import ast; ast.parse(open('_models_check.py').read()); print('SYNTAX_OK')"])
         results["models_syntax"] = check.exit_code == 0
+        total_checks = total_checks + 1
+        // Syntax alone says nothing about whether models.py can actually be
+        // imported, and every pytest run depends on that. Reported on each
+        // validation so a broken models.py is attributable at the point the
+        // tests start failing, not just at IMPLEMENT.
+        results["models_imports"] = len(python_import_error("models.py", models_code)) == 0
         total_checks = total_checks + 1
     }
     if len(pipeline_code) > 20 {
@@ -814,6 +841,39 @@ main {
             tracking["send_errors"] = tracking["send_errors"] + 1
         }
         print("TURN|developer|models|c=" + string(tracking["coherences"].get("developer") ?? -1))
+
+        // models.py is the one file with NO repair path: it is written once
+        // here, and the pytest fix loop only ever rewrites pipeline.py or
+        // test_pipeline.py. A models.py that imports cleanly is therefore a
+        // precondition for every later pytest run — one missing `from typing
+        // import Any` makes all 15-18 runs fail at collection on
+        // `from models import ...`, which is exactly what runs 4 and 5 hit.
+        // Catch it here, where it can still be fixed.
+        if len(models_code) > 20 {
+            let models_err = python_import_error("models.py", models_code)
+            print("MODELS|import_ok=" + string(len(models_err) == 0))
+            if len(models_err) > 0 {
+                print("MODELS|import_error=" + models_err)
+                let fix_msg = "models.py fails to import:\n" + models_err + "\n\nFix ONLY that error and output the COMPLETE models.py again. Every name you annotate with must be imported (typing.Any, Dict, List, Optional as needed). ```python fences. Code only."
+                let mresp = safe_send(handles["developer"], fix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if mresp.get("error") == null {
+                    track("developer", mresp)
+                    let fixed_models = agent.extract_code(mresp.get("content") ?? "", "python")
+                    if len(fixed_models) > 20 {
+                        let retry_err = python_import_error("models.py", fixed_models)
+                        if len(retry_err) == 0 {
+                            models_code = fixed_models
+                            print("MODELS|repaired=true")
+                        } else {
+                            print("MODELS|repaired=false|still=" + retry_err)
+                        }
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+            }
+        }
 
         // pipeline.py
         let pipeline_msg = "Write pipeline.py based on this spec:\n" + spec
