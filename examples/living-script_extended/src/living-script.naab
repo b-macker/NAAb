@@ -349,6 +349,40 @@ fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
         results["pytest_output"] = pytest_out
         print("PYTEST|exit=" + string(pytest_result.exit_code))
         let plines = string.split(pytest_out, "\n")
+
+        // Name the failing file and the actual error. Printing only the last
+        // five lines shows pytest's summary ("1 error in 0.12s"), never the
+        // cause, so a collection failure could not be attributed to a file
+        // from the results alone — which is why runs 4 and 5 could not settle
+        // whether their missing import was in models.py or pipeline.py.
+        //
+        // Two traps here, both hit on the first attempt. The "ERROR collecting"
+        // banner appears BEFORE the real error, so matching it wins over the
+        // "E  <Error>" line that actually names the fault. And traceback frames
+        // run outer to inner, so the FIRST ".py:N: in ..." frame is the importer
+        // (test_pipeline.py) while the LAST is the file that actually broke
+        // (models.py). Take the E line, and the last frame above it.
+        let err_idx = -1
+        let ei = 0
+        while ei < plines.length() {
+            if string.starts_with(plines[ei], "E ") {
+                err_idx = ei
+                ei = plines.length()
+            }
+            ei = ei + 1
+        }
+        if err_idx >= 0 {
+            print("PYTEST|first_error=" + string.trim(plines[err_idx]))
+            let site = ""
+            let fi2 = 0
+            while fi2 < err_idx {
+                let fl = string.trim(plines[fi2])
+                if string.contains(fl, ".py:") && string.contains(fl, ": in ") { site = fl }
+                fi2 = fi2 + 1
+            }
+            if len(site) > 0 { print("PYTEST|error_site=" + site) }
+        }
+
         let pi = 0
         if plines.length() > 5 { pi = plines.length() - 5 }
         while pi < plines.length() {
