@@ -655,6 +655,136 @@ fi
 fi
 
 # ============================================================
+# Group I: the entity challenge scores per-sighting, not against the union
+#
+# The prompt asks for ONE SENTENCE about an entity, then used to grade that
+# sentence on the fraction of a keyword union accumulated across every recent
+# sighting. Those requirements are in opposition — the union grows with the
+# conversation, so the score tracked response LENGTH, not recall. Live run 9:
+# the same agent scored kr=0.534 on a 1932-token answer that ignored "one
+# sentence" and 0.068 / 0.060 on 38- and 69-token answers that obeyed it; the
+# second obedient answer ended the run at streak 2 of 2.
+#
+# Staging: the first response gives the entity a SMALL context ("quasar
+# ripple"); every later response repeats that anchor and adds ten fresh words.
+# Each sighting therefore overlaps its predecessor by 2 of ~22 (Jaccard well
+# under entity_context_min_overlap 0.25), so S15 fires every turn and drives
+# signal_density to ELEVATED where step-up gates the next send.
+# instruction_recall and validation_outcome are off so the challenge falls
+# through priorities 0-3 to entity.
+#
+# The answer covers the ANCHOR sighting exactly — 2/2 = 1.00 per-sighting —
+# while the union has grown to 12+ keywords, giving 2/12 = 0.167 or less.
+# At step_up_contextual_threshold 0.40 the two behaviors are separated by the
+# assertion, not by a margin.
+#
+# Anchoring on the FIRST sighting rather than the most recent is deliberate:
+# the challenge fires as soon as escalation completes, which is not a turn the
+# fixture can predict. A first attempt keyed to "the most recent sighting"
+# scored 0.000 because the challenge landed on send 3, not send 6. The anchor
+# is in every sighting, so the assertion holds whenever the challenge lands.
+# ============================================================
+echo -e "${CYAN}--- Group I: entity challenge scored per-sighting, not by union ---${NC}"
+WDIR="$TEST_TMP/i"; mkdir -p "$WDIR"
+printf '%s' '{"responses": [
+  {"content": "The pipeline is quasar ripple.", "output_tokens": 30},
+  {"content": "The pipeline is quasar ripple alpha bravo charlie delta echelon foxglove gimbal harbor ionian jasmine.", "output_tokens": 30},
+  {"content": "The pipeline is quasar ripple kilogram lantern mistral nocturne obsidian plateau sextant tundra ultramarine verdigris.", "output_tokens": 30},
+  {"content": "The pipeline is quasar ripple westerly xenolith yardarm zephyr aubergine bergamot cinnabar dulcimer elderflower fennel.", "output_tokens": 30},
+  {"content": "The pipeline is quasar ripple galangal hibiscus isinglass juniper kohlrabi liquorice marjoram nutmeg oregano paprika.", "output_tokens": 30},
+  {"content": "The pipeline is the quasar ripple component.", "output_tokens": 30}
+]}' > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "I-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+cat > "$WDIR/govern.json" <<EOF
+{
+  "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "tele.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": {
+    "enabled": true, "level": "advisory", "check_interval_turns": 1,
+    "signals": {
+      "circular_actions": false, "repeated_failures": false, "scope_creep": false,
+      "intent_contradictions": false, "coherence_velocity": false,
+      "response_quality": false, "thinking_collapse": false,
+      "semantic_stability": false, "mandate_alignment": false,
+      "context_growth": false, "instruction_recall": false, "plan_drift": false,
+      "entity_consistency": true, "instruction_conflict": false,
+      "persona_fingerprint": false, "tool_chain_integrity": false,
+      "claim_result_reconciliation": false, "prompt_compliance": false,
+      "response_repetition": false, "validation_outcome": false
+    },
+    "reality_checkpoint": {
+      "enabled": false, "pressure_threshold": 0.5, "signal_density_divisor": 1,
+      "weights": {
+        "coherence_proximity": 0, "risk_score_proximity": 0,
+        "signal_density": 1.0, "conversation_depth": 0,
+        "bsd_partial_progress": 0, "pipeline_inherited": 0,
+        "coherence_acceleration": 0, "codegen_pressure": 0,
+        "bsd_eviction_pressure": 0, "semantic_deviation": 0
+      }
+    }
+  },
+  "circuit_breaker": {
+    "enabled": true, "elevated_threshold": 0.5, "elevated_sustained": 1,
+    "deescalate_sustained": 5,
+    "step_up_enabled": true, "step_up_contextual": true,
+    "step_up_at_level": "elevated",
+    "step_up_cooldown_turns": 0, "max_challenge_failures": 2,
+    "step_up_contextual_threshold": 0.40
+  },
+  "agents": { "developer": { "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$STUB_PORT",
+      "api_key_env": "FAKE_KEY_CHALFAIL", "max_tokens": 100, "max_turns": 20 } }
+}
+EOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let a = agent.send(h, "describe the pipeline")
+    let b = agent.send(h, "describe the pipeline again")
+    let c = agent.send(h, "describe the pipeline once more")
+    let d = agent.send(h, "describe the pipeline yet again")
+    let e = agent.send(h, "describe the pipeline one final time")
+    let f = agent.send(h, "summarize the pipeline")
+    print("ALL_SENDS_OK")
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>"$WDIR/stderr.txt"); EXIT_I=$?
+stop_stub
+ENT_PASS=$(grep '"event_type":"AGENT_CHALLENGE_PASS"' "$WDIR/tele.jsonl" 2>/dev/null | grep -c '"challenge_type":"entity"' || true)
+ENT_FAIL=$(grep '"event_type":"AGENT_CHALLENGE_FAIL"' "$WDIR/tele.jsonl" 2>/dev/null | grep -c '"challenge_type":"entity"' || true)
+if [ "$((ENT_PASS + ENT_FAIL))" -lt 1 ]; then
+    skip "I-01" "No entity challenge fired — staging did not reach step-up"
+    skip "I-02" "No entity challenge fired"
+    skip "I-03" "No entity challenge fired"
+else
+    if [ "$EXIT_I" -eq 0 ] && echo "$OUT" | grep -q "ALL_SENDS_OK"; then
+        pass "I-01" "One-sentence entity answer no longer kills the run (exit 0)"
+    else
+        fail "I-01" "Compliant one-sentence entity answer still fails the challenge" \
+             "exit=$EXIT_I entity_pass=$ENT_PASS entity_fail=$ENT_FAIL err=$(grep -iE 'Agent error' "$WDIR/stderr.txt" 2>/dev/null | head -1)"
+    fi
+    if [ "$ENT_PASS" -ge 1 ] && [ "$ENT_FAIL" -eq 0 ]; then
+        pass "I-02" "Entity challenge passed on the most recent sighting ($ENT_PASS pass, 0 fail)"
+    else
+        fail "I-02" "Entity challenge scored against the union" \
+             "pass=$ENT_PASS fail=$ENT_FAIL kr=$(grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null | grep -oE '"keyword_ratio":"[0-9.]+"' | head -2 | tr '\n' ' ')"
+    fi
+    # The denominator must be visible in telemetry — a low ratio was previously
+    # unattributable between a bad answer and an oversized expected set.
+    if grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"expected_keyword_mode":"per_sighting_best"'; then
+        pass "I-03" "Telemetry reports the scoring mode and denominator"
+    else
+        fail "I-03" "No expected_keyword_mode on the entity challenge event"
+    fi
+fi
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))
