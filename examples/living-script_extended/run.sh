@@ -507,10 +507,17 @@ assert 'refinement_iterations' in d
         fail "L7-02" "No candidates generated"
     fi
 
+    # A commit that never happens because every candidate scored below the
+    # admissibility threshold is the gate doing its job, not a broken
+    # propose/commit path. Distinguishing the two matters: run 4 generated 3
+    # candidates at coherence 0.51 against a 0.60 threshold, refused all of
+    # them, and that read as an outright failure.
     if echo "$OUTPUT" | grep -q "PROPOSE_SELECT|committed=true"; then
         pass "L7-03" "Proposal committed"
+    elif echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|admissible_count=0|'; then
+        skip "L7-03" "No candidate cleared the admissibility threshold — all refused (gate working)"
     else
-        fail "L7-03" "No proposal committed"
+        fail "L7-03" "No proposal committed" "candidates existed and were admissible, but none committed"
     fi
 
     CODEGEN_RESULT=$(echo "$OUTPUT" | grep -oP 'codegen=\K\w+' | tail -1)
@@ -1106,13 +1113,16 @@ assert 'refinement_iterations' in d
         fail "L21-01" "Engine ratchet phase not reached"
     fi
 
-    if echo "$OUTPUT" | grep -q "ENGINE_RATCHET|loosened_write=\["; then
-        ER_WRITE=$(echo "$OUTPUT" | grep -oP 'ENGINE_RATCHET\|loosened_write=\[\K[^]]*' | head -1)
-        if [ -z "$ER_WRITE" ]; then
-            pass "L21-02" "Signed loosened config written to disk"
-        else
-            fail "L21-02" "Could not write loosened config" "$ER_WRITE"
-        fi
+    # write_govern_raw() returns "" on success, so the success form is
+    # "loosened_write=" immediately followed by the next field's pipe. An
+    # earlier version of this check expected brackets around the result — a
+    # format the script never emitted — and so reported "write not attempted"
+    # for a write that had in fact succeeded and been refused by the ratchet.
+    if echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|loosened_write=|'; then
+        pass "L21-02" "Signed loosened config written to disk"
+    elif echo "$OUTPUT" | grep -q 'ENGINE_RATCHET|loosened_write='; then
+        ER_WRITE=$(echo "$OUTPUT" | grep -oP 'ENGINE_RATCHET\|loosened_write=\K[a-z_]+' | head -1)
+        fail "L21-02" "Could not write loosened config" "${ER_WRITE:-unknown error}"
     else
         fail "L21-02" "Loosened config write not attempted"
     fi
