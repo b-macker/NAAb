@@ -77,9 +77,10 @@ check "vm deep recursion reports a recursion/stack error" \
     bash -c 'echo "$1" | grep -qiE "recursion|stack|call depth"' _ "$out"
 
 # --- 3. Moderate recursion still works in both engines ---
-out=$("$NAAB" --no-governance --tree-walk "$TMPDIR_TG/shallow.naab" 2>&1)
+# tr -d '\r': the Windows binary emits CRLF, which would fail the exact match
+out=$("$NAAB" --no-governance --tree-walk "$TMPDIR_TG/shallow.naab" 2>&1 | tr -d '\r')
 check "tree-walk depth-200 recursion succeeds" bash -c '[ "$1" = "0" ]' _ "$out"
-out=$("$NAAB" --no-governance "$TMPDIR_TG/shallow.naab" 2>&1)
+out=$("$NAAB" --no-governance "$TMPDIR_TG/shallow.naab" 2>&1 | tr -d '\r')
 check "vm depth-200 recursion succeeds" bash -c '[ "$1" = "0" ]' _ "$out"
 
 echo ""
