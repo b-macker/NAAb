@@ -345,6 +345,72 @@ else
     fi
 
     # ============================================================
+    # MASS: pytest must not go green by losing tests
+    #
+    # Both repair loops may output test_pipeline.py instead of pipeline.py.
+    # That is correct when a test is genuinely wrong, and it is also the
+    # cheapest way to make a failure disappear — the FEATURES second attempt
+    # explicitly permits removing tests for methods that do not exist. Nothing
+    # else here can tell a repaired suite from a shrunken one, so L2-05 would
+    # report a suite that deleted its failing assertion as a success.
+    #
+    # TESTMASS lines are emitted by validate_code in run order, each pairing
+    # the suite's size with that run's pytest outcome.
+    # ============================================================
+    echo -e "${CYAN}Test Suite Erosion${NC}"
+
+    TESTMASS_LINES=$(echo "$OUTPUT" | grep -c 'TESTMASS|' || true)
+    if [ "${TESTMASS_LINES:-0}" -lt 1 ]; then
+        skip "MASS-01" "No TESTMASS records (validate_code never reached pytest)"
+        skip "MASS-02" "No TESTMASS records"
+    else
+        EROSION=$(echo "$OUTPUT" | grep -oP 'TESTMASS\|\K.*' | awk -F'|' '
+            BEGIN { maxt=0; maxa=0; worst=""; verdict="CLEAN" }
+            {
+                t=0; a=0; p="false"
+                for (i=1; i<=NF; i++) {
+                    split($i, kv, "=")
+                    if (kv[1]=="tests") t=kv[2]
+                    if (kv[1]=="asserts") a=kv[2]
+                    if (kv[1]=="pytest_passed") p=kv[2]
+                }
+                if (t < maxt || a < maxa) {
+                    if (worst == "") worst=sprintf("tests %d->%d, asserts %d->%d, pytest_passed=%s", maxt, t, maxa, a, p)
+                    if (p == "true") verdict="GREEN_SHRANK"
+                    else if (verdict == "CLEAN") verdict="SHRANK"
+                }
+                if (t > maxt) maxt=t
+                if (a > maxa) maxa=a
+                lastt=t; lasta=a
+            }
+            END { printf "%s|%s|%d|%d|%d|%d", verdict, worst, maxt, maxa, lastt, lasta }')
+        EV=$(echo "$EROSION" | cut -d'|' -f1)
+        EDETAIL=$(echo "$EROSION" | cut -d'|' -f2)
+        EMAXT=$(echo "$EROSION" | cut -d'|' -f3)
+        EMAXA=$(echo "$EROSION" | cut -d'|' -f4)
+        ELASTT=$(echo "$EROSION" | cut -d'|' -f5)
+        ELASTA=$(echo "$EROSION" | cut -d'|' -f6)
+
+        if [ "$EV" = "GREEN_SHRANK" ]; then
+            fail "MASS-01" "Pytest passed on a suite that had shrunk" \
+                 "$EDETAIL (peak $EMAXT tests / $EMAXA assertions) — green bought by removing tests, not by fixing code"
+        else
+            pass "MASS-01" "Pytest never passed on a shrunken suite ($TESTMASS_LINES validations, peak $EMAXT tests / $EMAXA assertions)"
+        fi
+
+        # Shrinking while still red is permitted — the repair prompt allows
+        # dropping tests for methods that do not exist. Recorded, not failed,
+        # so the trend is visible without punishing a legitimate removal.
+        if [ "$EV" = "CLEAN" ]; then
+            pass "MASS-02" "Suite never lost tests or assertions (final $ELASTT tests / $ELASTA assertions)"
+        elif [ "$EV" = "SHRANK" ]; then
+            pass "MASS-02" "Suite shrank while failing (permitted): $EDETAIL; final $ELASTT tests / $ELASTA assertions vs peak $EMAXT / $EMAXA"
+        else
+            pass "MASS-02" "Suite shrank — see MASS-01: $EDETAIL; final $ELASTT tests / $ELASTA assertions vs peak $EMAXT / $EMAXA"
+        fi
+    fi
+
+    # ============================================================
     # PIPE: INITIAL CODE EXTRACTION
     #
     # Everything from REFINE through PROPOSE_SELECT is gated on there being

@@ -307,9 +307,40 @@ fn python_import_error(filename, source) {
     return "import failed (no detail)"
 }
 
+fn count_occurrences(haystack, needle) {
+    if len(needle) == 0 { return 0 }
+    return string.split(haystack, needle).length() - 1
+}
+
+// Pytest's failure text reduced to the lines that name what broke. Shared by
+// the REFINE and FEATURES repair loops so both send the developer the same
+// evidence. REFINE previously sent none: its pytest output went only to the
+// reviewer, which meant the developer saw failures paraphrased into a prose
+// vote, one iteration late, or not at all.
+fn pytest_failure_digest(pytest_out) {
+    let plines = string.split(pytest_out, "\n")
+    let fail_names = ""
+    let pfi = 0
+    while pfi < plines.length() {
+        let pl = string.trim(plines[pfi])
+        let raw = plines[pfi]
+        if string.contains(pl, "FAILED") || string.contains(pl, "ERROR") || string.contains(pl, "SyntaxError") {
+            fail_names = fail_names + pl + "\n"
+        } else if string.starts_with(raw, "E ") && len(fail_names) < 1500 {
+            fail_names = fail_names + pl + "\n"
+        }
+        pfi = pfi + 1
+    }
+    if len(fail_names) > 1800 { fail_names = string.substring(fail_names, 0, 1800) + "\n[truncated]" }
+    if len(fail_names) < 10 { fail_names = "Tests failed to collect (likely SyntaxError in pipeline.py or test_pipeline.py)" }
+    return fail_names
+}
+
 fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
     let results = {}
     let total_checks = 0
+    let test_func_count = 0
+    let assert_count = 0
     if len(models_code) > 20 {
         file.write("_models_check.py", models_code)
         let check = process.run("python3", ["-c", "import ast; ast.parse(open('_models_check.py').read()); print('SYNTAX_OK')"])
@@ -335,6 +366,19 @@ fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
         let conv = orchestra.enforce_convergence(test_code, {pattern: "def test_|assert"})
         results["test_convergence"] = conv.get("valid") ?? false
         total_checks = total_checks + 1
+        // Test mass, so that a green pytest can be told apart from a green
+        // pytest bought by deleting the failing assertion. The repair loops let
+        // the developer output test_pipeline.py instead of pipeline.py, which
+        // is correct when a test is genuinely wrong and is also the cheapest
+        // way to make a failure disappear. Nothing downstream can distinguish
+        // the two without knowing whether the suite shrank.
+        test_func_count = count_occurrences(test_code, "def test_")
+        // "assert " with the trailing space, so prose in a docstring ("asserts
+        // that...") does not inflate the count and then read as erosion when
+        // the docstring is reworded.
+        assert_count = count_occurrences(test_code, "assert ") + count_occurrences(test_code, "pytest.raises")
+        results["test_func_count"] = test_func_count
+        results["assert_count"] = assert_count
     }
     // Run actual pytest if pipeline and test code exist
     if len(pipeline_code) > 20 && len(test_code) > 20 {
@@ -348,6 +392,9 @@ fn validate_code(pipeline_code, models_code, test_code, pipeline_pattern) {
         let pytest_out = pytest_result.stdout + pytest_result.stderr
         results["pytest_output"] = pytest_out
         print("PYTEST|exit=" + string(pytest_result.exit_code))
+        // Paired with the outcome, in order, so the harness can catch a suite
+        // that shrank on its way to passing.
+        print("TESTMASS|tests=" + string(test_func_count) + "|asserts=" + string(assert_count) + "|pytest_passed=" + string(pytest_result.exit_code == 0))
         let plines = string.split(pytest_out, "\n")
 
         // Name the failing file and the actual error. Printing only the last
@@ -539,6 +586,21 @@ main {
 
     // Short invariant reminder
     let invariants = "Remember your INVARIANTS from your system prompt (especially: get_audit_log returns .copy(), validate() MUST return ValidationResult(valid=False, errors=[...]) on ANY error — NEVER raise — catch exceptions and convert to ValidationResult, ALL other errors are PipelineError, type hints, docstrings, execute appends to audit_log)."
+
+    // TransformEngine was the only class in the spec with no stated error
+    // behaviour, while the test-writing prompt demanded that "invalid
+    // operations must raise PipelineError". The developer implemented
+    // permissive transforms, the tester asserted strict ones, and both were
+    // consistent with the spec because the spec never said. Run 7 died on
+    // test_transform_engine_errors with DID NOT RAISE three times over.
+    //
+    // Without this, pytest measures whether two agents happened to guess the
+    // same semantics rather than whether either did good work — and the
+    // second-attempt repair prompt ("if a failing test CONTRADICTS the
+    // CONTRACT") is unresolvable, since there is no contract to check against,
+    // leaving deletion of the assertion as a permitted fix. Feature 3 already
+    // states its error contract exactly; this gives TransformEngine the same.
+    let transform_contract = "TransformEngine error contract: map_records(records, fn) and filter_records(records, predicate) raise PipelineError if the callable is None or not callable, and wrap any exception raised by it in PipelineError; sort_records(records, key, reverse=False) raises PipelineError if key is missing from any record's data."
 
     // Existing method list — grows as features are added
     let existing_methods = "add_stage, execute, validate, get_audit_log, clear_audit_log"
@@ -916,6 +978,7 @@ main {
         pipeline_msg = pipeline_msg + "- Pipeline class with __init__(name), add_stage(name, transform_fn), execute(records) that runs stages in order and appends (stage_name, input_count, output_count, success) to self._audit_log, validate(record, schema) returning ValidationResult, get_audit_log() returning self._audit_log.copy(), clear_audit_log()\n"
         pipeline_msg = pipeline_msg + "- SchemaValidator class with validate(record, schema) method\n"
         pipeline_msg = pipeline_msg + "- TransformEngine class with static methods: map_records(records, fn), filter_records(records, predicate), sort_records(records, key, reverse=False)\n"
+        pipeline_msg = pipeline_msg + "- " + transform_contract + "\n"
         pipeline_msg = pipeline_msg + "- Import from models: Record, Schema, Field, FieldType, ValidationResult, PipelineError\n"
         pipeline_msg = pipeline_msg + "- All errors must be PipelineError\n"
         pipeline_msg = pipeline_msg + "```python fences. Code only."
@@ -942,7 +1005,7 @@ main {
         let pipeline_looks_like_code = string.contains(pipeline_code, "class ") || string.contains(pipeline_code, "def ")
         if len(pipeline_code) < 20 || !pipeline_looks_like_code {
             print("IMPLEMENT|pipeline_extract_empty|retrying|truncated=" + string(resp.get("truncated") ?? false) + "|len=" + string(len(pipeline_code)) + "|has_code=" + string(pipeline_looks_like_code))
-            let retry_msg = "Output pipeline.py in full, in a single ```python fence, code only. Do NOT call any tools for this — produce the file directly.\n\nMUST include: Pipeline class with __init__(name), add_stage(name, transform_fn), execute(records) appending (stage_name, input_count, output_count, success) to self._audit_log, validate(record, schema) returning ValidationResult, get_audit_log() returning self._audit_log.copy(), clear_audit_log(); SchemaValidator with validate(record, schema); TransformEngine with static map_records/filter_records/sort_records. Import Record, Schema, Field, FieldType, ValidationResult, PipelineError from models. All errors must be PipelineError."
+            let retry_msg = "Output pipeline.py in full, in a single ```python fence, code only. Do NOT call any tools for this — produce the file directly.\n\nMUST include: Pipeline class with __init__(name), add_stage(name, transform_fn), execute(records) appending (stage_name, input_count, output_count, success) to self._audit_log, validate(record, schema) returning ValidationResult, get_audit_log() returning self._audit_log.copy(), clear_audit_log(); SchemaValidator with validate(record, schema); TransformEngine with static map_records/filter_records/sort_records. Import Record, Schema, Field, FieldType, ValidationResult, PipelineError from models. All errors must be PipelineError.\n" + transform_contract
             let retry_resp = safe_send(handles["developer"], retry_msg)
             tracking["total_sends"] = tracking["total_sends"] + 1
             if retry_resp.get("error") == null {
@@ -956,7 +1019,7 @@ main {
         }
 
         // test_pipeline.py
-        resp = safe_send(handles["developer"], "Write test_pipeline.py with pytest. Import from models and pipeline. Test Pipeline (add_stage, execute with multiple stages, validate valid/invalid records, get_audit_log returns copy, clear_audit_log), SchemaValidator, and TransformEngine (map, filter, sort). Use @pytest.fixture for pipeline instance. At least 10 test functions. Test ONLY the classes and methods that exist. Invalid operations must raise PipelineError. ```python fences. Code only.")
+        resp = safe_send(handles["developer"], "Write test_pipeline.py with pytest. Import from models and pipeline. Test Pipeline (add_stage, execute with multiple stages, validate valid/invalid records, get_audit_log returns copy, clear_audit_log), SchemaValidator, and TransformEngine (map, filter, sort). Use @pytest.fixture for pipeline instance. At least 10 test functions. Test ONLY the classes and methods that exist. Invalid operations must raise PipelineError.\n" + transform_contract + "\nTest error cases ONLY as stated in that contract — do not invent additional operations that must raise. ```python fences. Code only.")
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
@@ -1041,6 +1104,30 @@ main {
     let tester_feedback = ""
     let reviewer_feedback = ""
 
+    // The developer's fix prompt carried the tester's prose review and the
+    // reviewer's vote, and nothing else. pytest ran at Step 3 — AFTER the fix —
+    // and its output went to the reviewer at Step 4, so a failing assertion
+    // reached the one agent that could act on it only as paraphrase, an
+    // iteration late, and only if the reviewer chose to mention it. Run 7's
+    // "DID NOT RAISE PipelineError" was never once shown to the developer.
+    //
+    // Seeded before the loop rather than left empty for iteration 1: with three
+    // iterations, withholding the evidence until the second wastes most of the
+    // loop. validate_code makes no API calls, so this costs one pytest run.
+    //
+    // Track the outcome, not just the text: pytest_failure_digest() falls back
+    // to "Tests failed to collect" whenever it finds no failure lines, which is
+    // exactly what a PASSING run looks like. Keying the prompt off output
+    // length alone would announce failures to the developer on a green suite.
+    let last_pytest_out = ""
+    let last_pytest_passed = true
+    if len(pipeline_code) > 20 && len(test_code) > 20 {
+        let seed_val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
+        last_pytest_out = seed_val.get("pytest_output") ?? ""
+        last_pytest_passed = seed_val.get("pytest_passed") == true
+        print("REFINE|pytest_seed|passed=" + string(last_pytest_passed))
+    }
+
     while iteration < max_iterations && !approved {
         iteration = iteration + 1
         print("REFINE_ITER|" + string(iteration) + "|start")
@@ -1060,10 +1147,24 @@ main {
         }
 
         // Step 2: Developer fixes pipeline.py
-        if handles.get("developer") != null && len(tester_feedback) > 10 {
+        // Gated on the tester OR pytest having something to say. Keeping it on
+        // tester_feedback alone would leave the new evidence path hostage to
+        // another agent's output — a dead tester would mean failing tests are
+        // never repaired either.
+        let refine_fail_detail = ""
+        if !last_pytest_passed && len(last_pytest_out) > 10 { refine_fail_detail = pytest_failure_digest(last_pytest_out) }
+        if handles.get("developer") != null && (len(tester_feedback) > 10 || len(refine_fail_detail) > 10) {
             let fix_msg = ""
             if len(operator_msg_prefix) > 0 { fix_msg = operator_msg_prefix + "\n\n" }
-            fix_msg = fix_msg + "Fix these issues in pipeline.py:\n" + tester_feedback
+            if len(refine_fail_detail) > 10 {
+                fix_msg = fix_msg + "Pytest is FAILING. Failing tests:\n" + refine_fail_detail
+                fix_msg = fix_msg + "\nCONTRACT: " + transform_contract
+                fix_msg = fix_msg + "\nFix pipeline.py so these pass. Do NOT edit the tests here.\n\n"
+                print("REFINE|pytest_failures_to_developer|iter" + string(iteration))
+            }
+            if len(tester_feedback) > 10 {
+                fix_msg = fix_msg + "Fix these issues in pipeline.py:\n" + tester_feedback
+            }
             if len(reviewer_feedback) > 10 {
                 fix_msg = fix_msg + "\n\nAlso address reviewer feedback:\n" + reviewer_feedback
             }
@@ -1084,22 +1185,29 @@ main {
             }
             print("TURN|developer|fix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
-            // Update tests
-            let testfix_msg = "Update test_pipeline.py to cover issues found:\n" + tester_feedback + "\nTest ONLY classes and methods that exist in the CURRENT pipeline.py below — do NOT write tests for methods that do not exist yet.\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nInvalid operations MUST be tested with pytest.raises(PipelineError)." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 10 tests. ```python fences. Code only."
-            resp = safe_send(handles["developer"], testfix_msg)
-            tracking["total_sends"] = tracking["total_sends"] + 1
-            if resp.get("error") == null {
-                track("developer", resp)
-                let new_tests = agent.extract_code(resp.get("content") ?? "", "python")
-                if len(new_tests) > 20 { test_code = new_tests }
-            } else {
-                tracking["send_errors"] = tracking["send_errors"] + 1
+            // Update tests — only when the tester actually said something. On a
+            // pytest-only entry there are no "issues found" to cover, and
+            // rewriting the suite against its own failures is exactly the
+            // erosion path TESTMASS exists to catch.
+            if len(tester_feedback) > 10 {
+                let testfix_msg = "Update test_pipeline.py to cover issues found:\n" + tester_feedback + "\nTest ONLY classes and methods that exist in the CURRENT pipeline.py below — do NOT write tests for methods that do not exist yet.\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nInvalid operations MUST be tested with pytest.raises(PipelineError).\n" + transform_contract + "\nTest error cases ONLY as stated in that contract." + "\n\nCurrent tests:\n```python\n" + test_code + "\n```\nRewrite COMPLETE test file. pytest with fixture, at least 10 tests. Do NOT drop existing tests or assertions that still apply. ```python fences. Code only."
+                resp = safe_send(handles["developer"], testfix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if resp.get("error") == null {
+                    track("developer", resp)
+                    let new_tests = agent.extract_code(resp.get("content") ?? "", "python")
+                    if len(new_tests) > 20 { test_code = new_tests }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+                print("TURN|developer|testfix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
             }
-            print("TURN|developer|testfix" + string(iteration) + "|c=" + string(tracking["coherences"].get("developer") ?? -1))
         }
 
         // Step 3: Validate
         let val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
+        last_pytest_out = val.get("pytest_output") ?? ""
+        last_pytest_passed = val.get("pytest_passed") == true
         let val_keys = val.keys()
         let vk = 0
         while vk < val_keys.length() {
@@ -1998,21 +2106,7 @@ main {
         while cur_val.get("pytest_passed") == false && fix_attempt < 2 && handles.get("developer") != null {
             fix_attempt = fix_attempt + 1
             let pytest_out = cur_val.get("pytest_output") ?? ""
-            let plines = string.split(pytest_out, "\n")
-            let fail_names = ""
-            let pfi = 0
-            while pfi < plines.length() {
-                let pl = string.trim(plines[pfi])
-                let raw = plines[pfi]
-                if string.contains(pl, "FAILED") || string.contains(pl, "ERROR") || string.contains(pl, "SyntaxError") {
-                    fail_names = fail_names + pl + "\n"
-                } else if string.starts_with(raw, "E ") && len(fail_names) < 1500 {
-                    fail_names = fail_names + pl + "\n"
-                }
-                pfi = pfi + 1
-            }
-            if len(fail_names) > 1800 { fail_names = string.substring(fail_names, 0, 1800) + "\n[truncated]" }
-            if len(fail_names) < 10 { fail_names = "Tests failed to collect (likely SyntaxError in pipeline.py or test_pipeline.py)" }
+            let fail_names = pytest_failure_digest(pytest_out)
             last_fail_detail = fail_names
             print("PYTEST_FIX|sending failure names to developer")
             let pytest_fix_msg = ""
