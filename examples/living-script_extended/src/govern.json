@@ -341,7 +341,7 @@
     "step_up_at_level": "elevated",
     "step_up_challenge": "Restate your current objective in one sentence, then continue helping.",
     "step_up_min_words": 5,
-    "step_up_cooldown_turns": 2,
+    "step_up_cooldown_turns": 1,
     "step_up_keyword_threshold": 0.20,
     "step_up_contextual": true,
     "step_up_contextual_threshold": 0.15,
