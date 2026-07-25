@@ -181,7 +181,7 @@ echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 150); do
+    for i in $(seq 1 151); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -281,7 +281,7 @@ else
         gk_fail "L1-01" "Agent creation" "only $AGENTS_CREATED agents"
     fi
 
-    OP_ACTIONS=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=' || echo "0")
+    OP_ACTIONS=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=' || true)
     if [ "$OP_ACTIONS" -ge 8 ]; then
         pass "L1-02" "Operator consulted ($OP_ACTIONS times)"
     elif [ "$OP_ACTIONS" -ge 5 ]; then
@@ -301,7 +301,7 @@ else
     # ============================================================
     echo -e "${CYAN}Level 2: Outcome Validation${NC}"
 
-    VALIDATE_RAN=$(echo "$OUTPUT" | grep -c 'VALIDATE|' || echo "0")
+    VALIDATE_RAN=$(echo "$OUTPUT" | grep -c 'VALIDATE|' || true)
     if [ "$VALIDATE_RAN" -gt 0 ]; then
         pass "L2-01" "Polyglot validation ran ($VALIDATE_RAN checks)"
     else
@@ -323,18 +323,42 @@ else
     fi
 
     # Pytest actually ran
-    PYTEST_RUNS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=' || echo "0")
+    PYTEST_RUNS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=' || true)
     if [ "$PYTEST_RUNS" -ge 1 ]; then
         pass "L2-04" "Pytest executed ($PYTEST_RUNS runs)"
     else
         skip "L2-04" "No pytest execution"
     fi
 
-    PYTEST_PASS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=0' || echo "0")
+    PYTEST_PASS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=0' || true)
     if [ "$PYTEST_PASS" -ge 1 ]; then
         pass "L2-05" "Pytest passed at least once ($PYTEST_PASS runs with exit=0)"
     else
         gk_fail "L2-05" "No pytest run passed (0 exit=0 out of $PYTEST_RUNS runs)"
+    fi
+
+    # ============================================================
+    # PIPE: INITIAL CODE EXTRACTION
+    #
+    # Everything from REFINE through PROPOSE_SELECT is gated on there being
+    # pipeline code. When the first extraction comes back empty the run
+    # continues and FEATURES rebuilds the file, so the only visible symptom is
+    # a scatter of unrelated-looking failures much later. This reports it once,
+    # at its source.
+    # ============================================================
+    echo -e "${CYAN}Initial Code Extraction${NC}"
+
+    if echo "$OUTPUT" | grep -q 'IMPLEMENT|pipeline_extract_empty'; then
+        RETRY_LEN=$(echo "$OUTPUT" | grep -oP 'IMPLEMENT\|pipeline_retry_result\|len=\K[0-9]+' | head -1)
+        TRUNC=$(echo "$OUTPUT" | grep -oP 'IMPLEMENT\|pipeline_extract_empty\|retrying\|truncated=\K\w+' | head -1)
+        if [ "${RETRY_LEN:-0}" -ge 20 ]; then
+            pass "PIPE-01" "Initial pipeline extraction was empty (truncated=${TRUNC:-?}) but the retry recovered it (len=$RETRY_LEN)"
+        else
+            fail "PIPE-01" "Initial pipeline extraction empty and retry failed" \
+                 "truncated=${TRUNC:-?}, len after retry=${RETRY_LEN:-0}; REFINE and PROPOSE_SELECT are voided by this"
+        fi
+    else
+        pass "PIPE-01" "Initial pipeline.py extracted on the first attempt"
     fi
 
     # ============================================================
@@ -383,15 +407,17 @@ assert 'refinement_iterations' in d
     fi
 
     # Developer rewrote code during refinement
-    REWRITES=$(echo "$OUTPUT" | grep -c 'REFINE|developer_rewrote' || echo "0")
+    REWRITES=$(echo "$OUTPUT" | grep -c 'REFINE|developer_rewrote' || true)
     if [ "$REWRITES" -gt 0 ]; then
         pass "L4-REWRITE" "Developer rewrote code ($REWRITES times)"
+    elif echo "$OUTPUT" | grep -q 'IMPLEMENT|pipeline_extract_empty'; then
+        skip "L4-REWRITE" "Refinement had no extracted pipeline to rewrite (see PIPE-01)"
     else
         gk_fail "L4-REWRITE" "No code rewrites during refinement"
     fi
 
     # Review verdicts tracked
-    REVIEWS=$(echo "$OUTPUT" | grep -c 'REVIEW|iter=' || echo "0")
+    REVIEWS=$(echo "$OUTPUT" | grep -c 'REVIEW|iter=' || true)
     if [ "$REVIEWS" -gt 0 ]; then
         pass "L4-REVIEW" "Reviewer voted $REVIEWS times"
     else
@@ -403,7 +429,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 5: Environmental Reactivity & Features${NC}"
 
-    REACTIVE_FOUND=$(echo "$OUTPUT" | grep -c "REACTIVE|found=" || echo "0")
+    REACTIVE_FOUND=$(echo "$OUTPUT" | grep -c "REACTIVE|found=" || true)
     if [ "$REACTIVE_FOUND" -ge 2 ]; then
         pass "L5-01" "Requirement files detected ($REACTIVE_FOUND)"
     elif [ "$REACTIVE_FOUND" -ge 1 ]; then
@@ -435,9 +461,9 @@ assert 'refinement_iterations' in d
     # that passes pytest emits |complete, one that still fails emits |incomplete.
     # Count both as "the loop ran a cycle" (the harness proves cycles executed;
     # whether the LLM's code passes is the agent's job, not this assertion).
-    FEAT_CYCLES=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|(complete|incomplete)' || echo "0")
-    FEAT_COMPLETE=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|complete' || echo "0")
-    FEAT_INCOMPLETE=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|incomplete' || echo "0")
+    FEAT_CYCLES=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|(complete|incomplete)' || true)
+    FEAT_COMPLETE=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|complete' || true)
+    FEAT_INCOMPLETE=$(echo "$OUTPUT" | grep -cE 'FEATURE\|[0-9]+\|incomplete' || true)
     if [ "$FEAT_CYCLES" -ge 2 ]; then
         pass "L5-04" "Feature cycles ran ($FEAT_CYCLES: $FEAT_COMPLETE complete, $FEAT_INCOMPLETE incomplete)"
     else
@@ -445,7 +471,7 @@ assert 'refinement_iterations' in d
     fi
 
     # Tester reviewed during feature additions (Gap 1 fix)
-    FEAT_TESTER=$(echo "$OUTPUT" | grep -c 'TURN|tester|feat' || echo "0")
+    FEAT_TESTER=$(echo "$OUTPUT" | grep -c 'TURN|tester|feat' || true)
     if [ "$FEAT_TESTER" -ge 1 ]; then
         pass "L5-05" "Tester reviewed during features ($FEAT_TESTER reviews)"
     else
@@ -453,7 +479,7 @@ assert 'refinement_iterations' in d
     fi
 
     # Developer fixed issues found by tester during features
-    FEAT_FIXES=$(echo "$OUTPUT" | grep -c 'FEATURE|.*|developer_fixed' || echo "0")
+    FEAT_FIXES=$(echo "$OUTPUT" | grep -c 'FEATURE|.*|developer_fixed' || true)
     if [ "$FEAT_FIXES" -ge 1 ]; then
         pass "L5-06" "Developer fixed tester issues during features ($FEAT_FIXES fixes)"
     else
@@ -470,7 +496,7 @@ assert 'refinement_iterations' in d
     fi
 
     # Pytest fix loop (developer fixed failing tests)
-    PYTEST_FIXES=$(echo "$OUTPUT" | grep -c 'PYTEST_FIX|developer_fixed' || echo "0")
+    PYTEST_FIXES=$(echo "$OUTPUT" | grep -c 'PYTEST_FIX|developer_fixed' || true)
     if [ "$PYTEST_FIXES" -ge 1 ]; then
         pass "L5-08" "Developer fixed pytest failures ($PYTEST_FIXES fixes)"
     else
@@ -499,10 +525,19 @@ assert 'refinement_iterations' in d
         fail "L7-01" "Propose/Select phase not reached"
     fi
 
+    # The phase is gated on there being pipeline code to propose against. When
+    # that gate is what stopped it, the remaining L7 checks describe an upstream
+    # extraction failure, not the propose/commit path — report them as SKIP and
+    # let PIPE-01 below carry the actual defect.
+    PROPOSE_SKIPPED=""
+    echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|skipped_reason=no_pipeline_code' && PROPOSE_SKIPPED=1
+
     PROPOSE_CANDIDATES=$(echo "$OUTPUT" | grep -oP 'PROPOSE_SELECT\|candidates=\K[0-9]+' | tail -1)
     PROPOSE_CANDIDATES=${PROPOSE_CANDIDATES:-0}
     if [ "$PROPOSE_CANDIDATES" -ge 1 ]; then
         pass "L7-02" "Candidates generated ($PROPOSE_CANDIDATES)"
+    elif [ -n "$PROPOSE_SKIPPED" ]; then
+        skip "L7-02" "Phase skipped — no pipeline code to propose against (see PIPE-01)"
     else
         fail "L7-02" "No candidates generated"
     fi
@@ -516,6 +551,8 @@ assert 'refinement_iterations' in d
         pass "L7-03" "Proposal committed"
     elif echo "$OUTPUT" | grep -q 'PROPOSE_SELECT|admissible_count=0|'; then
         skip "L7-03" "No candidate cleared the admissibility threshold — all refused (gate working)"
+    elif [ -n "$PROPOSE_SKIPPED" ]; then
+        skip "L7-03" "Phase skipped — no pipeline code to propose against (see PIPE-01)"
     else
         fail "L7-03" "No proposal committed" "candidates existed and were admissible, but none committed"
     fi
@@ -531,9 +568,11 @@ assert 'refinement_iterations' in d
 
     # Selection must be auditable: without per-candidate scores there is no way
     # to distinguish ranking-by-admissibility from just taking candidate 0.
-    CAND_LINES=$(echo "$OUTPUT" | grep -c '^PROPOSE_CAND|' || echo "0")
+    CAND_LINES=$(echo "$OUTPUT" | grep -c '^PROPOSE_CAND|' || true)
     if [ "$CAND_LINES" -ge 1 ]; then
         pass "L7-05" "Per-candidate admissibility scores reported ($CAND_LINES candidates)"
+    elif [ -n "$PROPOSE_SKIPPED" ]; then
+        skip "L7-05" "Phase skipped — no pipeline code to propose against (see PIPE-01)"
     else
         fail "L7-05" "No per-candidate admissibility detail"
     fi
@@ -541,6 +580,8 @@ assert 'refinement_iterations' in d
     SEL_IDX=$(echo "$OUTPUT" | grep -oP 'PROPOSE_SELECT\|admissible_count=[0-9-]+\|selected_index=\K-?[0-9]+' | head -1)
     if [ -n "${SEL_IDX:-}" ]; then
         pass "L7-06" "select_admissible reported its choice (selected_index=$SEL_IDX)"
+    elif [ -n "$PROPOSE_SKIPPED" ]; then
+        skip "L7-06" "Phase skipped — no pipeline code to propose against (see PIPE-01)"
     else
         fail "L7-06" "select_admissible selection not reported"
     fi
@@ -889,7 +930,7 @@ assert 'refinement_iterations' in d
         fail "L16-01" "Lease/epoch phase not reached"
     fi
 
-    LEASE_AGENTS=$(echo "$OUTPUT" | grep -c 'LEASE_EPOCH|.*|lease=' || echo "0")
+    LEASE_AGENTS=$(echo "$OUTPUT" | grep -c 'LEASE_EPOCH|.*|lease=' || true)
     if [ "$LEASE_AGENTS" -ge 2 ]; then
         pass "L16-02" "Lease data for $LEASE_AGENTS agents"
     else
@@ -1271,7 +1312,7 @@ assert 'refinement_iterations' in d
         # phase's summary line: a tool call is evidence about the tool path, and
         # tying that evidence to whether a later phase was reached reported
         # "no telemetry" for 6 events that had in fact been written.
-        TOOL_CALL_EV=$(grep -c '"event_type":"AGENT_TOOL_CALL"' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
+        TOOL_CALL_EV=$(grep -c '"event_type":"AGENT_TOOL_CALL"' "$WORKDIR/telemetry.jsonl" 2>/dev/null || true)
         if [ "${TOOL_CALL_EV:-0}" -ge 1 ]; then
             pass "L19b-03" "AGENT_TOOL_CALL telemetry emitted ($TOOL_CALL_EV events)"
         else
@@ -1314,13 +1355,13 @@ assert 'refinement_iterations' in d
         if [ -f "$TELEM" ]; then
             GOV_ERRS=0
             for ev in AGENT_CHALLENGE_FAIL QUARANTINE_STREAK_EXCEEDED AGENT_HARD_STOP OUTPUT_INADMISSIBLE; do
-                n=$(grep -c "\"event_type\":\"$ev\"" "$TELEM" 2>/dev/null || echo 0)
+                n=$(grep -c "\"event_type\":\"$ev\"" "$TELEM" 2>/dev/null || true)
                 [ "$n" -gt 0 ] && echo -e "    ${CYAN}${ev}: ${n}${NC}"
                 GOV_ERRS=$((GOV_ERRS + n))
             done
             INFRA_ERRS=0
             for ev in AGENT_RETRY AGENT_FALLBACK AGENT_KEY_DISABLED RESPONSE_SUPPRESSED; do
-                n=$(grep -c "\"event_type\":\"$ev\"" "$TELEM" 2>/dev/null || echo 0)
+                n=$(grep -c "\"event_type\":\"$ev\"" "$TELEM" 2>/dev/null || true)
                 [ "$n" -gt 0 ] && echo -e "    ${CYAN}${ev}: ${n}${NC}"
                 INFRA_ERRS=$((INFRA_ERRS + n))
             done
@@ -1411,7 +1452,7 @@ print('true' if ok else 'false')
     fi
 
     # Code extraction
-    FILES_EXTRACTED=$(echo "$OUTPUT" | grep -c 'CODE_EXTRACT|.*|extracted=true' || echo "0")
+    FILES_EXTRACTED=$(echo "$OUTPUT" | grep -c 'CODE_EXTRACT|.*|extracted=true' || true)
     if [ "$FILES_EXTRACTED" -ge 2 ]; then
         pass "C01" "Code extraction ($FILES_EXTRACTED/3 files)"
     else
@@ -1430,7 +1471,7 @@ print('true' if ok else 'false')
     # Developer coherence varied (CDD fired from many turns)
     DEV_MIN=$(echo "$OUTPUT" | grep 'AGENT_STATE|developer' | grep -oP 'min=\K[0-9.e+-]+' | head -1)
     if [ -n "${DEV_MIN:-}" ]; then
-        BELOW_ONE=$(echo "$DEV_MIN < 1.0" | bc -l 2>/dev/null || echo "0")
+        BELOW_ONE=$(echo "$DEV_MIN < 1.0" | bc -l 2>/dev/null || true)
         if [ "$BELOW_ONE" = "1" ]; then
             pass "C03" "Developer CDD varied (min=$DEV_MIN)"
         else
@@ -1450,7 +1491,7 @@ print('true' if ok else 'false')
     fi
 
     # Final review fix loop (Gap 2 fix — if rejected, developer fixes and re-review)
-    FINAL_FIXES=$(echo "$OUTPUT" | grep -c 'FINAL_REVIEW|developer_fixed' || echo "0")
+    FINAL_FIXES=$(echo "$OUTPUT" | grep -c 'FINAL_REVIEW|developer_fixed' || true)
     if [ "$FINAL_ITERS" -ge 2 ]; then
         pass "C05" "Final review fix loop activated ($FINAL_ITERS iterations, $FINAL_FIXES fixes)"
     else

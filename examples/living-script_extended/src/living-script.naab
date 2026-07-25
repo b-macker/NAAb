@@ -835,6 +835,32 @@ main {
         }
         print("TURN|developer|pipeline|c=" + string(tracking["coherences"].get("developer") ?? -1))
 
+        // Everything downstream is gated on len(pipeline_code) > 20, so an empty
+        // extraction here silently voids REFINE and PROPOSE_SELECT and shows up
+        // only as unrelated-looking failures much later. It happens: the
+        // developer has tools enabled, and a turn that spends budget on a tool
+        // loop can hit max_tokens before emitting the whole file, leaving a
+        // truncated response with no complete fence to extract.
+        // Length alone is not enough: agent.extract_code() returns its input
+        // unchanged when it finds no fence, so a prose reply sails through a
+        // bare length check and becomes "pipeline code" that cannot possibly
+        // run. Require something that only actual Python has.
+        let pipeline_looks_like_code = string.contains(pipeline_code, "class ") || string.contains(pipeline_code, "def ")
+        if len(pipeline_code) < 20 || !pipeline_looks_like_code {
+            print("IMPLEMENT|pipeline_extract_empty|retrying|truncated=" + string(resp.get("truncated") ?? false) + "|len=" + string(len(pipeline_code)) + "|has_code=" + string(pipeline_looks_like_code))
+            let retry_msg = "Output pipeline.py in full, in a single ```python fence, code only. Do NOT call any tools for this — produce the file directly.\n\nMUST include: Pipeline class with __init__(name), add_stage(name, transform_fn), execute(records) appending (stage_name, input_count, output_count, success) to self._audit_log, validate(record, schema) returning ValidationResult, get_audit_log() returning self._audit_log.copy(), clear_audit_log(); SchemaValidator with validate(record, schema); TransformEngine with static map_records/filter_records/sort_records. Import Record, Schema, Field, FieldType, ValidationResult, PipelineError from models. All errors must be PipelineError."
+            let retry_resp = safe_send(handles["developer"], retry_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if retry_resp.get("error") == null {
+                track("developer", retry_resp)
+                let retry_code = agent.extract_code(retry_resp.get("content") ?? "", "python")
+                if len(retry_code) > 20 { pipeline_code = retry_code }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+            print("IMPLEMENT|pipeline_retry_result|len=" + string(len(pipeline_code)))
+        }
+
         // test_pipeline.py
         resp = safe_send(handles["developer"], "Write test_pipeline.py with pytest. Import from models and pipeline. Test Pipeline (add_stage, execute with multiple stages, validate valid/invalid records, get_audit_log returns copy, clear_audit_log), SchemaValidator, and TransformEngine (map, filter, sort). Use @pytest.fixture for pipeline instance. At least 10 test functions. Test ONLY the classes and methods that exist. Invalid operations must raise PipelineError. ```python fences. Code only.")
         tracking["total_sends"] = tracking["total_sends"] + 1
@@ -1105,6 +1131,13 @@ main {
         }
     }
 
+    // Say WHY the phase produced nothing. "0 candidates" reads as a broken
+    // propose/commit path, but the common cause is upstream: no pipeline code
+    // to propose against, so the phase never ran at all. Without this marker
+    // four L7 checks fail for a reason that has nothing to do with L7.
+    if len(pipeline_code) < 20 {
+        print("PROPOSE_SELECT|skipped_reason=no_pipeline_code|len=" + string(len(pipeline_code)))
+    }
     print("PROPOSE_SELECT|candidates=" + string(propose_candidates) + "|committed=" + string(propose_committed) + "|codegen=" + codegen_result)
     tracking["phases_completed"].push("PROPOSE_SELECT")
 
