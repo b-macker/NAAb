@@ -153,7 +153,12 @@ gk_fail() {  # $1=id, $2=desc, $3=detail
 # Trust store isolation
 source "$SCRIPT_DIR/../../tests/helpers/trust_setup.sh"
 setup_isolated_trust
-trap 'teardown_isolated_trust; rm -rf "$TEST_TMP"' EXIT
+# KEEP_TMP=1 preserves the work directory — telemetry.jsonl and
+# transcript.jsonl live inside it and are the only forensic record of a live
+# run. Deleting them unconditionally meant every post-run question ("which
+# pulse signal fired?", "what did the challenge score against?") needed another
+# full run to answer.
+trap 'teardown_isolated_trust; if [ -n "${KEEP_TMP:-}" ]; then echo "Artifacts kept: $TEST_TMP"; else rm -rf "$TEST_TMP"; fi' EXIT
 mkdir -p "$TEST_TMP"
 
 # Generate signing key
