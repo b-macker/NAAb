@@ -1502,6 +1502,21 @@ else
     echo "  test_adversarial_detection.sh: not found, skipping"
 fi
 
+# Per-signal discrimination — characterizes what each CDD signal contributes
+# on its own. The printed table is the deliverable; the assertions only check
+# that detection is not accidental.
+SIGDISC_SCRIPT="tests/governance_v4/test_signal_discrimination.sh"
+if [ -f "$SIGDISC_SCRIPT" ]; then
+    if bash "$SIGDISC_SCRIPT" 2>&1; then
+        echo "  test_signal_discrimination.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_signal_discrimination.sh")
+    fi
+else
+    echo "  test_signal_discrimination.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
