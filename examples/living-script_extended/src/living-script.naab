@@ -551,11 +551,16 @@ main {
                     }
                     print("OA|" + name + "|inadmissible|coherence=" + string(adm_c) + "|threshold=" + string(adm.get("threshold") ?? -1) + "|action=" + string(adm.get("action") ?? "") + "|streak=" + string(streak))
                 } else {
-                    // commit(): the candidate was judged inadmissible on its
-                    // own score. Counted separately so it never inflates the
-                    // quarantine streak story.
+                    // commit(): refused by a LIVE checkOutputAdmissibility()
+                    // call against the handle's current coherence — not by the
+                    // score in this dict, which is the propose-time candidate
+                    // score and had no part in the verdict. Labelling it plain
+                    // "score" invited the reading "score 0.625 was above the
+                    // 0.60 threshold and the gate refused anyway"; the deciding
+                    // coherence was ~0.51 and is only in the OUTPUT_INADMISSIBLE
+                    // telemetry (source=agent.commit), never in the response.
                     tracking["oa_commit_rejected"] = tracking["oa_commit_rejected"] + 1
-                    print("OA|" + name + "|commit_inadmissible|score=" + string(adm_c))
+                    print("OA|" + name + "|commit_inadmissible|propose_score=" + string(adm_c) + "|verdict=coherence_at_commit (see OUTPUT_INADMISSIBLE telemetry)")
                 }
             } else {
                 tracking["oa_admissible"] = tracking["oa_admissible"] + 1
