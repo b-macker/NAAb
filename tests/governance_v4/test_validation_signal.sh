@@ -520,6 +520,81 @@ fi
 fi
 
 # ============================================================
+# Group K: a pass must not erase an unconsumed FAILURE
+#
+# The latch is one slot consumed by the next recordTurn, which assumes one
+# validation per turn. Nothing guarantees that — recordTurn only runs on an
+# AGENT_RESPONSE, so anything that stops a send from completing leaves the
+# result unconsumed and the next record_validation used to overwrite it.
+#
+# A pass landing on an unconsumed failure erased it outright: the pass consumed
+# with no penalty, and no recovery credit either since the failure was never
+# consumed to set last_consumed_validation_failed. It left nothing at all —
+# not a penalty, not even a fired count in signals_detail.
+#
+# Live run 15 recorded four failures and four passes, scored none of them, and
+# finished at coherence 1.0 with 4 of 4 features rejected and 11 send errors.
+# The worse the run went, the more ground truth was thrown away.
+#
+# Here both results are recorded BETWEEN the same pair of sends, so exactly one
+# recordTurn consumes them. The failure must survive.
+# ============================================================
+echo -e "${CYAN}--- Group K: pass does not erase an unconsumed failure ---${NC}"
+WDIR="$TEST_TMP/k"; mkdir -p "$WDIR"
+printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "K-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+# Only S22 moves coherence, so any change is attributable to it.
+mk_govern "$STUB_PORT" ', "context_drift_signals": {"semantic_stability": false, "instruction_recall": false, "entity_consistency": false, "mandate_alignment": false, "coherence_velocity": false, "persona_fingerprint": false, "instruction_conflict": false, "context_growth": false, "response_repetition": false, "prompt_compliance": false}' > "$WDIR/govern.json"; sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement add")
+    // Both recorded before the next send: one recordTurn consumes them.
+    let f = agent.record_validation(h, false, "FAILED test_add: returned None instead of the sum")
+    let p = agent.record_validation(h, true)
+    print("FAIL_APPLIED=" + string(f.get("applied")))
+    print("PASS_APPLIED=" + string(p.get("applied")))
+    let r2 = agent.send(h, "implement subtract")
+    print("C_AFTER=" + string(agent.coherence(h)))
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+C_AFTER=$(echo "$OUT" | grep C_AFTER= | sed 's/.*=//')
+
+# The failure must have been scored. Under the old behaviour the pass
+# overwrote it and coherence stayed at 1.0.
+if [ -n "$C_AFTER" ] && python3 -c "import sys; sys.exit(0 if float('${C_AFTER:-1}') < 0.999 else 1)" 2>/dev/null; then
+    pass "K-01" "Unconsumed failure survived the pass and was scored (coherence $C_AFTER)"
+else
+    fail "K-01" "Pass erased the unconsumed failure" \
+         "coherence=$C_AFTER — the failure was recorded and never scored"
+fi
+
+if echo "$OUT" | grep -q 'PASS_APPLIED=false'; then
+    pass "K-02" "Superseded pass reported applied=false to the caller"
+else
+    fail "K-02" "Superseded pass not reported" "$(echo "$OUT" | grep APPLIED=)"
+fi
+
+if grep '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"applied":"false"'; then
+    pass "K-03" "Supersession visible in VALIDATION_RECORDED telemetry"
+else
+    fail "K-03" "No applied=false in telemetry" \
+         "$(grep -c '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null) records"
+fi
+
+# The failure is scored once, not once per recorded result.
+if echo "$OUT" | grep -q 'FAIL_APPLIED=true'; then
+    pass "K-04" "The failure itself was applied normally"
+else
+    fail "K-04" "Failure was not applied" "$(echo "$OUT" | grep APPLIED=)"
+fi
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))

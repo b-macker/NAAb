@@ -7303,9 +7303,9 @@ void GovernanceEngine::recordToolOutcome(
     drift_analyzer_.recordToolOutcome(handle_id, tool_name, success);
 }
 
-void GovernanceEngine::recordValidationOutcome(int handle_id, bool passed,
+bool GovernanceEngine::recordValidationOutcome(int handle_id, bool passed,
     const std::unordered_set<std::string>& detail_keywords) {
-    drift_analyzer_.recordValidationOutcome(handle_id, passed, detail_keywords);
+    return drift_analyzer_.recordValidationOutcome(handle_id, passed, detail_keywords);
 }
 
 void GovernanceEngine::setTurnPromptKeywords(

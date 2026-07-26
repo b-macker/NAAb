@@ -6364,20 +6364,26 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
     }
 
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
+    bool applied = true;
     if (gov_engine && gov_engine->isActive()) {
-        gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords);
+        // False when an unconsumed FAILURE was preserved rather than replaced by
+        // this pass. Reported so a superseded result is visible instead of
+        // looking like a recorded pass that CDD then ignored.
+        applied = gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords);
         if (gov_engine->getRules().telemetry_output.enabled) {
             gov_engine->writeAgentTelemetry("VALIDATION_RECORDED", {
                 {"handle_id",       std::to_string(handle_id)},
                 {"config_name",     config_name},
                 {"passed",          passed ? "true" : "false"},
                 {"detail_keywords", std::to_string(detail_keywords.size())},
+                {"applied",         applied ? "true" : "false"},
             });
         }
     }
 
     std::unordered_map<std::string, NaabVal> result;
     result["recorded"] = NaabVal::makeBool(true);
+    result["applied"] = NaabVal::makeBool(applied);
     result["handle_id"] = NaabVal::makeInt(handle_id);
     result["passed"] = NaabVal::makeBool(passed);
     return NaabVal::makeDict(std::move(result));

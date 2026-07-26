@@ -3118,7 +3118,7 @@ public:
     void recordToolOutcome(int handle_id, const std::string& tool_name, bool success);
 
     // Record external validation outcome (S22) — forwards to the drift analyzer.
-    void recordValidationOutcome(int handle_id, bool passed,
+    bool recordValidationOutcome(int handle_id, bool passed,
         const std::unordered_set<std::string>& detail_keywords = {});
 
     // Set per-turn prompt keywords (for prompt compliance signal)

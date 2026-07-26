@@ -2417,10 +2417,36 @@ void ContextDriftAnalyzer::recordToolOutcome(
     state.tool_last_outcome[tool_name] = success;
 }
 
-void ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
+bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
     const std::unordered_set<std::string>& detail_keywords) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
+
+    // An unconsumed FAILURE is never overwritten by a later pass.
+    //
+    // The latch is a single slot consumed by the next recordTurn, which assumes
+    // one validation per turn. Nothing guarantees that. recordTurn only runs on
+    // an AGENT_RESPONSE, so a failed send leaves the latch unconsumed and the
+    // next record_validation used to overwrite it. A pass landing on an
+    // unconsumed failure erased it completely: the pass consumes with no
+    // penalty, and earns no recovery credit either because
+    // last_consumed_validation_failed was never set — so it left nothing in
+    // signals_detail or penalties_detail, not even a fired count.
+    //
+    // Live run 15 recorded four failures and four passes and scored none of
+    // them, with 11 send errors keeping recordTurn from running. The worse a
+    // run goes, the more ground truth was discarded — exactly inverted from
+    // what this signal exists to do.
+    //
+    // Returns false when the result was superseded, so the caller can say so in
+    // telemetry rather than reporting a pass that was never applied.
+    if (state.has_validation_result && !state.last_validation_passed && passed) {
+        // Keep the failure and its keywords: objective evidence must be scored
+        // before a pass can supersede it. The next pass recorded after the
+        // failure has actually been consumed earns the fail->pass credit.
+        return false;
+    }
+
     // Latch the ground-truth result; the next recordTurn consumes and clears it.
     state.has_validation_result = true;
     state.last_validation_passed = passed;
@@ -2432,6 +2458,7 @@ void ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
     } else if (!detail_keywords.empty()) {
         state.validation_failure_keywords = detail_keywords;
     }
+    return true;
 }
 
 void ContextDriftAnalyzer::setTurnPromptKeywords(

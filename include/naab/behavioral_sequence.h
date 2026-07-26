@@ -458,7 +458,7 @@ public:
     // the orchestration script (pytest, enforce_convergence). Consumed once by
     // the next recordTurn. Optional detail keywords (extracted from e.g. pytest
     // failure output) ground the "validation" step-up challenge type.
-    void recordValidationOutcome(int handle_id, bool passed,
+    bool recordValidationOutcome(int handle_id, bool passed,
         const std::unordered_set<std::string>& detail_keywords = {});
 
     // Set per-turn prompt keywords (for prompt compliance signal)
