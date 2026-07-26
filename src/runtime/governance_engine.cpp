@@ -7163,13 +7163,39 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             // not evidence, and reconstructing it after the fact meant grepping
             // an entire run to guess between six candidate signals.
             if (pv != prev_pv) {
-                std::string why = getPulse().degradation_reasons;
+                GovernancePulse snap = getPulse();
+                const std::string why = snap.degradation_reasons;
                 if (pv == PulseVerdict::DEGRADED)
                     emitEvent(RuntimeEventType::PULSE_DEGRADED,
                               "governance pulse degraded" + (why.empty() ? "" : ": " + why), "", 0);
                 else if (pv == PulseVerdict::IMPAIRED)
                     emitEvent(RuntimeEventType::PULSE_IMPAIRED,
                               "governance pulse impaired" + (why.empty() ? "" : ": " + why), "", 0);
+
+                // A verdict transition is a governance state change: it bumps the
+                // evidence epoch and can raise the per-call level floor. Until
+                // now it left no telemetry of its own — the BSD events above only
+                // surface if some pattern happens to match them — so a degrade
+                // followed by a recovery between two governance.health() samples
+                // was visible ONLY as an unexplained two-step jump in the epoch
+                // counter. Recovering that from a live run took four rounds of
+                // forensics. Emitted outside results_mutex_: getPulse() and
+                // getPulseVerdict() both lock it internally, so nothing here holds it.
+                auto verdictName = [](PulseVerdict v) {
+                    return v == PulseVerdict::IMPAIRED ? "impaired"
+                         : v == PulseVerdict::DEGRADED ? "degraded" : "healthy";
+                };
+                writeAgentTelemetry("PULSE_TRANSITION", {
+                    {"from_verdict",      verdictName(prev_pv)},
+                    {"to_verdict",        verdictName(pv)},
+                    {"degradation_reasons", why},
+                    {"consecutive_passes", std::to_string(snap.consecutive_passes)},
+                    {"consecutive_degraded", std::to_string(snap.consecutive_degraded)},
+                    {"turn",              std::to_string(turn)},
+                    {"handle_id",         std::to_string(state->handle_id)},
+                    {"governance_epoch",  std::to_string(
+                                              governance_epoch_.load(std::memory_order_relaxed))},
+                });
             }
 
             // F6: Update system-wide governance level from sustained pressure

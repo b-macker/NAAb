@@ -28,6 +28,7 @@
 #   PU-02  long clean agent run              -> MUST degrade      (still alive)
 #   PU-03  a blocked turn resets the streak  -> must NOT degrade
 #   PU-04  every degraded verdict names its own cause
+#   PU-05  every verdict transition leaves a telemetry record
 #
 # PU-01 and PU-04 fail against the pre-fix binary; PU-02 and PU-03 guard the
 # fix against being a silent disable.
@@ -351,6 +352,52 @@ else
     fail "PU-04" "$UNATTRIB of $DEG2 degraded samples carry an empty reason field" \
          "governance.health() cannot explain its own verdict"
 fi
+echo ""
+
+# ------------------------------------------------------------------
+# PU-05 — a verdict transition must emit PULSE_TRANSITION
+# The pulse sawtooths, so a degrade followed by a recovery between two
+# governance.health() samples used to be visible only as an unexplained
+# two-step jump in the evidence epoch. Reconstructing one from a live run took
+# four rounds of forensics; the transitions are now events.
+# ------------------------------------------------------------------
+echo -e "${CYAN}PU-05: transitions are recorded${NC}"
+TELE="$TEST_TMP/clean/tele.jsonl"
+if [ ! -f "$TELE" ]; then
+    fail "PU-05" "no telemetry from the PU-02 scenario"
+else
+    PT=$(python3 - "$TELE" <<'PYEOF'
+import json, sys
+rows = []
+for ln in open(sys.argv[1]):
+    try: e = json.loads(ln)
+    except Exception: continue
+    if e.get("event_type") == "PULSE_TRANSITION":
+        rows.append("%s->%s why=%s" % (e.get("from_verdict"), e.get("to_verdict"),
+                                       e.get("degradation_reasons")))
+print(len(rows))
+for r in rows[:4]: print(r)
+PYEOF
+)
+    PT_N=$(echo "$PT" | head -1)
+    if [ "${PT_N:-0}" -gt 0 ]; then
+        pass "PU-05" "$PT_N PULSE_TRANSITION events ($(echo "$PT" | sed -n 2p))"
+    else
+        fail "PU-05" "pulse degraded $DEG2 times but emitted no PULSE_TRANSITION" \
+             "a verdict transition that leaves no record is only recoverable from the epoch counter"
+    fi
+    # Both directions must be recorded — recording only the degrade would leave
+    # a recovery indistinguishable from a verdict that never moved.
+    if echo "$PT" | grep -q -- "->healthy"; then
+        pass "PU-05b" "recovery transitions recorded, not just degradations"
+    elif [ "${PT_N:-0}" -gt 0 ]; then
+        fail "PU-05b" "only degradations recorded, no recovery" \
+             "an unpaired transition still leaves the epoch arithmetic unexplainable"
+    else
+        skip "PU-05b" "no transitions"
+    fi
+fi
+
 echo ""
 
 echo "────────────────────────────────────────"
