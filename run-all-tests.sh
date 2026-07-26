@@ -1517,6 +1517,20 @@ else
     echo "  test_signal_discrimination.sh: not found, skipping"
 fi
 
+# Drift sensitivity — the dose-response curve. Locates the proportion of
+# off-mandate content at which governance actually reacts.
+DRIFTSENS_SCRIPT="tests/governance_v4/test_drift_sensitivity.sh"
+if [ -f "$DRIFTSENS_SCRIPT" ]; then
+    if bash "$DRIFTSENS_SCRIPT" 2>&1; then
+        echo "  test_drift_sensitivity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_drift_sensitivity.sh")
+    fi
+else
+    echo "  test_drift_sensitivity.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
