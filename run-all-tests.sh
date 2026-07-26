@@ -1586,6 +1586,21 @@ else
     echo "  test_pulse_uniformity.sh: not found, skipping"
 fi
 
+# Developer blind spot — does a per-agent override set cost detection coverage,
+# and is a 1.0 coherence measurement or absence of measurement? DB-04 pins a
+# known negative (test erosion is invisible to CDD); see the file.
+DEVBLIND_SCRIPT="tests/governance_v4/test_developer_blindspot.sh"
+if [ -f "$DEVBLIND_SCRIPT" ]; then
+    if bash "$DEVBLIND_SCRIPT" 2>&1; then
+        echo "  test_developer_blindspot.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_developer_blindspot.sh")
+    fi
+else
+    echo "  test_developer_blindspot.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
