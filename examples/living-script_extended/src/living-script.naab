@@ -1655,7 +1655,11 @@ main {
         let hp_verdict = hp.get("verdict") ?? "unknown"
         let hp_coherence = hp.get("coherence") ?? -1
         let hp_epoch = hp.get("governance_epoch") ?? -1
-        print("HEALTH_PULSE|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch))
+        // The reason is the point of the line. Three runs ended DEGRADED with
+        // nothing anywhere saying which of the pulse's six signals tripped it,
+        // and reconstructing it after the fact took a whole debugging campaign.
+        let hp_why = hp.get("degradation_reasons") ?? ""
+        print("HEALTH_PULSE|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch) + "|why=" + hp_why)
         let hp_keys = hp.keys()
         print("HEALTH_PULSE|available_keys=" + string(hp_keys))
 

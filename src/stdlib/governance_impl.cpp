@@ -341,6 +341,8 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
     result["cdd_connected"] = NaabVal::makeBool(pulse.cdd_connected);
     result["telemetry_connected"] = NaabVal::makeBool(pulse.telemetry_connected);
     result["transcript_connected"] = NaabVal::makeBool(pulse.transcript_connected);
+    // Why the last pulse evaluation counted degradation signals ("" = none)
+    result["degradation_reasons"] = NaabVal::makeString(pulse.degradation_reasons);
     // Evidence epoch — monotonic state transition counter
     result["governance_epoch"] = NaabVal::makeInt(engine->getGovernanceEpoch());
     // Min coherence across all tracked agents
@@ -353,6 +355,7 @@ static NaabVal governanceHealth(std::vector<NaabVal>& /*args*/) {
             {"coherence", std::to_string(engine->getMinAgentCoherence())},
             {"epoch", std::to_string(engine->getGovernanceEpoch())},
             {"consecutive_passes", std::to_string(pulse.consecutive_passes)},
+            {"degradation_reasons", pulse.degradation_reasons},
             {"bsd_connected", pulse.bsd_connected ? "true" : "false"},
             {"cdd_connected", pulse.cdd_connected ? "true" : "false"},
         });

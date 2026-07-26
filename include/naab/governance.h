@@ -1754,7 +1754,11 @@ struct GovernancePulse {
 
     // Monotonic counters (updated in recordPass/enforce under results_mutex_)
     int total_checks = 0;
-    int consecutive_passes = 0;       // reset on any block/enforcement
+    // Consecutive agent turns that produced no enforcement. Advanced once per
+    // pulse evaluation (one per analyzed agent turn), reset by enforce() and on
+    // epoch boundaries. NOT a count of passing checks — see computePulseVerdict.
+    int consecutive_passes = 0;
+    bool blocked_since_last_pulse = false;  // set by enforce(), consumed by computePulseVerdict
     int advisory_count = 0;           // advisory findings emitted (did not block execution)
     int refusal_count = 0;            // enforcement refusals attested (all blocking paths)
 
@@ -1768,6 +1772,11 @@ struct GovernancePulse {
     // Hysteresis (sustained degradation required before transition)
     int consecutive_degraded = 0;
     int last_transition_turn = -100;  // cooldown between transitions
+
+    // Why the last evaluation counted degradation signals. Comma-separated
+    // subsystem names, empty when none fired. A DEGRADED verdict with no
+    // recorded reason is unattributable — the pulse must be able to say why.
+    std::string degradation_reasons;
 
     // Timing
     int64_t last_check_epoch_ms = 0;

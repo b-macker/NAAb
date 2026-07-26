@@ -997,15 +997,32 @@ assert 'refinement_iterations' in d
     # The verdict is an outcome, not a label. Reporting it while passing on any
     # value meant run 14 could finish "147 pass / 0 fail" with the governance
     # pulse sitting at DEGRADED and nothing anywhere saying so.
-    HP_VERDICT=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=\K\w+' | head -1)
+    #
+    # But not every degradation is a defect. The pulse's six signals split in
+    # two: five report broken instrumentation (BSD or CDD receiving nothing,
+    # the telemetry chain stalled, semantic signals inert, entropy collapsed)
+    # and those are failures. The sixth, uniform_passes, fires when governance
+    # has had nothing to say about an agent for consecutive_passes_suspicion
+    # turns — on a long well-behaved run that is the tripwire working, not a
+    # fault, so it is reported rather than failed. Take the LAST sample: the
+    # script runs twice and head -1 was reading a mid-run sample from the first
+    # segment while calling it the verdict the run ended at.
+    HP_LINE=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=\S+' | tail -1)
+    HP_VERDICT=$(echo "$HP_LINE" | grep -oP 'verdict=\K\w+')
+    HP_WHY=$(echo "$HP_LINE" | grep -oP 'why=\K[a-z_,]*')
     HP_UPPER=$(echo "${HP_VERDICT:-}" | tr '[:lower:]' '[:upper:]')
     if [ -z "${HP_VERDICT:-}" ]; then
         fail "L15-02" "No health verdict"
     elif [ "$HP_UPPER" = "HEALTHY" ]; then
         pass "L15-02" "Health verdict: $HP_VERDICT"
+    elif [ -z "${HP_WHY:-}" ]; then
+        fail "L15-02" "Pulse at $HP_VERDICT with no recorded cause" \
+             "an unattributable verdict is not evidence — governance.health() must name the signal"
+    elif [ "$HP_WHY" = "uniform_passes" ]; then
+        pass "L15-02" "Pulse at $HP_VERDICT on the clean-turn tripwire (why=$HP_WHY)"
     else
-        fail "L15-02" "Governance pulse ended at $HP_VERDICT, not HEALTHY" \
-             "the run reports success while the engine reports its own health as degraded"
+        fail "L15-02" "Pulse at $HP_VERDICT — instrumentation degraded (why=$HP_WHY)" \
+             "the run reports success while a governance subsystem is not receiving data"
     fi
 
     HP_EPOCH=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=.*epoch=\K[0-9]+' | head -1)

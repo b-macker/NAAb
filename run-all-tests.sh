@@ -1572,6 +1572,20 @@ else
     echo "  test_challenge_discrimination.sh: not found, skipping"
 fi
 
+# Governance pulse uniformity — the clean-turn streak must count agent turns,
+# not passing static checks on generated source.
+PULSEUNIF_SCRIPT="tests/governance_v4/test_pulse_uniformity.sh"
+if [ -f "$PULSEUNIF_SCRIPT" ]; then
+    if bash "$PULSEUNIF_SCRIPT" 2>&1; then
+        echo "  test_pulse_uniformity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pulse_uniformity.sh")
+    fi
+else
+    echo "  test_pulse_uniformity.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

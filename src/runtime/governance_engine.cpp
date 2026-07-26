@@ -922,12 +922,21 @@ void GovernanceEngine::recordPass(const std::string& rule_name,
     }
     // Pulse: track governance liveness
     pulse_.total_checks++;
-    // Fix 3B: only count consecutive passes during agent phase.
-    // Static source checks (~1,800) naturally all pass, inflating the counter
-    // past consecutive_passes_suspicion and triggering spurious DEGRADED verdict.
-    if (agent_governance_active_.load(std::memory_order_relaxed)) {
-        pulse_.consecutive_passes++;
-    }
+    // consecutive_passes is deliberately NOT advanced here. Every recordPass()
+    // site in the engine is a static source, capability, plugin or runtime-pin
+    // check — there is no recordPass on the agent-behaviour path at all (CDD,
+    // BSD, admission, output admissibility and response scanning only ever call
+    // enforce(), and only on failure). Counting passes here therefore measured
+    // "how much clean source has been scanned", not "how long governance has
+    // gone without objecting to an agent".
+    //
+    // Gating on agent_governance_active_ did not fix that: the flag is a
+    // one-way latch set at the first agent.create(), so codegen.run() and
+    // polyglot blocks executed after an agent exists fed ~5 uniform passes each
+    // straight into the counter. Any codegen-heavy run crossed
+    // consecutive_passes_suspicion on volume alone and sat at DEGRADED for the
+    // rest of the process, with no agent misbehaviour anywhere in the picture.
+    // The counter is advanced once per agent turn in computePulseVerdict().
     pulse_.last_check_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
 }
@@ -1045,9 +1054,12 @@ std::string GovernanceEngine::enforce(
                 last.decision_trace.push_back(fmt::format("risk zone: {}", zone));
             }
         }
-        // Pulse: reset consecutive passes on any enforcement
+        // Pulse: reset consecutive passes on any enforcement. The flag makes the
+        // reset survive until the next pulse evaluation, so a turn that was
+        // blocked cannot be counted as a clean turn by the increment there.
         pulse_.total_checks++;
         pulse_.consecutive_passes = 0;
+        pulse_.blocked_since_last_pulse = true;
         pulse_.last_check_epoch_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
         if (level == EnforcementLevel::ADVISORY) {
@@ -3065,9 +3077,12 @@ void GovernanceEngine::printDashboard() const {
         const char* verdict_str = "HEALTHY";
         if (pulse_.verdict == PulseVerdict::DEGRADED) verdict_str = "DEGRADED";
         else if (pulse_.verdict == PulseVerdict::IMPAIRED) verdict_str = "IMPAIRED";
-        fprintf(stderr, "Pulse:      %s (%d checks, %d consecutive passes, epoch %d)\n",
+        fprintf(stderr, "Pulse:      %s (%d checks, %d clean turns, epoch %d)\n",
                 verdict_str, pulse_.total_checks, pulse_.consecutive_passes,
                 governance_epoch_.load(std::memory_order_relaxed));
+        if (!pulse_.degradation_reasons.empty()) {
+            fprintf(stderr, "            degraded by: %s\n", pulse_.degradation_reasons.c_str());
+        }
         if (!pulse_.telemetry_connected) {
             fprintf(stderr, "            telemetry: DISCONNECTED\n");
         }
@@ -6770,16 +6785,17 @@ std::string GovernanceEngine::checkTemporalCoupling() {
 PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     // Phase 1: Read subsystem health (NO results_mutex_ — uses independent mutexes)
     int degradation_signals = 0;
+    std::vector<std::string> reasons;
 
     // Subsystem: BSD instrumentation
     size_t bsd_events = sequence_detector_.totalEventsProcessed();
     bool bsd_ok = (bsd_events > 0 || turn < 3);  // grace period for startup
-    if (!bsd_ok) degradation_signals++;
+    if (!bsd_ok) { degradation_signals++; reasons.push_back("bsd_disconnected"); }
 
     // Subsystem: CDD instrumentation
     size_t cdd_turns = drift_analyzer_.totalTurnsAnalyzed();
     bool cdd_ok = (cdd_turns > 0 || turn < 3 || !cdd_enabled_.load());
-    if (!cdd_ok && cdd_enabled_.load()) degradation_signals++;
+    if (!cdd_ok && cdd_enabled_.load()) { degradation_signals++; reasons.push_back("cdd_disconnected"); }
 
     // Subsystem: entropy health — only after agent phase startup.
     // Static source checks (~1,800) are inherently uniform (all pass = entropy ~0)
@@ -6788,14 +6804,16 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     double ent = computeGovernanceEntropy();
     if (agent_governance_active_.load(std::memory_order_relaxed) && turn >= 3 &&
         ent >= 0.0 && ent < rules().governance_health.governance_entropy_warning &&
-        drift_analyzer_.totalTurnsAnalyzed() == 0)
+        drift_analyzer_.totalTurnsAnalyzed() == 0) {
         degradation_signals++;
+        reasons.push_back("low_entropy");
+    }
 
     // Subsystem: telemetry health (hash chain advancing = telemetry operational)
     bool telemetry_ok = !rules().telemetry_output.enabled ||
                         pulse_.total_checks == 0 ||
                         !last_telemetry_hash_.empty();
-    if (!telemetry_ok) degradation_signals++;
+    if (!telemetry_ok) { degradation_signals++; reasons.push_back("telemetry_stalled"); }
 
     // Phase 2: Update pulse state (ACQUIRE results_mutex_ for write)
     std::lock_guard<std::mutex> lock(results_mutex_);
@@ -6813,12 +6831,42 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
         bool semantic_enabled = cdd_cfg.signals.semantic_stability || cdd_cfg.signals.mandate_alignment;
         bool semantic_ok = !semantic_enabled || turn < 5 ||
                            drift_analyzer_.totalTurnsAnalyzed() > 0;
-        if (!semantic_ok) degradation_signals++;
+        if (!semantic_ok) { degradation_signals++; reasons.push_back("semantic_inert"); }
     }
 
-    // Consecutive passes check (suspiciously uniform — all governance checks passing)
+    // Clean-turn streak. This is the only place consecutive_passes advances:
+    // one tick per pulse evaluation, i.e. one per analyzed agent turn, unless
+    // something enforced since the last evaluation. Counting passing CHECKS
+    // instead (the historical behaviour) made the streak a function of how much
+    // generated source the script scanned — see the note in recordPass().
+    if (pulse_.blocked_since_last_pulse) {
+        pulse_.consecutive_passes = 0;
+        pulse_.blocked_since_last_pulse = false;
+    } else {
+        pulse_.consecutive_passes++;
+    }
+
+    // Suspiciously uniform: governance has not objected to anything the agent
+    // did for this many consecutive turns.
     const auto& ghcfg = rules().governance_health;
-    if (pulse_.consecutive_passes > ghcfg.consecutive_passes_suspicion) degradation_signals++;
+    if (pulse_.consecutive_passes > ghcfg.consecutive_passes_suspicion) {
+        degradation_signals++;
+        reasons.push_back("uniform_passes");
+    }
+
+    // Latch the cause of the CURRENT verdict, not of the current evaluation.
+    // Reaching DEGRADED resets the clean-turn streak, so the very next
+    // evaluation finds nothing firing while the verdict is still DEGRADED —
+    // overwriting here would leave a degraded pulse unable to say why, which is
+    // the state that made this defect expensive to find. Cleared on recovery.
+    if (!reasons.empty()) {
+        std::string joined;
+        for (size_t i = 0; i < reasons.size(); ++i) {
+            if (i) joined += ",";
+            joined += reasons[i];
+        }
+        pulse_.degradation_reasons = joined;
+    }
 
     // Hysteresis: sustained degradation required (mirror circuit breaker pattern)
     if (degradation_signals >= 1) {
@@ -6856,6 +6904,7 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
     }
 
     pulse_.verdict = new_verdict;
+    if (new_verdict == PulseVerdict::HEALTHY) pulse_.degradation_reasons.clear();
     return new_verdict;
 }
 
@@ -7109,12 +7158,18 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
             PulseVerdict prev_pv = getPulseVerdict();
             PulseVerdict pv = computePulseVerdict(turn);
 
-            // Emit BSD events for pulse state transitions
+            // Emit BSD events for pulse state transitions. The reason travels
+            // with the event — a transition that cannot say what tripped it is
+            // not evidence, and reconstructing it after the fact meant grepping
+            // an entire run to guess between six candidate signals.
             if (pv != prev_pv) {
+                std::string why = getPulse().degradation_reasons;
                 if (pv == PulseVerdict::DEGRADED)
-                    emitEvent(RuntimeEventType::PULSE_DEGRADED, "governance pulse degraded", "", 0);
+                    emitEvent(RuntimeEventType::PULSE_DEGRADED,
+                              "governance pulse degraded" + (why.empty() ? "" : ": " + why), "", 0);
                 else if (pv == PulseVerdict::IMPAIRED)
-                    emitEvent(RuntimeEventType::PULSE_IMPAIRED, "governance pulse impaired", "", 0);
+                    emitEvent(RuntimeEventType::PULSE_IMPAIRED,
+                              "governance pulse impaired" + (why.empty() ? "" : ": " + why), "", 0);
             }
 
             // F6: Update system-wide governance level from sustained pressure
