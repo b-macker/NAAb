@@ -1531,6 +1531,20 @@ else
     echo "  test_drift_sensitivity.sh: not found, skipping"
 fi
 
+# Failure-mode coverage — whether one signal can replace the aggregate.
+# Guards the shipped default set against losing coverage of a failure mode.
+FMCOV_SCRIPT="tests/governance_v4/test_failure_mode_coverage.sh"
+if [ -f "$FMCOV_SCRIPT" ]; then
+    if bash "$FMCOV_SCRIPT" 2>&1; then
+        echo "  test_failure_mode_coverage.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_failure_mode_coverage.sh")
+    fi
+else
+    echo "  test_failure_mode_coverage.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
