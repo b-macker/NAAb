@@ -1773,6 +1773,12 @@ struct GovernancePulse {
     int consecutive_degraded = 0;
     int last_transition_turn = -100;  // cooldown between transitions
 
+    // The clean-turn streak as it stood when the last transition fired, before
+    // the epoch boundary reset it. Reading consecutive_passes after a transition
+    // always yields 0, which throws away the one number that says how far past
+    // the suspicion threshold the streak actually ran.
+    int passes_at_transition = 0;
+
     // Why the last evaluation counted degradation signals. Comma-separated
     // subsystem names, empty when none fired. A DEGRADED verdict with no
     // recorded reason is unattributable — the pulse must be able to say why.
