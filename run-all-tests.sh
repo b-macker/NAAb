@@ -1545,6 +1545,19 @@ else
     echo "  test_failure_mode_coverage.sh: not found, skipping"
 fi
 
+# Quarantine corroboration — a single noisy signal must not accumulate to a kill.
+QCORROB_SCRIPT="tests/governance_v4/test_quarantine_corroboration.sh"
+if [ -f "$QCORROB_SCRIPT" ]; then
+    if bash "$QCORROB_SCRIPT" 2>&1; then
+        echo "  test_quarantine_corroboration.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_quarantine_corroboration.sh")
+    fi
+else
+    echo "  test_quarantine_corroboration.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

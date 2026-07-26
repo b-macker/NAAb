@@ -1681,6 +1681,29 @@ struct CircuitBreakerConfig {
         // Default 5: quarantine+commit otherwise loops forever with degraded content
         // poisoning the context of every subsequent turn.
         int max_quarantine_streak = 5;
+
+        // Corroboration required before a quarantined turn ADVANCES the streak
+        // toward the kill. 0 = disabled, every quarantine advances it (historical
+        // behaviour, and the default so existing configs are untouched).
+        //
+        // Coherence is a weighted sum, so a single noisy signal firing turn after
+        // turn accumulates to a kill on its own. Replaying real per-turn signal
+        // traces, semantic_stability alone — firing on nothing worse than a
+        // compliant agent varying its phrasing — drove coherence under the
+        // threshold three turns running and killed the run at turn 8. Requiring N
+        // DISTINCT penalising signals in the same turn removed that false kill
+        // while every genuine failure mode still died on exactly the same turn.
+        //
+        // Counted from DriftState.last_turn_penalties: one entry per signal, so
+        // it is inherently distinct-per-signal, absorbed firings (penalty 0) do
+        // not count, and detection-only coherence_velocity is excluded for free
+        // because it never writes a penalty. Do NOT count signals_fired_this_turn
+        // instead — repeated_failures and intent_contradictions increment it
+        // inside per-item loops, so one signal could corroborate itself.
+        //
+        // Ratchet: enabling this or raising N produces FEWER kills, so both are
+        // loosening.
+        int require_corroboration = 0;
     } output_admissibility;
 };
 

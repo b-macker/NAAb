@@ -261,6 +261,44 @@ static std::string stripMarkdownFences(const std::string& input) {
 
 // Score a step-up challenge response: word count + keyword overlap with system prompt
 // and recent user prompts (context-aware). Returns overlap ratio for telemetry.
+// Does this quarantined turn carry enough independent evidence to advance the
+// streak toward the kill?
+//
+// Coherence is a weighted sum, so one noisy signal firing turn after turn
+// accumulates to a kill by itself. On replayed per-turn traces
+// semantic_stability alone — firing because a compliant agent varied its
+// phrasing — crossed the threshold three turns running and killed the run at
+// turn 8, while requiring two distinct penalising signals removed that false
+// kill and left every genuine failure mode dying on exactly the same turn.
+//
+// Counted from last_turn_penalties, which is one slot per signal: distinct by
+// construction, absorbed firings (penalty 0) excluded, and detection-only
+// coherence_velocity excluded for free since it never writes a penalty.
+// signals_fired_this_turn is deliberately NOT used — repeated_failures and
+// intent_contradictions increment it inside per-item loops, so a single signal
+// could corroborate itself.
+//
+// Returns true when corroboration is disabled, so the default path is
+// byte-for-byte the historical behaviour.
+static bool quarantineAdvancesStreak(governance::GovernanceEngine* gov_engine,
+                                     int handle_id, int* out_distinct) {
+    if (out_distinct) *out_distinct = -1;
+    if (!gov_engine) return true;
+    const int need = gov_engine->getRules()
+                         .circuit_breaker.output_admissibility.require_corroboration;
+    if (need <= 0) return true;
+
+    auto ds = gov_engine->getDriftState(handle_id);   // copy, taken under mutex_
+    if (!ds) return true;                             // no CDD evidence: fail closed
+
+    int distinct = 0;
+    for (double p : ds->last_turn_penalties) {
+        if (p > 0.0) distinct++;
+    }
+    if (out_distinct) *out_distinct = distinct;
+    return distinct >= need;
+}
+
 // Standing-lease expiry, in ONE place. Caller must hold s_agent_mutex.
 //
 // agent.send() checked both the turn-based lease and the wall-clock lease;
@@ -4150,7 +4188,26 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int current_streak = 0;
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
-        current_streak = gov_engine->updateQuarantineStreak(handle_id, !output_admissible);
+        // Corroboration gates only the STREAK ADVANCE. Admissibility itself is
+        // untouched, so the response dict, history-commit disposition,
+        // attestation and OUTPUT_INADMISSIBLE telemetry all behave exactly as
+        // before — a quarantine is still a quarantine, it just may not count
+        // toward termination without a second penalising signal.
+        int corrob_distinct = -1;
+        bool advances = !output_admissible &&
+            quarantineAdvancesStreak(gov_engine, handle_id, &corrob_distinct);
+        if (!output_admissible && !advances) {
+            gov_engine->writeAgentTelemetry("QUARANTINE_UNCORROBORATED", {
+                {"handle_id",        std::to_string(handle_id)},
+                {"config_name",      config_name},
+                {"turn",             std::to_string(current_turn)},
+                {"distinct_signals", std::to_string(corrob_distinct)},
+                {"required",         std::to_string(gov_engine->getRules()
+                    .circuit_breaker.output_admissibility.require_corroboration)},
+                {"source",           "agent.send"}
+            });
+        }
+        current_streak = gov_engine->updateQuarantineStreak(handle_id, advances);
 
         int max_streak = gov_engine->getRules().circuit_breaker.output_admissibility.max_quarantine_streak;
         if (max_streak > 0 && current_streak >= max_streak) {
@@ -5178,7 +5235,23 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
     // Update quarantine streak counter (commit path)
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
-        int streak = gov_engine->updateQuarantineStreak(handle_id, !output_admissible);
+        // Same rule as the send path. These two sites must stay identical —
+        // gating only one would leave agent.commit terminating on the old rule.
+        int corrob_distinct = -1;
+        bool advances = !output_admissible &&
+            quarantineAdvancesStreak(gov_engine, handle_id, &corrob_distinct);
+        if (!output_admissible && !advances) {
+            gov_engine->writeAgentTelemetry("QUARANTINE_UNCORROBORATED", {
+                {"handle_id",        std::to_string(handle_id)},
+                {"config_name",      config_name},
+                {"turn",             std::to_string(current_turn)},
+                {"distinct_signals", std::to_string(corrob_distinct)},
+                {"required",         std::to_string(gov_engine->getRules()
+                    .circuit_breaker.output_admissibility.require_corroboration)},
+                {"source",           "agent.commit"}
+            });
+        }
+        int streak = gov_engine->updateQuarantineStreak(handle_id, advances);
         int max_streak = gov_engine->getRules().circuit_breaker.output_admissibility.max_quarantine_streak;
         if (max_streak > 0 && streak >= max_streak) {
             gov_engine->writeAgentTelemetry("QUARANTINE_STREAK_EXCEEDED", {

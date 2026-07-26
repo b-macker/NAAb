@@ -2955,6 +2955,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             // Maximum consecutive quarantined responses before hard-blocking
             if (oa.contains("max_quarantine_streak") && oa["max_quarantine_streak"].is_number_integer())
                 oac.max_quarantine_streak = std::max(0, oa["max_quarantine_streak"].get<int>());
+            if (oa.contains("require_corroboration") && oa["require_corroboration"].is_number_integer())
+                oac.require_corroboration = std::max(0, oa["require_corroboration"].get<int>());
         }
         parseRationale(cbj, cfg.rationale);
     }
@@ -3612,6 +3614,15 @@ static bool checkRatchetViolation(
     else if (old_oa.max_quarantine_streak == 0 && new_oa.max_quarantine_streak > 0)
         notices.push_back(fmt::format("output_admissibility.max_quarantine_streak: disabled -> {} (tightened)",
             new_oa.max_quarantine_streak));
+
+    // Corroboration makes the kill HARDER to reach, so enabling it or raising
+    // the bar is a loosening. Lowering it or switching it off tightens.
+    if (new_oa.require_corroboration > old_oa.require_corroboration)
+        violations.push_back(fmt::format("output_admissibility.require_corroboration: {} -> {} (loosened)",
+            old_oa.require_corroboration, new_oa.require_corroboration));
+    else if (new_oa.require_corroboration < old_oa.require_corroboration)
+        notices.push_back(fmt::format("output_admissibility.require_corroboration: {} -> {} (tightened)",
+            old_oa.require_corroboration, new_oa.require_corroboration));
 
     // Coherence-floor challenge trigger: disabling removes the sub-OA recovery
     // ladder = loosening.
