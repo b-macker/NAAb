@@ -261,6 +261,27 @@ static std::string stripMarkdownFences(const std::string& input) {
 
 // Score a step-up challenge response: word count + keyword overlap with system prompt
 // and recent user prompts (context-aware). Returns overlap ratio for telemetry.
+// Standing-lease expiry, in ONE place. Caller must hold s_agent_mutex.
+//
+// agent.send() checked both the turn-based lease and the wall-clock lease;
+// agent.propose() checked only the turn-based one. That divergence was masked
+// while propose also denied on governance level — removing the level clause
+// would have let a wall-clock-expired lease through, so the two computations
+// are unified here rather than duplicated with a fix applied to one of them.
+static bool leaseExpiredLocked(const AgentTracker& t, const governance::AgentConfig* config) {
+    bool expired = false;
+    if (t.lease_expires_turn > 0) {
+        expired = (t.turns >= t.lease_expires_turn);
+    }
+    if (!expired && config && config->standing_lease_seconds > 0) {
+        auto elapsed = std::chrono::steady_clock::now() - t.lease_granted_time;
+        int elapsed_sec = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+        expired = (elapsed_sec >= config->standing_lease_seconds);
+    }
+    return expired;
+}
+
 static double scoreStepUpChallengeRatio(const std::string& response,
                                          const std::string& system_prompt,
                                          int min_words) {
@@ -1756,16 +1777,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 std::lock_guard<std::mutex> lock(s_agent_mutex);
                 auto it = s_trackers.find(handle_id);
                 if (it != s_trackers.end()) {
-                    if (it->second.lease_expires_turn > 0) {
-                        lease_expired = (it->second.turns >= it->second.lease_expires_turn);
-                    }
-                    // Wall-clock lease check
-                    if (!lease_expired && config->standing_lease_seconds > 0) {
-                        auto elapsed = std::chrono::steady_clock::now() - it->second.lease_granted_time;
-                        int elapsed_sec = static_cast<int>(
-                            std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
-                        lease_expired = (elapsed_sec >= config->standing_lease_seconds);
-                    }
+                    lease_expired = leaseExpiredLocked(it->second, config);
                 }
             }
             // Coherence-floor trigger (step_up_on_inadmissible): a handle whose
@@ -4640,22 +4652,49 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         if (n > config->propose_candidates_max) n = config->propose_candidates_max;
     }
 
-    // Fail-closed: propose has no challenge machinery, so when a step-up
-    // challenge or lease renewal is due the transition must go through
-    // agent.send() (which can run the challenge).
+    // Fail-closed: propose has no challenge machinery, so when authorization is
+    // genuinely due the transition must go through agent.send() (which can run
+    // the challenge).
+    //
+    // Authorization is the LEASE, not the governance level. This gate used to
+    // deny whenever the engine-global level was >= step_up_at_level, which no
+    // action the handle takes can clear: passing a challenge renews the lease
+    // and recovers coherence but does not lower the level, and de-escalation
+    // needs deescalate_sustained calm pressure samples. So the remedy the error
+    // message prescribes ("call agent.send() first") could not satisfy the
+    // condition the gate checked — live run 12 refused propose for a handle
+    // holding 19 turns of valid lease after 47 passed challenges and zero
+    // failures.
+    //
+    // The asymmetry also ran the wrong way on risk. agent.send() at an elevated
+    // level runs a challenge subject to cooldown and completes either way, and
+    // it is the call that commits state. agent.propose() commits nothing — no
+    // history, no turn increment, no CDD mutation, no tools sent — yet had the
+    // stricter, unsatisfiable gate.
+    //
+    // Configs with no lease configured keep the level test: there is no
+    // authorization state to consult, so loosening them would be a pure
+    // weakening. CRITICAL still denies outright regardless of lease.
     if (gov_engine && gov_engine->isActive()) {
         const auto& cb = gov_engine->getRules().circuit_breaker;
         if (cb.step_up_enabled) {
             int required_level = (cb.step_up_at_level == "high") ? 2 : 1;
+            int level = static_cast<int>(gov_engine->getGovernanceLevel());
+            const bool lease_configured = (config->standing_lease_turns > 0 ||
+                                           config->standing_lease_seconds > 0);
             bool lease_expired = false;
             {
                 std::lock_guard<std::mutex> lock(s_agent_mutex);
                 auto it = s_trackers.find(handle_id);
-                if (it != s_trackers.end() && it->second.lease_expires_turn > 0)
-                    lease_expired = (it->second.turns >= it->second.lease_expires_turn);
+                if (it != s_trackers.end()) {
+                    lease_expired = leaseExpiredLocked(it->second, config);
+                }
             }
-            if (static_cast<int>(gov_engine->getGovernanceLevel()) >= required_level ||
-                lease_expired) {
+            const bool deny = lease_configured
+                ? (lease_expired ||
+                   level >= static_cast<int>(governance::GovernanceLevel::CRITICAL))
+                : (level >= required_level);
+            if (deny) {
                 throw std::runtime_error(
                     "Agent error: agent.propose denied — step-up challenge required\n\n"
                     "  Help:\n"

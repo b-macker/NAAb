@@ -33,7 +33,7 @@ STUB_PID=""
 cleanup() {
     [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
     teardown_isolated_trust
-    rm -rf "$TEST_TMP"
+    [ -n "${KEEP_TMP:-}" ] || rm -rf "$TEST_TMP"
 }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
@@ -279,6 +279,145 @@ else
 fi
 
 stop_stub
+
+# ============================================================
+# Group F: the step-up gate is the LEASE, not the governance level
+#
+# Live run 12 refused agent.propose() for a handle holding 19 turns of valid
+# lease after 47 passed challenges, zero failures, coherence 0.96 and no
+# quarantine. The gate denied on the engine-global governance level, which no
+# action the handle takes can lower — passing a challenge renews the lease and
+# recovers coherence but de-escalation needs deescalate_sustained calm pressure
+# samples. So the error message's remedy ("call agent.send() first") could not
+# satisfy the condition the gate checked, and the living script's re-auth path
+# was structurally incapable of working.
+#
+# F-01 is the run 12 case. F-02 and F-03 are the anti-regression pins: an
+# expired lease must still deny, and a config with NO lease configured must
+# keep the old level test rather than fall through to permanently allowed.
+#
+# Escalation staging mirrors test_challenge_fail_path.sh — S22 fires once from
+# a recorded validation failure and signal_density alone drives the level to
+# ELEVATED. step_up_cooldown_turns is high so no challenge is attempted; this
+# group tests the gate, not the challenge.
+# ============================================================
+echo -e "${CYAN}--- Group F: propose gated on lease, not governance level ---${NC}"
+
+write_govern_leased() {  # $1=workdir $2=port $3=lease_turns $4=lease_seconds
+    cat > "$1/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "behavioral_sequences": { "enabled": true },
+    "context_drift": {
+        "enabled": true, "level": "advisory", "check_interval_turns": 1,
+        "signals": {
+            "circular_actions": false, "repeated_failures": false,
+            "scope_creep": false, "intent_contradictions": false,
+            "vocabulary_contraction": false, "coherence_velocity": false,
+            "response_quality": false, "thinking_collapse": false,
+            "semantic_stability": false, "mandate_alignment": false,
+            "context_growth": false, "instruction_recall": false,
+            "plan_drift": false, "entity_consistency": false,
+            "instruction_conflict": false, "persona_fingerprint": false,
+            "tool_chain_integrity": false, "claim_result_reconciliation": false,
+            "prompt_compliance": false, "response_repetition": false,
+            "validation_outcome": true
+        },
+        "reality_checkpoint": {
+            "enabled": false, "pressure_threshold": 0.5,
+            "signal_density_divisor": 1,
+            "weights": {
+                "coherence_proximity": 0, "risk_score_proximity": 0,
+                "signal_density": 1.0, "conversation_depth": 0,
+                "bsd_partial_progress": 0, "pipeline_inherited": 0,
+                "coherence_acceleration": 0, "codegen_pressure": 0,
+                "bsd_eviction_pressure": 0, "semantic_deviation": 0
+            }
+        }
+    },
+    "circuit_breaker": {
+        "enabled": true, "elevated_threshold": 0.5, "elevated_sustained": 1,
+        "deescalate_sustained": 9,
+        "step_up_enabled": true, "step_up_at_level": "elevated",
+        "step_up_cooldown_turns": 999
+    },
+    "agents": {
+        "proposer": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$2",
+            "api_key_env": "FAKE_KEY_PROPOSE_TEST",
+            "max_tokens": 100, "max_turns": 30,
+            "propose_candidates_max": 3,
+            "standing_lease_turns": $3, "standing_lease_seconds": $4
+        }
+    }
+}
+GOVEOF
+    sign_govern "$1"
+}
+
+run_gate_case() {  # $1=name $2=lease_turns $3=lease_seconds -> echoes PROPOSE_OK / PROPOSE_DENIED / other
+    local d="$TEST_TMP/gate-$1"; mkdir -p "$d"
+    cp "$WDIR/fixture.json" "$d/fixture.json"
+    start_stub "$d/fixture.json" "$d" >/dev/null 2>&1 || { echo "STUB_FAIL"; return; }
+    write_govern_leased "$d" "$STUB_PORT" "$2" "$3"
+    cat > "$d/t.naab" << 'EOF'
+use agent
+main {
+    let h = agent.create("proposer")
+    let r1 = agent.send(h, "summarize quarterly revenue")
+    let _v = agent.record_validation(h, false, "FAILED test_revenue: totals did not reconcile against the ledger")
+    let r2 = agent.send(h, "summarize quarterly revenue again")
+    try {
+        let p = agent.propose(h, "summarize quarterly revenue once more", 2)
+        print("PROPOSE_OK|candidates=" + string((p.get("candidates") ?? []).length()))
+    } catch (e) {
+        if string(e).contains("step-up") { print("PROPOSE_DENIED") }
+        else { print("PROPOSE_OTHER|" + string(e)) }
+    }
+}
+EOF
+    local out
+    out=$( (cd "$d" && timeout 60s "$NAAB" t.naab 2>/dev/null) \
+        | grep -oE 'PROPOSE_OK\|candidates=[0-9]+|PROPOSE_DENIED|PROPOSE_OTHER.*' | head -1 )
+    # Staging check from telemetry, not from the script: a gate test whose
+    # escalation never fired would pass vacuously — the allowed case looks
+    # identical to the old behavior when the level never reached the trigger.
+    local lvl
+    lvl=$(grep -o '"to_level":"[a-z]*"' "$d/telemetry.jsonl" 2>/dev/null | tail -1 | cut -d'"' -f4)
+    echo "LEVEL=${lvl:-none} ${out:-<no output>}"
+    stop_stub
+}
+
+# F-01: elevated level, VALID lease -> propose must be allowed (the run 12 case)
+R_VALID=$(run_gate_case valid 20 600)
+if ! echo "$R_VALID" | grep -qE 'LEVEL=(elevated|high|critical)'; then
+    fail "F-01" "Staging never escalated — gate was not exercised" "got: ${R_VALID:-<no output>}"
+elif echo "$R_VALID" | grep -q 'PROPOSE_OK'; then
+    pass "F-01" "Elevated level with a valid lease permits propose ($R_VALID)"
+else
+    fail "F-01" "Valid lease still denied at elevated level" "got: ${R_VALID:-<no output>}"
+fi
+
+# F-02: lease expires after 1 turn -> must still deny (anti-regression)
+R_EXPIRED=$(run_gate_case expired 1 0)
+if echo "$R_EXPIRED" | grep -q 'PROPOSE_DENIED'; then
+    pass "F-02" "Expired lease still denies propose"
+else
+    fail "F-02" "Expired lease no longer denies — gate weakened" "got: ${R_EXPIRED:-<no output>}"
+fi
+
+# F-03: no lease configured -> level test retained (anti-regression)
+R_NOLEASE=$(run_gate_case nolease 0 0)
+if ! echo "$R_NOLEASE" | grep -qE 'LEVEL=(elevated|high|critical)'; then
+    fail "F-03" "Staging never escalated — level test was not exercised" "got: ${R_NOLEASE:-<no output>}"
+elif echo "$R_NOLEASE" | grep -q 'PROPOSE_DENIED'; then
+    pass "F-03" "No-lease config keeps the governance-level test"
+else
+    fail "F-03" "No-lease config fell through to permanently allowed" "got: ${R_NOLEASE:-<no output>}"
+fi
 
 # ============================================================
 echo ""
