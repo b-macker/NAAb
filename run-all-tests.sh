@@ -1558,6 +1558,20 @@ else
     echo "  test_quarantine_corroboration.sh: not found, skipping"
 fi
 
+# Challenge discrimination — does the step-up probe tell a context-holding
+# agent from one that lost it? CD-03 records a known defect; see the file.
+CHALDISC_SCRIPT="tests/governance_v4/test_challenge_discrimination.sh"
+if [ -f "$CHALDISC_SCRIPT" ]; then
+    if bash "$CHALDISC_SCRIPT" 2>&1; then
+        echo "  test_challenge_discrimination.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_challenge_discrimination.sh")
+    fi
+else
+    echo "  test_challenge_discrimination.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
