@@ -436,14 +436,24 @@ static double scoreContextualChallengeRatio(const std::string& response,
 static double scoreContextualChallengeRatioMulti(
         const std::string& response,
         const std::vector<std::unordered_set<std::string>>& candidates,
-        int min_words) {
+        int min_words,
+        size_t* out_denominator = nullptr) {
     double best = -1.0;
+    size_t best_size = 0;
     for (const auto& cand : candidates) {
         if (cand.empty()) continue;
         double r = scoreContextualChallengeRatio(response, cand, min_words);
-        if (r < 0.0) return r;  // word-count failure is about the response, not the set
-        if (r > best) best = r;
+        if (r < 0.0) {  // word-count failure is about the response, not the set
+            if (out_denominator) *out_denominator = cand.size();
+            return r;
+        }
+        if (r > best) { best = r; best_size = cand.size(); }
     }
+    // The winning set's size IS the denominator behind the reported ratio.
+    // Reporting the NUMBER of candidate sets instead would describe how many
+    // sightings existed, not what the answer was graded against — a reader
+    // seeing "5" would read five keywords and mis-scale the score.
+    if (out_denominator) *out_denominator = best_size;
     return best;
 }
 
@@ -2183,20 +2193,27 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
                         bool passed = false;
                         double keyword_ratio = -1.0;
+                        // Denominator actually used for keyword_ratio, so a low
+                        // score can be attributed rather than guessed at.
+                        size_t expected_denominator = 0;
                         if (!challenge_infra_fail && challenge_result.response.success) {
                             if (challenge_type != "mandate" && !contextual_expected_keywords.empty()) {
                                 // Contextual challenge: score against expected keywords.
                                 // Entity challenges carry per-sighting alternatives and
                                 // take the best match; every other type has one set.
-                                keyword_ratio = !contextual_expected_alternatives.empty()
-                                    ? scoreContextualChallengeRatioMulti(
+                                if (!contextual_expected_alternatives.empty()) {
+                                    keyword_ratio = scoreContextualChallengeRatioMulti(
                                         challenge_result.response.content,
                                         contextual_expected_alternatives,
-                                        cb.step_up_min_words)
-                                    : scoreContextualChallengeRatio(
+                                        cb.step_up_min_words,
+                                        &expected_denominator);
+                                } else {
+                                    expected_denominator = contextual_expected_keywords.size();
+                                    keyword_ratio = scoreContextualChallengeRatio(
                                         challenge_result.response.content,
                                         contextual_expected_keywords,
                                         cb.step_up_min_words);
+                                }
                                 passed = (keyword_ratio >= 0.0 &&
                                           keyword_ratio >= cb.step_up_contextual_threshold);
                             } else {
@@ -2289,10 +2306,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 // low ratio is unattributable — an agent answering
                                 // badly and an agent graded against an oversized
                                 // expected set look identical in telemetry.
-                                {"expected_keyword_count", std::to_string(
-                                    contextual_expected_alternatives.empty()
-                                        ? contextual_expected_keywords.size()
-                                        : contextual_expected_alternatives.size())},
+                                {"expected_keyword_count", std::to_string(expected_denominator)},
+                                {"expected_set_count", std::to_string(
+                                    contextual_expected_alternatives.size())},
                                 {"expected_keyword_mode", contextual_expected_alternatives.empty()
                                         ? "single" : "per_sighting_best"},
                                 {"context_prompts", std::to_string(recent_prompts.size())},
@@ -2314,10 +2330,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                 // low ratio is unattributable — an agent answering
                                 // badly and an agent graded against an oversized
                                 // expected set look identical in telemetry.
-                                {"expected_keyword_count", std::to_string(
-                                    contextual_expected_alternatives.empty()
-                                        ? contextual_expected_keywords.size()
-                                        : contextual_expected_alternatives.size())},
+                                {"expected_keyword_count", std::to_string(expected_denominator)},
+                                {"expected_set_count", std::to_string(
+                                    contextual_expected_alternatives.size())},
                                 {"expected_keyword_mode", contextual_expected_alternatives.empty()
                                         ? "single" : "per_sighting_best"},
                                 {"context_prompts", std::to_string(recent_prompts.size())},

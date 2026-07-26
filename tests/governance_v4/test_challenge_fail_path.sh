@@ -777,9 +777,29 @@ else
     # The denominator must be visible in telemetry — a low ratio was previously
     # unattributable between a bad answer and an oversized expected set.
     if grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"expected_keyword_mode":"per_sighting_best"'; then
-        pass "I-03" "Telemetry reports the scoring mode and denominator"
+        pass "I-03" "Telemetry reports the scoring mode"
     else
         fail "I-03" "No expected_keyword_mode on the entity challenge event"
+    fi
+    # expected_keyword_count must be the DENOMINATOR behind keyword_ratio — the
+    # winning sighting's keyword count — not the number of sightings. It first
+    # reported the set count, and a live run 16 report read "5" as five keywords
+    # and mis-scaled the score by an order of magnitude.
+    #
+    # What this pins is that the two are reported SEPARATELY: expected_set_count
+    # did not exist before, so its absence fails here. The numeric case where the
+    # two diverge is NOT covered — this staging wins on the 2-keyword anchor
+    # sighting while holding 2 sightings, so both read 2. Covering the divergence
+    # would need a fixture whose winning sighting is not also the set count.
+    I_DENOM=$(grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null \
+        | grep -oE '"expected_keyword_count":"[0-9]+"' | head -1 | grep -oE '[0-9]+')
+    I_SETS=$(grep '"challenge_type":"entity"' "$WDIR/tele.jsonl" 2>/dev/null \
+        | grep -oE '"expected_set_count":"[0-9]+"' | head -1 | grep -oE '[0-9]+')
+    if [ -n "${I_SETS:-}" ] && [ "${I_DENOM:-0}" -ge 1 ]; then
+        pass "I-04" "Denominator reported separately from set count (keywords=$I_DENOM, sets=$I_SETS)"
+    else
+        fail "I-04" "Missing expected_keyword_count / expected_set_count" \
+             "keywords=${I_DENOM:-none} sets=${I_SETS:-none}"
     fi
 fi
 fi
