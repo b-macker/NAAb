@@ -360,6 +360,7 @@
       "action": "quarantine",
       "inadmissible_history": "exclude",
       "max_quarantine_streak": 3,
+      "require_corroboration": 2,
       "gate_tool_calls": true
     }
   },
