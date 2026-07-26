@@ -181,7 +181,7 @@ echo ""
 
 if [ -z "${GK1:-}" ]; then
     echo -e "${YELLOW}No GK1 API key -- skipping all live tests${NC}"
-    for i in $(seq 1 153); do
+    for i in $(seq 1 155); do
         skip "N$i" "No GK1 API key"
     done
 else
@@ -994,11 +994,18 @@ assert 'refinement_iterations' in d
         fail "L15-01" "Health pulse phase not reached"
     fi
 
+    # The verdict is an outcome, not a label. Reporting it while passing on any
+    # value meant run 14 could finish "147 pass / 0 fail" with the governance
+    # pulse sitting at DEGRADED and nothing anywhere saying so.
     HP_VERDICT=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=\K\w+' | head -1)
-    if [ -n "${HP_VERDICT:-}" ]; then
+    HP_UPPER=$(echo "${HP_VERDICT:-}" | tr '[:lower:]' '[:upper:]')
+    if [ -z "${HP_VERDICT:-}" ]; then
+        fail "L15-02" "No health verdict"
+    elif [ "$HP_UPPER" = "HEALTHY" ]; then
         pass "L15-02" "Health verdict: $HP_VERDICT"
     else
-        fail "L15-02" "No health verdict"
+        fail "L15-02" "Governance pulse ended at $HP_VERDICT, not HEALTHY" \
+             "the run reports success while the engine reports its own health as degraded"
     fi
 
     HP_EPOCH=$(echo "$OUTPUT" | grep -oP 'HEALTH_PULSE\|verdict=.*epoch=\K[0-9]+' | head -1)
@@ -1794,6 +1801,51 @@ print('true' if ok else 'false')
 
     echo ""
     echo -e "${CYAN}Governance Health: ${HEALTH:-unknown}${NC}"
+fi
+
+# ============================================================
+# RUN: outcomes the harness recorded but never checked
+#
+# Three real results could occur and fail nothing. Run 11 was terminated by
+# governance at Feature 1 of 4 and reported "108 pass / 0 fail" — identical
+# top-line health to run 13, which completed everything. The only difference
+# was the skip count, which nobody reads. Run 10 and run 12 each shipped a
+# feature the tester judged incomplete and reported it nowhere.
+#
+# These are deliberately assertions rather than notes: the exit code is
+# FAIL_COUNT, so a check is the only thing that changes what a caller sees.
+# ============================================================
+echo ""
+echo -e "${CYAN}Run Outcome${NC}"
+
+if [ -n "${GOV_KILL:-}" ]; then
+    fail "RUN-01" "Run terminated by governance ($GOV_KILL) before completing" \
+         "$SKIP_COUNT checks never evaluated; a low FAIL count here means less was measured"
+elif [ -n "${RUN_TRUNCATED:-}" ]; then
+    fail "RUN-01" "Run did not reach completion ($RUN_TRUNCATED)" \
+         "$SKIP_COUNT checks never evaluated"
+elif echo "${OUTPUT:-}" | grep -q "=== LIVING SCRIPT COMPLETE ==="; then
+    pass "RUN-01" "Run completed the full arc without governance termination"
+else
+    skip "RUN-01" "No run output to evaluate"
+fi
+
+# A feature the tester judged incomplete is a shortfall in the work the run
+# exists to demonstrate. Counting it keeps "all four features" honest.
+FEAT_DONE=$(echo "${OUTPUT:-}" | grep -c 'FEATURE|[0-9]*|complete' || true)
+FEAT_INCOMPLETE=$(echo "${OUTPUT:-}" | grep -c 'FEATURE|[0-9]*|incomplete' || true)
+if [ "$((FEAT_DONE + FEAT_INCOMPLETE))" -eq 0 ]; then
+    if [ -n "${GOV_KILL:-}" ]; then
+        skip "RUN-02" "No feature verdicts (run killed before FEATURES)"
+    else
+        skip "RUN-02" "No feature verdicts reported"
+    fi
+elif [ "$FEAT_INCOMPLETE" -eq 0 ]; then
+    pass "RUN-02" "All $FEAT_DONE attempted features completed"
+else
+    INCOMPLETE_NUMS=$(echo "${OUTPUT:-}" | grep -oP 'FEATURE\|\K[0-9]+(?=\|incomplete)' | tr '\n' ' ')
+    fail "RUN-02" "$FEAT_INCOMPLETE of $((FEAT_DONE + FEAT_INCOMPLETE)) features did not complete" \
+         "incomplete: ${INCOMPLETE_NUMS:-?}— the tester rejected work the run reports as successful"
 fi
 
 echo ""
