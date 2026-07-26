@@ -1486,6 +1486,22 @@ else
     echo "  test_output_admissibility.sh: not found, skipping"
 fi
 
+# Adversarial detection — the true-positive side. Every other agent test here
+# establishes that governance does not misfire; this one establishes that it
+# catches an agent that abandons its mandate, with a control proving the
+# separation comes from content rather than from blocking everything.
+ADVERSARIAL_SCRIPT="tests/governance_v4/test_adversarial_detection.sh"
+if [ -f "$ADVERSARIAL_SCRIPT" ]; then
+    if bash "$ADVERSARIAL_SCRIPT" 2>&1; then
+        echo "  test_adversarial_detection.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_adversarial_detection.sh")
+    fi
+else
+    echo "  test_adversarial_detection.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
