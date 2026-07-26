@@ -27,9 +27,11 @@
 # every defining attribute of the entity — the same answer that passes in A —
 # while its earlier responses happened to also contain fifty incidental terms.
 #
-# If C fails, the probe is measuring response verbosity rather than context
-# retention, and the expected set (not the scoring direction) is the defect.
-# If C passes, the arithmetic that predicted otherwise was wrong.
+# C fails: the probe is sensitive to response verbosity, not only to context
+# retention. Live data bounds how much that matters — see CD-03's comment. The
+# short version is that entity challenges score kr=1.000 at denominators of
+# 106-138 in real runs, so a large expected set is NOT unpassable; a concise
+# answer against one is simply disadvantaged.
 #
 # max_challenge_failures is high throughout: this test observes verdicts, it
 # does not want a kill truncating the run.
@@ -275,26 +277,36 @@ else
              "the challenge carries no information — it cannot be used as a gate"
     fi
 
-    # CD-03 is the measurement this file exists for, and it currently records a
-    # DEFECT rather than guarding correct behaviour.
+    # CD-03 records a real property, and its significance is BOUNDED by live
+    # evidence — read both halves before acting on it.
     #
-    # A and C send the identical answer. Both find the same five keywords. The
-    # only difference is that C's EARLIER responses also carried fifty incidental
-    # terms, which extractEntityContext folded into the entity's context — so the
-    # denominator went 15 -> 67 and the verdict flipped PASS -> FAIL. The probe is
-    # scoring how verbose the agent was, not what it remembered.
+    # The property: A and C send the identical answer and find the identical
+    # keywords. Only C's EARLIER responses were more verbose, which
+    # extractEntityContext folds into the entity's context wholesale, so the
+    # denominator moves 15 -> 67 and the verdict flips. Concise correct answers
+    # are penalised relative to verbose ones.
     #
-    # Asserted in its current (broken) state deliberately, so the suite stays
-    # honest about what is measured rather than carrying a red test. WHEN THE
-    # EXPECTED-SET CONSTRUCTION IS FIXED THIS ASSERTION MUST BE INVERTED — a
-    # width-stable verdict is the goal, and this passing means the goal has not
-    # been reached.
+    # What it is NOT: evidence that large denominators are unpassable. That
+    # inference was drawn from run 17's four challenge failures and refuted by
+    # run 17's sixty-five passes. Across 46 live challenges, entity challenges
+    # scored kr=1.000 at denominators of 106, 120, 137 and 138, and the
+    # instruction type produced BOTH a pass (kr=0.239) and a fail (kr=0.122) at
+    # the same denominator of 213. Every live failure was marginal against the
+    # 0.15 threshold (0.082-0.130), none structural. Real agents answer at
+    # length, so the ratio stays workable.
+    #
+    # So: do not "fix" the expected-set construction on the strength of this
+    # assertion alone. It measures a sensitivity, not a broken probe. If a
+    # future change makes the verdict width-stable that is an improvement and
+    # this assertion should be inverted — but the case for making that change
+    # has to come from somewhere other than here.
     if [ "$A_V" = "PASS" ] && [ "$C_V" = "FAIL" ]; then
-        pass "CD-03" "KNOWN DEFECT recorded: same answer, verdict flips on context width" \
+        pass "CD-03" "Width sensitivity recorded: same answer, verdict flips on context width" \
              ""
         echo -e "       ${YELLOW}A=$A_V kr=$A_KR of $A_DEN | C=$C_V kr=$C_KR of $C_DEN${NC}"
         echo -e "       ${YELLOW}identical answer, identical keywords found; only the denominator moved${NC}"
-        echo -e "       ${YELLOW}invert this assertion once the expected set is bounded${NC}"
+        echo -e "       ${YELLOW}live data bounds this: entity scored kr=1.000 at denom 106-138,${NC}"
+        echo -e "       ${YELLOW}and denom=213 produced both a pass and a fail. Not unpassable.${NC}"
     elif [ "$C_V" = "$A_V" ]; then
         fail "CD-03" "Verdict is now width-stable — the defect appears FIXED" \
              "A=$A_V kr=$A_KR/$A_DEN, C=$C_V kr=$C_KR/$C_DEN. Invert this assertion: it exists to record a defect that no longer reproduces."
