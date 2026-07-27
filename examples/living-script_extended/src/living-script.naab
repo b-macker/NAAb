@@ -2175,6 +2175,12 @@ main {
             print("VALIDATE|feat" + string(feat_num) + "|attempt" + string(fix_attempt) + "_pytest_passed=" + string(cur_val.get("pytest_passed") == true))
         }
 
+        // Three states, not two. validate_code only sets pytest_passed when both
+        // pipeline and test code exist, and `.get(k) == true` is false for an
+        // ABSENT key — so a feature whose tests never ran was reported as one
+        // whose tests failed. Those need different responses: a failing suite is
+        // the developer's problem, a suite that never ran is the harness's.
+        let feat_validated = cur_val.get("pytest_passed") != null
         let feat_passed = cur_val.get("pytest_passed") == true
         if fval.get("pytest_passed") == false {
             print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
@@ -2198,6 +2204,7 @@ main {
 
         let dc = tracking["coherences"].get("developer") ?? -1
         let feat_status_txt = " INCOMPLETE — pytest still failing."
+        if !feat_validated { feat_status_txt = " UNVALIDATED — pytest never ran on it." }
         if feat_passed { feat_status_txt = " complete." }
         let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "validation_passed": feat_passed, "feature_num": feat_num, "requirement": trimmed, "pipeline_len": len(pipeline_code), "test_len": len(test_code), "developer_coherence": dc, "specialist_consults": tracking.get("specialist_consults") ?? 0, "question": "Feature " + string(feat_num) + feat_status_txt + " Developer coherence: " + string(dc) + ". Code grew from " + string(prev_pipeline_len) + " to " + string(len(pipeline_code)) + " chars. Adjust if drift detected."}
         let feat_decision = consult_operator(feat_ctx)
@@ -2206,6 +2213,8 @@ main {
         prev_pipeline_len = len(pipeline_code)
         if feat_passed {
             print("FEATURE|" + string(feat_num) + "|complete")
+        } else if !feat_validated {
+            print("FEATURE|" + string(feat_num) + "|unvalidated")
         } else {
             print("FEATURE|" + string(feat_num) + "|incomplete")
         }

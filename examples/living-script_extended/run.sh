@@ -1856,18 +1856,27 @@ fi
 # exists to demonstrate. Counting it keeps "all four features" honest.
 FEAT_DONE=$(echo "${OUTPUT:-}" | grep -c 'FEATURE|[0-9]*|complete' || true)
 FEAT_INCOMPLETE=$(echo "${OUTPUT:-}" | grep -c 'FEATURE|[0-9]*|incomplete' || true)
-if [ "$((FEAT_DONE + FEAT_INCOMPLETE))" -eq 0 ]; then
+# A feature pytest never ran on is a third state. Folding it into "incomplete"
+# blamed the developer for a suite that never executed.
+FEAT_UNVAL=$(echo "${OUTPUT:-}" | grep -c 'FEATURE|[0-9]*|unvalidated' || true)
+FEAT_SEEN=$((FEAT_DONE + FEAT_INCOMPLETE + FEAT_UNVAL))
+if [ "$FEAT_SEEN" -eq 0 ]; then
     if [ -n "${GOV_KILL:-}" ]; then
         skip "RUN-02" "No feature verdicts (run killed before FEATURES)"
     else
         skip "RUN-02" "No feature verdicts reported"
     fi
-elif [ "$FEAT_INCOMPLETE" -eq 0 ]; then
+elif [ "$FEAT_INCOMPLETE" -eq 0 ] && [ "$FEAT_UNVAL" -eq 0 ]; then
     pass "RUN-02" "All $FEAT_DONE attempted features completed"
+elif [ "$FEAT_UNVAL" -gt 0 ]; then
+    # Worse than a failing suite: no evidence either way was produced.
+    UNVAL_NUMS=$(echo "${OUTPUT:-}" | grep -oP 'FEATURE\|\K[0-9]+(?=\|unvalidated)' | tr '\n' ' ')
+    fail "RUN-02" "$FEAT_UNVAL of $FEAT_SEEN features were never validated" \
+         "unvalidated: ${UNVAL_NUMS:-?}— pytest never ran on them, so the run reports a verdict it did not earn"
 else
     INCOMPLETE_NUMS=$(echo "${OUTPUT:-}" | grep -oP 'FEATURE\|\K[0-9]+(?=\|incomplete)' | tr '\n' ' ')
-    fail "RUN-02" "$FEAT_INCOMPLETE of $((FEAT_DONE + FEAT_INCOMPLETE)) features did not complete" \
-         "incomplete: ${INCOMPLETE_NUMS:-?}— the tester rejected work the run reports as successful"
+    fail "RUN-02" "$FEAT_INCOMPLETE of $FEAT_SEEN features did not complete" \
+         "incomplete: ${INCOMPLETE_NUMS:-?}— pytest still failing after the fix loop exhausted its attempts"
 fi
 
 echo ""
