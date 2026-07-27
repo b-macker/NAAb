@@ -80,6 +80,29 @@ signature in `tests/fuzzing/known_findings.txt` MUST link to a section here.
   `test_vm_dict_array.naab`, `test_vm_exceptions.naab` now pass identically
   on both engines via the differential corpus.
 
+### TRY-001: `break`/`continue` leaked a try's exception handler (fixed 2026-07)
+
+The VM compiler emitted `OP_POPN` for locals on `break`/`continue` but never
+`OP_TRY_END`, so jumping out of a `try` body leaked its handler permanently. A
+later `throw` with no enclosing try resolved against the dead handler, re-entered
+the stale catch block and fell through it, re-executing statements that had
+already run. With nested trys the exception was delivered to the wrong catch —
+one nesting level too deep — while the enclosing handler never saw it.
+
+Two consequences beyond the divergence: an exception that should terminate the
+run was silently absorbed, and any side effect between the stale `catch_ip` and
+the leak point fired twice.
+
+The tree-walker was correct throughout and is the oracle in the regression test.
+`return` out of a try was never affected — both `OP_RETURN` paths pop handlers by
+`frame_index` at runtime.
+
+Fixed by tracking `CompilerState::open_try_depths` and emitting one `OP_TRY_END`
+per try opened inside the innermost loop. The bound matters: closing a handler
+belonging to a try that ENCLOSES the loop would deliver a later exception
+nowhere, which is worse than the leak — `tests/vm/test_try_handler_leak.sh`
+E1-E3 exist to pin that.
+
 ## Accepted divergences (allowlisted)
 
 ### ERR-TEXT-001: Error message wording differs between engines

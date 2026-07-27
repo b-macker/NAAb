@@ -66,6 +66,16 @@ private:
             int scope_depth;                    // Depth at loop start
         };
         std::vector<LoopContext> loops;
+
+        // Scope depth of each try whose BODY is currently being compiled, i.e.
+        // whose exception handler is live at this point in the bytecode. break
+        // and continue jump out of those bodies without running the OP_TRY_END
+        // that normally closes them, so they must emit one per entry opened
+        // inside the loop. Pushed at OP_TRY_BEGIN and popped before OP_TRY_END,
+        // so a break inside a CATCH block sees nothing for that try — its
+        // handler is already gone by then, on both the fall-through path
+        // (OP_TRY_END) and the exception path (the unwinder pops it).
+        std::vector<int> open_try_depths;
         bool dead_code = false;  // Set after unconditional return/jump; skip emitting
     };
 
@@ -170,6 +180,8 @@ private:
     void visit(ast::StructLiteralExpr& node) override;
     void visit(ast::InlineCodeExpr& node) override;
     void visit(ast::IfExpr& node) override;
+    void emitTryEndsForLoopExit(int loop_depth, int line);
+
     void visit(ast::TryCatchExpr& node) override;
     void visit(ast::ThrowExpr& node) override;
     void visit(ast::LambdaExpr& node) override;

@@ -1628,6 +1628,19 @@ else
     echo "  test_persona_window.sh: not found, skipping"
 fi
 
+# VM: break/continue out of a try must close its handler (and only its own).
+TRYLEAK_SCRIPT="tests/vm/test_try_handler_leak.sh"
+if [ -f "$TRYLEAK_SCRIPT" ]; then
+    if bash "$TRYLEAK_SCRIPT" 2>&1; then
+        echo "  test_try_handler_leak.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_try_handler_leak.sh")
+    fi
+else
+    echo "  test_try_handler_leak.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

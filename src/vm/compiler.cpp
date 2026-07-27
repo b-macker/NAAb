@@ -937,6 +937,27 @@ void Compiler::visit(ast::WhileStmt& node) {
     current_->loops.pop_back();
 }
 
+// Emit one OP_TRY_END per try handler opened inside the innermost loop.
+// break/continue jump past the OP_TRY_END that would normally close them, and
+// a leaked handler is not inert: a later throw with no enclosing try resolves
+// against it, re-enters the dead catch block and falls through, re-executing
+// statements that already ran. Verified against the tree-walker, which is
+// correct here.
+//
+// Only handlers opened INSIDE the loop are closed. Popping one belonging to a
+// try that ENCLOSES the loop would destroy a handler that is still live —
+// a worse failure than the leak, which is why this is bounded by the loop's
+// own scope depth, the same bound OP_POPN already uses for locals.
+void Compiler::emitTryEndsForLoopExit(int loop_depth, int line) {
+    for (int i = static_cast<int>(current_->open_try_depths.size()) - 1; i >= 0; i--) {
+        if (current_->open_try_depths[i] > loop_depth) {
+            emitOp(OpCode::OP_TRY_END, line);
+        } else {
+            break;  // depths are monotonically non-decreasing
+        }
+    }
+}
+
 void Compiler::visit(ast::BreakStmt& node) {
     if (current_->loops.empty()) {
         throw std::runtime_error("Break outside of loop");
@@ -944,6 +965,7 @@ void Compiler::visit(ast::BreakStmt& node) {
     int line = node.getLocation().line;
     // Pop locals that are deeper than the loop's scope depth
     int loop_depth = current_->loops.back().scope_depth;
+    emitTryEndsForLoopExit(loop_depth, line);
     int locals_to_pop = 0;
     for (int i = static_cast<int>(current_->locals.size()) - 1; i >= 0; i--) {
         if (current_->locals[i].depth > loop_depth) {
@@ -966,6 +988,7 @@ void Compiler::visit(ast::ContinueStmt& node) {
     int line = node.getLocation().line;
     // Pop locals that are deeper than the loop's scope depth
     int loop_depth = current_->loops.back().scope_depth;
+    emitTryEndsForLoopExit(loop_depth, line);
     int locals_to_pop = 0;
     for (int i = static_cast<int>(current_->locals.size()) - 1; i >= 0; i--) {
         if (current_->locals[i].depth > loop_depth) {
@@ -1000,7 +1023,9 @@ void Compiler::visit(ast::TryCatchExpr& node) {
     int try_begin = emitJump(OpCode::OP_TRY_BEGIN, line);
 
     // Try expression — leaves value on stack
+    current_->open_try_depths.push_back(current_->scope_depth);
     node.getTryExpr()->accept(*this);
+    current_->open_try_depths.pop_back();
 
     // OP_TRY_END — pop exception handler
     emitOp(OpCode::OP_TRY_END, line);
@@ -1530,9 +1555,11 @@ void Compiler::visit(ast::TryStmt& node) {
     int try_begin = emitJump(OpCode::OP_TRY_BEGIN, line);
 
     // Compile try body
+    current_->open_try_depths.push_back(current_->scope_depth);
     beginScope();
     node.getTryBody()->accept(*this);
     endScope();
+    current_->open_try_depths.pop_back();
 
     // OP_TRY_END — pop the exception handler
     emitOp(OpCode::OP_TRY_END, line);

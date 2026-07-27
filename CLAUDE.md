@@ -343,6 +343,7 @@ Always run `bash tests/security/test_error_msg_leaks.sh` after changing any erro
 
 ## Gotchas
 
+- **`break`/`continue` out of a `try` must close its handler** — `Compiler::visit(BreakStmt)`/`visit(ContinueStmt)` call `emitTryEndsForLoopExit()`, which emits one `OP_TRY_END` per try opened INSIDE the innermost loop (bounded by `loops.back().scope_depth`, the same bound `OP_POPN` uses for locals). Tracked in `CompilerState::open_try_depths`, pushed at `OP_TRY_BEGIN` and popped before `OP_TRY_END` — so a `break` inside a CATCH block emits nothing for that try, whose handler is already gone on both paths. Closing a handler that ENCLOSES the loop is worse than the leak: it delivers a later exception to the wrong catch block. `return` out of a try needs no compiler support — both `OP_RETURN` paths clean handlers by `frame_index` at runtime. Test: `tests/vm/test_try_handler_leak.sh` (tree-walker is the oracle).
 - **nlohmann/json.hpp** — keep in .cpp only, never in headers
 - **`result_`** is NaabVal — use `.isNull()` not `if (result_)`
 - **CLI flags must be in BOTH** global pre-scan AND run command flag loop in main.cpp
