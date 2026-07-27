@@ -595,6 +595,85 @@ fi
 fi
 
 # ============================================================
+# Group L: a pass carrying LESS evidence earns no recovery credit
+#
+# Group G established that a fail->pass transition credits coherence back. That
+# credit is the exploit path for test erosion: an agent that fails pytest, then
+# deletes the failing test, then passes, is rewarded for the deletion. A pytest
+# exit code cannot tell the two apart — a suite with no tests left passes — so
+# the caller reports how many checks actually ran and a pass that sheds evidence
+# is refused the credit.
+#
+# Critically the outstanding failure is NOT consumed by a shrink-pass, so a
+# later honest pass can still earn the recovery. Otherwise one shrink would
+# launder the failure away for free, which is a cheaper exploit than the one
+# being closed.
+#
+# Same fixture, same signal set and same shape as Group G, so the only
+# difference between G-01 recovering and L-01 not recovering is the evidence
+# count.
+# ============================================================
+echo -e "${CYAN}--- Group L: a shrinking pass earns no recovery ---${NC}"
+WDIR="$TEST_TMP/l"; mkdir -p "$WDIR"
+printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "L-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+mk_govern "$STUB_PORT" ', "context_drift_signals": {"semantic_stability": false, "instruction_recall": false, "entity_consistency": false, "mandate_alignment": false, "coherence_velocity": false, "persona_fingerprint": false, "instruction_conflict": false, "context_growth": false, "response_repetition": false, "prompt_compliance": false}' > "$WDIR/govern.json"; sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    let r1 = agent.send(h, "implement add")
+    // Baseline: 12 tests, failing.
+    let _f = agent.record_validation(h, false, "assert failed", 12)
+    let r2 = agent.send(h, "implement subtract")
+    let c_after_fail = agent.coherence(h)
+    // "Fixed" by deleting tests: passes, but on 4 checks instead of 12.
+    let _p = agent.record_validation(h, true, null, 4)
+    let r3 = agent.send(h, "implement multiply")
+    let c_after_shrink = agent.coherence(h)
+    // An honest pass afterwards: evidence back up. The failure is still
+    // outstanding, so this one must earn the credit the shrink did not.
+    let _p2 = agent.record_validation(h, true, null, 14)
+    let r4 = agent.send(h, "implement divide")
+    let c_after_honest = agent.coherence(h)
+    print("C_FAIL=" + string(c_after_fail))
+    print("C_SHRINK=" + string(c_after_shrink))
+    print("C_HONEST=" + string(c_after_honest))
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+LF=$(echo "$OUT" | grep '^C_FAIL=' | sed 's/.*=//')
+LS=$(echo "$OUT" | grep '^C_SHRINK=' | sed 's/.*=//')
+LH=$(echo "$OUT" | grep '^C_HONEST=' | sed 's/.*=//')
+if [ -n "$LF" ] && [ -n "$LS" ] && awk "BEGIN{exit !($LS <= $LF + 0.001)}"; then
+    pass "L-01" "shrinking pass earned no recovery ($LF -> $LS)"
+else
+    fail "L-01" "a pass with less evidence still recovered coherence" \
+         "c_fail=$LF c_shrink=$LS — deleting the failing test is being rewarded"
+fi
+if [ -n "$LS" ] && [ -n "$LH" ] && awk "BEGIN{exit !($LH > $LS + 0.05)}"; then
+    pass "L-02" "the later honest pass still earned the credit ($LS -> $LH)"
+else
+    fail "L-02" "shrink consumed the outstanding failure" \
+         "c_shrink=$LS c_honest=$LH — one shrink laundered the failure away"
+fi
+if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_credit_withheld=evidence_shrank'; then
+    pass "L-03" "withheld credit is named in CDD_TURN penalties_detail"
+else
+    fail "L-03" "a refused credit is reported as an absence" \
+         "indistinguishable from a turn where no validation ran"
+fi
+if grep -E '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q '"evidence_count":"4"'; then
+    pass "L-04" "evidence_count recorded in VALIDATION_RECORDED telemetry"
+else
+    fail "L-04" "evidence_count missing from telemetry" \
+         "$(grep '"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null | tail -1)"
+fi
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))

@@ -265,6 +265,16 @@ struct DriftState {
     // pump coherence.
     bool last_consumed_validation_failed = false;  // most recently CONSUMED outcome was a failure
     double last_validation_recovery = 0.0;         // recovery credit applied this turn (telemetry)
+    // Evidence mass behind the recorded outcome — how many checks actually ran
+    // (test count, assertion count, whatever the caller reports). -1 = never
+    // reported, which leaves every behaviour below inert. A "pass" whose
+    // evidence shrank is not proof the defect was fixed: deleting the failing
+    // test makes a suite pass. Compared against the LAST applied count rather
+    // than a high-water mark, so erosion is charged on the transition and a
+    // legitimate one-off test consolidation does not pay forever.
+    int last_evidence_count = -1;
+    bool last_validation_shrank = false;           // latched outcome came with less evidence
+    bool last_validation_credit_withheld = false;  // recovery credit refused this turn (telemetry)
     // Failure detail keywords from agent.record_validation(handle, false, detail)
     // — grounds the "validation" step-up challenge type in the actual defect.
     // Replaced on each recorded failure, cleared on a recorded pass.
@@ -458,8 +468,11 @@ public:
     // the orchestration script (pytest, enforce_convergence). Consumed once by
     // the next recordTurn. Optional detail keywords (extracted from e.g. pytest
     // failure output) ground the "validation" step-up challenge type.
+    // evidence_count: how many checks backed this outcome (test count, assertion
+    // count, ...). -1 = not measured, which leaves shrink detection inert.
     bool recordValidationOutcome(int handle_id, bool passed,
-        const std::unordered_set<std::string>& detail_keywords = {});
+        const std::unordered_set<std::string>& detail_keywords = {},
+        int evidence_count = -1);
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);

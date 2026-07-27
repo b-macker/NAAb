@@ -4005,6 +4005,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                              drift_state->last_validation_recovery);
                     penalty_detail += rbuf;
                 }
+                // A refused credit has to be visible. Reported as an absence it
+                // is indistinguishable from a turn where no validation ran.
+                if (drift_state->last_validation_credit_withheld) {
+                    if (!penalty_detail.empty()) penalty_detail += ",";
+                    penalty_detail += "validation_credit_withheld=evidence_shrank";
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
@@ -5186,6 +5192,10 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                              drift_state->last_validation_recovery);
                     c_penalty += rb;
                 }
+                if (drift_state->last_validation_credit_withheld) {
+                    if (!c_penalty.empty()) c_penalty += ",";
+                    c_penalty += "validation_credit_withheld=evidence_shrank";
+                }
                 int c_level = static_cast<int>(gov_engine->getGovernanceLevel());
                 const char* c_level_names[] = {"normal", "elevated", "high", "critical"};
                 const char* c_level_str = (c_level >= 0 && c_level <= 3)
@@ -6354,24 +6364,36 @@ static NaabVal agentReset(std::vector<NaabVal>& args) {
 // ============================================================================
 static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
     if (args.size() < 2 || !args[0].isDict() || !args[1].isBool() ||
-        (args.size() >= 3 && !args[2].isString() && !args[2].isNull()))
+        (args.size() >= 3 && !args[2].isString() && !args[2].isNull()) ||
+        (args.size() >= 4 && !args[3].isInt() && !args[3].isNull()))
         throw std::runtime_error(
-            "Agent error: agent.record_validation requires (handle, passed [, detail])\n\n"
-            "  Expected: agent.record_validation(handle, passed [, detail])\n\n"
+            "Agent error: agent.record_validation requires (handle, passed [, detail [, evidence_count]])\n\n"
+            "  Expected: agent.record_validation(handle, passed [, detail [, evidence_count]])\n\n"
             "  Help:\n"
             "  - handle: an agent handle from agent.create()\n"
             "  - passed: bool — did this turn's output pass external validation\n"
             "    (e.g. pytest, orchestra.enforce_convergence)?\n"
             "  - detail: optional string describing WHAT failed (e.g. pytest\n"
-            "    failure lines) — grounds step-up challenges in the defect\n\n"
+            "    failure lines) — grounds step-up challenges in the defect\n"
+            "  - evidence_count: optional int — how many checks actually ran\n"
+            "    (test count, assertion count). A pass carrying less evidence\n"
+            "    than the previous one earns no recovery credit: deleting the\n"
+            "    failing test also makes the suite pass\n\n"
             "  Example:\n"
             "    let v = validate_code(...)\n"
-            "    agent.record_validation(dev, v.get(\"pytest_passed\"), v.get(\"pytest_output\"))\n");
+            "    agent.record_validation(dev, v.get(\"pytest_passed\"), v.get(\"pytest_output\"), v.get(\"test_func_count\"))\n");
 
     auto [config_name, handle_id] = validateHandle(args[0]);
     bool passed = args[1].asBool();
     std::string detail;
     if (args.size() >= 3 && args[2].isString()) detail = args[2].asString();
+    // -1 = not measured. Absent or null leaves evidence tracking inert, so every
+    // existing caller keeps its current behaviour exactly.
+    int evidence_count = -1;
+    if (args.size() >= 4 && args[3].isInt()) {
+        evidence_count = static_cast<int>(args[3].asInt());
+        if (evidence_count < 0) evidence_count = -1;
+    }
 
     std::unordered_set<std::string> detail_keywords;
     if (!passed && !detail.empty()) {
@@ -6384,7 +6406,8 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
         // False when an unconsumed FAILURE was preserved rather than replaced by
         // this pass. Reported so a superseded result is visible instead of
         // looking like a recorded pass that CDD then ignored.
-        applied = gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords);
+        applied = gov_engine->recordValidationOutcome(handle_id, passed, detail_keywords,
+                                                      evidence_count);
         if (gov_engine->getRules().telemetry_output.enabled) {
             gov_engine->writeAgentTelemetry("VALIDATION_RECORDED", {
                 {"handle_id",       std::to_string(handle_id)},
@@ -6392,6 +6415,7 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
                 {"passed",          passed ? "true" : "false"},
                 {"detail_keywords", std::to_string(detail_keywords.size())},
                 {"applied",         applied ? "true" : "false"},
+                {"evidence_count",  std::to_string(evidence_count)},
             });
         }
     }
@@ -6401,6 +6425,7 @@ static NaabVal agentRecordValidation(std::vector<NaabVal>& args) {
     result["applied"] = NaabVal::makeBool(applied);
     result["handle_id"] = NaabVal::makeInt(handle_id);
     result["passed"] = NaabVal::makeBool(passed);
+    result["evidence_count"] = NaabVal::makeInt(evidence_count);
     return NaabVal::makeDict(std::move(result));
 }
 

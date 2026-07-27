@@ -2160,10 +2160,16 @@ main {
             print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
         }
         if handles.get("developer") != null {
+            // Report the test count with the outcome. pytest exit 0 is the
+            // ground truth erosion defeats — a suite with its failing test
+            // deleted passes — so a pass carrying fewer checks than the last
+            // one earns no recovery credit. The count is already computed for
+            // TESTMASS; it was simply never reaching the engine.
+            let ev_count = cur_val.get("test_func_count") ?? -1
             if feat_passed {
-                let _rv = agent.record_validation(handles["developer"], true)
+                let _rv = agent.record_validation(handles["developer"], true, null, ev_count)
             } else {
-                let _rv = agent.record_validation(handles["developer"], false, last_fail_detail)
+                let _rv = agent.record_validation(handles["developer"], false, last_fail_detail, ev_count)
             }
         }
 

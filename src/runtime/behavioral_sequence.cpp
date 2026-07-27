@@ -1387,6 +1387,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // "normalize" persistent failure would recreate the blindness this signal
     // exists to close (coherence 1.0 through rejected code).
     state.last_validation_recovery = 0.0;
+    state.last_validation_credit_withheld = false;
     if (sig_on(config_->signals.validation_outcome, SIG_VALIDATION) && state.has_validation_result) {
         if (!state.last_validation_passed) {
             state.validation_failure_count++;
@@ -1402,15 +1403,26 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 }
             }
         } else if (state.last_consumed_validation_failed) {
-            // Fail→pass transition: the agent actually fixed its output. Credit
-            // a partial recovery (default: half the S22 weight, so oscillating
-            // fail/pass stays net-negative). Only the transition earns credit —
-            // recording repeated passes cannot pump coherence.
-            state.last_consumed_validation_failed = false;
-            double credit = config_->validation_recovery_amount;
-            if (credit > 0.0) {
-                state.coherence_score = std::min(1.0, state.coherence_score + credit);
-                state.last_validation_recovery = credit;
+            if (state.last_validation_shrank) {
+                // A pass carrying LESS evidence than the last one is not proof
+                // the defect was fixed — deleting the failing test passes the
+                // suite. Refuse the credit and, critically, leave
+                // last_consumed_validation_failed set: the failure has still not
+                // been answered, so a later pass that does not shed evidence can
+                // still earn the recovery. Clearing it here would let one shrink
+                // launder the outstanding failure away for free.
+                state.last_validation_credit_withheld = true;
+            } else {
+                // Fail→pass transition: the agent actually fixed its output. Credit
+                // a partial recovery (default: half the S22 weight, so oscillating
+                // fail/pass stays net-negative). Only the transition earns credit —
+                // recording repeated passes cannot pump coherence.
+                state.last_consumed_validation_failed = false;
+                double credit = config_->validation_recovery_amount;
+                if (credit > 0.0) {
+                    state.coherence_score = std::min(1.0, state.coherence_score + credit);
+                    state.last_validation_recovery = credit;
+                }
             }
         }
         // Consume the latched result — one validation outcome per turn.
@@ -2418,7 +2430,7 @@ void ContextDriftAnalyzer::recordToolOutcome(
 }
 
 bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
-    const std::unordered_set<std::string>& detail_keywords) {
+    const std::unordered_set<std::string>& detail_keywords, int evidence_count) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
 
@@ -2446,6 +2458,22 @@ bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
         // failure has actually been consumed earns the fail->pass credit.
         return false;
     }
+
+    // Did the evidence behind this result shrink? A suite with its failing test
+    // deleted passes, so "passed" alone cannot distinguish a fixed defect from a
+    // removed check. Compared against the last APPLIED count — a superseded
+    // result (the early return above) never moved the baseline, so it cannot
+    // make the next result look like growth.
+    //
+    // Inert unless the caller reports a count: evidence_count < 0 means "not
+    // measured", and the first ever report has nothing to compare against.
+    // Deliberately compares against the previous count rather than a high-water
+    // mark, so erosion is charged on the transition and a one-off legitimate
+    // consolidation of tests does not keep paying for the rest of the run.
+    state.last_validation_shrank =
+        (evidence_count >= 0 && state.last_evidence_count >= 0 &&
+         evidence_count < state.last_evidence_count);
+    if (evidence_count >= 0) state.last_evidence_count = evidence_count;
 
     // Latch the ground-truth result; the next recordTurn consumes and clears it.
     state.has_validation_result = true;

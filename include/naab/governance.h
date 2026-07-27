@@ -3134,7 +3134,8 @@ public:
 
     // Record external validation outcome (S22) — forwards to the drift analyzer.
     bool recordValidationOutcome(int handle_id, bool passed,
-        const std::unordered_set<std::string>& detail_keywords = {});
+        const std::unordered_set<std::string>& detail_keywords = {},
+        int evidence_count = -1);
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
