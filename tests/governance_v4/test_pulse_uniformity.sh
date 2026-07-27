@@ -28,7 +28,8 @@
 #   PU-02  long clean agent run              -> MUST degrade      (still alive)
 #   PU-03  a blocked turn resets the streak  -> must NOT degrade
 #   PU-04  every degraded verdict names its own cause
-#   PU-05  every verdict transition leaves a telemetry record
+#   PU-05  every verdict transition leaves a telemetry record, carrying
+#          the streak that caused it rather than the post-reset zero
 #
 # PU-01 and PU-04 fail against the pre-fix binary; PU-02 and PU-03 guard the
 # fix against being a silent disable.
@@ -373,8 +374,9 @@ for ln in open(sys.argv[1]):
     try: e = json.loads(ln)
     except Exception: continue
     if e.get("event_type") == "PULSE_TRANSITION":
-        rows.append("%s->%s why=%s" % (e.get("from_verdict"), e.get("to_verdict"),
-                                       e.get("degradation_reasons")))
+        rows.append("%s->%s why=%s passes=%s" % (e.get("from_verdict"), e.get("to_verdict"),
+                                                 e.get("degradation_reasons"),
+                                                 e.get("consecutive_passes")))
 print(len(rows))
 for r in rows[:4]: print(r)
 PYEOF
@@ -386,6 +388,20 @@ PYEOF
         fail "PU-05" "pulse degraded $DEG2 times but emitted no PULSE_TRANSITION" \
              "a verdict transition that leaves no record is only recoverable from the epoch counter"
     fi
+    # A uniform_passes degradation must report the streak that caused it. The
+    # epoch boundary zeroes consecutive_passes at the transition, so reading it
+    # after the fact reports 0 for every transition and makes the stated cause
+    # unfalsifiable — live run 19 recorded exactly that.
+    PU_STREAK=$(echo "$PT" | grep -m1 -- "->degraded why=uniform_passes" | grep -oP 'passes=\K[0-9]+')
+    if [ -z "${PU_STREAK:-}" ]; then
+        skip "PU-05c" "no uniform_passes degradation in this run"
+    elif [ "$PU_STREAK" -gt 5 ]; then
+        pass "PU-05c" "degradation reports the streak that caused it (passes=$PU_STREAK > suspicion 5)"
+    else
+        fail "PU-05c" "uniform_passes degradation reports passes=$PU_STREAK, at or below the threshold of 5" \
+             "the streak is being read after the epoch boundary reset it"
+    fi
+
     # Both directions must be recorded — recording only the degrade would leave
     # a recovery indistinguishable from a verdict that never moved.
     if echo "$PT" | grep -q -- "->healthy"; then

@@ -6897,6 +6897,10 @@ PulseVerdict GovernanceEngine::computePulseVerdict(int turn) {
 
     if (new_verdict != pulse_.verdict && can_transition) {
         pulse_.last_transition_turn = turn;
+        // Preserve the streak before the epoch boundary clears it — the caller
+        // reads the pulse after this returns, so without this every transition
+        // reports a streak of 0 and uniform_passes becomes unfalsifiable.
+        pulse_.passes_at_transition = pulse_.consecutive_passes;
         // Evidence Epoch: state transition invalidates prior-epoch evidence
         governance_epoch_++;
         pulse_.consecutive_passes = 0;  // reset on epoch boundary
@@ -7189,7 +7193,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                     {"from_verdict",      verdictName(prev_pv)},
                     {"to_verdict",        verdictName(pv)},
                     {"degradation_reasons", why},
-                    {"consecutive_passes", std::to_string(snap.consecutive_passes)},
+                    {"consecutive_passes", std::to_string(snap.passes_at_transition)},
                     {"consecutive_degraded", std::to_string(snap.consecutive_degraded)},
                     {"turn",              std::to_string(turn)},
                     {"handle_id",         std::to_string(state->handle_id)},
