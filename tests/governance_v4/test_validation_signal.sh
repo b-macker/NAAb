@@ -612,6 +612,13 @@ fi
 # Same fixture, same signal set and same shape as Group G, so the only
 # difference between G-01 recovering and L-01 not recovering is the evidence
 # count.
+#
+# LIVE STATUS (runs 21-23): the channel is confirmed end to end — evidence
+# counts reach the engine and S22 fires and recovers on real pytest outcomes —
+# but the SHRINK path has never been exercised live. Every live run so far
+# reported monotonically non-decreasing counts, so nothing has yet presented
+# this logic with a suite that shed checks. Groups L and M remain the only
+# evidence it works.
 # ============================================================
 echo -e "${CYAN}--- Group L: a shrinking pass earns no recovery ---${NC}"
 WDIR="$TEST_TMP/l"; mkdir -p "$WDIR"

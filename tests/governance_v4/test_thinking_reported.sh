@@ -20,6 +20,16 @@
 # TR-01 is the anti-regression assertion: skipping unmeasured turns must not
 # cost the signal its actual job. A real collapse still has to fire.
 #
+# LIVE STATUS (run 23, commit dbf55a4): the reported-check is confirmed —
+# thinking_collapse went from the largest drain in the run (0.64 over 11 turns,
+# three OA quarantines) to ZERO firings on any agent, and the developer's
+# coherence floor rose from 0.5175 to 0.83. The ANNOUNCEMENT is still unproven
+# live: the developer's unreported streaks ran to 7, below the
+# thinking_history_window/2 threshold of 10, so THINKING_UNREPORTED correctly
+# declined to fire and has never fired outside this test. Run 21's sixteen-zero
+# tail would have crossed it. The live pattern is intermittent reporting, not
+# the permanent step change the fix was first described as chasing.
+#
 # TR-04 is the part that grounds the design question rather than assuming it.
 # The proposal was to give unreported thinking its own visibility, and the
 # argument for it is only worth anything if silence is genuinely ambiguous. So
