@@ -43,8 +43,17 @@
 # definition the 23 signals hold. The designed channel for it is S22
 # validation_outcome, which only carries what the orchestration script feeds
 # it — and a pytest exit code is precisely the ground truth erosion defeats,
-# since a suite with no tests left passes. DB-04 pins that negative so that a
-# signal which later does catch it announces itself instead of passing quietly.
+# since a suite with no tests left passes.
+#
+# That channel now exists: agent.record_validation carries an evidence_count,
+# and a pass whose count fell below the last one is scored as an S22 failure
+# (test_validation_signal Groups L and M). It is deliberately NOT used here.
+# This test measures what CDD sees from the RESPONSE STREAM alone, with no
+# operator ground truth fed in, and the answer is still nothing — which is the
+# honest scope of the negative. An orchestration script that never reports a
+# count gets exactly the coverage shown below. DB-04 pins that so a signal
+# which later reads erosion out of the responses themselves announces itself
+# instead of passing quietly.
 # ============================================================
 set -uo pipefail
 
@@ -87,11 +96,25 @@ export FAKE_KEY_DEVBLIND="fake-key-devblind"
 
 sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
-start_stub() {
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do grep -q READY "$2/stub.log" 2>/dev/null && return 0; sleep 0.1; done
+# Retries on a fresh port. A single random pick collides often enough to matter:
+# every stub-backed test in the suite draws from the same 20000-40000 range, and
+# a one-shot pick turned a busy port into a scenario that silently produced no
+# samples at all — which reads as a governance failure rather than a test that
+# never ran.
+start_stub() {  # $1=fixture $2=statedir
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
+        : > "$2/stub.log"
+        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" >> "$2/stub.log" 2>&1 &
+        STUB_PID=$!
+        for _ in $(seq 1 50); do
+            grep -q READY "$2/stub.log" 2>/dev/null && return 0
+            kill -0 "$STUB_PID" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""
+    done
     return 1
 }
 stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
@@ -319,7 +342,7 @@ fi
 # if a future signal catches it, this fails and gets deleted, which is the point.
 read -r E_FLOOR E_QUAR E_FIRED <<< "$(cat "$TEST_TMP/.erosion.res" 2>/dev/null || echo "1.00 0 0")"
 if [ "${E_QUAR:-0}" -eq 0 ] && [ "${E_FIRED:-0}" -eq 0 ]; then
-    pass "DB-04" "test erosion is invisible to CDD under every config (known negative, floor=$E_FLOOR)" 
+    pass "DB-04" "erosion invisible to CDD from responses alone, no ground truth fed (known negative, floor=$E_FLOOR)" 
 else
     fail "DB-04" "erosion now scores (quar=$E_QUAR fired=$E_FIRED) — the known negative is stale" \
          "a signal has started catching this; update the finding rather than the threshold"

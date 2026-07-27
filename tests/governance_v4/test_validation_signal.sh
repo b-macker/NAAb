@@ -674,6 +674,77 @@ fi
 fi
 
 # ============================================================
+# Group M: erosion costs coherence on its own, and survives a reset
+#
+# Group L removed the REWARD for shedding tests. That is not enough by itself:
+# an agent that never failed has no credit to lose, so it could erode a passing
+# suite for free. A pass carrying less evidence than the last one is therefore
+# scored as an S22 failure outright.
+#
+# M-02 is the interaction the trace caught before this was written. The living
+# script calls agent.reset(handle) when coherence falls below a floor, and
+# resetDriftState() wipes DriftState wholesale. If the evidence count went with
+# it, an eroding agent would trip the reset and return with nothing to shrink
+# from — the signal would be weakest immediately after it first worked. The
+# count is preserved across reset for that reason; behavioural history is not.
+# ============================================================
+echo -e "${CYAN}--- Group M: shedding evidence costs coherence ---${NC}"
+WDIR="$TEST_TMP/m"; mkdir -p "$WDIR"
+printf '%s' "$FIXTURE" > "$WDIR/fixture.json"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "M-00" "stub failed"; STUB_PORT=0; }
+if [ "$STUB_PORT" != "0" ]; then
+mk_govern "$STUB_PORT" ', "context_drift_signals": {"semantic_stability": false, "instruction_recall": false, "entity_consistency": false, "mandate_alignment": false, "coherence_velocity": false, "persona_fingerprint": false, "instruction_conflict": false, "context_growth": false, "response_repetition": false, "prompt_compliance": false}' > "$WDIR/govern.json"; sign_govern "$WDIR"
+cat > "$WDIR/test.naab" <<'EOF'
+use agent
+main {
+    let h = agent.create("developer")
+    // Never fails. Every outcome below is a PASS — only the evidence moves.
+    let r1 = agent.send(h, "implement add")
+    let _a = agent.record_validation(h, true, null, 20)
+    let r2 = agent.send(h, "implement subtract")
+    let c_base = agent.coherence(h)
+    // Passing on half the checks. No credit exists to withhold here.
+    let _b = agent.record_validation(h, true, null, 10)
+    let r3 = agent.send(h, "implement multiply")
+    let c_eroded = agent.coherence(h)
+    // A reset clears behavioural history. The evidence baseline must survive it,
+    // or the next shrink has nothing to measure against.
+    agent.reset(h)
+    let r4 = agent.send(h, "implement divide")
+    let _c = agent.record_validation(h, true, null, 3)
+    let r5 = agent.send(h, "implement modulo")
+    let c_post_reset = agent.coherence(h)
+    print("C_BASE=" + string(c_base))
+    print("C_ERODED=" + string(c_eroded))
+    print("C_POSTRESET=" + string(c_post_reset))
+}
+EOF
+OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+MB=$(echo "$OUT" | grep '^C_BASE=' | sed 's/.*=//')
+ME=$(echo "$OUT" | grep '^C_ERODED=' | sed 's/.*=//')
+MP=$(echo "$OUT" | grep '^C_POSTRESET=' | sed 's/.*=//')
+if [ -n "$MB" ] && [ -n "$ME" ] && awk "BEGIN{exit !($ME < $MB - 0.01)}"; then
+    pass "M-01" "a passing run that shed checks lost coherence ($MB -> $ME)"
+else
+    fail "M-01" "shedding checks on a passing suite cost nothing" \
+         "c_base=$MB c_eroded=$ME — erosion is free for an agent that never failed"
+fi
+if [ -n "$MP" ] && awk "BEGIN{exit !($MP < 1.0)}"; then
+    pass "M-02" "evidence baseline survived agent.reset() — post-reset shrink still scored ($MP)"
+else
+    fail "M-02" "reset erased the evidence baseline" \
+         "c_post_reset=$MP — resetting a degraded agent clears its erosion history"
+fi
+if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_outcome'; then
+    pass "M-03" "S22 named in penalties_detail for the shrink"
+else
+    fail "M-03" "shrink penalty not attributed to validation_outcome" \
+         "$(grep '"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"penalties_detail":"[^"]*"' | tail -2)"
+fi
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))

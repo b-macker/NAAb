@@ -1389,8 +1389,25 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     state.last_validation_recovery = 0.0;
     state.last_validation_credit_withheld = false;
     if (sig_on(config_->signals.validation_outcome, SIG_VALIDATION) && state.has_validation_result) {
-        if (!state.last_validation_passed) {
+        // A pass built on less evidence than the last one is scored AS a
+        // failure, not merely denied its credit. Withholding the credit alone
+        // only removes a reward; an agent that never failed in the first place
+        // has no credit to lose and can erode its suite for free. The penalty
+        // is what makes shedding checks cost something on its own.
+        const bool shrink_failure =
+            state.last_validation_passed && state.last_validation_shrank;
+        if (!state.last_validation_passed || shrink_failure) {
+            // A shrink that arrives on top of an unanswered failure ALSO refuses
+            // the credit that failure was owed. Recorded separately from the
+            // penalty: the two say different things, and reporting only the
+            // penalty would hide that a recovery was due and declined.
+            if (shrink_failure && state.last_consumed_validation_failed)
+                state.last_validation_credit_withheld = true;
             state.validation_failure_count++;
+            // The failure stays outstanding. A shrink never answers it, so a
+            // later pass that does not shed evidence still earns the recovery —
+            // clearing it here would let one shrink launder the failure away,
+            // which is a cheaper exploit than the one being closed.
             state.last_consumed_validation_failed = true;
             turn_fired[SIG_VALIDATION]++;
             if (!in_baseline) {
@@ -1403,26 +1420,15 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 }
             }
         } else if (state.last_consumed_validation_failed) {
-            if (state.last_validation_shrank) {
-                // A pass carrying LESS evidence than the last one is not proof
-                // the defect was fixed — deleting the failing test passes the
-                // suite. Refuse the credit and, critically, leave
-                // last_consumed_validation_failed set: the failure has still not
-                // been answered, so a later pass that does not shed evidence can
-                // still earn the recovery. Clearing it here would let one shrink
-                // launder the outstanding failure away for free.
-                state.last_validation_credit_withheld = true;
-            } else {
-                // Fail→pass transition: the agent actually fixed its output. Credit
-                // a partial recovery (default: half the S22 weight, so oscillating
-                // fail/pass stays net-negative). Only the transition earns credit —
-                // recording repeated passes cannot pump coherence.
-                state.last_consumed_validation_failed = false;
-                double credit = config_->validation_recovery_amount;
-                if (credit > 0.0) {
-                    state.coherence_score = std::min(1.0, state.coherence_score + credit);
-                    state.last_validation_recovery = credit;
-                }
+            // Fail→pass transition: the agent actually fixed its output. Credit
+            // a partial recovery (default: half the S22 weight, so oscillating
+            // fail/pass stays net-negative). Only the transition earns credit —
+            // recording repeated passes cannot pump coherence.
+            state.last_consumed_validation_failed = false;
+            double credit = config_->validation_recovery_amount;
+            if (credit > 0.0) {
+                state.coherence_score = std::min(1.0, state.coherence_score + credit);
+                state.last_validation_recovery = credit;
             }
         }
         // Consume the latched result — one validation outcome per turn.
@@ -2252,11 +2258,21 @@ void ContextDriftAnalyzer::resetDriftState(int handle_id) {
     std::string cfg_name = it->second.config_name;
     uint32_t ov_mask = it->second.signal_override_mask;
     uint32_t ov_values = it->second.signal_override_values;
+    // Evidence mass survives the reset. reset() clears the agent's behavioural
+    // history so a confused agent gets a clean slate, but how many checks its
+    // work stood on is a fact about the artifact, not a mood the agent is in.
+    // Zeroing it would make the erosion signal self-cancelling here: the script
+    // calls agent.reset() when coherence drops below a floor, so an eroding
+    // agent would trip the reset and come back with no baseline to shrink from,
+    // free to shed the rest of its suite unscored. The signal would be weakest
+    // immediately after it first worked.
+    int ev_count = it->second.last_evidence_count;
     it->second = DriftState{};
     it->second.handle_id = handle_id;
     it->second.config_name = cfg_name;
     it->second.signal_override_mask = ov_mask;
     it->second.signal_override_values = ov_values;
+    it->second.last_evidence_count = ev_count;
 }
 
 // Snapshot cumulative signal counters into signal_baselines[].snapshot
