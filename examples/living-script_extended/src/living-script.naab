@@ -1213,6 +1213,20 @@ main {
         let val = validate_code(pipeline_code, models_code, test_code, pipeline_pattern)
         last_pytest_out = val.get("pytest_output") ?? ""
         last_pytest_passed = val.get("pytest_passed") == true
+        // Report the refine loop's outcome too. Run 20 recorded validation only
+        // from the feature loop, so the shrink this phase actually produced
+        // (12 tests -> 11, pytest green both times) never reached the engine:
+        // MASS-01 caught it from the printed TESTMASS trail while S22 sat idle,
+        // having been told nothing. The seed validation above is deliberately
+        // NOT recorded — it measures the artifact as this phase inherited it,
+        // and attributing that outcome to the developer would charge it for
+        // work done before the phase began.
+        if handles.get("developer") != null {
+            let rf_ev = val.get("test_func_count") ?? -1
+            let rf_detail = null
+            if !last_pytest_passed { rf_detail = last_pytest_out }
+            let _rfv = agent.record_validation(handles["developer"], last_pytest_passed, rf_detail, rf_ev)
+        }
         let val_keys = val.keys()
         let vk = 0
         while vk < val_keys.length() {
