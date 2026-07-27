@@ -67,17 +67,23 @@ def gemini_body(spec):
                                        "args": tc.get("args", {})}})
     if not parts:
         parts = [{"text": ""}]
+    # thinking_tokens: null (or the JSON literal null) omits thoughtsTokenCount
+    # from usageMetadata entirely, reproducing a provider that does not report
+    # thinking at all. Absent and zero are different facts and the fixture has
+    # to be able to express both.
+    usage = {
+        "promptTokenCount": spec.get("input_tokens", 10),
+        "candidatesTokenCount": spec.get("output_tokens",
+                                         max(1, len(content or "") // 4)),
+    }
+    if spec.get("thinking_tokens", 0) is not None:
+        usage["thoughtsTokenCount"] = spec.get("thinking_tokens", 0)
     return {
         "candidates": [{
             "content": {"parts": parts, "role": "model"},
             "finishReason": spec.get("finish_reason", "STOP"),
         }],
-        "usageMetadata": {
-            "promptTokenCount": spec.get("input_tokens", 10),
-            "candidatesTokenCount": spec.get("output_tokens",
-                                             max(1, len(content or "") // 4)),
-            "thoughtsTokenCount": spec.get("thinking_tokens", 0),
-        },
+        "usageMetadata": usage,
     }
 
 

@@ -1206,9 +1206,37 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     }
 
     // Signal 9: Thinking collapse — thinking tokens dropped >50% from baseline mean
+    //
+    // Only turns where the provider actually REPORTED a thinking count are
+    // scored. Gemini omits thoughtsTokenCount from usageMetadata on some
+    // responses, and the parser leaves thinking_tokens at its initialiser 0, so
+    // "the model did no thinking" and "the API did not mention thinking" arrive
+    // as the same value. Live run 21 caught the developer this way: 451, 386,
+    // 342, 429, then zero for sixteen straight turns while output tokens grew
+    // eightfold — and a lone 570 in the middle of run 22's zeros, which no
+    // account of agent behaviour explains. The agent paid 0.64 of coherence and
+    // three quarantines for a field that was missing.
+    //
+    // Note S23 gets away with `output_tokens > 0` as its reported-check because
+    // zero output is essentially impossible; zero THINKING is legitimate and
+    // common (operator, judge, reviewer and specialist reported exactly that on
+    // every response of run 21), so this needs the explicit flag.
+    state.thinking_inert_announce = false;
     if (sig_on(config_->signals.thinking_collapse, SIG_THINKING_COLLAPSE)) {
         for (const auto& ev : turn_events) {
             if (ev.type == RuntimeEventType::AGENT_RESPONSE) {
+                if (!ev.thinking_reported) {
+                    // Unmeasured. Do not push it into the history — a run of
+                    // absent counts would otherwise drag the rolling mean to
+                    // zero and fire the signal on the provider's silence.
+                    state.thinking_unreported_streak++;
+                    int inert_at = std::max(1, config_->thresholds.thinking_history_window / 2);
+                    if (state.thinking_unreported_streak == inert_at) {
+                        state.thinking_inert_announce = true;
+                    }
+                    continue;
+                }
+                state.thinking_unreported_streak = 0;
                 state.thinking_history.push_back(ev.thinking_tokens);
                 if (static_cast<int>(state.thinking_history.size()) >
                     config_->thresholds.thinking_history_window) {

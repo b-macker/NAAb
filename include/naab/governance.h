@@ -3056,7 +3056,7 @@ public:
                           const std::string& content_fingerprint = "",
                           int output_tokens = 0, int thinking_tokens = 0,
                           const std::unordered_set<std::string>& content_keywords = {},
-                          int input_tokens = 0);
+                          int input_tokens = 0, bool thinking_reported = true);
     void setAgentTurn(int handle_id, int turn);
     void setAgentContext(int handle_id, int turn, const std::string& config_name);
     int getCurrentAgentTurn() const { return current_agent_turn_.load(std::memory_order_relaxed); }

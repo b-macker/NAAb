@@ -6226,7 +6226,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
                                          const std::string& content_fingerprint,
                                          int output_tokens, int thinking_tokens,
                                          const std::unordered_set<std::string>& content_keywords,
-                                         int input_tokens) {
+                                         int input_tokens, bool thinking_reported) {
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     RuntimeEvent ev;
@@ -6238,6 +6238,7 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.input_tokens = input_tokens;
     ev.output_tokens = output_tokens;
     ev.thinking_tokens = thinking_tokens;
+    ev.thinking_reported = thinking_reported;
     ev.content_keywords = content_keywords;
     ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
     ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);

@@ -64,6 +64,7 @@ struct RuntimeEvent {
     int input_tokens = 0;             // input/prompt tokens (agent events only)
     int output_tokens = 0;            // total output tokens (agent events only)
     int thinking_tokens = 0;          // thinking tokens consumed (agent events only)
+    bool thinking_reported = true;    // provider reported a thinking count for this response
     std::unordered_set<std::string> content_keywords;  // keywords from response (agent events only)
 };
 
@@ -320,6 +321,12 @@ struct DriftState {
     int response_degenerate_count = 0;        // turns with a near-empty (degenerate) response
     int thinking_collapse_count = 0;          // turns where thinking dropped >50% from baseline
     std::deque<int> thinking_history;          // rolling window of thinking token counts
+    // Consecutive AGENT_RESPONSEs where the provider reported no thinking count.
+    // S9 cannot score a measurement it did not get, so those turns are skipped
+    // entirely — which makes the signal silently inert. The streak is what turns
+    // that silence back into something observable.
+    int thinking_unreported_streak = 0;
+    bool thinking_inert_announce = false;      // one-shot: streak just reached the inert threshold
     double thinking_baseline_mean = -1.0;     // established after baseline window completes
 
     // Context growth tracking — detect prompt bloat

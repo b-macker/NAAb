@@ -354,6 +354,8 @@ struct NormalizedResponse {
     std::vector<ToolCallInfo> tool_calls;
     bool truncated = false;
     int thinking_tokens = 0;
+    // Whether the provider mentioned thinking at all. Absent != zero.
+    bool thinking_reported = false;
 };
 
 static NormalizedResponse normalizeResponse(
@@ -397,8 +399,10 @@ static NormalizedResponse normalizeResponse(
                 result.input_tokens = usage["promptTokenCount"].get<int>();
             if (usage.contains("candidatesTokenCount") && usage["candidatesTokenCount"].is_number_integer())
                 result.output_tokens = usage["candidatesTokenCount"].get<int>();
-            if (usage.contains("thoughtsTokenCount") && usage["thoughtsTokenCount"].is_number_integer())
+            if (usage.contains("thoughtsTokenCount") && usage["thoughtsTokenCount"].is_number_integer()) {
                 result.thinking_tokens = usage["thoughtsTokenCount"].get<int>();
+                result.thinking_reported = true;
+            }
         }
         if (result.output_tokens == 0 && !result.content.empty()) {
             result.output_tokens = static_cast<int>(result.content.size() / 4);
@@ -488,6 +492,7 @@ AgentResponse callAgentSimple(
         result.output_tokens = normalized.output_tokens;
         result.truncated = normalized.truncated;
         result.thinking_tokens = normalized.thinking_tokens;
+        result.thinking_reported = normalized.thinking_reported;
     } catch (const std::exception& e) {
         result.success = false;
         result.error = e.what();
@@ -519,6 +524,7 @@ AgentResponse callAgentMultiTurn(
         result.output_tokens = normalized.output_tokens;
         result.truncated = normalized.truncated;
         result.thinking_tokens = normalized.thinking_tokens;
+        result.thinking_reported = normalized.thinking_reported;
         result.tool_calls = std::move(normalized.tool_calls);
     } catch (const std::exception& e) {
         result.success = false;
@@ -654,6 +660,7 @@ ProviderResult callAgentWithStatus(
         pr.response.output_tokens = normalized.output_tokens;
         pr.response.truncated = normalized.truncated;
         pr.response.thinking_tokens = normalized.thinking_tokens;
+        pr.response.thinking_reported = normalized.thinking_reported;
         pr.response.tool_calls = std::move(normalized.tool_calls);
 
     } catch (const std::exception& e) {
@@ -848,6 +855,7 @@ ProviderResult callAgentWithTools(
         pr.response.output_tokens = normalized.output_tokens;
         pr.response.truncated = normalized.truncated;
         pr.response.thinking_tokens = normalized.thinking_tokens;
+        pr.response.thinking_reported = normalized.thinking_reported;
         pr.response.tool_calls = std::move(normalized.tool_calls);
 
     } catch (const std::exception& e) {

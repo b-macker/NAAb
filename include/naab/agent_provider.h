@@ -25,6 +25,11 @@ struct AgentResponse {
     int output_tokens = 0;
     bool truncated = false;      // true when response hit token limit
     int thinking_tokens = 0;     // thinking tokens consumed (Gemini thoughtsTokenCount)
+    // Whether the provider reported a thinking count AT ALL. Absent and zero
+    // are different facts: a model that did no thinking and an API that did
+    // not mention thinking both leave thinking_tokens at 0, and S9 cannot
+    // tell them apart from the value alone.
+    bool thinking_reported = false;
     std::string error;  // non-empty on failure
 
     // Tool calls (populated when stop_reason indicates tool use)

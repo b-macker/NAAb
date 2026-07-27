@@ -1601,6 +1601,20 @@ else
     echo "  test_developer_blindspot.sh: not found, skipping"
 fi
 
+# thinking_collapse must score a measurement, not a missing field. TR-04
+# measures whether the unreported announcement carries information.
+THINKREP_SCRIPT="tests/governance_v4/test_thinking_reported.sh"
+if [ -f "$THINKREP_SCRIPT" ]; then
+    if bash "$THINKREP_SCRIPT" 2>&1; then
+        echo "  test_thinking_reported.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_thinking_reported.sh")
+    fi
+else
+    echo "  test_thinking_reported.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

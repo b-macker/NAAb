@@ -3962,7 +3962,7 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             "agent.response('" + config_name + "', tokens=" +
             std::to_string(resp_output_tokens) + ")", "", 0, cfp,
             resp_output_tokens, agent_resp.thinking_tokens, response_keywords,
-            agent_resp.input_tokens);
+            agent_resp.input_tokens, agent_resp.thinking_reported);
         // Context drift check — include json parse failures as coherence signals
         std::string cdd_error = agent_resp.success ? json_error_signal : agent_resp.error;
         // Read governance level before CDD (for change detection)
@@ -4010,6 +4010,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 if (drift_state->last_validation_credit_withheld) {
                     if (!penalty_detail.empty()) penalty_detail += ",";
                     penalty_detail += "validation_credit_withheld=evidence_shrank";
+                }
+                // S9 has gone inert: the provider stopped reporting thinking
+                // counts, so thinking_collapse can no longer score anything.
+                // Skipping unmeasured turns is right, but a signal that goes
+                // quiet looks exactly like a signal that has nothing to say —
+                // which is how the pulse defect stayed hidden for three runs.
+                // An agent configured with thinking_budget: 0 has no thinking by
+                // instruction. An absent count there is the operator's decision,
+                // not a broken measurement, and announcing it would put a
+                // permanent instrumentation warning on every deliberately
+                // non-thinking agent in the config.
+                if (drift_state->thinking_inert_announce &&
+                    (!config || config->thinking_budget != 0)) {
+                    gov_engine->writeAgentTelemetry("THINKING_UNREPORTED", {
+                        {"handle_id",   std::to_string(handle_id)},
+                        {"config_name", config_name},
+                        {"turn",        std::to_string(current_turn)},
+                        {"streak",      std::to_string(drift_state->thinking_unreported_streak)},
+                        {"detail",      "provider reported no thinking count for "
+                                        + std::to_string(drift_state->thinking_unreported_streak)
+                                        + " consecutive responses — thinking_collapse is inert"},
+                    });
                 }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
