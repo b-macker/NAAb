@@ -1709,8 +1709,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             if (ev.type == RuntimeEventType::AGENT_RESPONSE && !ev.content_keywords.empty()) {
                 int kw_count = static_cast<int>(ev.content_keywords.size());
                 state.response_keyword_counts.push_back(kw_count);
-                // Use same window as coherence history
-                int window = config_->thresholds.thinking_history_window;
+                // S17's own window. It previously read thinking_history_window,
+                // so tuning the THINKING signal silently moved the persona
+                // baseline — the window controls how many samples the baseline
+                // mean and stddev are computed from, so a smaller thinking
+                // window produced a different persona verdict on identical
+                // responses. Same default, so no behaviour changes unless the
+                // thinking window was already tuned away from it.
+                int window = config_->thresholds.persona_history_window;
                 while (static_cast<int>(state.response_keyword_counts.size()) > window)
                     state.response_keyword_counts.pop_front();
 

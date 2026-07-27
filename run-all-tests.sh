@@ -1615,6 +1615,19 @@ else
     echo "  test_thinking_reported.sh: not found, skipping"
 fi
 
+# persona_fingerprint must not be retuned by thinking_collapse's window.
+PERSONAWIN_SCRIPT="tests/governance_v4/test_persona_window.sh"
+if [ -f "$PERSONAWIN_SCRIPT" ]; then
+    if bash "$PERSONAWIN_SCRIPT" 2>&1; then
+        echo "  test_persona_window.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_persona_window.sh")
+    fi
+else
+    echo "  test_persona_window.sh: not found, skipping"
+fi
+
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then

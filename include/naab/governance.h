@@ -1486,6 +1486,12 @@ struct ContextDriftConfig {
         // 2.0: fire when response keyword count deviates by more than 2 standard deviations
         // from the baseline mean. Normal variation stays within 1.5 stddev.
         double persona_deviation_factor = 2.0;
+        // 20: rolling window of response keyword counts backing the persona
+        // baseline. Same default as thinking_history_window, which S17 used to
+        // borrow outright — so tuning the THINKING window silently retuned the
+        // persona baseline, and the borrowed key's comment claimed it was the
+        // coherence history size, which it also is not.
+        int persona_history_window = 20;
         // 0.15: at least 15% of tool result keywords should appear in the agent's response
         // when it references that tool. Below this the agent may be fabricating results.
         double tool_result_recall_min = 0.15;
