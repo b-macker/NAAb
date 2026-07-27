@@ -1221,7 +1221,13 @@ main {
         // NOT recorded — it measures the artifact as this phase inherited it,
         // and attributing that outcome to the developer would charge it for
         // work done before the phase began.
-        if handles.get("developer") != null {
+        // Only report when pytest actually RAN. validate_code sets pytest_passed
+        // inside the "pipeline and tests both exist" guard, and `.get(k) == true`
+        // is false for an absent key — so a validation where no test executed
+        // was being reported to the engine as a test failure. That charges the
+        // developer S22's flat penalty for a phase that produced no evidence
+        // either way, which is the opposite of what ground truth means.
+        if handles.get("developer") != null && val.get("pytest_passed") != null {
             let rf_ev = val.get("test_func_count") ?? -1
             let rf_detail = null
             if !last_pytest_passed { rf_detail = last_pytest_out }
@@ -2173,7 +2179,7 @@ main {
         if fval.get("pytest_passed") == false {
             print("VALIDATE|feat" + string(feat_num) + "|revalidated_pytest_passed=" + string(feat_passed))
         }
-        if handles.get("developer") != null {
+        if handles.get("developer") != null && cur_val.get("pytest_passed") != null {
             // Report the test count with the outcome. pytest exit 0 is the
             // ground truth erosion defeats — a suite with its failing test
             // deleted passes — so a pass carrying fewer checks than the last
