@@ -481,7 +481,7 @@ main {
 # F-on: flag enabled — challenge fires, passes, coherence recovers
 WDIR="$TEST_TMP/f_on"; mkdir -p "$WDIR"
 printf '%s' "$FLOOR_FIXTURE" > "$WDIR/fixture.json"
-start_stub "$WDIR/fixture.json" "$WDIR" || skip "F-01" "stub failed"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "F-00" "stub failed"; STUB_PID=""; }
 if [ -n "$STUB_PID" ]; then
 mk_govern_floor "$STUB_PORT" true > "$WDIR/govern.json"; sign_govern "$WDIR"
 printf '%s' "$FLOOR_NAAB" > "$WDIR/test.naab"
@@ -513,7 +513,7 @@ fi
 # F-off: control — same staging, flag absent (default false): no challenge
 WDIR="$TEST_TMP/f_off"; mkdir -p "$WDIR"
 printf '%s' "$FLOOR_FIXTURE" > "$WDIR/fixture.json"
-start_stub "$WDIR/fixture.json" "$WDIR" || skip "F-04" "stub failed"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "F-04" "stub failed"; STUB_PID=""; }
 if [ -n "$STUB_PID" ]; then
 mk_govern_floor "$STUB_PORT" false > "$WDIR/govern.json"; sign_govern "$WDIR"
 printf '%s' "$FLOOR_NAAB" > "$WDIR/test.naab"
@@ -537,7 +537,7 @@ if $IS_WINDOWS_G; then
 else
 WDIR="$TEST_TMP/g"; mkdir -p "$WDIR"
 printf '%s' "$FLOOR_FIXTURE" > "$WDIR/fixture.json"
-start_stub "$WDIR/fixture.json" "$WDIR" || skip "G-01" "stub failed"
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "G-00" "stub failed"; STUB_PID=""; }
 if [ -n "$STUB_PID" ]; then
 presign_g() {
     local pdir="$TEST_TMP/.presign_g"; mkdir -p "$pdir"
