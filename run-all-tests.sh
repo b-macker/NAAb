@@ -1458,6 +1458,21 @@ else
     echo "  test_uncatchable.sh: not found, skipping"
 fi
 
+# Non-formation and its proof — a blocked action leaves no side effect, and the
+# refusal is signed, chained, and detectable if edited. Group A is the control
+# that gives the absence of a side effect meaning.
+NONFORM_SCRIPT="tests/governance_v4/test_nonformation_proof.sh"
+if [ -f "$NONFORM_SCRIPT" ]; then
+    if bash "$NONFORM_SCRIPT" 2>&1; then
+        echo "  test_nonformation_proof.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_nonformation_proof.sh")
+    fi
+else
+    echo "  test_nonformation_proof.sh: not found, skipping"
+fi
+
 # Governance hooks (pre_check/post_check/on_complete/on_violation/on_override)
 HOOKS_SCRIPT="tests/governance_v4/test_hooks.sh"
 if $IS_WINDOWS; then
