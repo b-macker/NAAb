@@ -130,7 +130,7 @@ for i in range(N):
         "output_tokens": 60,
         "thinking_tokens": think,
     })
-json.dump({"responses": out}, open("/dev/stdout", "w"))
+json.dump({"responses": out}, sys.stdout)
 PY
 }
 
