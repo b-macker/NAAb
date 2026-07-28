@@ -49,7 +49,9 @@ mkdir -p "$TEST_TMP"
 export NAAB_SIGNING_KEY="$TEST_TMP/test-key.pem"
 SIGNING_KEY="$TEST_TMP/test-key.pem"
 
-sign_govern() { (cd "$1" && "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
+# Signs with the in-directory key copy for the same path-portability reason
+# as write_govern below.
+sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="signing.pem" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
 # jq is optional — fall back to grep on the raw JSONL when absent.
 HAVE_JQ=false
@@ -66,7 +68,14 @@ refusal_event() {  # $1 = telemetry file
 
 # Emits a govern.json that blocks nothing except what $2 says, with
 # attestation recording and the telemetry hash chain both on.
-write_govern() {  # $1=dir  $2=policy-fragment  $3=telemetry-path
+#
+# Paths inside govern.json are RELATIVE and every run below cds into the
+# test directory first. The binary is native on Windows while the harness
+# runs under MSYS2, so an absolute POSIX path written into the config is
+# not a path the binary can open — it silently fails to write telemetry,
+# and the attestation disappears while the block itself still works.
+write_govern() {  # $1=dir  $2=policy-fragment
+    cp "$SIGNING_KEY" "$1/signing.pem"
     cat > "$1/govern.json" << EOF
 {
     "mode": "enforce",
@@ -74,7 +83,7 @@ write_govern() {  # $1=dir  $2=policy-fragment  $3=telemetry-path
     $2
     "telemetry": {
         "enabled": true,
-        "output_file": "$3",
+        "output_file": "telemetry.jsonl",
         "tamper_evidence": { "enabled": true, "algorithm": "sha256" }
     },
     "audit": {
@@ -82,7 +91,7 @@ write_govern() {  # $1=dir  $2=policy-fragment  $3=telemetry-path
             "enabled": true,
             "record_attestations": true,
             "sign_records": true,
-            "signing_key": "$SIGNING_KEY"
+            "signing_key": "signing.pem"
         }
     }
 }
@@ -101,7 +110,7 @@ echo ""
 echo -e "${CYAN}--- Group A: control (admitted action DOES form) ---${NC}"
 
 ADIR="$TEST_TMP/a"; mkdir -p "$ADIR"
-write_govern "$ADIR" '"languages": { "allowed": ["python"] },' "$ADIR/telemetry.jsonl"
+write_govern "$ADIR" '"languages": { "allowed": ["python"] },'
 sign_govern "$ADIR"
 cat > "$ADIR/act.naab" << 'NAABEOF'
 main {
@@ -135,7 +144,7 @@ echo -e "${CYAN}--- Group B: blocked language (non-formation) ---${NC}"
 
 BDIR="$TEST_TMP/b"; mkdir -p "$BDIR"
 TELE_B="$BDIR/telemetry.jsonl"
-write_govern "$BDIR" '"languages": { "blocked": ["python"] },' "$TELE_B"
+write_govern "$BDIR" '"languages": { "blocked": ["python"] },'
 sign_govern "$BDIR"
 cp "$ADIR/act.naab" "$BDIR/act.naab"
 
@@ -207,17 +216,17 @@ fi
 echo ""
 echo -e "${CYAN}--- Group D: proof is tamper-evident ---${NC}"
 
-if "$NAAB" --verify-telemetry-chain "$TELE_B" > "$TEST_TMP/verify_clean.txt" 2>&1; then
+if (cd "$BDIR" && "$NAAB" --verify-telemetry-chain telemetry.jsonl) > "$TEST_TMP/verify_clean.txt" 2>&1; then
     pass "D-01" "hash chain over the refusal evidence verifies clean"
 else
     fail "D-01" "chain verification failed on untouched evidence" "$(tail -3 "$TEST_TMP/verify_clean.txt")"
 fi
 
 # Mutation: flip the very claim the attestation makes.
-MUT="$TEST_TMP/tele_mutated.jsonl"
+MUT="$BDIR/tele_mutated.jsonl"
 sed 's/"execution_prevented":true/"execution_prevented":false/' "$TELE_B" > "$MUT"
 if ! cmp -s "$TELE_B" "$MUT"; then
-    if "$NAAB" --verify-telemetry-chain "$MUT" > "$TEST_TMP/verify_mut.txt" 2>&1; then
+    if (cd "$BDIR" && "$NAAB" --verify-telemetry-chain tele_mutated.jsonl) > "$TEST_TMP/verify_mut.txt" 2>&1; then
         fail "D-02" "mutated attestation still verified clean"
     else
         if grep -q "TAMPER" "$TEST_TMP/verify_mut.txt"; then
@@ -231,10 +240,10 @@ else
 fi
 
 # Deletion: remove the attestation line entirely.
-DEL="$TEST_TMP/tele_deleted.jsonl"
+DEL="$BDIR/tele_deleted.jsonl"
 grep -v '"event_type":"RefusalAttestation"' "$TELE_B" > "$DEL" 2>/dev/null
 if [ -s "$DEL" ] && ! cmp -s "$TELE_B" "$DEL"; then
-    if "$NAAB" --verify-telemetry-chain "$DEL" > "$TEST_TMP/verify_del.txt" 2>&1; then
+    if (cd "$BDIR" && "$NAAB" --verify-telemetry-chain tele_deleted.jsonl) > "$TEST_TMP/verify_del.txt" 2>&1; then
         fail "D-03" "deleting the attestation left a clean-verifying chain"
     else
         pass "D-03" "deleting the attestation breaks the chain"
@@ -251,7 +260,7 @@ echo -e "${CYAN}--- Group E: capability gate (shell) ---${NC}"
 
 EDIR="$TEST_TMP/e"; mkdir -p "$EDIR"
 TELE_E="$EDIR/telemetry.jsonl"
-write_govern "$EDIR" '"capabilities": { "shell": { "enabled": false } },' "$TELE_E"
+write_govern "$EDIR" '"capabilities": { "shell": { "enabled": false } },'
 sign_govern "$EDIR"
 cat > "$EDIR/act.naab" << 'NAABEOF'
 main {
