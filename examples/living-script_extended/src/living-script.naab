@@ -1294,67 +1294,98 @@ main {
     if handles.get("developer") != null && len(pipeline_code) > 20 {
         check_coherence(handles["developer"], "developer")
         let propose_msg = "Add a get_stage_names() method to the Pipeline class that returns a list of all stage names added via add_stage(). Add type hint and docstring.\n\n" + invariants + "\n\nCurrent pipeline.py:\n```python\n" + pipeline_code + "\n```\nOutput the COMPLETE file with get_stage_names added. ```python fences. Code only."
-        try {
-            let proposals = null
+        // The standing lease is enforced at BOTH ends of this cycle: propose
+        // gates it when the candidates are generated, and commit gates it
+        // again when the transition becomes real. A wall-clock lease can
+        // therefore expire in the deliberation gap between them. Two layers
+        // handle it — a pre-emptive renewal so the common case never sees a
+        // refusal, and a retry so a mid-cycle expiry is still recoverable.
+        //
+        // The retry has to redo the WHOLE cycle, not just the failed step:
+        // the re-authorizing send invalidates any outstanding proposal by
+        // design, so a candidate generated before the send cannot be
+        // committed after it.
+        let lease_floor_seconds = 120  // ~3 propose calls plus a commit
+
+        // Layer (a): renew before starting if headroom is thin.
+        let dev_state = agent.environment(handles["developer"]).get("state") ?? {}
+        let lease_left = dev_state.get("lease_remaining_seconds") ?? -1
+        if lease_left >= 0 && lease_left < lease_floor_seconds {
+            print("PROPOSE_SELECT|lease_preemptive_reauth|remaining=" + string(lease_left))
+            let pre_reauth = agent.send(handles["developer"], "Confirm you are ready to proceed. Restate your current objective in one sentence.")
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            track("developer", pre_reauth)
+            post_send_check(handles["developer"], pre_reauth, "developer")
+        }
+
+        // Layer (b): propose -> select -> commit as one retryable unit.
+        let attempt = 0
+        let cycle_done = false
+        while attempt < 2 && cycle_done == false {
+            attempt = attempt + 1
             try {
-                proposals = agent.propose(handles["developer"], propose_msg, 3)
+                let proposals = agent.propose(handles["developer"], propose_msg, 3)
+                let candidates = proposals.get("candidates") ?? []
+                propose_candidates = candidates.length()
+                print("PROPOSE_SELECT|candidates=" + string(propose_candidates))
+
+                // Each candidate carries its own read-only admissibility score.
+                // Printing them is what makes the selection auditable: without it
+                // there is no way to tell ranking-by-score from taking candidate 0.
+                let cai = 0
+                while cai < candidates.length() {
+                    let cand_adm = candidates[cai].get("admissibility") ?? {}
+                    print("PROPOSE_CAND|" + string(cai) + "|admissible=" + string(cand_adm.get("admissible") ?? false) + "|score=" + string(cand_adm.get("score") ?? -1) + "|threshold=" + string(cand_adm.get("threshold") ?? -1) + "|reason=" + string(cand_adm.get("reason") ?? "") + "|len=" + string(len(string(candidates[cai].get("content") ?? ""))))
+                    cai = cai + 1
+                }
+
+                if propose_candidates > 0 {
+                    let selected = orchestra.select_admissible(proposals)
+                    print("PROPOSE_SELECT|admissible_count=" + string(selected.get("admissible_count") ?? -1) + "|selected_index=" + string(selected.get("selected_index") ?? -1) + "|total=" + string(selected.get("total") ?? -1))
+                    // select_admissible returns {selected, selected_index,
+                    // admissible_count, total}; "selected" is a candidate dict or
+                    // null when nothing cleared the threshold.
+                    let best = selected.get("selected")
+                    if best != null {
+                        let committed = agent.commit(handles["developer"], best)
+                        propose_committed = true
+                        track("developer", committed)
+                        post_send_check(handles["developer"], committed, "developer")
+                        let committed_code = agent.extract_code(committed.get("content") ?? "", "python")
+                        if len(committed_code) > 20 {
+                            pipeline_code = committed_code
+                        }
+                        print("PROPOSE_SELECT|committed=true")
+                    }
+                }
+                cycle_done = true
             } catch (e) {
-                if string(e).contains("step-up") {
-                    print("PROPOSE_SELECT|step_up_reauth")
+                // Re-authorize and redo the cycle once. A second consecutive
+                // step-up refusal is reported rather than retried again —
+                // looping on it would burn the challenge-failure budget.
+                if string(e).contains("step-up") && attempt < 2 {
+                    print("PROPOSE_SELECT|step_up_reauth|attempt=" + string(attempt))
                     let reauth = agent.send(handles["developer"], "Confirm you are ready to proceed. Restate your current objective in one sentence.")
                     tracking["total_sends"] = tracking["total_sends"] + 1
                     track("developer", reauth)
                     post_send_check(handles["developer"], reauth, "developer")
-                    proposals = agent.propose(handles["developer"], propose_msg, 3)
                 } else {
-                    throw e
+                    print("PROPOSE_SELECT|error=" + string(e))
+                    cycle_done = true
                 }
             }
-            let candidates = proposals.get("candidates") ?? []
-            propose_candidates = candidates.length()
-            print("PROPOSE_SELECT|candidates=" + string(propose_candidates))
+        }
 
-            // Each candidate carries its own read-only admissibility score.
-            // Printing them is what makes the selection auditable: without it
-            // there is no way to tell ranking-by-score from taking candidate 0.
-            let cai = 0
-            while cai < candidates.length() {
-                let cand_adm = candidates[cai].get("admissibility") ?? {}
-                print("PROPOSE_CAND|" + string(cai) + "|admissible=" + string(cand_adm.get("admissible") ?? false) + "|score=" + string(cand_adm.get("score") ?? -1) + "|threshold=" + string(cand_adm.get("threshold") ?? -1) + "|reason=" + string(cand_adm.get("reason") ?? "") + "|len=" + string(len(string(candidates[cai].get("content") ?? ""))))
-                cai = cai + 1
+        // Outside the retry unit: this validates pipeline_code, which is
+        // unchanged by a failed cycle, so it must not be re-run per attempt.
+        if len(pipeline_code) > 20 {
+            try {
+                codegen.run_strict("python", "import ast; ast.parse('''" + pipeline_code + "''')")
+                codegen_result = "pass"
+            } catch (e) {
+                codegen_result = "fail"
+                print("PROPOSE_SELECT|codegen_error=" + string(e))
             }
-
-            if propose_candidates > 0 {
-                let selected = orchestra.select_admissible(proposals)
-                print("PROPOSE_SELECT|admissible_count=" + string(selected.get("admissible_count") ?? -1) + "|selected_index=" + string(selected.get("selected_index") ?? -1) + "|total=" + string(selected.get("total") ?? -1))
-                // select_admissible returns {selected, selected_index,
-                // admissible_count, total}; "selected" is a candidate dict or
-                // null when nothing cleared the threshold.
-                let best = selected.get("selected")
-                if best != null {
-                    let committed = agent.commit(handles["developer"], best)
-                    propose_committed = true
-                    track("developer", committed)
-                    post_send_check(handles["developer"], committed, "developer")
-                    let committed_code = agent.extract_code(committed.get("content") ?? "", "python")
-                    if len(committed_code) > 20 {
-                        pipeline_code = committed_code
-                    }
-                    print("PROPOSE_SELECT|committed=true")
-                }
-            }
-
-            if len(pipeline_code) > 20 {
-                try {
-                    codegen.run_strict("python", "import ast; ast.parse('''" + pipeline_code + "''')")
-                    codegen_result = "pass"
-                } catch (e) {
-                    codegen_result = "fail"
-                    print("PROPOSE_SELECT|codegen_error=" + string(e))
-                }
-            }
-        } catch (e) {
-            print("PROPOSE_SELECT|error=" + string(e))
         }
     }
 

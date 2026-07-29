@@ -5150,6 +5150,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
     std::string user_message = selected.user_message;
 
     int current_turn = 0;
+    bool lease_expired = false;
     {
         std::lock_guard<std::mutex> lock(s_agent_mutex);
         auto tracker_it = s_trackers.find(handle_id);
@@ -5165,10 +5166,43 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                 "  Got: {} turns used\n",
                 config->max_turns, tracker_it->second.turns));
         }
+        // Authority is time-varying; a proposal is not. propose() gates the
+        // lease when the candidates are generated, but commit is the point the
+        // transition becomes real, and the deliberation gap between the two is
+        // the whole purpose of propose/commit. Only the wall-clock half can
+        // actually fire here: turns cannot advance between propose and commit,
+        // so a turn-based lease that passed propose is still valid by
+        // construction. Evaluated under the lock, enforced outside it — same
+        // shape as agentPropose().
+        lease_expired = leaseExpiredLocked(tracker_it->second, config);
         current_turn = tracker_it->second.turns;
     }
 
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
+
+    if (lease_expired) {
+        const auto& cb_cfg = (gov_engine && gov_engine->isActive())
+            ? gov_engine->getRules().circuit_breaker
+            : governance::CircuitBreakerConfig{};
+        if (cb_cfg.step_up_enabled) {
+            // Renewable: agent.send() resets both lease halves on a passed
+            // challenge. Note the send also invalidates outstanding proposals,
+            // so the caller must re-propose rather than retry this commit.
+            throw std::runtime_error(
+                "Agent error: agent.commit denied — step-up challenge required\n\n"
+                "  Help:\n"
+                "  - The standing lease expired while the proposal was pending\n"
+                "  - Call agent.send() to re-authorize, then propose again\n"
+                "  - Re-authorizing discards pending proposals by design\n");
+        }
+        throw std::runtime_error(
+            "Agent error: Standing lease expired before commit\n\n"
+            "  Help:\n"
+            "  - The proposal was generated while the lease was valid,"
+            " but it expired before it was committed\n"
+            "  - Create a new agent handle for a fresh conversation\n"
+            "  - Or enable step_up challenges to allow lease renewal\n");
+    }
 
     // Post-receive pipeline: BSD response event + CDD at the pre-increment turn
     if (gov_engine && gov_engine->isActive() &&

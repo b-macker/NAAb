@@ -426,6 +426,100 @@ else
 fi
 
 # ============================================================
+# Group G: the lease is enforced at the COMMIT boundary, not just at propose
+#
+# propose() gates the lease when candidates are generated, but commit is where
+# the transition becomes real and the deliberation gap between them is the
+# point of propose/commit. Only the WALL-CLOCK half can fire: turns cannot
+# advance between propose and commit, so a turn-based lease that passed
+# propose is still valid at commit by construction. G-02 holds that claim
+# honest — without it the gate could be over-broad and nothing would notice.
+# ============================================================
+echo ""
+echo -e "${CYAN}--- Group G: lease enforced at the commit boundary ---${NC}"
+
+write_govern_commit_lease() {  # $1=workdir $2=port $3=lease_seconds $4=lease_turns $5=step_up
+    cat > "$1/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "circuit_breaker": { "enabled": true, "step_up_enabled": $5 },
+    "agents": {
+        "proposer": {
+            "provider": "gemini",
+            "model": "stub-model",
+            "api_base": "http://127.0.0.1:$2",
+            "api_key_env": "FAKE_KEY_PROPOSE_TEST",
+            "max_tokens": 100,
+            "max_turns": 30,
+            "propose_candidates_max": 2,
+            "standing_lease_seconds": $3,
+            "standing_lease_turns": $4
+        }
+    }
+}
+GOVEOF
+    sign_govern "$1"
+}
+
+# Propose, let the wall clock run past the lease, then commit.
+run_commit_lease_case() {  # $1=name $2=lease_seconds $3=lease_turns $4=step_up
+    local d="$TEST_TMP/glease-$1"; mkdir -p "$d"
+    cp "$WDIR/fixture.json" "$d/fixture.json"
+    start_stub "$d/fixture.json" "$d" >/dev/null 2>&1 || { echo "STUB_FAIL"; return; }
+    write_govern_commit_lease "$d" "$STUB_PORT" "$2" "$3" "$4"
+    cat > "$d/t.naab" << 'EOF'
+use agent
+main {
+    let h = agent.create("proposer")
+    let p = agent.propose(h, "summarize quarterly revenue", 1)
+    let cands = p.get("candidates") ?? []
+    if cands.length() == 0 { print("NO_CANDIDATES") }
+    time.sleep(4)
+    try {
+        let c = agent.commit(h, cands[0])
+        print("COMMIT_OK|turns=" + string(agent.usage(h).get("turns") ?? 0))
+    } catch (e) {
+        print("COMMIT_DENIED|stepup=" + string(string(e).contains("step-up")))
+    }
+}
+EOF
+    local out
+    out=$( (cd "$d" && timeout 90s "$NAAB" t.naab 2>/dev/null) \
+        | grep -oE 'COMMIT_OK\|turns=[0-9]+|COMMIT_DENIED\|stepup=(true|false)|NO_CANDIDATES' | tail -1 )
+    echo "${out:-<no output>}"
+    stop_stub
+}
+
+# G-01: wall-clock lease expires during the gap -> commit must refuse, and the
+# message must carry the "step-up" substring the re-auth pattern matches on.
+R_G1=$(run_commit_lease_case wallclock 2 0 true)
+if echo "$R_G1" | grep -q 'COMMIT_DENIED|stepup=true'; then
+    pass "G-01" "Wall-clock lease expiry blocks commit with the re-auth message"
+else
+    fail "G-01" "Commit landed under an expired wall-clock lease" "got: $R_G1"
+fi
+
+# G-02: turn-based lease only -> commit must still succeed. Guards the no-op
+# claim; a failure here means the gate is firing where it provably cannot.
+R_G2=$(run_commit_lease_case turnonly 0 20 true)
+if echo "$R_G2" | grep -q 'COMMIT_OK|turns=1'; then
+    pass "G-02" "Turn-only lease still commits (gate is not over-broad)"
+else
+    fail "G-02" "Turn-lease commit was refused — gate is over-broad" "got: $R_G2"
+fi
+
+# G-03: step-up disabled -> no re-auth path exists, so the refusal must use the
+# hard wording rather than telling the caller to run a challenge it cannot run.
+R_G3=$(run_commit_lease_case nostepup 2 0 false)
+if echo "$R_G3" | grep -q 'COMMIT_DENIED|stepup=false'; then
+    pass "G-03" "Step-up disabled yields the hard lease-expired refusal"
+else
+    fail "G-03" "Wrong refusal wording with step-up disabled" "got: $R_G3"
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}==============================================${NC}"
 echo -e "  Total: $TOTAL  ${GREEN}Pass: $PASS_COUNT${NC}  ${RED}Fail: $FAIL_COUNT${NC}  ${YELLOW}Skip: $SKIP_COUNT${NC}"
