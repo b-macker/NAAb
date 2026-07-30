@@ -26,6 +26,7 @@
     "enabled": true,
     "output_file": "telemetry.jsonl",
     "deduplicate_checks": true,
+    "decision_snapshots": true,
     "tamper_evidence": {
       "enabled": true,
       "algorithm": "sha256",
@@ -34,6 +35,22 @@
     "transcript": {
       "enabled": true,
       "output_file": "transcript.jsonl"
+    }
+  },
+
+  "audit": {
+    "level": "basic",
+    "output_file": "audit.jsonl",
+    "tamper_evidence": {
+      "enabled": true,
+      "algorithm": "sha256",
+      "chain_genesis": "living-script-audit"
+    },
+    "provenance": {
+      "enabled": true,
+      "record_attestations": true,
+      "sign_records": true,
+      "signing_key_env": "NAAB_SIGNING_KEY"
     }
   },
 

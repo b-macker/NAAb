@@ -471,7 +471,12 @@ void GovernanceEngine::emitAttestation(const std::string& action_type,
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
                 att["signature"] = security::CryptoUtils::ed25519Sign(att.dump(), pem);
-                att["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(pem);
+                // Fingerprint the PUBLIC half. ed25519Fingerprint() reads with
+                // PEM_read_bio_PUBKEY and deliberately refuses private keys, so
+                // handing it the signing key silently produced "" — a valid
+                // signature with no key to attribute it to.
+                att["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(
+                    security::CryptoUtils::ed25519PublicFromPrivate(pem));
             }
         } catch (...) {}
     }
@@ -570,7 +575,9 @@ void GovernanceEngine::emitRefusalAttestation(
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
                 ev["signature"] = security::CryptoUtils::ed25519Sign(ev.dump(), pem);
-                ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(pem);
+                // Public half — see emitAttestation() for why.
+                ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(
+                    security::CryptoUtils::ed25519PublicFromPrivate(pem));
             }
         } catch (...) {}
     }
@@ -659,7 +666,9 @@ void GovernanceEngine::emitOutputAdmissibilityAttestation(
                 std::string pem((std::istreambuf_iterator<char>(kf)),
                                  std::istreambuf_iterator<char>());
                 ev["signature"] = security::CryptoUtils::ed25519Sign(ev.dump(), pem);
-                ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(pem);
+                // Public half — see emitAttestation() for why.
+                ev["key_fingerprint"] = security::CryptoUtils::ed25519Fingerprint(
+                    security::CryptoUtils::ed25519PublicFromPrivate(pem));
             }
         } catch (...) {}
     }
