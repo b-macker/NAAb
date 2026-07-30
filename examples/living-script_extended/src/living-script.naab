@@ -271,6 +271,23 @@ fn count_telemetry(pattern) {
     return count_lines_matching("telemetry.jsonl", pattern)
 }
 
+// Fixed-string counter. Needed for the audit file, whose attestation bodies are
+// escaped JSON inside a "message" string: the pattern must match a literal
+// \"signature\": sequence. process.run() passes argv with no shell in between,
+// so grep sees ONE backslash and its BRE reads \" as a plain " — which never
+// matches the escaped text. -F sidesteps the escaping layer entirely.
+fn count_fixed_matching(path, pattern) {
+    try {
+        let g = process.run("grep", ["-c", "-F", pattern, path])
+        if g.exit_code != 0 { return "0" }
+        let s = string.trim(g.stdout)
+        if len(s) == 0 { return "0" }
+        return s
+    } catch (e) {
+        return "0"
+    }
+}
+
 fn write_govern_raw(config) {
     let signing_key_path = env.get("NAAB_SIGN_PATH", "")
     let naab_binary = env.get("NAAB_BINARY", "naab-lang")
@@ -1901,6 +1918,47 @@ main {
     print("TRANSCRIPT_AUDIT|every_entry_hashed=" + string(len(ta_lines) > 0 && ta_lines == ta_hashed))
     print("TRANSCRIPT_AUDIT|ref_matches_entries=" + string(len(ta_refs) > 0 && ta_refs == ta_lines))
     tracking["phases_completed"].push("TRANSCRIPT_AUDIT")
+
+    // ================================================================
+    // PHASE: EVIDENCE_AUDIT — attestations + decision snapshots (Level 24)
+    // ================================================================
+    // The run signs every send and snapshots every CDD decision, and until now
+    // nothing read either back. Two distinct populations, deliberately asserted
+    // differently:
+    //
+    //   Execution attestations are DETERMINISTIC — emitAttestation() fires once
+    //   per agent.send() whenever provenance is on, so the count is a hard
+    //   expectation against total_sends.
+    //
+    //   Refusal attestations only exist when governance actually blocked
+    //   something. Asserting a floor on them would demand the agent misbehave,
+    //   so this compares refusals to refusal-attestations and checks they AGREE.
+    //   Zero of both is a pass; refusals with no attestation is the failure.
+    //
+    // Attestation bodies live escaped inside the audit record's "message"
+    // string, hence the \" patterns. Counting stays in grep/wc for the same
+    // reason TRANSCRIPT_AUDIT does it: decision_snapshots pushes telemetry past
+    // a megabyte and it must never enter script memory.
+    print("PHASE|EVIDENCE_AUDIT|start")
+
+    let ev_attest = count_lines_matching("audit.jsonl", "execution_attestation")
+    let ev_signed = count_fixed_matching("audit.jsonl", "\\\"signature\\\":")
+    let ev_empty_fp = count_fixed_matching("audit.jsonl", "\\\"key_fingerprint\\\":\\\"\\\"")
+    let ev_fp = count_fixed_matching("audit.jsonl", "\\\"key_fingerprint\\\":")
+    print("EVIDENCE|exec_attestations=" + ev_attest + "|sends=" + string(tracking["total_sends"]))
+    print("EVIDENCE|signed=" + ev_signed + "|fingerprinted=" + ev_fp + "|empty_fingerprint=" + ev_empty_fp)
+
+    // cdd_snapshot is embedded structurally, so a bare key match is enough.
+    let ev_snap = count_telemetry("\"cdd_snapshot\":")
+    let ev_semantic = count_telemetry("SEMANTIC_TURN")
+    let ev_oa = count_telemetry("OUTPUT_ADMISSIBILITY_EVAL")
+    print("EVIDENCE|snapshots=" + ev_snap + "|semantic_turns=" + ev_semantic + "|oa_evals=" + ev_oa)
+
+    let ev_refusals = count_telemetry("RuleViolation")
+    let ev_refusal_att = count_telemetry("RefusalAttestation")
+    print("EVIDENCE|refusals=" + ev_refusals + "|refusal_attestations=" + ev_refusal_att)
+
+    tracking["phases_completed"].push("EVIDENCE_AUDIT")
 
     // ================================================================
     // PHASE: CODEGEN_BOUNDARY — codegen strict failure path (Level 18)

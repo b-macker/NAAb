@@ -33,6 +33,7 @@
 #   Level 21: Engine-side ratchet (signed-but-loosened config refused on reload)
 #   Level 22: Output admissibility (quarantine dispositions + streak accounting)
 #   Level 23: Transcript integrity (entry_hash coverage vs chained TRANSCRIPT_REF)
+#   Level 24: Evidence layer (signed attestations, decision snapshots, chain verify)
 #
 # Levels 19b/21/22/23 exist because the corresponding engine behaviour was
 # configured but unobserved: the Jul 22 run registered two tools and made zero
@@ -503,7 +504,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
-    for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT CODEGEN_BOUNDARY; do
+    for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT CODEGEN_BOUNDARY; do
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
@@ -1427,6 +1428,91 @@ assert 'refinement_iterations' in d
     fi
 
     # ============================================================
+    # L24: EVIDENCE LAYER (attestations + decision snapshots)
+    #
+    # The run signs every send and snapshots every CDD decision. Nothing read
+    # either back, and the chain it builds was never verified — the same gap
+    # L19b/21/22/23 exist for. Execution attestations are asserted as a hard
+    # count (deterministic, one per send); refusal attestations are asserted for
+    # AGREEMENT only, because demanding one would require the agent to misbehave.
+    # ============================================================
+    echo -e "${CYAN}Level 24: Evidence Layer${NC}"
+
+    if ! govkill_block "L24-*" 'PHASE|EVIDENCE_AUDIT|'; then
+
+    if echo "$OUTPUT" | grep -q "PHASE|EVIDENCE_AUDIT|start"; then
+        pass "L24-01" "Evidence audit phase reached"
+    else
+        fail "L24-01" "Evidence audit phase not reached"
+    fi
+
+    EV_ATT=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|exec_attestations=\K[0-9]+' | head -1)
+    EV_SENDS=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|exec_attestations=[0-9]+\|sends=\K[0-9]+' | head -1)
+    if [ "${EV_ATT:-0}" -gt 0 ] && [ "${EV_ATT:-0}" -eq "${EV_SENDS:-(-1)}" ]; then
+        pass "L24-02" "One signed execution attestation per send (${EV_ATT}/${EV_SENDS})"
+    elif [ "${EV_ATT:-0}" -eq 0 ]; then
+        gk_fail "L24-02" "No execution attestations recorded" "audit.level or provenance.record_attestations is not in effect"
+    else
+        gk_fail "L24-02" "Attestation/send mismatch" "attestations=${EV_ATT:-?} sends=${EV_SENDS:-?}"
+    fi
+
+    # Fingerprint CONTENT, not presence: the field was empty for every
+    # attestation the engine ever wrote, because the signing key was handed to a
+    # fingerprint function that only accepts public keys. A signature with no
+    # attributable key is not proof of who acted.
+    EV_SIGNED=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|signed=\K[0-9]+' | head -1)
+    EV_FP=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|signed=[0-9]+\|fingerprinted=\K[0-9]+' | head -1)
+    EV_EMPTY_FP=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|.*\|empty_fingerprint=\K[0-9]+' | head -1)
+    if [ "${EV_SIGNED:-0}" -eq "${EV_ATT:-(-1)}" ] && [ "${EV_FP:-0}" -eq "${EV_ATT:-(-1)}" ] \
+       && [ "${EV_EMPTY_FP:-1}" -eq 0 ]; then
+        pass "L24-03" "Every attestation is signed and attributable (${EV_SIGNED} signed, 0 empty fingerprints)"
+    else
+        gk_fail "L24-03" "Attestations unsigned or unattributable" \
+            "signed=${EV_SIGNED:-?} fingerprinted=${EV_FP:-?} empty_fp=${EV_EMPTY_FP:-?} of ${EV_ATT:-?}"
+    fi
+
+    EV_SNAP=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|snapshots=\K[0-9]+' | head -1)
+    EV_SEM=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|snapshots=[0-9]+\|semantic_turns=\K[0-9]+' | head -1)
+    EV_OA=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|.*\|oa_evals=\K[0-9]+' | head -1)
+    EV_EXPECT_SNAP=$(( ${EV_SEM:-0} + ${EV_OA:-0} ))
+    if [ "${EV_SNAP:-0}" -gt 0 ] && [ "${EV_SNAP:-0}" -eq "$EV_EXPECT_SNAP" ]; then
+        pass "L24-04" "Decision snapshots on every scored turn (${EV_SNAP} = ${EV_SEM:-0} semantic + ${EV_OA:-0} OA)"
+    elif [ "${EV_SNAP:-0}" -eq 0 ]; then
+        gk_fail "L24-04" "No decision snapshots recorded" "telemetry.decision_snapshots is not in effect"
+    else
+        gk_fail "L24-04" "Snapshot coverage incomplete" "snapshots=${EV_SNAP:-?} expected=${EV_EXPECT_SNAP} (semantic+OA)"
+    fi
+
+    # Agreement, never a floor. Zero refusals and zero attestations is a pass:
+    # a clean run has nothing to attest.
+    EV_REF=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|refusals=\K[0-9]+' | head -1)
+    EV_REF_ATT=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|refusals=[0-9]+\|refusal_attestations=\K[0-9]+' | head -1)
+    if [ "${EV_REF:-0}" -eq 0 ]; then
+        pass "L24-05" "No governance refusals this run (nothing to attest)"
+    elif [ "${EV_REF_ATT:-0}" -ge "${EV_REF:-0}" ]; then
+        pass "L24-05" "Every refusal carries an attestation (${EV_REF_ATT}/${EV_REF})"
+    else
+        fail "L24-05" "Refusals without attestations" \
+            "refusals=${EV_REF:-?} attestations=${EV_REF_ATT:-?}; a block with no signed record is unprovable"
+    fi
+
+    # The chain is built on every run and has never been verified.
+    for _chain in telemetry audit; do
+        _cf="$WORKDIR/${_chain}.jsonl"
+        if [ ! -f "$_cf" ]; then
+            gk_fail "L24-06-${_chain}" "${_chain}.jsonl absent" "nothing to verify"
+        elif (cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1) \
+                | grep -q "Chain verified:"; then
+            pass "L24-06-${_chain}" "${_chain} hash chain verifies end to end"
+        else
+            fail "L24-06-${_chain}" "${_chain} hash chain BROKEN or TAMPERED" \
+                "$( (cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1) | grep -E 'BREAK|TAMPER|CORRUPT' | head -2)"
+        fi
+    done
+
+    fi
+
+    # ============================================================
     # L19b: TOOL EXECUTION (forced) + dual-gate negative control
     # ============================================================
     echo -e "${CYAN}Level 19b: Tool Execution (forced)${NC}"
@@ -1911,5 +1997,8 @@ echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"to
 [ -f "${STDERR_FILE:-/dev/null}" ] && cp "$STDERR_FILE" "$RESULTS_DIR/stderr_${TIMESTAMP}.txt" 2>/dev/null || true
 [ -f "${WORKDIR:-/dev/null}/telemetry.jsonl" ] && cp "$WORKDIR/telemetry.jsonl" "$RESULTS_DIR/telemetry_${TIMESTAMP}.jsonl" 2>/dev/null || true
 [ -f "${WORKDIR:-/dev/null}/transcript.jsonl" ] && cp "$WORKDIR/transcript.jsonl" "$RESULTS_DIR/transcript_${TIMESTAMP}.jsonl" 2>/dev/null || true
+# Signed execution attestations live here. Unarchived, they died with WORKDIR —
+# the same "configured but unobserved" gap that L19b/21/22/23 were added for.
+[ -f "${WORKDIR:-/dev/null}/audit.jsonl" ] && cp "$WORKDIR/audit.jsonl" "$RESULTS_DIR/audit_${TIMESTAMP}.jsonl" 2>/dev/null || true
 
 exit "$FAIL_COUNT"

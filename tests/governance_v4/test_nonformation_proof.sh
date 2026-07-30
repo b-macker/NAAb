@@ -204,10 +204,16 @@ else
     fail "C-04" "binding_status missing" "${ATT:0:200}"
 fi
 
-if echo "$ATT" | grep -q '"signature":"' && echo "$ATT" | grep -q '"key_fingerprint":"'; then
-    pass "C-05" "attestation is Ed25519-signed with a key fingerprint"
+# Assert the fingerprint's CONTENT, not its presence. The original check was
+# '"key_fingerprint":"' which also matches an empty value — and the field was in
+# fact always empty, because the signing (private) key was handed to
+# ed25519Fingerprint(), which only accepts public keys. A signature you cannot
+# attribute to a key is not proof of who refused.
+if echo "$ATT" | grep -qE '"signature":"[A-Za-z0-9+/=]{40,}"' &&
+   echo "$ATT" | grep -qE '"key_fingerprint":"[0-9a-f]{16,}"'; then
+    pass "C-05" "attestation is Ed25519-signed and the key fingerprint is non-empty"
 else
-    fail "C-05" "attestation unsigned" "${ATT:0:200}"
+    fail "C-05" "attestation unsigned or fingerprint empty" "${ATT:0:300}"
 fi
 
 # ============================================================
