@@ -1942,10 +1942,17 @@ main {
     print("PHASE|EVIDENCE_AUDIT|start")
 
     let ev_attest = count_lines_matching("audit.jsonl", "execution_attestation")
+    let ev_send_att = count_fixed_matching("audit.jsonl", "\\\"action\\\":\\\"send\\\"")
+    let ev_commit_att = count_fixed_matching("audit.jsonl", "\\\"action\\\":\\\"commit\\\"")
     let ev_signed = count_fixed_matching("audit.jsonl", "\\\"signature\\\":")
     let ev_empty_fp = count_fixed_matching("audit.jsonl", "\\\"key_fingerprint\\\":\\\"\\\"")
     let ev_fp = count_fixed_matching("audit.jsonl", "\\\"key_fingerprint\\\":")
-    print("EVIDENCE|exec_attestations=" + ev_attest + "|sends=" + string(tracking["total_sends"]))
+    // script_sends is reported for forensics, NOT asserted as an equality.
+    // agent.commit() attests too, and safe_send() increments the counter even
+    // when the send was blocked and never reached emitAttestation — so exact
+    // equality would depend on agent behaviour. That is the same reason the
+    // refusal check below asserts agreement rather than a floor.
+    print("EVIDENCE|exec_attestations=" + ev_attest + "|send_attestations=" + ev_send_att + "|commit_attestations=" + ev_commit_att + "|script_sends=" + string(tracking["total_sends"]))
     print("EVIDENCE|signed=" + ev_signed + "|fingerprinted=" + ev_fp + "|empty_fingerprint=" + ev_empty_fp)
 
     // cdd_snapshot is embedded structurally, so a bare key match is enough.

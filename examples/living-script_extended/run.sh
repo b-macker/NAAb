@@ -1446,14 +1446,27 @@ assert 'refinement_iterations' in d
         fail "L24-01" "Evidence audit phase not reached"
     fi
 
+    # Deliberately NOT an equality against the script's send counter.
+    # agent.commit() attests as well as agent.send(), and safe_send() bumps
+    # total_sends even when the send was blocked before reaching
+    # emitAttestation — so equality would swing on agent behaviour, the same
+    # trap L24-05 avoids. What IS invariant: attestations exist, every one is a
+    # known action, and attested sends cannot outnumber attempted sends.
     EV_ATT=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|exec_attestations=\K[0-9]+' | head -1)
-    EV_SENDS=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|exec_attestations=[0-9]+\|sends=\K[0-9]+' | head -1)
-    if [ "${EV_ATT:-0}" -gt 0 ] && [ "${EV_ATT:-0}" -eq "${EV_SENDS:-(-1)}" ]; then
-        pass "L24-02" "One signed execution attestation per send (${EV_ATT}/${EV_SENDS})"
-    elif [ "${EV_ATT:-0}" -eq 0 ]; then
+    EV_SEND_ATT=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|.*\|send_attestations=\K[0-9]+' | head -1)
+    EV_COMMIT_ATT=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|.*\|commit_attestations=\K[0-9]+' | head -1)
+    EV_SENDS=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|.*\|script_sends=\K[0-9]+' | head -1)
+    EV_ACTION_SUM=$(( ${EV_SEND_ATT:-0} + ${EV_COMMIT_ATT:-0} ))
+    if [ "${EV_ATT:-0}" -eq 0 ]; then
         gk_fail "L24-02" "No execution attestations recorded" "audit.level or provenance.record_attestations is not in effect"
+    elif [ "${EV_ATT:-0}" -ne "$EV_ACTION_SUM" ]; then
+        fail "L24-02" "Attestations with an unaccounted action" \
+            "total=${EV_ATT:-?} but send=${EV_SEND_ATT:-0} + commit=${EV_COMMIT_ATT:-0} = ${EV_ACTION_SUM}"
+    elif [ "${EV_SEND_ATT:-0}" -gt "${EV_SENDS:-0}" ]; then
+        fail "L24-02" "More attested sends than sends attempted" \
+            "send_attestations=${EV_SEND_ATT:-?} script_sends=${EV_SENDS:-?}; phantom attestation"
     else
-        gk_fail "L24-02" "Attestation/send mismatch" "attestations=${EV_ATT:-?} sends=${EV_SENDS:-?}"
+        pass "L24-02" "Execution attestations recorded and accounted (${EV_SEND_ATT:-0} send + ${EV_COMMIT_ATT:-0} commit, ${EV_SENDS:-?} sends attempted)"
     fi
 
     # Fingerprint CONTENT, not presence: the field was empty for every
