@@ -4005,7 +4005,7 @@ bool GovernanceEngine::reloadIfChanged() {
             }
             writeAgentTelemetry("CONFIG_ADJUSTMENT", {
                 {"accepted", "true"},
-                {"reload_count", std::to_string(reload_count_)},
+                {"reload_count", std::to_string(reload_count_.load(std::memory_order_relaxed))},
                 {"governance_epoch", std::to_string(governance_epoch_.load())},
                 {"update_reason", update_reason},
                 {"changed_agents", joinStrings(changed_agents)},

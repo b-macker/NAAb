@@ -118,6 +118,16 @@ struct PendingProposal {
     bool scan_ok = true;       // response scan + contract passed during propose
     double score = 1.0;        // read-only admissibility score at propose time
     bool admissible = true;
+    // Accepted-config generation this candidate was produced under. commit()
+    // deliberately does NOT reloadIfChanged() — an accepted reload re-baselines
+    // mandate_keywords and would score an already-generated candidate against a
+    // mandate it never received, besides dangling `config` through the atomic
+    // rules_ptr_ swap. Refusing across a reload is the correct substitute: it
+    // declines to commit under conditions the candidate was not evaluated under,
+    // rather than re-scoring it under them. reload_count_ and not
+    // governance_epoch_ — the epoch also moves on pulse verdict transitions, and
+    // the pulse sawtooths, so proposals would be voided during normal operation.
+    int reload_count = 0;
 };
 static std::unordered_map<int, std::vector<PendingProposal>> s_pending_proposals;
 
@@ -4777,22 +4787,50 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
     // weakening. CRITICAL still denies outright regardless of lease.
     if (gov_engine && gov_engine->isActive()) {
         const auto& cb = gov_engine->getRules().circuit_breaker;
+        const bool lease_configured = (config->standing_lease_turns > 0 ||
+                                       config->standing_lease_seconds > 0);
+        bool lease_expired = false;
+        if (lease_configured) {
+            std::lock_guard<std::mutex> lock(s_agent_mutex);
+            auto it = s_trackers.find(handle_id);
+            if (it != s_trackers.end()) {
+                lease_expired = leaseExpiredLocked(it->second, config);
+            }
+        }
+
+        // The LEASE test is unconditional. It used to sit inside the
+        // step_up_enabled guard, so with step-up off (the default —
+        // governance.h step_up_enabled = false) propose consulted the lease not
+        // at all, while agent.send() hard-throws on an expired lease and
+        // agent.commit() checks it unconditionally. Propose was the only entry
+        // point where expired authority passed silently.
+        if (lease_expired) {
+            if (cb.step_up_enabled) {
+                throw std::runtime_error(
+                    "Agent error: agent.propose denied — step-up challenge required\n\n"
+                    "  Help:\n"
+                    "  - Governance level or lease state requires re-authorization\n"
+                    "  - Call agent.send() first so the step-up challenge can run\n");
+            }
+            // No re-auth path exists with step-up disabled, so point at the
+            // remedy that does — same wording as send() and commit().
+            throw std::runtime_error(
+                "Agent error: Standing lease expired before propose\n\n"
+                "  Help:\n"
+                "  - Create a new agent handle for a fresh conversation\n"
+                "  - Or enable step_up challenges to allow lease renewal\n");
+        }
+
+        // The LEVEL test stays inside the guard: required_level is derived from
+        // step_up_at_level, so it is intrinsically about step-up and means
+        // nothing when step-up is off. CRITICAL denies a leased agent outright;
+        // an agent with no lease has no authorization state to consult, so it
+        // keeps the level test rather than being loosened to nothing.
         if (cb.step_up_enabled) {
             int required_level = (cb.step_up_at_level == "high") ? 2 : 1;
             int level = static_cast<int>(gov_engine->getGovernanceLevel());
-            const bool lease_configured = (config->standing_lease_turns > 0 ||
-                                           config->standing_lease_seconds > 0);
-            bool lease_expired = false;
-            {
-                std::lock_guard<std::mutex> lock(s_agent_mutex);
-                auto it = s_trackers.find(handle_id);
-                if (it != s_trackers.end()) {
-                    lease_expired = leaseExpiredLocked(it->second, config);
-                }
-            }
             const bool deny = lease_configured
-                ? (lease_expired ||
-                   level >= static_cast<int>(governance::GovernanceLevel::CRITICAL))
+                ? (level >= static_cast<int>(governance::GovernanceLevel::CRITICAL))
                 : (level >= required_level);
             if (deny) {
                 throw std::runtime_error(
@@ -5008,6 +5046,10 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
         pp.scan_ok = scan_ok;
         pp.score = score;
         pp.admissible = admissible;
+        // Stamp the config generation this candidate was evaluated under.
+        // propose() calls reloadIfChanged() above, so this is the post-reload
+        // value — the generation the candidate actually saw.
+        pp.reload_count = gov_engine ? gov_engine->getReloadCount() : 0;
         pending.push_back(std::move(pp));
 
         cand["success"] = NaabVal::makeBool(true);
@@ -5179,6 +5221,24 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
     }
 
     auto* gov_engine = governance::GovernanceEngine::getCurrent();
+
+    // Governance configuration changed between propose and commit. The candidate
+    // was generated and scored under the previous configuration, so committing it
+    // would advance conversation state under conditions it was never evaluated
+    // against. Refuse rather than re-score — re-scoring is what calling
+    // reloadIfChanged() here would amount to, and it would judge the candidate
+    // against a mandate it never received. Checked alongside the lease below:
+    // both are conditions whose truth changes with the passage of time, which is
+    // why they belong on the commit half rather than the proposal half.
+    if (gov_engine && gov_engine->isActive() &&
+        gov_engine->getReloadCount() != selected.reload_count) {
+        throw std::runtime_error(
+            "Agent error: Governance configuration changed after this proposal\n\n"
+            "  Help:\n"
+            "  - The candidate was generated under the previous configuration\n"
+            "  - Call agent.propose() again so candidates are evaluated"
+            " under the current one\n");
+    }
 
     if (lease_expired) {
         const auto& cb_cfg = (gov_engine && gov_engine->isActive())

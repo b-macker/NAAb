@@ -520,6 +520,174 @@ else
 fi
 
 # ============================================================
+# Group H: a proposal cannot be committed across a config reload
+#
+# commit() deliberately does NOT call reloadIfChanged() — an accepted reload
+# re-baselines mandate_keywords via onAgentConfigChanged() and would score an
+# already-generated candidate against a mandate it never received, besides
+# dangling `config` through the atomic rules_ptr_ swap. Refusing across a reload
+# is the substitute: decline to commit under conditions the candidate was never
+# evaluated against, rather than re-scoring it under them.
+#
+# Two mechanics this test depends on, both verified the hard way:
+#   - reloadIfChanged() compares mtime at SECOND granularity, so the rewrite
+#     must land in a later second than the initial load or no reload occurs.
+#   - subprocess env is scrubbed, so the re-sign must be passed --signing-key
+#     explicitly; NAAB_SIGNING_KEY does not survive into the child.
+# ============================================================
+echo ""
+echo -e "${CYAN}--- Group H: proposal invalidated by a config reload ---${NC}"
+
+write_govern_reload() {  # $1=workdir $2=port
+    cat > "$1/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "languages": { "allowed": ["python"] },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "circuit_breaker": { "enabled": true, "step_up_enabled": true },
+    "agents": {
+        "proposer": {
+            "provider": "gemini",
+            "model": "stub-model",
+            "api_base": "http://127.0.0.1:$2",
+            "api_key_env": "FAKE_KEY_PROPOSE_TEST",
+            "max_tokens": 100,
+            "max_turns": 30,
+            "propose_candidates_max": 2
+        }
+    }
+}
+GOVEOF
+    sign_govern "$1"
+}
+
+run_reload_case() {  # $1=name $2=do_reload(0|1)
+    local d="$TEST_TMP/reload-$1"; mkdir -p "$d"
+    cp "$WDIR/fixture.json" "$d/fixture.json"
+    start_stub "$d/fixture.json" "$d" >/dev/null 2>&1 || { echo "STUB_FAIL"; return; }
+    write_govern_reload "$d" "$STUB_PORT"
+    cat > "$d/t.naab" << 'EOF'
+use agent
+use file
+use json
+use process
+main {
+    let h = agent.create("proposer")
+    let p = agent.propose(h, "summarize quarterly revenue", 1)
+    if env.get("DO_RELOAD", "") == "1" {
+        // mtime is second-granular; without this the rewrite is invisible.
+        time.sleep(2)
+        let raw = process.run("cat", ["govern.json"])
+        let cfg = json.parse(raw.stdout)
+        cfg["agents"]["proposer"]["max_tokens"] = 80   // tightening: ratchet-safe
+        file.write("_pending.json", json.stringify(cfg, 2))
+        let mv = process.run("mv", ["_pending.json", "govern.json"])
+        // Subprocess env is scrubbed — pass the key explicitly.
+        let sg = process.run(env.get("NAAB_BIN", "naab-lang"),
+                             ["--signing-key", env.get("NAAB_KEY", ""), "--sign-governance"])
+        // A polyglot block calls reloadIfChanged(), bumping reload_count_.
+        let r = <<python
+result = 1
+>>
+    }
+    try {
+        let c = agent.commit(h, (p.get("candidates") ?? [])[0])
+        print("COMMIT_OK|turns=" + string(agent.usage(h).get("turns") ?? 0))
+    } catch (e) {
+        print("COMMIT_DENIED|config_changed=" + string(string(e).contains("configuration changed")))
+    }
+}
+EOF
+    local out
+    out=$( (cd "$d" && DO_RELOAD="$2" NAAB_BIN="$NAAB" NAAB_KEY="$NAAB_SIGNING_KEY" \
+            timeout 90s "$NAAB" t.naab 2>/dev/null) \
+        | grep -oE 'COMMIT_OK\|turns=[0-9]+|COMMIT_DENIED\|config_changed=(true|false)' | tail -1 )
+    echo "${out:-<no output>}"
+    stop_stub
+}
+
+# H-01: reload lands between propose and commit -> commit must refuse.
+R_H1=$(run_reload_case changed 1)
+if echo "$R_H1" | grep -q 'COMMIT_DENIED|config_changed=true'; then
+    pass "H-01" "Config reload between propose and commit invalidates the proposal"
+else
+    fail "H-01" "Proposal committed across a config reload" "got: $R_H1"
+fi
+
+# H-02: no reload -> commit must still succeed. Without this the stamp could be
+# refusing every commit and H-01 would still pass.
+R_H2=$(run_reload_case unchanged 0)
+if echo "$R_H2" | grep -q 'COMMIT_OK|turns=1'; then
+    pass "H-02" "Commit still succeeds when the config did not change"
+else
+    fail "H-02" "Commit refused with no config change — stamp is over-broad" "got: $R_H2"
+fi
+
+# ============================================================
+# Group I: propose consults the lease even with step-up disabled
+#
+# The lease test used to sit inside `if (cb.step_up_enabled)`, and
+# step_up_enabled defaults to FALSE — so by default propose did not consult the
+# lease at all, while send() hard-throws and commit() (Group G) checks it
+# unconditionally. Propose was the only entry point where expired authority
+# passed silently.
+# ============================================================
+echo ""
+echo -e "${CYAN}--- Group I: propose lease gate independent of step-up ---${NC}"
+
+run_propose_lease_case() {  # $1=name $2=lease_seconds $3=step_up
+    local d="$TEST_TMP/please-$1"; mkdir -p "$d"
+    cp "$WDIR/fixture.json" "$d/fixture.json"
+    start_stub "$d/fixture.json" "$d" >/dev/null 2>&1 || { echo "STUB_FAIL"; return; }
+    write_govern_commit_lease "$d" "$STUB_PORT" "$2" 0 "$3"
+    cat > "$d/t.naab" << 'EOF'
+use agent
+main {
+    let h = agent.create("proposer")
+    time.sleep(4)
+    try {
+        let p = agent.propose(h, "summarize quarterly revenue", 1)
+        print("PROPOSE_OK|candidates=" + string((p.get("candidates") ?? []).length()))
+    } catch (e) {
+        print("PROPOSE_DENIED|stepup=" + string(string(e).contains("step-up")))
+    }
+}
+EOF
+    local out
+    out=$( (cd "$d" && timeout 90s "$NAAB" t.naab 2>/dev/null) \
+        | grep -oE 'PROPOSE_OK\|candidates=[0-9]+|PROPOSE_DENIED\|stepup=(true|false)' | tail -1 )
+    echo "${out:-<no output>}"
+    stop_stub
+}
+
+# I-01: the hole. Expired lease + step-up disabled must now deny, with the hard
+# wording since there is no challenge to point the caller at.
+R_I1=$(run_propose_lease_case nostepup 2 false)
+if echo "$R_I1" | grep -q 'PROPOSE_DENIED|stepup=false'; then
+    pass "I-01" "Expired lease denies propose with step-up disabled"
+else
+    fail "I-01" "Expired lease passed propose with step-up disabled" "got: $R_I1"
+fi
+
+# I-02: no lease configured + step-up disabled -> propose must still work. This
+# is the shape two existing test configs use, and guards the no-op claim.
+R_I2=$(run_propose_lease_case nolease 0 false)
+if echo "$R_I2" | grep -q 'PROPOSE_OK'; then
+    pass "I-02" "No lease + step-up disabled still permits propose (not over-broad)"
+else
+    fail "I-02" "Unleased config denied — hoisted check is over-broad" "got: $R_I2"
+fi
+
+# I-03: anti-regression on Group F — with step-up on the renewable wording stays.
+R_I3=$(run_propose_lease_case stepup 2 true)
+if echo "$R_I3" | grep -q 'PROPOSE_DENIED|stepup=true'; then
+    pass "I-03" "Expired lease keeps the step-up wording when step-up is enabled"
+else
+    fail "I-03" "Refusal wording changed with step-up enabled" "got: $R_I3"
+fi
+
+# ============================================================
 echo ""
 echo -e "${CYAN}==============================================${NC}"
 echo -e "  Total: $TOTAL  ${GREEN}Pass: $PASS_COUNT${NC}  ${RED}Fail: $FAIL_COUNT${NC}  ${YELLOW}Skip: $SKIP_COUNT${NC}"

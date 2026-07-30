@@ -2845,8 +2845,9 @@ void GovernanceEngine::printDashboard() const {
     if (!rules().sandbox_level_config.empty() && rules().sandbox_level_config != "unrestricted")
         config_line += " | Sandbox: " + rules().sandbox_level_config;
     fprintf(stderr, "%s\n", config_line.c_str());
-    if (reload_count_ > 0)
-        fprintf(stderr, "Reloads:    %d mid-run reload(s) applied\n", reload_count_);
+    int reload_count_snapshot = reload_count_.load(std::memory_order_relaxed);
+    if (reload_count_snapshot > 0)
+        fprintf(stderr, "Reloads:    %d mid-run reload(s) applied\n", reload_count_snapshot);
     if (warned > 0)
         fprintf(stderr, "Checks:     %d passed, %d blocked, %d advisory\n", passed, blocked, warned);
     else
