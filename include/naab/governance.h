@@ -2643,7 +2643,7 @@ public:
     // --- Mid-run reload (Governance Under Survivability) ---
     bool reloadIfChanged();                        // check mtime, reload if tightened, return true if reloaded
     std::vector<std::string> getAndClearNotices(); // retrieve + clear pending reload notices
-    int getReloadCount() const { return reload_count_; }
+    int getReloadCount() const { return reload_count_.load(std::memory_order_relaxed); }
 
     // --- State ---
     bool isActive() const { return active_; }
@@ -3475,7 +3475,10 @@ private:
     // --- Mid-run reload state (Governance Under Survivability) ---
     int64_t loaded_mtime_ns_ = 0;                 // govern.json mtime as nanoseconds (fs clock epoch)
     int64_t last_sig_fail_mtime_ = 0;             // mtime of last signature-failed reload (suppress duplicate logs)
-    int reload_count_ = 0;                        // reloads applied this run
+    // Atomic because agent worker threads read it via getReloadCount() while
+    // reloadIfChanged() writes it under reload_mutex_ — a different lock, so the
+    // mutex does not order the read. Mirrors governance_epoch_ above.
+    std::atomic<int> reload_count_{0};            // reloads applied this run
     std::vector<std::string> pending_notices_;    // notices from last reload
     mutable std::mutex notices_mutex_;            // guards pending_notices_
     mutable std::mutex reload_mutex_;             // serializes reload attempts
