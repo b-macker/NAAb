@@ -185,6 +185,70 @@ if [ ! -f "$NAAB_BIN" ]; then
     exit 1
 fi
 
+# --- Bounded shell-suite execution -------------------------------------------
+#
+# The suites below are nested `bash <script>` invocations. Unbounded, one hung
+# suite stalls the whole run until the CI runner gives up — on the Windows job
+# that cost ~50 minutes and produced no logs at all, because a killed runner
+# never uploads them. A hang is a test failure and should read like one.
+#
+# SIGTERM first, so each suite's own EXIT trap still runs (they kill stub
+# servers and restore trust-store state); SIGKILL only after a grace period,
+# for anything that ignores TERM — notably native Windows binaries under MSYS2,
+# where signal delivery is unreliable and plain `timeout` can wait forever.
+#
+# Tunable per run: SHELL_TEST_TIMEOUT / SHELL_TEST_KILL_AFTER (any `timeout`
+# duration spec). The bound exists to catch hangs, not to police normal variance
+# on a loaded CI runner, so it is set well above the slowest real suite.
+#
+# Measured over a full local run (99 suites): median under 1s, 29 suites above
+# 10s, and a long tail set almost entirely by ONE suite —
+#
+#   95s  test_prescan_canaries.sh      <- the pace-setter, and it runs last
+#   29s  test_propose_commit.sh
+#   21s  test_signal_discrimination.sh
+#   19s  run_property_tests.sh / run_fuzz_smoke.sh
+#
+# 600s is ~6x the 95s ceiling, which still holds if a Windows runner is 2-3x
+# slower than this machine. Do not tighten this toward the observed maximum: a
+# sample taken before the canary suite runs shows a ceiling of 29s and invites a
+# 300s bound that a slow runner would trip on a perfectly healthy run — and a
+# bound that fails on healthy runs just teaches everyone to raise it.
+#
+# test_absorption_degenerate.sh keeps its own tighter 120s bound and its own
+# policy of SKIPPING on timeout rather than failing. That is deliberate — it is
+# a known-flaky stub-backed suite — so it is not routed through this wrapper,
+# which counts a timeout as a failure.
+SHELL_TEST_TIMEOUT="${SHELL_TEST_TIMEOUT:-600s}"
+SHELL_TEST_KILL_AFTER="${SHELL_TEST_KILL_AFTER:-30s}"
+
+# Probe once. `timeout` is already a hard dependency of run_test() above, but
+# -k is not universal (older busybox), and falling back is cheaper than having
+# this wrapper be the thing that breaks an exotic platform.
+SHELL_TEST_TIMEOUT_ARGV=()
+if command -v timeout >/dev/null 2>&1; then
+    if timeout -k 1s 5s true >/dev/null 2>&1; then
+        SHELL_TEST_TIMEOUT_ARGV=(timeout -k "$SHELL_TEST_KILL_AFTER" "$SHELL_TEST_TIMEOUT")
+    else
+        SHELL_TEST_TIMEOUT_ARGV=(timeout "$SHELL_TEST_TIMEOUT")
+    fi
+else
+    echo "  NOTE: 'timeout' not available — shell test suites run unbounded"
+fi
+
+# Run a shell test suite under the bound. Arguments are passed to bash as-is,
+# so call sites keep their existing shape and exit status.
+run_shell_test() {
+    local rc=0
+    "${SHELL_TEST_TIMEOUT_ARGV[@]}" bash "$@" || rc=$?
+    # 124 = TERM'd at the deadline; 137 = SIGKILL followed (128+9).
+    if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+        echo ""
+        echo "  TIMEOUT: $(basename "$1") exceeded $SHELL_TEST_TIMEOUT — counted as a failure"
+    fi
+    return "$rc"
+}
+
 # Function to check if a path should be skipped
 should_skip() {
     local file_path="$1"
@@ -401,7 +465,7 @@ PROPERTY_SCRIPT="tests/property/run_property_tests.sh"
 if $IS_WINDOWS; then
     echo "  Property tests: skipped (taint tracking unreliable on MinGW Release builds)"
 elif [ -f "$PROPERTY_SCRIPT" ]; then
-    if bash "$PROPERTY_SCRIPT" 2>&1; then
+    if run_shell_test "$PROPERTY_SCRIPT" 2>&1; then
         echo ""
         echo "  Property tests: ALL INVARIANTS HOLD"
     else
@@ -422,7 +486,7 @@ echo "════════════════════════�
 echo ""
 LSP_SCRIPT="tests/lsp/test_lsp_basic.sh"
 if [ -f "$LSP_SCRIPT" ] && [ -x "build/naab-lsp" ]; then
-    if bash "$LSP_SCRIPT" 2>&1; then
+    if run_shell_test "$LSP_SCRIPT" 2>&1; then
         echo ""
         echo "  LSP tests: ALL PASSED"
     else
@@ -482,7 +546,7 @@ echo "════════════════════════�
 echo ""
 REPORT_SCRIPT="tests/cli/test_report_formats.sh"
 if [ -f "$REPORT_SCRIPT" ]; then
-    if bash "$REPORT_SCRIPT" 2>&1; then
+    if run_shell_test "$REPORT_SCRIPT" 2>&1; then
         echo ""
         echo "  Report format tests: ALL PASSED"
     else
@@ -503,7 +567,7 @@ echo "════════════════════════�
 echo ""
 RATIONALE_SCRIPT="tests/cli/test_rationale_reports.sh"
 if [ -f "$RATIONALE_SCRIPT" ]; then
-    if bash "$RATIONALE_SCRIPT" 2>&1; then
+    if run_shell_test "$RATIONALE_SCRIPT" 2>&1; then
         echo ""
         echo "  Rationale report tests: ALL PASSED"
     else
@@ -524,7 +588,7 @@ echo "════════════════════════�
 echo ""
 RELOAD_SCRIPT="tests/cli/test_governance_reload.sh"
 if [ -f "$RELOAD_SCRIPT" ]; then
-    if bash "$RELOAD_SCRIPT" 2>&1; then
+    if run_shell_test "$RELOAD_SCRIPT" 2>&1; then
         echo ""
         echo "  Governance reload tests: ALL PASSED"
     else
@@ -545,7 +609,7 @@ echo "════════════════════════�
 echo ""
 RELOAD_LIVE_SCRIPT="tests/cli/test_governance_reload_live.sh"
 if [ -f "$RELOAD_LIVE_SCRIPT" ]; then
-    if bash "$RELOAD_LIVE_SCRIPT" 2>&1; then
+    if run_shell_test "$RELOAD_LIVE_SCRIPT" 2>&1; then
         echo ""
         echo "  Governance reload live tests: ALL PASSED"
     else
@@ -566,7 +630,7 @@ echo "════════════════════════�
 echo ""
 INIT_SCRIPT="tests/cli/test_init_governance.sh"
 if [ -f "$INIT_SCRIPT" ]; then
-    if bash "$INIT_SCRIPT" 2>&1; then
+    if run_shell_test "$INIT_SCRIPT" 2>&1; then
         echo ""
         echo "  Init governance tests: ALL PASSED"
     else
@@ -587,7 +651,7 @@ echo "════════════════════════�
 echo ""
 MULTIAGENT_SCRIPT="tests/cli/test_multiagent_governance.sh"
 if [ -f "$MULTIAGENT_SCRIPT" ]; then
-    if bash "$MULTIAGENT_SCRIPT" 2>&1; then
+    if run_shell_test "$MULTIAGENT_SCRIPT" 2>&1; then
         echo ""
         echo "  Multi-agent governance tests: ALL PASSED"
     else
@@ -608,7 +672,7 @@ echo "════════════════════════�
 echo ""
 CLI_FLAGS_SCRIPT="tests/cli/test_cli_flags.sh"
 if [ -f "$CLI_FLAGS_SCRIPT" ]; then
-    if bash "$CLI_FLAGS_SCRIPT" 2>&1; then
+    if run_shell_test "$CLI_FLAGS_SCRIPT" 2>&1; then
         echo ""
         echo "  CLI flag tests: ALL PASSED"
     else
@@ -629,7 +693,7 @@ echo "════════════════════════�
 echo ""
 FAIL_CLOSED_SCRIPT="tests/cli/test_fail_closed.sh"
 if [ -f "$FAIL_CLOSED_SCRIPT" ]; then
-    if bash "$FAIL_CLOSED_SCRIPT" 2>&1; then
+    if run_shell_test "$FAIL_CLOSED_SCRIPT" 2>&1; then
         echo ""
         echo "  Fail-closed tests: ALL PASSED"
     else
@@ -650,7 +714,7 @@ echo "════════════════════════�
 echo ""
 GC_FLAGS_SCRIPT="tests/cli/test_gc_flags.sh"
 if [ -f "$GC_FLAGS_SCRIPT" ]; then
-    if bash "$GC_FLAGS_SCRIPT" 2>&1; then
+    if run_shell_test "$GC_FLAGS_SCRIPT" 2>&1; then
         echo ""
         echo "  GC flag tests: ALL PASSED"
     else
@@ -677,7 +741,7 @@ for sec_script in \
     "tests/security/test_sandbox_exit_codes.sh"; do
     if [ -f "$sec_script" ]; then
         script_name=$(basename "$sec_script")
-        if bash "$sec_script" 2>&1; then
+        if run_shell_test "$sec_script" 2>&1; then
             echo ""
             echo "  $script_name: ALL PASSED"
         else
@@ -699,7 +763,7 @@ echo "════════════════════════�
 echo ""
 STACK_GUARD_SCRIPT="tests/robustness/test_stack_guard.sh"
 if [ -f "$STACK_GUARD_SCRIPT" ]; then
-    if bash "$STACK_GUARD_SCRIPT" 2>&1; then
+    if run_shell_test "$STACK_GUARD_SCRIPT" 2>&1; then
         echo ""
         echo "  test_stack_guard.sh: ALL PASSED"
     else
@@ -721,7 +785,7 @@ echo ""
 # --- Governance Enforcement Tests ---
 GOV_ENFORCE_SCRIPT="tests/governance/test_governance_enforcement.sh"
 if [ -f "$GOV_ENFORCE_SCRIPT" ]; then
-    if bash "$GOV_ENFORCE_SCRIPT" "$NAAB_BIN" 2>&1; then
+    if run_shell_test "$GOV_ENFORCE_SCRIPT" "$NAAB_BIN" 2>&1; then
         echo "  test_governance_enforcement.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -733,7 +797,7 @@ fi
 
 INTENT_SCRIPT="tests/governance/test_intent_validation.sh"
 if [ -f "$INTENT_SCRIPT" ]; then
-    if bash "$INTENT_SCRIPT" "$NAAB_BIN" 2>&1; then
+    if run_shell_test "$INTENT_SCRIPT" "$NAAB_BIN" 2>&1; then
         echo "  test_intent_validation.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -745,7 +809,7 @@ fi
 
 GOV_SCRIPT="tests/cli/test_naab_gov.sh"
 if [ -f "$GOV_SCRIPT" ]; then
-    if bash "$GOV_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV_SCRIPT" 2>&1; then
         echo "  test_naab_gov.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -763,7 +827,7 @@ echo "════════════════════════�
 echo ""
 EMBED_SCRIPT="tests/embedding/test_libnaab_build.sh"
 if [ -f "$EMBED_SCRIPT" ]; then
-    if bash "$EMBED_SCRIPT" 2>&1; then
+    if run_shell_test "$EMBED_SCRIPT" 2>&1; then
         echo "  test_libnaab_build.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -781,7 +845,7 @@ echo "════════════════════════�
 echo ""
 LSP_NEW_SCRIPT="tests/lsp/test_lsp_new_methods.sh"
 if [ -f "$LSP_NEW_SCRIPT" ] && [ -f "build/naab-lsp" ]; then
-    if bash "$LSP_NEW_SCRIPT" 2>&1; then
+    if run_shell_test "$LSP_NEW_SCRIPT" 2>&1; then
         echo "  test_lsp_new_methods.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -799,7 +863,7 @@ echo "════════════════════════�
 echo ""
 LOCK_SCRIPT="tests/deterministic/test_lockfile.sh"
 if [ -f "$LOCK_SCRIPT" ]; then
-    if bash "$LOCK_SCRIPT" 2>&1; then
+    if run_shell_test "$LOCK_SCRIPT" 2>&1; then
         echo "  test_lockfile.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -817,7 +881,7 @@ echo "════════════════════════�
 echo ""
 PLATFORM_SCRIPT="tests/platform/test_platform_posix.sh"
 if [ -f "$PLATFORM_SCRIPT" ]; then
-    if bash "$PLATFORM_SCRIPT" 2>&1; then
+    if run_shell_test "$PLATFORM_SCRIPT" 2>&1; then
         echo "  test_platform_posix.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -835,7 +899,7 @@ echo "════════════════════════�
 echo ""
 GOV_EXIT_SCRIPT="tests/cli/test_governance_exit_codes.sh"
 if [ -f "$GOV_EXIT_SCRIPT" ]; then
-    if bash "$GOV_EXIT_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV_EXIT_SCRIPT" 2>&1; then
         echo "  test_governance_exit_codes.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -853,7 +917,7 @@ echo "════════════════════════�
 echo ""
 PIPE_SCRIPT="tests/cli/test_pipe_mode.sh"
 if [ -f "$PIPE_SCRIPT" ]; then
-    if bash "$PIPE_SCRIPT" 2>&1; then
+    if run_shell_test "$PIPE_SCRIPT" 2>&1; then
         echo "  test_pipe_mode.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -871,7 +935,7 @@ echo "════════════════════════�
 echo ""
 USESTMT_SCRIPT="tests/vm/test_use_statement_error.sh"
 if [ -f "$USESTMT_SCRIPT" ]; then
-    if bash "$USESTMT_SCRIPT" 2>&1; then
+    if run_shell_test "$USESTMT_SCRIPT" 2>&1; then
         echo "  test_use_statement_error.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -889,7 +953,7 @@ echo "════════════════════════�
 echo ""
 SYMLINK_SCRIPT="tests/security/test_sandbox_symlink_f.sh"
 if [ -f "$SYMLINK_SCRIPT" ]; then
-    if bash "$SYMLINK_SCRIPT" 2>&1; then
+    if run_shell_test "$SYMLINK_SCRIPT" 2>&1; then
         echo "  test_sandbox_symlink_f.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -907,7 +971,7 @@ echo "════════════════════════�
 echo ""
 SHADOW_SCRIPT="tests/security/test_stdlib_shadow_e.sh"
 if [ -f "$SHADOW_SCRIPT" ]; then
-    if bash "$SHADOW_SCRIPT" 2>&1; then
+    if run_shell_test "$SHADOW_SCRIPT" 2>&1; then
         echo "  test_stdlib_shadow_e.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -925,7 +989,7 @@ echo "════════════════════════�
 echo ""
 EXCTAINT_SCRIPT="tests/security/test_polyglot_exception_taint_d.sh"
 if [ -f "$EXCTAINT_SCRIPT" ]; then
-    if bash "$EXCTAINT_SCRIPT" 2>&1; then
+    if run_shell_test "$EXCTAINT_SCRIPT" 2>&1; then
         echo "  test_polyglot_exception_taint_d.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -943,7 +1007,7 @@ echo "════════════════════════�
 echo ""
 FUNCREF_SCRIPT="tests/security/test_governance_funcref_c.sh"
 if [ -f "$FUNCREF_SCRIPT" ]; then
-    if bash "$FUNCREF_SCRIPT" 2>&1; then
+    if run_shell_test "$FUNCREF_SCRIPT" 2>&1; then
         echo "  test_governance_funcref_c.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -961,7 +1025,7 @@ echo "════════════════════════�
 echo ""
 TIMEOUT_SCRIPT="tests/cli/test_timeout_ab.sh"
 if [ -f "$TIMEOUT_SCRIPT" ]; then
-    if bash "$TIMEOUT_SCRIPT" 2>&1; then
+    if run_shell_test "$TIMEOUT_SCRIPT" 2>&1; then
         echo "  test_timeout_ab.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -979,7 +1043,7 @@ echo "════════════════════════�
 echo ""
 VM001_SCRIPT="tests/security/test_taint_polyglot_vm001.sh"
 if [ -f "$VM001_SCRIPT" ]; then
-    if bash "$VM001_SCRIPT" 2>&1; then
+    if run_shell_test "$VM001_SCRIPT" 2>&1; then
         echo "  test_taint_polyglot_vm001.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -997,7 +1061,7 @@ echo "════════════════════════�
 echo ""
 VM002_SCRIPT="tests/security/test_serialize_depth_vm002.sh"
 if [ -f "$VM002_SCRIPT" ]; then
-    if bash "$VM002_SCRIPT" 2>&1; then
+    if run_shell_test "$VM002_SCRIPT" 2>&1; then
         echo "  test_serialize_depth_vm002.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1015,7 +1079,7 @@ echo "════════════════════════�
 echo ""
 RT002_SCRIPT="tests/cli/test_js_timeout_rt002.sh"
 if [ -f "$RT002_SCRIPT" ]; then
-    if bash "$RT002_SCRIPT" 2>&1; then
+    if run_shell_test "$RT002_SCRIPT" 2>&1; then
         echo "  test_js_timeout_rt002.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1033,7 +1097,7 @@ echo "════════════════════════�
 echo ""
 ASYNC001_SCRIPT="tests/cli/test_async_timeout_async001.sh"
 if [ -f "$ASYNC001_SCRIPT" ]; then
-    if bash "$ASYNC001_SCRIPT" 2>&1; then
+    if run_shell_test "$ASYNC001_SCRIPT" 2>&1; then
         echo "  test_async_timeout_async001.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1051,7 +1115,7 @@ echo "════════════════════════�
 echo ""
 REG001_SCRIPT="tests/security/test_sqlite_null_reg001.sh"
 if [ -f "$REG001_SCRIPT" ]; then
-    if bash "$REG001_SCRIPT" 2>&1; then
+    if run_shell_test "$REG001_SCRIPT" 2>&1; then
         echo "  test_sqlite_null_reg001.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1069,7 +1133,7 @@ echo "════════════════════════�
 echo ""
 VM003_SCRIPT="tests/security/test_container_taint_vm003.sh"
 if [ -f "$VM003_SCRIPT" ]; then
-    if bash "$VM003_SCRIPT" 2>&1; then
+    if run_shell_test "$VM003_SCRIPT" 2>&1; then
         echo "  test_container_taint_vm003.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1087,7 +1151,7 @@ echo "════════════════════════�
 echo ""
 RT003_SCRIPT="tests/security/test_orphan_kill_rt003.sh"
 if [ -f "$RT003_SCRIPT" ]; then
-    if bash "$RT003_SCRIPT" 2>&1; then
+    if run_shell_test "$RT003_SCRIPT" 2>&1; then
         echo "  test_orphan_kill_rt003.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1105,7 +1169,7 @@ echo "════════════════════════�
 echo ""
 RT004_SCRIPT="tests/security/test_block_integrity_rt004.sh"
 if [ -f "$RT004_SCRIPT" ]; then
-    if bash "$RT004_SCRIPT" 2>&1; then
+    if run_shell_test "$RT004_SCRIPT" 2>&1; then
         echo "  test_block_integrity_rt004.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1123,7 +1187,7 @@ echo "════════════════════════�
 echo ""
 RT005_SCRIPT="tests/security/test_marshal_depth_rt005.sh"
 if [ -f "$RT005_SCRIPT" ]; then
-    if bash "$RT005_SCRIPT" 2>&1; then
+    if run_shell_test "$RT005_SCRIPT" 2>&1; then
         echo "  test_marshal_depth_rt005.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1141,7 +1205,7 @@ echo "════════════════════════�
 echo ""
 ASYNC001R_SCRIPT="tests/security/test_async_isolation_async001r.sh"
 if [ -f "$ASYNC001R_SCRIPT" ]; then
-    if bash "$ASYNC001R_SCRIPT" 2>&1; then
+    if run_shell_test "$ASYNC001R_SCRIPT" 2>&1; then
         echo "  test_async_isolation_async001r.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1159,7 +1223,7 @@ echo "════════════════════════�
 echo ""
 GOV001_SCRIPT="tests/security/test_gov_string_prefix_gov001.sh"
 if [ -f "$GOV001_SCRIPT" ]; then
-    if bash "$GOV001_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV001_SCRIPT" 2>&1; then
         echo "  test_gov_string_prefix_gov001.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1177,7 +1241,7 @@ echo "════════════════════════�
 echo ""
 GOV002_SCRIPT="tests/security/test_gov_comment_styles_gov002.sh"
 if [ -f "$GOV002_SCRIPT" ]; then
-    if bash "$GOV002_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV002_SCRIPT" 2>&1; then
         echo "  test_gov_comment_styles_gov002.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1195,7 +1259,7 @@ echo "════════════════════════�
 echo ""
 RT006_SCRIPT="tests/security/test_js_marshal_depth_rt006.sh"
 if [ -f "$RT006_SCRIPT" ]; then
-    if bash "$RT006_SCRIPT" 2>&1; then
+    if run_shell_test "$RT006_SCRIPT" 2>&1; then
         echo "  test_js_marshal_depth_rt006.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1213,7 +1277,7 @@ echo "════════════════════════�
 echo ""
 GOV004_SCRIPT="tests/security/test_async_counter_gov004.sh"
 if [ -f "$GOV004_SCRIPT" ]; then
-    if bash "$GOV004_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV004_SCRIPT" 2>&1; then
         echo "  test_async_counter_gov004.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1231,7 +1295,7 @@ echo "════════════════════════�
 echo ""
 ASYNC002_SCRIPT="tests/security/test_queue_cap_async002.sh"
 if [ -f "$ASYNC002_SCRIPT" ]; then
-    if bash "$ASYNC002_SCRIPT" 2>&1; then
+    if run_shell_test "$ASYNC002_SCRIPT" 2>&1; then
         echo "  test_queue_cap_async002.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1249,7 +1313,7 @@ echo "════════════════════════�
 echo ""
 RT007_SCRIPT="tests/security/test_alarm_delivery_rt007.sh"
 if [ -f "$RT007_SCRIPT" ]; then
-    if bash "$RT007_SCRIPT" 2>&1; then
+    if run_shell_test "$RT007_SCRIPT" 2>&1; then
         echo "  test_alarm_delivery_rt007.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1267,7 +1331,7 @@ echo "════════════════════════�
 echo ""
 GOV006_SCRIPT="tests/security/test_polyglot_taint_gov006.sh"
 if [ -f "$GOV006_SCRIPT" ]; then
-    if bash "$GOV006_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV006_SCRIPT" 2>&1; then
         echo "  test_polyglot_taint_gov006.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1285,7 +1349,7 @@ echo "════════════════════════�
 echo ""
 GOV007_SCRIPT="tests/security/test_require_governance_gov007.sh"
 if [ -f "$GOV007_SCRIPT" ]; then
-    if bash "$GOV007_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV007_SCRIPT" 2>&1; then
         echo "  test_require_governance_gov007.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1303,7 +1367,7 @@ echo "════════════════════════�
 echo ""
 RT008_SCRIPT="tests/security/test_vm_gc_rt008.sh"
 if [ -f "$RT008_SCRIPT" ]; then
-    if bash "$RT008_SCRIPT" 2>&1; then
+    if run_shell_test "$RT008_SCRIPT" 2>&1; then
         echo "  test_vm_gc_rt008.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1321,7 +1385,7 @@ echo "════════════════════════�
 echo ""
 PASS2_SCRIPT="tests/governance/test_pass2_audit.sh"
 if [ -f "$PASS2_SCRIPT" ]; then
-    if bash "$PASS2_SCRIPT" 2>&1; then
+    if run_shell_test "$PASS2_SCRIPT" 2>&1; then
         echo "  test_pass2_audit.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1334,7 +1398,7 @@ fi
 # Govern.json config tests (v5)
 GOV_CONFIG_SCRIPT="tests/governance/test_govern_json_config.sh"
 if [ -f "$GOV_CONFIG_SCRIPT" ]; then
-    if bash "$GOV_CONFIG_SCRIPT" 2>&1; then
+    if run_shell_test "$GOV_CONFIG_SCRIPT" 2>&1; then
         echo "  test_govern_json_config.sh: ALL PASSED"
     else
         echo "  test_govern_json_config.sh: SOME FAILURES"
@@ -1348,7 +1412,7 @@ fi
 # Drift detection tests
 DRIFT_SCRIPT="tests/governance/test_drift_detection.sh"
 if [ -f "$DRIFT_SCRIPT" ]; then
-    if bash "$DRIFT_SCRIPT" 2>&1; then
+    if run_shell_test "$DRIFT_SCRIPT" 2>&1; then
         echo "  test_drift_detection.sh: ALL PASSED"
     else
         echo "  test_drift_detection.sh: SOME FAILURES"
@@ -1362,7 +1426,7 @@ fi
 # BSD/CDD targeted fix validation (F1, F2, F6)
 BSD_CDD_SCRIPT="tests/governance_v4/bsd_cdd_targeted/test_bsd_cdd_fixes.sh"
 if [ -f "$BSD_CDD_SCRIPT" ]; then
-    if bash "$BSD_CDD_SCRIPT" 2>&1; then
+    if run_shell_test "$BSD_CDD_SCRIPT" 2>&1; then
         echo "  test_bsd_cdd_fixes.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1375,7 +1439,7 @@ fi
 # Consequence-boundary proof harness
 CONSEQUENCE_SCRIPT="tests/governance_v4/consequence_boundary/test_consequence_proof.sh"
 if [ -f "$CONSEQUENCE_SCRIPT" ]; then
-    if bash "$CONSEQUENCE_SCRIPT" 2>&1; then
+    if run_shell_test "$CONSEQUENCE_SCRIPT" 2>&1; then
         echo "  test_consequence_proof.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1396,7 +1460,7 @@ POLYGLOT_RELOAD_SCRIPT="tests/governance_v4/test_polyglot_reload.sh"
 if $IS_WINDOWS; then
     echo "  test_polyglot_reload.sh: skipped (requires shell executor — POSIX-only)"
 elif [ -f "$POLYGLOT_RELOAD_SCRIPT" ]; then
-    if bash "$POLYGLOT_RELOAD_SCRIPT" 2>&1; then
+    if run_shell_test "$POLYGLOT_RELOAD_SCRIPT" 2>&1; then
         echo "  test_polyglot_reload.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1410,7 +1474,7 @@ TEL_FORWARD_SCRIPT="tests/governance_v4/test_telemetry_forward.sh"
 if $IS_WINDOWS; then
     echo "  test_telemetry_forward.sh: skipped (requires shell executor — POSIX-only)"
 elif [ -f "$TEL_FORWARD_SCRIPT" ]; then
-    if bash "$TEL_FORWARD_SCRIPT" 2>&1; then
+    if run_shell_test "$TEL_FORWARD_SCRIPT" 2>&1; then
         echo "  test_telemetry_forward.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1422,7 +1486,7 @@ fi
 
 API_AUTH_SCRIPT="tests/api/test_api_auth.sh"
 if [ -f "$API_AUTH_SCRIPT" ]; then
-    if bash "$API_AUTH_SCRIPT" 2>&1; then
+    if run_shell_test "$API_AUTH_SCRIPT" 2>&1; then
         echo "  test_api_auth.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1436,7 +1500,7 @@ EXTENDS_SCRIPT="tests/governance_v4/test_extends.sh"
 if $IS_WINDOWS; then
     echo "  test_extends.sh: skipped (requires shell executor — POSIX-only)"
 elif [ -f "$EXTENDS_SCRIPT" ]; then
-    if bash "$EXTENDS_SCRIPT" 2>&1; then
+    if run_shell_test "$EXTENDS_SCRIPT" 2>&1; then
         echo "  test_extends.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1448,7 +1512,7 @@ fi
 
 UNCATCHABLE_SCRIPT="tests/governance_v4/test_uncatchable.sh"
 if [ -f "$UNCATCHABLE_SCRIPT" ]; then
-    if bash "$UNCATCHABLE_SCRIPT" 2>&1; then
+    if run_shell_test "$UNCATCHABLE_SCRIPT" 2>&1; then
         echo "  test_uncatchable.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1463,7 +1527,7 @@ fi
 # that gives the absence of a side effect meaning.
 NONFORM_SCRIPT="tests/governance_v4/test_nonformation_proof.sh"
 if [ -f "$NONFORM_SCRIPT" ]; then
-    if bash "$NONFORM_SCRIPT" 2>&1; then
+    if run_shell_test "$NONFORM_SCRIPT" 2>&1; then
         echo "  test_nonformation_proof.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1478,7 +1542,7 @@ HOOKS_SCRIPT="tests/governance_v4/test_hooks.sh"
 if $IS_WINDOWS; then
     echo "  test_hooks.sh: skipped (fork/execv hook path — POSIX-only)"
 elif [ -f "$HOOKS_SCRIPT" ]; then
-    if bash "$HOOKS_SCRIPT" 2>&1; then
+    if run_shell_test "$HOOKS_SCRIPT" 2>&1; then
         echo "  test_hooks.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1491,7 +1555,7 @@ fi
 # Output admissibility gate (block/quarantine/attest)
 OUTPUT_ADMIS_SCRIPT="tests/governance_v4/test_output_admissibility.sh"
 if [ -f "$OUTPUT_ADMIS_SCRIPT" ]; then
-    if bash "$OUTPUT_ADMIS_SCRIPT" 2>&1; then
+    if run_shell_test "$OUTPUT_ADMIS_SCRIPT" 2>&1; then
         echo "  test_output_admissibility.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1507,7 +1571,7 @@ fi
 # separation comes from content rather than from blocking everything.
 ADVERSARIAL_SCRIPT="tests/governance_v4/test_adversarial_detection.sh"
 if [ -f "$ADVERSARIAL_SCRIPT" ]; then
-    if bash "$ADVERSARIAL_SCRIPT" 2>&1; then
+    if run_shell_test "$ADVERSARIAL_SCRIPT" 2>&1; then
         echo "  test_adversarial_detection.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1522,7 +1586,7 @@ fi
 # that detection is not accidental.
 SIGDISC_SCRIPT="tests/governance_v4/test_signal_discrimination.sh"
 if [ -f "$SIGDISC_SCRIPT" ]; then
-    if bash "$SIGDISC_SCRIPT" 2>&1; then
+    if run_shell_test "$SIGDISC_SCRIPT" 2>&1; then
         echo "  test_signal_discrimination.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1536,7 +1600,7 @@ fi
 # off-mandate content at which governance actually reacts.
 DRIFTSENS_SCRIPT="tests/governance_v4/test_drift_sensitivity.sh"
 if [ -f "$DRIFTSENS_SCRIPT" ]; then
-    if bash "$DRIFTSENS_SCRIPT" 2>&1; then
+    if run_shell_test "$DRIFTSENS_SCRIPT" 2>&1; then
         echo "  test_drift_sensitivity.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1550,7 +1614,7 @@ fi
 # Guards the shipped default set against losing coverage of a failure mode.
 FMCOV_SCRIPT="tests/governance_v4/test_failure_mode_coverage.sh"
 if [ -f "$FMCOV_SCRIPT" ]; then
-    if bash "$FMCOV_SCRIPT" 2>&1; then
+    if run_shell_test "$FMCOV_SCRIPT" 2>&1; then
         echo "  test_failure_mode_coverage.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1563,7 +1627,7 @@ fi
 # Quarantine corroboration — a single noisy signal must not accumulate to a kill.
 QCORROB_SCRIPT="tests/governance_v4/test_quarantine_corroboration.sh"
 if [ -f "$QCORROB_SCRIPT" ]; then
-    if bash "$QCORROB_SCRIPT" 2>&1; then
+    if run_shell_test "$QCORROB_SCRIPT" 2>&1; then
         echo "  test_quarantine_corroboration.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1577,7 +1641,7 @@ fi
 # agent from one that lost it? CD-03 records a known defect; see the file.
 CHALDISC_SCRIPT="tests/governance_v4/test_challenge_discrimination.sh"
 if [ -f "$CHALDISC_SCRIPT" ]; then
-    if bash "$CHALDISC_SCRIPT" 2>&1; then
+    if run_shell_test "$CHALDISC_SCRIPT" 2>&1; then
         echo "  test_challenge_discrimination.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1591,7 +1655,7 @@ fi
 # not passing static checks on generated source.
 PULSEUNIF_SCRIPT="tests/governance_v4/test_pulse_uniformity.sh"
 if [ -f "$PULSEUNIF_SCRIPT" ]; then
-    if bash "$PULSEUNIF_SCRIPT" 2>&1; then
+    if run_shell_test "$PULSEUNIF_SCRIPT" 2>&1; then
         echo "  test_pulse_uniformity.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1606,7 +1670,7 @@ fi
 # known negative (test erosion is invisible to CDD); see the file.
 DEVBLIND_SCRIPT="tests/governance_v4/test_developer_blindspot.sh"
 if [ -f "$DEVBLIND_SCRIPT" ]; then
-    if bash "$DEVBLIND_SCRIPT" 2>&1; then
+    if run_shell_test "$DEVBLIND_SCRIPT" 2>&1; then
         echo "  test_developer_blindspot.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1620,7 +1684,7 @@ fi
 # measures whether the unreported announcement carries information.
 THINKREP_SCRIPT="tests/governance_v4/test_thinking_reported.sh"
 if [ -f "$THINKREP_SCRIPT" ]; then
-    if bash "$THINKREP_SCRIPT" 2>&1; then
+    if run_shell_test "$THINKREP_SCRIPT" 2>&1; then
         echo "  test_thinking_reported.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1633,7 +1697,7 @@ fi
 # persona_fingerprint must not be retuned by thinking_collapse's window.
 PERSONAWIN_SCRIPT="tests/governance_v4/test_persona_window.sh"
 if [ -f "$PERSONAWIN_SCRIPT" ]; then
-    if bash "$PERSONAWIN_SCRIPT" 2>&1; then
+    if run_shell_test "$PERSONAWIN_SCRIPT" 2>&1; then
         echo "  test_persona_window.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1646,7 +1710,7 @@ fi
 # VM: break/continue out of a try must close its handler (and only its own).
 TRYLEAK_SCRIPT="tests/vm/test_try_handler_leak.sh"
 if [ -f "$TRYLEAK_SCRIPT" ]; then
-    if bash "$TRYLEAK_SCRIPT" 2>&1; then
+    if run_shell_test "$TRYLEAK_SCRIPT" 2>&1; then
         echo "  test_try_handler_leak.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1659,7 +1723,7 @@ fi
 # Split commit — accounting vs conversation state (stub-backed)
 SPLIT_COMMIT_SCRIPT="tests/governance_v4/test_split_commit.sh"
 if [ -f "$SPLIT_COMMIT_SCRIPT" ]; then
-    if bash "$SPLIT_COMMIT_SCRIPT" 2>&1; then
+    if run_shell_test "$SPLIT_COMMIT_SCRIPT" 2>&1; then
         echo "  test_split_commit.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1672,7 +1736,7 @@ fi
 # agent.propose / agent.commit / orchestra.select_admissible (stub-backed)
 PROPOSE_SCRIPT="tests/governance_v4/test_propose_commit.sh"
 if [ -f "$PROPOSE_SCRIPT" ]; then
-    if bash "$PROPOSE_SCRIPT" 2>&1; then
+    if run_shell_test "$PROPOSE_SCRIPT" 2>&1; then
         echo "  test_propose_commit.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1685,7 +1749,7 @@ fi
 # Evidence chain hardening (cross-run continuity, decision snapshots, transcript refs)
 EVIDENCE_CHAIN_SCRIPT="tests/governance_v4/test_evidence_chain.sh"
 if [ -f "$EVIDENCE_CHAIN_SCRIPT" ]; then
-    if bash "$EVIDENCE_CHAIN_SCRIPT" 2>&1; then
+    if run_shell_test "$EVIDENCE_CHAIN_SCRIPT" 2>&1; then
         echo "  test_evidence_chain.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1698,7 +1762,7 @@ fi
 # S22 validation_outcome signal + agent.record_validation (stub-backed)
 VALIDATION_SIGNAL_SCRIPT="tests/governance_v4/test_validation_signal.sh"
 if [ -f "$VALIDATION_SIGNAL_SCRIPT" ]; then
-    if bash "$VALIDATION_SIGNAL_SCRIPT" 2>&1; then
+    if run_shell_test "$VALIDATION_SIGNAL_SCRIPT" 2>&1; then
         echo "  test_validation_signal.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1711,7 +1775,7 @@ fi
 # Step-up challenge failure path (stub-backed, deterministic)
 CHALLENGE_FAIL_SCRIPT="tests/governance_v4/test_challenge_fail_path.sh"
 if [ -f "$CHALLENGE_FAIL_SCRIPT" ]; then
-    if bash "$CHALLENGE_FAIL_SCRIPT" 2>&1; then
+    if run_shell_test "$CHALLENGE_FAIL_SCRIPT" 2>&1; then
         echo "  test_challenge_fail_path.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1724,7 +1788,7 @@ fi
 # agent.extract_code() fence extraction (pure function, no API)
 EXTRACT_CODE_SCRIPT="tests/governance_v4/test_extract_code.sh"
 if [ -f "$EXTRACT_CODE_SCRIPT" ]; then
-    if bash "$EXTRACT_CODE_SCRIPT" 2>&1; then
+    if run_shell_test "$EXTRACT_CODE_SCRIPT" 2>&1; then
         echo "  test_extract_code.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1755,7 +1819,7 @@ fi
 # Per-tool-call admissibility gate (stub-backed)
 TOOL_GATE_SCRIPT="tests/governance_v4/test_tool_admissibility_gate.sh"
 if [ -f "$TOOL_GATE_SCRIPT" ]; then
-    if bash "$TOOL_GATE_SCRIPT" 2>&1; then
+    if run_shell_test "$TOOL_GATE_SCRIPT" 2>&1; then
         echo "  test_tool_admissibility_gate.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1768,7 +1832,7 @@ fi
 # naab-44 governance gap fixes (windowing, velocity, graduated corrections)
 NAAB44_SCRIPT="tests/governance_v4/test_naab44_fixes.sh"
 if [ -f "$NAAB44_SCRIPT" ]; then
-    if bash "$NAAB44_SCRIPT" 2>&1; then
+    if run_shell_test "$NAAB44_SCRIPT" 2>&1; then
         echo "  test_naab44_fixes.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1781,7 +1845,7 @@ fi
 # Rate limiter enforcement (polyglot/stdlib/file-ops rates)
 RATE_SCRIPT="tests/governance_v4/test_rate_limiter.sh"
 if [ -f "$RATE_SCRIPT" ]; then
-    if bash "$RATE_SCRIPT" 2>&1; then
+    if run_shell_test "$RATE_SCRIPT" 2>&1; then
         echo "  test_rate_limiter.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1794,7 +1858,7 @@ fi
 # Agent interaction transcript (self-contained: uses fake API keys)
 TRANSCRIPT_SCRIPT="tests/governance_v4/test_transcript.sh"
 if [ -f "$TRANSCRIPT_SCRIPT" ]; then
-    if bash "$TRANSCRIPT_SCRIPT" 2>&1; then
+    if run_shell_test "$TRANSCRIPT_SCRIPT" 2>&1; then
         echo "  test_transcript.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1807,7 +1871,7 @@ fi
 # Reality checkpoint (unit tests run keyless; live tests self-skip without GK5)
 REALITY_SCRIPT="tests/governance_v4/test_reality_checkpoint.sh"
 if [ -f "$REALITY_SCRIPT" ]; then
-    if bash "$REALITY_SCRIPT" 2>&1; then
+    if run_shell_test "$REALITY_SCRIPT" 2>&1; then
         echo "  test_reality_checkpoint.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1820,7 +1884,7 @@ fi
 # Semantic CDD signals (unit tests run keyless; live tests self-skip without GK1)
 SEMANTIC_SCRIPT="tests/governance_v4/test_semantic_signals.sh"
 if [ -f "$SEMANTIC_SCRIPT" ]; then
-    if bash "$SEMANTIC_SCRIPT" 2>&1; then
+    if run_shell_test "$SEMANTIC_SCRIPT" 2>&1; then
         echo "  test_semantic_signals.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1833,7 +1897,7 @@ fi
 # Governance depth runtime checks (fake keys, no network)
 DEPTH_RT_SCRIPT="tests/governance_v4/depth/test_depth_runtime.sh"
 if [ -f "$DEPTH_RT_SCRIPT" ]; then
-    if bash "$DEPTH_RT_SCRIPT" 2>&1; then
+    if run_shell_test "$DEPTH_RT_SCRIPT" 2>&1; then
         echo "  test_depth_runtime.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1851,7 +1915,7 @@ for agent_script in \
     "tests/agent/test_agent_governance_depth.sh"; do
     if [ -f "$agent_script" ]; then
         script_name=$(basename "$agent_script")
-        if bash "$agent_script" 2>&1; then
+        if run_shell_test "$agent_script" 2>&1; then
             echo "  $script_name: ALL PASSED"
         else
             FAILED=$((FAILED + 1))
@@ -1873,7 +1937,7 @@ CONTAINMENT_SCRIPT="tests/security/test_subprocess_containment.sh"
 if $IS_WINDOWS; then
     echo "  test_subprocess_containment.sh: skipped (POSIX-only)"
 elif [ -f "$CONTAINMENT_SCRIPT" ]; then
-    if bash "$CONTAINMENT_SCRIPT" 2>/dev/null; then
+    if run_shell_test "$CONTAINMENT_SCRIPT" 2>/dev/null; then
         echo "  test_subprocess_containment.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1892,7 +1956,7 @@ echo ""
 
 ORACLE_SCRIPT="tests/governance_v4/oracle/test_decision_oracle.sh"
 if [ -f "$ORACLE_SCRIPT" ]; then
-    if bash "$ORACLE_SCRIPT" 2>&1; then
+    if run_shell_test "$ORACLE_SCRIPT" 2>&1; then
         echo "  test_decision_oracle.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1904,7 +1968,7 @@ fi
 
 DIFF_SCRIPT="tests/vm/test_vm_treewalker_diff.sh"
 if [ -f "$DIFF_SCRIPT" ]; then
-    if bash "$DIFF_SCRIPT" 2>&1; then
+    if run_shell_test "$DIFF_SCRIPT" 2>&1; then
         echo "  test_vm_treewalker_diff.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1916,7 +1980,7 @@ fi
 
 DIFF_V2_SCRIPT="tests/differential/run_differential.sh"
 if [ -f "$DIFF_V2_SCRIPT" ]; then
-    if bash "$DIFF_V2_SCRIPT" 2>&1; then
+    if run_shell_test "$DIFF_V2_SCRIPT" 2>&1; then
         echo "  run_differential.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1928,7 +1992,7 @@ fi
 
 FUZZ_SMOKE_SCRIPT="tests/fuzzing/run_fuzz_smoke.sh"
 if [ -f "$FUZZ_SMOKE_SCRIPT" ]; then
-    if bash "$FUZZ_SMOKE_SCRIPT" 2>&1; then
+    if run_shell_test "$FUZZ_SMOKE_SCRIPT" 2>&1; then
         echo "  run_fuzz_smoke.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1940,7 +2004,7 @@ fi
 
 INVARIANT_SCRIPT="tests/governance_v4/invariants/test_invariant_enforcement.sh"
 if [ -f "$INVARIANT_SCRIPT" ]; then
-    if bash "$INVARIANT_SCRIPT" 2>&1; then
+    if run_shell_test "$INVARIANT_SCRIPT" 2>&1; then
         echo "  test_invariant_enforcement.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1952,7 +2016,7 @@ fi
 
 D1_RECONCIL_SCRIPT="tests/governance_v4/test_d1_reconciliation.sh"
 if [ -f "$D1_RECONCIL_SCRIPT" ]; then
-    if bash "$D1_RECONCIL_SCRIPT" 2>&1; then
+    if run_shell_test "$D1_RECONCIL_SCRIPT" 2>&1; then
         echo "  test_d1_reconciliation.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1964,7 +2028,7 @@ fi
 
 ESC_EFF_SCRIPT="tests/governance_v4/test_escalation_effectiveness.sh"
 if [ -f "$ESC_EFF_SCRIPT" ]; then
-    if bash "$ESC_EFF_SCRIPT" 2>&1; then
+    if run_shell_test "$ESC_EFF_SCRIPT" 2>&1; then
         echo "  test_escalation_effectiveness.sh: ALL PASSED"
     else
         FAILED=$((FAILED + 1))
@@ -1978,7 +2042,7 @@ CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
     # Canary test injects/reverts source files — skip when working tree is dirty
     if git diff --quiet -- src/ include/ 2>/dev/null; then
-        if bash "$CANARY_SCRIPT" 2>&1; then
+        if run_shell_test "$CANARY_SCRIPT" 2>&1; then
             echo "  test_prescan_canaries.sh: ALL PASSED"
         else
             FAILED=$((FAILED + 1))
