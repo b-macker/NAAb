@@ -285,11 +285,26 @@ fn count_telemetry(pattern) {
 // place to clear taint. The sanitize_ prefix is what the engine matches on
 // (taint_tracking.sanitizers), so the name is load-bearing, not decorative.
 //
-// Routing through here rather than leaving the flow to fire advisories also
-// avoids a real trap: advisory_escalation is enabled with soft_after 8, and
-// this script writes LLM-derived files far more than eight times. Unsanitized,
-// the advisory would harden into a SOFT block partway through the run and the
-// pipeline build would simply stop producing.
+// The engine clears taint on the ASSIGNMENT RHS — checkRhsSanitized() matches
+// the callee of the expression a value is bound from. So this works:
+//
+//     let clean = sanitize_llm_code(resp, "python")   // clean is untainted
+//
+// and merely being *inside* a function whose name matches a sanitizer prefix
+// does nothing for values that function writes internally. That is exactly why
+// validate_python_tool() below still trips the sink check: it is named
+// validate_, but it writes its tainted `code` argument straight to a file. The
+// naming convention is about how a value is produced, not where a write lives.
+//
+// Known non-build-path sink sites, all writing agent-derived data without
+// passing through extraction. Counted as the run.sh L25-03 baseline:
+//   - validate_python_tool(): writes unvalidated model code to _tool_check.py
+//     and AST-parses it afterwards. The write precedes validation, so calling
+//     it sanitized would be false. Left as a true positive.
+//   - operator config writes (_govern_pending.json, write_govern_raw): the JSON
+//     IS parsed and field-validated first, so a validate_-RHS binding here
+//     would be honest and would lower the baseline. Left for its own change.
+//   - cross-run memory persistence: aggregate tracking data.
 fn sanitize_llm_code(response_content, lang) {
     return agent.extract_code(response_content, lang)
 }
@@ -1996,8 +2011,14 @@ main {
     // off", so a clean count proves nothing on its own. One deliberate
     // unsanitized write supplies the positive control: it must produce a
     // violation, and that is what makes the sanitized path's zero meaningful.
-    // One occurrence is far below advisory_escalation's soft_after of 8, so the
-    // control cannot harden into a block.
+    //
+    // The run total sits above advisory_escalation's soft_after because four
+    // non-build-path sites write agent-derived data without passing through
+    // extraction (see sanitize_llm_code above). That does NOT mean escalation
+    // fired: the keyed run recorded zero ESCALATED lines with the occurrence
+    // counter peaking at 5/8, because epoch boundaries reset advisory history.
+    // run.sh asserts against a documented baseline rather than soft_after for
+    // exactly that reason.
     print("PHASE|TAINT_AUDIT|start")
 
     // Counting happens in run.sh AFTER the run, not here. Taint violations are
@@ -2013,7 +2034,9 @@ main {
         // Deliberately NOT routed through sanitize_llm_code(): the positive
         // control proving the sink is watched. Bound to a variable first —
         // taint is name-based, so an inline expression carries none and the
-        // control would silently prove nothing.
+        // control would silently prove nothing. One occurrence is far below
+        // advisory_escalation's soft_after; the keyed run showed epoch
+        // boundaries resetting the counter well before it could escalate.
         let unsanitized_response = probe.get("content") ?? "# no content"
         file.write("_taint_control.py", unsanitized_response)
         print("TAINT_AUDIT|control_write=done")
