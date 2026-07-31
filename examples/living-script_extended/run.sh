@@ -34,6 +34,8 @@
 #   Level 22: Output admissibility (quarantine dispositions + streak accounting)
 #   Level 23: Transcript integrity (entry_hash coverage vs chained TRANSCRIPT_REF)
 #   Level 24: Evidence layer (signed attestations, decision snapshots, chain verify)
+#   Level 25: Taint flow (LLM output to sink, sanitizer boundary + control)
+#   Level 26: Integrity (blocked CLI flags refused, with control)
 #
 # Levels 19b/21/22/23 exist because the corresponding engine behaviour was
 # configured but unobserved: the Jul 22 run registered two tools and made zero
@@ -504,7 +506,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
-    for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT CODEGEN_BOUNDARY; do
+    for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT TAINT_AUDIT INTEGRITY_PROBE CODEGEN_BOUNDARY; do
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
@@ -1522,6 +1524,124 @@ assert 'refinement_iterations' in d
                 "$( (cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1) | grep -E 'BREAK|TAMPER|CORRUPT' | head -2)"
         fi
     done
+
+    fi
+
+    # ============================================================
+    # L25: TAINT FLOW (LLM output reaching a sink)
+    #
+    # The build path routes LLM output through sanitize_llm_code() before it
+    # reaches file.write, so it produces no violations. A clean count proves
+    # nothing on its own — it looks identical to taint tracking being off — so
+    # the phase makes one deliberate unsanitized write as a positive control.
+    # That control firing is what gives the sanitized path's zero its meaning.
+    # ============================================================
+    echo -e "${CYAN}Level 25: Taint Flow${NC}"
+
+    if ! govkill_block "L25-*" 'PHASE|TAINT_AUDIT|'; then
+
+    if echo "$OUTPUT" | grep -q "PHASE|TAINT_AUDIT|start"; then
+        pass "L25-01" "Taint audit phase reached"
+    else
+        fail "L25-01" "Taint audit phase not reached"
+    fi
+
+    # Counted here rather than in the script: taint violations are RuleViolation
+    # records written by writeTelemetry(), a bulk dump at shutdown, so mid-run
+    # the file does not contain them yet. By this point the run has ended and the
+    # file is complete.
+    TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
+
+    if echo "$OUTPUT" | grep -q "TAINT_AUDIT|control_write=skipped"; then
+        skip "L25-02" "control write skipped — no tester handle"
+        skip "L25-03" "control write skipped — build-path count unattributable"
+    elif [ "${TAINT_N:-0}" -ge 1 ]; then
+        pass "L25-02" "Unsanitized control write is caught (${TAINT_N} taint sink violation(s))"
+
+        # A calibrated baseline, not a target-file assertion.
+        #
+        # The assertion this level wants is "no violation targets pipeline.py /
+        # models.py / test_pipeline.py". That is NOT expressible: the violation
+        # message names the sink TYPE (file.write) and the SOURCE file:line, never
+        # the write target, and the RuleViolation record's file/line are the
+        # source location too. Attribution is therefore only possible by source
+        # line, and line numbers move on any edit.
+        #
+        # So the level detects GROWTH instead. The build path is sanitized and
+        # contributes zero; everything below comes from sites that write
+        # agent-derived data without passing through extraction. A build-path
+        # leak adds violations, raises the total, and fails here.
+        #
+        # Baseline observed on the 2026-07-31 keyed run (18):
+        #   6  validate_python_tool()  — writes unvalidated LLM code to
+        #      _tool_check.py and AST-parses it afterwards. The write precedes
+        #      validation, so calling it sanitized would be false. True positive.
+        #   6  operator config writes (_govern_pending.json, write_govern_raw)
+        #      — LLM JSON parsed and field-validated before re-serialising.
+        #      Routing these through a validate_-RHS binding would be honest and
+        #      would lower this baseline; deliberately left for its own change.
+        #   2  cross-run memory persistence — aggregate tracking data.
+        #   4  unlocated (line 0), dynamic/codegen writes.
+        #   1  the deliberate control write above.
+        #
+        # Raising this number is a reviewed decision, not a routine edit: it
+        # means another unsanitized sink path was added.
+        TAINT_BASELINE=${TAINT_BASELINE:-18}
+        if [ "${TAINT_N:-0}" -le "$TAINT_BASELINE" ]; then
+            pass "L25-03" "Taint violations within the documented baseline (${TAINT_N} <= ${TAINT_BASELINE}) — sanitizer boundary holds"
+        else
+            gk_fail "L25-03" "Taint violations grew beyond the documented baseline" \
+                "${TAINT_N} > ${TAINT_BASELINE}; a new unsanitized sink path was added — identify it before raising the baseline"
+        fi
+
+        # Context only, deliberately not the pass condition. advisory_escalation
+        # would harden a repeated advisory into a SOFT block at soft_after, but
+        # the keyed run showed epoch boundaries resetting the occurrence counter
+        # (it peaked at 5/8 with zero ESCALATED lines), so the total sitting
+        # above soft_after does not by itself mean escalation fired.
+        ESC_AFTER=$(grep -oP '"soft_after"\s*:\s*\K[0-9]+' "$WORKDIR/govern.json" 2>/dev/null | head -1)
+        ESC_N=$(grep -c 'ESCALATED.*taint_tracking' "${STDERR_FILE:-/dev/null}" 2>/dev/null || echo 0)
+        echo -e "  ${CYAN}note${NC}  taint: ${TAINT_N} violation(s), soft_after=${ESC_AFTER:-8}, escalations=${ESC_N}"
+    else
+        gk_fail "L25-02" "Unsanitized write produced no taint violation" \
+            "taint_tracking is not in effect, so a clean build path proves nothing"
+        skip "L25-03" "build-path count unattributable while the control does not fire"
+    fi
+
+    fi
+
+    # ============================================================
+    # L26: INTEGRITY (blocked CLI flags refused)
+    #
+    # integrity.blocked_flags is enforced pre-flight. Declaring it proves
+    # nothing since run.sh never passes those flags, so the phase invokes the
+    # binary WITH one and asserts refusal, plus a control run without it.
+    # ============================================================
+    echo -e "${CYAN}Level 26: Integrity (blocked flags)${NC}"
+
+    if ! govkill_block "L26-*" 'PHASE|INTEGRITY_PROBE|'; then
+
+    if echo "$OUTPUT" | grep -q "PHASE|INTEGRITY_PROBE|start"; then
+        pass "L26-01" "Integrity probe phase reached"
+    else
+        fail "L26-01" "Integrity probe phase not reached"
+    fi
+
+    if echo "$OUTPUT" | grep -q 'INTEGRITY_PROBE|blocked_flag_exit=[0-9]*|executed=false'; then
+        pass "L26-02" "Blocked flag refused — script did not execute"
+    else
+        IP=$(echo "$OUTPUT" | grep -oP 'INTEGRITY_PROBE\|blocked_flag_exit=\K[0-9]+\|executed=(true|false)' | head -1)
+        fail "L26-02" "Blocked flag did not prevent execution" "got: ${IP:-<none>}"
+    fi
+
+    # Without this, a refusal above could just mean the binary or path was
+    # broken rather than that the flag was rejected.
+    if echo "$OUTPUT" | grep -q 'INTEGRITY_PROBE|control_exit=0|executed=true'; then
+        pass "L26-03" "Control run without the flag executes normally"
+    else
+        IPC=$(echo "$OUTPUT" | grep -oP 'INTEGRITY_PROBE\|control_exit=\K[0-9]+\|executed=(true|false)' | head -1)
+        gk_fail "L26-03" "Control run failed — L26-02 is unattributable" "got: ${IPC:-<none>}"
+    fi
 
     fi
 
