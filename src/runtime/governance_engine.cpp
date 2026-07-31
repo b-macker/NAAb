@@ -6657,14 +6657,20 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         ev["source"] = "end_of_run";
         ev["timestamp"] = timestamp;
         ev["detail"] = detail;
+        // Chain exactly like every other chained writer: chainPrevLocked()
+        // anchors to the file tail (not the in-memory hash, which is empty
+        // when these warnings are a process's first chained events) and emits
+        // the RunStart anchor lazily. Counting the event is what lets RunEnd
+        // declare a total the verifier can reproduce — writing into the chain
+        // without incrementing made --verify-telemetry-chain report
+        // "RunEnd declares N but M observed" on files nobody had touched.
         if (rules().telemetry_output.tamper_evidence.enabled) {
             std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-            ev["prev_hash"] = last_telemetry_hash_.empty()
-                ? rules().telemetry_output.tamper_evidence.chain_genesis
-                : last_telemetry_hash_;
+            ev["prev_hash"] = chainPrevLocked(fp);
             last_telemetry_hash_ = computeHash(ev.dump(),
                 rules().telemetry_output.tamper_evidence);
             ev["hash"] = last_telemetry_hash_;
+            chained_events_this_run_++;
         }
         std::string line = ev.dump() + "\n";
         size_t written = fwrite(line.c_str(), 1, line.size(), fp);

@@ -1,8 +1,10 @@
-# Governance campaign findings (living-script runs 7–23)
+# Governance campaign findings (living-script runs 7 onward)
 
 A debugging campaign against `examples/living-script_extended/`, driven by live
-multi-agent runs on Gemini. Seventeen live runs, thirteen engine defects, four
-proposals withdrawn on evidence.
+multi-agent runs on Gemini. Two phases so far: the **coherence phase** (runs
+7–23, thirteen engine defects, four proposals withdrawn on evidence) and the
+**transition-admissibility phase** that followed it, which asked whether the
+system can prove an inadmissible action never became real.
 
 This page exists because the reasoning was the expensive part and it was spread
 across forty commit messages and seven test headers. The code is recoverable
@@ -113,6 +115,125 @@ suite with no tests left passes**.
 
 ---
 
+## Transition-admissibility phase
+
+The coherence phase asked whether the engine could *tell* that an agent had gone
+wrong. This phase asks the harder question the engine claims to answer: **can it
+prevent an inadmissible action from becoming operationally real, and prove that
+it did?** Proving a negative needs a control — an absence is only evidence when
+the same test shows the action forming under admission — so every level here is
+paired, and `test_nonformation_proof.sh` Group A exists to give Group B meaning.
+
+Three of the five defects below were found by *writing the proof* rather than by
+reasoning about the code — two of those in the evidence layer itself, which had
+been running unverified. The other two came from tracing the propose/commit path
+after #105 established the invariant they violate.
+
+### 7. Every signed attestation named no key
+
+`ed25519Fingerprint()` reads with `PEM_read_bio_PUBKEY` and deliberately refuses
+private keys. All three `emit*Attestation` sites handed it the **signing** key,
+so fingerprinting threw into the surrounding catch and left `key_fingerprint`
+as `""`. Every signed attestation NAAb had ever written carried a valid
+signature that could not be attributed to a signer.
+
+The assertion merged one PR earlier could not have caught it: it grepped
+`'"key_fingerprint":"'`, which also matches an empty value. That is the defect
+class this phase kept producing — **an assertion that looks specific but is
+satisfiable without the property holding** (see *Method notes*).
+
+- Fix `1e6924b` — fingerprint the derived public half via `ed25519PublicFromPrivate()`; the value now equals what the trust store reports for the same key
+- Test `test_nonformation_proof.sh` C-05 (tightened to require hex content), living-script `L24-03`
+- **Live status: confirmed** (keyed run: 22 signed attestations, 0 empty fingerprints)
+
+### 8. A lease could lapse in the gap propose/commit exists to create
+
+`agent.propose()` gated the standing lease; `agent.commit()` did not gate it at
+all. Deliberation time is the entire point of the split, so a wall-clock lease
+could expire inside it and the commit landed anyway — `agent.send()` refusing the
+same handle at the same instant while commit advanced the turn and appended
+history.
+
+Authority is time-varying and a proposal is not, so the check belongs on the
+commit half. Only the wall-clock half can fire there: turns cannot advance
+between propose and commit, so a turn-based lease that passed propose is still
+valid at commit **by construction** — G-02 holds that claim honest rather than
+assuming it.
+
+- Fix `dfd443e` — `leaseExpiredLocked()` inside commit's existing `s_agent_mutex` block; no new lock, no lock-ordering change
+- Test `test_propose_commit.sh` Group G
+- **Live status: stub-only** — no live run has yet let a lease expire mid-deliberation
+
+### 9. Propose was the one entry point where expired authority passed silently
+
+Two holes in the same invariant. `agentPropose`'s lease test sat inside
+`if (cb.step_up_enabled)`, which defaults to **false** — so by default propose
+did not consult the lease at all, while send hard-throws on expiry and commit
+now checks unconditionally. And a candidate generated under one configuration
+could still be committed under another, because commit deliberately does not
+call `reloadIfChanged()` (an accepted reload re-baselines `mandate_keywords`
+and would score a candidate against a mandate it never received).
+
+The stamp is `reload_count_`, not `governance_epoch_`: the epoch also moves on
+pulse verdict transitions, and the pulse sawtooths, so proposals would be voided
+during normal degraded operation. The change was **not additive** —
+`reload_count_` was a plain `int` read unsynchronised by `getReloadCount()`,
+which would have been a data race once agent worker threads read it during
+`batch`/`fan_out`. It is now `std::atomic<int>`.
+
+- Fix `f357275`
+- Test `test_propose_commit.sh` Groups F and G
+- **Live status: inert-verified** — the propose/commit path does run live (keyed runs record commit attestations alongside send attestations), and no reload has yet landed inside a deliberation gap, so the refusal itself is stub-only
+
+### 10. Naming a function `validate_*` does not clear taint
+
+`checkRhsSanitized()` (`governance_taint.cpp:204`) clears taint only when a
+sanitizer call is the **right-hand side of an assignment**. Being *inside* a
+function whose name matches `validate_` does nothing for values that function
+writes internally — which is exactly why `validate_python_tool()` violates: it
+writes unvalidated LLM code to disk and AST-parses it **afterwards**. That is a
+true positive, and calling it sanitized would be a lie.
+
+Two corrections to the record came out of the same run. The escalation this
+change was justified by **never fired**: zero `ESCALATED` lines at 18
+violations, because epoch boundaries reset advisory history
+(`decayAdvisoryHistory()`) and the occurrence counter peaked at 5 of 8. The
+sanitizer boundary is the honest model of the trust boundary; it is not
+breakage avoidance, and `L25-03`'s comment now says so.
+
+- Fix `142c015` — 16 build-path extraction sites routed through `sanitize_llm_code()`
+- Test living-script `L25-01..03` (control write proves taint is watching; the pass condition is a documented count baseline, because the violation message names the sink *type* and *source* line, never the write target)
+- **Live status: confirmed** — build path contributed **zero** violations across all feature iterations in two keyed runs
+
+### 11. The chain verifier reported tampering on files nobody had touched
+
+`emitEndOfRunHealthWarnings()` writes chained telemetry from its own code path
+rather than through `writeAgentTelemetry()`. It seeded `prev_hash` from the
+in-memory `last_telemetry_hash_` and never incremented
+`chained_events_this_run_`, so:
+
+- `RunEnd` under-declared its count and `--verify-telemetry-chain` reported a
+  hard **BREAK** — "declares 2 but 4 observed" — on an untouched file;
+- when the warnings were a process's first chained events the in-memory hash was
+  empty, so `prev_hash` fell back to genesis mid-file (spurious **LEGACY
+  RESTART**) and the lazy `RunStart` anchor landed *behind* the events it was
+  supposed to anchor.
+
+A verifier that cries tamper on its own output is worse than no verifier: it
+trains the reader to ignore the one signal that is supposed to be unignorable.
+The bug was found by `L24-06` — the level added in #106 specifically because the
+example had been building a chain nothing ever verified.
+
+The unit was `2` per affected run, matching the two inert-instrumentation
+warnings (CDD and BSD enabled with no agent activity). The originally-reported
+53 was an artifact of aggregating several run groups, not one large gap.
+
+- Fix — `chainPrevLocked(fp)` plus the counter increment, inside the lock the lambda already held; every other chained writer already did both
+- Test `test_evidence_chain.sh` Group E (E-01 is the control: without warnings actually firing, E-02..E-04 would be vacuous)
+- **Live status: confirmed for the defect** (keyed runs showed the BREAK); the fix has not yet been through a live keyed run
+
+---
+
 ## Harness and orchestration fixes
 
 These are not engine defects. They are places where the harness or the living
@@ -188,7 +309,7 @@ Kept because the reasoning against them is the useful part.
 
 ## Method notes
 
-Three things this campaign kept relearning:
+Four things this campaign kept relearning:
 
 **Trace the code before running the experiment.** Every fix that came from
 reading call graphs held up. Both hypotheses formed by reading a live run and
@@ -205,3 +326,13 @@ it immediately, because the baseline is what the window actually controls.
 may be redundant" when the two runs already differ; `PW-02` fails if the window
 answers to no key at all, so a pinned value cannot pass by looking stable. A
 test that can only pass or fail cannot tell you it measured nothing.
+
+**An assertion that looks specific can be satisfiable without the property
+holding.** This appeared three times in the transition-admissibility phase and
+was never caught by review: `grep '"key_fingerprint":"'` matches an empty value
+(#7 above); `L24-02` asserted attestation-count *equality* against a counter
+incremented on paths that do not attest; `L25-03` asserted a *total* on the
+assumption that the build path was the only route to a file sink. The only
+defence that worked was **running the degraded case** — reverting the fix and
+confirming the assertion fails. An assertion never observed failing has not been
+tested, it has been written.

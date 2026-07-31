@@ -524,6 +524,103 @@ fi
 fi
 
 # ============================================================
+# Group E: end-of-run health warnings participate in the chain
+#
+# emitEndOfRunHealthWarnings() writes chained events from its own code path
+# rather than through writeAgentTelemetry(). It used to seed prev_hash from
+# the in-memory hash and never increment the run's chained-event counter, so
+# an untouched file failed verification with "RunEnd declares N but M
+# observed" — the verifier reporting tampering that had not happened.
+# ============================================================
+echo -e "${CYAN}--- Group E: health-warning chain participation ---${NC}"
+
+WDIR="$TEST_TMP/group_e"; mkdir -p "$WDIR"
+# CDD and BSD enabled with no agent activity ⇒ both inert-instrumentation
+# warnings fire at end of run, which is what puts events on this path.
+cat > "$WDIR/govern.json" << 'GOVEOF'
+{
+  "version": "5.0",
+  "mode": "monitor",
+  "telemetry": {
+    "enabled": true,
+    "output_file": "tele.jsonl",
+    "tamper_evidence": { "enabled": true, "algorithm": "sha256" }
+  },
+  "governance_health": { "enabled": true },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": { "enabled": true }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/t.naab" << 'NAABEOF'
+main {
+    print("hello")
+}
+NAABEOF
+
+for _ in 1 2 3; do
+    (cd "$WDIR" && timeout 30s "$NAAB" t.naab >/dev/null 2>&1)
+done
+
+# Control: without warnings actually firing, E-02..E-04 would be vacuous.
+WARN_N=$(grep -c "GOVERNANCE_HEALTH_WARNING" "$WDIR/tele.jsonl" 2>/dev/null || echo 0)
+if [ "$WARN_N" -ge 3 ]; then
+    pass "E-01" "end-of-run health warnings fired ($WARN_N events on this path)"
+else
+    fail "E-01" "no end-of-run health warnings — E-02..E-04 would be vacuous" "count=$WARN_N"
+fi
+
+VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain tele.jsonl 2>&1); VEXIT=$?
+if [ "$VEXIT" -eq 0 ] && ! echo "$VOUT" | grep -q "BREAK\|LEGACY RESTART"; then
+    pass "E-02" "runs emitting health warnings verify clean on a shared file"
+else
+    fail "E-02" "health warnings break chain verification" "exit=$VEXIT $VOUT"
+fi
+
+COUNT_OK=$(python3 - "$WDIR/tele.jsonl" << 'PYEOF'
+import json, sys
+from collections import defaultdict
+counts = defaultdict(int); declared = {}
+for l in open(sys.argv[1]):
+    if not l.strip(): continue
+    e = json.loads(l)
+    if "hash" not in e: continue
+    counts[e.get("run_id")] += 1
+    if e.get("event_type") == "RunEnd":
+        declared[e.get("run_id")] = e.get("chained_events")
+bad = [(r, declared.get(r), c) for r, c in counts.items() if declared.get(r) != c]
+print("OK" if declared and not bad else "MISMATCH " + repr(bad))
+PYEOF
+)
+if [ "$COUNT_OK" = "OK" ]; then
+    pass "E-03" "health warnings counted in RunEnd chained_events"
+else
+    fail "E-03" "health warnings written without incrementing the run counter" "$COUNT_OK"
+fi
+
+# The RunStart anchor is emitted lazily by chainPrevLocked(); a writer that
+# bypasses it leaves the anchor stranded behind the events it should anchor.
+ORDER_OK=$(python3 - "$WDIR/tele.jsonl" << 'PYEOF'
+import json, sys
+seen = set(); ok = True
+for l in open(sys.argv[1]):
+    if not l.strip(): continue
+    e = json.loads(l)
+    if "hash" not in e: continue
+    rid = e.get("run_id")
+    if e.get("event_type") == "RunStart":
+        if rid in seen: ok = False   # events preceded this run's anchor
+    seen.add(rid)
+print("OK" if ok else "STRANDED")
+PYEOF
+)
+if [ "$ORDER_OK" = "OK" ]; then
+    pass "E-04" "RunStart anchor precedes every chained event of its run"
+else
+    fail "E-04" "chained events written before the run's RunStart anchor"
+fi
+
+# ============================================================
 # Summary
 # ============================================================
 echo ""
