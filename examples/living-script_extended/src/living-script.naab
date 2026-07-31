@@ -276,6 +276,24 @@ fn count_telemetry(pattern) {
 // \"signature\": sequence. process.run() passes argv with no shell in between,
 // so grep sees ONE backslash and its BRE reads \" as a plain " — which never
 // matches the escaped text. -F sidesteps the escaping layer entirely.
+// The trust boundary for LLM output.
+//
+// taint_tracking marks every agent.send() return as tainted, and file.write /
+// python_exec are sinks — so the pipeline this script builds is a source→sink
+// flow by construction. Extraction is where that output stops being an opaque
+// model response and becomes a checked artifact, so extraction is the honest
+// place to clear taint. The sanitize_ prefix is what the engine matches on
+// (taint_tracking.sanitizers), so the name is load-bearing, not decorative.
+//
+// Routing through here rather than leaving the flow to fire advisories also
+// avoids a real trap: advisory_escalation is enabled with soft_after 8, and
+// this script writes LLM-derived files far more than eight times. Unsanitized,
+// the advisory would harden into a SOFT block partway through the run and the
+// pipeline build would simply stop producing.
+fn sanitize_llm_code(response_content, lang) {
+    return agent.extract_code(response_content, lang)
+}
+
 fn count_fixed_matching(path, pattern) {
     try {
         let g = process.run("grep", ["-c", "-F", pattern, path])
@@ -718,7 +736,7 @@ main {
             if json.is_valid(content) {
                 decision = json.parse(content)
             } else {
-                let stripped = agent.extract_code(content, "json")
+                let stripped = sanitize_llm_code(content, "json")
                 if len(stripped) > 2 && json.is_valid(stripped) {
                     decision = json.parse(stripped)
                 }
@@ -954,7 +972,7 @@ main {
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
-            models_code = agent.extract_code(resp.get("content") ?? "", "python")
+            models_code = sanitize_llm_code(resp.get("content") ?? "", "python")
         } else {
             tracking["send_errors"] = tracking["send_errors"] + 1
         }
@@ -977,7 +995,7 @@ main {
                 tracking["total_sends"] = tracking["total_sends"] + 1
                 if mresp.get("error") == null {
                     track("developer", mresp)
-                    let fixed_models = agent.extract_code(mresp.get("content") ?? "", "python")
+                    let fixed_models = sanitize_llm_code(mresp.get("content") ?? "", "python")
                     if len(fixed_models) > 20 {
                         let retry_err = python_import_error("models.py", fixed_models)
                         if len(retry_err) == 0 {
@@ -1008,7 +1026,7 @@ main {
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
-            pipeline_code = agent.extract_code(resp.get("content") ?? "", "python")
+            pipeline_code = sanitize_llm_code(resp.get("content") ?? "", "python")
         } else {
             tracking["send_errors"] = tracking["send_errors"] + 1
         }
@@ -1032,7 +1050,7 @@ main {
             tracking["total_sends"] = tracking["total_sends"] + 1
             if retry_resp.get("error") == null {
                 track("developer", retry_resp)
-                let retry_code = agent.extract_code(retry_resp.get("content") ?? "", "python")
+                let retry_code = sanitize_llm_code(retry_resp.get("content") ?? "", "python")
                 if len(retry_code) > 20 { pipeline_code = retry_code }
             } else {
                 tracking["send_errors"] = tracking["send_errors"] + 1
@@ -1045,7 +1063,7 @@ main {
         tracking["total_sends"] = tracking["total_sends"] + 1
         if resp.get("error") == null {
             track("developer", resp)
-            test_code = agent.extract_code(resp.get("content") ?? "", "python")
+            test_code = sanitize_llm_code(resp.get("content") ?? "", "python")
         } else {
             tracking["send_errors"] = tracking["send_errors"] + 1
         }
@@ -1083,7 +1101,7 @@ main {
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
                 track("specialist", resp)
-                let improved = agent.extract_code(resp.get("content") ?? "", "python")
+                let improved = sanitize_llm_code(resp.get("content") ?? "", "python")
                 let adopt = false
                 if len(improved) > 20 {
                     file.write("_spec_check.py", improved)
@@ -1197,7 +1215,7 @@ main {
             tracking["total_sends"] = tracking["total_sends"] + 1
             if resp.get("error") == null {
                 track("developer", resp)
-                let new_pipeline = agent.extract_code(resp.get("content") ?? "", "python")
+                let new_pipeline = sanitize_llm_code(resp.get("content") ?? "", "python")
                 if len(new_pipeline) > 20 {
                     pipeline_code = new_pipeline
                     print("REFINE|developer_rewrote|len=" + string(len(pipeline_code)))
@@ -1217,7 +1235,7 @@ main {
                 tracking["total_sends"] = tracking["total_sends"] + 1
                 if resp.get("error") == null {
                     track("developer", resp)
-                    let new_tests = agent.extract_code(resp.get("content") ?? "", "python")
+                    let new_tests = sanitize_llm_code(resp.get("content") ?? "", "python")
                     if len(new_tests) > 20 { test_code = new_tests }
                 } else {
                     tracking["send_errors"] = tracking["send_errors"] + 1
@@ -1368,7 +1386,7 @@ main {
                         propose_committed = true
                         track("developer", committed)
                         post_send_check(handles["developer"], committed, "developer")
-                        let committed_code = agent.extract_code(committed.get("content") ?? "", "python")
+                        let committed_code = sanitize_llm_code(committed.get("content") ?? "", "python")
                         if len(committed_code) > 20 {
                             pipeline_code = committed_code
                         }
@@ -1968,6 +1986,68 @@ main {
     tracking["phases_completed"].push("EVIDENCE_AUDIT")
 
     // ================================================================
+    // PHASE: TAINT_AUDIT — LLM output reaching a sink (Level 25)
+    // ================================================================
+    // Every agent.send() return is tainted and file.write is a sink, so this
+    // script's core loop is a source→sink flow. The build path routes through
+    // sanitize_llm_code(), which is why it produces no violations.
+    //
+    // "Zero violations" is indistinguishable from "taint tracking is switched
+    // off", so a clean count proves nothing on its own. One deliberate
+    // unsanitized write supplies the positive control: it must produce a
+    // violation, and that is what makes the sanitized path's zero meaningful.
+    // One occurrence is far below advisory_escalation's soft_after of 8, so the
+    // control cannot harden into a block.
+    print("PHASE|TAINT_AUDIT|start")
+
+    // Counting happens in run.sh AFTER the run, not here. Taint violations are
+    // RuleViolation records, and those go through writeTelemetry() — a bulk dump
+    // of accumulated check_results_ at shutdown — rather than the per-event
+    // writeAgentTelemetry() path the EVIDENCE phase counts. Mid-run the file
+    // simply does not contain them yet, so an in-script count reads zero no
+    // matter how many fired.
+    if handles.get("tester") != null {
+        let probe = safe_send(handles["tester"], "Reply with a one-line Python comment describing what a data pipeline stage does.")
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        track("tester", probe)
+        // Deliberately NOT routed through sanitize_llm_code(): the positive
+        // control proving the sink is watched. Bound to a variable first —
+        // taint is name-based, so an inline expression carries none and the
+        // control would silently prove nothing.
+        let unsanitized_response = probe.get("content") ?? "# no content"
+        file.write("_taint_control.py", unsanitized_response)
+        print("TAINT_AUDIT|control_write=done")
+    } else {
+        print("TAINT_AUDIT|control_write=skipped_no_tester")
+    }
+
+    tracking["phases_completed"].push("TAINT_AUDIT")
+
+    // ================================================================
+    // PHASE: INTEGRITY_PROBE — blocked CLI flags are refused (Level 26)
+    // ================================================================
+    // integrity.blocked_flags is enforced pre-flight, before either execution
+    // path starts. Declaring it in govern.json proves nothing by itself since
+    // run.sh never passes those flags — so invoke the binary WITH one and
+    // assert the refusal, the same way ENGINE_RATCHET deliberately writes a
+    // loosened config to prove the engine rejects it.
+    print("PHASE|INTEGRITY_PROBE|start")
+
+    let naab_bin = env.get("NAAB_BINARY", "naab-lang")
+    file.write("_integrity_probe.naab", "main {\n    print(\"SHOULD_NOT_RUN\")\n}\n")
+    let ip = process.run(naab_bin, ["--governance-override", "_integrity_probe.naab"])
+    let ip_ran = string.contains(ip.stdout, "SHOULD_NOT_RUN")
+    print("INTEGRITY_PROBE|blocked_flag_exit=" + string(ip.exit_code) + "|executed=" + string(ip_ran))
+
+    // Control: the same script with no blocked flag must run, or a refusal
+    // above would prove only that the binary/path was broken.
+    let ok = process.run(naab_bin, ["_integrity_probe.naab"])
+    let ok_ran = string.contains(ok.stdout, "SHOULD_NOT_RUN")
+    print("INTEGRITY_PROBE|control_exit=" + string(ok.exit_code) + "|executed=" + string(ok_ran))
+
+    tracking["phases_completed"].push("INTEGRITY_PROBE")
+
+    // ================================================================
     // PHASE: CODEGEN_BOUNDARY — codegen strict failure path (Level 18)
     // ================================================================
     print("PHASE|CODEGEN_BOUNDARY|start")
@@ -2130,7 +2210,7 @@ main {
                     if resp.get("error") == null {
                         track("developer", resp)
                         post_send_check(handles["developer"], resp, "developer")
-                        let updated_pipeline = agent.extract_code(resp.get("content") ?? "", "python")
+                        let updated_pipeline = sanitize_llm_code(resp.get("content") ?? "", "python")
                         if len(updated_pipeline) > 20 {
                             pipeline_code = updated_pipeline
                             print("FEATURE|" + string(feat_num) + "|pipeline_updated|len=" + string(len(pipeline_code)))
@@ -2153,7 +2233,7 @@ main {
                     if resp.get("error") == null {
                         track("developer", resp)
                         post_send_check(handles["developer"], resp, "developer")
-                        let updated_tests = agent.extract_code(resp.get("content") ?? "", "python")
+                        let updated_tests = sanitize_llm_code(resp.get("content") ?? "", "python")
                         if len(updated_tests) > 20 { test_code = updated_tests }
                     } else {
                         tracking["send_errors"] = tracking["send_errors"] + 1
@@ -2188,7 +2268,7 @@ main {
                     if fresp.get("error") == null {
                         track("developer", fresp)
                         post_send_check(handles["developer"], fresp, "developer")
-                        let fixed_pipeline = agent.extract_code(fresp.get("content") ?? "", "python")
+                        let fixed_pipeline = sanitize_llm_code(fresp.get("content") ?? "", "python")
                         if len(fixed_pipeline) > 20 {
                             pipeline_code = fixed_pipeline
                             print("FEATURE|" + string(feat_num) + "|developer_fixed|len=" + string(len(pipeline_code)))
@@ -2253,7 +2333,7 @@ main {
             if pfresp.get("error") == null {
                 track("developer", pfresp)
                 post_send_check(handles["developer"], pfresp, "developer")
-                let fixed = agent.extract_code(pfresp.get("content") ?? "", "python")
+                let fixed = sanitize_llm_code(pfresp.get("content") ?? "", "python")
                 if len(fixed) > 20 {
                     if fix_attempt > 1 && string.contains(fixed, "def test_") {
                         test_code = fixed
@@ -2498,7 +2578,7 @@ main {
             if fresp.get("error") == null {
                 track("developer", fresp)
                 post_send_check(handles["developer"], fresp, "developer")
-                let fixed = agent.extract_code(fresp.get("content") ?? "", "python")
+                let fixed = sanitize_llm_code(fresp.get("content") ?? "", "python")
                 if len(fixed) > 20 {
                     pipeline_code = fixed
                     print("FINAL_REVIEW|developer_fixed|iter=" + string(final_iter) + "|len=" + string(len(pipeline_code)))

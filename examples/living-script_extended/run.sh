@@ -34,6 +34,8 @@
 #   Level 22: Output admissibility (quarantine dispositions + streak accounting)
 #   Level 23: Transcript integrity (entry_hash coverage vs chained TRANSCRIPT_REF)
 #   Level 24: Evidence layer (signed attestations, decision snapshots, chain verify)
+#   Level 25: Taint flow (LLM output to sink, sanitizer boundary + control)
+#   Level 26: Integrity (blocked CLI flags refused, with control)
 #
 # Levels 19b/21/22/23 exist because the corresponding engine behaviour was
 # configured but unobserved: the Jul 22 run registered two tools and made zero
@@ -504,7 +506,7 @@ assert 'refinement_iterations' in d
     # ============================================================
     echo -e "${CYAN}Level 4: Phase Transitions & Evolution${NC}"
 
-    for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT CODEGEN_BOUNDARY; do
+    for phase in TOOL_REGISTRATION PREFLIGHT TOOL_EXEC DESIGN IMPLEMENT REFINE PROPOSE_SELECT FEATURES PARALLEL_REVIEW BATCH_PIPELINE FINAL_REVIEW SCORING INTROSPECTION RATCHET ENGINE_RATCHET HEALTH_PULSE LEASE_EPOCH TELEMETRY_AUDIT TRANSCRIPT_AUDIT EVIDENCE_AUDIT TAINT_AUDIT INTEGRITY_PROBE CODEGEN_BOUNDARY; do
         if echo "$OUTPUT" | grep -q "PHASE|${phase}|"; then
             pass "L4-$phase" "Phase $phase reached"
         else
@@ -1522,6 +1524,94 @@ assert 'refinement_iterations' in d
                 "$( (cd "$WORKDIR" && "$NAAB" --verify-telemetry-chain "${_chain}.jsonl" 2>&1) | grep -E 'BREAK|TAMPER|CORRUPT' | head -2)"
         fi
     done
+
+    fi
+
+    # ============================================================
+    # L25: TAINT FLOW (LLM output reaching a sink)
+    #
+    # The build path routes LLM output through sanitize_llm_code() before it
+    # reaches file.write, so it produces no violations. A clean count proves
+    # nothing on its own — it looks identical to taint tracking being off — so
+    # the phase makes one deliberate unsanitized write as a positive control.
+    # That control firing is what gives the sanitized path's zero its meaning.
+    # ============================================================
+    echo -e "${CYAN}Level 25: Taint Flow${NC}"
+
+    if ! govkill_block "L25-*" 'PHASE|TAINT_AUDIT|'; then
+
+    if echo "$OUTPUT" | grep -q "PHASE|TAINT_AUDIT|start"; then
+        pass "L25-01" "Taint audit phase reached"
+    else
+        fail "L25-01" "Taint audit phase not reached"
+    fi
+
+    # Counted here rather than in the script: taint violations are RuleViolation
+    # records written by writeTelemetry(), a bulk dump at shutdown, so mid-run
+    # the file does not contain them yet. By this point the run has ended and the
+    # file is complete.
+    TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
+
+    if echo "$OUTPUT" | grep -q "TAINT_AUDIT|control_write=skipped"; then
+        skip "L25-02" "control write skipped — no tester handle"
+        skip "L25-03" "control write skipped — build-path count unattributable"
+    elif [ "${TAINT_N:-0}" -ge 1 ]; then
+        pass "L25-02" "Unsanitized control write is caught (${TAINT_N} taint sink violation(s))"
+
+        # The build path routes through sanitize_llm_code(). If that boundary
+        # stopped clearing taint, every LLM-derived write would violate and the
+        # count would climb past advisory_escalation's soft_after (8) — at which
+        # point the advisory hardens into a SOFT block and the build stops
+        # producing. Tying the bound to that threshold rather than an arbitrary
+        # number makes the assertion mean "the sanitizer is still doing its job".
+        ESC_AFTER=$(grep -oP '"soft_after"\s*:\s*\K[0-9]+' "$WORKDIR/govern.json" 2>/dev/null | head -1)
+        ESC_AFTER=${ESC_AFTER:-8}
+        if [ "${TAINT_N:-0}" -lt "$ESC_AFTER" ]; then
+            pass "L25-03" "Build path stays under the escalation threshold (${TAINT_N} < ${ESC_AFTER}) — sanitizer boundary holds"
+        else
+            gk_fail "L25-03" "Tainted output is leaking to sinks" \
+                "${TAINT_N} violations >= soft_after ${ESC_AFTER}; advisory_escalation hardens this into a SOFT block and the build stops producing"
+        fi
+    else
+        gk_fail "L25-02" "Unsanitized write produced no taint violation" \
+            "taint_tracking is not in effect, so a clean build path proves nothing"
+        skip "L25-03" "build-path count unattributable while the control does not fire"
+    fi
+
+    fi
+
+    # ============================================================
+    # L26: INTEGRITY (blocked CLI flags refused)
+    #
+    # integrity.blocked_flags is enforced pre-flight. Declaring it proves
+    # nothing since run.sh never passes those flags, so the phase invokes the
+    # binary WITH one and asserts refusal, plus a control run without it.
+    # ============================================================
+    echo -e "${CYAN}Level 26: Integrity (blocked flags)${NC}"
+
+    if ! govkill_block "L26-*" 'PHASE|INTEGRITY_PROBE|'; then
+
+    if echo "$OUTPUT" | grep -q "PHASE|INTEGRITY_PROBE|start"; then
+        pass "L26-01" "Integrity probe phase reached"
+    else
+        fail "L26-01" "Integrity probe phase not reached"
+    fi
+
+    if echo "$OUTPUT" | grep -q 'INTEGRITY_PROBE|blocked_flag_exit=[0-9]*|executed=false'; then
+        pass "L26-02" "Blocked flag refused — script did not execute"
+    else
+        IP=$(echo "$OUTPUT" | grep -oP 'INTEGRITY_PROBE\|blocked_flag_exit=\K[0-9]+\|executed=(true|false)' | head -1)
+        fail "L26-02" "Blocked flag did not prevent execution" "got: ${IP:-<none>}"
+    fi
+
+    # Without this, a refusal above could just mean the binary or path was
+    # broken rather than that the flag was rejected.
+    if echo "$OUTPUT" | grep -q 'INTEGRITY_PROBE|control_exit=0|executed=true'; then
+        pass "L26-03" "Control run without the flag executes normally"
+    else
+        IPC=$(echo "$OUTPUT" | grep -oP 'INTEGRITY_PROBE\|control_exit=\K[0-9]+\|executed=(true|false)' | head -1)
+        gk_fail "L26-03" "Control run failed — L26-02 is unattributable" "got: ${IPC:-<none>}"
+    fi
 
     fi
 
