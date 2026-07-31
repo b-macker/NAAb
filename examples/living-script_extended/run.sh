@@ -1584,6 +1584,15 @@ assert 'refinement_iterations' in d
         #   4  unlocated (line 0), dynamic/codegen writes.
         #   1  the deliberate control write above.
         #
+        # A second keyed run (more successful: 56 sends, 3/3 extractions, 4
+        # features) came in at 7-8, so the count is NOT monotone in run length —
+        # it depends on which of the sites above execute, and the 18 came from a
+        # run where feature 2 never completed. 18 is therefore a ceiling over
+        # observed runs, and a loose one: a leak would have to add ~10
+        # violations to trip it. Tightening it needs the variance understood
+        # first (which site drives the spread), not a guess at a lower number —
+        # a baseline that fails on a healthy run teaches everyone to raise it.
+        #
         # Raising this number is a reviewed decision, not a routine edit: it
         # means another unsanitized sink path was added.
         TAINT_BASELINE=${TAINT_BASELINE:-18}
