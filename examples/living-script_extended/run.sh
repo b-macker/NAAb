@@ -1572,30 +1572,46 @@ assert 'refinement_iterations' in d
         # agent-derived data without passing through extraction. A build-path
         # leak adds violations, raises the total, and fails here.
         #
-        # Baseline observed on the 2026-07-31 keyed run (18):
-        #   6  validate_python_tool()  — writes unvalidated LLM code to
-        #      _tool_check.py and AST-parses it afterwards. The write precedes
-        #      validation, so calling it sanitized would be false. True positive.
-        #   6  operator config writes (_govern_pending.json, write_govern_raw)
-        #      — LLM JSON parsed and field-validated before re-serialising.
-        #      Routing these through a validate_-RHS binding would be honest and
-        #      would lower this baseline; deliberately left for its own change.
-        #   2  cross-run memory persistence — aggregate tracking data.
-        #   4  unlocated (line 0), dynamic/codegen writes.
-        #   1  the deliberate control write above.
+        # This count was INFLATED by a telemetry defect. Until the writeReports
+        # double-dump was fixed, a run that tripped the quality gate re-emitted
+        # its entire result set, so `grep -c` here saw most violations twice.
+        # The 18 that set this baseline is therefore roughly 2x the real number:
+        # the same run attributed by (file, line) has only 8 DISTINCT sink sites
+        # and 7-8 violations per run segment.
         #
-        # A second keyed run (more successful: 56 sends, 3/3 extractions, 4
-        # features) came in at 7-8, so the count is NOT monotone in run length —
-        # it depends on which of the sites above execute, and the 18 came from a
-        # run where feature 2 never completed. 18 is therefore a ceiling over
-        # observed runs, and a loose one: a leak would have to add ~10
-        # violations to trip it. Tightening it needs the variance understood
-        # first (which site drives the spread), not a guess at a lower number —
-        # a baseline that fails on a healthy run teaches everyone to raise it.
+        # Sites observed by source location on the 2026-08-01 keyed run:
+        #   living-script.naab:1534  introspection_probe tool registration
+        #   living-script.naab:51    get_coherence()  — reads coherence from a response
+        #   living-script.naab:82    check_coherence() — coherence read + agent.reset
+        #   living-script.naab:309   sanitize_llm_code() — extract_code() return
+        #   living-script.naab:214   operator config write path
+        #   living-script.naab:249   json.parse(r.stdout) — subprocess output
+        #   living-script.naab:786   operator decision return
+        #   <codegen:python>:0       dynamic codegen, no source location
+        #
+        # validate_python_tool() writes unvalidated LLM code and AST-parses it
+        # afterwards, so the write precedes validation and calling it sanitized
+        # would be false — a true positive to leave alone. The operator-config
+        # sites do real allowlist validation and could honestly take a
+        # validate_-RHS binding, which would lower this further.
+        #
+        # The apparent run-to-run variance was an artifact, not behaviour.
+        # Measurements: 7, 8, then 18, then 8 — and the 18 is the single run
+        # where the writeReports double-dump fired, counting most violations
+        # twice. That defect is fixed, so inflation can no longer happen, and
+        # the underlying count is stable: a violation fires about once per
+        # distinct sink site, so the total tracks the ~8 sites above rather than
+        # the length of the run. The earlier reasoning that the count "is NOT
+        # monotone in run length" was reading the artifact as signal.
+        #
+        # 12 therefore leaves ~50% headroom over every non-inflated measurement
+        # while still catching a leak: the build path runs 16 extraction sites
+        # across every feature iteration, so losing its sanitizer adds far more
+        # than the 4 violations of slack here.
         #
         # Raising this number is a reviewed decision, not a routine edit: it
         # means another unsanitized sink path was added.
-        TAINT_BASELINE=${TAINT_BASELINE:-18}
+        TAINT_BASELINE=${TAINT_BASELINE:-12}
         if [ "${TAINT_N:-0}" -le "$TAINT_BASELINE" ]; then
             pass "L25-03" "Taint violations within the documented baseline (${TAINT_N} <= ${TAINT_BASELINE}) — sanitizer boundary holds"
         else

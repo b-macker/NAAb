@@ -285,12 +285,22 @@ std::string GovernanceEngine::chainPrevLocked(FILE* fp) const {
 }
 
 // RunEnd anchor: declares this run's chained event count so the verifier can
-// detect trailing truncation of a run. Written once, at report time.
+// detect trailing truncation of a run.
+//
+// NOT write-once. writeReports() is called from ~17 sites and a clean
+// execute() is not the last of them: main.cpp's contract, quality-gate and
+// baseline exits all call it again after the run has already been sealed.
+// A write-once RunEnd leaves those later events undeclared, and the verifier
+// reports a hard BREAK ("declares 737 but 785 observed") on a file nobody
+// touched. Re-emitting reconciles the count — the verifier reads the last
+// RunEnd per run_id, so the newest declaration wins — and makes the invariant
+// self-healing for any future writer that appends after a RunEnd.
 void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const {
     const auto& te = rules().telemetry_output.tamper_evidence;
     if (!te.enabled) return;
     std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
-    if (run_end_emitted_) return;
+    // Nothing chained since the last RunEnd ⇒ its declaration still holds.
+    if (run_end_emitted_ && chained_events_this_run_ == run_end_declared_) return;
     run_end_emitted_ = true;
     nlohmann::json re;
     re["run_id"] = run_id_;
@@ -304,6 +314,7 @@ void GovernanceEngine::emitRunEnd(FILE* fp, const std::string& timestamp) const 
     re["hash"] = last_telemetry_hash_;
     checkedWrite(fp, re.dump() + "\n", telemetry_write_failures_);
     chained_events_this_run_++;
+    run_end_declared_ = chained_events_this_run_;
 }
 
 int GovernanceEngine::verifyTelemetryChain(const std::string& filepath,
@@ -1445,16 +1456,24 @@ void GovernanceEngine::writeTelemetry() const {
     std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
     std::string timestamp(ts_buf);
 
-    // Fix 4B: opt-in deduplication of governance check entries
-    std::unordered_set<std::string> seen_keys;
+    // Fix 4B: opt-in deduplication of governance check entries. The key set is
+    // a member, not a local, so dedup still holds across the multiple
+    // writeTelemetry() calls a single run makes.
     size_t dedup_count = 0;
     size_t events_written = 0;
 
-    for (const auto& r : check_results_) {
+    // Resume where the previous dump stopped. check_results_ is never cleared,
+    // so iterating from the start re-emits every earlier result — a clean
+    // execute() followed by main.cpp's quality-gate exit duplicated the whole
+    // set (45-48 records on a live run), inflating every count derived from
+    // this file. Results only ever accumulate, so an index is sufficient.
+    const size_t results_total = check_results_.size();
+    for (size_t ri = telemetry_results_dumped_; ri < results_total; ++ri) {
+        const auto& r = check_results_[ri];
         // Fix 4B: skip duplicate (rule_name, file, line) entries
         if (rules().telemetry_output.deduplicate_checks) {
             std::string key = r.rule_name + "|" + r.file + "|" + std::to_string(r.line);
-            if (!seen_keys.insert(key).second) { dedup_count++; continue; }
+            if (!telemetry_dedup_seen_.insert(key).second) { dedup_count++; continue; }
         }
 
         nlohmann::json ev;
@@ -1520,7 +1539,7 @@ void GovernanceEngine::writeTelemetry() const {
         summary["event_type"] = "GovernanceCheckSummary";
         summary["timestamp"] = timestamp;
         summary["total_checks"] = check_results_.size();
-        summary["unique_sites"] = seen_keys.size();
+        summary["unique_sites"] = telemetry_dedup_seen_.size();
         summary["deduplicated"] = dedup_count;
         if (rules().telemetry_output.tamper_evidence.enabled) {
             std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
@@ -1535,12 +1554,20 @@ void GovernanceEngine::writeTelemetry() const {
             events_written++;
     }
 
+    // Everything above this point has now been committed to the file.
+    telemetry_results_dumped_ = results_total;
+
     // Fix 5B: emit end-of-run health warnings (catches instrumentation failures
     // that per-turn checkGovernanceHealth() missed due to check_after_turns gate)
     emitEndOfRunHealthWarnings(fp.get(), timestamp);
 
-    // End-of-run scoring snapshot for cross-run analysis
-    if (rules().scoring.enabled && cumulative_score_ > 0) {
+    // End-of-run scoring snapshot for cross-run analysis. Re-emitted only when
+    // the score actually moved since the last one: a run that writes reports
+    // more than once (clean execute() then a quality-gate exit) otherwise files
+    // an identical snapshot each time.
+    if (rules().scoring.enabled && cumulative_score_ > 0 &&
+        cumulative_score_ != scoring_snapshot_last_score_) {
+        scoring_snapshot_last_score_ = cumulative_score_;
         nlohmann::json snap;
         snap["run_id"] = run_id_;
         snap["event_type"] = "ScoringSnapshot";
