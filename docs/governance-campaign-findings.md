@@ -390,3 +390,29 @@ assumption that the build path was the only route to a file sink. The only
 defence that worked was **running the degraded case** — reverting the fix and
 confirming the assertion fails. An assertion never observed failing has not been
 tested, it has been written.
+
+A systematic audit followed, because four accidental discoveries are a poor
+sampling method. Scope: 360 assertion sites in `run.sh` and 2294 across 235
+shell suites. The result was mostly reassuring — most absence checks already
+pair with a positive existence check, a fail-safe default (`${X:-1}`, where
+unset means *fail*), or a named control (`TR-01` is labelled "the
+anti-regression"; `PU-01` fails outright if its scenario produced fewer than six
+samples). What it did find:
+
+| finding | shape |
+|---|---|
+| `H01` | health verdict inferred from stderr containing the string `"governance"` — which every governed run prints. Passed hardest on a run that died before reporting its own health. |
+| 19 sites / 7 security suites | the suite defined only `ok()` and `fail()` — **no `skip()`** — so "executor not available" had nowhere to go but PASS |
+| `L24-03` | trivially true at zero attestations; non-vacuous only because a *neighbouring* assertion stayed strict |
+| `DB-01`, `DB-03`, `DB-04` | initialiser `0` and fallback `"1.00 0 0"` are indistinguishable from "the scenario never ran" |
+| `E04` | asserted a line was absent from a dashboard that a failed run never produced |
+
+`test_gov_comment_styles_gov002.sh` is the one to remember: it reported
+**"Results: 4/4 passed"** while verifying nothing at all — every check
+unverifiable in that environment. It now reports `0/4 passed, 4 skipped`.
+
+The generalisable rule is narrower than "write better assertions": **an
+assertion about an absence needs the thing it is absent from to exist.** A
+missing line in a document nobody wrote, a zero from a counter nobody
+incremented, and a clean result are the same observation until something
+distinguishes them.

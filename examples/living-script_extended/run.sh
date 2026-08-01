@@ -1478,7 +1478,14 @@ assert 'refinement_iterations' in d
     EV_SIGNED=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|signed=\K[0-9]+' | head -1)
     EV_FP=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|signed=[0-9]+\|fingerprinted=\K[0-9]+' | head -1)
     EV_EMPTY_FP=$(echo "$OUTPUT" | grep -oP 'EVIDENCE\|.*\|empty_fingerprint=\K[0-9]+' | head -1)
-    if [ "${EV_SIGNED:-0}" -eq "${EV_ATT:-(-1)}" ] && [ "${EV_FP:-0}" -eq "${EV_ATT:-(-1)}" ] \
+    # Self-guarding on purpose. With zero attestations every equality below holds
+    # trivially and this reported "0 signed, 0 empty fingerprints" as a pass. It
+    # was non-vacuous only because L24-02 separately fails when nothing attested
+    # — correct today, but a claim that depends on a neighbour staying strict is
+    # one edit away from silently proving nothing. Require the subject to exist.
+    if [ "${EV_ATT:-0}" -lt 1 ]; then
+        skip "L24-03" "No attestations to check — signing is unverified this run (L24-02 owns the floor)"
+    elif [ "${EV_SIGNED:-0}" -eq "${EV_ATT:-(-1)}" ] && [ "${EV_FP:-0}" -eq "${EV_ATT:-(-1)}" ] \
        && [ "${EV_EMPTY_FP:-1}" -eq 0 ]; then
         pass "L24-03" "Every attestation is signed and attributable (${EV_SIGNED} signed, 0 empty fingerprints)"
     else
@@ -1820,15 +1827,28 @@ print('true' if ok else 'false')
     fi
     [ "${TELEM_CHAIN:-}" = "true" ] && pass "T01" "Telemetry hash chain valid" || skip "T01" "Hash chain not verified"
 
+    # The script prints "HEALTH: <verdict>" from governance.health() as its very
+    # last act, so that line is present exactly when the run reached the end.
+    #
+    # The stderr fallback used to invent a verdict when the line was missing:
+    # "IMPAIRED" anywhere in stderr meant impaired, and then the mere presence of
+    # the string "governance" meant healthy. Every governed run prints that word,
+    # so this gk_fail-severity check passed on a substring match — and it passed
+    # hardest in the case that matters most, a run that died before it could
+    # report its own health. IMPAIRED in stderr is still real evidence and still
+    # fails; absence is now inconclusive rather than healthy.
     HEALTH=$(echo "$OUTPUT" | grep -oP 'HEALTH: \K\w+' | head -1)
-    if [ -z "$HEALTH" ] && [ -f "$STDERR_FILE" ]; then
-        grep -q "IMPAIRED" "$STDERR_FILE" 2>/dev/null && HEALTH="impaired"
-        grep -q "governance" "$STDERR_FILE" 2>/dev/null && HEALTH="${HEALTH:-healthy}"
+    HEALTH_SRC="script"
+    if [ -z "$HEALTH" ] && [ -f "$STDERR_FILE" ] \
+       && grep -q "IMPAIRED" "$STDERR_FILE" 2>/dev/null; then
+        HEALTH="impaired"; HEALTH_SRC="stderr"
     fi
     if [ "${HEALTH:-}" = "healthy" ] || [ "${HEALTH:-}" = "degraded" ]; then
         pass "H01" "Governance health: $HEALTH"
+    elif [ -z "${HEALTH:-}" ]; then
+        skip "H01" "No health verdict emitted — the run never reached governance.health() (see R01)"
     else
-        gk_fail "H01" "Governance health: ${HEALTH:-unknown}"
+        gk_fail "H01" "Governance health: ${HEALTH}" "reported via ${HEALTH_SRC}"
     fi
 
     # Code extraction

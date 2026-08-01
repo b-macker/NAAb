@@ -5,9 +5,13 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# A run whose executor is absent, or whose failure cannot be attributed, has
+# verified nothing. Without this the suite could only say PASS or FAIL, so
+# "not available" was recorded as a pass — a green standing in for an unrun check.
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 GOVDIR="${HOME}/.naab/test_govD_$$"
 mkdir -p "$GOVDIR"
@@ -160,7 +164,7 @@ elif [[ "$ec" -eq 0 ]]; then
 else
     # Non-zero is OK if it's because shell executor isn't available
     if echo "$out" | grep -qi "executor\|not.*available\|python\|shell"; then
-        ok "executor not available — taint scoping not testable (acceptable)"
+        skip "executor not available — taint scoping not testable (acceptable)"
     else
         fail "unexpected failure: exit $ec: ${out:0:120}"
     fi
@@ -168,6 +172,6 @@ fi
 
 echo ""
 
-TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+TOTAL=$((PASS + FAIL + SKIP))
+echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
 [[ "$FAIL" -eq 0 ]]

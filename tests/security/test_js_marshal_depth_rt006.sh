@@ -8,10 +8,14 @@
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# A run whose executor is absent, or whose failure cannot be attributed, has
+# verified nothing. Without this the suite could only say PASS or FAIL, so
+# "not available" was recorded as a pass — a green standing in for an unrun check.
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORK_DIR="${HOME}/.naab/rt006_$$"
 mkdir -p "$WORK_DIR"
@@ -96,14 +100,14 @@ elif [[ "$ec" -eq 0 ]] && echo "$out" | grep -q "ok"; then
 elif [[ "$ec" -ne 0 ]]; then
     # JS executor might not be available
     if echo "$out" | grep -qi "javascript.*not.*available\|executor.*not\|not.*compiled\|not.*built"; then
-        ok "T2 skipped — JavaScript executor not available"
+        skip "T2 skipped — JavaScript executor not available"
     elif echo "$out" | grep -qi "depth\|maximum\|RangeError"; then
         fail "Depth error at only 30 levels — false positive depth guard"
     else
         ok "Non-zero exit (exit $ec) — JS may not be available: ${out:0:80}"
     fi
 else
-    ok "T2 completed (may not have printed 'ok' if JS unavailable): ${out:0:80}"
+    skip "T2 completed (may not have printed 'ok' if JS unavailable): ${out:0:80}"
 fi
 
 echo "    Output: ${out:0:120}"
@@ -140,7 +144,7 @@ elif [[ "$ec" -eq 124 ]]; then
 elif echo "$out" | grep -qi "depth\|maximum\|marshall\|exceeded\|RangeError"; then
     ok "Clear depth error for nested dict — no crash"
 elif [[ "$ec" -ne 0 ]]; then
-    ok "Non-zero exit without crash — depth limit caught or JS unavailable (exit $ec)"
+    skip "Non-zero exit without crash — depth limit caught or JS unavailable (exit $ec)"
 else
     ok "Completed without crash (JS may not be available or dict handled)"
 fi
@@ -148,6 +152,6 @@ fi
 echo "    Output: ${out:0:120}"
 echo ""
 
-TOTAL=$(( PASS + FAIL ))
-echo "Results: ${PASS}/${TOTAL} passed"
+TOTAL=$(( PASS + FAIL + SKIP ))
+echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
 if [[ "$FAIL" -gt 0 ]]; then exit 1; fi

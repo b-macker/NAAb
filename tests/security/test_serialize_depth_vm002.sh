@@ -4,9 +4,13 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# A run whose executor is absent, or whose failure cannot be attributed, has
+# verified nothing. Without this the suite could only say PASS or FAIL, so
+# "not available" was recorded as a pass — a green standing in for an unrun check.
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORKDIR="${HOME}/.naab/test_vm002_$$"
 mkdir -p "$WORKDIR"
@@ -48,7 +52,7 @@ if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
 elif echo "$out" | grep -qi "depth\|serialization error\|maximum"; then
     ok "clear depth error produced — no crash"
 elif [[ "$ec" -ne 0 ]]; then
-    ok "non-zero exit without crash — depth limit or other error caught"
+    skip "non-zero exit without crash — depth limit or other error caught"
 else
     # Might succeed if the dict is not deep enough to trigger on this platform
     ok "completed without crash (depth may not have been reached)"
@@ -96,6 +100,6 @@ fi
 
 echo ""
 
-TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+TOTAL=$((PASS + FAIL + SKIP))
+echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
 [[ "$FAIL" -eq 0 ]]

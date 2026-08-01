@@ -5,10 +5,14 @@
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# A run whose executor is absent, or whose failure cannot be attributed, has
+# verified nothing. Without this the suite could only say PASS or FAIL, so
+# "not available" was recorded as a pass — a green standing in for an unrun check.
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORKDIR="${HOME}/.naab/test_rt005_$$"
 mkdir -p "$WORKDIR"
@@ -72,7 +76,7 @@ if [[ "$ec" -eq 139 ]] || [[ "$ec" -eq 134 ]]; then
 elif echo "$out" | grep -qi "depth\|maximum.*depth\|marshalling error\|nested.*structure"; then
     ok "clear depth error from valueToPyObject — no crash"
 elif [[ "$ec" -ne 0 ]]; then
-    ok "non-zero exit without crash — depth limit or other error caught"
+    skip "non-zero exit without crash — depth limit or other error caught"
 else
     ok "completed without crash (depth guard active or executor handled gracefully)"
 fi
@@ -117,6 +121,6 @@ else
 fi
 
 echo ""
-TOTAL=$(( PASS + FAIL ))
-echo "Results: ${PASS}/${TOTAL} passed"
+TOTAL=$(( PASS + FAIL + SKIP ))
+echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
 if [[ "$FAIL" -gt 0 ]]; then exit 1; fi

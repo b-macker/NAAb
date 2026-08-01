@@ -24,9 +24,13 @@ trap cleanup EXIT
 
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "FAIL: $1"; [[ -n "${2:-}" ]] && echo "  $2"; FAIL=$((FAIL+1)); }
+# "introspection unavailable" verifies nothing; recording it as a pass let an
+# unrun check read as a green one.
+skip() { echo "SKIP: $1"; SKIP=$((SKIP+1)); }
 
 # ── V-API-004: REST API per-request timeout ─────────────────────────────────
 
@@ -153,7 +157,7 @@ if strings "$NAAB" 2>/dev/null | grep -q 'MAXFILESIZE\|module_resolver' || \
     pass "V-DOS-003-T1: naab-lang binary links libcurl (size cap is compile-time)"
 else
     # Not all distros bundle strings; this isn't a hard failure
-    pass "V-DOS-003-T1: introspection unavailable — skipped"
+    skip "V-DOS-003-T1: introspection unavailable — link check unverified"
 fi
 
 # Test 6: Backslash sanitization is internal to urlToCachePath — no public
@@ -260,5 +264,5 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo ""
-echo "Results: $PASS passed, $FAIL failed"
+echo "Results: $PASS passed, $FAIL failed, $SKIP skipped (unverified)"
 [[ $FAIL -eq 0 ]]

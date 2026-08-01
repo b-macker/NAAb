@@ -8,10 +8,14 @@
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# A run where the executor is absent has not verified anything. Without this
+# the suite could only say PASS or FAIL, so "SQL executor not available" was
+# recorded as a pass — a green result standing in for an unrun check.
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORK_DIR="${HOME}/.naab/gov002_$$"
 mkdir -p "$WORK_DIR"
@@ -59,7 +63,7 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/t1.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]]; then
-    ok "T1 skipped — SQL executor not available: ${out:0:80}"
+    skip "T1 skipped — SQL executor not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t1.naab" 2>&1) || ec2=$?
@@ -68,7 +72,7 @@ else
     elif echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|custom.*rule\|governance\|blocked"; then
         fail "False positive: SQL -- comment triggered custom pattern: ${out2:0:120}"
     else
-        ok "SQL executor not available or other non-governance exit: ${out2:0:80}"
+        skip "SQL executor not available or other non-governance exit: ${out2:0:80}"
     fi
 fi
 
@@ -91,16 +95,16 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/t2.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]]; then
-    ok "T2 skipped — SQL executor not available: ${out:0:80}"
+    skip "T2 skipped — SQL executor not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t2.naab" 2>&1) || ec2=$?
     if echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|custom.*rule\|governance\|blocked\|denied"; then
         ok "Real FORBIDDEN_KEYWORD in SQL correctly blocked — custom pattern active"
     elif [[ "$ec2" -ne 0 ]]; then
-        ok "SQL block with forbidden keyword produced non-zero exit (exit $ec2)"
+        skip "SQL block with forbidden keyword produced non-zero exit (exit $ec2)"
     else
-        ok "SQL executor ran without block (governance may not apply to SQL blocks without executor)"
+        skip "SQL executor ran without block (governance may not apply to SQL blocks without executor)"
     fi
 fi
 
@@ -131,7 +135,7 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/t3.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]]; then
-    ok "T3 skipped — SQL executor not available"
+    skip "T3 skipped — SQL executor not available"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t3.naab" 2>&1) || ec2=$?
@@ -140,7 +144,7 @@ else
     elif echo "$out2" | grep -qi "temporary\|for now\|governance\|blocked"; then
         fail "SQL -- comment unexpectedly triggered governance: ${out2:0:120}"
     else
-        ok "SQL executor not available or other non-governance exit (exit $ec2)"
+        skip "SQL executor not available or other non-governance exit (exit $ec2)"
     fi
 fi
 
@@ -165,7 +169,7 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/t4.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "clean"; then
-    ok "T4 skipped — Python not available: ${out:0:80}"
+    skip "T4 skipped — Python not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/t4.naab" 2>&1) || ec2=$?
@@ -174,11 +178,11 @@ else
     elif echo "$out2" | grep -qi "FORBIDDEN\|hallucinated\|governance\|blocked"; then
         fail "False positive: Python # comment triggered custom pattern: ${out2:0:120}"
     else
-        ok "Completed (Python may be unavailable): ${out2:0:80}"
+        skip "Completed (Python may be unavailable): ${out2:0:80}"
     fi
 fi
 
 echo ""
-TOTAL=$(( PASS + FAIL ))
-echo "Results: ${PASS}/${TOTAL} passed"
+TOTAL=$(( PASS + FAIL + SKIP ))
+echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
 if [[ "$FAIL" -gt 0 ]]; then exit 1; fi

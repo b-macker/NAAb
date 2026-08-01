@@ -274,7 +274,11 @@ printf "  %-14s %-26s %-26s %s\n" "" "floor/quar/fired" "floor/quar/fired" ""
 echo "  --------------------------------------------------------------------------------------"
 
 BLIND=""
-FULL_FP=0; DEV_FP=0
+# Sentinel, not 0. DB-01 asserts the compliant control was NOT quarantined, and
+# an initialiser of 0 is indistinguishable from "the compliant scenario never
+# ran" — the assertion would confirm no false positives on a measurement that
+# never happened. -1 means unmeasured and makes DB-01 skip instead.
+FULL_FP=-1; DEV_FP=-1
 DEV_MOVED=0
 for b in "${BEHAVIOURS[@]}"; do
     read -r F_FLOOR F_QUAR F_FIRED <<< "$(measure "f-$b" "$b" full)"
@@ -310,7 +314,9 @@ echo ""
 
 # DB-01 — the control. An override set that quarantines good code is worse than
 # the blind spot it was added to prevent.
-if [ "${DEV_FP:-0}" -eq 0 ]; then
+if [ "${DEV_FP:--1}" -lt 0 ]; then
+    skip "DB-01" "compliant control never measured — no-false-positive claim unverified"
+elif [ "${DEV_FP:-0}" -eq 0 ]; then
     pass "DB-01" "developer overrides do not quarantine compliant code"
 else
     fail "DB-01" "developer overrides quarantined compliant code $DEV_FP times" \
@@ -329,7 +335,9 @@ fi
 
 # DB-03 — the blind-spot ledger. Recorded rather than assumed: this is the
 # number that says whether tuning the overrides cost real coverage.
-if [ -z "$BLIND" ]; then
+if [ "${DEV_FP:--1}" -lt 0 ]; then
+    skip "DB-03" "no behaviour was measured — an empty blind-spot ledger means nothing"
+elif [ -z "$BLIND" ]; then
     pass "DB-03" "overrides cost no detection coverage on the tested behaviours"
 else
     fail "DB-03" "overrides lose coverage:$BLIND" \
@@ -340,12 +348,20 @@ fi
 # failure mode and no CDD signal sees it. Asserting the absence keeps it in the
 # report rather than leaving a green run to imply coverage that does not exist;
 # if a future signal catches it, this fails and gets deleted, which is the point.
-read -r E_FLOOR E_QUAR E_FIRED <<< "$(cat "$TEST_TMP/.erosion.res" 2>/dev/null || echo "1.00 0 0")"
+# The fallback used to be "1.00 0 0", which reads as a confirmed known-negative:
+# a missing result file produced the same quar=0/fired=0 as an erosion scenario
+# that ran and was genuinely invisible. Assert the known negative only when the
+# scenario actually produced a measurement.
+if [ ! -f "$TEST_TMP/.erosion.res" ]; then
+    skip "DB-04" "erosion scenario produced no measurement — known negative unconfirmed this run"
+else
+read -r E_FLOOR E_QUAR E_FIRED <<< "$(cat "$TEST_TMP/.erosion.res")"
 if [ "${E_QUAR:-0}" -eq 0 ] && [ "${E_FIRED:-0}" -eq 0 ]; then
     pass "DB-04" "erosion invisible to CDD from responses alone, no ground truth fed (known negative, floor=$E_FLOOR)" 
 else
     fail "DB-04" "erosion now scores (quar=$E_QUAR fired=$E_FIRED) — the known negative is stale" \
          "a signal has started catching this; update the finding rather than the threshold"
+fi
 fi
 
 echo ""
