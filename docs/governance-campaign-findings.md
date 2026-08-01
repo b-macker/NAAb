@@ -124,10 +124,14 @@ it did?** Proving a negative needs a control — an absence is only evidence whe
 the same test shows the action forming under admission — so every level here is
 paired, and `test_nonformation_proof.sh` Group A exists to give Group B meaning.
 
-Three of the five defects below were found by *writing the proof* rather than by
-reasoning about the code — two of those in the evidence layer itself, which had
-been running unverified. The other two came from tracing the propose/commit path
+Three of the six defects below were found by *writing the proof* rather than by
+reasoning about the code — three of those in the evidence layer itself, which
+had been running unverified. The rest came from tracing the propose/commit path
 after #105 established the invariant they violate.
+
+Two of the six (#11 and #12) are the same defect class: **chained events written
+without the count keeping up**, so the verifier accuses an untouched file. They
+were found six days and one wrong conclusion apart.
 
 ### 7. Every signed attestation named no key
 
@@ -225,12 +229,52 @@ The bug was found by `L24-06` — the level added in #106 specifically because t
 example had been building a chain nothing ever verified.
 
 The unit was `2` per affected run, matching the two inert-instrumentation
-warnings (CDD and BSD enabled with no agent activity). The originally-reported
-53 was an artifact of aggregating several run groups, not one large gap.
+warnings (CDD and BSD enabled with no agent activity).
 
-- Fix — `chainPrevLocked(fp)` plus the counter increment, inside the lock the lambda already held; every other chained writer already did both
+**I concluded from that** that the originally-reported gap of 53 was an
+artifact of aggregating several run groups, and that this writer was the
+complete explanation. That was wrong, and the way it was wrong is worth
+keeping: every large run in the data I had balanced exactly (628/628,
+485/485), which is consistent with "one writer, unit 2" — but only because
+none of those runs tripped the quality gate. The second cause (#12) was
+invisible in that sample, not absent from the system. A hypothesis that
+explains all the data you have is not thereby the whole mechanism.
+
+- Fix `4dfd38b` — `chainPrevLocked(fp)` plus the counter increment, inside the lock the lambda already held; every other chained writer already did both
 - Test `test_evidence_chain.sh` Group E (E-01 is the control: without warnings actually firing, E-02..E-04 would be vacuous)
-- **Live status: confirmed for the defect** (keyed runs showed the BREAK); the fix has not yet been through a live keyed run
+- **Live status: confirmed** — the next keyed run put every small run group at `diff 0`, exactly where the health warnings fire
+
+### 12. A run that reported twice was counted once
+
+`writeReports()` is called from ~17 sites, and a clean `execute()` is not the
+last of them: `main.cpp`'s contract-error, quality-gate and baseline-regression
+exits all call it again after the VM has already written and sealed the run.
+The five file-based report formats are idempotent (they truncate and rewrite),
+but telemetry **appends**, and `check_results_` is **never cleared** — so the
+second call re-emitted the entire result set after `RunEnd` had already declared
+the count. `run_end_emitted_` then prevented the declaration from ever catching
+up.
+
+On a live run: `RunEnd declares 737 chained events but 785 observed` — the
+residual being one full second dump (`GovernanceCheck` 38 + `RuleViolation` 8 +
+`GovernanceCheckSummary` 1 + `ScoringSnapshot` 1 = 48). Someone had already
+noticed the double-call and worked around it in exactly one place; the comment
+`// writeReports() already called inside execute() on success` sits three lines
+above two more call sites that do it anyway.
+
+Two consequences, and the second is the one that would have gone unnoticed:
+the verifier reported tampering on an untouched file, **and** every count
+derived from the telemetry file was inflated — including `L25-03`'s taint total,
+which had been reading roughly double the true number of violations.
+
+The fix makes the invariant self-healing rather than patching this instance:
+`RunEnd` is re-emitted whenever chained events followed the previous one (the
+verifier reads the last `RunEnd` per `run_id`, so the newest declaration wins),
+and the dump resumes from an index instead of restarting, so results are
+written once.
+
+- Test `test_evidence_chain.sh` Group F (F-01 is the control: unless the quality gate actually fires, `writeReports` ran once and F-02..F-04 prove nothing)
+- **Live status: confirmed for the defect** (keyed run); the fix reproduces it in miniature — pre-fix 10 records / 13 chained / declares 8 / BREAK, post-fix 5 / 8 / 8 / clean
 
 ---
 

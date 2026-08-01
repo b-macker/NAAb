@@ -3441,12 +3441,26 @@ private:
     mutable bool run_start_emitted_ = false;
     mutable bool run_end_emitted_ = false;
     mutable long long chained_events_this_run_ = 0;
+    // Count declared by the most recent RunEnd. writeReports() is called from
+    // ~17 sites and is not once-per-run: a clean execute() writes and seals the
+    // run, then main.cpp's contract / quality-gate / baseline exits call it
+    // again. Anything chained after a RunEnd must be reconciled by a fresh one.
+    mutable long long run_end_declared_ = -1;
+    // How many check_results_ have already been dumped to telemetry, and the
+    // dedup keys seen across all dumps. check_results_ is never cleared, so
+    // without these a second writeReports() re-emits the entire set.
+    mutable size_t telemetry_results_dumped_ = 0;
+    mutable std::unordered_set<std::string> telemetry_dedup_seen_;
+    // Score at the last ScoringSnapshot; -1 = none emitted yet.
+    mutable int scoring_snapshot_last_score_ = -1;
     // Returns the prev_hash for the next chained event (file tail → in-memory →
     // genesis) and lazily writes the RunStart anchor on this process's first
     // chained event. Requires telemetry_hash_mutex_ held and fp open+locked.
     std::string chainPrevLocked(FILE* fp) const;
-    // Writes the chained RunEnd anchor (once) declaring this run's chained
-    // event count. Locks telemetry_hash_mutex_ internally.
+    // Writes the chained RunEnd anchor declaring this run's chained event
+    // count. Re-emitted if further chained events followed the previous one —
+    // the verifier reads the last RunEnd per run_id, so the newest declaration
+    // reconciles the count. Locks telemetry_hash_mutex_ internally.
     void emitRunEnd(FILE* fp, const std::string& timestamp) const;
     mutable std::mutex audit_mutex_;
     std::atomic<int> audit_write_failures_{0};

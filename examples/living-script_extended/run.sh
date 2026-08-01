@@ -1572,17 +1572,33 @@ assert 'refinement_iterations' in d
         # agent-derived data without passing through extraction. A build-path
         # leak adds violations, raises the total, and fails here.
         #
-        # Baseline observed on the 2026-07-31 keyed run (18):
-        #   6  validate_python_tool()  — writes unvalidated LLM code to
-        #      _tool_check.py and AST-parses it afterwards. The write precedes
-        #      validation, so calling it sanitized would be false. True positive.
-        #   6  operator config writes (_govern_pending.json, write_govern_raw)
-        #      — LLM JSON parsed and field-validated before re-serialising.
-        #      Routing these through a validate_-RHS binding would be honest and
-        #      would lower this baseline; deliberately left for its own change.
-        #   2  cross-run memory persistence — aggregate tracking data.
-        #   4  unlocated (line 0), dynamic/codegen writes.
-        #   1  the deliberate control write above.
+        # This count was INFLATED by a telemetry defect. Until the writeReports
+        # double-dump was fixed, a run that tripped the quality gate re-emitted
+        # its entire result set, so `grep -c` here saw most violations twice.
+        # The 18 that set this baseline is therefore roughly 2x the real number:
+        # the same run attributed by (file, line) has only 8 DISTINCT sink sites
+        # and 7-8 violations per run segment.
+        #
+        # Sites observed by source location on the 2026-08-01 keyed run:
+        #   living-script.naab:1534  introspection_probe tool registration
+        #   living-script.naab:51    get_coherence()  — reads coherence from a response
+        #   living-script.naab:82    check_coherence() — coherence read + agent.reset
+        #   living-script.naab:309   sanitize_llm_code() — extract_code() return
+        #   living-script.naab:214   operator config write path
+        #   living-script.naab:249   json.parse(r.stdout) — subprocess output
+        #   living-script.naab:786   operator decision return
+        #   <codegen:python>:0       dynamic codegen, no source location
+        #
+        # validate_python_tool() writes unvalidated LLM code and AST-parses it
+        # afterwards, so the write precedes validation and calling it sanitized
+        # would be false — a true positive to leave alone. The operator-config
+        # sites do real allowlist validation and could honestly take a
+        # validate_-RHS binding, which would lower this further.
+        #
+        # 18 is now a LOOSE ceiling over a corrected count. Re-measure on the
+        # next keyed run built after the double-dump fix and lower it to the
+        # real figure plus headroom; do not lower it by arithmetic here, since
+        # the fix changes what gets counted and only a run can say by how much.
         #
         # A second keyed run (more successful: 56 sends, 3/3 extractions, 4
         # features) came in at 7-8, so the count is NOT monotone in run length —

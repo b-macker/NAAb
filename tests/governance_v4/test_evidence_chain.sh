@@ -621,6 +621,109 @@ else
 fi
 
 # ============================================================
+# Group F: a run that writes reports twice stays accountable
+#
+# writeReports() is called from ~17 sites and a clean execute() is not the
+# last of them — main.cpp's contract, quality-gate and baseline exits all call
+# it again. check_results_ is never cleared, so the second call re-dumped the
+# entire result set after RunEnd had already declared the count, and the
+# verifier reported a hard BREAK on an untouched file ("declares 737 but 785
+# observed" on a live run).
+# ============================================================
+echo -e "${CYAN}--- Group F: repeated writeReports stays accountable ---${NC}"
+
+WDIR="$TEST_TMP/group_f"; mkdir -p "$WDIR"
+# total_violations >= 0 always trips, so the quality gate fires after a clean
+# execute() has already written and sealed the run — the double-call shape.
+cat > "$WDIR/govern.json" << 'GOVEOF'
+{
+  "version": "5.0",
+  "mode": "monitor",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": {
+    "enabled": true,
+    "output_file": "tele.jsonl",
+    "tamper_evidence": { "enabled": true, "algorithm": "sha256" }
+  },
+  "scoring": { "enabled": true, "yellow_threshold": 10, "red_threshold": 50 },
+  "quality_gate": {
+    "enabled": true,
+    "conditions": [ { "metric": "total_violations", "operator": ">=", "threshold": 0 } ]
+  }
+}
+GOVEOF
+sign_govern "$WDIR"
+# A polyglot block produces governance check results to dump; without results
+# there is nothing to duplicate and F-02/F-03 would be vacuous.
+cat > "$WDIR/t.naab" << 'NAABEOF'
+main {
+    let r = <<python
+    print(2 + 3)
+    >>
+    print(r)
+}
+NAABEOF
+
+(cd "$WDIR" && timeout 60s "$NAAB" t.naab >/dev/null 2>&1)
+GATE_RC=$?
+
+# Control: unless the quality gate actually fired, writeReports ran once and
+# F-02/F-03 prove nothing.
+if [ "$GATE_RC" -eq 2 ]; then
+    pass "F-01" "quality gate fired after a clean run (exit 2 — writeReports called twice)"
+else
+    fail "F-01" "quality gate did not fire — F-02..F-03 would be vacuous" "exit=$GATE_RC"
+fi
+
+CHK_N=$(grep -c '"event_type":"GovernanceCheck"' "$WDIR/tele.jsonl" 2>/dev/null || echo 0)
+UNIQ_N=$(python3 - "$WDIR/tele.jsonl" << 'PYEOF'
+import json, sys
+seen = set(); n = 0
+for l in open(sys.argv[1]):
+    if not l.strip(): continue
+    e = json.loads(l)
+    if e.get("event_type") != "GovernanceCheck": continue
+    n += 1
+    seen.add((e.get("rule_name"), e.get("file"), e.get("line")))
+print(f"{n} {len(seen)}")
+PYEOF
+)
+TOT=${UNIQ_N%% *}; UNI=${UNIQ_N##* }
+if [ "$CHK_N" -gt 0 ] && [ "$TOT" -eq "$UNI" ]; then
+    pass "F-02" "each check result written once ($TOT records, $UNI distinct)"
+else
+    fail "F-02" "check results duplicated across the second writeReports" "$TOT records, $UNI distinct"
+fi
+
+VOUT=$(cd "$WDIR" && "$NAAB" --verify-telemetry-chain tele.jsonl 2>&1); VEXIT=$?
+if [ "$VEXIT" -eq 0 ] && ! echo "$VOUT" | grep -q "BREAK"; then
+    pass "F-03" "chain verifies after a run that wrote reports twice"
+else
+    fail "F-03" "repeated writeReports breaks chain accounting" "exit=$VEXIT $VOUT"
+fi
+
+# The RunEnd that declares the final count must be the last one; earlier
+# anchors may exist and are superseded.
+DECL_OK=$(python3 - "$WDIR/tele.jsonl" << 'PYEOF'
+import json, sys
+obs = 0; declared = None
+for l in open(sys.argv[1]):
+    if not l.strip(): continue
+    e = json.loads(l)
+    if "hash" not in e: continue
+    obs += 1
+    if e.get("event_type") == "RunEnd":
+        declared = e.get("chained_events")
+print("OK" if declared == obs else f"MISMATCH declared={declared} observed={obs}")
+PYEOF
+)
+if [ "$DECL_OK" = "OK" ]; then
+    pass "F-04" "final RunEnd declares the observed chained-event total"
+else
+    fail "F-04" "RunEnd count not reconciled after the second dump" "$DECL_OK"
+fi
+
+# ============================================================
 # Summary
 # ============================================================
 echo ""
