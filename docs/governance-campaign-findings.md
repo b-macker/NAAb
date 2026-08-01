@@ -274,7 +274,17 @@ and the dump resumes from an index instead of restarting, so results are
 written once.
 
 - Test `test_evidence_chain.sh` Group F (F-01 is the control: unless the quality gate actually fires, `writeReports` ran once and F-02..F-04 prove nothing)
-- **Live status: confirmed for the defect** (keyed run); the fix reproduces it in miniature — pre-fix 10 records / 13 chained / declares 8 / BREAK, post-fix 5 / 8 / 8 / clean
+- **Live status: confirmed.** Reproduced in miniature (pre-fix 10 records / 13 chained / declares 8 / BREAK; post-fix 5 / 8 / 8 / clean), then on a keyed run: all four run groups at `diff 0`, including a 708-event group carrying **two** `RunEnd` anchors — the reconciliation firing, with the second declaring 708 of 708. That group reached the second `writeReports()` through an exit path other than the quality gate, so the invariant held somewhere the constructed repro never went.
+
+Two things the same run settled about the *taint* count, which this defect had
+been inflating. `L25-03` measured 7, 8, **18**, 8 across runs, and the 18 is the
+single run where the double-dump fired. The apparent run-to-run variance was the
+artifact; a violation fires about once per distinct sink site, so the total
+tracks the ~8 sites rather than the length of the run. An earlier comment in
+`run.sh` reasoned that the count "is NOT monotone in run length" and declined to
+tighten the baseline on that basis — correct to decline on two points, but the
+premise was reading the artifact as signal. With inflation impossible the
+baseline moved 18 → 12.
 
 ---
 

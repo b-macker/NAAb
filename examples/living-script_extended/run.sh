@@ -1595,23 +1595,23 @@ assert 'refinement_iterations' in d
         # sites do real allowlist validation and could honestly take a
         # validate_-RHS binding, which would lower this further.
         #
-        # 18 is now a LOOSE ceiling over a corrected count. Re-measure on the
-        # next keyed run built after the double-dump fix and lower it to the
-        # real figure plus headroom; do not lower it by arithmetic here, since
-        # the fix changes what gets counted and only a run can say by how much.
+        # The apparent run-to-run variance was an artifact, not behaviour.
+        # Measurements: 7, 8, then 18, then 8 — and the 18 is the single run
+        # where the writeReports double-dump fired, counting most violations
+        # twice. That defect is fixed, so inflation can no longer happen, and
+        # the underlying count is stable: a violation fires about once per
+        # distinct sink site, so the total tracks the ~8 sites above rather than
+        # the length of the run. The earlier reasoning that the count "is NOT
+        # monotone in run length" was reading the artifact as signal.
         #
-        # A second keyed run (more successful: 56 sends, 3/3 extractions, 4
-        # features) came in at 7-8, so the count is NOT monotone in run length —
-        # it depends on which of the sites above execute, and the 18 came from a
-        # run where feature 2 never completed. 18 is therefore a ceiling over
-        # observed runs, and a loose one: a leak would have to add ~10
-        # violations to trip it. Tightening it needs the variance understood
-        # first (which site drives the spread), not a guess at a lower number —
-        # a baseline that fails on a healthy run teaches everyone to raise it.
+        # 12 therefore leaves ~50% headroom over every non-inflated measurement
+        # while still catching a leak: the build path runs 16 extraction sites
+        # across every feature iteration, so losing its sanitizer adds far more
+        # than the 4 violations of slack here.
         #
         # Raising this number is a reviewed decision, not a routine edit: it
         # means another unsanitized sink path was added.
-        TAINT_BASELINE=${TAINT_BASELINE:-18}
+        TAINT_BASELINE=${TAINT_BASELINE:-12}
         if [ "${TAINT_N:-0}" -le "$TAINT_BASELINE" ]; then
             pass "L25-03" "Taint violations within the documented baseline (${TAINT_N} <= ${TAINT_BASELINE}) — sanitizer boundary holds"
         else
