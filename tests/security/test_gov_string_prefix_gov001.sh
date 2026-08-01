@@ -6,10 +6,14 @@
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+# A run whose executor is absent, or whose failure cannot be attributed, has
+# verified nothing. Without this the suite could only say PASS or FAIL, so
+# "not available" was recorded as a pass — a green standing in for an unrun check.
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORK_DIR="${HOME}/.naab/gov001_$$"
 mkdir -p "$WORK_DIR/injection" "$WORK_DIR/placeholder"
@@ -58,7 +62,7 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/injection/t1.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "ok"; then
-    ok "T1 skipped — Python not available or unexpected output: ${out:0:80}"
+    skip "T1 skipped — Python not available or unexpected output: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/injection/t1.naab" 2>&1) || ec2=$?
@@ -67,7 +71,7 @@ else
     elif echo "$out2" | grep -qi "injection\|blocked\|governance\|command"; then
         fail "False positive: f-string content triggered command-injection: ${out2:0:120}"
     else
-        ok "Script completed (Python may be unavailable or governance not triggered): ${out2:0:80}"
+        skip "Script completed (Python may be unavailable or governance not triggered): ${out2:0:80}"
     fi
 fi
 
@@ -93,7 +97,7 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/injection/t2.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -q "safe"; then
-    ok "T2 skipped — Python not available: ${out:0:80}"
+    skip "T2 skipped — Python not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/injection/t2.naab" 2>&1) || ec2=$?
@@ -102,7 +106,7 @@ else
     elif echo "$out2" | grep -qi "injection\|blocked\|governance"; then
         fail "False positive: r-string content triggered injection check: ${out2:0:120}"
     else
-        ok "Completed (Python may be unavailable): ${out2:0:80}"
+        skip "Completed (Python may be unavailable): ${out2:0:80}"
     fi
 fi
 
@@ -128,7 +132,7 @@ NAAB
 ec=0
 out=$("$NAAB" "$WORK_DIR/injection/t3.naab" --no-governance 2>&1) || ec=$?
 if [[ "$ec" -ne 0 ]] || ! echo "$out" | grep -qi "ran\|dangerous"; then
-    ok "T3 skipped — Python not available: ${out:0:80}"
+    skip "T3 skipped — Python not available: ${out:0:80}"
 else
     ec2=0
     out2=$("$NAAB" "$WORK_DIR/injection/t3.naab" 2>&1) || ec2=$?
@@ -184,6 +188,6 @@ else
 fi
 
 echo ""
-TOTAL=$(( PASS + FAIL ))
-echo "Results: ${PASS}/${TOTAL} passed"
+TOTAL=$(( PASS + FAIL + SKIP ))
+echo "Results: ${PASS}/${TOTAL} passed, ${SKIP} skipped (unverified)"
 if [[ "$FAIL" -gt 0 ]]; then exit 1; fi

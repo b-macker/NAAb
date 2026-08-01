@@ -184,7 +184,13 @@ export NAAB_TEST_FAKE_KEY="fake-key-for-create-only"
 OUT=$("$NAAB" --governance-dashboard "$WORK/test.naab" 2>&1) || true
 ESC_LINE=$(echo "$OUT" | grep "Escalation:" | wc -l)
 ESC_LINE=$(echo "$ESC_LINE" | tr -d ' ')
-if [ "$ESC_LINE" -eq 0 ]; then
+# The dashboard has to exist before its contents can be asserted about. A run
+# that failed outright emits no dashboard, zero "Escalation:" lines, and used to
+# read as "correctly quiet" — the absence of a line in a document that was never
+# written. Require the document.
+if ! echo "$OUT" | grep -q "Agent Governance Summary"; then
+    skip "E04" "no dashboard produced — an absent 'Escalation:' line proves nothing"
+elif [ "$ESC_LINE" -eq 0 ]; then
     pass "E04" "No 'Escalation:' line when no escalation occurred"
 else
     fail "E04" "Unexpected 'Escalation:' line in dashboard" "found $ESC_LINE lines"
