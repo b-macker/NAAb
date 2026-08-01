@@ -114,9 +114,25 @@ jobs:
           NAAB
           ./build/naab-lang.exe --no-governance pytest.naab
 
-      - name: CLI tests
+      # Split so a killed runner is diagnosable. This job has stalled twice —
+      # the step sits in_progress for ~50 minutes, the runner is terminated,
+      # and GitHub uploads no logs (the archive 404s), so the only surviving
+      # evidence is per-step metadata: which step was running, and when it
+      # started. One monolithic step reduces that to "it died in the tests".
+      #
+      # Both stalls were on commits that could not have caused them — one was
+      # a docs-and-comments diff against a commit that had just passed in 13
+      # minutes — and both cleared on an unchanged re-run, which is why the
+      # working diagnosis is the runner rather than a hang. That diagnosis is
+      # currently unfalsifiable, and these steps are what make it testable: if
+      # future stalls cluster in one phase, the runner is not the cause.
+      - name: CLI tests — NAAb programs
         shell: msys2 {0}
-        run: bash run-all-tests.sh
+        run: NAAB_TEST_PHASE=naab bash run-all-tests.sh
+
+      - name: CLI tests — shell suites
+        shell: msys2 {0}
+        run: NAAB_TEST_PHASE=shell bash run-all-tests.sh
 
   build-linux:
     runs-on: ubuntu-latest

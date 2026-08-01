@@ -249,6 +249,31 @@ run_shell_test() {
     return "$rc"
 }
 
+# --- Phase selection ----------------------------------------------------------
+#
+# NAAB_TEST_PHASE=all (default) | naab | shell
+#
+# Exists for CI diagnosability, not for skipping work. When a runner is killed
+# mid-job, GitHub uploads no logs — a 404 — but the per-step metadata (which
+# step was in progress, when it started) SURVIVES. That metadata is the only
+# reason we know the Windows stalls happen inside `CLI tests` at all.
+#
+# One monolithic step therefore gives one bit of information: "it died in the
+# tests". Splitting the run across steps costs nothing and turns "probably
+# infrastructure" into a claim that can be checked — if stalls cluster in one
+# phase, that is a lead; if they scatter, that is evidence for the runner.
+#
+# Phases only gate WHICH tests run, never how they are judged: each phase exits
+# non-zero on its own failures, so no failure can hide in an unrun phase.
+NAAB_TEST_PHASE="${NAAB_TEST_PHASE:-all}"
+case "$NAAB_TEST_PHASE" in
+    all|naab|shell) ;;
+    *)
+        echo "Error: NAAB_TEST_PHASE must be all, naab, or shell (got: $NAAB_TEST_PHASE)" >&2
+        exit 1 ;;
+esac
+phase_runs() { [ "$NAAB_TEST_PHASE" = "all" ] || [ "$NAAB_TEST_PHASE" = "$1" ]; }
+
 # Function to check if a path should be skipped
 should_skip() {
     local file_path="$1"
@@ -352,6 +377,7 @@ run_test() {
 }
 
 # Run tests from each directory
+if phase_runs naab; then
 for dir in "${TEST_DIRS[@]}"; do
     if [ ! -d "$dir" ]; then
         continue
@@ -454,7 +480,9 @@ for f in tests/type_system/valid/*.naab; do
     fi
     rm -f "$output_file"
 done
+fi  # phase_runs naab
 
+if phase_runs shell; then
 # --- Property-Based Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -499,7 +527,17 @@ else
     echo "  LSP test script or naab-lsp binary not found, skipping"
 fi
 
+fi  # phase_runs shell — closed here; the VM block below is a naab-phase block
+
 # --- Bytecode VM Tests ---
+# These are .naab programs re-run under --vm sharing TOTAL/PASSED with the main
+# .naab loop, so they belong to the naab phase even though they sit between two
+# shell suites. The surrounding shell region is closed and reopened around them
+# rather than nesting the gate: a `phase_runs naab` test INSIDE the shell region
+# can never be true, which silently dropped all 19 of these from both phases.
+# Gated in place rather than moved — reordering would change what runs before
+# what, and this is the only TOTAL increment outside the main loop.
+if phase_runs naab; then
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "  Bytecode VM Tests (--vm)"
@@ -537,7 +575,9 @@ if [ -d "$VM_TEST_DIR" ]; then
 else
     echo "  No VM test directory (tests/vm/), skipping"
 fi
+fi  # phase_runs naab (Bytecode VM Tests)
 
+if phase_runs shell; then
 # --- Report Format Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -2054,11 +2094,15 @@ if [ -f "$CANARY_SCRIPT" ]; then
 else
     echo "  test_prescan_canaries.sh: not found, skipping"
 fi
+fi  # phase_runs shell
 
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "  TEST SUMMARY"
+if [ "$NAAB_TEST_PHASE" != "all" ]; then
+    echo "  (phase: $NAAB_TEST_PHASE — counts cover this phase only)"
+fi
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 echo "Total Tests:        $TOTAL"
@@ -2072,8 +2116,13 @@ if [ $SKIPPED -gt 0 ]; then
 fi
 ACCOUNTED=$((PASSED + ERROR_BEHAVIOR + MISSING_EXECUTOR + NEEDS_TREE_WALK))
 echo ""
-echo "  Accounted for:    $ACCOUNTED / $TOTAL ($(awk "BEGIN {printf \"%.1f\", ($ACCOUNTED/$TOTAL)*100}")%)"
-echo ""
+# TOTAL counts .naab programs only, so it is 0 in the shell-only phase — the
+# percentage would divide by zero. Shell suites are judged by $FAILED below,
+# which is shared across phases.
+if [ "$TOTAL" -gt 0 ]; then
+    echo "  Accounted for:    $ACCOUNTED / $TOTAL ($(awk "BEGIN {printf \"%.1f\", ($ACCOUNTED/$TOTAL)*100}")%)"
+    echo ""
+fi
 
 if [ $FAILED -gt 0 ]; then
     echo "Unexpected Failures:"
@@ -2082,8 +2131,12 @@ if [ $FAILED -gt 0 ]; then
     done
     echo ""
     exit 1
-else
+elif [ "$TOTAL" -gt 0 ]; then
     echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $ERROR_BEHAVIOR error behavior + $MISSING_EXECUTOR missing executor + $NEEDS_TREE_WALK needs tree-walk)"
+    echo ""
+    exit 0
+else
+    echo "ALL SHELL TEST SUITES PASSED"
     echo ""
     exit 0
 fi
