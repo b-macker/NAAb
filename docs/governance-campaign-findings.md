@@ -286,6 +286,49 @@ tighten the baseline on that basis — correct to decline on two points, but the
 premise was reading the artifact as signal. With inflation impossible the
 baseline moved 18 → 12.
 
+### 13. A suspended action could still become real
+
+`checkAdmission()` denies at CRITICAL with a HARD block — *"all autonomous
+actions suspended until pressure subsides."* `agent.propose()` is gated on it.
+`agent.commit()` re-checked the handle, `max_turns`, the lease (#8) and the
+config generation (#9) — but never the level. Commit is where the transition
+becomes real: history appended, turn advanced.
+
+What makes it more than theoretical is that the proposing handle need do nothing
+at all. `governance_level_` is a single **engine-global** atomic written from CDD
+processing, driven by whichever handle last took a turn; `s_pending_proposals` is
+keyed **per handle**, so only that handle's own activity invalidates its
+proposal. A *sibling* agent's misbehaviour therefore escalates to CRITICAL across
+the deliberation gap while the proposal stays valid — which is exactly the shape
+`batch`, `fan_out` and pipelines run in.
+
+The reasoning that justifies commit's other omissions does not extend here, and
+that is the trap: `hard_stopped` and `recordAutonomousAction` are omitted because
+they guard *spend* and commit makes no API call. CRITICAL is not a spend guard.
+Hence `checkCriticalSuspension()` — the CRITICAL branch split out of
+`checkAdmission()` — rather than calling `checkAdmission()` wholesale, which
+would also project an autonomous action against the exposure limit and refuse a
+commit that costs nothing.
+
+- Test `test_propose_commit.sh` Group J (J-02 is the control: without escalation the same commit must succeed, or J-01 shows only that commits fail)
+- **Live status: stub-only** — no live run has yet reached CRITICAL while a proposal was outstanding
+
+Two things the test got wrong first, both worth keeping:
+
+**The staging is two gates in series.** `consecutive_high_pressure_turns` only
+increments while `composite >= reality_checkpoint.pressure_threshold`, and the
+CRITICAL target needs `composite >= critical_threshold && consecutive >=
+critical_sustained`. Setting only the circuit-breaker half pins the counter at
+zero and the level never moves — the first version reported "staging never
+reached CRITICAL", which is the control working rather than the fix failing.
+
+**The second version passed with the fix reverted.** The sibling sent twice, and
+the *second* send's own `checkAdmission()` hard-blocked once the first had
+escalated: the process died before the commit, stderr still said CRITICAL, and
+the assertion matched a blocked sibling send rather than the gate under test. One
+send plus a `PRE_COMMIT` marker fixed it. Third time in this campaign that a
+detection method carried the very defect it was hunting.
+
 ---
 
 ## Harness and orchestration fixes

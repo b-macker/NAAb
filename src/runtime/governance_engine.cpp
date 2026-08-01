@@ -6329,11 +6329,15 @@ int GovernanceEngine::getRemainingBudget(const std::string& config) const {
     return ac->risk_budget - consumed;
 }
 
-std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
-    const auto& cfg = rules().exposure_tracking;
-    if (!cfg.enabled) return "";
-
-    // F6: CRITICAL governance level = deny all admission
+// F6: CRITICAL governance level = all autonomous actions suspended.
+//
+// Split out of checkAdmission() so the commit half of propose/commit can apply
+// it WITHOUT the spend projection below. agent.commit() makes no API call, so
+// projecting one more autonomous action against the limit would refuse a commit
+// that costs nothing — but a CRITICAL suspension is not a spend guard, and a
+// commit is precisely where a proposed transition becomes operationally real.
+std::string GovernanceEngine::checkCriticalSuspension(const std::string& agent_config) {
+    if (!rules().exposure_tracking.enabled) return "";
     if (rules().circuit_breaker.enabled &&
         governance_level_.load(std::memory_order_relaxed) >= static_cast<int>(GovernanceLevel::CRITICAL)) {
         clearTrace();
@@ -6346,6 +6350,15 @@ std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
                 "", "exposure_tracking",
                 lookupRationale("exposure_tracking"), "", ""));
     }
+    return "";
+}
+
+std::string GovernanceEngine::checkAdmission(const std::string& agent_config) {
+    const auto& cfg = rules().exposure_tracking;
+    if (!cfg.enabled) return "";
+
+    std::string critical = checkCriticalSuspension(agent_config);
+    if (!critical.empty()) return critical;
 
     // Project: would the NEXT action exceed thresholds?
     int projected_count = autonomous_actions_.load(std::memory_order_relaxed) + 1;

@@ -5240,6 +5240,27 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             " under the current one\n");
     }
 
+    // A CRITICAL governance level suspends all autonomous actions, and commit is
+    // where a proposed transition becomes one — history is appended and the turn
+    // advances. propose() is gated on this through checkAdmission(); commit was
+    // not, so a candidate generated at NORMAL could still land after the engine
+    // reached CRITICAL.
+    //
+    // Reachable without this handle doing anything: governance_level_ is a
+    // single engine-global atomic driven by whichever handle last took a turn,
+    // while s_pending_proposals is keyed per handle — so a SIBLING agent's
+    // misbehaviour can escalate to CRITICAL across the deliberation gap without
+    // invalidating this proposal. That is the shape batch/fan_out/pipelines run
+    // in. Same reasoning as the lease (#105) and the config generation (#107):
+    // a check whose truth changes with time belongs on the commit half.
+    //
+    // checkCriticalSuspension() rather than checkAdmission(): the latter also
+    // projects one more autonomous action against the exposure limit, which
+    // would refuse a commit that spends nothing.
+    if (gov_engine && gov_engine->isActive()) {
+        gov_engine->checkCriticalSuspension(config_name);
+    }
+
     if (lease_expired) {
         const auto& cb_cfg = (gov_engine && gov_engine->isActive())
             ? gov_engine->getRules().circuit_breaker
