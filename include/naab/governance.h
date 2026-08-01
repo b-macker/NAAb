@@ -3084,6 +3084,11 @@ public:
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
     std::string checkTemporalCoupling();  // F10: inter-agent timing correlation
     std::string checkAdmission(const std::string& agent_config);
+    // The CRITICAL-level suspension alone, without checkAdmission()'s spend
+    // projection. agent.commit() applies this: committing makes no API call, so
+    // the projection would refuse a free transition, but a CRITICAL suspension
+    // must still hold at the moment a proposal becomes real.
+    std::string checkCriticalSuspension(const std::string& agent_config);
 
     // Output admissibility — post-CDD gate on response coherence
     struct OutputAdmissibilityResult {

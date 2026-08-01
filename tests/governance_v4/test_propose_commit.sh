@@ -687,6 +687,151 @@ else
     fail "I-03" "Refusal wording changed with step-up enabled" "got: $R_I3"
 fi
 
+
+# ============================================================
+# Group J: a CRITICAL suspension holds at the COMMIT boundary
+#
+# checkAdmission() denies at CRITICAL — "all autonomous actions suspended" —
+# and propose() is gated on it. commit() was not, so a candidate generated at
+# NORMAL could still land after the engine reached CRITICAL, appending history
+# and advancing the turn at the moment every action is meant to be suspended.
+#
+# Reachable without the proposing handle doing anything: governance_level_ is a
+# single engine-global atomic driven by whichever handle last took a turn, while
+# s_pending_proposals is keyed per handle — so a SIBLING agent escalates across
+# the deliberation gap without invalidating the proposal. Same shape as the
+# lease (Group G) and the config generation (Group H).
+# ============================================================
+echo ""
+echo -e "${CYAN}--- Group J: CRITICAL suspension at the commit boundary ---${NC}"
+
+# $3 sets BOTH circuit_breaker.critical_threshold and reality_checkpoint's
+# pressure_threshold. They are separate gates in series: consecutive_high_pressure_turns
+# only increments while composite >= pressure_threshold, and the CRITICAL target
+# needs composite >= critical_threshold AND consecutive >= critical_sustained.
+# Setting only the circuit_breaker half leaves consecutive pinned at 0, so the
+# level never moves — which is what the first version of this test did.
+write_govern_critical() {  # $1=workdir $2=port $3=threshold(both) $4=critical_sustained
+    cat > "$1/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "exposure_tracking": { "enabled": true, "level": "hard" },
+    "behavioral_sequences": { "enabled": true },
+    "context_drift": {
+        "enabled": true, "level": "advisory", "check_interval_turns": 1,
+        "reality_checkpoint": {
+            "enabled": false,
+            "pressure_threshold": $3,
+            "signal_density_divisor": 1
+        }
+    },
+    "circuit_breaker": {
+        "enabled": true,
+        "elevated_threshold": 0.5, "elevated_sustained": 1,
+        "critical_threshold": $3, "critical_sustained": $4,
+        "deescalate_sustained": 99
+    },
+    "agents": {
+        "proposer": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$2",
+            "api_key_env": "FAKE_KEY_PROPOSE_TEST",
+            "max_tokens": 100, "max_turns": 30, "propose_candidates_max": 2
+        },
+        "sibling": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$2",
+            "api_key_env": "FAKE_KEY_PROPOSE_TEST",
+            "max_tokens": 100, "max_turns": 30
+        }
+    }
+}
+GOVEOF
+    sign_govern "$1"
+}
+
+run_critical_case() {  # $1=name $2=critical_threshold $3=critical_sustained
+    local d="$TEST_TMP/crit-$1"; mkdir -p "$d"
+    cp "$WDIR/fixture.json" "$d/fixture.json"
+    start_stub "$d/fixture.json" "$d" >/dev/null 2>&1 || { echo "STUB_FAIL"; return; }
+    write_govern_critical "$d" "$STUB_PORT" "$2" "$3"
+    cat > "$d/t.naab" << 'EOF'
+use agent
+main {
+    let a = agent.create("proposer")
+    let b = agent.create("sibling")
+    // Propose FIRST, while the level is still NORMAL. propose() makes no CDD
+    // mutation, so it cannot escalate the level itself.
+    let p = agent.propose(a, "summarize quarterly revenue", 2)
+    print("PROPOSED|candidates=" + string((p.get("candidates") ?? []).length()))
+    // The SIBLING takes turns. Its CDD analysis drives the engine-global level;
+    // agent a does nothing, so its proposal stays valid.
+    // Exactly ONE sibling send. Two sends and the SECOND one is itself denied by
+    // checkAdmission() once the first escalated — the process dies before the
+    // commit, stderr still says CRITICAL, and this test passes without the
+    // commit gate existing at all. It did, until the degraded case caught it.
+    let _s1 = agent.send(b, "describe the ledger reconciliation process")
+    // Proof that execution actually reached the commit. Without this marker,
+    // "blocked earlier" and "blocked at commit" are the same observation.
+    print("PRE_COMMIT")
+    try {
+        let c = agent.commit(a, (p.get("candidates") ?? [])[0])
+        print("COMMIT_OK|turn=" + string(c.get("turn") ?? -1))
+    } catch (e) {
+        if string(e).contains("CRITICAL") { print("COMMIT_DENIED_CRITICAL") }
+        else { print("COMMIT_OTHER|" + string(e)) }
+    }
+}
+EOF
+    # The CRITICAL refusal is a GovernanceHardError: checkCriticalSuspension()
+    # enforces at HARD, exactly as checkAdmission() does at propose, so NAAb
+    # try/catch cannot catch it and main.cpp exits 3. Detect it by exit code and
+    # stderr rather than by a caught exception — an earlier version of this test
+    # looked only for a catchable error and reported the hard block as "commit
+    # landed", which is the inverse of the truth.
+    local out rc=0 raw
+    raw=$( (cd "$d" && timeout 60s "$NAAB" t.naab 2>&1) ) || rc=$?
+    out=$( echo "$raw" | grep -oE 'PROPOSED\|candidates=[0-9]+|PRE_COMMIT|COMMIT_OK\|turn=-?[0-9]+|COMMIT_DENIED_CRITICAL|COMMIT_OTHER.*' | tr '\n' ' ' )
+    if echo "$raw" | grep -q "governance level CRITICAL"; then out="$out HARDBLOCK_CRITICAL"; fi
+    out="$out rc=$rc"
+    # Staging read from telemetry, not inferred: a gate test whose escalation
+    # never fired would pass vacuously — the denied case and "the level never
+    # got there" are the same observation without this.
+    local lvl
+    lvl=$(grep -o '"to_level":"[a-z]*"' "$d/telemetry.jsonl" 2>/dev/null | tail -1 | cut -d'"' -f4)
+    echo "LEVEL=${lvl:-none} ${out:-<no output>}"
+    stop_stub
+}
+
+# J-01 — the defect. Escalate to CRITICAL across the deliberation gap; the
+# commit must be refused even though the proposal was generated legitimately.
+R_CRIT=$(run_critical_case escalate 0.0 1)
+if ! echo "$R_CRIT" | grep -q 'PROPOSED|candidates='; then
+    fail "J-01" "propose never produced candidates — commit gate not exercised" "got: ${R_CRIT:-<no output>}"
+elif ! echo "$R_CRIT" | grep -q 'LEVEL=critical'; then
+    fail "J-01" "staging never reached CRITICAL — gate was not exercised" "got: ${R_CRIT:-<no output>}"
+elif ! echo "$R_CRIT" | grep -q 'PRE_COMMIT'; then
+    fail "J-01" "execution never reached the commit — a blocked sibling send is not this gate" \
+         "got: ${R_CRIT:-<no output>}"
+elif echo "$R_CRIT" | grep -qE 'COMMIT_DENIED_CRITICAL|HARDBLOCK_CRITICAL'; then
+    pass "J-01" "CRITICAL reached across the gap refuses the commit ($R_CRIT)"
+else
+    fail "J-01" "commit landed at CRITICAL — a suspended action became real" "got: ${R_CRIT:-<no output>}"
+fi
+
+# J-02 — the control. Without escalation the same script must commit, or J-01
+# proves only that commits fail, not that the suspension is what stopped it.
+R_CALM=$(run_critical_case calm 0.99 99)
+if echo "$R_CALM" | grep -q 'LEVEL=critical'; then
+    skip "J-02" "control escalated to CRITICAL anyway — cannot isolate the gate"
+elif echo "$R_CALM" | grep -q 'COMMIT_OK'; then
+    pass "J-02" "Control: without CRITICAL the same commit succeeds ($R_CALM)"
+else
+    fail "J-02" "Control commit failed for another reason — J-01 is unattributable" "got: ${R_CALM:-<no output>}"
+fi
+
 # ============================================================
 echo ""
 echo -e "${CYAN}==============================================${NC}"
