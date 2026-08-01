@@ -114,7 +114,7 @@ elif [[ "$ec" -eq 0 ]]; then
     ok "30-level list marshalled without error"
 else
     if echo "$out" | grep -qi "executor\|python\|not found\|not available"; then
-        ok "no Python executor — depth limit not triggered (acceptable)"
+        skip "no Python executor — depth limit not triggered (acceptable)"
     else
         ok "non-zero exit for non-depth reason: ${out:0:80}"
     fi

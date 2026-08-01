@@ -402,7 +402,7 @@ samples). What it did find:
 | finding | shape |
 |---|---|
 | `H01` | health verdict inferred from stderr containing the string `"governance"` — which every governed run prints. Passed hardest on a run that died before reporting its own health. |
-| 19 sites / 7 security suites | the suite defined only `ok()` and `fail()` — **no `skip()`** — so "executor not available" had nowhere to go but PASS |
+| 25 sites / 7 security suites | the suite defined only `ok()` and `fail()` — **no `skip()`** — so "executor not available" had nowhere to go but PASS |
 | `L24-03` | trivially true at zero attestations; non-vacuous only because a *neighbouring* assertion stayed strict |
 | `DB-01`, `DB-03`, `DB-04` | initialiser `0` and fallback `"1.00 0 0"` are indistinguishable from "the scenario never ran" |
 | `E04` | asserted a line was absent from a dashboard that a failed run never produced |
@@ -416,3 +416,12 @@ assertion about an absence needs the thing it is absent from to exist.** A
 missing line in a document nobody wrote, a zero from a counter nobody
 incremented, and a clean result are the same observation until something
 distinguishes them.
+
+One postscript, because it is the same lesson at one remove. The first pass
+found 19 of those 25 sites; reviewing the diff before merge found six more in
+files already being edited. The filter had searched for `not available` and
+`may be`, and the survivors read *"may **not be** available"*, *"depth may not
+have been reached"*, and *"(acceptable)"*. A keyword filter over prose is itself
+an assertion that can be satisfied without the property holding — it finds the
+phrasings you thought of. Reading the changed files end to end is what caught
+the rest.

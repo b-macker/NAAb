@@ -61,7 +61,7 @@ elif [[ "$ec" -ne 0 ]]; then
     ok "Non-zero exit without crash — depth limit or JS exception caught (exit $ec)"
 else
     # If JS executor is not available, this might just succeed with truncated data
-    ok "Completed without crash — JS may not be available or depth was handled"
+    skip "Completed without crash — JS may not be available or depth was handled"
 fi
 
 echo "    Output: ${out:0:120}"
@@ -104,7 +104,7 @@ elif [[ "$ec" -ne 0 ]]; then
     elif echo "$out" | grep -qi "depth\|maximum\|RangeError"; then
         fail "Depth error at only 30 levels — false positive depth guard"
     else
-        ok "Non-zero exit (exit $ec) — JS may not be available: ${out:0:80}"
+        skip "Non-zero exit (exit $ec) — JS may not be available: ${out:0:80}"
     fi
 else
     skip "T2 completed (may not have printed 'ok' if JS unavailable): ${out:0:80}"
@@ -146,7 +146,7 @@ elif echo "$out" | grep -qi "depth\|maximum\|marshall\|exceeded\|RangeError"; th
 elif [[ "$ec" -ne 0 ]]; then
     skip "Non-zero exit without crash — depth limit caught or JS unavailable (exit $ec)"
 else
-    ok "Completed without crash (JS may not be available or dict handled)"
+    skip "Completed without crash (JS may not be available or dict handled)"
 fi
 
 echo "    Output: ${out:0:120}"

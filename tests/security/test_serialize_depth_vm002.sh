@@ -55,7 +55,7 @@ elif [[ "$ec" -ne 0 ]]; then
     skip "non-zero exit without crash — depth limit or other error caught"
 else
     # Might succeed if the dict is not deep enough to trigger on this platform
-    ok "completed without crash (depth may not have been reached)"
+    skip "completed without crash (depth may not have been reached)"
 fi
 
 echo ""
@@ -92,7 +92,7 @@ elif [[ "$ec" -eq 0 ]]; then
 else
     # Non-zero exit for other reasons (no Python executor, etc.) is fine
     if echo "$out" | grep -qi "executor\|python\|not found\|not available"; then
-        ok "no Python executor — depth limit not triggered (acceptable)"
+        skip "no Python executor — depth limit not triggered (acceptable)"
     else
         ok "non-zero exit for non-depth reason: ${out:0:80}"
     fi
