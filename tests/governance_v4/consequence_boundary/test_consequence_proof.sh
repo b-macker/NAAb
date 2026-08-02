@@ -17,19 +17,26 @@ FAIL=0
 SKIP=0
 WORKDIR="${HOME}/.naab/test_consequence_$$"
 mkdir -p "$WORKDIR"
-trap 'rm -rf "$WORKDIR"' EXIT
 
 ok()   { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 skip() { SKIP=$((SKIP + 1)); echo "  SKIP: $1 (needs API key)"; }
 
-# Sign a govern.json in the given directory (trusted keys require signatures)
-SIGNING_KEY="${HOME}/.naab/keys/signing.pem"
+# Trust store isolation — generate a test-specific keypair and trust it.
+# Without this, sign_gov signs with a key that may not match the trust store.
+source "$SCRIPT_DIR/../../helpers/trust_setup.sh"
+setup_isolated_trust
+cleanup() { teardown_isolated_trust; rm -rf "$WORKDIR"; }
+trap cleanup EXIT
+
+"$NAAB" --keygen "$WORKDIR/k.pem" >/dev/null 2>&1
+"$NAAB" --trust-key "$WORKDIR/k.pem.pub" 2>/dev/null
+SIGNING_KEY="$WORKDIR/k.pem"
+export NAAB_SIGNING_KEY="$SIGNING_KEY"
+
 sign_gov() {
     local dir="$1"
-    if [ -f "$SIGNING_KEY" ]; then
-        (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
-    fi
+    (cd "$dir" && NAAB_SIGNING_KEY="$SIGNING_KEY" "$NAAB" --sign-governance 2>/dev/null) || true
 }
 
 # Probe for API key (Group A tests)
@@ -602,8 +609,13 @@ EOF
     if echo "$OUT_A2" | grep -q "TURN_LEASE_BLOCKED"; then
         ok "A2: turn-based lease expiry blocks agent.send"
     elif echo "$OUT_A2" | grep -q "WRONG_ERROR"; then
-        fail "A2: agent.send threw wrong error (API or model issue)"
-        echo "    output: ${OUT_A2:0:200}"
+        # API/auth error prevents reaching the lease boundary — key may be invalid
+        if echo "$OUT_A2" | grep -qi "API key\|INVALID_ARGUMENT\|attempts exhausted\|status 40[013]"; then
+            skip "A2: turn-based lease (API key invalid — sends never reached lease boundary)"
+        else
+            fail "A2: agent.send threw wrong error (not API auth)"
+            echo "    output: ${OUT_A2:0:200}"
+        fi
     else
         fail "A2: turn-based lease did not block (exit $RC_A2)"
         echo "    output: ${OUT_A2:0:200}"

@@ -782,15 +782,19 @@ NAABEOF
     # drift_state exists (after first CDD check).
     TELEM_RECONCIL=$(grep -c "RECONCILIATION_TURN" "$TELEM_FILE" 2>/dev/null || true)
     TELEM_RECONCIL=${TELEM_RECONCIL:-0}
+    # Count successful turns (TURN| lines) and CDD_TURN events — distinguish
+    # "CDD ran but no RECONCILIATION_TURN" from "all sends failed (API error)"
+    SUCCESSFUL_TURNS=$(echo "$OUTPUT" | grep -cF 'TURN|n=' 2>/dev/null || true)
+    CDD_EVENTS=$(grep -c "CDD_TURN" "$TELEM_FILE" 2>/dev/null || true)
     if [ "$TELEM_RECONCIL" -gt 0 ]; then
         pass "B04" "RECONCILIATION_TURN telemetry emitted ($TELEM_RECONCIL events)"
+    elif [ "${CDD_EVENTS:-0}" -eq 0 ] && [ "${SUCCESSFUL_TURNS:-0}" -eq 0 ]; then
+        # No successful sends at all — CDD never ran, so no telemetry expected
+        skip "B04" "No successful sends (API error — CDD never ran)"
+    elif [ "$TURNS" -ge 3 ]; then
+        fail "B04" "No RECONCILIATION_TURN telemetry despite $TURNS turns"
     else
-        # If turns completed but no telemetry, that's a real failure
-        if [ "$TURNS" -ge 3 ]; then
-            fail "B04" "No RECONCILIATION_TURN telemetry despite $TURNS turns"
-        else
-            skip "B04" "Not enough turns for telemetry ($TURNS)"
-        fi
+        skip "B04" "Not enough turns for telemetry ($TURNS)"
     fi
 
     # B05: RECONCILIATION_TURN contains expected fields
