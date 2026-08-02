@@ -45,11 +45,15 @@ skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2";
 # POSIX-only, same as test_subprocess_containment.sh. Every probe here asserts a
 # filesystem decision about an ABSOLUTE path, and that is not portable to the
 # Windows job: naab-lang is a native binary running under an MSYS2 harness, so an
-# MSYS path like /etc/hostname or /tmp/... is not a path it can open. The read
-# then fails for file-not-found rather than sandbox denial, which is
-# indistinguishable from a block — and the "elevated must ALLOW" control fails,
-# correctly reporting that the probe cannot tell the two apart. That is the same
-# trap that broke test_nonformation_proof.sh on Windows in #104.
+# MSYS path like /tmp/... is not a path it can open. The read then fails for
+# file-not-found rather than sandbox denial, which is indistinguishable from a
+# block — and the "elevated must ALLOW" control fails, correctly reporting that
+# the probe cannot tell the two apart. That is the same trap that broke
+# test_nonformation_proof.sh on Windows in #104.
+#
+# The probes read a self-created file at an absolute path ($TEST_TMP) rather than
+# /etc/hostname — that file does not exist on Android/Termux, hitting the same
+# file-not-found vs sandbox-denied ambiguity the Windows guard exists for.
 #
 # The engine-parity guard this file provides is not weakened much: build-linux
 # and Build & Test both run it, so a VM/tree-walker divergence still fails CI.
@@ -67,7 +71,7 @@ fi
 
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
-cleanup() { teardown_isolated_trust; rm -rf "$TEST_TMP"; }
+cleanup() { teardown_isolated_trust; rm -rf "$TEST_TMP"; [ -n "${PROBE_DIR:-}" ] && rm -rf "$PROBE_DIR"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
 
@@ -75,20 +79,30 @@ mkdir -p "$TEST_TMP"
 "$NAAB" --trust-key "$TEST_TMP/k.pem.pub" 2>/dev/null
 export NAAB_SIGNING_KEY="$TEST_TMP/k.pem"
 
+# Probe target: a real file at an absolute path OUTSIDE both the working directory
+# AND the system temp dir — the standard sandbox (createEnterpriseConfig) allows
+# reads in cwd AND temp, so a probe under either is allowed regardless of level.
+# /etc/hostname does not exist on Android/Termux, hitting the same ambiguity.
+# $HOME is outside both on all CI platforms.
+PROBE_DIR="${HOME}/.naab_sandbox_probe_$$"
+mkdir -p "$PROBE_DIR"
+PROBE_FILE="$PROBE_DIR/probe.txt"
+echo "probe_content_ok" > "$PROBE_FILE"
+
 # Probes. READ_* uses an absolute path, denied below "elevated"; shell= exercises
 # the capability sync specifically (elevated permits exec, so only the sync can
 # remove SYS_EXEC).
-cat > "$TEST_TMP/read_sync.naab" << 'EOF'
+cat > "$TEST_TMP/read_sync.naab" << EOF
 use file
 main {
-    try { let c = file.read("/etc/hostname") print("READ_ALLOWED") }
+    try { let c = file.read("$PROBE_FILE") print("READ_ALLOWED") }
     catch (e) { print("READ_BLOCKED") }
 }
 EOF
-cat > "$TEST_TMP/read_async.naab" << 'EOF'
+cat > "$TEST_TMP/read_async.naab" << EOF
 use file
 async fn probe() {
-    try { let c = file.read("/etc/hostname") print("READ_ALLOWED") }
+    try { let c = file.read("$PROBE_FILE") print("READ_ALLOWED") }
     catch (e) { print("READ_BLOCKED") }
     return 1
 }
