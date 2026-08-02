@@ -12,6 +12,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/struct_registry.h"
 #include "naab/error_helpers.h"
+#include "naab/sandbox.h"   // async fn must reactivate the parent sandbox on its worker thread
 #ifndef _WIN32
 #include "naab/js_executor_adapter.h"
 #endif
@@ -169,7 +170,16 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         // V-CONC-005: Shallow-copy global env to avoid data race on shared map.
         // Async functions get a snapshot of globals — writes don't propagate back.
         auto global_copy = global->shallowCopy();
-        auto shared_future = std::async(std::launch::async, [body, func_env, global_copy, func_name, gov_path, parent_taint, parent_counters, taint_flag]() -> NaabVal {
+        // The sandbox is thread_local, so a worker thread starts with none — and
+        // every capability check fails OPEN on a null sandbox ("No sandbox active
+        // → allow"). Without this, an async fn ran unsandboxed: absolute-path
+        // reads permitted, polyglot subprocesses uncontained. Taint, counters and
+        // the governance config were already propagated below; the sandbox was
+        // the one piece of parent state left behind. Same capture-and-reactivate
+        // shape as the agent batch/fan_out pool (agent_impl.cpp, "GAP 7").
+        auto sandbox_config = naab::security::SandboxManager::instance().getDefaultConfig();
+        auto shared_future = std::async(std::launch::async, [body, func_env, global_copy, func_name, gov_path, parent_taint, parent_counters, taint_flag, sandbox_config]() -> NaabVal {
+            naab::security::ScopedSandbox async_sandbox(sandbox_config);
             Interpreter async_interp;
             async_interp.setGlobalEnv(global_copy);
 

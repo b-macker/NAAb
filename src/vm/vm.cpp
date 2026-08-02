@@ -3689,9 +3689,16 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
 
             // Thread-local handle allocators ensure each async thread gets its
             // own handle range — no cross-thread handle reuse, no TOCTOU race.
+            // The sandbox is thread_local and every capability check fails OPEN on
+            // a null one, so an async fn ran with no enforcement at all — absolute
+            // paths readable, polyglot subprocesses uncontained — regardless of
+            // govern.json. Propagate it, same as the agent batch/fan_out pool does.
+            auto async_sandbox_config =
+                security::SandboxManager::instance().getDefaultConfig();
             auto shared_future = std::async(std::launch::async,
-                [closure_copy, args, async_stdlib, file, globals_copy,
+                [closure_copy, args, async_stdlib, file, globals_copy, async_sandbox_config,
                  owned_fns = std::move(async_owned_fns)]() mutable -> interpreter::NaabVal {
+                    security::ScopedSandbox async_sandbox(async_sandbox_config);
                     interpreter::NaabVal safe_result;
                     {
                         VM async_vm;
