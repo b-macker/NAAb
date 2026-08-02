@@ -1817,6 +1817,21 @@ else
     echo "  test_taint_engine_parity.sh: not found, skipping"
 fi
 
+# Module governance: full body checks skip during module loading, behavioral
+# contracts still fire. Verifies skip_main_ (VM) agrees with
+# module_loading_depth_ (tree-walker).
+MODULE_GOV_PARITY_SCRIPT="tests/governance_v4/test_module_governance_parity.sh"
+if [ -f "$MODULE_GOV_PARITY_SCRIPT" ]; then
+    if run_shell_test "$MODULE_GOV_PARITY_SCRIPT" 2>&1; then
+        echo "  test_module_governance_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_module_governance_parity.sh")
+    fi
+else
+    echo "  test_module_governance_parity.sh: not found, skipping"
+fi
+
 EVIDENCE_CHAIN_SCRIPT="tests/governance_v4/test_evidence_chain.sh"
 if [ -f "$EVIDENCE_CHAIN_SCRIPT" ]; then
     if run_shell_test "$EVIDENCE_CHAIN_SCRIPT" 2>&1; then
