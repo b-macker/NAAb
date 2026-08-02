@@ -126,12 +126,31 @@ jobs:
       # working diagnosis is the runner rather than a hang. That diagnosis is
       # currently unfalsifiable, and these steps are what make it testable: if
       # future stalls cluster in one phase, the runner is not the cause.
+      #
+      # timeout-minutes is the other half of that. Without it a stall runs to
+      # GitHub's 360-minute job default and the runner is killed service-side,
+      # which is precisely the case where no logs are uploaded — so the stall we
+      # most want to read is the one that leaves nothing to read. A step-level
+      # timeout is enforced by the runner itself: the step is marked failed and
+      # the logs it produced are still uploaded. That turns each stall from an
+      # anecdote into a transcript naming where it stopped.
+      #
+      # Bounds are set off measured times, with room for a slow runner:
+      #   NAAb programs   57s observed  -> 15
+      #   shell suites  3m37s observed  -> 25
+      # The shell bound also has to clear one legitimate SHELL_TEST_TIMEOUT
+      # (600s + 30s kill grace) firing inside an otherwise healthy run, or a
+      # single hung suite would take the whole step down as a timeout and hide
+      # which suite it was — the wrapper's failure line is the more specific
+      # evidence, so it must be allowed to print.
       - name: CLI tests — NAAb programs
         shell: msys2 {0}
+        timeout-minutes: 15
         run: NAAB_TEST_PHASE=naab bash run-all-tests.sh
 
       - name: CLI tests — shell suites
         shell: msys2 {0}
+        timeout-minutes: 25
         run: NAAB_TEST_PHASE=shell bash run-all-tests.sh
 
   build-linux:

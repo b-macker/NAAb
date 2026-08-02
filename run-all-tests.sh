@@ -1787,6 +1787,21 @@ else
 fi
 
 # Evidence chain hardening (cross-run continuity, decision snapshots, transcript refs)
+# govern.json sandbox settings reach the VM path and the tree-walker path through
+# separate code; this asserts they agree. The VM keeps its inline block on
+# purpose, so nothing but this test prevents the two drifting.
+SANDBOX_PARITY_SCRIPT="tests/governance_v4/test_sandbox_engine_parity.sh"
+if [ -f "$SANDBOX_PARITY_SCRIPT" ]; then
+    if run_shell_test "$SANDBOX_PARITY_SCRIPT" 2>&1; then
+        echo "  test_sandbox_engine_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sandbox_engine_parity.sh")
+    fi
+else
+    echo "  test_sandbox_engine_parity.sh: not found, skipping"
+fi
+
 # Taint tracking is implemented twice (AST walk vs VM taint_stack_); this is the
 # only thing that checks the two agree. tests/differential/ cannot — it runs
 # --no-governance, so taint is switched off there.

@@ -154,6 +154,76 @@ static void syncGovernanceToSandbox(
     }
 }
 
+// Apply govern.json's sandbox settings — level, fail-closed upgrade, and
+// capability sync — to the config and the live sandbox.
+//
+// This logic lived inline inside `if (use_vm)`, so under --tree-walk every
+// govern.json sandbox setting was silently inert: shell.enabled:false left
+// SYS_EXEC in place, network.enabled:false left NET_CONNECT, and
+// security.sandbox_level was never applied at all. A config that reads as locked
+// down enforced nothing on a supported engine.
+//
+// The level rebuild has to be here and not just the capability sync: applying
+// capabilities on top of a still-CLI-derived (unrestricted) config strips
+// SYS_EXEC and NET_CONNECT but leaves the filesystem open, which looks correct
+// on a shell probe and leaves sandbox_level inert.
+//
+// The VM path still has an equivalent block inline. test_sandbox_engine_parity.sh
+// asserts the two agree — a shared helper alone would not have caught the taint
+// engines drifting either; the missing piece there was a test, not a refactor.
+static void applyGovernanceSandbox(
+    const naab::governance::GovernanceRules& rules,
+    naab::security::SandboxConfig& config,
+    std::string& sandbox_level,
+    unsigned int timeout,
+    unsigned int memory_limit,
+    bool enforce_mode)
+{
+    bool level_changed = false;
+    if (!rules.sandbox_level_config.empty() && sandbox_level == "unrestricted") {
+        sandbox_level = rules.sandbox_level_config;
+        level_changed = true;
+        if (sandbox_level == "restricted") {
+            config = naab::security::SandboxConfig::fromPermissionLevel(
+                naab::security::PermissionLevel::RESTRICTED);
+        } else if (sandbox_level == "standard") {
+            config = createEnterpriseConfig();
+        } else if (sandbox_level == "elevated") {
+            config = naab::security::SandboxConfig::fromPermissionLevel(
+                naab::security::PermissionLevel::ELEVATED);
+        }
+        config.max_cpu_seconds = timeout;
+        config.max_memory_mb = memory_limit;
+    }
+    if (enforce_mode && rules.sandbox_level_config.empty() &&
+        sandbox_level == "unrestricted") {
+        sandbox_level = "standard";
+        config = createEnterpriseConfig();
+        config.max_cpu_seconds = timeout;
+        config.max_memory_mb = memory_limit;
+        level_changed = true;
+        fmt::print(stderr,
+            "[governance] Sandbox: upgraded unrestricted → standard "
+            "(enforce mode; set security.sandbox_level in govern.json to override)\n");
+    }
+    syncGovernanceToSandbox(rules, config);
+    naab::security::SandboxManager::instance().setDefaultConfig(config);
+    auto* live = naab::security::ScopedSandbox::getCurrent();
+    if (!live) return;
+    if (level_changed) live->replaceConfig(config);
+    if (!rules.network_allowed) {
+        live->setNetworkEnabled(false);
+        live->removeCapability(naab::security::Capability::NET_CONNECT);
+    }
+    if (!rules.shell_allowed) {
+        live->setAllowExec(false);
+        live->removeCapability(naab::security::Capability::SYS_EXEC);
+    }
+    if (!rules.capabilities.env_vars.read) {
+        live->removeCapability(naab::security::Capability::SYS_ENV);
+    }
+}
+
 // Phase 7c: Initialize language registry with available executors
 void initialize_executors() {
     auto& registry = naab::runtime::LanguageRegistry::instance();
@@ -2468,6 +2538,15 @@ int main(int argc, char** argv) {
                 // Clear dangling governance pointer before vm_governance goes out of scope
                 naab::governance::GovernanceEngine::setCurrent(nullptr);
             } else {
+                // govern.json sandbox settings reached only the VM path; this is
+                // the tree-walker's equivalent of the block in `if (use_vm)`.
+                if (gov_loaded && !no_governance && shared_governance.isActive()) {
+                    applyGovernanceSandbox(
+                        shared_governance.getRules(), security_config, sandbox_level,
+                        timeout, memory_limit,
+                        shared_governance.getMode() ==
+                            naab::governance::GovernanceMode::ENFORCE);
+                }
                 // V-LSP-005: lint-only gate for tree-walker path.
                 if (lint_only) {
                     auto* gov = interpreter.getGovernance();
