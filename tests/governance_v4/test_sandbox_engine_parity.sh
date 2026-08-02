@@ -42,6 +42,29 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; 
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2"; }
 
+# POSIX-only, same as test_subprocess_containment.sh. Every probe here asserts a
+# filesystem decision about an ABSOLUTE path, and that is not portable to the
+# Windows job: naab-lang is a native binary running under an MSYS2 harness, so an
+# MSYS path like /etc/hostname or /tmp/... is not a path it can open. The read
+# then fails for file-not-found rather than sandbox denial, which is
+# indistinguishable from a block — and the "elevated must ALLOW" control fails,
+# correctly reporting that the probe cannot tell the two apart. That is the same
+# trap that broke test_nonformation_proof.sh on Windows in #104.
+#
+# The engine-parity guard this file provides is not weakened much: build-linux
+# and Build & Test both run it, so a VM/tree-walker divergence still fails CI.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        echo ""
+        echo "  test_sandbox_engine_parity.sh: SKIPPED (POSIX-only —"
+        echo "    absolute-path probes are not meaningful for a native binary under MSYS2)"
+        exit 0 ;;
+esac
+if [ -n "${WINDIR:-}" ]; then
+    echo "  test_sandbox_engine_parity.sh: SKIPPED (POSIX-only)"
+    exit 0
+fi
+
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 cleanup() { teardown_isolated_trust; rm -rf "$TEST_TMP"; }
