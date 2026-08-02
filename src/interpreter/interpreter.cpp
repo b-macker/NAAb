@@ -2557,6 +2557,22 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
         if (checkRhsSanitized(node.getInit())) {
             governance_->clearTaint(node.getName());
         }
+        // Consume the stale lastReturnWasTainted flag, same reason as the V13-S7
+        // fix on ExprStmt above. checkRhsTainted() CLEARS the flag on entry and
+        // then SETS it again when it identifies a direct source, so that the
+        // lineage lookup above can read lastTaintSource(). Nothing cleared it
+        // afterwards, so the next declaration's step-3 check inherited it and
+        // was marked tainted regardless of its own expression:
+        //
+        //     let t = env.get("HOME")      // legitimately tainted
+        //     let c = "a clean literal"    // <- silently tainted by the stale flag
+        //
+        // It presented intermittently: with more statements in between, the flag
+        // lands on some throwaway variable that never reaches a sink, so the leak
+        // was invisible unless the very next declaration was the one that did.
+        // The VM is unaffected — it carries taint on taint_stack_ rather than
+        // through a cross-statement flag.
+        governance_->setLastReturnTainted(false);
     }
 
     // Phase 2.4.4: Type inference - if no type annotation, infer from value

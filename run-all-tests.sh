@@ -1787,6 +1787,21 @@ else
 fi
 
 # Evidence chain hardening (cross-run continuity, decision snapshots, transcript refs)
+# Taint tracking is implemented twice (AST walk vs VM taint_stack_); this is the
+# only thing that checks the two agree. tests/differential/ cannot — it runs
+# --no-governance, so taint is switched off there.
+TAINT_PARITY_SCRIPT="tests/governance_v4/test_taint_engine_parity.sh"
+if [ -f "$TAINT_PARITY_SCRIPT" ]; then
+    if run_shell_test "$TAINT_PARITY_SCRIPT" 2>&1; then
+        echo "  test_taint_engine_parity.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_taint_engine_parity.sh")
+    fi
+else
+    echo "  test_taint_engine_parity.sh: not found, skipping"
+fi
+
 EVIDENCE_CHAIN_SCRIPT="tests/governance_v4/test_evidence_chain.sh"
 if [ -f "$EVIDENCE_CHAIN_SCRIPT" ]; then
     if run_shell_test "$EVIDENCE_CHAIN_SCRIPT" 2>&1; then

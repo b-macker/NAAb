@@ -130,8 +130,25 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
                expressionContainsTaint(rng->getEnd());
     }
 
+    // try/catch as an EXPRESSION: `let x = try { tainted } catch (e) { "" }`
+    // produces a value, so taint must flow through both arms exactly as it does
+    // through IfExpr above. This was missing, and was masked by a second defect:
+    // VarDeclStmt left lastReturnWasTainted set, so the next declaration was
+    // tainted by the stale flag whatever it contained — which happened to cover
+    // this case. Fixing that leak exposed this one. Two bugs cancelling.
+    if (auto* tc = dynamic_cast<ast::TryCatchExpr*>(expr)) {
+        return expressionContainsTaint(tc->getTryExpr()) ||
+               expressionContainsTaint(tc->getCatchExpr());
+    }
+
+    // Yield carries its operand's value out of a generator.
+    if (auto* yl = dynamic_cast<ast::YieldExpr*>(expr)) {
+        return expressionContainsTaint(yl->getExpr());
+    }
+
     // InlineCodeExpr: handled by isTaintSource("polyglot_output") in VarDeclStmt/Assignment
     // LambdaExpr: body is a block, not a value expression — N/A
+    // ThrowExpr: transfers control, never yields a value to an assignment — N/A
 
     // MatchExpr: check all arm body expressions for tainted returns (FIX for BUG-MatchExpr)
     if (auto* match = dynamic_cast<ast::MatchExpr*>(expr)) {
