@@ -129,7 +129,7 @@ include/naab/       All headers
 - `src/runtime/governance_engine.cpp` — main engine, signature verification
 - `src/runtime/governance_checks.cpp` — 50+ individual checks
 - `src/runtime/governance_config.cpp` — config loading from govern.json
-- `src/runtime/governance_taint.cpp` — taint tracking (interpreter path)
+- `src/interpreter/governance_taint.cpp` — taint tracking (tree-walker path; the VM carries taint on `taint_stack_` in `vm.cpp`). The two are independent implementations and must agree — `tests/governance_v4/test_taint_engine_parity.sh` is the only thing that checks it. `tests/differential/` cannot: `diff_runner.py` runs both engines with `--no-governance`, so taint is switched off there by construction. `expressionContainsTaint()` walks the AST and returns **false for any node type it does not handle**, so a new value-producing `Expr` subclass silently launders taint until added. Violations print in TWO formats — `checkTaintedSink()` (named variable, rule `taint_tracking.sink_violation`) and `checkExpressionTaintedSink()`'s expression path (`Taint tracking violation: expression contains untrusted data...`) — grepping for only one makes a working engine look broken.
 - `src/runtime/trust_store.cpp` — Ed25519 trusted key management
 - `src/runtime/crypto_utils.cpp` — Ed25519 sign/verify, SHA-256
 - Behavioral contracts: `must_call` (function must call specified functions — regex `\bname\s*\(` on body text, non-transitive), `must_contain` (function body must match syntax patterns), `must_produce` (golden tests with type-strict comparison — string "0" does not match int 0), `min_arity`/`max_arity` (parameter count enforcement)

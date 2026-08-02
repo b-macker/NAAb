@@ -346,6 +346,58 @@ script reported something other than what happened.
 
 ---
 
+## Taint tracking: two defects that hid each other
+
+Found by tracing the taint tracker cold, after the propose/commit path was
+exhausted. Taint is implemented **twice** — the tree-walker walks the AST
+(`expressionContainsTaint`), the VM carries it on `taint_stack_` — and nothing
+checked that the two agree. A differential run over 12 scenarios found two
+divergences, in opposite directions, each masking the other.
+
+**14. The declaration after a taint source inherited its taint.**
+`checkRhsTainted()` clears `lastReturnWasTainted` on entry, then *sets it again*
+when it identifies a direct source, so `VarDeclStmt` can read `lastTaintSource()`
+for lineage. Nothing cleared it afterwards, so the next declaration's step-3
+check picked it up:
+
+```naab
+let t = env.get("HOME")      // legitimately tainted
+let c = "a clean literal"    // <- silently tainted by the stale flag
+```
+
+A false positive on clean data, which makes every taint count untrustworthy —
+including `L25-03`'s baseline. It presented intermittently: with more statements
+in between, the stale flag lands on a throwaway variable that never reaches a
+sink. The identical hazard was already fixed for `ExprStmt` (`V13-S7`); the
+declaration path was missed.
+
+**15. `try` as an expression laundered taint.** `expressionContainsTaint()` did
+not handle `TryCatchExpr`, so `let x = try { tainted } catch (e) { "" }`
+produced an untainted `x`. The walk returns **false for any node type it does
+not handle**, so this is fail-open by construction — `YieldExpr` was missing too.
+
+**They cancelled.** Defect 14 was tainting the try-expression anyway, so 15 was
+invisible; a test of the try case passed *because of a bug*. Fixing 14 exposed
+15 as a fresh divergence. The vacuity check shows it directly: with both
+reverted `try_expr` **passes**, and it only fails once the stale-flag fix is in.
+
+**Why nothing caught them.** `tests/differential/` exists precisely to catch
+VM/tree-walker divergence, but `diff_runner.py` runs `--no-governance` — taint
+is switched off there by construction. The property suite's
+`test_taint_monotonicity.naab` runs on one engine, so a divergence is invisible
+to it too. `test_taint_engine_parity.sh` closes the gap, and its pass condition
+is agreement **plus** a per-engine expectation: two engines that both miss a
+taint agree perfectly.
+
+**A retraction.** A third finding — "the tree-walker misses inline subscripts at
+sinks" — was wrong, and was a measurement artifact. Violations print in two
+formats (`checkTaintedSink` names the variable; `checkExpressionTaintedSink`'s
+expression path does not), and the detector matched only one, so a working
+engine looked broken. Fourth instance in this campaign of a *detector* carrying
+the defect it was hunting; see the method note on keyword filters.
+
+---
+
 ## Recorded, deliberately not changed
 
 Each of these is a real observation that did **not** justify a change. They are
