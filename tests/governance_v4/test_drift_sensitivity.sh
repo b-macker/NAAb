@@ -69,10 +69,31 @@ export FAKE_KEY_DRIFT="fake-key-drift"
 sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
 start_stub() {
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do grep -q READY "$2/stub.log" 2>/dev/null && return 0; sleep 0.1; done
+    # Port is picked at random with no bind check, and the readiness wait used to
+    # be a flat 5s. Both fail on a loaded CI runner: a collision (or a lingering
+    # TIME_WAIT socket) leaves the stub dead, and python3 startup + bind can
+    # exceed 5s. Either way every later assertion in the suite fails for a reason
+    # that has nothing to do with what the test measures. Three consecutive CI
+    # runs failed this way, each in a DIFFERENT stub-backed suite, none of them
+    # reproducible locally.
+    local _fx="$1" _dir="$2" _try _i
+    for _try in 1 2 3; do
+        STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
+        : > "$_dir/stub.log"
+        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$_fx" "$_dir" > "$_dir/stub.log" 2>&1 &
+        STUB_PID=$!
+        # 30s, not 5s — a slow start is not a failed start. The kill -0 check is
+        # what keeps that bound cheap: a stub that died on bind is detected at
+        # once and retried on a fresh port rather than waiting out the ceiling.
+        for _i in $(seq 1 300); do
+            grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
+            kill -0 "$STUB_PID" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""
+    done
+    echo "  start_stub: no READY after 3 port attempts — stub log tail:" >&2
+    tail -3 "$_dir/stub.log" >&2 2>/dev/null
     return 1
 }
 stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
