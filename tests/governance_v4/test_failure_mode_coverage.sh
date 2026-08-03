@@ -48,6 +48,33 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; 
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; FAILURES="${FAILURES}\n  [$1] $2"; }
 skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2"; }
 
+# EXPERIMENT (reversible in one commit). build-windows has stalled inside
+# "CLI tests — shell suites" four times: the step sits in_progress ~47 minutes,
+# the runner is killed service-side, and the log archive 404s. timeout-minutes
+# has now failed to fire TWICE, so the runner cannot enforce its own step
+# timeout — we cannot read our way to the cause, only change the outcome.
+#
+# A live observation caught it hanging at the test_challenge_discrimination.sh
+# header, immediately after another stub-backed suite passed. These 9 suites are
+# the only ones that run a Python HTTP server and talk to it from a native
+# Windows binary under MSYS2, so they are the region to exclude first.
+#
+# Read the next Windows run as the result:
+#   green      -> these suites are implicated; narrow from 9
+#   stalls     -> they are exonerated; the cause is elsewhere in the phase
+#
+# Coverage is not lost: build-linux and Build & Test both run every one of these
+# in full, and what they test (agent governance semantics) is platform-neutral.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        echo "  test_failure_mode_coverage.sh: SKIPPED (stub-backed; excluded on Windows pending stall bisect)"
+        exit 0 ;;
+esac
+if [ -n "${WINDIR:-}" ]; then
+    echo "  test_failure_mode_coverage.sh: SKIPPED (stub-backed; excluded on Windows pending stall bisect)"
+    exit 0
+fi
+
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
 STUB_PID=""
