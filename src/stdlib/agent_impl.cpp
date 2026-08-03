@@ -695,6 +695,14 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
                     config->max_total_tokens > 0
                         ? std::max(0, config->max_total_tokens - t.input_tokens - t.output_tokens)
                         : -1);
+            } else {
+                // Always emit. A key that vanishes is indistinguishable from one
+                // holding 0 via dict.get(), so a script cannot tell "no limit
+                // configured" from "budget exhausted" — the reading that matters
+                // most. -1 is the sentinel already used above for an unlimited
+                // token budget, and by escalation_turn below.
+                state["turns_remaining"] = NaabVal::makeInt(-1);
+                state["tokens_remaining"] = NaabVal::makeInt(-1);
             }
             state["challenges_passed"] = NaabVal::makeInt(t.challenges_passed);
             state["challenges_failed"] = NaabVal::makeInt(t.challenges_failed);
@@ -704,6 +712,10 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             if (t.lease_expires_turn > 0) {
                 state["lease_remaining"] = NaabVal::makeInt(
                     std::max(0, t.lease_expires_turn - t.turns));
+            } else {
+                // -1, NOT 0: no lease configured is not an expired lease, and 0
+                // is exactly what an expired one reports.
+                state["lease_remaining"] = NaabVal::makeInt(-1);
             }
             // Wall-clock lease: remaining seconds
             if (config && config->standing_lease_seconds > 0) {
@@ -712,12 +724,20 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
                     std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
                 state["lease_remaining_seconds"] = NaabVal::makeInt(
                     std::max(0, config->standing_lease_seconds - elapsed_sec));
+            } else {
+                state["lease_remaining_seconds"] = NaabVal::makeInt(-1);
             }
             // Tool execution state
             if (t.tool_calls_total > 0 || (config && config->tools_enabled)) {
                 state["tool_calls_total"] = NaabVal::makeInt(t.tool_calls_total);
                 state["tool_calls_blocked"] = NaabVal::makeInt(t.tool_calls_blocked);
                 state["tool_total_latency_ms"] = NaabVal::makeInt(static_cast<int>(t.tool_total_latency_ms));
+            } else {
+                // 0 is the honest value here, unlike the lease keys above: tools
+                // disabled means no calls were made.
+                state["tool_calls_total"] = NaabVal::makeInt(0);
+                state["tool_calls_blocked"] = NaabVal::makeInt(0);
+                state["tool_total_latency_ms"] = NaabVal::makeInt(0);
             }
         }
     }
@@ -843,6 +863,8 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
         if (config && config->risk_budget > 0) {
             state["risk_budget_remaining"] = NaabVal::makeInt(
                 ge->getRemainingBudget(config_name));
+        } else {
+            state["risk_budget_remaining"] = NaabVal::makeInt(-1);
         }
 
         // Governance level — enum is NORMAL(0), ELEVATED(1), HIGH(2), CRITICAL(3)
@@ -1073,10 +1095,14 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
             }
             if (!can_delegate) {
                 throw std::runtime_error(
-                    "Agent error: agent.create denied — parent agent lacks AGENT_SEND permission\n\n"
+                    fmt::format(
+                    "Agent error: agent.create denied — parent agent '{}' lacks AGENT_SEND\n\n"
                     "  Help:\n"
-                    "  - Tool functions cannot create agents unless the parent agent's\n"
-                    "    allowed_actions includes AGENT_SEND\n");
+                    "  - Tool functions cannot create agents unless the CALLING agent's\n"
+                    "    allowed_actions includes AGENT_SEND (here it grants delegation,\n"
+                    "    not the ability to be sent to)\n"
+                    "  - Add AGENT_SEND to agents.{}.allowed_actions in govern.json\n",
+                    t_tool_agent_context->name, t_tool_agent_context->name));
             }
         }
     }
@@ -1790,10 +1816,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             }
             if (!allowed) {
                 throw std::runtime_error(
-                    "Agent error: Action matrix does not include AGENT_SEND\n\n"
+                    fmt::format(
+                    "Agent error: Agent '{}' — action matrix does not include AGENT_SEND\n\n"
                     "  Help:\n"
                     "  - This agent's allowed_actions list does not permit sending messages\n"
-                    "  - Add AGENT_SEND to the agent's allowed_actions configuration\n");
+                    "  - Add AGENT_SEND to agents.{}.allowed_actions in govern.json\n",
+                    config_name, config_name));
             }
         }
         // Telemetry: admission gate passed — exposes exposure tracking state for audit
@@ -3591,9 +3619,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:shell_blocked(" + config_name + ")", "", 0);
                         throw std::runtime_error(fmt::format(
-                            "Agent error: Response from '{}' contains shell commands\n\n"
+                            "Agent error: Response from '{}' contains shell command syntax\n\n"
                             "  Help:\n"
-                            "  - Shell execution is blocked for this agent role\n"
+                            "  - This agent's shell_allowed is false, which also blocks shell\n"
+                            "    syntax appearing in its RESPONSE TEXT — nothing was executed\n"
+                            "  - Patterns matched include fenced bash/sh blocks and lines of the\n"
+                            "    form '$ <command>', so package-manager instructions trip it too\n"
                             "  - Configure capabilities.shell.enabled or agent shell_allowed in govern.json\n",
                             config_name));
                     }
@@ -4878,9 +4909,11 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
                 if (a == "AGENT_SEND") { allowed = true; break; }
             if (!allowed) {
                 throw std::runtime_error(
-                    "Agent error: Action matrix does not include AGENT_SEND\n\n"
+                    fmt::format(
+                    "Agent error: Agent '{}' — action matrix does not include AGENT_SEND\n\n"
                     "  Help:\n"
-                    "  - Add AGENT_SEND to the agent's allowed_actions configuration\n");
+                    "  - Add AGENT_SEND to agents.{}.allowed_actions in govern.json\n",
+                    config_name, config_name));
             }
         }
         // Accounting: one logical transition is being attempted (N candidates
