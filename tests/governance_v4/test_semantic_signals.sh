@@ -649,8 +649,14 @@ NAABEOF
         echo -e "  ${YELLOW}NOTE${NC} [B02] SSC=$SSC_VAL after 2 on-topic turns — LLM responses may have low keyword overlap"
         pass "B02" "On-topic test completed (SSC=$SSC_VAL — LLM keyword overlap varies)"
     elif echo "$OUTPUT" | grep -qiE "API key|INVALID_ARGUMENT|attempts exhausted|status 40[013]"; then
+        # SKIP, not pass. The sends never landed, so signal 10 was never exercised
+        # — "the signal did not fire" and "the signal never ran" are the same
+        # observation here, and only one of them is a result. Group B is gated on
+        # GK1 being SET, not on it being valid, so a stale or revoked key reaches
+        # this branch: passing here reports the semantic-stability check green on
+        # a run that never made it past authentication.
         B02_API_ERROR=true
-        pass "B02" "On-topic test ran (API error, non-deterministic)"
+        skip "B02" "On-topic test never ran (API error — signal not exercised)"
     else
         fail "B02" "On-topic test failed" "exit=$EXIT_CODE output=$(echo "$OUTPUT" | head -5)"
     fi
@@ -659,7 +665,7 @@ NAABEOF
     if echo "$OUTPUT" | grep -q "SEMANTIC_DICT_PRESENT"; then
         pass "B03" "Response dict contains 'semantic' section"
     elif [ "$B02_API_ERROR" = true ]; then
-        pass "B03" "Semantic section check skipped (API error in B02)"
+        skip "B03" "Semantic section not observable (API error in B02)"
     else
         fail "B03" "Response dict missing 'semantic' section"
     fi
@@ -916,8 +922,11 @@ NAABEOF
 
     OUTPUT=$(cd "$WORKDIR" && timeout 180 "$NAAB" "test_c01.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
     SSC=$(echo "$OUTPUT" | grep -oP 'SSC=\K[0-9]+' | head -1)
+    # SKIP, not pass — see B02. The catch prints ERROR= for ANY exception, and
+    # this branch is tested BEFORE SSC is read, so a failed send is scored as a
+    # satisfied assertion about a signal that never ran.
     if echo "$OUTPUT" | grep -q "ERROR="; then
-        pass "C01" "On-topic pair test ran (API error, non-deterministic)"
+        skip "C01" "On-topic pair never ran (error — signal not exercised)"
     elif [ "${SSC:-}" = "0" ]; then
         pass "C01" "SSC=0 after on-topic pair (high keyword overlap confirmed)"
     elif [ -n "${SSC:-}" ]; then
@@ -997,7 +1006,7 @@ NAABEOF
     SSC=$(echo "$OUTPUT" | grep -oP 'SSC=\K[0-9]+' | head -1)
     COH=$(echo "$OUTPUT" | grep -oP 'COHERENCE=\K[0-9.]+' | head -1)
     if echo "$OUTPUT" | grep -q "ERROR="; then
-        pass "C02" "Off-topic shift test ran (API error, non-deterministic)"
+        skip "C02" "Off-topic shift never ran (error — signal not exercised)"
     elif [ "${SSC:-0}" -ge 1 ]; then
         pass "C02" "SSC=$SSC after topic shift (Jaccard detected divergence, coherence=$COH)"
     elif [ -n "${SSC:-}" ]; then
@@ -1080,7 +1089,7 @@ NAABEOF
 
     OUTPUT=$(cd "$WORKDIR" && timeout 180 "$NAAB" "test_c03.naab" 2>/dev/null) && EXIT_CODE=0 || EXIT_CODE=$?
     if echo "$OUTPUT" | grep -q "ERROR="; then
-        pass "C03" "Mandate alignment test ran (API error, non-deterministic)"
+        skip "C03" "Mandate alignment never ran (error — signal not exercised)"
     elif echo "$OUTPUT" | grep -q "RANGE_OK"; then
         MA=$(echo "$OUTPUT" | grep -oP 'MA=\K[0-9.]+' | head -1)
         pass "C03" "Mandate alignment in [0.0, 1.0] (MA=$MA)"
