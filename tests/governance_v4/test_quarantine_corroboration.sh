@@ -66,21 +66,42 @@ start_stub() {
     # that has nothing to do with what the test measures. Three consecutive CI
     # runs failed this way, each in a DIFFERENT stub-backed suite, none of them
     # reproducible locally.
-    local _fx="$1" _dir="$2" _try _i
-    for _try in 1 2 3; do
+    local _fx="$1" _dir="$2" _try _i _tries=3
+    # POSIX only. Under MSYS2 this retry path is actively harmful, and it is the
+    # failure path specifically — a stub that comes up promptly never enters it,
+    # which is why Windows passed until the retry itself was added:
+    #   - `wait` after a plain TERM can block forever. run-all-tests.sh already
+    #     warns that native Windows binaries under MSYS2 ignore TERM and that
+    #     plain `timeout` "can wait forever"; a process tree holding an
+    #     unkillable child is also why the runner could not enforce its own
+    #     step timeout or finalize the step.
+    #   - fork/exec costs ~50-100ms there, and the loop spawns grep + kill +
+    #     sleep per iteration, so 3x300 iterations is dominated by spawning
+    #     rather than by the 30s of intended waiting.
+    # Windows keeps the single 5s attempt that ran green for many jobs.
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) _tries=1 ;; esac
+    [ -n "${WINDIR:-}" ] && _tries=1
+    for _try in $(seq 1 $_tries); do
         STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
         : > "$_dir/stub.log"
         python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$_fx" "$_dir" > "$_dir/stub.log" 2>&1 &
         STUB_PID=$!
-        # 30s, not 5s — a slow start is not a failed start. The kill -0 check is
-        # what keeps that bound cheap: a stub that died on bind is detected at
-        # once and retried on a fresh port rather than waiting out the ceiling.
-        for _i in $(seq 1 300); do
+        if [ "$_tries" -eq 1 ]; then
+            for _i in $(seq 1 50); do
+                grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
+                sleep 0.1
+            done
+            return 1
+        fi
+        # 30s, not 5s — a slow start is not a failed start. Sleep 0.5 keeps the
+        # spawn count near the original despite the longer ceiling.
+        for _i in $(seq 1 60); do
             grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
             kill -0 "$STUB_PID" 2>/dev/null || break
-            sleep 0.1
+            sleep 0.5
         done
-        kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""
+        # SIGKILL, and no unbounded wait: reaping is not worth a hang.
+        kill -9 "$STUB_PID" 2>/dev/null; STUB_PID=""
     done
     echo "  start_stub: no READY after 3 port attempts — stub log tail:" >&2
     tail -3 "$_dir/stub.log" >&2 2>/dev/null
