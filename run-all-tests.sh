@@ -1820,6 +1820,21 @@ fi
 # Module governance: full body checks skip during module loading, behavioral
 # contracts still fire. Verifies skip_main_ (VM) agrees with
 # module_loading_depth_ (tree-walker).
+# shell_content_allowed separates the CONTENT half of shell_allowed (response
+# text scan) from the EXECUTION half. SC-04 is the load-bearing case: permitting
+# content must not permit execution.
+SHELL_SPLIT_SCRIPT="tests/governance_v4/test_shell_content_split.sh"
+if [ -f "$SHELL_SPLIT_SCRIPT" ]; then
+    if run_shell_test "$SHELL_SPLIT_SCRIPT" 2>&1; then
+        echo "  test_shell_content_split.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_shell_content_split.sh")
+    fi
+else
+    echo "  test_shell_content_split.sh: not found, skipping"
+fi
+
 MODULE_GOV_PARITY_SCRIPT="tests/governance_v4/test_module_governance_parity.sh"
 if [ -f "$MODULE_GOV_PARITY_SCRIPT" ]; then
     if run_shell_test "$MODULE_GOV_PARITY_SCRIPT" 2>&1; then

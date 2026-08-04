@@ -2154,8 +2154,36 @@ struct AgentConfig {
     // V-GOV-018: per-agent shell capability override.
     // shell_allowed_set = false means "use global policy" (don't restrict further).
     // shell_allowed_set = true + shell_allowed = false → block shell for this role.
+    //
+    // shell_allowed gates TWO different things, which is why shell_content_allowed
+    // exists below:
+    //   1. EXECUTION — checkShellAllowed() blocks <<shell>> blocks and prerequisite
+    //      commands for this role.
+    //   2. CONTENT — agentSend() scans the agent's RESPONSE TEXT for shell syntax
+    //      and refuses the turn if it matches.
+    // (2) is the original purpose: the field shipped as per-agent sandbox config
+    // alongside allowed_paths/blocked_paths, which are also response scans, and
+    // predates tool execution. (1) was layered on later by V-GOV-020.
     bool shell_allowed = true;
     bool shell_allowed_set = false;
+
+    // Opt out of the CONTENT half of shell_allowed without touching the execution
+    // half. For an agent whose job is to author runbooks or install instructions:
+    // the content scan matches "$ <command>" lines, so `$ npm install express` is
+    // refused — an agent restricted from shell cannot write install instructions
+    // for any language.
+    //
+    // Deliberately additive and fail-closed rather than a rename. Unset means the
+    // content scan still runs, so no existing config changes behaviour. It relaxes
+    // only when set true, and only the content scan — execution stays gated by
+    // shell_allowed, which for an agent with an empty allowed_actions is the ONLY
+    // thing gating it (checkShellAllowed skips the SHELL_EXEC matrix test when the
+    // list is empty). Deprecating shell_allowed's execution role would silently
+    // loosen exactly those configs; govern-template.json's "researcher" is one.
+    //
+    // Ratchet: false/unset -> true is a loosening violation.
+    bool shell_content_allowed = false;
+    bool shell_content_allowed_set = false;
     // Per-agent network capability override (same pattern as shell_allowed)
     bool network_allowed = true;
     bool network_allowed_set = false;
