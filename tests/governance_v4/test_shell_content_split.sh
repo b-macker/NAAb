@@ -160,17 +160,22 @@ fi
 echo ""
 echo -e "${CYAN}--- Group B: execution is unaffected by the content opt-out ---${NC}"
 
-exec_case() {  # $1=id $2=shell_allowed $3=content_flag $4=expected(BLOCKED|ALLOWED) $5=desc
-    local d="$TEST_TMP/$1"; mkdir -p "$d"
+# The control runs FIRST and decides whether the probe can measure anything here.
+# SC-04 expects BLOCKED, so on a platform where <<shell>> does not execute at all
+# it would pass for the wrong reason while SC-05 fails — the pair has to degrade
+# together. Driven by the observed control, not by a platform guess: if execution
+# ever stops working on Linux, this still reports SKIP rather than a false green.
+run_exec() {  # $1=shell_allowed $2=content_flag -> echoes ALLOWED|BLOCKED
+    local d="$TEST_TMP/exec-$1-$2"; mkdir -p "$d"
     local extra=""
-    [ -n "$3" ] && extra=", \"shell_content_allowed\": $3"
+    [ -n "$2" ] && extra=", \"shell_content_allowed\": $2"
     cat > "$d/govern.json" << EOF
 { "version": "5.0", "mode": "enforce",
   "security": { "sandbox_level": "elevated" },
   "capabilities": { "shell": { "enabled": true } },
   "agents": { "runbook_author": { "provider": "gemini", "model": "gemini-2.0-flash",
       "api_key_env": "FAKEKEY", "system_prompt": "runbooks",
-      "shell_allowed": $2$extra } } }
+      "shell_allowed": $1$extra } } }
 EOF
     sign_dir "$d"
     cat > "$d/t.naab" << 'NAABEOF'
@@ -181,21 +186,28 @@ echo ran
     print("EXEC_ALLOWED")
 }
 NAABEOF
-    local out
-    out=$(cd "$d" && timeout 60s "$NAAB" --agent-id runbook_author t.naab 2>&1)
-    local verdict="BLOCKED"
-    echo "$out" | grep -q "EXEC_ALLOWED" && verdict="ALLOWED"
-    if [ "$verdict" != "$4" ]; then
-        fail "$1" "$5" "expected $4, got $verdict"
-    else
-        pass "$1" "$5 ($verdict)"
-    fi
+    # Capture first, then match. Piping the run straight into `grep -q` is wrong
+    # under `set -o pipefail`: grep exits on the first match and closes the pipe,
+    # the producer takes SIGPIPE, and the pipeline reports failure — so a run that
+    # DID print EXEC_ALLOWED scores as BLOCKED. That inverts this probe silently,
+    # and it makes SC-04 (which expects BLOCKED) pass while SC-05 fails.
+    local _o; _o=$(cd "$d" && timeout 60s "$NAAB" --agent-id runbook_author t.naab 2>&1)
+    if echo "$_o" | grep -q "EXEC_ALLOWED"; then echo ALLOWED; else echo BLOCKED; fi
 }
 
-exec_case SC-04 false "true" BLOCKED \
-    "content permitted, execution STILL blocked — the opt-out does not leak"
-exec_case SC-05 true  "true" ALLOWED \
-    "control: shell_allowed=true executes, so SC-04 is not blocking unconditionally"
+CONTROL=$(run_exec true "true")
+if [ "$CONTROL" != "ALLOWED" ]; then
+    skip "SC-05" "shell execution unavailable here — probe cannot distinguish a governance block"
+    skip "SC-04" "paired with SC-05: without a working control, BLOCKED proves nothing"
+else
+    pass "SC-05" "control: shell_allowed=true executes, so SC-04 is not blocking unconditionally (ALLOWED)"
+    GATED=$(run_exec false "true")
+    if [ "$GATED" != "BLOCKED" ]; then
+        fail "SC-04" "content permitted LEAKED into execution" "expected BLOCKED, got $GATED"
+    else
+        pass "SC-04" "content permitted, execution STILL blocked — the opt-out does not leak (BLOCKED)"
+    fi
+fi
 
 # ============================================================
 # Group C — ratchet
