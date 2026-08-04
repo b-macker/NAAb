@@ -346,6 +346,55 @@ script reported something other than what happened.
 
 ---
 
+## A fix that reached one caller
+
+The Windows CI job stalled four times inside `CLI tests — shell suites`: the step
+sat `in_progress` for ~47 minutes, the runner was killed service-side, and the log
+archive 404'd. Two of those runs carried a `timeout-minutes: 25` added expressly to
+preserve logs — it never fired, so the runner could not enforce its own step
+timeout either. The cause could not be read out of anything. It could only be
+excluded.
+
+The diagnosis was already in the tree, and had been before any of it:
+
+> *"Stub-backed HTTP tests hang on Windows/MSYS2 due to signal propagation and
+> process cleanup issues. Skip entirely — Linux CI validates the behavior."*
+> — `test_absorption_degenerate.sh`
+
+That comment sat in **1 of the 29 suites** that launch `agent_stub.py`. The other
+28 kept running on Windows. Excluding all 29 took the step from a 47-minute hang
+to **2m04s**.
+
+The same shape had already happened once in this file's own table. `081f460`
+fixed stub startup picking a single random port — *"a one-shot pick turned a busy
+port into a scenario that silently produced no data"* — and that fix reached
+**2 of 29**. Three CI runs later, three different stub suites failed on Linux for
+what was very likely that same collision, and the obvious repair (add the retry
+everywhere) is the withdrawn proposal below, because it hung Windows instead.
+
+| fix | diagnosed in | reached |
+|---|---|---|
+| stub port retry (`081f460`) | 1 suite | 2 of 29 |
+| Windows/MSYS2 stub guard | 1 suite | 1 of 29 |
+
+The defect is not duplication. Copies of a helper are cheap and each file stays
+runnable alone, which is worth something. The defect is that **a finding was
+recorded where the other callers could not see it** — a comment in one file is
+invisible to the 28 people who will next hit the same wall.
+
+The platform guard is now one definition in `tests/helpers/stub_platform.sh`, so
+the next finding about it lands on every caller at once. The *launcher itself* is
+still 29 near-copies, and the port retry still reaches only some of them — the
+same exposure, unfixed, and the reason it was not consolidated with the guard is
+that the correct Windows behaviour of that code is exactly what is still unknown.
+Consolidating it would freeze one guess into 29 callers.
+
+Note what this cost. Four stalls, three misattributed Linux failures, one
+incorrect one-commit bisect, and a "fix" that had to be reverted — all
+downstream of a correct diagnosis nobody could find.
+
+---
+
 ## Taint tracking: two defects that hid each other
 
 Found by tracing the taint tracker cold, after the propose/commit path was
@@ -453,12 +502,39 @@ Kept because the reasoning against them is the useful part.
    fired 4 turns and stopped, `thinking_collapse` fired 11 and continued, with
    one turn of overlap. The run terminated on advisory escalation with 23 checks
    never evaluated. Reverted in `9f63c4e`.
+5. **Check `allowed_actions` in `agent.commit()`.** Claimed as a gap in the same
+   family as #8 and #13: `commit` re-checks the lease and CRITICAL but not the
+   action matrix, and removing an action mid-run is *ratchet-legal* (recorded as
+   `tightened` in `governance_config.cpp`), so a proposal looked committable
+   after its agent's `AGENT_SEND` was gone. **The gap does not exist.**
+   `agentCommit` already compares `getReloadCount()` against the count stamped
+   into the proposal at propose time, and `reload_count_++` fires only on an
+   *accepted* reload — so any config change that could remove the action has
+   already invalidated the proposal. `allowed_actions` is config-derived and has
+   no other mutation path, and `s_pending_proposals` has exactly one insert,
+   inside `agentPropose`, behind that function's own `AGENT_SEND` check, so a
+   caller cannot supply a proposal either. Covered by `test_propose_commit.sh`
+   H-01/H-02. The reason it looked open: the gates were enumerated with a grep
+   for `allowed_actions|AGENT_SEND|checkCriticalSuspension|leaseExpiredLocked|checkAdmission`,
+   and `reload_count` was not in the pattern. See the method note below.
+6. **Give the stub launcher a port retry and a longer readiness ceiling.** Three
+   CI runs failed in three *different* stub-backed suites — the signature of the
+   launcher, not a regression — so the launcher was hardened across the 9 suites
+   then known to share the idiom. Linux went green; Windows stalled. A
+   one-commit bisect looked conclusive (the commit before passed, the delta was
+   the launcher alone) and **was coincidence**: the next commit restored the
+   Windows path to byte-equivalent prior behaviour and it stalled anyway. Two
+   things were wrong at once. The retry's cleanup used `kill` followed by an
+   unbounded `wait`, which cannot return if TERM is ignored — a hazard this
+   repo's own `run-all-tests.sh` comments already warn about for MSYS2. And
+   "the 9 suites" came from grepping one launcher idiom rather than for
+   `agent_stub.py`; the real population is 29. The retry now runs on POSIX only.
 
 ---
 
 ## Method notes
 
-Four things this campaign kept relearning:
+Five things this campaign kept relearning:
 
 **Trace the code before running the experiment.** Every fix that came from
 reading call graphs held up. Both hypotheses formed by reading a live run and
@@ -475,6 +551,25 @@ it immediately, because the baseline is what the window actually controls.
 may be redundant" when the two runs already differ; `PW-02` fails if the window
 answers to no key at all, so a pinned value cannot pass by looking stable. A
 test that can only pass or fail cannot tell you it measured nothing.
+
+**A grep defines what you are able to see.** Three times in one session a
+conclusion was wrong because the pattern that produced the evidence was narrower
+than the thing being reasoned about, and nothing in the output said so — absence
+from a grep result reads exactly like absence from the code.
+
+| pattern | what it hid | consequence |
+|---|---|---|
+| `allowed_actions\|AGENT_SEND\|checkCriticalSuspension\|leaseExpiredLocked\|checkAdmission` | `agentCommit`'s reload-generation check | a security gap reported that did not exist |
+| `seq 1 50); do grep -q READY` (one launcher idiom) | 20 of 29 suites launching the stub | an exclusion experiment whose negative result would have been uninterpretable |
+| `taint_tracking.sink_violation` | the second violation message format | a working taint engine reported as broken |
+
+The third is the one already recorded above as a *detector carrying the defect it
+was hunting*; it is the same error at one remove, and the keyword-filter
+postscript below is a fourth. The habit that catches it is cheap: after a grep
+that will support a conclusion, ask what the pattern **cannot** match, and widen
+it once on purpose. Search for the artifact (`agent_stub.py`) rather than for a
+usage of it, and enumerate a function's guards by reading it rather than by
+filtering it.
 
 **An assertion that looks specific can be satisfiable without the property
 holding.** This appeared three times in the transition-admissibility phase and
