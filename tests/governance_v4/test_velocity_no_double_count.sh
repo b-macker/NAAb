@@ -20,6 +20,34 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="$SCRIPT_DIR/../../build/naab-lang"
 
+# EXPERIMENT (reversible in one commit). See test_absorption_degenerate.sh, which
+# has carried this guard alone since before this change:
+#   "Stub-backed HTTP tests hang on Windows/MSYS2 due to signal propagation and
+#    process cleanup issues. Skip entirely — Linux CI validates the behavior."
+# That diagnosis was made once and applied to one file out of 29 that launch the
+# stub. build-windows has since stalled four times inside "CLI tests — shell
+# suites": the step sits in_progress ~47 minutes, the runner is killed
+# service-side, and the log archive 404s. timeout-minutes failed to fire TWICE,
+# so the runner cannot enforce its own step timeout either — the cause cannot be
+# read, only excluded.
+#
+# Read the next Windows run as the result:
+#   green   -> stub-backed suites are the cause; narrow from here
+#   stalls  -> they are exonerated and the cause is elsewhere in the phase
+#
+# Coverage is not lost: build-linux and Build & Test run every one of these in
+# full, and agent-governance semantics are platform-neutral.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        echo "  test_velocity_no_double_count.sh: SKIPPED (stub-backed; excluded on Windows pending stall bisect)"
+        exit 0 ;;
+esac
+if [ -n "${WINDIR:-}" ]; then
+    echo "  test_velocity_no_double_count.sh: SKIPPED (stub-backed; excluded on Windows pending stall bisect)"
+    exit 0
+fi
+
+
 if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
     _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 else

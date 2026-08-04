@@ -68,10 +68,52 @@ export FAKE_KEY_ABSDEG="fake-key-absorb-degen"
 sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
 start_stub() {  # $1=fixture $2=workdir
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do grep -q READY "$2/stub.log" 2>/dev/null && return 0; sleep 0.1; done
+    # Port is picked at random with no bind check, and the readiness wait used to
+    # be a flat 5s. Both fail on a loaded CI runner: a collision (or a lingering
+    # TIME_WAIT socket) leaves the stub dead, and python3 startup + bind can
+    # exceed 5s. Either way every later assertion in the suite fails for a reason
+    # that has nothing to do with what the test measures. Three consecutive CI
+    # runs failed this way, each in a DIFFERENT stub-backed suite, none of them
+    # reproducible locally.
+    local _fx="$1" _dir="$2" _try _i _tries=3
+    # POSIX only. Under MSYS2 this retry path is actively harmful, and it is the
+    # failure path specifically — a stub that comes up promptly never enters it,
+    # which is why Windows passed until the retry itself was added:
+    #   - `wait` after a plain TERM can block forever. run-all-tests.sh already
+    #     warns that native Windows binaries under MSYS2 ignore TERM and that
+    #     plain `timeout` "can wait forever"; a process tree holding an
+    #     unkillable child is also why the runner could not enforce its own
+    #     step timeout or finalize the step.
+    #   - fork/exec costs ~50-100ms there, and the loop spawns grep + kill +
+    #     sleep per iteration, so 3x300 iterations is dominated by spawning
+    #     rather than by the 30s of intended waiting.
+    # Windows keeps the single 5s attempt that ran green for many jobs.
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) _tries=1 ;; esac
+    [ -n "${WINDIR:-}" ] && _tries=1
+    for _try in $(seq 1 $_tries); do
+        STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
+        : > "$_dir/stub.log"
+        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$_fx" "$_dir" > "$_dir/stub.log" 2>&1 &
+        STUB_PID=$!
+        if [ "$_tries" -eq 1 ]; then
+            for _i in $(seq 1 50); do
+                grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
+                sleep 0.1
+            done
+            return 1
+        fi
+        # 30s, not 5s — a slow start is not a failed start. Sleep 0.5 keeps the
+        # spawn count near the original despite the longer ceiling.
+        for _i in $(seq 1 60); do
+            grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
+            kill -0 "$STUB_PID" 2>/dev/null || break
+            sleep 0.5
+        done
+        # SIGKILL, and no unbounded wait: reaping is not worth a hang.
+        kill -9 "$STUB_PID" 2>/dev/null; STUB_PID=""
+    done
+    echo "  start_stub: no READY after 3 port attempts — stub log tail:" >&2
+    tail -3 "$_dir/stub.log" >&2 2>/dev/null
     return 1
 }
 stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
