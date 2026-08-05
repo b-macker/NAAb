@@ -1611,14 +1611,15 @@ assert 'refinement_iterations' in d
         # the length of the run. The earlier reasoning that the count "is NOT
         # monotone in run length" was reading the artifact as signal.
         #
-        # 12 therefore leaves ~50% headroom over every non-inflated measurement
-        # while still catching a leak: the build path runs 16 extraction sites
-        # across every feature iteration, so losing its sanitizer adds far more
-        # than the 4 violations of slack here.
+        # 10 leaves ~25% headroom over the 5 consecutive measurements of 7-8
+        # (Aug 4 keyed run: 8 in primary segment, 9 in cross-run segment;
+        # prior: 7, 8, 8, 8). A sanitizer loss adds ~16 violations (16
+        # extraction sites), well above 10. Tightened from 12 (50% headroom)
+        # on the Aug 4 evidence that the underlying count is stable at ~8.
         #
         # Raising this number is a reviewed decision, not a routine edit: it
         # means another unsanitized sink path was added.
-        TAINT_BASELINE=${TAINT_BASELINE:-12}
+        TAINT_BASELINE=${TAINT_BASELINE:-10}
         if [ "${TAINT_N:-0}" -le "$TAINT_BASELINE" ]; then
             pass "L25-03" "Taint violations within the documented baseline (${TAINT_N} <= ${TAINT_BASELINE}) — sanitizer boundary holds"
         else

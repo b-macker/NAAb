@@ -1,1 +1,1 @@
-{"pass": 116, "fail": 0, "skip": 0, "total": 116, "governance_kill": "", "commit": "d04403d33f3af6e502ff75a92d2f9c9873eca1c2", "challenges_pass": 13, "challenges_fail": 1}
+{"pass": 163, "fail": 1, "skip": 7, "total": 171, "governance_kill": "", "commit": "298d52d4bff06d8af9f8222fa19a76d691158d6d", "challenges_pass": 2, "challenges_fail": 0}

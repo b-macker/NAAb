@@ -615,3 +615,60 @@ have been reached"*, and *"(acceptable)"*. A keyword filter over prose is itself
 an assertion that can be satisfied without the property holding — it finds the
 phrasings you thought of. Reading the changed files end to end is what caught
 the rest.
+
+---
+
+## Keyed campaign run — Aug 4, 2026
+
+A live keyed run against 6 Gemini keys, targeting the five stub-only /
+inert-verified entries in this document. Run completed without governance
+termination: 163 pass, 1 fail, 7 skip. Artifact directory:
+`/data/data/com.termux/files/usr/tmp/living-script-13648/work-13648-15101/`.
+
+### Confirming the run was keyed
+
+```
+grep -c "No GK1 API key" keyed-run.log    → 0
+echo "${GK1:0:6}"                          → AQ.Ab8
+```
+
+57 live API sends, 0 errors. Two step-up challenges passed (one `tool_result`
+type at kr=0.500, one `validation` type at kr=0.929). S22 fired on a real test
+failure (turn 19 of segment 2, `penalties_detail: validation_outcome=0.1500`,
+coherence 1.0 → 0.865) and recovery credit applied three turns later
+(`validation_recovery=+0.0750`).
+
+### Per-target results
+
+| Finding | Status before | Triggered? | Evidence | Status after |
+|---|---|---|---|---|
+| #2 streak field | stub-only | No | Zero `PULSE_TRANSITION` events — pulse stayed HEALTHY throughout (coherence=1 at pulse check). No verdict transition means no streak to carry. | stub-only |
+| #5 evidence count shrink | stub-only | No | 12 `VALIDATION_RECORDED` events across 2 segments. Segment 1: 14→15→17→19→21→24 (monotonic, all pass). Segment 2: 11→12→17→19(fail)→22(pass)→22(fail). No decreasing count within any segment. | stub-only |
+| #8 lease expire mid-deliberation | stub-only | No | Both propose/commit pairs completed in <1s (same-second timestamps). Developer lease: 600s/20 turns, at turn 9 of 50. No expiry anywhere close. | stub-only |
+| #9 config generation guard | inert-verified | No (refusal stub-only) | Propose/commit path ran live (2 each). 8 `CONFIG_ADJUSTMENT` events occurred in the same runs, but all AFTER the commit timestamps (first reload at 22:43:55, commit at 22:43:53). No reload landed inside a deliberation gap. | inert-verified |
+| #13 CRITICAL suspension | stub-only | No | Zero `GOVERNANCE_LEVEL_CHANGE` events. Governance level stayed at NORMAL throughout. Developer coherence never dropped below 0.865. No CRITICAL state ever arose. | stub-only |
+
+No status upgrades to "confirmed". All five conditions are legitimate
+non-occurrences — the run was clean enough that the corrective mechanisms had
+nothing to correct. The run confirms that their *non-firing* paths behave
+correctly (no false positives, no vacuous passes from the gates being absent),
+but cannot confirm the firing paths.
+
+### Taint count
+
+Measured 8 violations in the primary segment (9 in the cross-run segment).
+Consistent with prior measurements of 7, 8, 8. Baseline lowered from 12 to 10
+(25% headroom, down from 50%) — a sanitizer loss would add ~16 violations,
+still well above the baseline.
+
+### Assertions that PASSed while their mechanism did not run
+
+None identified in this run. The L22 OA assertions correctly SKIPped on the
+quarantine path (0 quarantines). The L24-05 refusal attestation assertion
+correctly noted "nothing to attest" (no governance refusals occurred). Q02
+counted real challenge passes (1 in segment 1, confirmed against
+`AGENT_CHALLENGE_PASS` telemetry). The `TELEMETRY_AUDIT|consequence|
+AGENT_CHALLENGE_PASS=0` line reads the telemetry file mid-run, before the
+challenge fires at turn 20 — this is a known timing limitation of the in-script
+telemetry audit, not a vacuous assertion (Q02 counts from the script's own
+tracking).
