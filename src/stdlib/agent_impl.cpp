@@ -3605,7 +3605,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     if (gov_engine && gov_engine->isActive() && !content.empty()) {
         // Shell restriction: if shell is explicitly blocked for this agent,
         // scan response for shell/bash/terminal command patterns
-        if (config->shell_allowed_set && !config->shell_allowed) {
+        // shell_content_allowed opts out of THIS scan only — execution stays gated
+        // by checkShellAllowed(). Unset means the scan runs, so an existing config
+        // is unaffected; it relaxes only when explicitly set true.
+        const bool shell_content_permitted =
+            config->shell_content_allowed_set && config->shell_content_allowed;
+        if (config->shell_allowed_set && !config->shell_allowed && !shell_content_permitted) {
             // Detect code blocks with shell commands
             static const std::vector<std::string> shell_patterns = {
                 "```(?:bash|sh|shell|zsh|terminal)",
@@ -3625,8 +3630,12 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                             "    syntax appearing in its RESPONSE TEXT — nothing was executed\n"
                             "  - Patterns matched include fenced bash/sh blocks and lines of the\n"
                             "    form '$ <command>', so package-manager instructions trip it too\n"
-                            "  - Configure capabilities.shell.enabled or agent shell_allowed in govern.json\n",
-                            config_name));
+                            "  - If this agent SHOULD write shell (runbooks, install steps) but must\n"
+                            "    not run it, set agents.{}.shell_content_allowed = true — that\n"
+                            "    disables this response scan and leaves execution blocked\n"
+                            "  - To change execution instead, see capabilities.shell.enabled or the\n"
+                            "    agent's shell_allowed in govern.json\n",
+                            config_name, config_name));
                     }
                 } catch (const std::regex_error&) {
                     // Fail-closed: broken pattern → block as if matched

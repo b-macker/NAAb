@@ -2276,6 +2276,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 agent.network_allowed = cfg_json["network_allowed"].get<bool>();
                 agent.network_allowed_set = true;
             }
+            // Opt out of the CONTENT half of shell_allowed (response-text scan)
+            // while leaving the EXECUTION half in force. Unset = scan still runs.
+            if (cfg_json.contains("shell_content_allowed") &&
+                cfg_json["shell_content_allowed"].is_boolean()) {
+                agent.shell_content_allowed = cfg_json["shell_content_allowed"].get<bool>();
+                agent.shell_content_allowed_set = true;
+            }
             // Fine-grained action matrix
             if (cfg_json.contains("allowed_actions") && cfg_json["allowed_actions"].is_array()) {
                 for (const auto& a : cfg_json["allowed_actions"]) {
@@ -3382,6 +3389,47 @@ static bool checkRatchetViolation(
                     new_agent.name));
             if (!new_agent.network_allowed && old_agent->network_allowed)
                 notices.push_back(fmt::format("agent.{}.network_allowed: true -> false (tightened)",
+                    new_agent.name));
+        }
+
+        // Shell allowed loosening. network_allowed above has been ratcheted since
+        // it was added; its twin has not — a mid-run shell_allowed false -> true
+        // was accepted silently, restoring both shell execution AND the response
+        // content scan. Same field pair, one guarded. Closing it here because the
+        // split below adds a second knob over the same capability, and leaving the
+        // first one un-ratcheted would make the new one's guard decorative.
+        if (new_agent.shell_allowed_set && old_agent->shell_allowed_set) {
+            if (new_agent.shell_allowed && !old_agent->shell_allowed)
+                violations.push_back(fmt::format("agent.{}.shell_allowed: false -> true (loosened)",
+                    new_agent.name));
+            if (!new_agent.shell_allowed && old_agent->shell_allowed)
+                notices.push_back(fmt::format("agent.{}.shell_allowed: true -> false (tightened)",
+                    new_agent.name));
+        }
+        // Dropping shell_allowed entirely reverts the role to global policy, which
+        // is a loosening whenever it had been restricting.
+        if (old_agent->shell_allowed_set && !old_agent->shell_allowed &&
+            !new_agent.shell_allowed_set) {
+            violations.push_back(fmt::format(
+                "agent.{}.shell_allowed: removed (loosened — reverts to global policy)",
+                new_agent.name));
+        }
+
+        // Shell CONTENT opt-out: enabling it stops the response-text scan, so
+        // unset/false -> true is a loosening. Compares effective values, since
+        // unset means the scan runs.
+        {
+            const bool old_content = old_agent->shell_content_allowed_set &&
+                                     old_agent->shell_content_allowed;
+            const bool new_content = new_agent.shell_content_allowed_set &&
+                                     new_agent.shell_content_allowed;
+            if (new_content && !old_content)
+                violations.push_back(fmt::format(
+                    "agent.{}.shell_content_allowed: false -> true (loosened — response shell scan disabled)",
+                    new_agent.name));
+            if (!new_content && old_content)
+                notices.push_back(fmt::format(
+                    "agent.{}.shell_content_allowed: true -> false (tightened)",
                     new_agent.name));
         }
 
