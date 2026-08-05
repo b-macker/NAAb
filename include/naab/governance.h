@@ -2182,6 +2182,23 @@ struct AgentConfig {
     // loosen exactly those configs; govern-template.json's "researcher" is one.
     //
     // Ratchet: false/unset -> true is a loosening violation.
+    //
+    // PAIR THIS WITH capabilities.shell.enabled = false. This flag stops the
+    // agent's response being REFUSED for containing shell; it does not stop
+    // anyone running what the response contains. Per-agent shell_allowed gates
+    // execution only for code running under that role (--agent-id); an
+    // orchestration script calling codegen.run("shell", …) on the response is
+    // gated by the GLOBAL capability instead. Measured:
+    //
+    //   agent shell_allowed=false, shell_content_allowed=true
+    //     capabilities.shell.enabled = true   -> script executes the response
+    //     capabilities.shell.enabled = false  -> blocked
+    //
+    // So on a config where global shell is enabled — the usual case, and the
+    // shape of the runbook scenario this field was added for — permitting the
+    // content also makes it runnable by the surrounding script. The remaining
+    // boundary is the global capability and the sandbox's SYS_EXEC, not this
+    // field's twin.
     bool shell_content_allowed = false;
     bool shell_content_allowed_set = false;
     // Per-agent network capability override (same pattern as shell_allowed)
