@@ -1568,6 +1568,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (sv.contains("warn_unknown_keys") && sv["warn_unknown_keys"].is_boolean()) rules_.meta.schema_validation.warn_unknown_keys = sv["warn_unknown_keys"].get<bool>();
             if (sv.contains("suggest_corrections") && sv["suggest_corrections"].is_boolean()) rules_.meta.schema_validation.suggest_corrections = sv["suggest_corrections"].get<bool>();
         }
+        if (meta.contains("allow_agent_addition_mid_run") &&
+            meta["allow_agent_addition_mid_run"].is_boolean()) {
+            rules_.meta.allow_agent_addition_mid_run =
+                meta["allow_agent_addition_mid_run"].get<bool>();
+        }
         if (meta.contains("inheritance") && meta["inheritance"].is_object()) {
             auto& inh = meta["inheritance"];
             if (inh.contains("max_depth") && inh["max_depth"].is_number_integer()) rules_.meta.inheritance.max_depth = inh["max_depth"].get<int>();
@@ -3278,10 +3283,37 @@ static bool checkRatchetViolation(
         return nullptr;
     };
 
+    // The opt-in must itself ratchet, or it is a one-line escape: turn it on in
+    // the same reload that adds the agent and the guard never applies.
+    if (new_r.meta.allow_agent_addition_mid_run &&
+        !old_r.meta.allow_agent_addition_mid_run) {
+        violations.push_back(
+            "meta.allow_agent_addition_mid_run: false -> true (loosened — "
+            "cannot be enabled mid-run)");
+    }
+    if (!new_r.meta.allow_agent_addition_mid_run &&
+        old_r.meta.allow_agent_addition_mid_run) {
+        notices.push_back(
+            "meta.allow_agent_addition_mid_run: true -> false (tightened)");
+    }
+
     for (const auto& new_agent : new_r.agents) {
         const auto* old_agent = agentByName(old_r.agents, new_agent.name);
         if (!old_agent) {
-            notices.push_back(fmt::format("agent.{}: new agent config added", new_agent.name));
+            // A new identity carrying no per-agent restrictions is not tightening.
+            // Refusing the modification while permitting the addition made the
+            // ratchet reachable by renaming: shell_allowed false -> true on an
+            // existing agent is a violation, but a NEW agent with
+            // shell_allowed: true was accepted, created, and usable.
+            if (new_r.meta.allow_agent_addition_mid_run) {
+                notices.push_back(fmt::format(
+                    "agent.{}: new agent config added (permitted by "
+                    "meta.allow_agent_addition_mid_run)", new_agent.name));
+            } else {
+                violations.push_back(fmt::format(
+                    "agent.{}: new agent added mid-run (loosened — set "
+                    "meta.allow_agent_addition_mid_run to permit)", new_agent.name));
+            }
             continue;
         }
 
@@ -3382,6 +3414,7 @@ static bool checkRatchetViolation(
             violations.push_back(fmt::format("agent.{}.thinking_budget: {} -> -1 (provider default, loosened)",
                 new_agent.name, old_agent->thinking_budget));
 
+        // (agent-scope checks follow)
         // Network allowed loosening
         if (new_agent.network_allowed_set && old_agent->network_allowed_set) {
             if (new_agent.network_allowed && !old_agent->network_allowed)

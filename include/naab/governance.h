@@ -1113,6 +1113,23 @@ struct MetaConfig {
     InheritanceConfig inheritance;
     FeatureFlagsConfig feature_flags;
     EnvironmentConfig environment;
+
+    // Permit a mid-run reload to introduce an agent that did not exist before.
+    //
+    // Default false, because the ratchet's rule is that mid-run changes may only
+    // tighten, and a new identity carrying no per-agent restrictions is not
+    // tightening. Without this the two paths disagreed: flipping an existing
+    // agent's shell_allowed false -> true is refused, while adding a NEW agent
+    // that simply never had the restriction was waved through with a notice —
+    // so what the ratchet denied to an identity was available by renaming it.
+    //
+    // The blast radius is bounded and worth stating: a per-agent grant can only
+    // restrict BELOW the global capabilities, never exceed them, and global
+    // loosening is itself ratcheted. So this closes "re-grant what was withdrawn"
+    // rather than an escalation past the envelope.
+    //
+    // Enabling it mid-run is itself a loosening violation.
+    bool allow_agent_addition_mid_run = false;
 };
 
 // ============================================================================
@@ -2182,6 +2199,23 @@ struct AgentConfig {
     // loosen exactly those configs; govern-template.json's "researcher" is one.
     //
     // Ratchet: false/unset -> true is a loosening violation.
+    //
+    // PAIR THIS WITH capabilities.shell.enabled = false. This flag stops the
+    // agent's response being REFUSED for containing shell; it does not stop
+    // anyone running what the response contains. Per-agent shell_allowed gates
+    // execution only for code running under that role (--agent-id); an
+    // orchestration script calling codegen.run("shell", …) on the response is
+    // gated by the GLOBAL capability instead. Measured:
+    //
+    //   agent shell_allowed=false, shell_content_allowed=true
+    //     capabilities.shell.enabled = true   -> script executes the response
+    //     capabilities.shell.enabled = false  -> blocked
+    //
+    // So on a config where global shell is enabled — the usual case, and the
+    // shape of the runbook scenario this field was added for — permitting the
+    // content also makes it runnable by the surrounding script. The remaining
+    // boundary is the global capability and the sandbox's SYS_EXEC, not this
+    // field's twin.
     bool shell_content_allowed = false;
     bool shell_content_allowed_set = false;
     // Per-agent network capability override (same pattern as shell_allowed)

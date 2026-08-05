@@ -1823,6 +1823,20 @@ fi
 # shell_content_allowed separates the CONTENT half of shell_allowed (response
 # text scan) from the EXECUTION half. SC-04 is the load-bearing case: permitting
 # content must not permit execution.
+# Adding an agent mid-run is loosening. AA-03/AA-05 are the controls: the opt-in
+# must work, and ordinary tightening must still apply.
+AGENT_ADD_SCRIPT="tests/governance_v4/test_agent_addition_ratchet.sh"
+if [ -f "$AGENT_ADD_SCRIPT" ]; then
+    if run_shell_test "$AGENT_ADD_SCRIPT" 2>&1; then
+        echo "  test_agent_addition_ratchet.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_agent_addition_ratchet.sh")
+    fi
+else
+    echo "  test_agent_addition_ratchet.sh: not found, skipping"
+fi
+
 SHELL_SPLIT_SCRIPT="tests/governance_v4/test_shell_content_split.sh"
 if [ -f "$SHELL_SPLIT_SCRIPT" ]; then
     if run_shell_test "$SHELL_SPLIT_SCRIPT" 2>&1; then
