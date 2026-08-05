@@ -661,6 +661,35 @@ Consistent with prior measurements of 7, 8, 8. Baseline lowered from 12 to 10
 (25% headroom, down from 50%) — a sanitizer loss would add ~16 violations,
 still well above the baseline.
 
+The headroom is against **8, not 9**, and the reason is ordering rather than
+scoping: there is one `WORKDIR` and one `telemetry.jsonl`, which the cross-run
+section reuses, but `TAINT_N` is computed at run.sh:1573 and `L25-03` asserts at
+~1637, while the cross-run segment does not start until ~1916. The assertion has
+already evaluated before those ~9 further violations are appended. Stated here
+because the two numbers sitting side by side invite the conclusion that the
+baseline has 1 of slack; it has 2, and a later reader changing the ORDER of these
+sections would silently make that false.
+
+### Two defects in the harness, found reviewing this run
+
+**`summary.json` recorded a failure count with no identity.** This run committed
+`"fail": 1` into the permanent record; the failing assertion's ID lived only in
+`results_<timestamp>.txt`, which was not committed. A count that cannot be
+triaged later is close to useless when the run costs money to repeat. `fail()`
+now accumulates IDs and `summary.json` carries `"failed": [...]`. `gk_fail()`
+routes through `fail()`, and `fail()` is the only site incrementing
+`FAIL_COUNT`, so one change covers every failure path.
+
+**`grep -c ... || echo 0` produced `"0\n0"`, inverting L25-03's diagnosis.**
+`grep -c` prints `0` *and* exits 1 when nothing matches, so the fallback appends
+a second zero. The `${TAINT_N:-0}` guards cannot help — the variable is set, just
+to a non-integer — so both integer tests error, bash reads that as false, and
+L25-03 reports *"a new unsanitized sink path was added"* when taint tracking
+in fact emitted **nothing at all**. Precisely inverted, in the one situation the
+assertion exists for. Two sites (`TAINT_N`, `ESC_N`); the correct `|| true` form
+was already in use three assertions later at L19b-03. Same class as the
+`test_semantic_signals.sh` fix in #119 — fixed there, still live here.
+
 ### Assertions that PASSed while their mechanism did not run
 
 None identified in this run. The L22 OA assertions correctly SKIPped on the
