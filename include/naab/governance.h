@@ -1113,6 +1113,23 @@ struct MetaConfig {
     InheritanceConfig inheritance;
     FeatureFlagsConfig feature_flags;
     EnvironmentConfig environment;
+
+    // Permit a mid-run reload to introduce an agent that did not exist before.
+    //
+    // Default false, because the ratchet's rule is that mid-run changes may only
+    // tighten, and a new identity carrying no per-agent restrictions is not
+    // tightening. Without this the two paths disagreed: flipping an existing
+    // agent's shell_allowed false -> true is refused, while adding a NEW agent
+    // that simply never had the restriction was waved through with a notice —
+    // so what the ratchet denied to an identity was available by renaming it.
+    //
+    // The blast radius is bounded and worth stating: a per-agent grant can only
+    // restrict BELOW the global capabilities, never exceed them, and global
+    // loosening is itself ratcheted. So this closes "re-grant what was withdrawn"
+    // rather than an escalation past the envelope.
+    //
+    // Enabling it mid-run is itself a loosening violation.
+    bool allow_agent_addition_mid_run = false;
 };
 
 // ============================================================================
