@@ -1,0 +1,433 @@
+# commit=298d52d4bff06d8af9f8222fa19a76d691158d6d binary=/data/data/com.termux/files/home/.naab/language/examples/living-script_extended/../../build/naab-lang binary_mtime=2026-08-04T22:23:02-0400 governance_kill=none
+PHASE|INIT|creating team
+INIT_AGENTS: 5
+PHASE|TOOL_REGISTRATION|start
+TOOL_REGISTRATION|validate_python=true
+TOOL_REGISTRATION|check_schema=true
+TOOL_REGISTRATION|total=2
+PHASE|PREFLIGHT|start
+PREFLIGHT|agent_checks=7|all_valid=true
+PREFLIGHT|invalid_check=handled|valid=false
+PREFLIGHT|codegen_enabled=true|has_python=true|languages=1
+PREFLIGHT|parse_findings=0
+PREFLIGHT|baseline_health=healthy|baseline_epoch=0
+PREFLIGHT|developer_tools_enabled=true|tools_available=[validate_python, check_schema]
+PHASE|TOOL_EXEC|start
+TOOL_LOOP|tool_probe|calls=1|turns=1|exit=api_error|budget_left=2
+TOOL_RESULT|tool_probe|validate_python|success=true|ms=105
+TOOL_EXEC|calls=1|loop_turns=1|results=1|exit=api_error
+TOOL_EXEC|negative_control_calls=0
+TOOL_EXEC|dual_gate_held=true
+PHASE|DESIGN|start
+TURN|architect|design|c=1
+OPERATOR|action=none|reasoning=Coherence is at 1.0 across all agents following the design phase. No adjustments are necessary as the team is operating at peak efficiency. Ready to transition to implementation phase.
+OPERATOR|set_msg_prefix|len=117
+PHASE|IMPLEMENT|start
+TURN|developer|models|c=1
+MODELS|import_ok=true
+TOOL_LOOP|developer|calls=1|turns=1|exit=api_error|budget_left=2
+TOOL_RESULT|developer|validate_python|success=true|ms=57
+TURN|developer|pipeline|c=1
+IMPLEMENT|pipeline_extract_empty|retrying|truncated=false|len=0|has_code=false
+IMPLEMENT|pipeline_retry_result|len=4261
+TURN|developer|test|c=1
+CODE|pipeline=4261|models=890|test=2494
+OPERATOR|action=none|reasoning=Team coherence remains perfect (1.0). The framework is scaling well with the initial codebase. No intervention needed at this stage.
+OPERATOR|set_msg_prefix|len=130
+PHASE|REFINE|start
+PYTEST|exit=0
+TESTMASS|tests=10|asserts=14|pytest_passed=true
+PYTEST|test_pipeline.py ..........                                              [100%]
+PYTEST|============================== 10 passed in 0.03s ==============================
+REFINE|pytest_seed|passed=true
+REFINE_ITER|1|start
+TURN|tester|iter1|c=1
+REFINE|developer_rewrote|len=5311
+TURN|developer|fix1|c=1
+TURN|developer|testfix1|c=1
+PYTEST|exit=0
+TESTMASS|tests=14|asserts=20|pytest_passed=true
+PYTEST|test_pipeline.py ..............                                          [100%]
+PYTEST|============================== 14 passed in 0.03s ==============================
+VALIDATE|models_syntax=true
+VALIDATE|test_func_count=14
+VALIDATE|models_imports=true
+VALIDATE|test_convergence=true
+VALIDATE|pytest_passed=true
+VALIDATE|pipeline_syntax=true
+VALIDATE|pytest_exit=0
+VALIDATE|pipeline_convergence=true
+VALIDATE|assert_count=20
+VALIDATE|total_checks=6
+VALIDATE|pytest_output============================== test session starts ==============================
+collected 14 items
+
+test_pipeline.py ..............                                          [100%]
+
+============================== 14 passed in 0.03s ==============================
+
+TURN|reviewer|iter1|c=1
+REVIEW|iter=1|verdict=REJECTED
+OPERATOR|action=create_agent|reasoning=Despite perfect coherence scores (1.0), the iteration was rejected, indicating a gap between developer intent and functional requirements as complexity increases. Deploying a specialist agent now will help identify architectural drifts that automated metrics aren't catching yet.
+OPERATOR|set_msg_prefix|len=152
+SPECIALIST|REFINE|creating
+SPECIALIST|REFINE|adopted|len=5460
+SPECIALIST|REFINE|c=1
+REFINE_ITER|1|end|verdict=REJECTED
+REFINE_ITER|2|start
+TURN|tester|iter2|c=1
+REFINE|developer_rewrote|len=5913
+TURN|developer|fix2|c=1
+TURN|developer|testfix2|c=1
+PYTEST|exit=0
+TESTMASS|tests=15|asserts=21|pytest_passed=true
+PYTEST|with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+PYTEST|-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+PYTEST|======================== 15 passed, 1 warning in 0.07s =========================
+VALIDATE|models_syntax=true
+VALIDATE|test_func_count=15
+VALIDATE|models_imports=true
+VALIDATE|test_convergence=true
+VALIDATE|pytest_passed=true
+VALIDATE|pipeline_syntax=true
+VALIDATE|pytest_exit=0
+VALIDATE|pipeline_convergence=true
+VALIDATE|assert_count=21
+VALIDATE|total_checks=6
+VALIDATE|pytest_output============================== test session starts ==============================
+collected 15 items
+
+test_pipeline.py ...............                                         [100%]
+
+=============================== warnings summary ===============================
+test_pipeline.py:93
+  /data/data/com.termux/files/usr/tmp/living-script-13648/work-13648-15101/test_pipeline.py:93: SyntaxWarning: invalid escape sequence '\['
+    with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 15 passed, 1 warning in 0.07s =========================
+
+TURN|reviewer|iter2|c=1
+REVIEW|iter=2|verdict=APPROVED
+REFINE|approved_at_iteration=2
+OPERATOR|action=none|reasoning=With the iteration now approved and perfect coherence across the team (including the newly added specialist), the architectural path is stable. No adjustments to strategy are required at this time.
+OPERATOR|set_msg_prefix|len=131
+REFINE_ITER|2|end|verdict=APPROVED
+REFINE|total_iterations=2|approved=true
+PHASE|PROPOSE_SELECT|start
+PROPOSE_SELECT|candidates=3
+PROPOSE_CAND|0|admissible=true|score=1|threshold=0.6|reason=|len=6075
+PROPOSE_CAND|1|admissible=true|score=1|threshold=0.6|reason=|len=6081
+PROPOSE_CAND|2|admissible=true|score=1|threshold=0.6|reason=|len=6075
+PROPOSE_SELECT|admissible_count=3|selected_index=0|total=3
+PROPOSE_SELECT|committed=true
+PROPOSE_SELECT|candidates=3|committed=true|codegen=pass
+PHASE|INTROSPECTION|start
+INTROSPECTION|environment|max_tokens=3072|coherence=1|context_window=20|tools_enabled=true
+INTROSPECTION|tool_stats|calls=1|blocked=0
+INTROSPECTION|usage|retries=0|fallbacks=0|truncations=0|latency_ms=29880
+INTROSPECTION|messages|count=16
+INTROSPECTION|key_health|available=6|active=[GK1, GK2, GK3, GK4, GK5, GK6]|dead=[]
+INTROSPECTION|dispatch|calls=23|tokens=155625|hard_stopped=false
+INTROSPECTION|register_tool=true
+INTROSPECTION|agent_run|len=16
+INTROSPECTION|findings_count=1
+INTROSPECTION|raw_score=3
+INTROSPECTION|calibrate|success=true|rule=missing_docstrings
+INTROSPECTION|calibration_overrides=1
+INTROSPECTION|codegen_run=OK
+INTROSPECTION|codegen_args=OK
+INTROSPECTION|complete
+PHASE|RATCHET|start
+[operator] BLOCKED: context_window can only decrease (20 -> 50)
+[operator] No valid changes to apply
+RATCHET|loosen_blocked=true|result=no_valid_changes
+RATCHET|tighten_from=20|tighten_to=19
+RATCHET|tighten_ok=true|result=
+[operator] Skipped unknown field: system_prompt for developer
+[operator] No valid changes to apply
+RATCHET|field_blocked=true|result=no_valid_changes
+RATCHET|free_adjust_ok=true|result=
+PHASE|ENGINE_RATCHET|start
+ENGINE_RATCHET|loosened_write=|threshold=0.6->0.05|streak=3->99|mandate_alignment=true->false
+GOV_NOTICE|tester|agent.developer.context_window: 20 -> 19 (tightened)
+ENGINE_RATCHET|restored=
+ENGINE_RATCHET|probe_ok=true|new_notices=1
+ENGINE_RATCHET|notice=agent.developer.context_window: 20 -> 19 (tightened)
+ENGINE_RATCHET|config_events=1->2|ratchet_events=0->1
+ENGINE_RATCHET|reload_evaluated=true
+ENGINE_RATCHET|engine_rejected_loosening=true
+PHASE|HEALTH_PULSE|start
+HEALTH_PULSE|verdict=healthy|coherence=1|epoch=1|why=
+HEALTH_PULSE|available_keys=[active, total_checks, consecutive_passes, refusal_count, verdict, bsd_connected, degradation_reasons, telemetry_connected, cdd_connected, transcript_connected, governance_epoch, coherence]
+HEALTH_PULSE|baseline_verdict=healthy|baseline_epoch=0
+HEALTH_PULSE|epoch_advanced=true
+PHASE|LEASE_EPOCH|start
+LEASE_EPOCH|developer|lease=10|epoch=1|coherence=1
+LEASE_EPOCH|developer|challenges_p=0|challenges_f=0|truncations=0
+LEASE_EPOCH|developer|ctx_window=19|ctx_strategy=summary|thinking=1024|min_tokens=2048
+LEASE_EPOCH|reviewer|lease=13|epoch=1|coherence=1
+LEASE_EPOCH|reviewer|challenges_p=0|challenges_f=0|truncations=0
+LEASE_EPOCH|reviewer|ctx_window=15|ctx_strategy=summary|thinking=0|min_tokens=1024
+LEASE_EPOCH|developer|cdd_overrides=4|keys=[vocabulary_contraction, semantic_stability, instruction_conflict, context_growth]
+SEPARATION|developer|allowed_actions=[AGENT_SEND, TOOL_EXEC, FS_WRITE]
+SEPARATION|tester|allowed_actions=[AGENT_SEND]|network=false
+PHASE|TELEMETRY_AUDIT|start
+TELEMETRY_AUDIT|unique_types=25|total_events=244
+TELEMETRY_AUDIT|type=CONFIG_ADJUSTMENT|count=2
+TELEMETRY_AUDIT|type=CODEGEN_EXEC|count=3
+TELEMETRY_AUDIT|type=AGENT_PROPOSE|count=1
+TELEMETRY_AUDIT|type=VALIDATION_RECORDED|count=2
+TELEMETRY_AUDIT|type=MANDATE_INJECTION|count=1
+TELEMETRY_AUDIT|type=OUTPUT_ADMISSIBILITY_EVAL|count=23
+TELEMETRY_AUDIT|type=RESPONSE_SUPPRESSED|count=2
+TELEMETRY_AUDIT|type=RECONCILIATION_TURN|count=22
+TELEMETRY_AUDIT|type=SEMANTIC_TURN|count=22
+TELEMETRY_AUDIT|type=RunStart|count=1
+TELEMETRY_AUDIT|type=CDD_TURN|count=23
+TELEMETRY_AUDIT|type=AGENT_TOOL_LOOP_END|count=2
+TELEMETRY_AUDIT|type=ADMISSION_EVAL|count=22
+TELEMETRY_AUDIT|type=AGENT_TOOL_CALL|count=2
+TELEMETRY_AUDIT|type=RESPONSE_SCAN|count=20
+TELEMETRY_AUDIT|type=AGENT_TOOL_RESULT|count=2
+TELEMETRY_AUDIT|type=AGENT_PROPOSAL_COMMIT|count=1
+TELEMETRY_AUDIT|type=CONVERGENCE_CHECK|count=7
+TELEMETRY_AUDIT|type=AGENT_TOOL_LOOP_START|count=2
+TELEMETRY_AUDIT|type=POLYGLOT_EXEC|count=3
+TELEMETRY_AUDIT|type=AGENT_RESPONSE|count=22
+TELEMETRY_AUDIT|type=GOVERNANCE_HEALTH_QUERY|count=2
+TELEMETRY_AUDIT|type=AGENT_TOOL_REGISTERED|count=3
+TELEMETRY_AUDIT|type=TRANSCRIPT_REF|count=32
+TELEMETRY_AUDIT|type=PROMPT_SCAN|count=22
+TELEMETRY_AUDIT|expected_found=5|expected_total=5
+TELEMETRY_AUDIT|tool_events_found=3|tool_events_checked=3
+TELEMETRY_AUDIT|advisory_escalation_events=0
+TELEMETRY_AUDIT|consequence|OUTPUT_ADMISSIBILITY_EVAL=23
+TELEMETRY_AUDIT|consequence|OUTPUT_INADMISSIBLE=0
+TELEMETRY_AUDIT|consequence|AGENT_CHALLENGE_PASS=0
+TELEMETRY_AUDIT|consequence|AGENT_CHALLENGE_FAIL=0
+TELEMETRY_AUDIT|consequence|GOVERNANCE_LEVEL_CHANGE=0
+TELEMETRY_AUDIT|consequence|CONFIG_ADJUSTMENT=2
+TELEMETRY_AUDIT|consequence|VALIDATION_RECORDED=2
+TELEMETRY_AUDIT|consequence|BSD_MATCH=0
+TELEMETRY_AUDIT|consequence|RESPONSE_TRUNCATED=0
+TELEMETRY_AUDIT|consequence|AGENT_PROPOSE=1
+TELEMETRY_AUDIT|consequence|AGENT_PROPOSAL_COMMIT=1
+TELEMETRY_AUDIT|consequence|AGENT_TOOL_CALL=2
+TELEMETRY_AUDIT|consequence|AGENT_TOOL_RESULT=2
+TELEMETRY_AUDIT|consequence|TRANSCRIPT_REF=32
+TELEMETRY_AUDIT|consequence_found=8|consequence_total=14
+PHASE|TRANSCRIPT_AUDIT|start
+TRANSCRIPT_AUDIT|lines=32|entry_hash=32|sends=22|creates=8|transcript_ref=32
+TRANSCRIPT_AUDIT|every_entry_hashed=true
+TRANSCRIPT_AUDIT|ref_matches_entries=true
+PHASE|EVIDENCE_AUDIT|start
+EVIDENCE|exec_attestations=23|send_attestations=22|commit_attestations=1|script_sends=22
+EVIDENCE|signed=23|fingerprinted=23|empty_fingerprint=0
+EVIDENCE|snapshots=45|semantic_turns=22|oa_evals=23
+EVIDENCE|refusals=0|refusal_attestations=0
+PHASE|TAINT_AUDIT|start
+TAINT_AUDIT|control_write=done
+PHASE|INTEGRITY_PROBE|start
+INTEGRITY_PROBE|blocked_flag_exit=3|executed=false
+INTEGRITY_PROBE|control_exit=0|executed=true
+PHASE|CODEGEN_BOUNDARY|start
+[PY ADAPTER ERROR] Python execution error: SyntaxError: invalid syntax (<string>, line 1)
+
+  Hint: Python syntax error in polyglot block.
+  - Line numbers in the error may be OFFSET by variable bindings.
+    NAAb prepends bound variables (e.g. <<python[var1]) as Python
+    assignments before your code. If the error line doesn't match
+    your code, subtract the number of bound variables.
+  - If binding a large JSON string, the serialized value may contain
+    characters that break Python parsing. Try json.loads() instead
+    of binding complex data directly.
+  - Check for NAAb string interpolation conflicts ($ characters)
+  - For complex Python, use an external .py script via <<sh
+
+CODEGEN_BOUNDARY|strict_invalid=threw|snippet={"message": Codegen error: codegen.run_strict() execution failed
+
+  Language: py
+CODEGEN_BOUNDARY|strict_threw=true
+CODEGEN_BOUNDARY|run_output={"output": 42, "exit_code": 0, "language": python, "duration_ms": 1}
+CODEGEN_BOUNDARY|args_output={"output": 42, "exit_code": 0, "language": python, "duration_ms": 1}
+CODEGEN_BOUNDARY|languages=1|has_python=true
+CODEGEN_BOUNDARY|still_enabled=true
+MEMORY|checkpoint_saved|run=1
+PHASE|FEATURES|start
+PHASE|REACTIVE|start
+REACTIVE|scanning|found=4 requirements
+REACTIVE|found=requirement-001.txt
+FEATURE|1|start|Add aggregation methods to Pipeline: group_by(records, key_field) raises PipelineError if key_field missing, aggregate(groups, field, func_name) supports sum/avg/count/min/max and raises PipelineError for unknown func_name, having(groups, predicate) filters groups.
+TURN|architect|feature1|c=1
+FEATURE|1|pipeline_updated|len=8287
+TURN|developer|feat1_pipeline|c=1
+TURN|developer|feat1_test|c=1
+TURN|tester|feat1|c=1
+FEATURE|1|developer_fixed|len=8865
+TURN|developer|feat1_fix|c=1
+PYTEST|exit=0
+TESTMASS|tests=17|asserts=26|pytest_passed=true
+PYTEST|with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+PYTEST|-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+PYTEST|======================== 17 passed, 1 warning in 0.04s =========================
+VALIDATE|feat1|models_syntax=true
+VALIDATE|feat1|test_func_count=17
+VALIDATE|feat1|models_imports=true
+VALIDATE|feat1|test_convergence=true
+VALIDATE|feat1|pytest_passed=true
+VALIDATE|feat1|pipeline_syntax=true
+VALIDATE|feat1|pytest_exit=0
+VALIDATE|feat1|pipeline_convergence=true
+VALIDATE|feat1|assert_count=26
+VALIDATE|feat1|total_checks=6
+OPERATOR|action=none|reasoning=The codebase has expanded significantly (+2790 characters) while maintaining perfect coherence (1.0). The aggregation engine was successfully validated. No adjustments needed.
+OPERATOR|set_msg_prefix|len=145
+FEATURE|1|complete
+REACTIVE|found=requirement-002.txt
+FEATURE|2|start|Add error recovery to Pipeline: retry_stage(name, transform_fn, max_retries=3) retries failed stages, get_dead_letters() returns self._dead_letters.copy(), failed records go to dead letter queue after retries exhausted.
+TURN|architect|feature2|c=1
+FEATURE|2|pipeline_updated|len=9863
+TURN|developer|feat2_pipeline|c=1
+TURN|developer|feat2_test|c=1
+TURN|tester|feat2|c=1
+FEATURE|2|developer_fixed|len=9960
+TURN|developer|feat2_fix|c=1
+PYTEST|exit=0
+TESTMASS|tests=19|asserts=31|pytest_passed=true
+PYTEST|with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+PYTEST|-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+PYTEST|======================== 19 passed, 1 warning in 0.04s =========================
+VALIDATE|feat2|models_syntax=true
+VALIDATE|feat2|test_func_count=19
+VALIDATE|feat2|models_imports=true
+VALIDATE|feat2|test_convergence=true
+VALIDATE|feat2|pytest_passed=true
+VALIDATE|feat2|pipeline_syntax=true
+VALIDATE|feat2|pytest_exit=0
+VALIDATE|feat2|pipeline_convergence=true
+VALIDATE|feat2|assert_count=31
+VALIDATE|feat2|total_checks=6
+OPERATOR|action=observe|reasoning=Developer coherence remains at 1.0 despite the increase in logic complexity (error recovery). Operator coherence (0.9) is a minor fluctuation within acceptable bounds. The system is performing stably as we prepare for computed fields.
+OPERATOR|set_msg_prefix|len=130
+FEATURE|2|complete
+REACTIVE|found=requirement-003.txt
+FEATURE|3|start|Add computed fields to Pipeline: add_computed_field(name, compute_fn) adds derived field to each record, compute_fn receives record dict and returns value, method returns self for chaining (fluent API), raises PipelineError if name empty or compute_fn not callable.
+TURN|architect|feature3|c=1
+FEATURE|3|pipeline_updated|len=10663
+TURN|developer|feat3_pipeline|c=1
+TURN|developer|feat3_test|c=1
+TURN|tester|feat3|c=0.985
+FEATURE|3|developer_fixed|len=11232
+TURN|developer|feat3_fix|c=0.995
+PYTEST|exit=0
+TESTMASS|tests=21|asserts=35|pytest_passed=true
+PYTEST|with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+PYTEST|-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+PYTEST|======================== 21 passed, 1 warning in 0.05s =========================
+VALIDATE|feat3|models_syntax=true
+VALIDATE|feat3|test_func_count=21
+VALIDATE|feat3|models_imports=true
+VALIDATE|feat3|test_convergence=true
+VALIDATE|feat3|pytest_passed=true
+VALIDATE|feat3|pipeline_syntax=true
+VALIDATE|feat3|pytest_exit=0
+VALIDATE|feat3|pipeline_convergence=true
+VALIDATE|feat3|assert_count=35
+VALIDATE|feat3|total_checks=6
+OPERATOR|action=none|reasoning=Coherence scores remain excellent (>0.98 across the board). While there is a slight, expected decline in operator and tester coherence as the codebase reaches >11k characters, the overall system health is robust. No intervention is currently required.
+OPERATOR|set_msg_prefix|len=135
+FEATURE|3|complete
+REACTIVE|found=requirement-004.txt
+FEATURE|4|start|Add import/export to Pipeline: export_json(records, filepath) writes records to JSON, import_json(filepath) reads records returning list of Record objects, get_statistics() returns dict with total_records_processed/stages_executed/error_count, file I/O errors wrapped as PipelineError.
+TURN|architect|feature4|c=0.9
+FEATURE|4|pipeline_updated|len=12473
+TURN|developer|feat4_pipeline|c=0.98
+TURN|developer|feat4_test|c=1
+TURN|tester|feat4|c=0.97
+FEATURE|4|developer_fixed|len=12951
+TURN|developer|feat4_fix|c=0.985
+PYTEST|exit=0
+TESTMASS|tests=24|asserts=41|pytest_passed=true
+PYTEST|with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+PYTEST|-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+PYTEST|======================== 24 passed, 1 warning in 0.06s =========================
+VALIDATE|feat4|models_syntax=true
+VALIDATE|feat4|test_func_count=24
+VALIDATE|feat4|models_imports=true
+VALIDATE|feat4|test_convergence=true
+VALIDATE|feat4|pytest_passed=true
+VALIDATE|feat4|pipeline_syntax=true
+VALIDATE|feat4|pytest_exit=0
+VALIDATE|feat4|pipeline_convergence=true
+VALIDATE|feat4|assert_count=41
+VALIDATE|feat4|total_checks=6
+OPERATOR|action=none|reasoning=Team coherence remains stable, with all agents above 0.85 despite the growth in complexity and code length. The project is scaling correctly; maintaining the current trajectory.
+OPERATOR|set_msg_prefix|len=149
+FEATURE|4|complete
+FEATURES|total=4
+PHASE|PARALLEL_REVIEW|start
+PARALLEL_REVIEW|votes=2|verdict=REVIEW|majority=2
+PARALLEL_REVIEW|final_verdict=REVIEW
+PHASE|BATCH_PIPELINE|start
+BATCH_PIPELINE|batch_responses=2
+BATCH_PIPELINE|provenance_present=true|stage=0|model=gemini-3.1-flash-lite|upstream_coherence=1
+BATCH_PIPELINE|provenance_keys=[keys_dead, keys_active, coherence_at_output, latency_ms, retries, was_fallback, model_used, stage]
+BATCH_PIPELINE|pipeline_ok=true|pipeline_len=2198
+BATCH_PIPELINE|seq_plan=true|seq_plan_pattern=sequential_refinement|seq_plan_iterations=2
+PHASE|FINAL_REVIEW|start
+PYTEST|exit=0
+TESTMASS|tests=24|asserts=41|pytest_passed=true
+PYTEST|with pytest.raises(PipelineError, match="Stage must return List\[Record\]"):
+PYTEST|-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+PYTEST|======================== 24 passed, 1 warning in 0.06s =========================
+FINAL_REVIEW|iter=1|verdict=APPROVED
+TURN|reviewer|final1|c=0.915
+FINAL_REVIEW|verdict=true
+FINAL_REVIEW|iterations=1
+OPERATOR|action=none|reasoning=The team successfully evolved the pipeline through four major features while maintaining high coherence scores. Even with increased code complexity (12,951 chars), the modular design held, and the integration of the specialist agent early in the refinement phase provided the necessary guidance to keep the team aligned. The final approval confirms the success of this architectural approach.
+OPERATOR|set_msg_prefix|len=119
+PHASE|SCORING|start
+SCORING|score=6|verdict=green|findings=1
+PHASE|DYNAMIC|start
+OPERATOR|action=none|reasoning=All features have been successfully implemented and validated. Developer coherence remains extremely high (0.985), and a specialist was already consulted during the refinement phase, ensuring architectural integrity. No further adjustments are needed as the project has concluded.
+OPERATOR|set_msg_prefix|len=126
+PHASE|MEMORY|saving
+OPERATOR|action=none|reasoning=The run successfully implemented 4 complex features. Coherence remained high throughout, with the developer never dropping below 0.98. The operator agent showed slight drift (0.775) toward the end due to cumulative telemetry, but overall system stability was maintained. The specialist consultant was instrumental in fixing iteration 2 and keeping the architecture aligned.
+OPERATOR|set_msg_prefix|len=62
+MEMORY|saved|run=1
+SUMMARY_AGENTS_CREATED: 9
+SUMMARY_TOTAL_SENDS: 57
+SUMMARY_SEND_ERRORS: 0
+SUMMARY_ADJUSTMENTS: 0
+SUMMARY_ITERATIONS: 2
+SUMMARY_APPROVED: true
+SUMMARY_FEATURES: 4
+SUMMARY_PHASES: [TOOL_REGISTRATION, PREFLIGHT, TOOL_EXEC, DESIGN, IMPLEMENT, REFINE, PROPOSE_SELECT, INTROSPECTION, RATCHET, ENGINE_RATCHET, HEALTH_PULSE, LEASE_EPOCH, TELEMETRY_AUDIT, TRANSCRIPT_AUDIT, EVIDENCE_AUDIT, TAINT_AUDIT, INTEGRITY_PROBE, CODEGEN_BOUNDARY, FEATURES, PARALLEL_REVIEW, BATCH_PIPELINE, FINAL_REVIEW, SCORING, DYNAMIC]
+SUMMARY_TOOL_CALLS: 1
+SUMMARY_TOOL_CALLS_MADE: 2
+SUMMARY_OA_QUARANTINED: 0
+SUMMARY_OA_ADMISSIBLE: 54
+SUMMARY_OA_MAX_STREAK: 0
+SUMMARY_OA_COMMIT_REJECTED: 0
+SUMMARY_GOV_NOTICES: 1
+SUMMARY_CHALLENGE_PASSES: 1
+SUMMARY_CHALLENGE_FAILS: 0
+SUMMARY_ELAPSED: 304.789999961853
+CODE_EXTRACT|pipeline.py|extracted=true|len=12951
+CODE_EXTRACT|models.py|extracted=true|len=890
+CODE_EXTRACT|test_pipeline.py|extracted=true|len=6486
+CONVERGENCE|pipeline.py|valid=true|error=
+CONVERGENCE|pipeline.py|pattern=class Pipeline|def add_stage|def execute|def validate|def get_audit_log|def group_by|def aggregate|def retry_stage|def get_dead_letters|def add_computed_field|def export_json|def import_json|def get_statistics
+CONVERGENCE|models.py|valid=true|error=
+CONVERGENCE|test_pipeline.py|valid=true|error=
+AGENT_STATE|operator|c=0.708214285714286|min=0.708214285714286|cp=1
+AGENT_STATE|architect|c=0.9|min=0.9|cp=1
+AGENT_STATE|developer|c=0.985|min=0.98|cp=1
+AGENT_STATE|tester|c=0.97|min=0.97|cp=1
+AGENT_STATE|reviewer|c=0.915|min=0.915|cp=1
+AGENT_STATE|specialist|c=1|min=1|cp=1
+TELEM_EVENTS: 606
+TELEM_CHAIN: true
+HEALTH: healthy
+=== LIVING SCRIPT COMPLETE ===

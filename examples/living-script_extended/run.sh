@@ -80,9 +80,15 @@ RESULTS_DIR="$SCRIPT_DIR/results"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS_COUNT=0; FAIL_COUNT=0; SKIP_COUNT=0; TOTAL=0; FAILURES=""
+# Machine-readable failure IDs. summary.json recorded only a COUNT, and the
+# identities lived solely in results_<ts>.txt — which the Aug 4 keyed run did
+# not commit, leaving "fail: 1" in the permanent record with nothing naming
+# it. A count without an identity cannot be triaged later, and a keyed run is
+# expensive enough that "re-run it to find out" is not an answer.
+FAILED_IDS=""
 
 pass() { local id="$1" desc="$2"; PASS_COUNT=$((PASS_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${GREEN}PASS${NC} [$id] $desc"; }
-fail() { local id="$1" desc="$2" detail="${3:-}"; FAIL_COUNT=$((FAIL_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${RED}FAIL${NC} [$id] $desc"; [ -n "$detail" ] && echo -e "       ${RED}-> $detail${NC}"; FAILURES="${FAILURES}\n  [$id] $desc${detail:+ -- $detail}"; }
+fail() { local id="$1" desc="$2" detail="${3:-}"; FAIL_COUNT=$((FAIL_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${RED}FAIL${NC} [$id] $desc"; [ -n "$detail" ] && echo -e "       ${RED}-> $detail${NC}"; FAILURES="${FAILURES}\n  [$id] $desc${detail:+ -- $detail}"; FAILED_IDS="${FAILED_IDS}${FAILED_IDS:+,}\"$id\""; }
 skip() { local id="$1" desc="$2"; SKIP_COUNT=$((SKIP_COUNT + 1)); TOTAL=$((TOTAL + 1)); echo -e "  ${YELLOW}SKIP${NC} [$id] $desc"; }
 
 # ------------------------------------------------------------
@@ -301,7 +307,31 @@ else
     if [ "$ADJUSTMENTS" -ge 1 ]; then
         pass "L1-03" "Adjustments tracked ($ADJUSTMENTS applied)"
     else
-        gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)"
+        # Zero applied has three causes and the old single gk_fail conflated them,
+        # so "L1-03 failed" never said which. Measured over the committed archive
+        # (9 zero-adjustment runs): 8 had the operator PROPOSE adjustments that
+        # were then rejected, 1 was a genuine deliberate hold. The common case was
+        # being reported with the wording of the rare one.
+        #
+        # The skip is gated on POSITIVE evidence — decisions present, none asking
+        # to adjust, no rejection markers. Skipping on "ADJUSTMENTS=0" alone would
+        # have masked those 8, which is the whole failure this harness exists to
+        # avoid: absence of evidence read as evidence of a deliberate hold.
+        OP_DECISIONS=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=' || true)
+        OP_DECISIONS=${OP_DECISIONS:-0}
+        OP_ADJ_ASKED=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=adjust' || true)
+        OP_ADJ_ASKED=${OP_ADJ_ASKED:-0}
+        OP_REJECTS=$(echo "$OUTPUT" | grep -cE 'OPERATOR\|adjustment_rejected|OPERATOR\|json_parse_failed|\[operator\] (No valid changes|BLOCKED:|Skipped unknown|Failed to write|WARNING: re-signing)' || true)
+        OP_REJECTS=${OP_REJECTS:-0}
+        if [ "$OP_REJECTS" -ge 1 ]; then
+            gk_fail "L1-03" "Operator proposed adjustments and none landed" \
+                "$OP_REJECTS rejection/failure marker(s) across $OP_DECISIONS decision(s) — the tuning loop ran and was refused, which is not the same as the operator holding steady"
+        elif [ "$OP_DECISIONS" -ge 1 ] && [ "$OP_ADJ_ASKED" -eq 0 ]; then
+            skip "L1-03" "Operator declined to adjust ($OP_DECISIONS decisions, none requested an adjustment)"
+        else
+            gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)" \
+                "operator produced $OP_DECISIONS decision(s), $OP_ADJ_ASKED asking to adjust, 0 rejections — an unexplained state, so it fails rather than skipping"
+        fi
     fi
 
     # ============================================================
@@ -1557,7 +1587,15 @@ assert 'refinement_iterations' in d
     # records written by writeTelemetry(), a bulk dump at shutdown, so mid-run
     # the file does not contain them yet. By this point the run has ended and the
     # file is complete.
-    TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
+    # `|| true`, not `|| echo 0`: grep -c PRINTS "0" and EXITS 1 when nothing
+    # matches, so the fallback appends a second zero and TAINT_N becomes "0\n0".
+    # The ${TAINT_N:-0} guards below cannot help — the variable is set, just to a
+    # non-integer — so both integer tests error, bash reads that as false, and
+    # L25-03 reports "a new unsanitized sink path was added" when the truth is
+    # that taint tracking emitted NOTHING. Exactly inverted, in the one case that
+    # matters. Same form already used by L19b-03 below.
+    TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || true)
+    TAINT_N=${TAINT_N:-0}
 
     if echo "$OUTPUT" | grep -q "TAINT_AUDIT|control_write=skipped"; then
         skip "L25-02" "control write skipped — no tester handle"
@@ -1611,14 +1649,15 @@ assert 'refinement_iterations' in d
         # the length of the run. The earlier reasoning that the count "is NOT
         # monotone in run length" was reading the artifact as signal.
         #
-        # 12 therefore leaves ~50% headroom over every non-inflated measurement
-        # while still catching a leak: the build path runs 16 extraction sites
-        # across every feature iteration, so losing its sanitizer adds far more
-        # than the 4 violations of slack here.
+        # 10 leaves ~25% headroom over the 5 consecutive measurements of 7-8
+        # (Aug 4 keyed run: 8 in primary segment, 9 in cross-run segment;
+        # prior: 7, 8, 8, 8). A sanitizer loss adds ~16 violations (16
+        # extraction sites), well above 10. Tightened from 12 (50% headroom)
+        # on the Aug 4 evidence that the underlying count is stable at ~8.
         #
         # Raising this number is a reviewed decision, not a routine edit: it
         # means another unsanitized sink path was added.
-        TAINT_BASELINE=${TAINT_BASELINE:-12}
+        TAINT_BASELINE=${TAINT_BASELINE:-10}
         if [ "${TAINT_N:-0}" -le "$TAINT_BASELINE" ]; then
             pass "L25-03" "Taint violations within the documented baseline (${TAINT_N} <= ${TAINT_BASELINE}) — sanitizer boundary holds"
         else
@@ -1632,7 +1671,8 @@ assert 'refinement_iterations' in d
         # (it peaked at 5/8 with zero ESCALATED lines), so the total sitting
         # above soft_after does not by itself mean escalation fired.
         ESC_AFTER=$(grep -oP '"soft_after"\s*:\s*\K[0-9]+' "$WORKDIR/govern.json" 2>/dev/null | head -1)
-        ESC_N=$(grep -c 'ESCALATED.*taint_tracking' "${STDERR_FILE:-/dev/null}" 2>/dev/null || echo 0)
+        ESC_N=$(grep -c 'ESCALATED.*taint_tracking' "${STDERR_FILE:-/dev/null}" 2>/dev/null || true)
+        ESC_N=${ESC_N:-0}
         echo -e "  ${CYAN}note${NC}  taint: ${TAINT_N} violation(s), soft_after=${ESC_AFTER:-8}, escalations=${ESC_N}"
     else
         gk_fail "L25-02" "Unsanitized write produced no taint violation" \
@@ -2167,7 +2207,7 @@ echo -e "${CYAN}================================================${NC}"
 
 mkdir -p "$RESULTS_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"total\": $TOTAL, \"governance_kill\": \"${GOV_KILL:-}\", \"commit\": \"$BUILD_COMMIT\", \"challenges_pass\": $CH_PASS, \"challenges_fail\": $CH_FAIL}" > "$RESULTS_DIR/summary.json"
+echo "{\"pass\": $PASS_COUNT, \"fail\": $FAIL_COUNT, \"skip\": $SKIP_COUNT, \"total\": $TOTAL, \"governance_kill\": \"${GOV_KILL:-}\", \"commit\": \"$BUILD_COMMIT\", \"challenges_pass\": $CH_PASS, \"challenges_fail\": $CH_FAIL, \"failed\": [$FAILED_IDS]}" > "$RESULTS_DIR/summary.json"
 [ -n "${OUTPUT:-}" ] && {
     echo "# commit=$BUILD_COMMIT binary=$NAAB binary_mtime=$BINARY_MTIME governance_kill=${GOV_KILL:-none}"
     echo "$OUTPUT"
