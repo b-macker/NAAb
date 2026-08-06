@@ -697,23 +697,56 @@ Validated by replaying all 33 archived runs through the new logic: 24 PASS,
 | #5 evidence count shrink | stub-only | No | 12 `VALIDATION_RECORDED` events across 2 segments. Segment 1: 14→15→17→19→21→24 (monotonic, all pass). Segment 2: 11→12→17→19(fail)→22(pass)→22(fail). No decreasing count within any segment. | stub-only |
 | #8 lease expire mid-deliberation | stub-only | No | Both propose/commit pairs completed in <1s (same-second timestamps). Developer lease: 600s/20 turns, at turn 9 of 50. No expiry anywhere close. | stub-only |
 | #9 config generation guard | inert-verified | No (refusal stub-only) | Propose/commit path ran live (2 each). 8 `CONFIG_ADJUSTMENT` events occurred in the same runs, but all AFTER the commit timestamps (first reload at 22:43:55, commit at 22:43:53). No reload landed inside a deliberation gap. **Provenance:** these 8 are *not* operator tuning — `adjustments_made` increments only on apply (`living-script.naab:773`) and this run applied zero, so they are reload attempts from other mtime changes (the engine-ratchet probe, the cross-run config restore). `CONFIG_ADJUSTMENT` fires inside `reloadIfChanged()` on any detected change, including signature failures and ratchet rejections. The conclusion is unaffected — a reload is a reload for "did one land in a deliberation gap" — but "8 adjustments" beside "0 adjustments" otherwise reads as a contradiction. | inert-verified |
-| #13 CRITICAL suspension | stub-only | No | Zero `GOVERNANCE_LEVEL_CHANGE` events across 117 analyzed turns, all at `governance_level: "normal"`. Pressure was real: 7 turns exceeded `elevated_threshold` (0.35), peaking at 0.375; the developer had 2 consecutive turns above 0.35 (turns 19–20, segment 1) — at the `elevated_sustained` boundary — before pressure dropped at turn 21. Level never escalated, but the pressure samples were non-trivial, not quiescent. | stub-only |
+| #13 CRITICAL suspension | stub-only | No — **and could not have** | Zero `GOVERNANCE_LEVEL_CHANGE` across 117 analyzed turns, all `governance_level: "normal"`. 7 turns exceeded `elevated_threshold` (0.35), peak 0.375; **two** handles reached the `elevated_sustained: 2` boundary — developer turns 19–20 (0.3525, 0.3575) and operator turns 10–11 (0.37, **0.375**, the higher pair). Escalation was nonetheless **structurally unreachable**: the level test needs `composite >= threshold` AND `consecutive >= sustained`, and `consecutive` advances only while `composite >= reality_checkpoint.pressure_threshold`, which stayed at its **0.70** default because the run disabled the section. `cdd_snapshot` confirms `consecutive_high_pressure_turns == 0` on every snapshot in the run. See below. | stub-only |
 
-**Evidence provenance for this table.** The L1-03 classification above is
-reproducible from the repository. These five rows are **not** — every count in
-them comes from `telemetry_20260804_225224.jsonl`, which was withheld on the
-grounds that it carries full API traffic. That is true of the *transcript*
-(`transcript_*.jsonl`, ~8.9 MB, raw prompts and responses) and false of the
-*telemetry* (`telemetry_*.jsonl`, ~548 KB): auditing every string field of a
-committed telemetry file finds no LLM content at all — the longest strings are
-governance warning text, the script's own convergence `pattern`, and
-`signals_detail`; response content appears only as `content_hash`. Thirty-five
-telemetry files are already committed in `results/`. One blanket decision was
-applied to two artifacts with different risk profiles, and the safe one is
-exactly the one these rows depend on. Until it is committed, read the five rows
-as machine-local: the reasoning is sound and the fields cited do exist on
-`CDD_TURN` (`analyzed`, `governance_level`, `pressure`), but the numbers cannot
-be re-derived here.
+**Evidence provenance.** `telemetry_20260804_225224.jsonl` is committed, so every
+count above is re-derivable here. It was initially withheld as "full API
+traffic" — true of the *transcript* (`transcript_*.jsonl`, ~8.9 MB, raw prompts
+and responses), false of the *telemetry* (1.3 MB): auditing all 142 keys and
+every string field over 80 chars finds no model content — the longest values are
+a taint warning naming its sink, the script's own convergence `pattern`, a
+ratchet `violations` list, and `signals_detail`; `result` is only `pass`/`block`;
+response text appears solely as `content_hash`. The transcript stays out. One
+withholding decision had been applied to two artifacts differing ~7× in size and
+entirely in whether they carry content.
+
+### The pressure path was inert for the whole run
+
+Chasing #13's near-miss found something better than a near-miss. Level escalation
+requires **both** `composite >= circuit_breaker.<level>_threshold` **and**
+`consecutive >= <level>_sustained` (`governance_engine.cpp` ~7230). The second
+half is fed by a counter that increments only while
+`composite >= context_drift.reality_checkpoint.pressure_threshold` (~7176) —
+a **different** threshold, defaulting to **0.70**.
+
+`living-script_extended/src/govern.json` sets `elevated_threshold: 0.35` and
+disables `reality_checkpoint`, leaving its `pressure_threshold` at 0.70. Peak
+composite across the run was 0.375. So `consecutive` never left 0 — confirmed
+directly, not inferred: `consecutive_high_pressure_turns == 0` on every
+`cdd_snapshot` in all 1342 events. Two handles sat at the `elevated_sustained: 2`
+boundary and the level could not have moved for either.
+
+This is the document's own subject matter turned on the engine. "Pressure never
+escalated because the agents behaved" and "pressure could not escalate because a
+second threshold silently gated it" produce an identical observation — 117 turns
+at `normal` — and the first reading is the flattering one. It was written up
+twice before the counter was checked.
+
+The defaults carry the same shape: `elevated_threshold` 0.4 and `high_threshold`
+0.6 both sit below the 0.7 gate, so **the pressure path cannot reach ELEVATED or
+HIGH on a default config** — only CRITICAL (0.8) clears it. Those levels remain
+reachable via the pulse floors (IMPAIRED → 2, DEGRADED → 1), so this is a dead
+knob rather than a dead level, and it was recorded in `CLAUDE.md` only as a
+*test-staging* gotcha, never as operator-facing behaviour.
+
+Not changed: the coupling itself. Making the counter track the lowest
+circuit-breaker threshold would raise escalation frequency across every existing
+config — a behaviour change dressed as a bug fix, and the wrong thing to land off
+a documentation trail. What changed is the diagnosis. The load-time note said
+"circuit breaker levels will update", which is what misled this config; it now
+names the gate and lists precisely which configured levels are unreachable
+through pressure, and stays silent when `pressure_threshold` is at or below them
+(verified both ways, plus silent when the checkpoint is enabled).
 
 No status upgrades to "confirmed". All five conditions are legitimate
 non-occurrences — the run was clean enough that the corrective mechanisms had
