@@ -632,11 +632,19 @@ grep -c "No GK1 API key" keyed-run.log    → 0
 echo "${GK1:0:6}"                          → AQ.Ab8
 ```
 
-57 live API sends, 0 errors. Two step-up challenges passed (one `tool_result`
-type at kr=0.500, one `validation` type at kr=0.929). S22 fired on a real test
-failure (turn 19 of segment 2, `penalties_detail: validation_outcome=0.1500`,
-coherence 1.0 → 0.865) and recovery credit applied three turns later
-(`validation_recovery=+0.0750`).
+57 live API sends, 0 errors. 163 pass / 1 fail / 7 skip. Two step-up challenges
+passed (one `tool_result` type at kr=0.500, one `validation` type at kr=0.929).
+S22 fired on a real test failure (turn 19 of segment 2,
+`penalties_detail: validation_outcome=0.1500`, coherence 1.0 → 0.865) and
+recovery credit applied three turns later (`validation_recovery=+0.0750`).
+
+The single failure was **`[L1-03] No adjustments tracked (ADJUSTMENTS=0)`** —
+the operator agent was consulted 11 times and returned `action: observe/none`
+every time, making zero govern.json adjustments. Pre-existing: 28 of 100
+archived runs show `SUMMARY_ADJUSTMENTS: 0` (~28%); the operator's decision to
+hold steady depends on the LLM's assessment of the run, not on a code defect.
+Unrelated to taint, telemetry integrity, pulse, validation, or propose/commit —
+does not invalidate any conclusion below.
 
 ### Per-target results
 
