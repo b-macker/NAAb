@@ -638,13 +638,33 @@ S22 fired on a real test failure (turn 19 of segment 2,
 `penalties_detail: validation_outcome=0.1500`, coherence 1.0 → 0.865) and
 recovery credit applied three turns later (`validation_recovery=+0.0750`).
 
-The single failure was **`[L1-03] No adjustments tracked (ADJUSTMENTS=0)`** —
-the operator agent was consulted 11 times and returned `action: observe/none`
-every time, making zero govern.json adjustments. Pre-existing: 28 of 100
-archived runs show `SUMMARY_ADJUSTMENTS: 0` (~28%); the operator's decision to
-hold steady depends on the LLM's assessment of the run, not on a code defect.
-Unrelated to taint, telemetry integrity, pulse, validation, or propose/commit —
-does not invalidate any conclusion below.
+The single failure was **`[L1-03] No adjustments tracked (ADJUSTMENTS=0)`**,
+and it is unrelated to taint, telemetry integrity, pulse, validation or
+propose/commit — it does not invalidate any conclusion below.
+
+The *reason* first recorded here — that the operator judged the team fine and
+held steady — is the **rare** case, not the usual one. Over the 33 committed
+archive runs carrying a `SUMMARY_ADJUSTMENTS` line, 24 applied adjustments and 9
+did not; of those 9, **8 show the operator PROPOSING adjustments that were then
+rejected** (`OPERATOR|adjustment_rejected`, `BLOCKED: … can only decrease`,
+`Skipped unknown agent`) and only **1** is a genuine deliberate hold. So the
+common cause was being reported in the wording of the uncommon one, and
+`L1-03`'s single message could not tell them apart.
+
+The Aug 4 run's own classification is **not verifiable from this repository** —
+its `results_<timestamp>.txt` was never committed, so the "consulted 11 times,
+`observe/none` every time" reading rests on an artifact only present on the
+machine that ran it. Note also that real runs emit a third action value,
+`transition`, which "observe/none" does not cover.
+
+`L1-03` now distinguishes the three cases (run.sh): adjustments applied → PASS;
+rejection markers present → FAIL naming the count; decisions present, none
+asking to adjust, no rejections → SKIP. The skip is gated on **positive**
+evidence, because skipping on `ADJUSTMENTS=0` alone would have silently absorbed
+those 8 rejected-proposal runs — absence of evidence read as evidence of a
+deliberate hold, which is the exact defect class this document exists for.
+Validated by replaying all 33 archived runs through the new logic: 24 PASS,
+8 FAIL, 1 SKIP.
 
 ### Per-target results
 
@@ -653,7 +673,7 @@ does not invalidate any conclusion below.
 | #2 streak field | stub-only | No | Zero `PULSE_TRANSITION` events — pulse stayed HEALTHY throughout (coherence=1 at pulse check). No verdict transition means no streak to carry. | stub-only |
 | #5 evidence count shrink | stub-only | No | 12 `VALIDATION_RECORDED` events across 2 segments. Segment 1: 14→15→17→19→21→24 (monotonic, all pass). Segment 2: 11→12→17→19(fail)→22(pass)→22(fail). No decreasing count within any segment. | stub-only |
 | #8 lease expire mid-deliberation | stub-only | No | Both propose/commit pairs completed in <1s (same-second timestamps). Developer lease: 600s/20 turns, at turn 9 of 50. No expiry anywhere close. | stub-only |
-| #9 config generation guard | inert-verified | No (refusal stub-only) | Propose/commit path ran live (2 each). 8 `CONFIG_ADJUSTMENT` events occurred in the same runs, but all AFTER the commit timestamps (first reload at 22:43:55, commit at 22:43:53). No reload landed inside a deliberation gap. | inert-verified |
+| #9 config generation guard | inert-verified | No (refusal stub-only) | Propose/commit path ran live (2 each). 8 `CONFIG_ADJUSTMENT` events occurred in the same runs, but all AFTER the commit timestamps (first reload at 22:43:55, commit at 22:43:53). No reload landed inside a deliberation gap. **Provenance:** these 8 are *not* operator tuning — `adjustments_made` increments only on apply (`living-script.naab:773`) and this run applied zero, so they are reload attempts from other mtime changes (the engine-ratchet probe, the cross-run config restore). `CONFIG_ADJUSTMENT` fires inside `reloadIfChanged()` on any detected change, including signature failures and ratchet rejections. The conclusion is unaffected — a reload is a reload for "did one land in a deliberation gap" — but "8 adjustments" beside "0 adjustments" otherwise reads as a contradiction. | inert-verified |
 | #13 CRITICAL suspension | stub-only | No | Zero `GOVERNANCE_LEVEL_CHANGE` events. Governance level stayed at NORMAL throughout. Developer coherence never dropped below 0.865. No CRITICAL state ever arose. | stub-only |
 
 No status upgrades to "confirmed". All five conditions are legitimate

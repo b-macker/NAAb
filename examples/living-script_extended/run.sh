@@ -307,7 +307,31 @@ else
     if [ "$ADJUSTMENTS" -ge 1 ]; then
         pass "L1-03" "Adjustments tracked ($ADJUSTMENTS applied)"
     else
-        gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)"
+        # Zero applied has three causes and the old single gk_fail conflated them,
+        # so "L1-03 failed" never said which. Measured over the committed archive
+        # (9 zero-adjustment runs): 8 had the operator PROPOSE adjustments that
+        # were then rejected, 1 was a genuine deliberate hold. The common case was
+        # being reported with the wording of the rare one.
+        #
+        # The skip is gated on POSITIVE evidence — decisions present, none asking
+        # to adjust, no rejection markers. Skipping on "ADJUSTMENTS=0" alone would
+        # have masked those 8, which is the whole failure this harness exists to
+        # avoid: absence of evidence read as evidence of a deliberate hold.
+        OP_DECISIONS=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=' || true)
+        OP_DECISIONS=${OP_DECISIONS:-0}
+        OP_ADJ_ASKED=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=adjust' || true)
+        OP_ADJ_ASKED=${OP_ADJ_ASKED:-0}
+        OP_REJECTS=$(echo "$OUTPUT" | grep -cE 'OPERATOR\|adjustment_rejected|OPERATOR\|json_parse_failed|\[operator\] (No valid changes|BLOCKED:|Skipped unknown|Failed to write|WARNING: re-signing)' || true)
+        OP_REJECTS=${OP_REJECTS:-0}
+        if [ "$OP_REJECTS" -ge 1 ]; then
+            gk_fail "L1-03" "Operator proposed adjustments and none landed" \
+                "$OP_REJECTS rejection/failure marker(s) across $OP_DECISIONS decision(s) — the tuning loop ran and was refused, which is not the same as the operator holding steady"
+        elif [ "$OP_DECISIONS" -ge 1 ] && [ "$OP_ADJ_ASKED" -eq 0 ]; then
+            skip "L1-03" "Operator declined to adjust ($OP_DECISIONS decisions, none requested an adjustment)"
+        else
+            gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)" \
+                "operator produced $OP_DECISIONS decision(s), $OP_ADJ_ASKED asking to adjust, 0 rejections — an unexplained state, so it fails rather than skipping"
+        fi
     fi
 
     # ============================================================
