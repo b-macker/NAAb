@@ -651,11 +651,14 @@ rejected** (`OPERATOR|adjustment_rejected`, `BLOCKED: … can only decrease`,
 common cause was being reported in the wording of the uncommon one, and
 `L1-03`'s single message could not tell them apart.
 
-The Aug 4 run's own classification is **not verifiable from this repository** —
-its `results_<timestamp>.txt` was never committed, so the "consulted 11 times,
-`observe/none` every time" reading rests on an artifact only present on the
-machine that ran it. Note also that real runs emit a third action value,
-`transition`, which "observe/none" does not cover.
+The Aug 4 run classifies as **FAIL(rejected)** under the new logic: 11 operator
+decisions (9 `none`, 1 `observe`, 1 `create_agent`), 0 `adjust` actions, **4
+rejection markers** (`BLOCKED: context_window can only decrease (20 -> 50)`,
+`No valid changes to apply` ×2, `Skipped unknown field: system_prompt`). The
+operator included adjustment fields in its JSON despite `action=none`, and the
+harness rejected them — the common case, not the rare deliberate hold. Evidence:
+`results_20260804_225224.txt` (now committed). No `transition` action in this
+run.
 
 `L1-03` now distinguishes the three cases (run.sh): adjustments applied → PASS;
 rejection markers present → FAIL naming the count; decisions present, none
@@ -670,11 +673,11 @@ Validated by replaying all 33 archived runs through the new logic: 24 PASS,
 
 | Finding | Status before | Triggered? | Evidence | Status after |
 |---|---|---|---|---|
-| #2 streak field | stub-only | No | Zero `PULSE_TRANSITION` events — pulse stayed HEALTHY throughout (coherence=1 at pulse check). No verdict transition means no streak to carry. | stub-only |
+| #2 streak field | stub-only | No | Zero `PULSE_TRANSITION` events across 117 analyzed CDD turns (all 117 analyzed=true, 115 SEMANTIC_TURN). Pulse was evaluated on every turn and stayed HEALTHY — the negative is a non-occurrence with ample opportunity, not an absence of evaluation. | stub-only |
 | #5 evidence count shrink | stub-only | No | 12 `VALIDATION_RECORDED` events across 2 segments. Segment 1: 14→15→17→19→21→24 (monotonic, all pass). Segment 2: 11→12→17→19(fail)→22(pass)→22(fail). No decreasing count within any segment. | stub-only |
 | #8 lease expire mid-deliberation | stub-only | No | Both propose/commit pairs completed in <1s (same-second timestamps). Developer lease: 600s/20 turns, at turn 9 of 50. No expiry anywhere close. | stub-only |
 | #9 config generation guard | inert-verified | No (refusal stub-only) | Propose/commit path ran live (2 each). 8 `CONFIG_ADJUSTMENT` events occurred in the same runs, but all AFTER the commit timestamps (first reload at 22:43:55, commit at 22:43:53). No reload landed inside a deliberation gap. **Provenance:** these 8 are *not* operator tuning — `adjustments_made` increments only on apply (`living-script.naab:773`) and this run applied zero, so they are reload attempts from other mtime changes (the engine-ratchet probe, the cross-run config restore). `CONFIG_ADJUSTMENT` fires inside `reloadIfChanged()` on any detected change, including signature failures and ratchet rejections. The conclusion is unaffected — a reload is a reload for "did one land in a deliberation gap" — but "8 adjustments" beside "0 adjustments" otherwise reads as a contradiction. | inert-verified |
-| #13 CRITICAL suspension | stub-only | No | Zero `GOVERNANCE_LEVEL_CHANGE` events. Governance level stayed at NORMAL throughout. Developer coherence never dropped below 0.865. No CRITICAL state ever arose. | stub-only |
+| #13 CRITICAL suspension | stub-only | No | Zero `GOVERNANCE_LEVEL_CHANGE` events across 117 analyzed turns, all at `governance_level: "normal"`. Pressure was real: 7 turns exceeded `elevated_threshold` (0.35), peaking at 0.375; the developer had 2 consecutive turns above 0.35 (turns 19–20, segment 1) — at the `elevated_sustained` boundary — before pressure dropped at turn 21. Level never escalated, but the pressure samples were non-trivial, not quiescent. | stub-only |
 
 No status upgrades to "confirmed". All five conditions are legitimate
 non-occurrences — the run was clean enough that the corrective mechanisms had
