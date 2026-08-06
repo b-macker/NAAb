@@ -377,6 +377,16 @@ everywhere) is the withdrawn proposal below, because it hung Windows instead.
 | stub port retry (`081f460`) | 1 suite | 2 of 29 |
 | Windows/MSYS2 stub guard | 1 suite | 1 of 29 |
 
+The generalised shape is a **judgment applied to one of two twins**, and it has
+now recurred often enough to be worth naming as its own failure mode rather than
+a series of accidents: the per-agent ratchet that guarded `network_allowed` but
+not `shell_allowed`; the field ratchet that covered agents which already existed
+but not agents added; the two unrelated senses of `AGENT_SEND`; and — in the
+write-up of the Aug 4 run itself — one withholding decision applied to
+`transcript_*.jsonl` and `telemetry_*.jsonl`, which differ by ~17× in size and
+entirely in whether they carry model content. In every case the reasoning was
+correct for the twin it was reached on. Nothing carried it to the other.
+
 The defect is not duplication. Copies of a helper are cheap and each file stays
 runnable alone, which is worth something. The defect is that **a finding was
 recorded where the other callers could not see it** — a comment in one file is
@@ -657,8 +667,18 @@ rejection markers** (`BLOCKED: context_window can only decrease (20 -> 50)`,
 `No valid changes to apply` ×2, `Skipped unknown field: system_prompt`). The
 operator included adjustment fields in its JSON despite `action=none`, and the
 harness rejected them — the common case, not the rare deliberate hold. Evidence:
-`results_20260804_225224.txt` (now committed). No `transition` action in this
-run.
+`results_20260804_225224.txt` (now committed).
+
+The operator's action vocabulary is **five** values, not the "observe/none" the
+first write-up assumed. Across all 38 committed `results_*.txt`: `adjust` (123),
+`observe` (82), `none` (75), `create_agent` (54), `transition` (15). Only
+`adjust` is a config adjustment; `create_agent` spawns a runtime handle for an
+agent that must *already* exist in govern.json (`living-script.naab:1098`
+onward), incrementing `agents_created` and never `adjustments_made`. So treating
+everything ≠ `adjust` as non-adjusting is correct for all five — but the
+vocabulary is worth stating, because two successive write-ups of this same
+assertion each named only the values that happened to appear in the run in front
+of them.
 
 `L1-03` now distinguishes the three cases (run.sh): adjustments applied → PASS;
 rejection markers present → FAIL naming the count; decisions present, none
@@ -678,6 +698,22 @@ Validated by replaying all 33 archived runs through the new logic: 24 PASS,
 | #8 lease expire mid-deliberation | stub-only | No | Both propose/commit pairs completed in <1s (same-second timestamps). Developer lease: 600s/20 turns, at turn 9 of 50. No expiry anywhere close. | stub-only |
 | #9 config generation guard | inert-verified | No (refusal stub-only) | Propose/commit path ran live (2 each). 8 `CONFIG_ADJUSTMENT` events occurred in the same runs, but all AFTER the commit timestamps (first reload at 22:43:55, commit at 22:43:53). No reload landed inside a deliberation gap. **Provenance:** these 8 are *not* operator tuning — `adjustments_made` increments only on apply (`living-script.naab:773`) and this run applied zero, so they are reload attempts from other mtime changes (the engine-ratchet probe, the cross-run config restore). `CONFIG_ADJUSTMENT` fires inside `reloadIfChanged()` on any detected change, including signature failures and ratchet rejections. The conclusion is unaffected — a reload is a reload for "did one land in a deliberation gap" — but "8 adjustments" beside "0 adjustments" otherwise reads as a contradiction. | inert-verified |
 | #13 CRITICAL suspension | stub-only | No | Zero `GOVERNANCE_LEVEL_CHANGE` events across 117 analyzed turns, all at `governance_level: "normal"`. Pressure was real: 7 turns exceeded `elevated_threshold` (0.35), peaking at 0.375; the developer had 2 consecutive turns above 0.35 (turns 19–20, segment 1) — at the `elevated_sustained` boundary — before pressure dropped at turn 21. Level never escalated, but the pressure samples were non-trivial, not quiescent. | stub-only |
+
+**Evidence provenance for this table.** The L1-03 classification above is
+reproducible from the repository. These five rows are **not** — every count in
+them comes from `telemetry_20260804_225224.jsonl`, which was withheld on the
+grounds that it carries full API traffic. That is true of the *transcript*
+(`transcript_*.jsonl`, ~8.9 MB, raw prompts and responses) and false of the
+*telemetry* (`telemetry_*.jsonl`, ~548 KB): auditing every string field of a
+committed telemetry file finds no LLM content at all — the longest strings are
+governance warning text, the script's own convergence `pattern`, and
+`signals_detail`; response content appears only as `content_hash`. Thirty-five
+telemetry files are already committed in `results/`. One blanket decision was
+applied to two artifacts with different risk profiles, and the safe one is
+exactly the one these rows depend on. Until it is committed, read the five rows
+as machine-local: the reasoning is sound and the fields cited do exist on
+`CDD_TURN` (`analyzed`, `governance_level`, `pressure`), but the numbers cannot
+be re-derived here.
 
 No status upgrades to "confirmed". All five conditions are legitimate
 non-occurrences — the run was clean enough that the corrective mechanisms had
