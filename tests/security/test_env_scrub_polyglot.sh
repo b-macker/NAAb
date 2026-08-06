@@ -5,9 +5,10 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORKDIR="${HOME}/.naab/test_env_scrub_$$"
 mkdir -p "$WORKDIR"
@@ -175,11 +176,19 @@ if echo "$out" | grep -q "SCRUBBED"; then
 elif echo "$out" | grep -q "test_key.pem"; then
     fail "NAAB_SIGNING_KEY leaked to polyglot subprocess!"
 else
-    ok "NAAb secrets not in output (may have been scrubbed or Python error)"
+    # This used to pass, on the reasoning that the secret was "not in output
+    # (may have been scrubbed or Python error)". A Python error produces no
+    # output containing the secret for exactly the same reason a missing
+    # interpreter does: the code that would have read the environment never
+    # ran. That is not evidence of scrubbing, and it is the documented degraded
+    # state of this repo — without pybind11 the Python executor is disabled.
+    # The absent SCRUBBED sentinel is the tell: on a working run the script
+    # prints either the key or the literal default.
+    skip "NAAb secret scrub not exercised — python produced neither the key nor the SCRUBBED sentinel"
 fi
 unset NAAB_SIGNING_KEY
 echo ""
 
 TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+echo "Results: ${PASS}/${TOTAL} passed${SKIP:+, ${SKIP} skipped}"
 [[ "$FAIL" -eq 0 ]]

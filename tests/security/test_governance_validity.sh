@@ -374,9 +374,16 @@ make_script "$TDIR19/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR19/test.naab" 2>&1 || true)
 if echo "$OUT" | grep -qi "CONTRA-002\|contradiction\|network.*disabled.*allowed_hosts"; then
     ok "T19: CONTRA-002 detected"
+elif [ -z "$OUT" ]; then
+    skip "T19: no dashboard output — nothing to search, detection not exercised"
 else
-    # The contradiction may be recorded but not printed without dashboard
-    ok "T19: CONTRA-002 — contradiction detection ran (advisory findings may be silent)"
+    # The old else branch passed here saying "detection ran (advisory findings may
+    # be silent)", which asserted nothing: both branches passed, so T19 could not
+    # fail on any input. The stated excuse did not apply either — the run above
+    # passes --governance-dashboard, so an advisory finding is exactly what gets
+    # printed. If the dashboard produced output and CONTRA-002 is not in it, the
+    # contradiction was not detected.
+    fail "T19: CONTRA-002 not detected in dashboard output"
 fi
 
 # T20: CONTRA-007 — language in both allowed and blocked
@@ -388,8 +395,10 @@ make_script "$TDIR20/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR20/test.naab" 2>&1 || true)
 if echo "$OUT" | grep -qi "CONTRA-007\|contradiction\|both.*allowed.*blocked\|advisory"; then
     ok "T20: CONTRA-007 detected"
+elif [ -z "$OUT" ]; then
+    skip "T20: no dashboard output — detection not exercised"
 else
-    ok "T20: CONTRA-007 — contradiction detection ran (finding may be in results only)"
+    fail "T20: CONTRA-007 not detected in dashboard output"
 fi
 
 # T21: CONTRA-009 — audit level=full but output_file empty
@@ -401,8 +410,10 @@ make_script "$TDIR21/test.naab"
 OUT=$("$NAAB" --governance-dashboard "$TDIR21/test.naab" 2>&1 || true)
 if echo "$OUT" | grep -qi "CONTRA-009\|contradiction\|audit.*full.*output_file\|advisory"; then
     ok "T21: CONTRA-009 detected"
+elif [ -z "$OUT" ]; then
+    skip "T21: no dashboard output — detection not exercised"
 else
-    ok "T21: CONTRA-009 — contradiction detection ran (finding may be in results only)"
+    fail "T21: CONTRA-009 not detected in dashboard output"
 fi
 
 # T22: No contradictions in clean config

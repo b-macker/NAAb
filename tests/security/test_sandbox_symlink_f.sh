@@ -5,9 +5,10 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/naab_test_symlink_f_XXXXXX")
 mkdir -p "$WORKDIR"
@@ -110,9 +111,22 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# F4: Symlink read works when sandbox is unrestricted (no O_NOFOLLOW applied)
+# F4: Symlink refusal does NOT depend on the sandbox LEVEL
+#
+# This was written as "symlink read works when sandbox is unrestricted (no
+# O_NOFOLLOW applied)", and all three of its branches passed, so it could not
+# fail. The premise is wrong: file_impl.cpp gates readFileNoFollow on
+# `security::ScopedSandbox::getCurrent()` — whether a sandbox is INSTALLED, not
+# what level it carries. --sandbox-level unrestricted still installs one, so
+# O_NOFOLLOW still applies. That is deliberate; the guard closes a TOCTOU window
+# between the path check and the open, which is not a path-policy question and
+# so does not relax with the policy.
+#
+# F3 ("normal file read succeeded under sandbox") is the real positive control
+# for F1/F2 — it shows file.read works on a non-symlink under the same sandbox,
+# so F1/F2 are refusals rather than a broken read path.
 # ---------------------------------------------------------------------------
-echo "[F4] Symlink read works with --sandbox-level unrestricted"
+echo "[F4] Symlink refusal is independent of sandbox level"
 cat > "$WORKDIR/test_f4.naab" << NAABEOF
 use file
 use io
@@ -123,17 +137,16 @@ main {
 NAABEOF
 
 out=$("$NAAB" "$WORKDIR/test_f4.naab" --sandbox-level unrestricted --no-governance 2>&1) || true
-if echo "$out" | grep -q "secret_content"; then
-    ok "symlink followed under unrestricted sandbox (expected)"
-elif echo "$out" | grep -qi "error\|fail"; then
-    # Could fail for other reasons (path, permissions) — acceptable
-    ok "unrestricted: non-symlink error (acceptable)"
+if echo "$out" | grep -q "path is a symlink"; then
+    ok "unrestricted sandbox still refuses the symlink (O_NOFOLLOW is level-independent)"
+elif echo "$out" | grep -q "secret_content"; then
+    fail "unrestricted sandbox followed a symlink — the TOCTOU guard now varies with level"
 else
-    ok "unrestricted: no block applied"
+    skip "unrestricted read produced neither the refusal nor the content: ${out:0:80}"
 fi
 
 echo ""
 
 TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+echo "Results: ${PASS}/${TOTAL} passed${SKIP:+, ${SKIP} skipped}"
 [[ "$FAIL" -eq 0 ]]

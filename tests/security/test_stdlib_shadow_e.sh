@@ -5,9 +5,10 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORKDIR="${HOME}/.naab/test_shadow_e_$$"
 mkdir -p "$WORKDIR"
@@ -107,9 +108,9 @@ export function hello() { return "local_hello" }
 NAABEOF
 
 cat > "$WORKDIR/test_e4.naab" << 'NAABEOF'
-import "./subdir/mymod.naab" as * mymod
+import "./subdir/mymod.naab" as mymod
+use io
 main {
-  use io
   io.println(mymod.hello())
 }
 NAABEOF
@@ -118,12 +119,14 @@ out=$("$NAAB" "$WORKDIR/test_e4.naab" --no-governance 2>&1) || true
 if echo "$out" | grep -q "local_hello"; then
     ok "path-separated import loaded local module correctly"
 else
-    # May fail due to import syntax differences — not a regression
-    ok "path-separated import attempted (syntax may differ — not a shadow regression)"
+    # Both branches passed before, so E4 could not fail. "Syntax may differ" is a
+    # real possibility, but it means the import never resolved — which is the
+    # opposite of what the assertion title claims, not a variant of it.
+    skip "path-separated import did not resolve — shadow behaviour not exercised: ${out:0:80}"
 fi
 
 echo ""
 
 TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+echo "Results: ${PASS}/${TOTAL} passed${SKIP:+, ${SKIP} skipped}"
 [[ "$FAIL" -eq 0 ]]
