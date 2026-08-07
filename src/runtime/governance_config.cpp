@@ -308,9 +308,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (l.is_string()) rules_.blocked_languages.insert(l.get<std::string>());
             }
         }
-        // naab-29 EO-08: Resolve contradictory config — blocked takes precedence
+        // naab-29 EO-08: Resolve contradictory config — blocked takes precedence.
+        // Record the overlap BEFORE erasing it: the erase is what makes CONTRA-007
+        // unable to observe the contradiction it exists to report.
         for (const auto& blocked : rules_.blocked_languages) {
-            rules_.allowed_languages.erase(blocked);
+            if (rules_.allowed_languages.erase(blocked) > 0) {
+                rules_.languages.allowed_and_blocked.insert(blocked);
+            }
         }
     }
 

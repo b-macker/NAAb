@@ -5759,16 +5759,31 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         }
     }
 
-    // CONTRA-007: language in both allowed and blocked lists
-    for (const auto& lang : rules().languages.allowed) {
-        if (rules().languages.blocked.count(lang)) {
-            ContradictionResult c;
-            c.pattern_id = "CONTRA-007";
-            c.description = fmt::format("Language '{}' appears in both allowed and blocked lists", lang);
-            c.level = governance::EnforcementLevel::SOFT;
-            c.resolution = fmt::format("Remove '{}' from either the allowed or blocked language list", lang);
-            results.push_back(c);
-        }
+    // CONTRA-007: language in both allowed and blocked lists.
+    //
+    // This iterated languages.allowed looking for members of languages.blocked,
+    // which the loader has already made impossible: it erases every blocked
+    // language from allowed at parse time (blocked wins, fail-closed), so the
+    // intersection is empty by construction and the check could never fire. Read
+    // the overlap the loader recorded before resolving it instead.
+    //
+    // Level is `level` (contradiction_detection.max_level, ADVISORY by default)
+    // rather than the hardcoded SOFT it carried while dead. Two reasons: the
+    // hardcode ignored the cap the operator configured, and firing a dormant
+    // check at SOFT would newly exit(3) on every config with overlapping lists —
+    // a blocking change introduced by fixing a reporting gap. The danger is
+    // already neutralised fail-closed by the loader; what was missing is telling
+    // the operator. CONTRA-001 keeps its hardcoded SOFT deliberately: it is live
+    // today, so relaxing it would be a real weakening rather than a dead knob.
+    for (const auto& lang : rules().languages.allowed_and_blocked) {
+        ContradictionResult c;
+        c.pattern_id = "CONTRA-007";
+        c.description = fmt::format(
+            "Language '{}' appears in both allowed and blocked lists "
+            "(resolved in favour of blocked)", lang);
+        c.level = level;
+        c.resolution = fmt::format("Remove '{}' from either the allowed or blocked language list", lang);
+        results.push_back(c);
     }
 
     // CONTRA-008: contract defined for a function that is also banned

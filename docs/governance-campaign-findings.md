@@ -801,3 +801,110 @@ AGENT_CHALLENGE_PASS=0` line reads the telemetry file mid-run, before the
 challenge fires at turn 20 — this is a known timing limitation of the in-script
 telemetry audit, not a vacuous assertion (Q02 counts from the script's own
 tracking).
+
+## Vacuity audit: tier 1
+
+`tests/security` and `tests/governance_v4` — 105 suites, 782 `pass`/`ok` sites.
+Filtered to 129 absence-guarded assertions, then to the ones whose text claims a
+negative property. The question asked of each: *what state makes this pass
+without the property holding?*
+
+### Assertions that could not fail on any input
+
+Seven, found by looking for `if/else` regions where every reachable branch
+passes. (A first pass reported 17; nesting-aware re-checking cut it to 7 — the
+other 10 were inner blocks inside an outer `if` that does have a `fail`. The
+detector needed the same correction the tests did.)
+
+| assertion | what it claimed | what was true |
+|---|---|---|
+| `test_governance_validity.sh` T19/T20/T21 | "contradiction detection ran" | asserted nothing; the stated excuse ("may not print without dashboard") was refuted by the command's own `--governance-dashboard` flag |
+| `test_r11_fixes.sh` T2 | opt-in config discovery works | its own comment read "something else is wrong — still pass the security property" |
+| `test_sandbox_symlink_f.sh` F4 | unrestricted sandbox follows symlinks | premise false by design (below) |
+| `test_stdlib_shadow_e.sh` E4 | path-separated import loads local module | the fixture never parsed (below) |
+| `test_d1_reconciliation.sh` A09 | `claim_accuracy` absent before first tool | engine emits `1.0`, always (below) |
+
+Three of these were concealing real defects. That is the argument for the audit:
+an unfailable assertion does not merely fail to catch regressions, it preserves
+whatever misunderstanding it was written with.
+
+**T20 was hiding dead engine code.** CONTRA-007 ("language in both allowed and
+blocked") iterated `languages.allowed` looking for members of `languages.blocked`
+— a set the loader empties at parse time, erasing blocked languages from allowed
+so blocked wins fail-closed (`governance_config.cpp` ~312). The intersection is
+empty by construction; the check could never fire. It now reads the overlap the
+loader records before resolving it. Level moved from a hardcoded `SOFT` to the
+configured `contradiction_detection.max_level` (ADVISORY by default): the
+hardcode ignored the operator's cap, and waking a dormant check at SOFT would
+newly `exit(3)` every config with overlapping lists — a blocking change smuggled
+in as a reporting fix. The loader already neutralises the danger; what was
+missing was telling the operator. CONTRA-001 keeps its hardcoded SOFT because it
+is live today, so relaxing it would be a real weakening rather than a dead knob.
+
+**E4 had never executed its own program.** Two stacked fixture bugs — `as *
+mymod` (invalid; the form is `as name`) and `use io` inside `main` (only legal at
+file scope). Both fixed; E4 now passes on the property.
+
+**A09's premise was inverted.** It asserted `claim_accuracy` is absent before the
+first tool call. `agent_impl.cpp` emits `1.0` on both paths — empty history
+(:816) and no DriftState at all (:855). The field is never absent, so the branch
+that "accidentally" passed was the correct one. Now asserts the documented
+default and fails if it moves (verified by changing it to 0.5).
+
+**F4's premise was false by design.** `readFileNoFollow` is gated on whether a
+sandbox is *installed*, not on its level, so `--sandbox-level unrestricted` still
+refuses symlinks. That is deliberate: the guard closes a TOCTOU window between
+the path check and the open, which is not a path-policy question and does not
+relax with the policy. F4 now asserts the level-independence. F3 was the real
+positive control for F1/F2 all along.
+
+### Catch-all `else → pass`
+
+Branches that accepted any unrelated failure as success. Converted to SKIP —
+"the mechanism did not run" is not "the mechanism held".
+
+- `test_env_scrub_polyglot.sh` T3 — a **secret-leak** test passing on "may have
+  been scrubbed or Python error". A Python error hides the key for the same
+  reason a missing interpreter does: the code that reads the environment never
+  ran. This repo's Python executor is disabled without pybind11, so the branch
+  was live, not hypothetical.
+- `test_block_integrity_rt004.sh` T1 — passed while its own message said
+  "integrity path not reached in this context".
+- `test_polyglot_taint_gov006.sh` T2 — passed on any non-zero exit: parse error,
+  missing executor, crash.
+
+### `test_orphan_kill_rt003.sh` — three defects from one unused variable
+
+`MARKER="naab_orphan_test_$$"` was declared with a comment explaining precisely
+why a unique identifier was needed, then never used: `pgrep` and `pkill` both
+matched the generic `sleep 30`. Consequences, all live: a vacuous PASS when the
+child never spawned; a spurious FAIL from any unrelated `sleep 30` on the box;
+and `pkill -f "sleep 30"` on the failure path, **killing other users' and other
+suites' processes** on a shared runner. Now observes specific PIDs — which makes
+the control possible (assert the child *did* start) and makes both the check and
+the cleanup incapable of touching anything not ours.
+
+Demonstrated rather than asserted: with the subprocess removed from the fixture,
+the old test reports `PASS: no orphan sleep process after timeout`; the new one
+reports SKIP.
+
+### Non-findings worth recording
+
+Vacuous in isolation, correct because a sibling assertion fails on the same
+absence — the `L24-02`/`L24-03` shape. Left alone, documented in place:
+`test_signing_bypass.sh` T1 (T1b fails if keygen produced no `.pub`),
+`test_challenge_fail_path.sh` A-07 (A-03 fails if the telemetry file is absent).
+
+Clean, and the pattern to copy: `test_drift_sensitivity.sh` DS-01/DS-02 —
+`${L0_SINGLE:-1}` defaults to a FAILING value so an unset measurement cannot pass,
+paired with a cross-check that quarantine fires at *some* drift level.
+
+### Method note
+
+Every fix was verified by breaking the property and confirming the assertion
+fails, then restoring. That is the only technique that has caught this class:
+five of these had been read by reviewers without the defect being visible,
+because a passing test looks identical either way.
+
+Not audited: tier 3 (`tests/gorilla`, 62 candidates) — older scenario tests,
+weaker claims, and auditing them would triple the work.

@@ -67,7 +67,11 @@ if echo "$output" | grep -qiE "(taint.*violat|taint.*block|sink.*taint|hard.*blo
 elif [[ $ec -eq 0 ]]; then
     pass "T2: io.write succeeded — taint does not block non-sink operations"
 else
-    pass "T2: exited non-zero for non-governance reason (shell/io failure): ${output:0:80}"
+    # A catch-all pass on any non-zero exit: a parse error, a missing shell
+    # executor or a crash all landed here and were reported as the taint engine
+    # correctly not blocking. The absence of a taint message is only evidence
+    # once the program got far enough to reach io.write.
+    skip "T2: run failed for an unrelated reason — non-sink taint behaviour not exercised (exit $ec): ${output:0:80}"
 fi
 
 # T3: --no-governance → shell_exec not blocked even with polyglot output

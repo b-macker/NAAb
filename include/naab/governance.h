@@ -129,6 +129,14 @@ struct LanguageConfig {
 struct LanguagesConfig {
     std::unordered_set<std::string> allowed;
     std::unordered_set<std::string> blocked;
+    // Languages that appeared in BOTH lists as written. The parser resolves the
+    // conflict immediately (blocked wins, fail-closed) by erasing them from
+    // `allowed`, so by the time any check runs the intersection is empty by
+    // construction — which made CONTRA-007 dead code testing for a state its own
+    // loader guarantees cannot exist. Recorded here so the operator can still be
+    // told their config contradicts itself; the resolution and the report are not
+    // in conflict.
+    std::unordered_set<std::string> allowed_and_blocked;
     bool require_explicit = false;
     std::unordered_map<std::string, LanguageConfig> per_language;
 };

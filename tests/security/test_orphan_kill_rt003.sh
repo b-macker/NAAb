@@ -3,10 +3,10 @@
 set -euo pipefail
 
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
-
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 TMPDIR_TEST="${HOME}/.naab"
 mkdir -p "$TMPDIR_TEST"
@@ -19,35 +19,59 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "[T1] Subprocess killed (not orphaned) when naab times out"
 
-# Use a unique marker string so we can identify OUR sleep child even if other
-# sleeps are running on the system.
-MARKER="naab_orphan_test_$$"
+# A unique duration, so the process we look for is OURS. The original code
+# declared a MARKER variable with a comment explaining exactly why one was
+# needed, then never used it: both pgrep and pkill matched the generic
+# "sleep 30". Three consequences, all live:
+#   - vacuous PASS — if the child never spawned, nothing matches and the orphan
+#     check reports success without a subprocess ever having existed;
+#   - spurious FAIL — any unrelated `sleep 30` on the machine fails the test;
+#   - collateral damage — the failure path ran `pkill -f "sleep 30"`, killing
+#     other users' and other suites' processes on a shared runner.
+# The fix is to observe the specific PID rather than a command pattern: it makes
+# the control possible (we can assert the child DID start) and it makes both the
+# check and the cleanup incapable of touching anything that is not ours.
+UNIQ_SLEEP="30.$(( $$ % 997 ))"
 SCRIPT_T1="${TMPDIR_TEST}/rt003_t1_$$.naab"
 cat > "$SCRIPT_T1" <<NAAB
 use process
 main {
     // This long sleep would become an orphan if we don't kill it on timeout
-    let r = process.run("sleep", ["30"])
+    let r = process.run("sleep", ["$UNIQ_SLEEP"])
     print("done")
 }
 NAAB
 
-# Run naab with a 2s timeout; the script will block on process.run("sleep 30")
-"$NAAB" "$SCRIPT_T1" --no-governance --timeout 2 >/dev/null 2>&1 || true
-# Give a moment for kill/reap to settle
-sleep 0.5
+# Run naab in the background so the child can be observed while it is alive.
+"$NAAB" "$SCRIPT_T1" --no-governance --timeout 2 >/dev/null 2>&1 &
+NAAB_PID=$!
 
-# Check no "sleep 30" process is left running (orphan check)
-# We use pgrep to look for "sleep" with arg "30".
-# Note: pgrep exits 1 when no matches found (= success for us). Wrap in a subshell
-# with || true so set -euo pipefail doesn't abort the script on no-match exit code.
-orphan_count=$( (pgrep -f "sleep 30" 2>/dev/null || true) | wc -l | tr -d ' ')
-if [[ "$orphan_count" -eq 0 ]]; then
-    ok "no orphan sleep process after timeout"
+# Control: the subprocess must actually start, or the orphan check below is
+# asserting that something which never existed was cleaned up.
+CHILD_PIDS=""
+for _ in $(seq 1 40); do
+    CHILD_PIDS=$( (pgrep -f "sleep $UNIQ_SLEEP" 2>/dev/null || true) | tr '\n' ' ')
+    [ -n "${CHILD_PIDS// /}" ] && break
+    sleep 0.1
+done
+
+wait "$NAAB_PID" 2>/dev/null || true
+sleep 0.5   # let kill/reap settle
+
+if [ -z "${CHILD_PIDS// /}" ]; then
+    skip "subprocess never started — nothing could be orphaned, kill-on-timeout not exercised"
 else
-    fail "found $orphan_count orphan 'sleep 30' process(es) after naab timeout"
-    # Kill them to not pollute the system
-    pkill -f "sleep 30" 2>/dev/null || true
+    orphan_count=0
+    for p in $CHILD_PIDS; do
+        kill -0 "$p" 2>/dev/null && orphan_count=$((orphan_count + 1))
+    done
+    if [[ "$orphan_count" -eq 0 ]]; then
+        ok "no orphan sleep process after timeout (child $CHILD_PIDS started and was reaped)"
+    else
+        fail "found $orphan_count orphan sleep process(es) after naab timeout: $CHILD_PIDS"
+        # Only ever kill PIDs we observed ourselves.
+        for p in $CHILD_PIDS; do kill -9 "$p" 2>/dev/null || true; done
+    fi
 fi
 rm -f "$SCRIPT_T1"
 
@@ -82,5 +106,5 @@ rm -f "$SCRIPT_T2"
 
 echo ""
 TOTAL=$(( PASS + FAIL ))
-echo "Results: ${PASS}/${TOTAL} passed"
+echo "Results: ${PASS}/${TOTAL} passed${SKIP:+, ${SKIP} skipped}"
 if [[ "$FAIL" -gt 0 ]]; then exit 1; fi

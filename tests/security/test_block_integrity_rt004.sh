@@ -74,9 +74,11 @@ out=$("$NAAB" --no-governance --blocks-path "$BLOCKS_DIR" run "$SCRIPT_T1" 2>&1 
 if echo "$out" | grep -qi "tampered\|integrity.*check.*fail\|hash.*mismatch\|code_hash"; then
     ok "tampered block rejected with integrity error"
 else
-    # If block loading is not triggered in this test context, accept gracefully
+    # This branch used to pass while its own message said the integrity path was
+    # not reached. A tamper-detection test that reports success when the loader
+    # never looked at the block is asserting nothing about tamper detection.
     if echo "$out" | grep -qi "not found\|unknown.*BLOCK\|use.*error\|cannot.*load"; then
-        ok "block not found / use-statement error (integrity path not reached in this context)"
+        skip "block did not load — integrity path not reached, tamper detection not exercised"
     else
         fail "expected integrity error, got: $out"
     fi

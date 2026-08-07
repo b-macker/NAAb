@@ -74,8 +74,13 @@ JSONEOF
     if ! echo "$GOV_OUTPUT2" | grep -q "no govern.json found"; then
         pass "V-GOV-009: --config-from-file opt-in loads from file's directory as expected"
     else
-        # If no govern.json was found at all even with opt-in, something else is wrong — still pass the security property
-        pass "V-GOV-009: --config-from-file flag accepted without error"
+        # The old else branch said, in its own comment, "something else is wrong —
+        # still pass the security property", and passed. Both branches passing
+        # made T2 unfailable. T2 is the opt-in control for T1: it shows the
+        # discovery path CAN reach the file's directory when asked, so T1's
+        # refusal is a policy decision rather than a broken lookup. Skip when the
+        # control does not run; do not report it as satisfied.
+        skip "V-GOV-009: opt-in found no govern.json — T1 has no positive control in this environment"
     fi
 fi
 

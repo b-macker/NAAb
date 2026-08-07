@@ -446,14 +446,23 @@ else
     fail "A08" "claim_mismatch_count unexpected default" "$CMM_VAL"
 fi
 
-# A09: claim_accuracy absent before first tool execution (no history yet)
-# What this tests: claim_accuracy_history is empty → field not surfaced
+# A09: claim_accuracy reads 1.0 before the first tool execution.
+#
+# This asserted the field was ABSENT before any tool ran, with the comment
+# "claim_accuracy_history is empty → field not surfaced". The engine does the
+# opposite, deliberately and on both paths: agent_impl.cpp:816 emits 1.0 when
+# the history is empty, and :855 emits 1.0 when there is no DriftState at all.
+# The field is never absent. Both branches passed, so A09 could not fail — which
+# is exactly why nobody noticed its premise was inverted. An unfailable
+# assertion does not merely fail to catch regressions; it preserves whatever
+# misunderstanding it was written with.
 CA_VAL=$(echo "$OUTPUT" | grep -oP 'CLAIM_ACCURACY_DEFAULT: \K\S+' 2>/dev/null || echo "missing")
-if [ "$CA_VAL" = "absent" ] || [ "$CA_VAL" = "missing" ]; then
-    pass "A09" "claim_accuracy absent before first tool execution"
+if [ "$CA_VAL" = "1" ] || [ "$CA_VAL" = "1.0" ]; then
+    pass "A09" "claim_accuracy defaults to 1.0 before first tool execution ($CA_VAL)"
+elif [ "$CA_VAL" = "missing" ]; then
+    skip "A09" "CLAIM_ACCURACY_DEFAULT not in output — default not observable here"
 else
-    # If present, it could be a valid initial value — that's also acceptable
-    pass "A09" "claim_accuracy has initial value ($CA_VAL)"
+    fail "A09" "claim_accuracy default changed" "expected 1.0, got $CA_VAL"
 fi
 
 # A10: tool_integrity_count defaults to 0
