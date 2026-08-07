@@ -5,9 +5,10 @@
 
 set -euo pipefail
 NAAB="${1:-$(dirname "$0")/../../build/naab-lang}"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+skip() { echo "  SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 WORKDIR="${HOME}/.naab/test_rt002_$$"
 mkdir -p "$WORKDIR"
@@ -24,15 +25,17 @@ echo "[T1] JS infinite loop with --timeout 3 terminates within ~8s (not 30s)"
 cat > "$WORKDIR/test_t1.naab" << 'EOF'
 main {
   let result = <<javascript
-while(true) {}
-"unreachable"
+(function(){ while(true) {} })()
 >>
 }
 EOF
 
 start_ts=$(date +%s)
+# ec must be reset per test: `|| ec=$?` does not fire on success, so without
+# this a later test silently inherits an earlier test's exit code. T2 was
+# reading T1's non-zero status and reporting it as its own "unrelated failure".
+ec=0
 out=$(timeout 15s "$NAAB" "$WORKDIR/test_t1.naab" --vm --no-governance --timeout 3 2>&1) || ec=$?
-ec=${ec:-0}
 end_ts=$(date +%s)
 elapsed=$((end_ts - start_ts))
 
@@ -42,12 +45,23 @@ elif [[ "$elapsed" -ge 10 ]]; then
     fail "JS block ran for ${elapsed}s — timeout too slow (expected ≤8s for --timeout 3)"
 elif echo "$out" | grep -qi "interrupted\|timeout\|time limit\|exceeded"; then
     ok "JS block interrupted within ${elapsed}s with timeout message"
+elif [[ "$ec" -ne 0 && "$elapsed" -ge 2 ]]; then
+    # The elapsed floor is load-bearing. This branch used to accept ANY non-zero
+    # exit as "timeout enforced", and the fixture above used to be a bare
+    # `while(true) {}` — which the executor wraps as an expression, making it a
+    # SyntaxError that failed in 0s. So the suite for V-RT-002 reported the
+    # timeout as enforced without ever running a JS loop: "the timeout fired"
+    # and "the code never parsed" both produce a non-zero exit.
+    ok "JS block exited non-zero after ${elapsed}s (timeout enforced)"
 elif [[ "$ec" -ne 0 ]]; then
-    ok "JS block exited non-zero within ${elapsed}s (timeout enforced)"
+    fail "JS block exited non-zero in ${elapsed}s — too fast to be the 3s timeout, the block likely never ran: ${out:0:120}"
 else
-    # JavaScript executor may not be available on this platform
+    # JavaScript executor may not be available on this platform. This said
+    # "skipped" and then counted itself as a PASS — the suite's whole subject is
+    # whether the JS executor honours --timeout, so a run without a JS executor
+    # is the one outcome that proves nothing about it.
     if echo "$out" | grep -qi "executor\|javascript\|not found\|not available\|node"; then
-        ok "no JS executor available — timeout test skipped (acceptable)"
+        skip "no JS executor available — timeout enforcement not exercised"
     else
         fail "JS block exited 0 in ${elapsed}s — expected non-zero for infinite loop: ${out:0:120}"
     fi
@@ -69,21 +83,23 @@ main {
 }
 EOF
 
+ec=0
 out=$(timeout 15s "$NAAB" "$WORKDIR/test_t2.naab" --vm --no-governance --timeout 10 2>&1) || ec=$?
-ec=${ec:-0}
 
 if echo "$out" | grep -qi "timeout\|time limit\|exceeded"; then
     fail "false positive — short JS block hit timeout: ${out:0:120}"
 elif echo "$out" | grep -qi "executor\|javascript\|not found\|not available\|node"; then
-    ok "no JS executor available — false-positive test skipped (acceptable)"
+    skip "no JS executor available — false-positive check not exercised"
 elif [[ "$ec" -eq 0 ]]; then
     ok "short JS block completed without timeout"
 else
-    ok "non-zero exit (not a timeout error — acceptable): ${out:0:80}"
+    # Catch-all pass on any non-zero exit: a parse error, a crash or a missing
+    # dependency all reported "no false positive" for a block that never ran.
+    skip "short JS block failed for an unrelated reason — no-false-positive not shown (exit $ec): ${out:0:80}"
 fi
 
 echo ""
 
 TOTAL=$((PASS + FAIL))
-echo "Results: ${PASS}/${TOTAL} passed"
+echo "Results: ${PASS}/${TOTAL} passed${SKIP:+, ${SKIP} skipped}"
 [[ "$FAIL" -eq 0 ]]

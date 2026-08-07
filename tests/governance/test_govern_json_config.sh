@@ -110,12 +110,21 @@ cat > "$WORK_DIR/govern.json" << 'EOF'
   "governance": { "agent_id": "test-bot", "telemetry": "telemetry.json" }
 }
 EOF
-"$NAAB" "$WORK_DIR/test.naab" 2>&1 > /dev/null
-if [ -f "$WORK_DIR/telemetry.json" ] && grep -q "test-bot" "$WORK_DIR/telemetry.json" 2>/dev/null; then
+# Run from WORK_DIR. govern.json is discovered relative to the SCRIPT's
+# directory, but governance.telemetry is resolved relative to the CWD — the two
+# bases disagree, so running this from the repo root wrote telemetry.json into
+# the repo root and the check below never found it. The fallback then reported
+# success, so neither the mis-resolved path nor the stray file was ever visible.
+(cd "$WORK_DIR" && "$NAAB" "$WORK_DIR/test.naab" > /dev/null 2>&1)
+if [ ! -f "$WORK_DIR/telemetry.json" ]; then
+  # The old branch here was `elif [ $? -eq 0 ] || true` — the `|| true` makes the
+  # condition unconditionally true, and $? referred to the [ -f ] test rather
+  # than to naab, so T6 passed on every possible outcome.
+  fail "T6: governance.telemetry from config produced no telemetry file"
+elif grep -q "test-bot" "$WORK_DIR/telemetry.json" 2>/dev/null; then
   pass "T6: governance.agent_id from config in telemetry"
-elif [ $? -eq 0 ] || true; then
-  # Agent ID is accepted without error — sufficient for config acceptance test
-  pass "T6: governance.agent_id accepted from config (no crash)"
+else
+  fail "T6: telemetry written but agent_id 'test-bot' absent"
 fi
 
 # --- Test 7: CLI --governance-verbose overrides governance.verbose:false ---
@@ -172,12 +181,14 @@ cat > "$WORK_DIR/govern.json" << 'EOF'
   "governance": { "report_json": "report.json" }
 }
 EOF
-(cd "$WORK_DIR" && "$NAAB" "$WORK_DIR/test.naab" 2>&1 > /dev/null)
+(cd "$WORK_DIR" && "$NAAB" "$WORK_DIR/test.naab" > /dev/null 2>&1)
 if [ -f "$WORK_DIR/report.json" ]; then
   pass "T10: governance.report_json creates report file"
 else
-  # Report generation may need governance checks to trigger — accept no-crash as pass
-  pass "T10: governance.report_json accepted from config (no crash)"
+  # Both branches passed before ("accept no-crash as pass"), so T10 could not
+  # fail. It does produce the file — verified — so the fallback was masking
+  # nothing here, but it would have masked the key silently ceasing to work.
+  fail "T10: governance.report_json produced no report file"
 fi
 
 # --- Test 11: No governance section → defaults work ---
