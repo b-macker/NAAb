@@ -988,6 +988,29 @@ scans can claim:
   built. That suite also isolates its own trust store, which is the practice the
   leaking suites below lack.
 
+And the sharpest instance in the campaign happened to the *instrument*, not the
+subject. Waiting on CI for this very PR, I armed a poll loop that counted
+incomplete checks:
+
+```
+sum(1 for c in d.get('check_runs', []) if c.get('status') != 'completed')
+```
+
+`curl` to the GitHub API is not authorized in this session — it returns
+`{"message": "GitHub access is not enabled for this session..."}`, a payload with
+no `check_runs` key. The `.get(..., [])` default turned that into an empty list,
+the sum came out `0`, and the loop announced **ALL CHECKS COMPLETED** while eight
+jobs were still running — including every compile-and-test job.
+
+"Zero incomplete checks" and "no access to any checks" are the same observation,
+and the script took the flattering reading. The `.get` default was the permissive
+branch and I never asked what could land in it — the identical mistake as the JS
+timeout branch order, made minutes after writing that lesson down, in the tool
+built to verify the audit. A monitor that cannot distinguish *the work finished*
+from *I cannot see the work* is not a monitor. Any watcher of this kind needs to
+require **positive** evidence — a check count greater than zero — exactly as
+`test_drift_sensitivity.sh` defaults `${L0_SINGLE:-1}` to a failing value.
+
 I also assumed, from the V-GOV-009 work, that `naab-lang` discovers `govern.json`
 from the CWD, and concluded that 11 of the 12 tests in `test_govern_json_config.sh`
 were loading the wrong config. That was wrong: **`naab-lang` discovers from the
