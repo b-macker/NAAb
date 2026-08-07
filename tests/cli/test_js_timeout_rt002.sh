@@ -45,6 +45,17 @@ elif [[ "$elapsed" -ge 10 ]]; then
     fail "JS block ran for ${elapsed}s — timeout too slow (expected ≤8s for --timeout 3)"
 elif echo "$out" | grep -qi "interrupted\|timeout\|time limit\|exceeded"; then
     ok "JS block interrupted within ${elapsed}s with timeout message"
+elif echo "$out" | grep -qi "executor\|javascript\|not found\|not available\|node"; then
+    # This check MUST precede the exit-code branches. A missing JS executor
+    # exits NON-ZERO, so while it lived in the final `else` (reachable only when
+    # ec == 0) it was unreachable — the old code caught that case one branch
+    # earlier and called it "timeout enforced". Leaving it there while adding a
+    # fast-exit failure below would have converted every platform without a JS
+    # executor from a false pass into a hard failure.
+    #
+    # The suite's whole subject is whether the JS executor honours --timeout, so
+    # a run without one is the single outcome that proves nothing about it.
+    skip "no JS executor available — timeout enforcement not exercised"
 elif [[ "$ec" -ne 0 && "$elapsed" -ge 2 ]]; then
     # The elapsed floor is load-bearing. This branch used to accept ANY non-zero
     # exit as "timeout enforced", and the fixture above used to be a bare
@@ -56,15 +67,7 @@ elif [[ "$ec" -ne 0 && "$elapsed" -ge 2 ]]; then
 elif [[ "$ec" -ne 0 ]]; then
     fail "JS block exited non-zero in ${elapsed}s — too fast to be the 3s timeout, the block likely never ran: ${out:0:120}"
 else
-    # JavaScript executor may not be available on this platform. This said
-    # "skipped" and then counted itself as a PASS — the suite's whole subject is
-    # whether the JS executor honours --timeout, so a run without a JS executor
-    # is the one outcome that proves nothing about it.
-    if echo "$out" | grep -qi "executor\|javascript\|not found\|not available\|node"; then
-        skip "no JS executor available — timeout enforcement not exercised"
-    else
-        fail "JS block exited 0 in ${elapsed}s — expected non-zero for infinite loop: ${out:0:120}"
-    fi
+    fail "JS block exited 0 in ${elapsed}s — expected non-zero for infinite loop: ${out:0:120}"
 fi
 
 echo ""

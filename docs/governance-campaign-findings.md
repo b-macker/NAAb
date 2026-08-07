@@ -943,6 +943,18 @@ V-RT-002's fix is now demonstrated for the first time rather than assumed.
 Restoring the old fixture under the new assertions fails with the syntax error
 quoted; under the old assertions the identical state was a PASS.
 
+**Branch order is part of the fix, and I got it wrong first.** The
+executor-missing check lived in the final `else`, reachable only when `ec == 0`
+— but a missing JS executor exits NON-ZERO, so that branch had always been
+unreachable and the old code caught the case one branch earlier as "timeout
+enforced". Adding a fast-exit failure while leaving the check where it sat
+converted every platform without a JS executor from a false pass into a hard
+FAIL. Linux CI could not have caught it: Linux has the executor. Found by
+re-reading the diff before merge, confirmed by pointing the block at a
+nonexistent language (pre-fix: FAIL, post-fix: SKIP), and fixed by hoisting the
+executor check above the exit-code branches. The general form: **when you make a
+previously-accepting branch strict, check what used to land in it.**
+
 ### `test_govern_json_config.sh` T6 / T10
 
 Both unfailable. T6's fallback condition was `elif [ $? -eq 0 ] || true` — the
