@@ -2057,6 +2057,13 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     j["inherited_pressure"] = s.inherited_pressure;
     j["pipeline_depth"] = s.pipeline_depth;
     j["consecutive_high_pressure_turns"] = s.consecutive_high_pressure_turns;
+    // Circuit-breaker counters are reported separately from the checkpoint's.
+    // Conflating them is exactly what made escalation unexplainable before: a
+    // run could show consecutive_high_pressure_turns pinned at 0 and give no
+    // indication of whether the breaker had any evidence of its own.
+    j["cb_sustained_elevated"] = s.cb_sustained_turns[0];
+    j["cb_sustained_high"]     = s.cb_sustained_turns[1];
+    j["cb_sustained_critical"] = s.cb_sustained_turns[2];
     j["consecutive_quarantines"] = s.consecutive_quarantines;
     j["last_recovery_turn"] = s.last_recovery_turn;
     j["baseline_complete"] = s.baseline_complete;
@@ -2245,6 +2252,12 @@ void ContextDriftAnalyzer::updateCheckpointState(int handle_id, double pressure,
     if (checkpoint_turn >= 0) {
         state.last_checkpoint_turn = checkpoint_turn;
     }
+}
+
+void ContextDriftAnalyzer::updateCbSustained(int handle_id, const int counts[3]) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    for (int i = 0; i < 3; ++i) state.cb_sustained_turns[i] = counts[i];
 }
 
 void ContextDriftAnalyzer::setInheritedPressure(int handle_id, double pressure) {

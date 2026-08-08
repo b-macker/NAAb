@@ -3067,42 +3067,15 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (rules_.circuit_breaker.enabled && !rules_.context_drift.reality_checkpoint.enabled) {
         fprintf(stderr, "[governance] Note: reality_checkpoint explicitly disabled — "
                         "checkpoint enforcement is inactive\n");
-        // "levels will update" was the old wording, and it is only half true. The
-        // sustained-turn counter that elevated/high/critical escalation requires
-        // advances ONLY while composite pressure is at or above
-        // reality_checkpoint.pressure_threshold, which keeps its default when the
-        // section is disabled. Any circuit-breaker threshold below that value is
-        // unreachable through the pressure path however high pressure runs — the
-        // level test needs both `composite >= threshold` AND `consecutive >=
-        // sustained`, and the second half is pinned at 0. living-script_extended
-        // set elevated_threshold=0.35 against the 0.70 default and spent a whole
-        // 117-turn keyed run at NORMAL with pressure peaking at 0.375: no
-        // escalation was possible, which reads exactly like no escalation being
-        // warranted. Say so here rather than let the next operator find out the
-        // same way.
-        const auto& rc = rules_.context_drift.reality_checkpoint;
-        const auto& cb = rules_.circuit_breaker;
-        std::vector<std::string> unreachable;
-        if (cb.elevated_threshold < rc.pressure_threshold)
-            unreachable.push_back(fmt::format("elevated={:.2f}", cb.elevated_threshold));
-        if (cb.high_threshold < rc.pressure_threshold)
-            unreachable.push_back(fmt::format("high={:.2f}", cb.high_threshold));
-        if (cb.critical_threshold < rc.pressure_threshold)
-            unreachable.push_back(fmt::format("critical={:.2f}", cb.critical_threshold));
-        if (!unreachable.empty()) {
-            std::string joined;
-            for (size_t i = 0; i < unreachable.size(); ++i) {
-                if (i) joined += ", ";
-                joined += unreachable[i];
-            }
-            fprintf(stderr,
-                    "[governance] Note: pressure escalation is gated at %.2f "
-                    "(reality_checkpoint.pressure_threshold), so these circuit "
-                    "breaker levels cannot be reached through sustained pressure: "
-                    "%s. Lower pressure_threshold to at or below your lowest "
-                    "circuit breaker threshold if you want them to fire.\n",
-                    rc.pressure_threshold, joined.c_str());
-        }
+        // The old wording here was "circuit breaker levels will update", which
+        // was only half true and misled at least one shipped config: the
+        // circuit breaker used to share the checkpoint's sustained-pressure
+        // counter, so every level below reality_checkpoint.pressure_threshold
+        // was unreachable. That coupling is gone — the breaker now keeps its own
+        // per-level counters, each gated on its own threshold — so there is no
+        // longer a set of unreachable levels to warn about. What remains true,
+        // and worth saying, is only that the checkpoint's own blocking
+        // intervention is switched off.
     }
 }
 

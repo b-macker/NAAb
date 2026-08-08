@@ -301,7 +301,27 @@ struct DriftState {
 
     // Reality checkpoint state
     double last_pressure_score = 0.0;
+    // Counts turns at or above context_drift.reality_checkpoint.pressure_threshold.
+    // This belongs to the REALITY CHECKPOINT and nothing else: it gates the
+    // checkpoint's own SOFT-blocking enforcement, the dashboard line, and the
+    // script-visible checkpoint.sustained_turns. Do not reuse it for the circuit
+    // breaker — see cb_sustained_turns below.
     int consecutive_high_pressure_turns = 0;
+    // Per-level sustained-pressure counters for the CIRCUIT BREAKER, indexed
+    // 0=ELEVATED, 1=HIGH, 2=CRITICAL. Each counts consecutive turns at or above
+    // that level's own circuit_breaker.<level>_threshold, so <level>_sustained
+    // means exactly what it reads as.
+    //
+    // These exist because the circuit breaker previously shared the checkpoint's
+    // counter, which advances only above reality_checkpoint.pressure_threshold
+    // (default 0.70). Every circuit-breaker threshold below that was therefore
+    // unreachable through pressure however high pressure ran — including the
+    // engine defaults elevated 0.4 and high 0.6, so on a stock config the two
+    // middle levels could never fire. The counter could not simply be repointed:
+    // the checkpoint's own enforcement is SOFT (it blocks, exit 3) and is enabled
+    // by default, so lowering the shared gate would have started blocking runs
+    // that pass today.
+    int cb_sustained_turns[3] = {0, 0, 0};
     int last_checkpoint_turn = -100;   // init negative for no initial cooldown
     int signals_fired_this_turn = 0;
     // Consecutive post-baseline checks where a firing signal was fully absorbed
@@ -436,6 +456,10 @@ public:
 
     // Update checkpoint state fields on DriftState (thread-safe)
     void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn);
+    // Circuit-breaker per-level sustained counters (0=ELEVATED, 1=HIGH, 2=CRITICAL).
+    // Deliberately separate from updateCheckpointState so the checkpoint's counter
+    // and the circuit breaker's cannot drift into sharing a gate again.
+    void updateCbSustained(int handle_id, const int counts[3]);
 
     // Set inherited pressure from prior pipeline stage (thread-safe)
     void setInheritedPressure(int handle_id, double pressure);
