@@ -908,3 +908,122 @@ because a passing test looks identical either way.
 
 Not audited: tier 3 (`tests/gorilla`, 62 candidates) — older scenario tests,
 weaker claims, and auditing them would triple the work.
+
+## Vacuity audit: tier 2
+
+`tests/governance`, `tests/cli`, `tests/property`, `tests/vm` — 39 suites, 168
+`pass`/`ok` sites. Far cleaner than tier 1 in structure, and it still contained
+the single worst assertion found in either tier.
+
+### A suite that had never tested its own subject
+
+`tests/cli/test_js_timeout_rt002.sh` exists for **V-RT-002: JS blocks respect
+`--timeout`**. Both its tests passed. Neither had ever exercised a JS timeout.
+
+Three defects stacked, each hiding the next:
+
+1. The fixture was a bare `while(true) {}`. The JS executor wraps a block as an
+   *expression*, so this is `(while(true) {}` — a `SyntaxError`. The block never
+   ran.
+2. T1's branch accepted **any** non-zero exit as proof: `elif [[ "$ec" -ne 0 ]];
+   then ok "timeout enforced"`. A parse failure in 0 seconds satisfied a test
+   for a 3-second timeout, because "the timeout fired" and "the code never
+   parsed" produce the same observation.
+3. `ec` was never reset between tests. `|| ec=$?` does not fire on success, so
+   T2 read **T1's** exit code; its catch-all `ok "non-zero exit … acceptable"`
+   then reported that as its own pass.
+
+Fixed: the fixture is now an IIFE (`(function(){ while(true) {} })()`) that the
+expression wrapper accepts; `ec` resets per test; and T1 requires `elapsed >= 2`
+alongside the non-zero exit. The elapsed floor is the load-bearing part — it is
+what makes "exited non-zero" mean the timeout rather than a crash. The corrected
+suite runs the full 3 seconds and reports `InternalError: interrupted`, so
+V-RT-002's fix is now demonstrated for the first time rather than assumed.
+
+Restoring the old fixture under the new assertions fails with the syntax error
+quoted; under the old assertions the identical state was a PASS.
+
+**Branch order is part of the fix, and I got it wrong first.** The
+executor-missing check lived in the final `else`, reachable only when `ec == 0`
+— but a missing JS executor exits NON-ZERO, so that branch had always been
+unreachable and the old code caught the case one branch earlier as "timeout
+enforced". Adding a fast-exit failure while leaving the check where it sat
+converted every platform without a JS executor from a false pass into a hard
+FAIL. Linux CI could not have caught it: Linux has the executor. Found by
+re-reading the diff before merge, confirmed by pointing the block at a
+nonexistent language (pre-fix: FAIL, post-fix: SKIP), and fixed by hoisting the
+executor check above the exit-code branches. The general form: **when you make a
+previously-accepting branch strict, check what used to land in it.**
+
+### `test_govern_json_config.sh` T6 / T10
+
+Both unfailable. T6's fallback condition was `elif [ $? -eq 0 ] || true` — the
+`|| true` makes it unconditional, and `$?` referred to the preceding `[ -f ]`
+test rather than to naab, so T6 passed on every possible outcome. T10's was a
+plain `else … pass "(no crash)"`.
+
+T6 was also masking a real mismatch: `govern.json` is discovered relative to the
+**script's** directory, while `governance.telemetry` resolves relative to the
+**CWD**. Running from the repo root therefore wrote `telemetry.json` into the
+repo root while the assertion looked for it in `$WORK_DIR`, and the fallback
+reported success — so neither the mis-based path nor the stray file was ever
+visible. The test now runs from `$WORK_DIR` (as T10 already did) and fails if
+the file is absent. The path-base inconsistency itself is left alone: changing
+where telemetry lands would move files for every existing user, which is not a
+change to make off a test audit.
+
+### Corrections to my own detectors
+
+The absence-guard detector reported 32 tier-2 candidates. Most were false
+positives, and the reasons are worth recording because they bound what these
+scans can claim:
+
+- `count==0` fired on `[ $RC -eq 0 ] && [ -f … ] && grep -q …` conjunctions,
+  where the exit-code test is paired with positive evidence (`test_drift_detection.sh`
+  T54/T56). Not vacuous.
+- Two hits in `tests/cli/test_report_formats.sh` were Python `pass` **statements**
+  inside a heredoc, not the shell helper.
+- `test_drift_detection.sh`'s "unchanged file passes" assertions are each
+  followed by a "modified file blocks" assertion — the pairing shape, correct as
+  built. That suite also isolates its own trust store, which is the practice the
+  leaking suites below lack.
+
+And the sharpest instance in the campaign happened to the *instrument*, not the
+subject. Waiting on CI for this very PR, I armed a poll loop that counted
+incomplete checks:
+
+```
+sum(1 for c in d.get('check_runs', []) if c.get('status') != 'completed')
+```
+
+`curl` to the GitHub API is not authorized in this session — it returns
+`{"message": "GitHub access is not enabled for this session..."}`, a payload with
+no `check_runs` key. The `.get(..., [])` default turned that into an empty list,
+the sum came out `0`, and the loop announced **ALL CHECKS COMPLETED** while eight
+jobs were still running — including every compile-and-test job.
+
+"Zero incomplete checks" and "no access to any checks" are the same observation,
+and the script took the flattering reading. The `.get` default was the permissive
+branch and I never asked what could land in it — the identical mistake as the JS
+timeout branch order, made minutes after writing that lesson down, in the tool
+built to verify the audit. A monitor that cannot distinguish *the work finished*
+from *I cannot see the work* is not a monitor. Any watcher of this kind needs to
+require **positive** evidence — a check count greater than zero — exactly as
+`test_drift_sensitivity.sh` defaults `${L0_SINGLE:-1}` to a failing value.
+
+I also assumed, from the V-GOV-009 work, that `naab-lang` discovers `govern.json`
+from the CWD, and concluded that 11 of the 12 tests in `test_govern_json_config.sh`
+were loading the wrong config. That was wrong: **`naab-lang` discovers from the
+script's directory** — `naab-gov` was the binary with CWD-based discovery. Tested
+before writing it up, which is the only reason it is a paragraph here rather than
+a finding.
+
+### Still open: the trust-store leak
+
+A key dated Aug 3 sits in `~/.naab/trusted-keys`. Suites that write an unsigned
+`govern.json` then hit `INTEGRITY BLOCK` fail standalone while passing under
+`run-all-tests.sh`, which isolates the store: `test_env_scrub_polyglot.sh`,
+`test_polyglot_taint_gov006.sh`, and `test_govern_json_config.sh` (8 of 12
+failing standalone, 12/12 isolated). Pre-existing on master, and the same shape
+one level up — the harness hides the state the test would have reported. Not
+fixed here; whichever suite installs a key without isolation needs finding first.
