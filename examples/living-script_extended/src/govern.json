@@ -352,7 +352,8 @@
       "prompt_compliance_response_min_tokens": 50
     },
     "reality_checkpoint": {
-      "enabled": false
+      "enabled": false,
+      "pressure_threshold": 0.35
     }
   },
 
