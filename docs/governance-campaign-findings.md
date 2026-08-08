@@ -748,6 +748,47 @@ names the gate and lists precisely which configured levels are unreachable
 through pressure, and stays silent when `pressure_threshold` is at or below them
 (verified both ways, plus silent when the checkpoint is enabled).
 
+### Keyed run Aug 8: escalation confirmed working, with the gate corrected
+
+One line changed — `reality_checkpoint: {"enabled": false, "pressure_threshold":
+0.35}` — and nothing else. First live run in the campaign in which the pressure
+escalation path executed at all.
+
+**Confirmed.** One `GOVERNANCE_LEVEL_CHANGE`: `normal -> elevated`, tester,
+turn 11, at exactly `elevated_sustained: 2`. `consecutive_high_pressure_turns`
+reached 2 (it was pinned at 0 on every prior run). Peak composite 0.375 —
+*identical* to Aug 4. The pressure was never the blocker; the gate was. Aug 4
+had **7** turns above 0.35 and could not escalate; this run had **3** and did.
+
+**Still unexercised, and the run could not have exercised them:**
+
+- **De-escalation hysteresis.** Escalation landed at turn 11 of 12 in segment 1,
+  and the raising handle (tester) never took another turn in that process. Calm
+  turns are counted only from `deescalate_pressure_handle_`, so
+  `deescalate_sustained: 3` had nothing to count and could not fire by
+  construction. Segment 1 ended at `elevated`; segment 2 is a **new process**
+  that starts at `normal`. The apparent recovery is a restart, not the
+  mechanism — a distinction worth stating because the run summary read it as
+  "level stayed elevated for the rest of the run", which is true of the process
+  and false of the run.
+- **HIGH and CRITICAL.** Peak 0.375 against `high_threshold` 0.55. Not close.
+
+**Challenge attribution — 3 of 8, not 8 of 8.** The run passed 8 step-up
+challenges and failed none, but they do not all belong to the escalation.
+`step_up_at_level` is `elevated`, yet three fired while the level was `normal`,
+two of them in segment 2 which never escalated at all. Reading them against the
+per-agent lease config accounts for it: the developer's fire at turn 20 in
+**both** segments (`standing_lease_turns: 20`), and the reviewer's at turns 2-3
+(`standing_lease_seconds: 300` — it is consulted intermittently, so five minutes
+of wall clock elapses between its turns). Lease expiry forces a challenge
+regardless of level, as does `step_up_on_inadmissible`, which this config
+enables. Only the operator's three, at turns 8-10 under `elevated`, are
+escalation-driven. A challenge count is not an escalation measurement.
+
+So the honest status: **escalation confirmed**, de-escalation and the upper two
+levels still stub-only, and challenge counts need attributing to their trigger
+before they mean anything about scrutiny.
+
 No status upgrades to "confirmed". All five conditions are legitimate
 non-occurrences — the run was clean enough that the corrective mechanisms had
 nothing to correct. The run confirms that their *non-firing* paths behave
