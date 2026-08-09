@@ -719,6 +719,50 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (lim.contains("data") && lim["data"].is_object()) {
             auto& d = lim["data"];
+
+            // limits.data.string_length / nesting_depth / dict_size are parsed,
+            // recorded in explicitly_set (so they take part in the ratchet and in
+            // inheritance) and clamped -- and then read by nothing. Their only
+            // readers are GovernanceEngine::checkStringLength / checkNestingDepth /
+            // checkDictSize, which have zero call sites anywhere in src/: defined
+            // once, declared once in governance.h, never invoked. So an operator
+            // can set a HARD data limit, see it survive validation, and get no
+            // enforcement at all.
+            //
+            // NOT warned, because they are live and would be false alarms:
+            //   * output_size    -- read at polyglot.cpp:718, which enforces it
+            //                       directly (as a plain runtime_error rather than
+            //                       through enforce(), so it produces no finding or
+            //                       telemetry -- a separate gap, tracked in
+            //                       docs/open-investigations.md, not fixed here).
+            //   * array_size     -- mirrored to rules_.max_array_size, which has
+            //                       live consumers.
+            //   * max_json_depth -- calls setMaxJsonDepth(), read by json_impl.cpp.
+            //
+            // That last one is why nesting_depth's message names it: the two
+            // spellings are documented as the same setting and behave differently,
+            // so "your key does nothing" is only half the help an operator needs.
+            //
+            // The checks are deliberately NOT wired in instead. They enforce at
+            // HARD (exit 3, uncatchable), and 32 config sites in this repo already
+            // set these keys -- including both govern-template.json copies and
+            // tests/gorilla/naab-32/phases/phase1-hardening.json, which sets
+            // dict_size 50 and nesting_depth 8, tight enough to block ordinary
+            // data. Wiring them in would start hard-blocking configs that pass
+            // today, which is a behaviour change wearing a bug fix's clothes.
+            auto warnInertLimit = [&d](const char* key, const char* extra) {
+                if (d.contains(key) && d[key].is_number_integer()) {
+                    fprintf(stderr,
+                            "[governance] Warning: \"limits.data.%s\" is parsed but not enforced — "
+                            "no check reads it.%s\n", key, extra);
+                }
+            };
+            warnInertLimit("string_length", "");
+            warnInertLimit("dict_size", "");
+            warnInertLimit("nesting_depth",
+                           " Use \"limits.data.max_json_depth\" for JSON parse depth,"
+                           " which is enforced.");
+
             if (d.contains("array_size") && d["array_size"].is_number_integer()) { rules_.limits.data.array_size = d["array_size"].get<int>(); rules_.max_array_size = rules_.limits.data.array_size; rules_.explicitly_set.insert("limits.data.array_size"); rules_.explicitly_set.insert("max_array_size"); }
             if (d.contains("dict_size") && d["dict_size"].is_number_integer()) { rules_.limits.data.dict_size = d["dict_size"].get<int>(); rules_.explicitly_set.insert("limits.data.dict_size"); }
             if (d.contains("string_length") && d["string_length"].is_number_integer()) { rules_.limits.data.string_length = d["string_length"].get<int>(); rules_.explicitly_set.insert("limits.data.string_length"); }
