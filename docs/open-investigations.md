@@ -30,7 +30,8 @@ review. That base rate is the argument for looking systematically.
 
 | # | Item | Status | How to settle it |
 |---|---|---|---|
-| A1 | **6 of 9 contradiction checks have no test at all** — `CONTRA-001, 003, 004, 005, 008, 010`. Of the three that do, one (`007`) was dead. `CONTRA-006` does not exist; explain the gap. | open | For each: construct a config that should trip it, confirm it fires. Any that cannot fire is a `CONTRA-007` repeat. Cheap, keyless. |
+| A1 | **6 of 9 contradiction checks have no test at all** — `CONTRA-001, 003, 004, 005, 008, 010`. Of the three that do, one (`007`) was dead. `CONTRA-006` does not exist; explain the gap. | **in progress** | All nine now confirmed to fire against a hand-built config (probed 2026-08-09) — none is a `CONTRA-007` repeat. Two notes: `CONTRA-001` is hardcoded SOFT, so it aborts the load and prints its description with an **empty `Rule:` field** — the pattern id never reaches the operator; and probing it turned up the `restrictions.*.enabled` finding below. Remaining: commit a coverage suite so this cannot regress, and fix the empty `Rule:`. |
+| A1a | **A SOFT/HARD contradiction block does not name which pattern fired.** `CONTRA-001` at SOFT prints `Rule: ` empty. The ADVISORY path prints `contradiction.CONTRA-001` correctly. | open | Pass `rule_name` through the `formatError` call in `detectContradictions()`. Small, but it is the difference between an operator being able to look the pattern up and not. |
 | A2 | **Systematic inert-mechanism sweep of the engine.** Beyond CONTRA: which other checks read state that is normalized away, or depend on a counter fed by a different threshold? | open | Enumerate `enforce()` / `recordPass()` call sites; for each, ask what input would make it fire and whether that input can reach it. |
 | A3 | **Which `enforce()` sites have never fired in any committed run?** A check that has never fired in 38 archived runs is a candidate for being unfireable. | open | Cross-reference rule names in `src/` against `results/*.txt` and `telemetry_*.jsonl` in `examples/*/results/`. |
 
@@ -66,7 +67,7 @@ campaign doc's live-status column.
 | D5 | **Keyless placeholder counts are hand-maintained and wrong** — `seq 1 155` (v1) / `seq 1 115` (v2) against real keyed totals 171 / 109 | open | Registry-driven skips fix this; same retrofit. |
 | D6 | **No `PHASE\|X\|end` markers** — a phase is only ever "reached", so truncation mid-phase looks like completion | open | `phase_complete()` exists in gatelib; the `.naab` scripts must emit the end markers. |
 | D7 | **v2 `summary.json` lacks the `failed` ID array** that v1 carries — a fail count with no identities cannot be triaged later | open | Same retrofit. |
-| D8 | **Trust-store leak has no identified cause.** A stray key breaks three suites when run standalone; all 49 files were checked and none leaked. | parked | Likely a manual `--trust-key` during development. Defensive fix (isolate ~35 suites that create a `govern.json`) offered, not applied. |
+| D8 | **Trust-store leak: cause now understood, fix still not applied.** The store is NOT written during a run — `~/.naab/trusted-keys` is dated Aug 3 and unchanged. What varies is that suites using `trust_setup.sh` repoint `NAAB_TRUST_STORE_DIR` while they run, so a probe issued during that window sees an empty store and succeeds, and the same probe outside it hits `INTEGRITY BLOCK`. | open | Not a leak — a missing isolation in the ~35 suites that write an unsigned `govern.json`. Repoint them at `trust_setup.sh` on touch. **Any ad-hoc probe against a dev container must isolate the store itself**, or its results are timing-dependent; this cost a wrong reading once already. |
 
 ## E. living-script v3 roadmap
 
@@ -108,3 +109,11 @@ Not tasks — the things that keep being rediscovered.
 - **A gate must never assert "agent X is at level Y".** `governance_level_` is a
   single global atomic; only "the system reached Y while X was the pressure
   handle" is falsifiable.
+- **A gate must exclude its own artefact from its own evidence.** `RE-10` counted
+  `restrictions.crypto` to show the check ran, and the warning it was testing
+  *names the rule it warns about* — so the gate counted the warning as proof of
+  the thing the warning complains about. It passed under an `INTEGRITY BLOCK`
+  where nothing executed at all.
+- **Isolate the trust store in any ad-hoc probe.** Otherwise the result depends
+  on whether some other suite happened to have `NAAB_TRUST_STORE_DIR` repointed
+  at the time (D8).

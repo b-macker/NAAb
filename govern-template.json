@@ -390,7 +390,7 @@
       "block_command_injection": true
     },
     "crypto": {
-      "enabled": false,
+      "enabled": true,
       "level": "advisory",
       "block_weak_hashing": true,
       "weak_hashes": ["md5", "sha1"],
