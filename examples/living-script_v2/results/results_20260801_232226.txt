@@ -1,0 +1,386 @@
+# commit=ffb6d79b5cd94f4d01d37e9ecac28925848acbc0 binary=/data/data/com.termux/files/home/.naab/language/examples/living-script_v2/../../build/naab-lang binary_mtime=2026-07-31T22:47:27-0400 governance_kill=none
+PHASE|INIT|start
+INIT_AGENTS: 10
+PHASE|TOOL_REGISTRATION|start
+TOOL_REGISTRATION|validate_python=true
+TOOL_REGISTRATION|validate_shell=true
+TOOL_REGISTRATION|delegate_engine=true
+TOOL_REGISTRATION|delegate_deploy=true
+TOOL_REGISTRATION|delegate_test=true
+TOOL_REGISTRATION|total=5
+PHASE|PREFLIGHT|start
+PREFLIGHT|agent_checks=13|total_configs=13
+PREFLIGHT|baseline_health=healthy|baseline_epoch=0
+PREFLIGHT|codegen_enabled=true|has_python=true|has_shell=true|languages=2
+PREFLIGHT|pm_tools_enabled=true|pm_tools_available=[delegate_engine, delegate_deploy, delegate_test]
+PHASE|TOOL_EXEC|start
+TOOL_LOOP|tool_probe_pm|calls=1|turns=1|exit=api_error|budget_left=4
+TOOL_RESULT|tool_probe_pm|delegate_engine|success=true|ms=5451
+TOOL_EXEC|positive_control|calls=1|loop_turns=1|results=1|exit=api_error
+TOOL_EXEC|negative_control_calls=0
+TOOL_EXEC|dual_gate_held=true
+PHASE|DESIGN|start
+TURN|engine_lead|design|c=1
+TURN|deploy_lead|design|c=1
+TURN|test_lead|design|c=1
+OPERATOR|action=transition|reasoning=Design phase is complete with perfect coherence. Moving to implementation, the agents should focus on their specific module files while referencing the overall architecture summary to keep token usage efficient.
+OPERATOR|set_msg_prefix|len=109
+PHASE|IMPLEMENT|start
+TOOL_LOOP|engine_dev|calls=1|turns=1|exit=api_error|budget_left=2
+TOOL_RESULT|engine_dev|validate_python|success=true|ms=105
+TURN|engine_dev|build_engine|c=1
+IMPLEMENT|engine_extract_empty|retrying|len=0
+IMPLEMENT|build_engine.py|written|len=3114
+TURN|deploy_dev|deploy_sh|c=1
+DEPLOY|syntax_ok=true
+IMPLEMENT|deploy.sh|written|len=1519
+TURN|test_dev|test_build|c=1
+TEST|import_ok=true
+IMPLEMENT|test_build.py|written|len=3037
+CODE|engine=3114|deploy=1519|test=3037
+PYTEST|exit=1
+TESTMASS|tests=11|asserts=18|pytest_passed=false
+PYTEST|first_error=E   AssertionError: assert ['A'] == ['C', 'B', 'A']
+PYTEST|error_site=test_build.py:57: in test_engine_build_with_deps
+PYTEST|=========================== short test summary info ============================
+PYTEST|FAILED test_build.py::test_engine_build_with_deps - AssertionError: assert ['...
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|========================= 2 failed, 9 passed in 0.05s ==========================
+IMPLEMENT|pytest_passed=false
+OPERATOR|action=observe|reasoning=Coherence remains perfect (1.0). Despite the failed test, the team has not diverged from the design invariants. No structural adjustments are needed; simply focus the agents on debugging the failed test integration.
+OPERATOR|set_msg_prefix|len=109
+PHASE|REFINE|start
+PYTEST|exit=1
+TESTMASS|tests=11|asserts=18|pytest_passed=false
+PYTEST|first_error=E   AssertionError: assert ['A'] == ['C', 'B', 'A']
+PYTEST|error_site=test_build.py:57: in test_engine_build_with_deps
+PYTEST|=========================== short test summary info ============================
+PYTEST|FAILED test_build.py::test_engine_build_with_deps - AssertionError: assert ['...
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|========================= 2 failed, 9 passed in 0.05s ==========================
+REFINE|pytest_seed|passed=false
+REFINE_ITER|1|start
+REFINE|engine_dev_rewrote|len=3936
+TURN|engine_dev|fix1|c=1
+PYTEST|exit=1
+TESTMASS|tests=11|asserts=18|pytest_passed=false
+PYTEST|first_error=E   TypeError: DependencyGraph.resolve() missing 1 required positional argument: 'target_name'
+PYTEST|error_site=test_build.py:29: in test_graph_add_targets
+PYTEST|FAILED test_build.py::test_graph_empty - TypeError: DependencyGraph.resolve()...
+PYTEST|FAILED test_build.py::test_graph_diamond_dependency - TypeError: DependencyGr...
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|========================= 6 failed, 5 passed in 0.06s ==========================
+VALIDATE|iter1|engine_syntax=true
+VALIDATE|iter1|engine_imports=true
+VALIDATE|iter1|engine_convergence=true
+VALIDATE|iter1|pytest_exit=1
+VALIDATE|iter1|test_convergence=true
+VALIDATE|iter1|pytest_passed=false
+VALIDATE|iter1|assert_count=18
+VALIDATE|iter1|total_checks=5
+VALIDATE|iter1|test_func_count=11
+REFINE_ITER|1|end|passed=false
+REFINE_ITER|2|start
+REFINE|engine_dev_rewrote|len=3627
+TURN|engine_dev|fix2|c=0.865
+PYTEST|exit=1
+TESTMASS|tests=11|asserts=18|pytest_passed=false
+PYTEST|first_error=E   AssertionError: assert ['A', 'B', 'C'] == ['C', 'B', 'A']
+PYTEST|error_site=test_build.py:37: in test_graph_resolve_order
+PYTEST|FAILED test_build.py::test_graph_resolve_order - AssertionError: assert ['A',...
+PYTEST|FAILED test_build.py::test_graph_diamond_dependency - AssertionError: assert ...
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|========================= 3 failed, 8 passed in 0.07s ==========================
+VALIDATE|iter2|engine_syntax=true
+VALIDATE|iter2|engine_imports=true
+VALIDATE|iter2|engine_convergence=true
+VALIDATE|iter2|pytest_exit=1
+VALIDATE|iter2|test_convergence=true
+VALIDATE|iter2|pytest_passed=false
+VALIDATE|iter2|assert_count=18
+VALIDATE|iter2|total_checks=5
+VALIDATE|iter2|test_func_count=11
+REFINE_ITER|2|end|passed=false
+REFINE_ITER|3|start
+REFINE|engine_dev_rewrote|len=3738
+TURN|engine_dev|fix3|c=0.73
+PYTEST|exit=1
+TESTMASS|tests=11|asserts=18|pytest_passed=false
+PYTEST|first_error=E   Failed: DID NOT RAISE <class 'build_engine.BuildError'>
+PYTEST|error_site=test_build.py:81: in test_engine_missing_target
+PYTEST|E   Failed: DID NOT RAISE <class 'build_engine.BuildError'>
+PYTEST|=========================== short test summary info ============================
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|========================= 1 failed, 10 passed in 0.05s =========================
+VALIDATE|iter3|engine_syntax=true
+VALIDATE|iter3|engine_imports=true
+VALIDATE|iter3|engine_convergence=true
+VALIDATE|iter3|pytest_exit=1
+VALIDATE|iter3|test_convergence=true
+VALIDATE|iter3|pytest_passed=false
+VALIDATE|iter3|assert_count=18
+VALIDATE|iter3|total_checks=5
+VALIDATE|iter3|test_func_count=11
+REFINE_ITER|3|end|passed=false
+REFINE|total_iterations=3|passed=false
+PHASE|REVIEW|start
+REVIEW|engine_reviewer|verdict=REJECTED
+[governance] Response quarantined (coherence: 0.595)
+OA|engine_dev|inadmissible|coherence=0.595|threshold=0.6|action=quarantine|streak=0
+REVIEW|engine_dev_fixed|len=3777
+TURN|engine_reviewer|review|c=1
+REVIEW|test_reviewer|verdict=REJECTED
+REVIEW|test_dev_fixed|len=4532
+TURN|test_reviewer|review|c=1
+PHASE|PROPOSE_SELECT|start
+PROPOSE_SELECT|candidates=3
+PROPOSE_CAND|0|admissible=false|score=1
+PROPOSE_CAND|1|admissible=false|score=1
+PROPOSE_CAND|2|admissible=false|score=1
+PROPOSE_SELECT|admissible_count=0|selected_index=-1
+PROPOSE_SELECT|candidates=3|committed=false
+PHASE|FAN_OUT_REVIEW|start
+FAN_OUT_REVIEW|votes=2|verdict=REJECTED|majority=2
+FAN_OUT_REVIEW|final_verdict=REJECTED
+PHASE|FEATURES|start
+FEATURES|scanning|found=3 requirements
+FEATURE|1|start|Add parallel build execution to BuildEngine. When building a target with multiple independent dependencies, execute them concurrently using a thread pool. Add methods: build_parallel(target, max_workers=4) that resolves dependencies and builds independent targets in parallel, get_build_timeline() that returns the execution order with timestamps.
+TURN|engine_lead|feature1|c=1
+FEATURE|1|engine_updated|len=6902
+TURN|engine_dev|feat1_engine|c=0.875
+TURN|test_dev|feat1_test|c=1
+PYTEST|exit=1
+TESTMASS|tests=18|asserts=30|pytest_passed=false
+PYTEST|first_error=E   Failed: DID NOT RAISE <class 'build_engine.BuildError'>
+PYTEST|error_site=test_build.py:52: in test_engine_duplicate_registration
+PYTEST|FAILED test_build.py::test_engine_duplicate_registration - Failed: DID NOT RA...
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|FAILED test_build.py::test_engine_cyclic_dependency - RecursionError: maximum...
+PYTEST|========================= 3 failed, 15 passed in 0.14s =========================
+VALIDATE|feat1|engine_syntax=true
+VALIDATE|feat1|engine_imports=true
+VALIDATE|feat1|engine_convergence=true
+VALIDATE|feat1|pytest_exit=1
+VALIDATE|feat1|test_convergence=true
+VALIDATE|feat1|pytest_passed=false
+VALIDATE|feat1|assert_count=30
+VALIDATE|feat1|total_checks=5
+VALIDATE|feat1|test_func_count=18
+PYTEST_FIX|engine_dev_fixed|engine=7035
+TURN|engine_dev|pytest_fix1|c=0.905
+PYTEST|exit=1
+TESTMASS|tests=18|asserts=30|pytest_passed=false
+PYTEST|first_error=E   Failed: DID NOT RAISE <class 'build_engine.BuildError'>
+PYTEST|error_site=test_build.py:85: in test_engine_missing_target
+PYTEST|E   Failed: DID NOT RAISE <class 'build_engine.BuildError'>
+PYTEST|=========================== short test summary info ============================
+PYTEST|FAILED test_build.py::test_engine_missing_target - Failed: DID NOT RAISE <cla...
+PYTEST|========================= 1 failed, 17 passed in 0.12s =========================
+VALIDATE|feat1|attempt1_pytest_passed=false
+PYTEST_FIX|engine_dev_fixed|engine=7119
+TURN|engine_dev|pytest_fix1|c=0.935
+PYTEST|exit=0
+TESTMASS|tests=18|asserts=30|pytest_passed=true
+PYTEST|test_build.py ..................                                         [100%]
+PYTEST|============================== 18 passed in 0.10s ==============================
+VALIDATE|feat1|attempt2_pytest_passed=true
+OPERATOR|action=adjust|reasoning=While overall coherence is high, the engine developer's min coherence dipped significantly (0.595). By setting context_strategy to 'full', the agent gains complete visibility into the existing build logic to prevent regression during the introduction of threading primitives.
+OPERATOR|adjustment_applied|count=1
+OPERATOR|set_msg_prefix|len=119
+FEATURE|1|complete
+FEATURE|2|start|Add a build plugin system. Plugins register via register_plugin(name, plugin) where plugin has hooks: pre_build(target), post_build(target, result), on_error(target, error). Add methods: register_plugin(name, plugin), list_plugins(), enable_plugin(name), disable_plugin(name). Plugins execute in registration order. Plugin errors are isolated (caught and logged, never crash the build).
+TURN|engine_lead|feature2|c=1
+FEATURE|2|engine_updated|len=8856
+TURN|engine_dev|feat2_engine|c=1
+TURN|test_dev|feat2_test|c=0.915
+PYTEST|exit=0
+TESTMASS|tests=21|asserts=35|pytest_passed=true
+PYTEST|test_build.py .....................                                      [100%]
+PYTEST|============================== 21 passed in 0.12s ==============================
+VALIDATE|feat2|engine_syntax=true
+VALIDATE|feat2|engine_imports=true
+VALIDATE|feat2|engine_convergence=true
+VALIDATE|feat2|pytest_exit=0
+VALIDATE|feat2|test_convergence=true
+VALIDATE|feat2|pytest_passed=true
+VALIDATE|feat2|assert_count=35
+VALIDATE|feat2|total_checks=5
+VALIDATE|feat2|test_func_count=21
+OPERATOR|action=observe|reasoning=Team coherence recovered to 1.0 following the previous adjustment. The slight dip in test_dev is well within acceptable variance for adding a complex feature like a plugin system. No further resource adjustments are required at this stage.
+OPERATOR|set_msg_prefix|len=119
+FEATURE|2|complete
+FEATURE|3|start|Add remote caching to BuildEngine. Cache build outputs keyed by content hash of inputs (source + dependencies). Add methods: enable_cache(cache_dir), cache_lookup(target) returning CacheResult(hit, path, hash), cache_store(target, output), get_cache_stats() returning dict with hits, misses, hit_rate, total_size. Cache invalidation when any input changes.
+TURN|engine_lead|feature3|c=1
+FEATURE|3|engine_updated|len=11333
+TURN|engine_dev|feat3_engine|c=1
+TURN|test_dev|feat3_test|c=0.83
+PYTEST|exit=0
+TESTMASS|tests=22|asserts=41|pytest_passed=true
+PYTEST|test_build.py ......................                                     [100%]
+PYTEST|============================== 22 passed in 0.11s ==============================
+VALIDATE|feat3|engine_syntax=true
+VALIDATE|feat3|engine_imports=true
+VALIDATE|feat3|engine_convergence=true
+VALIDATE|feat3|pytest_exit=0
+VALIDATE|feat3|test_convergence=true
+VALIDATE|feat3|pytest_passed=true
+VALIDATE|feat3|assert_count=41
+VALIDATE|feat3|total_checks=5
+VALIDATE|feat3|test_func_count=22
+OPERATOR|action=none|reasoning=Coherence remains strong (1.0). The slight dip in test_dev is expected given the complexity of testing hash-based invalidation. No adjustments are needed; the system is performing optimally.
+OPERATOR|set_msg_prefix|len=114
+FEATURE|3|complete
+FEATURES|total=3
+PHASE|SHELL_CODEGEN_BOUNDARY|start
+SHELL_CODEGEN|basic|output={"output": 42, "exit_code": 0, "language": shell, "duration_ms": 11}|contains_42=true
+SHELL_CODEGEN|args|output={"output": 30, "exit_code": 0, "language": shell, "duration_ms": 1}|contains_30=true
+SHELL_CODEGEN|strict|threw={"message": Codegen error: codegen.run_strict() execution failed
+
+  Language: shell
+  Exit code: 1
+
+  Error output:
+  shell execution error: Persistent shell executor: Process exited unexpectedly
+
+
+  at <script>() [/data/data/com.termux/files/usr/tmp/living-script-v2-3971/work-3971-30600/living-script.naab:0]}
+SHELL_CODEGEN|strict_threw=true
+PHASE|INTROSPECTION|start
+INTROSPECTION|pm|max_tokens=2048|coherence=1|tools_enabled=true
+INTROSPECTION|pm_usage|retries=0|fallbacks=0|truncations=0|latency_ms=0
+INTROSPECTION|engine_lead|max_tokens=2048|coherence=1|ctx_window=20
+INTROSPECTION|engine_lead_usage|retries=0|latency_ms=28071
+INTROSPECTION|deploy_lead|coherence=1
+INTROSPECTION|key_health|available=6|active=[GK1, GK2, GK3, GK4, GK5, GK6]|dead=[]
+INTROSPECTION|dispatch|calls=39|tokens=249118|hard_stopped=false
+PHASE|SEPARATION_OF_DUTIES|start
+SEPARATION|deploy_dev|shell_allowed=true|actions=[AGENT_SEND, TOOL_EXEC, FS_WRITE]
+SEPARATION|pm_agent_send=true|actions=[AGENT_SEND, TOOL_EXEC]
+SEPARATION|engine_reviewer|tool_calls=0|no_shell_enforced=true
+PHASE|RATCHET|start
+[operator] BLOCKED: context_window can only decrease (20 -> 50)
+[operator] No valid changes to apply
+RATCHET|loosen_blocked=true|result=no_valid_changes
+RATCHET|tighten_ok=true|result=
+[operator] Skipped unknown field: system_prompt for engine_dev
+[operator] No valid changes to apply
+RATCHET|field_blocked=true|result=no_valid_changes
+RATCHET|free_adjust_ok=true|result=
+PHASE|ENGINE_RATCHET|start
+ENGINE_RATCHET|loosened_write=|threshold=0.6->0.05|streak=3->99
+GOV_NOTICE|engine_reviewer|agent.engine_dev.context_window: 20 -> 19 (tightened)
+ENGINE_RATCHET|restored=
+ENGINE_RATCHET|probe_ok=true|new_notices=1
+ENGINE_RATCHET|notice=agent.engine_dev.context_window: 20 -> 19 (tightened)
+ENGINE_RATCHET|config_events=2->3|ratchet_events=0->1
+ENGINE_RATCHET|reload_evaluated=true
+ENGINE_RATCHET|engine_rejected_loosening=true
+PHASE|BATCH_PIPELINE|start
+BATCH_PIPELINE|batch_responses=2
+BATCH_PIPELINE|seq_plan=true|pattern=sequential_refinement|iterations=2
+PHASE|GOVERNANCE_HEALTH|start
+GOVERNANCE_HEALTH|verdict=healthy|coherence=0.83|epoch=3|why=
+GOVERNANCE_HEALTH|baseline_verdict=healthy|baseline_epoch=0
+GOVERNANCE_HEALTH|epoch_advanced=true
+PHASE|TELEMETRY_AUDIT|start
+TELEMETRY_AUDIT|unique_types=28|total_events=427
+TELEMETRY_AUDIT|type=CODEGEN_EXEC|count=3
+TELEMETRY_AUDIT|type=POLYGLOT_EXEC|count=3
+TELEMETRY_AUDIT|type=GOVERNANCE_HEALTH_WARNING|count=1
+TELEMETRY_AUDIT|type=CONFIG_ADJUSTMENT|count=4
+TELEMETRY_AUDIT|type=MANDATE_INJECTION|count=3
+TELEMETRY_AUDIT|type=AGENT_PROPOSE|count=1
+TELEMETRY_AUDIT|type=VALIDATION_RECORDED|count=7
+TELEMETRY_AUDIT|type=OUTPUT_INADMISSIBLE|count=1
+TELEMETRY_AUDIT|type=AGENT_TOOL_LOOP_END|count=2
+TELEMETRY_AUDIT|type=AGENT_CHALLENGE_PASS|count=1
+TELEMETRY_AUDIT|type=OUTPUT_ADMISSIBILITY_EVAL|count=39
+TELEMETRY_AUDIT|type=RESPONSE_SUPPRESSED|count=2
+TELEMETRY_AUDIT|type=RECONCILIATION_TURN|count=39
+TELEMETRY_AUDIT|type=SEMANTIC_TURN|count=39
+TELEMETRY_AUDIT|type=RunStart|count=1
+TELEMETRY_AUDIT|type=CDD_TURN|count=39
+TELEMETRY_AUDIT|type=CONVERGENCE_CHECK|count=20
+TELEMETRY_AUDIT|type=AGENT_TOOL_LOOP_START|count=2
+TELEMETRY_AUDIT|type=RESPONSE_SCAN|count=37
+TELEMETRY_AUDIT|type=AGENT_TOOL_CALL|count=2
+TELEMETRY_AUDIT|type=ADMISSION_EVAL|count=39
+TELEMETRY_AUDIT|type=AGENT_TOOL_RESULT|count=2
+TELEMETRY_AUDIT|type=AGENT_RESPONSE|count=39
+TELEMETRY_AUDIT|type=GOVERNANCE_HEALTH_QUERY|count=2
+TELEMETRY_AUDIT|type=QUARANTINE_UNCORROBORATED|count=1
+TELEMETRY_AUDIT|type=AGENT_TOOL_REGISTERED|count=5
+TELEMETRY_AUDIT|type=TRANSCRIPT_REF|count=54
+TELEMETRY_AUDIT|type=PROMPT_SCAN|count=39
+TELEMETRY_AUDIT|expected_found=5|expected_total=5
+TELEMETRY_AUDIT|tool_events_found=3|tool_events_checked=3
+TELEMETRY_AUDIT|consequence|OUTPUT_ADMISSIBILITY_EVAL=39
+TELEMETRY_AUDIT|consequence|OUTPUT_INADMISSIBLE=1
+TELEMETRY_AUDIT|consequence|AGENT_CHALLENGE_PASS=1
+TELEMETRY_AUDIT|consequence|AGENT_CHALLENGE_FAIL=0
+TELEMETRY_AUDIT|consequence|GOVERNANCE_LEVEL_CHANGE=0
+TELEMETRY_AUDIT|consequence|CONFIG_ADJUSTMENT=4
+TELEMETRY_AUDIT|consequence|VALIDATION_RECORDED=7
+TELEMETRY_AUDIT|consequence|BSD_MATCH=0
+TELEMETRY_AUDIT|consequence|RESPONSE_TRUNCATED=0
+TELEMETRY_AUDIT|consequence|AGENT_PROPOSE=1
+TELEMETRY_AUDIT|consequence|AGENT_PROPOSAL_COMMIT=0
+TELEMETRY_AUDIT|consequence|AGENT_TOOL_CALL=2
+TELEMETRY_AUDIT|consequence|AGENT_TOOL_RESULT=2
+TELEMETRY_AUDIT|consequence|TRANSCRIPT_REF=54
+TELEMETRY_AUDIT|consequence_found=9|consequence_total=14
+PHASE|TRANSCRIPT_AUDIT|start
+TRANSCRIPT_AUDIT|lines=54|entry_hash=54|sends=39|creates=14|transcript_ref=54
+TRANSCRIPT_AUDIT|every_entry_hashed=true
+TRANSCRIPT_AUDIT|ref_matches_entries=true
+PHASE|EVIDENCE_AUDIT|start
+EVIDENCE|exec_attestations=39|send_attestations=39|commit_attestations=0|script_sends=39
+EVIDENCE|signed=39|fingerprinted=39
+EVIDENCE|snapshots=78|semantic_turns=39|oa_evals=39
+EVIDENCE|refusals=0|refusal_attestations=0
+PHASE|CROSS_RUN_MEMORY|start
+OPERATOR|action=none|reasoning=The team successfully implemented parallel execution, plugin architecture, and remote caching with high coherence across all streams. The project is stable. I am keeping the current configuration to ensure the final verification passes without introducing unnecessary churn.
+OPERATOR|set_msg_prefix|len=113
+MEMORY|saved|run=1
+PHASE|FINAL_VERDICT|start
+FINAL_VERDICT|error={"message": Agent error: agent.create denied — max agent count reached
+
+  Active agents: 15
+  Limit: 15
+
+  Help:
+  - Reduce the number of concurrent agents
+
+  at <script>() [/data/data/com.termux/files/usr/tmp/living-script-v2-3971/work-3971-30600/living-script.naab:0]}
+FINAL_VERDICT|result=NONE
+SUMMARY_AGENTS: 14
+SUMMARY_SENDS: 40
+SUMMARY_ERRORS: 0
+SUMMARY_ADJUSTMENTS: 1
+SUMMARY_FEATURES: 3
+SUMMARY_VERDICT: NONE
+SUMMARY_TOOL_CALLS: 1
+SUMMARY_PHASES: 23
+SUMMARY_OA_QUARANTINED: 1
+SUMMARY_CHALLENGE_PASSES: 1
+SUMMARY_SHELL_CODEGEN: 3
+CODE_EXTRACT|build_engine.py|extracted=true|len=11333
+CODE_EXTRACT|deploy.sh|extracted=true|len=1519
+CODE_EXTRACT|test_build.py|extracted=true|len=7520
+CONVERGENCE|build_engine.py|valid=true|error=
+CONVERGENCE|build_engine.py|pattern=class BuildTarget|class DependencyGraph|class BuildEngine|class BuildError|def register_target|def build|def get_build_log|def build_parallel|def parallel_build|def incremental_build|def is_stale|def cache_result|def get_cached
+CONVERGENCE|test_build.py|valid=true
+AGENT_STATE|operator|c=1|min=1
+AGENT_STATE|engine_lead|c=1|min=1
+AGENT_STATE|deploy_lead|c=1|min=1
+AGENT_STATE|test_lead|c=1|min=1
+AGENT_STATE|engine_dev|c=1|min=0.595
+AGENT_STATE|engine_reviewer|c=1|min=1
+AGENT_STATE|deploy_dev|c=1|min=1
+AGENT_STATE|test_dev|c=0.83|min=0.83
+AGENT_STATE|test_reviewer|c=1|min=1
+TELEM_EVENTS: 440
+TELEM_CHAIN: true
+HEALTH: healthy
+SUMMARY_ELAPSED: 212.302000045776
+=== LIVING SCRIPT V2 COMPLETE ===

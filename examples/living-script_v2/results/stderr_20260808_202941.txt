@@ -1,0 +1,67 @@
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] Note: pressure escalation is gated at 0.70 (reality_checkpoint.pressure_threshold), so these circuit breaker levels cannot be reached through sustained pressure: elevated=0.35, high=0.55. Lower pressure_threshold to at or below your lowest circuit breaker threshold if you want them to fire.
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-v2-19321/work-19321-24932/govern.json (mode: enforce)
+[hint] dict.get("pytest_output") returned null — available keys: "total_checks"
+[hint] dict.get("pytest_passed") returned null — available keys: "total_checks"
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] Note: pressure escalation is gated at 0.70 (reality_checkpoint.pressure_threshold), so these circuit breaker levels cannot be reached through sustained pressure: elevated=0.35, high=0.55. Lower pressure_threshold to at or below your lowest circuit breaker threshold if you want them to fire.
+[governance] Config reloaded mid-run: 1 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] Note: pressure escalation is gated at 0.70 (reality_checkpoint.pressure_threshold), so these circuit breaker levels cannot be reached through sustained pressure: elevated=0.35, high=0.55. Lower pressure_threshold to at or below your lowest circuit breaker threshold if you want them to fire.
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] Note: pressure escalation is gated at 0.70 (reality_checkpoint.pressure_threshold), so these circuit breaker levels cannot be reached through sustained pressure: elevated=0.35, high=0.55. Lower pressure_threshold to at or below your lowest circuit breaker threshold if you want them to fire.
+[governance] Reload rejected: ratchet violation(s): output_admissibility.threshold: 0.60 -> 0.05 (loosened); output_admissibility.max_quarantine_streak: 3 -> 99 (loosened); context_drift.signals.mandate_alignment: enabled -> disabled (loosened)
+[governance] WARNING taint_tracking.sink_violation (occurrence 2/8)
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] Note: pressure escalation is gated at 0.70 (reality_checkpoint.pressure_threshold), so these circuit breaker levels cannot be reached through sustained pressure: elevated=0.35, high=0.55. Lower pressure_threshold to at or below your lowest circuit breaker threshold if you want them to fire.
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("TRANSCRIPT_REF") returned null — available keys: "RunStart"
+[hint] dict.get("AGENT_TOOL_REGISTERED") returned null — available keys: "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("GOVERNANCE_HEALTH_QUERY") returned null — available keys: "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("PROMPT_SCAN") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("ADMISSION_EVAL") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN", "RunStart"
+[hint] dict.get("AGENT_RETRY") returned null — did you mean "AGENT_TOOL_REGISTERED"?
+[hint] dict.get("AGENT_KEY_DISABLED") returned null — did you mean "AGENT_RETRY"?
+[hint] dict.get("POLYGLOT_EXEC") returned null — available keys: "ADMISSION_EVAL", "AGENT_KEY_DISABLED", "AGENT_RETRY", "GOVERNANCE_HEALTH_QUERY", "RunStart", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN"
+[hint] dict.get("AGENT_RESPONSE") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("AGENT_TOOL_CALL") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("AGENT_TOOL_RESULT") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("AGENT_CHALLENGE_PASS") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("AGENT_CHALLENGE_FAIL") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("GOVERNANCE_LEVEL_CHANGE") returned null — did you mean "GOVERNANCE_HEALTH_QUERY"?
+[hint] dict.get("AGENT_PROPOSE") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("AGENT_PROPOSAL_COMMIT") returned null — did you mean "AGENT_KEY_DISABLED"?
+[hint] dict.get("observations") returned null — available keys: "action"
+[hint] dict.get("reasoning") returned null — available keys: "action"
+
+[governance] Summary (mode: enforce): 68 passed, 4 warnings, 0 blocked
+  ⚠ taint_tracking.sink_violation       [advisory]  WARN
+
+[governance] Telemetry: 28 events written to telemetry.jsonl
+-- Governance: PASS (72 static, 1 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    3 mid-run reload(s) applied
+Checks:     69 passed, 0 blocked, 4 advisory
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+Risk score: 13 (green) [15/50]
+  +13  taint_tracking.sink_violation (4x @3)
+  INTEGRITY: score mismatch (incremental vs recomputed)
+Telemetry:  73 events → telemetry.jsonl
+BSD:        91 events, 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (22 turns analyzed)
+CDD agents: operator=1.00 engine_dev=1.00 2=1.00 engine_lead=1.00 deploy_dev=1.00 engine_reviewer=1.00 pm=1.00 test_lead=1.00 deploy_lead=1.00 test_dev=1.00 min=1.00
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Dispatch:   6 calls (6 retries, 0 tokens, 2039ms)
+Dead keys:  GK5, GK3, GK2, GK6, GK4, GK1
+Codegen:    3 calls (0 blocked, 11ms)
+Pulse:      HEALTHY (72 checks, 2 clean turns, epoch 3)
+────────────────────────────────

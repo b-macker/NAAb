@@ -1,0 +1,619 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "Living Script v2: Multi-Language Build System. 3-tier agent topology (PM/Leads/Workers) builds a dependency-resolving build engine (Python), deploy script (Shell), and test harness (Python). Evolves through 3 features. Exercises polyglot codegen, agent spawning, separation of duties, deep governance.",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "require_explicit": false
+  },
+
+  "capabilities": {
+    "network": { "enabled": true },
+    "filesystem": { "mode": "write" },
+    "shell": { "enabled": true }
+  },
+
+  "runtime": {
+    "timeout": 1800
+  },
+
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
+  "telemetry": {
+    "enabled": true,
+    "output_file": "telemetry.jsonl",
+    "deduplicate_checks": true,
+    "decision_snapshots": true,
+    "tamper_evidence": {
+      "enabled": true,
+      "algorithm": "sha256",
+      "chain_genesis": "living-script-v2"
+    },
+    "transcript": {
+      "enabled": true,
+      "output_file": "transcript.jsonl"
+    }
+  },
+
+  "audit": {
+    "level": "basic",
+    "output_file": "audit.jsonl",
+    "tamper_evidence": {
+      "enabled": true,
+      "algorithm": "sha256",
+      "chain_genesis": "living-script-v2-audit"
+    },
+    "provenance": {
+      "enabled": true,
+      "record_attestations": true,
+      "sign_records": true,
+      "signing_key_env": "NAAB_SIGNING_KEY"
+    }
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "advisory",
+    "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "file.write", "file.append", "http.", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_"]
+  },
+
+  "integrity": {
+    "blocked_flags": ["--governance-override", "--drift-baseline-save", "--no-governance"]
+  },
+
+  "agents": {
+    "operator": {
+      "context_drift_signals": { "mandate_alignment": false },
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 1024,
+      "thinking_budget": 0,
+      "max_turns": 50,
+      "max_total_tokens": 200000,
+      "response_format": "json",
+      "system_prompt": "You are the OPERATOR for a multi-agent team building a multi-language build system with dependency resolution. The system has 3 components: a Python build engine, a shell deploy script, and a Python test harness. Your job is to watch telemetry and adjust team configuration.\n\nYou receive JSON context with coherence scores, telemetry event counts, and phase information. Respond ONLY in JSON:\n\n{\"action\": \"adjust|transition|create_agent|observe|none\", \"adjustments\": {\"agent_name\": {\"field\": value}}, \"message_prefix\": \"optional text prepended to developer prompts\", \"reasoning\": \"why\", \"observations\": \"what you learned\"}\n\nADJUSTABLE FIELDS (increase or decrease freely):\n- context_strategy: \"full\", \"recent\", or \"summary\"\n- max_tokens: increase or decrease response budget (MINIMUM: 2048)\n\nMESSAGE PREFIX (your main steering tool):\n- Set message_prefix to inject a short reminder at start of prompts\n- Keep under 200 chars\n\nTIGHTEN-ONLY FIELDS (can only DECREASE, never increase):\n- context_window: reduce message history window\n- standing_lease_turns: reduce lease duration\n\nCIRCUIT BREAKER (change freely):\n- coherence_correction_threshold (0.0-1.0)\n- mandate_reinforcement_interval (turns between reminders)\n\nCANNOT CHANGE: system_prompt, permissions, allowed_actions, tool access, sandbox level.\n\nGuidelines:\n- Watch developer coherence during feature additions\n- If coherence < 0.8, set message_prefix to reinforce key invariants\n- If coherence < 0.7, try context_strategy: \"summary\"\n- If coherence < 0.6, tighten context_window to 10\n- You may request action: create_agent for a specialist review\n- When observing (no changes needed), use action: \"observe\"",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 20,
+      "context_window": 20,
+      "context_strategy": "summary",
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "pm": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 1024,
+      "max_turns": 30,
+      "max_total_tokens": 300000,
+      "response_format": "json",
+      "system_prompt": "You are a Project Manager for a multi-language build system. You decompose requirements into work items and delegate to team leads.\n\nYou have 3 delegation tools:\n- delegate_engine: send work to the build engine team (Python)\n- delegate_deploy: send work to the deploy script team (Shell)\n- delegate_test: send work to the test harness team (Python)\n\nWhen given a task, analyze it and call the appropriate delegation tool(s). Respond in JSON:\n{\"plan\": \"what you will delegate\", \"components\": [\"engine\", \"deploy\", \"test\"], \"reasoning\": \"why this decomposition\"}\n\nAfter delegation, synthesize results into a coherent status report.",
+      "tools_enabled": true,
+      "tools": ["delegate_engine", "delegate_deploy", "delegate_test"],
+      "max_tool_calls_per_turn": 5,
+      "max_tool_loop_turns": 3,
+      "tool_result_max_chars": 3000,
+      "tool_result_max_total_chars": 8000,
+      "tool_timeout_seconds": 30,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC"],
+      "output_contract": {
+        "format": "text"
+      },
+      "risk_budget": 50,
+      "standing_lease_turns": 20,
+      "standing_lease_seconds": 600,
+      "context_window": 20,
+      "context_strategy": "summary",
+      "propose_candidates_max": 3,
+      "context_drift_signals": { "prompt_compliance": false },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "engine_lead": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 2048,
+      "max_turns": 30,
+      "max_total_tokens": 300000,
+      "system_prompt": "You are the Build Engine Team Lead. You manage the Python build engine component of a multi-language build system. The build engine provides: BuildTarget dataclass, DependencyGraph (topological sort, cycle detection), BuildEngine (register_target, build, get_build_log), and BuildError exception.\n\nYour responsibilities:\n1. Translate PM work items into technical specifications for engine_dev\n2. Review engine_reviewer feedback and decide on fixes\n3. Ensure the build engine handles dependency resolution correctly\n4. Maintain code quality: type hints, docstrings, BuildError for all errors\n\nProvide clear technical direction. When specifying code changes, be precise about method signatures and expected behavior.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 20,
+      "context_window": 20,
+      "context_strategy": "summary",
+      "context_drift_signals": { "prompt_compliance": false },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "deploy_lead": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 1024,
+      "max_turns": 20,
+      "max_total_tokens": 200000,
+      "system_prompt": "You are the Deploy Script Team Lead. You manage the shell deployment component of a multi-language build system. The deploy script packages build artifacts, runs smoke tests, and deploys to a staging directory.\n\nYour responsibilities:\n1. Translate PM work items into shell script specifications for deploy_dev\n2. Ensure POSIX compatibility and proper error handling (set -e, trap)\n3. Review deploy script quality: quoting, exit codes, cleanup\n\nProvide clear specifications for shell scripts. Be precise about expected inputs, outputs, and error handling.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": true,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 15,
+      "context_window": 15,
+      "context_strategy": "summary",
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "test_lead": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 1024,
+      "max_turns": 20,
+      "max_total_tokens": 200000,
+      "system_prompt": "You are the Test Harness Team Lead. You manage the pytest test suite for a multi-language build system. Tests cover the build engine (dependency resolution, cycle detection, incremental builds) and deploy script (smoke tests).\n\nYour responsibilities:\n1. Translate PM work items into test specifications for test_dev\n2. Review test coverage and quality\n3. Ensure tests use pytest fixtures and cover edge cases\n4. All assertions must test specific behavior, not just existence\n\nProvide clear test specifications with expected inputs and outputs.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 15,
+      "context_window": 15,
+      "context_strategy": "summary",
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "engine_dev": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 3072,
+      "min_tokens": 2048,
+      "thinking_budget": 1024,
+      "max_turns": 50,
+      "max_total_tokens": 900000,
+      "system_prompt": "You are a Python developer building a build engine with dependency resolution.\n\nINVARIANTS (never break these):\n- get_build_log() MUST return self._build_log.copy() — NEVER return the internal list directly\n- DependencyGraph.resolve() MUST detect cycles and raise BuildError — NEVER silently skip cyclic deps\n- EVERY error surfaced to the caller MUST be BuildError — convert TypeError/KeyError/ValueError internally\n- ALL methods MUST have type hints (-> return type) and docstrings\n- BuildEngine.build() MUST append a log entry (target_name, success, duration) for each build step\n- Dependency resolution uses topological sort (Kahn's algorithm or DFS)\n\nRULES:\n- When adding features, ONLY add new methods — do NOT modify existing methods\n- Always output the COMPLETE file in ```python fences\n- Code only, no explanation\n- You have access to validate_python tool — use it to verify your code if available",
+      "response_format": "text",
+      "tools_enabled": true,
+      "tools": ["validate_python"],
+      "max_tool_calls_per_turn": 3,
+      "max_tool_loop_turns": 2,
+      "tool_result_max_chars": 2000,
+      "tool_result_max_total_chars": 5000,
+      "tool_timeout_seconds": 10,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC", "FS_WRITE"],
+      "output_contract": {
+        "format": "text",
+        "regex_checks": { "has_class_or_def": "class |def " }
+      },
+      "risk_budget": 50,
+      "standing_lease_turns": 20,
+      "standing_lease_seconds": 600,
+      "context_window": 20,
+      "context_strategy": "summary",
+      "context_drift_signals": { "semantic_stability": false, "instruction_conflict": false, "context_growth": false, "vocabulary_contraction": false },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "engine_reviewer": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 2048,
+      "max_turns": 20,
+      "max_total_tokens": 200000,
+      "system_prompt": "You are a code reviewer for a Python build engine. Review code for bugs, missing type hints, missing docstrings, incorrect error handling (all errors must be BuildError), build log not returning copies, dependency resolution correctness (cycle detection, topological sort), and edge cases. Be specific about what line or method has the problem.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 15,
+      "context_window": 15,
+      "context_strategy": "summary",
+      "context_drift_signals": { "context_growth": false },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "deploy_dev": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 1024,
+      "max_turns": 20,
+      "max_total_tokens": 200000,
+      "system_prompt": "You are a shell script developer writing deployment automation for a build system.\n\nINVARIANTS:\n- Scripts MUST start with #!/bin/bash and set -euo pipefail\n- ALL variables MUST be quoted: \"$VAR\" not $VAR\n- Use trap for cleanup on EXIT/ERR\n- Exit codes: 0=success, 1=build error, 2=deploy error, 3=smoke test failure\n- Log all actions to stderr with timestamps\n- NEVER use eval or unquoted command substitution\n\nRULES:\n- Output the COMPLETE script in ```bash fences\n- Code only, no explanation\n- POSIX-compatible where possible",
+      "response_format": "text",
+      "tools_enabled": true,
+      "tools": ["validate_shell"],
+      "max_tool_calls_per_turn": 2,
+      "max_tool_loop_turns": 2,
+      "tool_result_max_chars": 2000,
+      "tool_result_max_total_chars": 4000,
+      "tool_timeout_seconds": 10,
+      "shell_allowed": true,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC", "FS_WRITE"],
+      "output_contract": {
+        "format": "text",
+        "regex_checks": { "has_shebang_or_func": "#!/|function " }
+      },
+      "risk_budget": 50,
+      "standing_lease_turns": 15,
+      "context_window": 15,
+      "context_strategy": "summary",
+      "context_drift_signals": { "semantic_stability": false, "instruction_conflict": false },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "test_dev": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 3072,
+      "min_tokens": 2048,
+      "thinking_budget": 1024,
+      "max_turns": 30,
+      "max_total_tokens": 400000,
+      "system_prompt": "You are a test engineer writing pytest tests for a build engine with dependency resolution.\n\nINVARIANTS:\n- ALL tests use pytest (import pytest)\n- Use @pytest.fixture for setup\n- Test edge cases: empty graph, single target, diamond dependencies, cycles\n- Error cases MUST use pytest.raises(BuildError)\n- Test build log returns a copy (mutating returned log must not affect engine)\n- Test dependency resolution order matches topological sort\n\nRULES:\n- Output the COMPLETE test file in ```python fences\n- Code only, no explanation\n- Do NOT modify existing tests when adding new ones",
+      "response_format": "text",
+      "tools_enabled": true,
+      "tools": ["validate_python"],
+      "max_tool_calls_per_turn": 3,
+      "max_tool_loop_turns": 2,
+      "tool_result_max_chars": 2000,
+      "tool_result_max_total_chars": 5000,
+      "tool_timeout_seconds": 10,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND", "TOOL_EXEC", "FS_WRITE"],
+      "output_contract": {
+        "format": "text",
+        "regex_checks": { "has_test": "def test_|class Test" }
+      },
+      "risk_budget": 50,
+      "standing_lease_turns": 20,
+      "context_window": 20,
+      "context_strategy": "summary",
+      "context_drift_signals": { "semantic_stability": false, "context_growth": false },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "test_reviewer": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 2048,
+      "max_turns": 15,
+      "max_total_tokens": 150000,
+      "system_prompt": "You are a test reviewer for a build engine test suite. Review tests for completeness, correctness, and coverage. Check that edge cases are tested (cycles, empty graphs, missing targets), that error cases use pytest.raises(BuildError), and that build log copy semantics are verified. Be specific about gaps.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": false,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 10,
+      "context_window": 10,
+      "context_strategy": "summary",
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "integration": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "min_tokens": 1024,
+      "thinking_budget": 1024,
+      "max_turns": 15,
+      "max_total_tokens": 200000,
+      "system_prompt": "You are an integration engineer verifying that the build engine (Python), deploy script (Shell), and test harness work together correctly. Check that build outputs feed into the deploy script, that the deploy script's smoke tests match the test harness expectations, and that end-to-end flows work. Report integration issues with specific component attribution.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": true,
+      "network_allowed": true,
+      "allowed_actions": ["TOOL_EXEC"],
+      "risk_budget": 50,
+      "standing_lease_turns": 10,
+      "context_window": 10,
+      "context_strategy": "recent",
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "quality_judge": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 1024,
+      "thinking_budget": 0,
+      "max_turns": 5,
+      "max_total_tokens": 50000,
+      "system_prompt": "You are a code quality judge for a multi-language build system. Review Python and shell code and vote APPROVED or REJECTED. Be strict: reject if type hints, docstrings, error handling (BuildError for Python, set -e for shell), or build log tracking are missing or incorrect. Provide at least 3 sentences of analysis before your vote. Start with analysis, end with APPROVED or REJECTED.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "context_drift_signals": { "response_degenerate": true },
+      "risk_budget": 50,
+      "standing_lease_turns": 5,
+      "context_window": 5,
+      "context_strategy": "recent",
+      "output_contract": {
+        "format": "text",
+        "regex_checks": { "verdict": "APPROVED|REJECTED" }
+      },
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    },
+    "specialist": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "thinking_budget": 0,
+      "max_turns": 10,
+      "max_total_tokens": 100000,
+      "system_prompt": "You are a specialist agent for focused code improvement on a multi-language build system. Complete the task given to you precisely. When rewriting code, output the COMPLETE file. Wrap Python code in ```python fences and shell code in ```bash fences.",
+      "response_format": "text",
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "risk_budget": 50,
+      "standing_lease_turns": 10,
+      "context_window": 10,
+      "context_strategy": "summary",
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1000 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    }
+  },
+
+  "agent_dispatch": {
+    "default_timeout_seconds": 60,
+    "max_concurrent": 1,
+    "pool_size": 1,
+    "hard_stop": {
+      "max_calls_per_run": 250,
+      "max_tokens_per_run": 2500000,
+      "max_agent_time_ms": 1800000,
+      "consecutive_failure_limit": 10,
+      "action": "block"
+    }
+  },
+
+  "exposure_tracking": {
+    "enabled": true,
+    "max_autonomous_actions": 250,
+    "max_unique_agents": 20,
+    "coherence_floor": 0.10,
+    "level": "advisory",
+    "max_pipeline_depth": 5,
+    "checkpoint_cooldown_turns": 0
+  },
+
+  "pipeline_separation": {
+    "enabled": true,
+    "level": "HARD"
+  },
+
+  "behavioral_sequences": {
+    "enabled": true,
+    "window_size": 150,
+    "cross_agent": true,
+    "patterns": [
+      {
+        "name": "cross_agent_file_relay",
+        "steps": ["FILE_WRITE", "FILE_READ"],
+        "gap": 5,
+        "cross_agent": true
+      },
+      {
+        "name": "cross_agent_tool_chain",
+        "steps": ["TOOL_CALL", "AGENT_SEND", "TOOL_CALL"],
+        "gap": 10,
+        "cross_agent": true
+      },
+      {
+        "name": "tool_validate_write",
+        "steps": ["TOOL_CALL", "TOOL_RESULT", "AGENT_RESPONSE"],
+        "gap": 5,
+        "cross_agent": false
+      }
+    ]
+  },
+
+  "context_drift": {
+    "enabled": true,
+    "level": "advisory",
+    "coherence_threshold": 0.7,
+    "max_contradictions": 5,
+    "check_interval_turns": 1,
+    "fingerprint_window": 10,
+    "rate_normalized": false,
+    "coherence_recovery_amount": 0.25,
+    "coherence_natural_healing": 0.03,
+    "temporal_decay_enabled": true,
+    "temporal_decay_per_minute": 0.003,
+    "temporal_decay_grace_minutes": 3,
+    "adaptive_baseline_enabled": true,
+    "adaptive_baseline_window": 3,
+    "adaptive_baseline_sensitivity": 2.0,
+    "adaptive_absorption_limit": 6,
+    "response_min_output_tokens": 8,
+    "signals": {
+      "circular_actions": true,
+      "repeated_failures": true,
+      "scope_creep": true,
+      "intent_contradictions": true,
+      "coherence_velocity": true,
+      "semantic_stability": true,
+      "mandate_alignment": true,
+      "prompt_compliance": true,
+      "response_degenerate": true
+    },
+    "weights": {
+      "circular": 0.06,
+      "scope_creep": 0.06,
+      "contradiction": 0.10,
+      "repeated_failure": 0.05,
+      "semantic_stability": 0.08,
+      "mandate_alignment": 0.10,
+      "prompt_compliance": 0.10,
+      "persona_fingerprint": 0.03,
+      "entity_consistency": 0.04
+    },
+    "thresholds": {
+      "context_growth_factor": 5.0,
+      "instruction_recall_min": 0.05,
+      "velocity_drop": -0.15,
+      "circular_lookback": 3,
+      "scope_creep_min_history": 3,
+      "scope_creep_min_new_types": 2,
+      "repeated_failure_count": 3,
+      "coherence_history_size": 10,
+      "semantic_stability_min_overlap": 0.20,
+      "instruction_conflict_topic_overlap": 0.55,
+      "mandate_alignment_min": 0.12,
+      "prompt_compliance_mandate_min": 0.10,
+      "prompt_compliance_response_min_tokens": 50
+    },
+    "reality_checkpoint": {
+      "enabled": false
+    }
+  },
+
+  "circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.35,
+    "high_threshold": 0.55,
+    "critical_threshold": 0.8,
+    "elevated_sustained": 2,
+    "high_sustained": 3,
+    "critical_sustained": 4,
+    "critical_coherence": 0.05,
+    "deescalate_sustained": 3,
+    "step_up_enabled": true,
+    "step_up_at_level": "elevated",
+    "step_up_challenge": "Restate your current objective in one sentence, then continue helping.",
+    "step_up_min_words": 5,
+    "step_up_cooldown_turns": 1,
+    "step_up_keyword_threshold": 0.20,
+    "step_up_contextual": true,
+    "step_up_contextual_threshold": 0.15,
+    "step_up_challenge_history": "summary",
+    "step_up_history_recent_count": 10,
+    "max_challenge_failures": 2,
+    "step_up_on_inadmissible": true,
+    "mandate_reinforcement_enabled": true,
+    "mandate_reinforcement_interval": 5,
+    "coherence_correction_enabled": true,
+    "coherence_correction_threshold": 0.85,
+    "coherence_correction_cooldown_turns": 3,
+    "output_admissibility": {
+      "enabled": true,
+      "threshold": 0.60,
+      "action": "quarantine",
+      "inadmissible_history": "exclude",
+      "max_quarantine_streak": 3,
+      "require_corroboration": 2,
+      "gate_tool_calls": true
+    }
+  },
+
+  "advisory_escalation": {
+    "enabled": true,
+    "soft_after": 8,
+    "weight_multiplier": 1.5
+  },
+
+  "governance_health": {
+    "enabled": true,
+    "check_after_turns": 3,
+    "governance_entropy_warning": 0.5,
+    "consecutive_passes_suspicion": 50,
+    "impaired_degraded_turns": 2,
+    "impaired_signal_count": 2,
+    "pulse_cooldown_turns": 2
+  },
+
+  "scoring": {
+    "enabled": true,
+    "yellow_threshold": 15,
+    "red_threshold": 50
+  },
+
+  "codegen": {
+    "enabled": true,
+    "allowed_languages": ["python", "shell"],
+    "max_code_size_bytes": 50000,
+    "max_cumulative_calls": 25,
+    "timeout_seconds": 30,
+    "allow_tainted_code": true
+  },
+
+  "scorers": {
+    "code_quality": {
+      "enabled": true,
+      "default_weight": 3,
+      "rule_weights": {
+        "missing_type_hints": 5,
+        "missing_docstrings": 3,
+        "build_log_copy": 8,
+        "build_error_only": 6
+      },
+      "green_threshold": 0,
+      "yellow_threshold": 10,
+      "red_threshold": 20
+    }
+  },
+
+  "scoring_calibration": {
+    "enabled": true,
+    "path": ".naab/scoring-calibration.json",
+    "auto_save": false
+  },
+
+  "governance": {
+    "verbose": false,
+    "dashboard": true,
+    "quiet": false
+  }
+}

@@ -1,0 +1,2284 @@
+// living-script.naab — Multi-Language Build System with Dependency Resolution
+//
+// V2 scenario: 3-tier agent topology (PM/Leads/Workers) builds:
+//   1. build_engine.py — BuildTarget, DependencyGraph (topological sort,
+//      cycle detection), BuildEngine (register_target, build, get_build_log),
+//      BuildError exception
+//   2. deploy.sh — packages artifacts, runs smoke tests, deploys
+//   3. test_build.py — pytest suite for the build engine
+//
+// Evolves through 3 feature additions (input/requirement-{001,002,003}.txt).
+// Exercises polyglot codegen (shell + python), agent spawning, delegation
+// tools, separation of duties, deep governance, and full audit trail.
+//
+// Agent topology (13 named configs):
+//   operator        — JSON response_format, watches telemetry
+//   pm              — Project Manager, delegation tools
+//   engine_lead     — Build engine team lead
+//   deploy_lead     — Deploy script team lead
+//   test_lead       — Test harness team lead
+//   engine_dev      — Writes build_engine.py, has validate_python tool
+//   engine_reviewer — Reviews engine code, no tools
+//   deploy_dev      — Writes deploy.sh, has validate_shell tool
+//   test_dev        — Writes test_build.py, has validate_python tool
+//   test_reviewer   — Reviews tests, no tools
+//   integration     — Cross-component checks (created later)
+//   quality_judge   — Verdict agent for fan_out
+//   specialist      — On-demand (operator-requested)
+
+use agent
+use file
+use json
+use string
+use time
+use env
+use process
+use governance
+use orchestra
+use array
+use codegen
+
+// --- Helpers ---
+
+fn get_coherence(resp) {
+    let e = resp.get("environment")
+    if e == null { return -1.0 }
+    let s = e.get("state")
+    if s == null { return -1.0 }
+    return s.get("coherence") ?? -1.0
+}
+
+fn safe_send(handle, message) {
+    try {
+        let resp = agent.send(handle, message)
+        let adm = resp.get("admissibility")
+        if adm != null && adm.get("admissible") == false {
+            print("[governance] Response quarantined (coherence: " + string(adm.get("coherence_score")) + ")")
+        }
+        return resp
+    } catch (e) {
+        // Catch block kept deliberately trivial — VM bug: adding locals or
+        // helper calls here fails deep in the script. See v1 comments.
+        return {"error": string(e)}
+    }
+}
+
+fn check_coherence(handle, name) {
+    let c = agent.coherence(handle)
+    if c < 0.3 {
+        print("[governance] " + name + " coherence critically low (" + string(c) + "), resetting")
+        agent.reset(handle)
+        return true
+    }
+    return false
+}
+
+fn post_send_check(handle, resp, name) {
+    let c = get_coherence(resp)
+    if c >= 0 && c < 0.3 {
+        print("[governance] " + name + " coherence dropped to " + string(c) + " after send, resetting")
+        agent.reset(handle)
+        return true
+    }
+    return false
+}
+
+fn read_telemetry_summary() {
+    try {
+        let raw = file.read("telemetry.jsonl")
+        let lines = string.split(string.trim(raw), "\n")
+        let events = []
+        let i = 0
+        while i < lines.length() {
+            if string.length(string.trim(lines[i])) > 2 {
+                try { events.push(json.parse(lines[i])) } catch (e) {}
+            }
+            i = i + 1
+        }
+        let start = 0
+        if events.length() > 20 { start = events.length() - 20 }
+        let recent = []
+        let j = start
+        while j < events.length() {
+            recent.push(events[j])
+            j = j + 1
+        }
+        return {"total_events": events.length(), "recent": recent}
+    } catch (e) {
+        return {"total_events": 0, "recent": []}
+    }
+}
+
+fn apply_operator_adjustments(adjustments, current_phase) {
+    let signing_key_path = env.get("NAAB_SIGN_PATH", "")
+    let naab_binary = env.get("NAAB_BINARY", "naab-lang")
+
+    let freely_adjustable = ["context_strategy", "max_tokens"]
+    let tighten_only = ["context_window", "standing_lease_turns"]
+    let allowed_agent_fields = ["context_window", "context_strategy", "max_tokens", "standing_lease_turns"]
+    let allowed_circuit_fields = ["coherence_correction_threshold", "mandate_reinforcement_interval", "coherence_correction_cooldown_turns"]
+
+    let read_result = process.run("cat", ["govern.json"])
+    if read_result.exit_code != 0 {
+        print("[operator] Failed to read govern.json via shell")
+        return "read_failed"
+    }
+    let config = json.parse(read_result.stdout)
+    let changes_made = false
+
+    let all_known_fields = allowed_agent_fields + allowed_circuit_fields
+    let adj_names = adjustments.keys()
+    let has_flat_fields = false
+    let fi = 0
+    while fi < adj_names.length() {
+        if array.contains(all_known_fields, adj_names[fi]) {
+            has_flat_fields = true
+        }
+        fi = fi + 1
+    }
+    if has_flat_fields {
+        let wrapped = {"developer": {}}
+        let wi = 0
+        while wi < adj_names.length() {
+            let k = adj_names[wi]
+            if array.contains(allowed_circuit_fields, k) {
+                if adjustments.get("circuit_breaker") == null {
+                    wrapped["circuit_breaker"] = {}
+                }
+                wrapped["circuit_breaker"][k] = adjustments[k]
+            } else if array.contains(allowed_agent_fields, k) {
+                wrapped["developer"][k] = adjustments[k]
+            }
+            wi = wi + 1
+        }
+        adjustments = wrapped
+        adj_names = adjustments.keys()
+        print("[operator] Auto-wrapped flat adjustments as developer fields")
+    }
+
+    let i = 0
+    while i < adj_names.length() {
+        let agent_name = adj_names[i]
+        if agent_name == "circuit_breaker" {
+            let cb_fields = adjustments[agent_name].keys()
+            let k = 0
+            while k < cb_fields.length() {
+                if array.contains(allowed_circuit_fields, cb_fields[k]) {
+                    config["circuit_breaker"][cb_fields[k]] = adjustments[agent_name][cb_fields[k]]
+                    changes_made = true
+                } else {
+                    print("[operator] Skipped unknown circuit_breaker field: " + cb_fields[k])
+                }
+                k = k + 1
+            }
+        } else if config["agents"].get(agent_name) != null {
+            let fields = adjustments[agent_name].keys()
+            let j = 0
+            while j < fields.length() {
+                let field = fields[j]
+                if !array.contains(allowed_agent_fields, field) {
+                    print("[operator] Skipped unknown field: " + field + " for " + agent_name)
+                    j = j + 1
+                    continue
+                }
+                if array.contains(tighten_only, field) {
+                    let current = config["agents"][agent_name].get(field) ?? 0
+                    let proposed = adjustments[agent_name][field]
+                    if proposed > current && current > 0 {
+                        print("[operator] BLOCKED: " + field + " can only decrease (" + string(current) + " -> " + string(proposed) + ")")
+                        j = j + 1
+                        continue
+                    }
+                }
+                config["agents"][agent_name][field] = adjustments[agent_name][field]
+                changes_made = true
+                j = j + 1
+            }
+        } else {
+            print("[operator] Skipped unknown agent: " + agent_name)
+        }
+        i = i + 1
+    }
+
+    if !changes_made {
+        print("[operator] No valid changes to apply")
+        return "no_valid_changes"
+    }
+
+    let new_json = json.stringify(config, 2)
+    file.write("_govern_pending.json", new_json)
+    let write_result = process.run("mv", ["_govern_pending.json", "govern.json"])
+    if write_result.exit_code != 0 {
+        print("[operator] Failed to write govern.json: " + write_result.stderr)
+        return "write_failed"
+    }
+    let sign_args = ["--sign-governance"]
+    if len(signing_key_path) > 0 {
+        sign_args = ["--signing-key", signing_key_path, "--sign-governance"]
+    }
+    let sign_result = process.run(naab_binary, sign_args)
+    if sign_result.exit_code != 0 {
+        print("[operator] WARNING: re-signing failed: " + sign_result.stderr)
+        return "sign_failed"
+    }
+    return ""
+}
+
+// --- Raw govern.json access (engine-ratchet probe) ---
+fn read_govern_raw() {
+    let r = process.run("cat", ["govern.json"])
+    if r.exit_code != 0 { return null }
+    try {
+        return json.parse(r.stdout)
+    } catch (e) {
+        return null
+    }
+}
+
+fn write_govern_raw(config) {
+    let signing_key_path = env.get("NAAB_SIGN_PATH", "")
+    let naab_binary = env.get("NAAB_BINARY", "naab-lang")
+    file.write("_govern_raw.json", json.stringify(config, 2))
+    let mv = process.run("mv", ["_govern_raw.json", "govern.json"])
+    if mv.exit_code != 0 { return "write_failed" }
+    let sign_args = ["--sign-governance"]
+    if len(signing_key_path) > 0 {
+        sign_args = ["--signing-key", signing_key_path, "--sign-governance"]
+    }
+    let sr = process.run(naab_binary, sign_args)
+    if sr.exit_code != 0 { return "sign_failed" }
+    return ""
+}
+
+fn count_lines_matching(path, pattern) {
+    try {
+        let g = process.run("grep", ["-c", pattern, path])
+        if g.exit_code != 0 { return "0" }
+        let s = string.trim(g.stdout)
+        if len(s) == 0 { return "0" }
+        return s
+    } catch (e) {
+        return "0"
+    }
+}
+
+fn count_telemetry(pattern) {
+    return count_lines_matching("telemetry.jsonl", pattern)
+}
+
+fn count_fixed_matching(path, pattern) {
+    try {
+        let g = process.run("grep", ["-c", "-F", pattern, path])
+        if g.exit_code != 0 { return "0" }
+        let s = string.trim(g.stdout)
+        if len(s) == 0 { return "0" }
+        return s
+    } catch (e) {
+        return "0"
+    }
+}
+
+// The trust boundary for LLM output. sanitize_ prefix is load-bearing for
+// taint engine (taint_tracking.sanitizers matches it).
+fn sanitize_llm_code(response_content, lang) {
+    return agent.extract_code(response_content, lang)
+}
+
+// Import-check a module rather than just parsing it.
+fn python_import_error(filename, source) {
+    file.write(filename, source)
+    let mod = string.replace(filename, ".py", "")
+    let r = process.run("python3", ["-c", "import " + mod])
+    if r.exit_code == 0 { return "" }
+    let combined = r.stdout + r.stderr
+    let lines = string.split(string.trim(combined), "\n")
+    let li = lines.length() - 1
+    while li >= 0 {
+        let l = string.trim(lines[li])
+        if len(l) > 0 { return l }
+        li = li - 1
+    }
+    return "import failed (no detail)"
+}
+
+fn count_occurrences(haystack, needle) {
+    if len(needle) == 0 { return 0 }
+    return string.split(haystack, needle).length() - 1
+}
+
+// Pytest failure lines for developer consumption.
+fn pytest_failure_digest(pytest_out) {
+    let plines = string.split(pytest_out, "\n")
+    let fail_names = ""
+    let pfi = 0
+    while pfi < plines.length() {
+        let pl = string.trim(plines[pfi])
+        let raw = plines[pfi]
+        if string.contains(pl, "FAILED") || string.contains(pl, "ERROR") || string.contains(pl, "SyntaxError") {
+            fail_names = fail_names + pl + "\n"
+        } else if string.starts_with(raw, "E ") && len(fail_names) < 1500 {
+            fail_names = fail_names + pl + "\n"
+        }
+        pfi = pfi + 1
+    }
+    if len(fail_names) > 1800 { fail_names = string.substring(fail_names, 0, 1800) + "\n[truncated]" }
+    if len(fail_names) < 10 { fail_names = "Tests failed to collect (likely SyntaxError in build_engine.py or test_build.py)" }
+    return fail_names
+}
+
+// Run pytest and validate code for this scenario.
+fn validate_build_code(engine_code, test_code, convergence_pattern) {
+    let results = {}
+    let total_checks = 0
+    let test_func_count = 0
+    let assert_count = 0
+
+    if len(engine_code) > 20 {
+        file.write("_engine_check.py", engine_code)
+        let check = process.run("python3", ["-c", "import ast; ast.parse(open('_engine_check.py').read()); print('SYNTAX_OK')"])
+        results["engine_syntax"] = check.exit_code == 0
+        total_checks = total_checks + 1
+        results["engine_imports"] = len(python_import_error("build_engine.py", engine_code)) == 0
+        total_checks = total_checks + 1
+        let conv = orchestra.enforce_convergence(engine_code, {pattern: convergence_pattern})
+        results["engine_convergence"] = conv.get("valid") ?? false
+        total_checks = total_checks + 1
+    }
+
+    if len(test_code) > 20 {
+        let conv = orchestra.enforce_convergence(test_code, {pattern: "def test_|assert"})
+        results["test_convergence"] = conv.get("valid") ?? false
+        total_checks = total_checks + 1
+        test_func_count = count_occurrences(test_code, "def test_")
+        assert_count = count_occurrences(test_code, "assert ") + count_occurrences(test_code, "pytest.raises")
+        results["test_func_count"] = test_func_count
+        results["assert_count"] = assert_count
+    }
+
+    if len(engine_code) > 20 && len(test_code) > 20 {
+        file.write("build_engine.py", engine_code)
+        file.write("test_build.py", test_code)
+        let pytest_result = process.run("python3", ["-m", "pytest", "test_build.py", "-v", "--tb=short", "--no-header", "-q"])
+        results["pytest_exit"] = pytest_result.exit_code
+        results["pytest_passed"] = pytest_result.exit_code == 0
+        total_checks = total_checks + 1
+        let pytest_out = pytest_result.stdout + pytest_result.stderr
+        results["pytest_output"] = pytest_out
+        print("PYTEST|exit=" + string(pytest_result.exit_code))
+        print("TESTMASS|tests=" + string(test_func_count) + "|asserts=" + string(assert_count) + "|pytest_passed=" + string(pytest_result.exit_code == 0))
+        let plines = string.split(pytest_out, "\n")
+
+        let err_idx = -1
+        let ei = 0
+        while ei < plines.length() {
+            if string.starts_with(plines[ei], "E ") {
+                err_idx = ei
+                ei = plines.length()
+            }
+            ei = ei + 1
+        }
+        if err_idx >= 0 {
+            print("PYTEST|first_error=" + string.trim(plines[err_idx]))
+            let site = ""
+            let fi2 = 0
+            while fi2 < err_idx {
+                let fl = string.trim(plines[fi2])
+                if string.contains(fl, ".py:") && string.contains(fl, ": in ") { site = fl }
+                fi2 = fi2 + 1
+            }
+            if len(site) > 0 { print("PYTEST|error_site=" + site) }
+        }
+
+        let pi = 0
+        if plines.length() > 5 { pi = plines.length() - 5 }
+        while pi < plines.length() {
+            let pl = string.trim(plines[pi])
+            if len(pl) > 0 { print("PYTEST|" + pl) }
+            pi = pi + 1
+        }
+    }
+    results["total_checks"] = total_checks
+    return results
+}
+
+main {
+    let start_time = time.now()
+
+    // ================================================================
+    // PHASE 1: INIT — Load cross-run memory, create agents
+    // ================================================================
+    print("PHASE|INIT|start")
+
+    let memory = {}
+    let memory_path = "memory/observations.json"
+    try {
+        if file.exists(memory_path) {
+            memory = json.parse(file.read(memory_path))
+            print("MEMORY|loaded|runs=" + string(memory.get("run_count") ?? 0))
+        }
+    } catch (e) {
+        print("MEMORY|fresh_start")
+    }
+
+    let operator_handle = agent.create("operator")
+    let handles = {}
+    // Create all named agents except specialist/integration (created later)
+    let worker_names = ["pm", "engine_lead", "deploy_lead", "test_lead", "engine_dev", "engine_reviewer", "deploy_dev", "test_dev", "test_reviewer"]
+    let i = 0
+    while i < worker_names.length() {
+        try {
+            handles[worker_names[i]] = agent.create(worker_names[i])
+        } catch (e) {
+            print("CREATE_ERROR|" + worker_names[i] + "|" + string(e))
+        }
+        i = i + 1
+    }
+    let initial_agents = handles.keys().length() + 1
+    print("INIT_AGENTS: " + string(initial_agents))
+
+    let tracking = {
+        "total_sends": 0, "send_errors": 0, "adjustments_made": 0,
+        "phases_completed": [], "coherences": {}, "min_coherences": {},
+        "challenge_passes": 0, "refinement_iterations": 0, "final_verdict": "NONE",
+        "features_processed": 0, "feature_names": [], "agents_created": initial_agents,
+        "tool_calls_total": 0,
+        "governance_notices": [], "oa_quarantined": 0, "oa_admissible": 0,
+        "oa_max_streak": 0, "oa_min_coherence": 2.0, "challenge_fails": 0,
+        "oa_commit_rejected": 0,
+        "tool_calls_made_total": 0, "tool_loop_turns_total": 0,
+        "shell_codegen_calls": 0
+    }
+
+    // --- track() closure captures tracking dict ---
+    fn track(name, resp) {
+        if resp == null || resp.get("error") != null { return }
+        let c = get_coherence(resp)
+        if c >= 0.0 {
+            tracking["coherences"][name] = c
+            let prev = tracking["min_coherences"].get(name)
+            if prev == null || c < prev { tracking["min_coherences"][name] = c }
+        }
+        let env_data = resp.get("environment")
+        if env_data != null {
+            let state = env_data.get("state")
+            if state != null {
+                let cp = state.get("challenges_passed") ?? 0
+                if cp > tracking["challenge_passes"] { tracking["challenge_passes"] = cp }
+                let cf = state.get("challenges_failed") ?? 0
+                if cf > tracking["challenge_fails"] { tracking["challenge_fails"] = cf }
+                let tc = state.get("tool_calls_total") ?? 0
+                if tc > tracking["tool_calls_total"] { tracking["tool_calls_total"] = tc }
+            }
+        }
+
+        let notices = resp.get("governance_notices")
+        if notices != null {
+            let ni = 0
+            while ni < notices.length() {
+                let ntext = string(notices[ni])
+                tracking["governance_notices"].push(ntext)
+                print("GOV_NOTICE|" + name + "|" + ntext)
+                ni = ni + 1
+            }
+        }
+
+        let adm = resp.get("admissibility")
+        if adm != null {
+            let adm_c = adm.get("coherence_score") ?? adm.get("score") ?? -1
+            if adm.get("admissible") == false {
+                if adm.get("quarantine_streak") != null {
+                    tracking["oa_quarantined"] = tracking["oa_quarantined"] + 1
+                    let streak = adm.get("quarantine_streak") ?? 0
+                    if streak > tracking["oa_max_streak"] { tracking["oa_max_streak"] = streak }
+                    if adm_c >= 0 && adm_c < tracking["oa_min_coherence"] {
+                        tracking["oa_min_coherence"] = adm_c
+                    }
+                    print("OA|" + name + "|inadmissible|coherence=" + string(adm_c) + "|threshold=" + string(adm.get("threshold") ?? -1) + "|action=" + string(adm.get("action") ?? "") + "|streak=" + string(streak))
+                } else {
+                    tracking["oa_commit_rejected"] = tracking["oa_commit_rejected"] + 1
+                    print("OA|" + name + "|commit_inadmissible|propose_score=" + string(adm_c))
+                }
+            } else {
+                tracking["oa_admissible"] = tracking["oa_admissible"] + 1
+            }
+        }
+
+        let tcm = resp.get("tool_calls_made") ?? 0
+        if tcm > 0 {
+            let tlt = resp.get("tool_loop_turns") ?? 0
+            tracking["tool_calls_made_total"] = tracking["tool_calls_made_total"] + tcm
+            tracking["tool_loop_turns_total"] = tracking["tool_loop_turns_total"] + tlt
+            print("TOOL_LOOP|" + name + "|calls=" + string(tcm) + "|turns=" + string(tlt) + "|exit=" + string(resp.get("tool_loop_exit_reason") ?? "") + "|budget_left=" + string(resp.get("tool_budget_remaining") ?? -1))
+            let tres = resp.get("tool_results")
+            if tres != null {
+                let tri = 0
+                while tri < tres.length() {
+                    let tr = tres[tri]
+                    print("TOOL_RESULT|" + name + "|" + string(tr.get("name") ?? "?") + "|success=" + string(tr.get("success") ?? false) + "|ms=" + string(tr.get("latency_ms") ?? -1))
+                    tri = tri + 1
+                }
+            }
+        }
+    }
+
+    // Convergence pattern for build engine — grows as features added
+    let engine_pattern = "class BuildTarget|class DependencyGraph|class BuildEngine|class BuildError|def register_target|def build|def get_build_log"
+
+    // Short invariant reminder for engine_dev
+    let invariants = "Remember your INVARIANTS from your system prompt (especially: get_build_log() MUST return self._build_log.copy() — NEVER return the internal list directly, DependencyGraph.resolve() MUST detect cycles and raise BuildError, EVERY error surfaced must be BuildError, ALL methods MUST have type hints and docstrings, BuildEngine.build() MUST append a log entry for each build step, use topological sort for dependency resolution)."
+
+    // Existing method list — grows as features added
+    let existing_methods = "register_target, build, get_build_log, resolve (DependencyGraph)"
+
+    // Operator message prefix
+    let operator_msg_prefix = ""
+
+    // ================================================================
+    // OPERATOR CONSULTATION
+    // ================================================================
+    fn consult_operator(context) {
+        let telem = read_telemetry_summary()
+        context["telemetry_events"] = telem["total_events"]
+        context["coherences"] = tracking["coherences"]
+        context["min_coherences"] = tracking["min_coherences"]
+        context["adjustments_so_far"] = tracking["adjustments_made"]
+
+        let prompt = json.stringify(context, 2)
+        let resp = safe_send(operator_handle, prompt)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") != null {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+            return {"action": "none"}
+        }
+        track("operator", resp)
+
+        let content = resp.get("content") ?? ""
+        let decision = {"action": "none"}
+        try {
+            if json.is_valid(content) {
+                decision = json.parse(content)
+            } else {
+                let stripped = sanitize_llm_code(content, "json")
+                if len(stripped) > 2 && json.is_valid(stripped) {
+                    decision = json.parse(stripped)
+                }
+            }
+        } catch (e) {
+            print("OPERATOR|json_parse_failed|raw_len=" + string(len(content)))
+            return {"action": "none"}
+        }
+
+        let action = decision.get("action") ?? "none"
+        let reasoning = string(decision.get("reasoning") ?? "")
+        print("OPERATOR|action=" + action + "|reasoning=" + reasoning)
+
+        if action == "adjust" && decision.get("adjustments") != null {
+            let adj = decision["adjustments"]
+            let phase = context.get("phase") ?? ""
+            let rejection = apply_operator_adjustments(adj, phase)
+            if rejection == "" {
+                tracking["adjustments_made"] = tracking["adjustments_made"] + 1
+                print("OPERATOR|adjustment_applied|count=" + string(tracking["adjustments_made"]))
+            } else {
+                print("OPERATOR|adjustment_rejected|" + rejection)
+            }
+        }
+
+        let msg_prefix = decision.get("message_prefix")
+        if msg_prefix != null && len(string(msg_prefix)) > 5 {
+            operator_msg_prefix = string(msg_prefix)
+            print("OPERATOR|set_msg_prefix|len=" + string(len(operator_msg_prefix)))
+        }
+
+        return decision
+    }
+
+    tracking["phases_completed"].push("INIT")
+
+    // ================================================================
+    // PHASE 2: TOOL_REGISTRATION — Register 5 tools
+    // ================================================================
+    print("PHASE|TOOL_REGISTRATION|start")
+
+    let tools_registered = 0
+
+    // Tool 1: validate_python — for engine_dev, test_dev
+    try {
+        fn validate_python_tool(code) {
+            if len(code) < 5 { return json.stringify({"valid": false, "error": "Code too short"}) }
+            file.write("_tool_check.py", code)
+            let result = process.run("python3", ["-c", "import ast; ast.parse(open('_tool_check.py').read()); print('OK')"])
+            if result.exit_code == 0 {
+                return json.stringify({"valid": true, "error": ""})
+            }
+            return json.stringify({"valid": false, "error": string.trim(result.stderr)})
+        }
+        let reg1 = agent.register_tool("validate_python", validate_python_tool, {
+            "description": "Validate Python code syntax using ast.parse",
+            "parameters": {"code": {"type": "string", "description": "Python source code to validate"}}
+        })
+        if reg1 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|validate_python=" + string(reg1))
+    } catch (e) {
+        print("TOOL_REGISTRATION|validate_python_error=" + string(e))
+    }
+
+    // Tool 2: validate_shell — for deploy_dev
+    try {
+        fn validate_shell_tool(code) {
+            if len(code) < 5 { return json.stringify({"valid": false, "error": "Code too short"}) }
+            file.write("_tool_check.sh", code)
+            let result = process.run("bash", ["-n", "_tool_check.sh"])
+            if result.exit_code == 0 {
+                return json.stringify({"valid": true, "error": ""})
+            }
+            return json.stringify({"valid": false, "error": string.trim(result.stderr)})
+        }
+        let reg2 = agent.register_tool("validate_shell", validate_shell_tool, {
+            "description": "Validate shell script syntax using bash -n",
+            "parameters": {"code": {"type": "string", "description": "Shell script code to validate"}}
+        })
+        if reg2 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|validate_shell=" + string(reg2))
+    } catch (e) {
+        print("TOOL_REGISTRATION|validate_shell_error=" + string(e))
+    }
+
+    // Tool 3: delegate_engine — PM tool
+    try {
+        fn delegate_engine_tool(task) {
+            let lead = agent.create("engine_lead")
+            tracking["agents_created"] = tracking["agents_created"] + 1
+            let resp = safe_send(lead, task)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if resp.get("error") != null {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+                return json.stringify({"status": "error", "error": string(resp["error"])})
+            }
+            track("engine_lead_delegate", resp)
+            return json.stringify({"status": "ok", "content": resp.get("content") ?? ""})
+        }
+        let reg3 = agent.register_tool("delegate_engine", delegate_engine_tool, {
+            "description": "Delegate a task to the build engine team lead",
+            "parameters": {"task": {"type": "string", "description": "Task description to delegate"}}
+        })
+        if reg3 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|delegate_engine=" + string(reg3))
+    } catch (e) {
+        print("TOOL_REGISTRATION|delegate_engine_error=" + string(e))
+    }
+
+    // Tool 4: delegate_deploy — PM tool
+    try {
+        fn delegate_deploy_tool(task) {
+            let lead = agent.create("deploy_lead")
+            tracking["agents_created"] = tracking["agents_created"] + 1
+            let resp = safe_send(lead, task)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if resp.get("error") != null {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+                return json.stringify({"status": "error", "error": string(resp["error"])})
+            }
+            track("deploy_lead_delegate", resp)
+            return json.stringify({"status": "ok", "content": resp.get("content") ?? ""})
+        }
+        let reg4 = agent.register_tool("delegate_deploy", delegate_deploy_tool, {
+            "description": "Delegate a task to the deploy script team lead",
+            "parameters": {"task": {"type": "string", "description": "Task description to delegate"}}
+        })
+        if reg4 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|delegate_deploy=" + string(reg4))
+    } catch (e) {
+        print("TOOL_REGISTRATION|delegate_deploy_error=" + string(e))
+    }
+
+    // Tool 5: delegate_test — PM tool
+    try {
+        fn delegate_test_tool(task) {
+            let lead = agent.create("test_lead")
+            tracking["agents_created"] = tracking["agents_created"] + 1
+            let resp = safe_send(lead, task)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if resp.get("error") != null {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+                return json.stringify({"status": "error", "error": string(resp["error"])})
+            }
+            track("test_lead_delegate", resp)
+            return json.stringify({"status": "ok", "content": resp.get("content") ?? ""})
+        }
+        let reg5 = agent.register_tool("delegate_test", delegate_test_tool, {
+            "description": "Delegate a task to the test harness team lead",
+            "parameters": {"task": {"type": "string", "description": "Task description to delegate"}}
+        })
+        if reg5 { tools_registered = tools_registered + 1 }
+        print("TOOL_REGISTRATION|delegate_test=" + string(reg5))
+    } catch (e) {
+        print("TOOL_REGISTRATION|delegate_test_error=" + string(e))
+    }
+
+    print("TOOL_REGISTRATION|total=" + string(tools_registered))
+    tracking["phases_completed"].push("TOOL_REGISTRATION")
+
+    // ================================================================
+    // PHASE 3: PREFLIGHT — validate engine readiness
+    // ================================================================
+    print("PHASE|PREFLIGHT|start")
+
+    let config_names = ["operator", "pm", "engine_lead", "deploy_lead", "test_lead", "engine_dev", "engine_reviewer", "deploy_dev", "test_dev", "test_reviewer", "integration", "quality_judge", "specialist"]
+    let valid_count = 0
+    let ci = 0
+    while ci < config_names.length() {
+        try {
+            let chk = agent.check(config_names[ci])
+            if chk.get("valid") == true { valid_count = valid_count + 1 }
+        } catch (e) {}
+        ci = ci + 1
+    }
+    print("PREFLIGHT|agent_checks=" + string(valid_count) + "|total_configs=" + string(config_names.length()))
+
+    let baseline_health = {}
+    try {
+        baseline_health = governance.health()
+        let bv = baseline_health.get("verdict") ?? "unknown"
+        let be = baseline_health.get("governance_epoch") ?? -1
+        print("PREFLIGHT|baseline_health=" + bv + "|baseline_epoch=" + string(be))
+    } catch (e) {
+        print("PREFLIGHT|baseline_health_error=" + string(e))
+    }
+
+    // Check codegen enabled + shell support
+    try {
+        let cg_enabled = codegen.is_enabled()
+        let cg_langs = codegen.supported_languages()
+        let has_python = false
+        let has_shell = false
+        let li = 0
+        while li < cg_langs.length() {
+            if cg_langs[li] == "python" { has_python = true }
+            if cg_langs[li] == "shell" { has_shell = true }
+            li = li + 1
+        }
+        print("PREFLIGHT|codegen_enabled=" + string(cg_enabled) + "|has_python=" + string(has_python) + "|has_shell=" + string(has_shell) + "|languages=" + string(cg_langs.length()))
+    } catch (e) {
+        print("PREFLIGHT|codegen_error=" + string(e))
+    }
+
+    // Check PM tools_enabled in environment
+    if handles.get("pm") != null {
+        try {
+            let pm_env = agent.environment(handles["pm"])
+            let perms = pm_env.get("permissions") ?? {}
+            let tools_on = perms.get("tools_enabled") ?? false
+            let tools_avail = perms.get("tools_available") ?? 0
+            print("PREFLIGHT|pm_tools_enabled=" + string(tools_on) + "|pm_tools_available=" + string(tools_avail))
+        } catch (e) {
+            print("PREFLIGHT|pm_tools_error=" + string(e))
+        }
+    }
+
+    tracking["phases_completed"].push("PREFLIGHT")
+
+    // ================================================================
+    // PHASE 4: TOOL_EXEC — force tool loop + dual gate test
+    // ================================================================
+    print("PHASE|TOOL_EXEC|start")
+
+    let te_calls = 0
+    let te_turns = 0
+    let te_exit = "none"
+    let te_results = 0
+    let te_neg_calls = -1
+
+    // Positive control: PM with delegation tools
+    if tools_registered > 0 && handles.get("pm") != null {
+        try {
+            let tool_probe_pm = agent.create("pm")
+            tracking["agents_created"] = tracking["agents_created"] + 1
+            let te_msg = "Analyze this build system task and delegate to the appropriate team: 'Design the dependency resolution algorithm for the build engine. It must support topological sort with cycle detection.' Call the delegate_engine tool with this task. Then summarize the delegation plan."
+            let te_resp = safe_send(tool_probe_pm, te_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if te_resp.get("error") == null {
+                track("tool_probe_pm", te_resp)
+                te_calls = te_resp.get("tool_calls_made") ?? 0
+                te_turns = te_resp.get("tool_loop_turns") ?? 0
+                te_exit = string(te_resp.get("tool_loop_exit_reason") ?? "none")
+                let trs = te_resp.get("tool_results")
+                if trs != null { te_results = trs.length() }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+        } catch (e) {
+            print("TOOL_EXEC|probe_error=" + string(e))
+        }
+    }
+    print("TOOL_EXEC|positive_control|calls=" + string(te_calls) + "|loop_turns=" + string(te_turns) + "|results=" + string(te_results) + "|exit=" + te_exit)
+
+    // Negative control: engine_reviewer has tools_enabled=false
+    if handles.get("engine_reviewer") != null {
+        let neg = safe_send(handles["engine_reviewer"], "Review this Python snippet and list every issue you find. If a validate_python tool is available, call it first; if not, review directly and say so.\n```python\ndef build(targets):\n    pass\n```")
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if neg.get("error") == null {
+            track("engine_reviewer", neg)
+            te_neg_calls = neg.get("tool_calls_made") ?? 0
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+    }
+    print("TOOL_EXEC|negative_control_calls=" + string(te_neg_calls))
+    print("TOOL_EXEC|dual_gate_held=" + string(te_neg_calls <= 0))
+    tracking["phases_completed"].push("TOOL_EXEC")
+
+    // ================================================================
+    // PHASE 5: DESIGN — leads produce architecture specs
+    // ================================================================
+    print("PHASE|DESIGN|start")
+    let engine_spec = ""
+    let deploy_spec = ""
+    let test_spec = ""
+
+    // Engine lead designs build engine
+    if handles.get("engine_lead") != null {
+        let design_msg = "Design a Python build engine module (build_engine.py) with these components:\n"
+        design_msg = design_msg + "1. BuildError(Exception): Custom exception for all build errors\n"
+        design_msg = design_msg + "2. BuildTarget dataclass: name (str), command (str), dependencies (List[str], default []), output (str, default '')\n"
+        design_msg = design_msg + "3. DependencyGraph class: add_target(target), resolve(target_name) -> List[str] (topological sort, MUST detect cycles and raise BuildError), has_target(target_name) -> bool\n"
+        design_msg = design_msg + "4. BuildEngine class: __init__(), register_target(target), build(target_name) -> bool (builds with deps in order, logs each step), get_build_log() -> List[dict] (MUST return copy)\n\n"
+        design_msg = design_msg + "This engine will be EXTENDED later with: parallel builds, incremental builds, build caching.\n"
+        design_msg = design_msg + "Output complete spec with function signatures, types, and docstrings."
+        let resp = safe_send(handles["engine_lead"], design_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            engine_spec = resp.get("content") ?? ""
+            track("engine_lead", resp)
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|engine_lead|design|c=" + string(tracking["coherences"].get("engine_lead") ?? -1))
+    }
+
+    // Deploy lead designs deploy script
+    if handles.get("deploy_lead") != null {
+        let deploy_design_msg = "Design a bash deploy script (deploy.sh) for a Python build system:\n"
+        deploy_design_msg = deploy_design_msg + "1. Package build artifacts into a tarball\n"
+        deploy_design_msg = deploy_design_msg + "2. Run smoke tests (import checks, basic function calls)\n"
+        deploy_design_msg = deploy_design_msg + "3. Deploy to a staging directory\n"
+        deploy_design_msg = deploy_design_msg + "4. Must use set -euo pipefail, trap for cleanup, proper quoting\n"
+        deploy_design_msg = deploy_design_msg + "5. Exit codes: 0=success, 1=build error, 2=deploy error, 3=smoke test failure\n"
+        deploy_design_msg = deploy_design_msg + "Output spec with expected inputs, outputs, and error handling."
+        let resp = safe_send(handles["deploy_lead"], deploy_design_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            deploy_spec = resp.get("content") ?? ""
+            track("deploy_lead", resp)
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|deploy_lead|design|c=" + string(tracking["coherences"].get("deploy_lead") ?? -1))
+    }
+
+    // Test lead designs test harness
+    if handles.get("test_lead") != null {
+        let test_design_msg = "Design a pytest test suite (test_build.py) for a build engine with dependency resolution:\n"
+        test_design_msg = test_design_msg + "1. Test BuildTarget creation and field defaults\n"
+        test_design_msg = test_design_msg + "2. Test DependencyGraph: add targets, resolve order, cycle detection\n"
+        test_design_msg = test_design_msg + "3. Test BuildEngine: register, build with deps, build log returns copy\n"
+        test_design_msg = test_design_msg + "4. Edge cases: empty graph, single target, diamond deps, self-cycle\n"
+        test_design_msg = test_design_msg + "5. Error cases: missing target, cyclic deps (must use pytest.raises(BuildError))\n"
+        test_design_msg = test_design_msg + "Output spec with test function names and expected behavior."
+        let resp = safe_send(handles["test_lead"], test_design_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            test_spec = resp.get("content") ?? ""
+            track("test_lead", resp)
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|test_lead|design|c=" + string(tracking["coherences"].get("test_lead") ?? -1))
+    }
+
+    let pending_specialist_request = null
+    let design_decision = consult_operator({"phase": "DESIGN", "event": "design_complete", "engine_spec_len": len(engine_spec), "deploy_spec_len": len(deploy_spec), "test_spec_len": len(test_spec), "question": "Design phase complete. All 3 components designed. Review telemetry. Adjust before implementation?"})
+    if design_decision.get("action") == "create_agent" {
+        pending_specialist_request = design_decision
+    }
+    tracking["phases_completed"].push("DESIGN")
+
+    // ================================================================
+    // PHASE 6: IMPLEMENT — 3 work streams
+    // ================================================================
+    print("PHASE|IMPLEMENT|start")
+    let engine_code = ""
+    let deploy_code = ""
+    let test_code = ""
+
+    // --- Stream A: engine_dev writes build_engine.py ---
+    if handles.get("engine_dev") != null {
+        let engine_msg = ""
+        if len(operator_msg_prefix) > 0 { engine_msg = operator_msg_prefix + "\n\n" }
+        engine_msg = engine_msg + "Write build_engine.py based on this spec:\n" + engine_spec
+        engine_msg = engine_msg + "\n\n" + invariants
+        engine_msg = engine_msg + "\nMUST include:\n"
+        engine_msg = engine_msg + "- BuildError(Exception): custom exception class\n"
+        engine_msg = engine_msg + "- BuildTarget dataclass: name, command, dependencies (default []), output (default '')\n"
+        engine_msg = engine_msg + "- DependencyGraph class with add_target(target), resolve(target_name) using topological sort, cycle detection raising BuildError, has_target(target_name)\n"
+        engine_msg = engine_msg + "- BuildEngine class with register_target(target), build(target_name) that resolves deps and logs each step as {target_name, success, duration}, get_build_log() returning self._build_log.copy()\n"
+        engine_msg = engine_msg + "- All imports from typing and dataclasses\n"
+        engine_msg = engine_msg + "- Type hints and docstrings on everything\n"
+        engine_msg = engine_msg + "```python fences. Code only."
+        let resp = safe_send(handles["engine_dev"], engine_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            track("engine_dev", resp)
+            engine_code = sanitize_llm_code(resp.get("content") ?? "", "python")
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|engine_dev|build_engine|c=" + string(tracking["coherences"].get("engine_dev") ?? -1))
+
+        // Validate imports
+        if len(engine_code) > 20 {
+            let engine_err = python_import_error("build_engine.py", engine_code)
+            print("ENGINE|import_ok=" + string(len(engine_err) == 0))
+            if len(engine_err) > 0 {
+                print("ENGINE|import_error=" + engine_err)
+                let fix_msg = "build_engine.py fails to import:\n" + engine_err + "\n\nFix ONLY that error and output the COMPLETE build_engine.py again. Every name you annotate with must be imported (typing.Any, Dict, List, Optional as needed). ```python fences. Code only."
+                let mresp = safe_send(handles["engine_dev"], fix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if mresp.get("error") == null {
+                    track("engine_dev", mresp)
+                    let fixed_engine = sanitize_llm_code(mresp.get("content") ?? "", "python")
+                    if len(fixed_engine) > 20 {
+                        let retry_err = python_import_error("build_engine.py", fixed_engine)
+                        if len(retry_err) == 0 {
+                            engine_code = fixed_engine
+                            print("ENGINE|repaired=true")
+                        } else {
+                            print("ENGINE|repaired=false|still=" + retry_err)
+                        }
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+            }
+        }
+
+        // Retry if extraction failed
+        let engine_looks_like_code = string.contains(engine_code, "class ") || string.contains(engine_code, "def ")
+        if len(engine_code) < 20 || !engine_looks_like_code {
+            print("IMPLEMENT|engine_extract_empty|retrying|len=" + string(len(engine_code)))
+            let retry_msg = "Output build_engine.py in full, in a single ```python fence, code only. Do NOT call any tools for this.\n\nMUST include: BuildError exception, BuildTarget dataclass, DependencyGraph with topological sort + cycle detection, BuildEngine with register_target, build, get_build_log returning copy."
+            let retry_resp = safe_send(handles["engine_dev"], retry_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if retry_resp.get("error") == null {
+                track("engine_dev", retry_resp)
+                let retry_code = sanitize_llm_code(retry_resp.get("content") ?? "", "python")
+                if len(retry_code) > 20 { engine_code = retry_code }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+        }
+
+        // Write to disk
+        if len(engine_code) > 20 {
+            file.write("build_engine.py", engine_code)
+            print("IMPLEMENT|build_engine.py|written|len=" + string(len(engine_code)))
+        }
+    }
+
+    // --- Stream B: deploy_dev writes deploy.sh ---
+    if handles.get("deploy_dev") != null {
+        let deploy_msg = ""
+        if len(operator_msg_prefix) > 0 { deploy_msg = operator_msg_prefix + "\n\n" }
+        deploy_msg = deploy_msg + "Write deploy.sh based on this spec:\n" + deploy_spec
+        deploy_msg = deploy_msg + "\n\nMUST include:\n"
+        deploy_msg = deploy_msg + "- #!/bin/bash and set -euo pipefail\n"
+        deploy_msg = deploy_msg + "- trap for cleanup on EXIT/ERR\n"
+        deploy_msg = deploy_msg + "- Package build artifacts into a tarball\n"
+        deploy_msg = deploy_msg + "- Run smoke tests (python3 -c 'from build_engine import BuildEngine')\n"
+        deploy_msg = deploy_msg + "- Deploy to a staging directory\n"
+        deploy_msg = deploy_msg + "- Log all actions to stderr with timestamps\n"
+        deploy_msg = deploy_msg + "- Exit codes: 0=success, 1=build error, 2=deploy error, 3=smoke test failure\n"
+        deploy_msg = deploy_msg + "- All variables quoted: \"$VAR\" not $VAR\n"
+        deploy_msg = deploy_msg + "```bash fences. Code only."
+        let resp = safe_send(handles["deploy_dev"], deploy_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            track("deploy_dev", resp)
+            deploy_code = sanitize_llm_code(resp.get("content") ?? "", "bash")
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|deploy_dev|deploy_sh|c=" + string(tracking["coherences"].get("deploy_dev") ?? -1))
+
+        // Validate shell syntax
+        if len(deploy_code) > 20 {
+            file.write("_deploy_check.sh", deploy_code)
+            let shell_check = process.run("bash", ["-n", "_deploy_check.sh"])
+            print("DEPLOY|syntax_ok=" + string(shell_check.exit_code == 0))
+            if shell_check.exit_code != 0 {
+                print("DEPLOY|syntax_error=" + string.trim(shell_check.stderr))
+                // Retry with error info
+                let fix_msg = "deploy.sh has syntax errors:\n" + string.trim(shell_check.stderr) + "\n\nFix the syntax errors and output the COMPLETE deploy.sh. ```bash fences. Code only."
+                let fresp = safe_send(handles["deploy_dev"], fix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if fresp.get("error") == null {
+                    track("deploy_dev", fresp)
+                    let fixed_deploy = sanitize_llm_code(fresp.get("content") ?? "", "bash")
+                    if len(fixed_deploy) > 20 {
+                        file.write("_deploy_check2.sh", fixed_deploy)
+                        let recheck = process.run("bash", ["-n", "_deploy_check2.sh"])
+                        if recheck.exit_code == 0 {
+                            deploy_code = fixed_deploy
+                            print("DEPLOY|repaired=true")
+                        } else {
+                            print("DEPLOY|repaired=false")
+                        }
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+            }
+        }
+
+        // Write to disk
+        if len(deploy_code) > 20 {
+            file.write("deploy.sh", deploy_code)
+            print("IMPLEMENT|deploy.sh|written|len=" + string(len(deploy_code)))
+        }
+    }
+
+    // --- Stream C: test_dev writes test_build.py ---
+    if handles.get("test_dev") != null {
+        let test_msg = ""
+        if len(operator_msg_prefix) > 0 { test_msg = operator_msg_prefix + "\n\n" }
+        test_msg = test_msg + "Write test_build.py based on this spec:\n" + test_spec
+        test_msg = test_msg + "\n\nMUST include:\n"
+        test_msg = test_msg + "- import pytest and from build_engine import BuildTarget, DependencyGraph, BuildEngine, BuildError\n"
+        test_msg = test_msg + "- @pytest.fixture for engine setup\n"
+        test_msg = test_msg + "- Test BuildTarget creation and defaults\n"
+        test_msg = test_msg + "- Test DependencyGraph: add, resolve order, diamond deps, cycle detection with pytest.raises(BuildError)\n"
+        test_msg = test_msg + "- Test BuildEngine: register, build with deps, build log returns copy\n"
+        test_msg = test_msg + "- Test edge cases: empty graph, single target, missing target\n"
+        test_msg = test_msg + "- At least 10 test functions\n"
+        if len(engine_code) > 20 {
+            test_msg = test_msg + "\nCurrent build_engine.py (write tests against THESE method signatures):\n```python\n" + engine_code + "\n```\n"
+        }
+        test_msg = test_msg + "```python fences. Code only."
+        let resp = safe_send(handles["test_dev"], test_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            track("test_dev", resp)
+            test_code = sanitize_llm_code(resp.get("content") ?? "", "python")
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|test_dev|test_build|c=" + string(tracking["coherences"].get("test_dev") ?? -1))
+
+        // Validate test imports
+        if len(test_code) > 20 && len(engine_code) > 20 {
+            let test_err = python_import_error("test_build.py", test_code)
+            print("TEST|import_ok=" + string(len(test_err) == 0))
+            if len(test_err) > 0 {
+                print("TEST|import_error=" + test_err)
+                let fix_msg = "test_build.py fails to import:\n" + test_err + "\n\nHere is the actual build_engine.py (import from THIS):\n```python\n" + engine_code + "\n```\nFix the imports and output the COMPLETE test_build.py. ```python fences. Code only."
+                let fresp = safe_send(handles["test_dev"], fix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if fresp.get("error") == null {
+                    track("test_dev", fresp)
+                    let fixed_tests = sanitize_llm_code(fresp.get("content") ?? "", "python")
+                    if len(fixed_tests) > 20 {
+                        let retry_err = python_import_error("test_build.py", fixed_tests)
+                        if len(retry_err) == 0 {
+                            test_code = fixed_tests
+                            print("TEST|repaired=true")
+                        }
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+            }
+        }
+
+        // Write to disk
+        if len(test_code) > 20 {
+            file.write("test_build.py", test_code)
+            print("IMPLEMENT|test_build.py|written|len=" + string(len(test_code)))
+        }
+    }
+
+    print("CODE|engine=" + string(len(engine_code)) + "|deploy=" + string(len(deploy_code)) + "|test=" + string(len(test_code)))
+
+    // Run pytest after all 3 streams
+    let impl_pytest_passed = false
+    if len(engine_code) > 20 && len(test_code) > 20 {
+        let impl_val = validate_build_code(engine_code, test_code, engine_pattern)
+        impl_pytest_passed = impl_val.get("pytest_passed") == true
+        print("IMPLEMENT|pytest_passed=" + string(impl_pytest_passed))
+        if handles.get("engine_dev") != null && impl_val.get("pytest_passed") != null {
+            let ev_count = impl_val.get("test_func_count") ?? -1
+            let detail = null
+            if !impl_pytest_passed { detail = impl_val.get("pytest_output") ?? "" }
+            let _rv = agent.record_validation(handles["engine_dev"], impl_pytest_passed, detail, ev_count)
+        }
+    }
+
+    let impl_decision = consult_operator({"phase": "IMPLEMENT", "event": "code_written", "engine_len": len(engine_code), "deploy_len": len(deploy_code), "test_len": len(test_code), "pytest_passed": impl_pytest_passed, "question": "Initial code written across 3 streams. Check coherence. Pre-refinement adjustments?"})
+    tracking["phases_completed"].push("IMPLEMENT")
+
+    // ================================================================
+    // PHASE 7: REFINE — iterative fix loop if pytest failed
+    // ================================================================
+    print("PHASE|REFINE|start")
+
+    let max_iterations = 3
+    let iteration = 0
+    let last_pytest_out = ""
+    let last_pytest_passed = impl_pytest_passed
+
+    // Seed validation
+    if len(engine_code) > 20 && len(test_code) > 20 && !last_pytest_passed {
+        let seed_val = validate_build_code(engine_code, test_code, engine_pattern)
+        last_pytest_out = seed_val.get("pytest_output") ?? ""
+        last_pytest_passed = seed_val.get("pytest_passed") == true
+        print("REFINE|pytest_seed|passed=" + string(last_pytest_passed))
+    }
+
+    while iteration < max_iterations && !last_pytest_passed {
+        iteration = iteration + 1
+        print("REFINE_ITER|" + string(iteration) + "|start")
+
+        let refine_fail_detail = ""
+        if !last_pytest_passed && len(last_pytest_out) > 10 {
+            refine_fail_detail = pytest_failure_digest(last_pytest_out)
+        }
+
+        // Send engine_dev the errors + tester feedback
+        if handles.get("engine_dev") != null && len(refine_fail_detail) > 10 {
+            let fix_msg = ""
+            if len(operator_msg_prefix) > 0 { fix_msg = operator_msg_prefix + "\n\n" }
+            fix_msg = fix_msg + "Pytest is FAILING. Failing tests:\n" + refine_fail_detail
+            fix_msg = fix_msg + "\n\n" + invariants
+            fix_msg = fix_msg + "\nFix build_engine.py so these pass. Do NOT edit the tests.\n"
+            fix_msg = fix_msg + "\nCurrent code:\n```python\n" + engine_code + "\n```\nOutput the COMPLETE fixed file. ```python fences. Code only."
+            check_coherence(handles["engine_dev"], "engine_dev")
+            let resp = safe_send(handles["engine_dev"], fix_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if resp.get("error") == null {
+                track("engine_dev", resp)
+                let new_engine = sanitize_llm_code(resp.get("content") ?? "", "python")
+                if len(new_engine) > 20 {
+                    engine_code = new_engine
+                    file.write("build_engine.py", engine_code)
+                    print("REFINE|engine_dev_rewrote|len=" + string(len(engine_code)))
+                }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+            print("TURN|engine_dev|fix" + string(iteration) + "|c=" + string(tracking["coherences"].get("engine_dev") ?? -1))
+        }
+
+        // Re-validate
+        let val = validate_build_code(engine_code, test_code, engine_pattern)
+        last_pytest_out = val.get("pytest_output") ?? ""
+        last_pytest_passed = val.get("pytest_passed") == true
+
+        if handles.get("engine_dev") != null && val.get("pytest_passed") != null {
+            let rf_ev = val.get("test_func_count") ?? -1
+            let rf_detail = null
+            if !last_pytest_passed { rf_detail = last_pytest_out }
+            let _rfv = agent.record_validation(handles["engine_dev"], last_pytest_passed, rf_detail, rf_ev)
+        }
+
+        let val_keys = val.keys()
+        let vk = 0
+        while vk < val_keys.length() {
+            if val_keys[vk] != "pytest_output" {
+                print("VALIDATE|iter" + string(iteration) + "|" + val_keys[vk] + "=" + string(val[val_keys[vk]]))
+            }
+            vk = vk + 1
+        }
+
+        print("REFINE_ITER|" + string(iteration) + "|end|passed=" + string(last_pytest_passed))
+    }
+
+    tracking["refinement_iterations"] = iteration
+    tracking["phases_completed"].push("REFINE")
+    print("REFINE|total_iterations=" + string(iteration) + "|passed=" + string(last_pytest_passed))
+
+    // ================================================================
+    // PHASE 8: REVIEW — engine_reviewer + test_reviewer
+    // ================================================================
+    print("PHASE|REVIEW|start")
+
+    // engine_reviewer reviews build_engine.py
+    if handles.get("engine_reviewer") != null && len(engine_code) > 20 {
+        let review_msg = "Review this Python build engine for production quality. Check:\n"
+        review_msg = review_msg + "1. Type hints on ALL methods\n"
+        review_msg = review_msg + "2. Docstrings on ALL classes and methods\n"
+        review_msg = review_msg + "3. get_build_log() returns a COPY\n"
+        review_msg = review_msg + "4. DependencyGraph.resolve() detects cycles and raises BuildError\n"
+        review_msg = review_msg + "5. All errors are BuildError\n"
+        review_msg = review_msg + "6. Topological sort is correct\n"
+        review_msg = review_msg + "Vote APPROVED or REJECTED with specific issues.\n```python\n" + engine_code + "\n```"
+        let resp = safe_send(handles["engine_reviewer"], review_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            track("engine_reviewer", resp)
+            let content = resp.get("content") ?? ""
+            let verdict = "REVIEW"
+            if string.contains(string.upper(content), "APPROVED") { verdict = "APPROVED" }
+            if string.contains(string.upper(content), "REJECTED") { verdict = "REJECTED" }
+            print("REVIEW|engine_reviewer|verdict=" + verdict)
+
+            // If rejected, send feedback to engine_dev
+            if verdict == "REJECTED" && handles.get("engine_dev") != null {
+                check_coherence(handles["engine_dev"], "engine_dev")
+                let fix_msg = "The reviewer REJECTED build_engine.py with these issues:\n" + content
+                fix_msg = fix_msg + "\n\n" + invariants
+                fix_msg = fix_msg + "\n\nCurrent code:\n```python\n" + engine_code + "\n```\nFix ONLY the listed issues. Output the COMPLETE fixed file. ```python fences. Code only."
+                let fresp = safe_send(handles["engine_dev"], fix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if fresp.get("error") == null {
+                    track("engine_dev", fresp)
+                    let fixed = sanitize_llm_code(fresp.get("content") ?? "", "python")
+                    if len(fixed) > 20 {
+                        engine_code = fixed
+                        file.write("build_engine.py", engine_code)
+                        print("REVIEW|engine_dev_fixed|len=" + string(len(engine_code)))
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+            }
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|engine_reviewer|review|c=" + string(tracking["coherences"].get("engine_reviewer") ?? -1))
+    }
+
+    // test_reviewer reviews test_build.py
+    if handles.get("test_reviewer") != null && len(test_code) > 20 {
+        let test_review_msg = "Review this pytest test suite for a build engine. Check:\n"
+        test_review_msg = test_review_msg + "1. Edge cases tested (cycles, empty graph, missing targets)\n"
+        test_review_msg = test_review_msg + "2. Error cases use pytest.raises(BuildError)\n"
+        test_review_msg = test_review_msg + "3. Build log copy semantics verified\n"
+        test_review_msg = test_review_msg + "4. Dependency resolution order tested\n"
+        test_review_msg = test_review_msg + "Vote APPROVED or REJECTED.\n```python\n" + test_code + "\n```"
+        let resp = safe_send(handles["test_reviewer"], test_review_msg)
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if resp.get("error") == null {
+            track("test_reviewer", resp)
+            let content = resp.get("content") ?? ""
+            let verdict = "REVIEW"
+            if string.contains(string.upper(content), "APPROVED") { verdict = "APPROVED" }
+            if string.contains(string.upper(content), "REJECTED") { verdict = "REJECTED" }
+            print("REVIEW|test_reviewer|verdict=" + verdict)
+
+            // If rejected, send feedback to test_dev
+            if verdict == "REJECTED" && handles.get("test_dev") != null {
+                let fix_msg = "The test reviewer REJECTED test_build.py:\n" + content
+                fix_msg = fix_msg + "\n\nCurrent build_engine.py (write tests against THESE):\n```python\n" + engine_code + "\n```"
+                fix_msg = fix_msg + "\n\nCurrent test_build.py:\n```python\n" + test_code + "\n```\nFix the issues. Output the COMPLETE test file. ```python fences. Code only."
+                let fresp = safe_send(handles["test_dev"], fix_msg)
+                tracking["total_sends"] = tracking["total_sends"] + 1
+                if fresp.get("error") == null {
+                    track("test_dev", fresp)
+                    let fixed_tests = sanitize_llm_code(fresp.get("content") ?? "", "python")
+                    if len(fixed_tests) > 20 {
+                        test_code = fixed_tests
+                        file.write("test_build.py", test_code)
+                        print("REVIEW|test_dev_fixed|len=" + string(len(test_code)))
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+            }
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+        print("TURN|test_reviewer|review|c=" + string(tracking["coherences"].get("test_reviewer") ?? -1))
+    }
+
+    tracking["phases_completed"].push("REVIEW")
+
+    // ================================================================
+    // PHASE 9: PROPOSE_SELECT — propose/commit with integration
+    // ================================================================
+    print("PHASE|PROPOSE_SELECT|start")
+
+    let propose_committed = false
+    let propose_candidates = 0
+
+    if handles.get("pm") != null && len(engine_code) > 20 {
+        check_coherence(handles["pm"], "pm")
+
+        let integration_plan_msg = "Create an integration plan for the multi-language build system:\n"
+        integration_plan_msg = integration_plan_msg + "1. build_engine.py (" + string(len(engine_code)) + " chars) — Python build engine\n"
+        integration_plan_msg = integration_plan_msg + "2. deploy.sh (" + string(len(deploy_code)) + " chars) — Shell deploy script\n"
+        integration_plan_msg = integration_plan_msg + "3. test_build.py (" + string(len(test_code)) + " chars) — Pytest suite\n"
+        integration_plan_msg = integration_plan_msg + "Describe how these components connect and what integration checks are needed."
+
+        let lease_floor_seconds = 120
+        let pm_state = agent.environment(handles["pm"]).get("state") ?? {}
+        let lease_left = pm_state.get("lease_remaining_seconds") ?? -1
+        if lease_left >= 0 && lease_left < lease_floor_seconds {
+            print("PROPOSE_SELECT|lease_preemptive_reauth|remaining=" + string(lease_left))
+            let pre_reauth = agent.send(handles["pm"], "Confirm you are ready to proceed. Restate your current objective in one sentence.")
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            track("pm", pre_reauth)
+            post_send_check(handles["pm"], pre_reauth, "pm")
+        }
+
+        let attempt = 0
+        let cycle_done = false
+        while attempt < 2 && cycle_done == false {
+            attempt = attempt + 1
+            try {
+                let proposals = agent.propose(handles["pm"], integration_plan_msg, 3)
+                let candidates = proposals.get("candidates") ?? []
+                propose_candidates = candidates.length()
+                print("PROPOSE_SELECT|candidates=" + string(propose_candidates))
+
+                let cai = 0
+                while cai < candidates.length() {
+                    let cand_adm = candidates[cai].get("admissibility") ?? {}
+                    print("PROPOSE_CAND|" + string(cai) + "|admissible=" + string(cand_adm.get("admissible") ?? false) + "|score=" + string(cand_adm.get("score") ?? -1))
+                    cai = cai + 1
+                }
+
+                if propose_candidates > 0 {
+                    let selected = orchestra.select_admissible(proposals)
+                    print("PROPOSE_SELECT|admissible_count=" + string(selected.get("admissible_count") ?? -1) + "|selected_index=" + string(selected.get("selected_index") ?? -1))
+                    let best = selected.get("selected")
+                    if best != null {
+                        let committed = agent.commit(handles["pm"], best)
+                        propose_committed = true
+                        track("pm", committed)
+                        post_send_check(handles["pm"], committed, "pm")
+                        print("PROPOSE_SELECT|committed=true")
+                    }
+                }
+                cycle_done = true
+            } catch (e) {
+                if string.contains(string(e), "step-up") && attempt < 2 {
+                    print("PROPOSE_SELECT|step_up_reauth|attempt=" + string(attempt))
+                    let reauth = agent.send(handles["pm"], "Confirm you are ready to proceed.")
+                    tracking["total_sends"] = tracking["total_sends"] + 1
+                    track("pm", reauth)
+                    post_send_check(handles["pm"], reauth, "pm")
+                } else {
+                    print("PROPOSE_SELECT|error=" + string(e))
+                    cycle_done = true
+                }
+            }
+        }
+    }
+
+    print("PROPOSE_SELECT|candidates=" + string(propose_candidates) + "|committed=" + string(propose_committed))
+    tracking["phases_completed"].push("PROPOSE_SELECT")
+
+    // ================================================================
+    // PHASE 10: FAN_OUT_REVIEW — parallel quality review
+    // ================================================================
+    print("PHASE|FAN_OUT_REVIEW|start")
+
+    let fan_out_verdict = "SKIPPED"
+    let fan_out_votes = 0
+
+    if len(engine_code) > 20 {
+        try {
+            let judge1 = agent.create("quality_judge")
+            let judge2 = agent.create("quality_judge")
+            handles["judge1"] = judge1
+            handles["judge2"] = judge2
+            tracking["agents_created"] = tracking["agents_created"] + 2
+
+            let combined_code = "BUILD ENGINE (build_engine.py):\n```python\n" + engine_code + "\n```\n"
+            if len(deploy_code) > 20 {
+                combined_code = combined_code + "\nDEPLOY SCRIPT (deploy.sh):\n```bash\n" + deploy_code + "\n```\n"
+            }
+            let judge_msg = "Review this multi-language build system code. Analyze code quality in at least 3 sentences, then vote APPROVED or REJECTED. Be strict: check type hints, docstrings, error handling (BuildError for Python, set -e for shell), build log tracking.\n" + combined_code
+            let fan_results = agent.fan_out([judge1, judge2], judge_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 2
+
+            let votes = []
+            let fri = 0
+            while fri < fan_results.length() {
+                let fr = fan_results[fri]
+                if fr.get("error") == null {
+                    let fc = fr.get("content") ?? ""
+                    if string.contains(string.upper(fc), "APPROVED") {
+                        votes.push("APPROVED")
+                    } else if string.contains(string.upper(fc), "REJECTED") {
+                        votes.push("REJECTED")
+                    } else {
+                        votes.push("REVIEW")
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+                fri = fri + 1
+            }
+            fan_out_votes = votes.length()
+
+            if fan_out_votes > 0 {
+                let consensus = orchestra.consensus_vote({"votes": votes})
+                fan_out_verdict = consensus.get("verdict") ?? "UNKNOWN"
+                let majority = consensus.get("majority") ?? false
+                print("FAN_OUT_REVIEW|votes=" + string(fan_out_votes) + "|verdict=" + fan_out_verdict + "|majority=" + string(majority))
+            }
+        } catch (e) {
+            print("FAN_OUT_REVIEW|error=" + string(e))
+        }
+    }
+
+    print("FAN_OUT_REVIEW|final_verdict=" + fan_out_verdict)
+    tracking["phases_completed"].push("FAN_OUT_REVIEW")
+
+    // ================================================================
+    // PHASE 11: FEATURES — iterate through requirement files
+    // ================================================================
+    print("PHASE|FEATURES|start")
+
+    let feature_patterns = {
+        "requirement-001.txt": "def build_parallel|def parallel_build",
+        "requirement-002.txt": "def incremental_build|def is_stale",
+        "requirement-003.txt": "def cache_result|def get_cached"
+    }
+
+    let req_files = []
+    try {
+        let all_files = file.list_dir("input")
+        let rf = 0
+        while rf < all_files.length() {
+            let fname = all_files[rf]
+            if string.ends_with(fname, ".txt") && fname != ".gitkeep" {
+                req_files.push(fname)
+            }
+            rf = rf + 1
+        }
+    } catch (e) {}
+    array.sort(req_files)
+
+    print("FEATURES|scanning|found=" + string(req_files.length()) + " requirements")
+
+    let feat_num = 0
+    let prev_engine_len = len(engine_code)
+    let last_fail_detail = ""
+    let fi = 0
+    while fi < req_files.length() {
+        let fname = req_files[fi]
+        feat_num = feat_num + 1
+
+        let content = ""
+        try { content = file.read("input/" + fname) } catch (e) {}
+        let trimmed = string.trim(content)
+        print("FEATURE|" + string(feat_num) + "|start|" + trimmed)
+
+        // engine_lead analyzes impact
+        if handles.get("engine_lead") != null && len(trimmed) > 5 {
+            let arch_msg = "New feature requirement for the build engine:\n" + trimmed + "\n\nCurrent BuildEngine has: " + existing_methods
+            if tracking["features_processed"] > 0 {
+                arch_msg = arch_msg + "\nPreviously added features: " + string(tracking["feature_names"])
+            }
+            arch_msg = arch_msg + "\n\nDesign the changes: specify exact new method names and signatures. Keep all existing methods."
+            let resp = safe_send(handles["engine_lead"], arch_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if resp.get("error") == null {
+                track("engine_lead", resp)
+                let guidance = resp.get("content") ?? ""
+                print("TURN|engine_lead|feature" + string(feat_num) + "|c=" + string(tracking["coherences"].get("engine_lead") ?? -1))
+
+                // engine_dev implements
+                if handles.get("engine_dev") != null {
+                    check_coherence(handles["engine_dev"], "engine_dev")
+                    let dev_msg = ""
+                    if len(operator_msg_prefix) > 0 { dev_msg = operator_msg_prefix + "\n\n" }
+                    dev_msg = dev_msg + "ADD this feature to build_engine.py:\n" + guidance
+                    dev_msg = dev_msg + "\n\nRequirement: " + trimmed
+                    dev_msg = dev_msg + "\n\n" + invariants
+                    dev_msg = dev_msg + "\nEXISTING METHODS (do NOT modify): " + existing_methods
+                    dev_msg = dev_msg + "\nOnly ADD new methods for this feature."
+                    dev_msg = dev_msg + "\n\nCurrent build_engine.py:\n```python\n" + engine_code + "\n```\nOutput the COMPLETE file with new methods added. ```python fences. Code only."
+                    resp = safe_send(handles["engine_dev"], dev_msg)
+                    tracking["total_sends"] = tracking["total_sends"] + 1
+                    if resp.get("error") == null {
+                        track("engine_dev", resp)
+                        post_send_check(handles["engine_dev"], resp, "engine_dev")
+                        let updated_engine = sanitize_llm_code(resp.get("content") ?? "", "python")
+                        if len(updated_engine) > 20 {
+                            engine_code = updated_engine
+                            file.write("build_engine.py", engine_code)
+                            print("FEATURE|" + string(feat_num) + "|engine_updated|len=" + string(len(engine_code)))
+                        }
+                    } else {
+                        tracking["send_errors"] = tracking["send_errors"] + 1
+                    }
+                    print("TURN|engine_dev|feat" + string(feat_num) + "_engine|c=" + string(tracking["coherences"].get("engine_dev") ?? -1))
+                }
+
+                // test_dev updates tests
+                if handles.get("test_dev") != null {
+                    check_coherence(handles["test_dev"], "test_dev")
+                    let test_msg = "Add tests for this new feature ONLY:\n" + trimmed
+                    test_msg = test_msg + "\n\nCurrent build_engine.py (write tests against THESE):\n```python\n" + engine_code + "\n```"
+                    test_msg = test_msg + "\nDo NOT modify existing tests. Only ADD new test functions."
+                    test_msg = test_msg + "\n\nCurrent test_build.py:\n```python\n" + test_code + "\n```\nOutput the COMPLETE file with new tests added. ```python fences. Code only."
+                    resp = safe_send(handles["test_dev"], test_msg)
+                    tracking["total_sends"] = tracking["total_sends"] + 1
+                    if resp.get("error") == null {
+                        track("test_dev", resp)
+                        post_send_check(handles["test_dev"], resp, "test_dev")
+                        let updated_tests = sanitize_llm_code(resp.get("content") ?? "", "python")
+                        if len(updated_tests) > 20 {
+                            test_code = updated_tests
+                            file.write("test_build.py", test_code)
+                        }
+                    } else {
+                        tracking["send_errors"] = tracking["send_errors"] + 1
+                    }
+                    print("TURN|test_dev|feat" + string(feat_num) + "_test|c=" + string(tracking["coherences"].get("test_dev") ?? -1))
+                }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+        }
+
+        // Evolve convergence pattern
+        let feat_pattern = feature_patterns.get(fname)
+        if feat_pattern != null {
+            engine_pattern = engine_pattern + "|" + feat_pattern
+            let new_methods = string.replace(string.replace(feat_pattern, "def ", ""), "|", ", ")
+            existing_methods = existing_methods + ", " + new_methods
+        }
+
+        // Run pytest
+        let fval = validate_build_code(engine_code, test_code, engine_pattern)
+        let fval_keys = fval.keys()
+        let fvk = 0
+        while fvk < fval_keys.length() {
+            if fval_keys[fvk] != "pytest_output" {
+                print("VALIDATE|feat" + string(feat_num) + "|" + fval_keys[fvk] + "=" + string(fval[fval_keys[fvk]]))
+            }
+            fvk = fvk + 1
+        }
+
+        // Pytest fix loop for this feature
+        let cur_val = fval
+        let fix_attempt = 0
+        while cur_val.get("pytest_passed") == false && fix_attempt < 2 && handles.get("engine_dev") != null {
+            fix_attempt = fix_attempt + 1
+            let pytest_out = cur_val.get("pytest_output") ?? ""
+            let fail_names = pytest_failure_digest(pytest_out)
+            last_fail_detail = fail_names
+            let pytest_fix_msg = ""
+            if len(operator_msg_prefix) > 0 { pytest_fix_msg = operator_msg_prefix + "\n\n" }
+            pytest_fix_msg = pytest_fix_msg + "Pytest FAILED after adding: " + trimmed + "\nFailing tests:\n" + fail_names
+            pytest_fix_msg = pytest_fix_msg + "\n" + invariants
+            if fix_attempt == 1 {
+                pytest_fix_msg = pytest_fix_msg + "\nFix ONLY the failing parts."
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent build_engine.py:\n```python\n" + engine_code + "\n```\nOutput the COMPLETE fixed build_engine.py. ```python fences. Code only."
+            } else {
+                pytest_fix_msg = pytest_fix_msg + "\nSECOND ATTEMPT. If a failing test is wrong, output corrected COMPLETE test_build.py instead; otherwise output corrected COMPLETE build_engine.py."
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent build_engine.py:\n```python\n" + engine_code + "\n```"
+                pytest_fix_msg = pytest_fix_msg + "\nCurrent test_build.py:\n```python\n" + test_code + "\n```\nOutput exactly ONE complete file. ```python fences. Code only."
+            }
+            check_coherence(handles["engine_dev"], "engine_dev")
+            let pfresp = safe_send(handles["engine_dev"], pytest_fix_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            if pfresp.get("error") == null {
+                track("engine_dev", pfresp)
+                post_send_check(handles["engine_dev"], pfresp, "engine_dev")
+                let fixed = sanitize_llm_code(pfresp.get("content") ?? "", "python")
+                if len(fixed) > 20 {
+                    if fix_attempt > 1 && string.contains(fixed, "def test_") {
+                        test_code = fixed
+                        file.write("test_build.py", test_code)
+                        print("PYTEST_FIX|engine_dev_fixed|tests=" + string(len(test_code)))
+                    } else {
+                        engine_code = fixed
+                        file.write("build_engine.py", engine_code)
+                        print("PYTEST_FIX|engine_dev_fixed|engine=" + string(len(engine_code)))
+                    }
+                }
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+            print("TURN|engine_dev|pytest_fix" + string(feat_num) + "|c=" + string(tracking["coherences"].get("engine_dev") ?? -1))
+            cur_val = validate_build_code(engine_code, test_code, engine_pattern)
+            print("VALIDATE|feat" + string(feat_num) + "|attempt" + string(fix_attempt) + "_pytest_passed=" + string(cur_val.get("pytest_passed") == true))
+        }
+
+        // Record validation
+        let feat_validated = cur_val.get("pytest_passed") != null
+        let feat_passed = cur_val.get("pytest_passed") == true
+        if handles.get("engine_dev") != null && cur_val.get("pytest_passed") != null {
+            let ev_count = cur_val.get("test_func_count") ?? -1
+            if feat_passed {
+                let _rv = agent.record_validation(handles["engine_dev"], true, null, ev_count)
+            } else {
+                let _rv = agent.record_validation(handles["engine_dev"], false, last_fail_detail, ev_count)
+            }
+        }
+
+        tracking["features_processed"] = tracking["features_processed"] + 1
+        tracking["feature_names"].push(trimmed)
+
+        let dc = tracking["coherences"].get("engine_dev") ?? -1
+        let feat_status_txt = " INCOMPLETE — pytest still failing."
+        if !feat_validated { feat_status_txt = " UNVALIDATED — pytest never ran." }
+        if feat_passed { feat_status_txt = " complete." }
+
+        // Consult operator after each feature
+        let feat_ctx = {"phase": "FEATURES", "event": "feature_implemented", "validation_passed": feat_passed, "feature_num": feat_num, "requirement": trimmed, "engine_len": len(engine_code), "test_len": len(test_code), "developer_coherence": dc, "question": "Feature " + string(feat_num) + feat_status_txt + " Dev coherence: " + string(dc) + ". Code grew from " + string(prev_engine_len) + " to " + string(len(engine_code)) + " chars."}
+        let feat_decision = consult_operator(feat_ctx)
+
+        prev_engine_len = len(engine_code)
+        if feat_passed {
+            print("FEATURE|" + string(feat_num) + "|complete")
+        } else if !feat_validated {
+            print("FEATURE|" + string(feat_num) + "|unvalidated")
+        } else {
+            print("FEATURE|" + string(feat_num) + "|incomplete")
+        }
+        fi = fi + 1
+    }
+
+    if req_files.length() == 0 {
+        print("FEATURES|no_requirements_found")
+    }
+
+    print("FEATURES|total=" + string(tracking["features_processed"]))
+    tracking["phases_completed"].push("FEATURES")
+
+    // ================================================================
+    // PHASE 12: SHELL_CODEGEN_BOUNDARY — test shell codegen
+    // ================================================================
+    print("PHASE|SHELL_CODEGEN_BOUNDARY|start")
+
+    // Test 1: basic shell arithmetic
+    try {
+        let sh1 = codegen.run("shell", "echo $((7 * 6))")
+        let sh1_ok = string.contains(string.trim(string(sh1)), "42")
+        print("SHELL_CODEGEN|basic|output=" + string.trim(string(sh1)) + "|contains_42=" + string(sh1_ok))
+        tracking["shell_codegen_calls"] = tracking["shell_codegen_calls"] + 1
+    } catch (e) {
+        print("SHELL_CODEGEN|basic|error=" + string(e))
+    }
+
+    // Test 2: shell with args
+    try {
+        let sh2 = codegen.run_with_args("shell", "echo $((a + b))", {"a": "10", "b": "20"})
+        let sh2_ok = string.contains(string.trim(string(sh2)), "30")
+        print("SHELL_CODEGEN|args|output=" + string.trim(string(sh2)) + "|contains_30=" + string(sh2_ok))
+        tracking["shell_codegen_calls"] = tracking["shell_codegen_calls"] + 1
+    } catch (e) {
+        print("SHELL_CODEGEN|args|error=" + string(e))
+    }
+
+    // Test 3: strict failure path
+    let shell_strict_threw = false
+    try {
+        codegen.run_strict("shell", "exit 1")
+        print("SHELL_CODEGEN|strict|NO_THROW")
+    } catch (e) {
+        shell_strict_threw = true
+        print("SHELL_CODEGEN|strict|threw=" + string(e))
+        tracking["shell_codegen_calls"] = tracking["shell_codegen_calls"] + 1
+    }
+    print("SHELL_CODEGEN|strict_threw=" + string(shell_strict_threw))
+
+    tracking["phases_completed"].push("SHELL_CODEGEN_BOUNDARY")
+
+    // ================================================================
+    // PHASE 13: INTROSPECTION — agent.environment, agent.usage
+    // ================================================================
+    print("PHASE|INTROSPECTION|start")
+
+    // PM environment
+    if handles.get("pm") != null {
+        try {
+            let pm_env = agent.environment(handles["pm"])
+            let env_limits = pm_env.get("limits") ?? {}
+            let env_state = pm_env.get("state") ?? {}
+            let env_perms = pm_env.get("permissions") ?? {}
+            print("INTROSPECTION|pm|max_tokens=" + string(env_limits.get("max_tokens") ?? 0) + "|coherence=" + string(env_state.get("coherence") ?? -1) + "|tools_enabled=" + string(env_perms.get("tools_enabled") ?? false))
+        } catch (e) {
+            print("INTROSPECTION|pm_env_error=" + string(e))
+        }
+    }
+
+    // PM usage
+    if handles.get("pm") != null {
+        try {
+            let pm_usage = agent.usage(handles["pm"])
+            let retries = pm_usage.get("retries") ?? 0
+            let fallbacks = pm_usage.get("fallbacks") ?? 0
+            let trunc = pm_usage.get("truncation_count") ?? 0
+            let latency = pm_usage.get("total_latency_ms") ?? 0
+            print("INTROSPECTION|pm_usage|retries=" + string(retries) + "|fallbacks=" + string(fallbacks) + "|truncations=" + string(trunc) + "|latency_ms=" + string(latency))
+        } catch (e) {
+            print("INTROSPECTION|pm_usage_error=" + string(e))
+        }
+    }
+
+    // engine_lead environment + usage
+    if handles.get("engine_lead") != null {
+        try {
+            let el_env = agent.environment(handles["engine_lead"])
+            let el_limits = el_env.get("limits") ?? {}
+            let el_state = el_env.get("state") ?? {}
+            print("INTROSPECTION|engine_lead|max_tokens=" + string(el_limits.get("max_tokens") ?? 0) + "|coherence=" + string(el_state.get("coherence") ?? -1) + "|ctx_window=" + string(el_limits.get("context_window") ?? 0))
+        } catch (e) {
+            print("INTROSPECTION|engine_lead_env_error=" + string(e))
+        }
+        try {
+            let el_usage = agent.usage(handles["engine_lead"])
+            print("INTROSPECTION|engine_lead_usage|retries=" + string(el_usage.get("retries") ?? 0) + "|latency_ms=" + string(el_usage.get("total_latency_ms") ?? 0))
+        } catch (e) {
+            print("INTROSPECTION|engine_lead_usage_error=" + string(e))
+        }
+    }
+
+    // deploy_lead environment
+    if handles.get("deploy_lead") != null {
+        try {
+            let dl_env = agent.environment(handles["deploy_lead"])
+            let dl_state = dl_env.get("state") ?? {}
+            print("INTROSPECTION|deploy_lead|coherence=" + string(dl_state.get("coherence") ?? -1))
+        } catch (e) {
+            print("INTROSPECTION|deploy_lead_env_error=" + string(e))
+        }
+    }
+
+    // key_health
+    try {
+        let kh = agent.key_health("pm")
+        print("INTROSPECTION|key_health|available=" + string(kh.get("available") ?? 0) + "|active=" + string(kh.get("active") ?? 0) + "|dead=" + string(kh.get("dead") ?? 0))
+    } catch (e) {
+        print("INTROSPECTION|key_health_error=" + string(e))
+    }
+
+    // dispatch_status
+    try {
+        let ds = agent.dispatch_status()
+        print("INTROSPECTION|dispatch|calls=" + string(ds.get("calls_made") ?? 0) + "|tokens=" + string(ds.get("tokens_used") ?? 0) + "|hard_stopped=" + string(ds.get("hard_stopped") ?? false))
+    } catch (e) {
+        print("INTROSPECTION|dispatch_error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("INTROSPECTION")
+
+    // ================================================================
+    // PHASE 14: SEPARATION_OF_DUTIES
+    // ================================================================
+    print("PHASE|SEPARATION_OF_DUTIES|start")
+
+    // deploy_dev CAN do shell (proven by deploy.sh generation)
+    if handles.get("deploy_dev") != null {
+        try {
+            let dd_env = agent.environment(handles["deploy_dev"])
+            let dd_perms = dd_env.get("permissions") ?? {}
+            let dd_shell = dd_perms.get("shell_allowed") ?? false
+            let dd_actions = dd_perms.get("allowed_actions") ?? []
+            print("SEPARATION|deploy_dev|shell_allowed=" + string(dd_shell) + "|actions=" + string(dd_actions))
+        } catch (e) {
+            print("SEPARATION|deploy_dev_error=" + string(e))
+        }
+    }
+
+    // PM has AGENT_SEND
+    if handles.get("pm") != null {
+        try {
+            let pm_env = agent.environment(handles["pm"])
+            let pm_perms = pm_env.get("permissions") ?? {}
+            let pm_actions = pm_perms.get("allowed_actions") ?? []
+            let has_agent_send = string.contains(string(pm_actions), "AGENT_SEND")
+            print("SEPARATION|pm_agent_send=" + string(has_agent_send) + "|actions=" + string(pm_actions))
+        } catch (e) {
+            print("SEPARATION|pm_error=" + string(e))
+        }
+    }
+
+    // engine_reviewer CANNOT run shell — send a message and check no tool calls
+    if handles.get("engine_reviewer") != null {
+        let sep_resp = safe_send(handles["engine_reviewer"], "If you have shell access, run 'echo SHELL_TEST'. If not, say 'NO_SHELL_ACCESS' and explain why.")
+        tracking["total_sends"] = tracking["total_sends"] + 1
+        if sep_resp.get("error") == null {
+            track("engine_reviewer", sep_resp)
+            let sep_calls = sep_resp.get("tool_calls_made") ?? 0
+            print("SEPARATION|engine_reviewer|tool_calls=" + string(sep_calls) + "|no_shell_enforced=" + string(sep_calls == 0))
+        } else {
+            tracking["send_errors"] = tracking["send_errors"] + 1
+        }
+    }
+
+    tracking["phases_completed"].push("SEPARATION_OF_DUTIES")
+
+    // ================================================================
+    // PHASE 15: RATCHET — script-level ratchet enforcement
+    // ================================================================
+    print("PHASE|RATCHET|start")
+
+    // Loosen context_window -> blocked
+    let ratchet_loosen_result = apply_operator_adjustments(
+        {"engine_dev": {"context_window": 50}}, "RATCHET"
+    )
+    let ratchet_loosen_blocked = ratchet_loosen_result != ""
+    print("RATCHET|loosen_blocked=" + string(ratchet_loosen_blocked) + "|result=" + ratchet_loosen_result)
+
+    // Tighten context_window -> ok
+    let cur_cfg = json.parse(process.run("cat", ["govern.json"]).stdout)
+    let cur_window = cur_cfg["agents"]["engine_dev"].get("context_window") ?? 20
+    let tighten_to = cur_window - 1
+    if tighten_to < 1 { tighten_to = 1 }
+    let ratchet_tighten_result = apply_operator_adjustments(
+        {"engine_dev": {"context_window": tighten_to}}, "RATCHET"
+    )
+    let ratchet_tighten_ok = ratchet_tighten_result == ""
+    print("RATCHET|tighten_ok=" + string(ratchet_tighten_ok) + "|result=" + ratchet_tighten_result)
+
+    // Change system_prompt -> blocked
+    let ratchet_field_result = apply_operator_adjustments(
+        {"engine_dev": {"system_prompt": "hijack attempt"}}, "RATCHET"
+    )
+    let ratchet_field_blocked = ratchet_field_result != ""
+    print("RATCHET|field_blocked=" + string(ratchet_field_blocked) + "|result=" + ratchet_field_result)
+
+    // Freely adjust max_tokens -> ok
+    let ratchet_free_result = apply_operator_adjustments(
+        {"engine_dev": {"max_tokens": 4096}}, "RATCHET"
+    )
+    let ratchet_free_ok = ratchet_free_result == ""
+    print("RATCHET|free_adjust_ok=" + string(ratchet_free_ok) + "|result=" + ratchet_free_result)
+
+    tracking["phases_completed"].push("RATCHET")
+
+    // ================================================================
+    // PHASE 16: ENGINE_RATCHET — engine's own ratchet, bypasses script guard
+    // ================================================================
+    print("PHASE|ENGINE_RATCHET|start")
+
+    let er_notices_before = tracking["governance_notices"].length()
+    let er_write = "skipped"
+    let er_probe_ok = false
+    let er_restored = "not_attempted"
+
+    let er_cfg_before = count_telemetry("CONFIG_ADJUSTMENT")
+    let er_ratchet_before = count_telemetry("\"reason\":\"ratchet\"")
+
+    let er_cfg = read_govern_raw()
+    if er_cfg != null && handles.get("engine_reviewer") != null {
+        let er_oa = er_cfg["circuit_breaker"]["output_admissibility"]
+        let orig_threshold = er_oa.get("threshold") ?? 0.60
+        let orig_streak = er_oa.get("max_quarantine_streak") ?? 3
+        let orig_signal = er_cfg["context_drift"]["signals"].get("mandate_alignment") ?? true
+
+        // mtime granularity is 1 second
+        time.sleep(1.5)
+
+        er_cfg["circuit_breaker"]["output_admissibility"]["threshold"] = 0.05
+        er_cfg["circuit_breaker"]["output_admissibility"]["max_quarantine_streak"] = 99
+        er_cfg["context_drift"]["signals"]["mandate_alignment"] = false
+        er_write = write_govern_raw(er_cfg)
+        print("ENGINE_RATCHET|loosened_write=" + er_write + "|threshold=" + string(orig_threshold) + "->0.05|streak=" + string(orig_streak) + "->99")
+
+        if er_write == "" {
+            let er_probe = safe_send(handles["engine_reviewer"], "In two or three sentences, what is the biggest regression risk in a build system with dependency resolution?")
+            tracking["total_sends"] = tracking["total_sends"] + 1
+            er_probe_ok = er_probe.get("error") == null
+            if er_probe_ok {
+                track("engine_reviewer", er_probe)
+            } else {
+                tracking["send_errors"] = tracking["send_errors"] + 1
+            }
+
+            time.sleep(1.5)
+            let er_cfg2 = read_govern_raw()
+            if er_cfg2 != null {
+                er_cfg2["circuit_breaker"]["output_admissibility"]["threshold"] = orig_threshold
+                er_cfg2["circuit_breaker"]["output_admissibility"]["max_quarantine_streak"] = orig_streak
+                er_cfg2["context_drift"]["signals"]["mandate_alignment"] = orig_signal
+                er_restored = write_govern_raw(er_cfg2)
+            } else {
+                er_restored = "reread_failed"
+            }
+            print("ENGINE_RATCHET|restored=" + er_restored)
+        }
+    }
+
+    let er_notices_after = tracking["governance_notices"].length()
+    print("ENGINE_RATCHET|probe_ok=" + string(er_probe_ok) + "|new_notices=" + string(er_notices_after - er_notices_before))
+
+    let eni = er_notices_before
+    while eni < er_notices_after {
+        print("ENGINE_RATCHET|notice=" + string(tracking["governance_notices"][eni]))
+        eni = eni + 1
+    }
+
+    let er_cfg_after = count_telemetry("CONFIG_ADJUSTMENT")
+    let er_ratchet_after = count_telemetry("\"reason\":\"ratchet\"")
+
+    let er_evaluated = er_cfg_after != er_cfg_before
+    let er_rejected_loosening = er_ratchet_after != er_ratchet_before
+    print("ENGINE_RATCHET|config_events=" + er_cfg_before + "->" + er_cfg_after + "|ratchet_events=" + er_ratchet_before + "->" + er_ratchet_after)
+    print("ENGINE_RATCHET|reload_evaluated=" + string(er_evaluated))
+    print("ENGINE_RATCHET|engine_rejected_loosening=" + string(er_rejected_loosening))
+    tracking["phases_completed"].push("ENGINE_RATCHET")
+
+    // ================================================================
+    // PHASE 17: BATCH_PIPELINE — agent.batch + sequential_refinement
+    // ================================================================
+    print("PHASE|BATCH_PIPELINE|start")
+
+    let batch_ok = false
+    let batch_count = 0
+    if handles.get("engine_lead") != null && handles.get("deploy_lead") != null {
+        try {
+            let el_prompt = "In one sentence, describe the integration status of the build engine with the deploy script."
+            let dl_prompt = "In one sentence, what is the biggest deployment risk for a build system with " + string(tracking["features_processed"]) + " features?"
+            let batch_results = agent.batch(
+                [handles["engine_lead"], handles["deploy_lead"]],
+                [el_prompt, dl_prompt]
+            )
+            tracking["total_sends"] = tracking["total_sends"] + 2
+            batch_count = batch_results.length()
+            let bi = 0
+            while bi < batch_results.length() {
+                let br = batch_results[bi]
+                if br.get("error") == null {
+                    track("batch_" + string(bi), br)
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+                bi = bi + 1
+            }
+            batch_ok = batch_count >= 2
+            print("BATCH_PIPELINE|batch_responses=" + string(batch_count))
+        } catch (e) {
+            tracking["send_errors"] = tracking["send_errors"] + 2
+            print("BATCH_PIPELINE|batch_error=" + string(e))
+        }
+    }
+
+    // sequential_refinement
+    if handles.get("engine_lead") != null && handles.get("deploy_lead") != null {
+        try {
+            let seq_plan = orchestra.sequential_refinement(
+                [handles["engine_lead"], handles["deploy_lead"]],
+                "Suggest one improvement to the build system integration",
+                2
+            )
+            let plan_pattern = seq_plan.get("pattern") ?? ""
+            let plan_iters = seq_plan.get("iterations") ?? 0
+            print("BATCH_PIPELINE|seq_plan=true|pattern=" + plan_pattern + "|iterations=" + string(plan_iters))
+        } catch (e) {
+            print("BATCH_PIPELINE|seq_plan_error=" + string(e))
+        }
+    }
+
+    tracking["phases_completed"].push("BATCH_PIPELINE")
+
+    // ================================================================
+    // PHASE 18: GOVERNANCE_HEALTH — pulse verdict, epoch tracking
+    // ================================================================
+    print("PHASE|GOVERNANCE_HEALTH|start")
+
+    try {
+        let hp = governance.health()
+        let hp_verdict = hp.get("verdict") ?? "unknown"
+        let hp_coherence = hp.get("coherence") ?? -1
+        let hp_epoch = hp.get("governance_epoch") ?? -1
+        let hp_why = hp.get("degradation_reasons") ?? ""
+        print("GOVERNANCE_HEALTH|verdict=" + hp_verdict + "|coherence=" + string(hp_coherence) + "|epoch=" + string(hp_epoch) + "|why=" + hp_why)
+
+        let base_v = baseline_health.get("verdict") ?? "unknown"
+        let base_e = baseline_health.get("governance_epoch") ?? -1
+        print("GOVERNANCE_HEALTH|baseline_verdict=" + base_v + "|baseline_epoch=" + string(base_e))
+        print("GOVERNANCE_HEALTH|epoch_advanced=" + string(hp_epoch > base_e))
+    } catch (e) {
+        print("GOVERNANCE_HEALTH|error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("GOVERNANCE_HEALTH")
+
+    // ================================================================
+    // PHASE 19: TELEMETRY_AUDIT — event type coverage
+    // ================================================================
+    print("PHASE|TELEMETRY_AUDIT|start")
+
+    try {
+        let traw = file.read("telemetry.jsonl")
+        let tlines = string.split(string.trim(traw), "\n")
+        let event_types = {}
+        let tli = 0
+        while tli < tlines.length() {
+            if string.length(string.trim(tlines[tli])) > 2 {
+                try {
+                    let ev = json.parse(tlines[tli])
+                    let etype = ev.get("event_type") ?? ev.get("type") ?? "unknown"
+                    event_types[etype] = (event_types.get(etype) ?? 0) + 1
+                } catch (e) {}
+            }
+            tli = tli + 1
+        }
+        let type_names = event_types.keys()
+        print("TELEMETRY_AUDIT|unique_types=" + string(type_names.length()) + "|total_events=" + string(tlines.length()))
+
+        let eti = 0
+        while eti < type_names.length() {
+            print("TELEMETRY_AUDIT|type=" + type_names[eti] + "|count=" + string(event_types[type_names[eti]]))
+            eti = eti + 1
+        }
+
+        let expected_types = ["ADMISSION_EVAL", "AGENT_RESPONSE", "CDD_TURN", "SEMANTIC_TURN", "CONFIG_ADJUSTMENT"]
+        let found_expected = 0
+        let exi = 0
+        while exi < expected_types.length() {
+            if event_types.get(expected_types[exi]) != null {
+                found_expected = found_expected + 1
+            }
+            exi = exi + 1
+        }
+        print("TELEMETRY_AUDIT|expected_found=" + string(found_expected) + "|expected_total=" + string(expected_types.length()))
+
+        // Tool events
+        let tool_events = ["AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "AGENT_TOOL_REGISTERED"]
+        let tool_found = 0
+        let tei = 0
+        while tei < tool_events.length() {
+            if event_types.get(tool_events[tei]) != null {
+                tool_found = tool_found + 1
+            }
+            tei = tei + 1
+        }
+        print("TELEMETRY_AUDIT|tool_events_found=" + string(tool_found) + "|tool_events_checked=" + string(tool_events.length()))
+
+        // Consequence events
+        let consequence_types = ["OUTPUT_ADMISSIBILITY_EVAL", "OUTPUT_INADMISSIBLE", "AGENT_CHALLENGE_PASS", "AGENT_CHALLENGE_FAIL", "GOVERNANCE_LEVEL_CHANGE", "CONFIG_ADJUSTMENT", "VALIDATION_RECORDED", "BSD_MATCH", "RESPONSE_TRUNCATED", "AGENT_PROPOSE", "AGENT_PROPOSAL_COMMIT", "AGENT_TOOL_CALL", "AGENT_TOOL_RESULT", "TRANSCRIPT_REF"]
+        let consequence_found = 0
+        let cqi = 0
+        while cqi < consequence_types.length() {
+            let cnt = event_types.get(consequence_types[cqi]) ?? 0
+            if cnt > 0 { consequence_found = consequence_found + 1 }
+            print("TELEMETRY_AUDIT|consequence|" + consequence_types[cqi] + "=" + string(cnt))
+            cqi = cqi + 1
+        }
+        print("TELEMETRY_AUDIT|consequence_found=" + string(consequence_found) + "|consequence_total=" + string(consequence_types.length()))
+    } catch (e) {
+        print("TELEMETRY_AUDIT|error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("TELEMETRY_AUDIT")
+
+    // ================================================================
+    // PHASE 20: TRANSCRIPT_AUDIT — transcript vs TRANSCRIPT_REF
+    // ================================================================
+    print("PHASE|TRANSCRIPT_AUDIT|start")
+
+    let ta_lines = count_lines_matching("transcript.jsonl", "")
+    let ta_hashed = count_lines_matching("transcript.jsonl", "\"entry_hash\":")
+    let ta_sends = count_lines_matching("transcript.jsonl", "\"type\":\"agent_send\"")
+    let ta_creates = count_lines_matching("transcript.jsonl", "\"type\":\"agent_create\"")
+    let ta_refs = count_telemetry("TRANSCRIPT_REF")
+    print("TRANSCRIPT_AUDIT|lines=" + ta_lines + "|entry_hash=" + ta_hashed + "|sends=" + ta_sends + "|creates=" + ta_creates + "|transcript_ref=" + ta_refs)
+    print("TRANSCRIPT_AUDIT|every_entry_hashed=" + string(len(ta_lines) > 0 && ta_lines == ta_hashed))
+    print("TRANSCRIPT_AUDIT|ref_matches_entries=" + string(len(ta_refs) > 0 && ta_refs == ta_lines))
+    tracking["phases_completed"].push("TRANSCRIPT_AUDIT")
+
+    // ================================================================
+    // PHASE 21: EVIDENCE_AUDIT — attestations + decision snapshots
+    // ================================================================
+    print("PHASE|EVIDENCE_AUDIT|start")
+
+    let ev_attest = count_lines_matching("audit.jsonl", "execution_attestation")
+    let ev_send_att = count_fixed_matching("audit.jsonl", "\\\"action\\\":\\\"send\\\"")
+    let ev_commit_att = count_fixed_matching("audit.jsonl", "\\\"action\\\":\\\"commit\\\"")
+    let ev_signed = count_fixed_matching("audit.jsonl", "\\\"signature\\\":")
+    let ev_fp = count_fixed_matching("audit.jsonl", "\\\"key_fingerprint\\\":")
+    print("EVIDENCE|exec_attestations=" + ev_attest + "|send_attestations=" + ev_send_att + "|commit_attestations=" + ev_commit_att + "|script_sends=" + string(tracking["total_sends"]))
+    print("EVIDENCE|signed=" + ev_signed + "|fingerprinted=" + ev_fp)
+
+    let ev_snap = count_telemetry("\"cdd_snapshot\":")
+    let ev_semantic = count_telemetry("SEMANTIC_TURN")
+    let ev_oa = count_telemetry("OUTPUT_ADMISSIBILITY_EVAL")
+    print("EVIDENCE|snapshots=" + ev_snap + "|semantic_turns=" + ev_semantic + "|oa_evals=" + ev_oa)
+
+    let ev_refusals = count_telemetry("RuleViolation")
+    let ev_refusal_att = count_telemetry("RefusalAttestation")
+    print("EVIDENCE|refusals=" + ev_refusals + "|refusal_attestations=" + ev_refusal_att)
+
+    tracking["phases_completed"].push("EVIDENCE_AUDIT")
+
+    // ================================================================
+    // PHASE 22: CROSS_RUN_MEMORY — save observations
+    // ================================================================
+    print("PHASE|CROSS_RUN_MEMORY|start")
+
+    let run_count = (memory.get("run_count") ?? 0) + 1
+
+    let mem_ctx = {"phase": "MEMORY", "event": "run_complete", "total_sends": tracking["total_sends"], "adjustments_made": tracking["adjustments_made"], "features_processed": tracking["features_processed"], "feature_names": tracking["feature_names"], "question": "Run complete with " + string(tracking["features_processed"]) + " features. Summarize observations for next run."}
+    let memory_decision = consult_operator(mem_ctx)
+
+    let obs = memory_decision.get("observations")
+    if obs == null { obs = memory_decision.get("reasoning") ?? "no observations" }
+    let new_memory = {
+        "run_count": run_count,
+        "last_run": time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S"),
+        "observations": obs,
+        "last_coherences": tracking["coherences"],
+        "last_min_coherences": tracking["min_coherences"],
+        "adjustments_made": tracking["adjustments_made"],
+        "refinement_iterations": tracking["refinement_iterations"],
+        "features_processed": tracking["features_processed"],
+        "feature_names": tracking["feature_names"],
+        "phases_completed": tracking["phases_completed"],
+        "tool_calls_total": tracking["tool_calls_total"],
+        "shell_codegen_calls": tracking["shell_codegen_calls"]
+    }
+    try {
+        if !file.exists("memory") {
+            process.run("mkdir", ["-p", "memory"])
+        }
+        file.write(memory_path, json.stringify(new_memory, 2))
+        print("MEMORY|saved|run=" + string(run_count))
+    } catch (e) {
+        print("MEMORY|save_error=" + string(e))
+    }
+
+    tracking["phases_completed"].push("CROSS_RUN_MEMORY")
+
+    // ================================================================
+    // PHASE 23: FINAL_VERDICT — 2 judges, fan_out, consensus
+    // ================================================================
+    print("PHASE|FINAL_VERDICT|start")
+
+    let final_verdict = "NONE"
+    if len(engine_code) > 20 {
+        try {
+            let fj1 = agent.create("quality_judge")
+            let fj2 = agent.create("quality_judge")
+            tracking["agents_created"] = tracking["agents_created"] + 2
+
+            let final_code = "BUILD ENGINE (build_engine.py):\n```python\n" + engine_code + "\n```\n"
+            if len(test_code) > 20 {
+                final_code = final_code + "\nTEST SUITE (test_build.py):\n```python\n" + test_code + "\n```\n"
+            }
+            if len(deploy_code) > 20 {
+                final_code = final_code + "\nDEPLOY SCRIPT (deploy.sh):\n```bash\n" + deploy_code + "\n```\n"
+            }
+            let fj_msg = "FINAL REVIEW of multi-language build system. Analyze in at least 3 sentences: code quality, type hints, docstrings, error handling, dependency resolution, test coverage, deploy script quality. Then vote APPROVED or REJECTED.\n" + final_code
+            let fj_results = agent.fan_out([fj1, fj2], fj_msg)
+            tracking["total_sends"] = tracking["total_sends"] + 2
+
+            let fj_votes = []
+            let fji = 0
+            while fji < fj_results.length() {
+                let fjr = fj_results[fji]
+                if fjr.get("error") == null {
+                    let fc = fjr.get("content") ?? ""
+                    if string.contains(string.upper(fc), "APPROVED") {
+                        fj_votes.push("APPROVED")
+                    } else if string.contains(string.upper(fc), "REJECTED") {
+                        fj_votes.push("REJECTED")
+                    } else {
+                        fj_votes.push("REVIEW")
+                    }
+                } else {
+                    tracking["send_errors"] = tracking["send_errors"] + 1
+                }
+                fji = fji + 1
+            }
+
+            if fj_votes.length() > 0 {
+                let fj_consensus = orchestra.consensus_vote({"votes": fj_votes})
+                final_verdict = fj_consensus.get("verdict") ?? "NONE"
+                print("FINAL_VERDICT|votes=" + string(fj_votes.length()) + "|verdict=" + final_verdict + "|majority=" + string(fj_consensus.get("majority") ?? false))
+            }
+        } catch (e) {
+            print("FINAL_VERDICT|error=" + string(e))
+        }
+    }
+
+    tracking["final_verdict"] = final_verdict
+    print("FINAL_VERDICT|result=" + final_verdict)
+    tracking["phases_completed"].push("FINAL_VERDICT")
+
+    // ================================================================
+    // PHASE 24: SUMMARY
+    // ================================================================
+    let elapsed = time.now() - start_time
+    print("SUMMARY_AGENTS: " + string(tracking["agents_created"]))
+    print("SUMMARY_SENDS: " + string(tracking["total_sends"]))
+    print("SUMMARY_ERRORS: " + string(tracking["send_errors"]))
+    print("SUMMARY_ADJUSTMENTS: " + string(tracking["adjustments_made"]))
+    print("SUMMARY_FEATURES: " + string(tracking["features_processed"]))
+    print("SUMMARY_VERDICT: " + string(final_verdict))
+    print("SUMMARY_TOOL_CALLS: " + string(tracking["tool_calls_total"]))
+    print("SUMMARY_PHASES: " + string(tracking["phases_completed"].length()))
+    print("SUMMARY_OA_QUARANTINED: " + string(tracking["oa_quarantined"]))
+    print("SUMMARY_CHALLENGE_PASSES: " + string(tracking["challenge_passes"]))
+    print("SUMMARY_SHELL_CODEGEN: " + string(tracking["shell_codegen_calls"]))
+
+    // Code extraction summary
+    print("CODE_EXTRACT|build_engine.py|extracted=" + string(len(engine_code) > 20) + "|len=" + string(len(engine_code)))
+    print("CODE_EXTRACT|deploy.sh|extracted=" + string(len(deploy_code) > 20) + "|len=" + string(len(deploy_code)))
+    print("CODE_EXTRACT|test_build.py|extracted=" + string(len(test_code) > 20) + "|len=" + string(len(test_code)))
+
+    // Final convergence
+    if len(engine_code) > 20 {
+        let conv = orchestra.enforce_convergence(engine_code, {pattern: engine_pattern})
+        print("CONVERGENCE|build_engine.py|valid=" + string(conv.get("valid") ?? false) + "|error=" + string(conv.get("error_message") ?? ""))
+        print("CONVERGENCE|build_engine.py|pattern=" + engine_pattern)
+    }
+    if len(test_code) > 20 {
+        let conv = orchestra.enforce_convergence(test_code, {pattern: "def test_|assert"})
+        print("CONVERGENCE|test_build.py|valid=" + string(conv.get("valid") ?? false))
+    }
+
+    // Per-agent coherence
+    let all_agents = ["operator", "pm", "engine_lead", "deploy_lead", "test_lead", "engine_dev", "engine_reviewer", "deploy_dev", "test_dev", "test_reviewer"]
+    let ai = 0
+    while ai < all_agents.length() {
+        let name = all_agents[ai]
+        let c = tracking["coherences"].get(name)
+        if c != null {
+            let mc = tracking["min_coherences"].get(name) ?? -1
+            print("AGENT_STATE|" + name + "|c=" + string(c) + "|min=" + string(mc))
+        }
+        ai = ai + 1
+    }
+
+    // Telemetry hash chain verification
+    try {
+        let raw = file.read("telemetry.jsonl")
+        let lines = string.split(string.trim(raw), "\n")
+        let events = []
+        let li = 0
+        while li < lines.length() {
+            if string.length(string.trim(lines[li])) > 2 {
+                try { events.push(json.parse(lines[li])) } catch (e) {}
+            }
+            li = li + 1
+        }
+        print("TELEM_EVENTS: " + string(events.length()))
+
+        let chain_ok = true
+        let ei = 1
+        while ei < events.length() {
+            if events[ei].get("prev_hash") != events[ei - 1].get("hash") {
+                chain_ok = false
+            }
+            ei = ei + 1
+        }
+        print("TELEM_CHAIN: " + string(chain_ok))
+    } catch (e) {
+        print("TELEM_ERROR: " + string(e))
+    }
+
+    // Final health
+    let health = governance.health()
+    print("HEALTH: " + string(health.get("verdict") ?? "unknown"))
+    print("SUMMARY_ELAPSED: " + string(elapsed))
+    print("=== LIVING SCRIPT V2 COMPLETE ===")
+}

@@ -1,0 +1,85 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-v2-29355/work-29355-24040/govern.json (mode: enforce)
+[hint] dict.get("tool_calls_total") returned null — did you mean "tool_integrity_count"?
+[hint] dict.get("tool_probe_pm") returned null — available keys: "engine_lead_delegate"
+[hint] dict.get("engine_reviewer") returned null — did you mean "engine_lead_delegate"?
+[hint] dict.get("engine_lead") returned null — did you mean "engine_lead_delegate"?
+[hint] dict.get("deploy_lead") returned null — available keys: "engine_reviewer", "engine_lead", "tool_probe_pm", "engine_lead_delegate"
+[hint] dict.get("test_lead") returned null — available keys: "engine_reviewer", "engine_lead", "tool_probe_pm", "engine_lead_delegate"
+[hint] dict.get("operator") returned null — available keys: "engine_reviewer", "test_lead", "engine_lead", "tool_probe_pm", "engine_lead_delegate"
+[hint] dict.get("engine_dev") returned null — did you mean "engine_reviewer"?
+[hint] dict.get("deploy_dev") returned null — available keys: "engine_reviewer", "test_lead", "engine_lead", "tool_probe_pm", "operator", "engine_lead_delegate"
+[hint] dict.get("test_dev") returned null — did you mean "test_lead"?
+[hint] dict.get("pytest_output") returned null — available keys: "total_checks"
+[hint] dict.get("pytest_passed") returned null — available keys: "total_checks"
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] WARNING taint_tracking.sink_violation (occurrence 2/8)
+[governance] Risk score 16 reached yellow threshold 15 (red threshold: 50)
+[governance] Top contributor: taint_tracking.sink_violation (+16)
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Reload rejected: ratchet violation(s): output_admissibility.threshold: 0.60 -> 0.05 (loosened); output_admissibility.max_quarantine_streak: 3 -> 99 (loosened); context_drift.signals.mandate_alignment: enabled -> disabled (loosened)
+[governance] WARNING taint_tracking.sink_violation (occurrence 3/8)
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("batch_0") returned null — available keys: "engine_reviewer", "test_lead", "engine_lead", "tool_probe_pm", "operator", "engine_lead_delegate"
+[hint] dict.get("batch_1") returned null — did you mean "batch_0"?
+[hint] dict.get("TRANSCRIPT_REF") returned null — available keys: "RunStart"
+[hint] dict.get("AGENT_TOOL_REGISTERED") returned null — available keys: "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("GOVERNANCE_HEALTH_QUERY") returned null — available keys: "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("PROMPT_SCAN") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("ADMISSION_EVAL") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN", "RunStart"
+[hint] dict.get("AGENT_RESPONSE") returned null — did you mean "AGENT_TOOL_REGISTERED"?
+[hint] dict.get("AGENT_TOOL_LOOP_START") returned null — did you mean "AGENT_RESPONSE"?
+[hint] dict.get("AGENT_TOOL_CALL") returned null — did you mean "AGENT_TOOL_LOOP_START"?
+[hint] dict.get("AGENT_TOOL_RESULT") returned null — did you mean "AGENT_TOOL_LOOP_START"?
+[hint] dict.get("AGENT_TOOL_LOOP_END") returned null — did you mean "AGENT_TOOL_LOOP_START"?
+[hint] dict.get("RESPONSE_SUPPRESSED") returned null — did you mean "RESPONSE_SCAN"?
+[hint] dict.get("OUTPUT_INADMISSIBLE") returned null — did you mean "OUTPUT_ADMISSIBILITY_EVAL"?
+[hint] dict.get("AGENT_CHALLENGE_PASS") returned null — did you mean "AGENT_TOOL_LOOP_END"?
+[hint] dict.get("AGENT_CHALLENGE_FAIL") returned null — did you mean "AGENT_TOOL_LOOP_END"?
+[hint] dict.get("GOVERNANCE_LEVEL_CHANGE") returned null — did you mean "GOVERNANCE_HEALTH_QUERY"?
+[hint] dict.get("RESPONSE_TRUNCATED") returned null — did you mean "RESPONSE_SCAN"?
+[hint] dict.get("AGENT_PROPOSE") returned null — did you mean "AGENT_TOOL_LOOP_END"?
+[hint] dict.get("AGENT_PROPOSAL_COMMIT") returned null — did you mean "AGENT_TOOL_LOOP_END"?
+[governance] WARNING taint_tracking.sink_violation (occurrence 2/8)
+[hint] dict.get("pm") returned null — available keys: "batch_0", "engine_reviewer", "batch_1", "test_lead", "engine_lead", "tool_probe_pm", "operator", "engine_lead_delegate"
+[hint] dict.get("test_reviewer") returned null — did you mean "test_lead"?
+
+[governance] Summary (mode: enforce): 76 passed, 7 warnings, 0 blocked
+  ⚠ taint_tracking.sink_violation       [advisory]  WARN
+
+[governance] Telemetry: 32 events written to telemetry.jsonl
+-- Governance: PASS (83 static, 1 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    4 mid-run reload(s) applied
+Checks:     77 passed, 0 blocked, 7 advisory
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+Risk score: 24 (YELLOW) [15/50]
+  +24  taint_tracking.sink_violation (7x @3)
+  INTEGRITY: score mismatch (incremental vs recomputed)
+Telemetry:  84 events → telemetry.jsonl
+BSD:        134 events, 0 patterns matched
+CDD:        coherence=0.73 vel=-0.055 accel=0.000 (18 turns analyzed)
+CDD agents: operator=0.73 engine_dev=1.00 2=1.00 engine_lead=1.00 deploy_dev=1.00 engine_reviewer=1.00 pm=1.00 test_lead=1.00 deploy_lead=1.00 test_dev=1.00 min=0.73
+Compliance: 1 off-topic compliance events, prompt_alignment=0.12
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   18 autonomous actions, 6 unique agents
+Dispatch:   19 calls (0 retries, 38188 tokens, 54804ms)
+Tools:      1 calls (0 blocked, 4676ms)
+Codegen:    3 calls (0 blocked, 15ms)
+Pulse:      HEALTHY (83 checks, 0 clean turns, epoch 4)
+────────────────────────────────
