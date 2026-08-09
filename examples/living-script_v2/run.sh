@@ -293,25 +293,25 @@ else
         gk_fail "L2-02" "Pytest never ran"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'BUILD_ENGINE|written|file.write'; then
+    if echo "$OUTPUT" | grep -q 'IMPLEMENT|build_engine.py|written'; then
         pass "L2-03" "build_engine.py written"
     else
         gk_fail "L2-03" "build_engine.py not written"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'TEST_HARNESS|written|test_build'; then
+    if echo "$OUTPUT" | grep -q 'IMPLEMENT|test_build.py|written'; then
         pass "L2-04" "test_build.py written"
     else
         gk_fail "L2-04" "test_build.py not written"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'DEPLOY_SCRIPT|written'; then
+    if echo "$OUTPUT" | grep -q 'IMPLEMENT|deploy.sh|written'; then
         pass "L2-05" "deploy.sh written"
     else
         gk_fail "L2-05" "deploy.sh not written"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'DEPLOY_SCRIPT|syntax_ok=true|SHELL_SYNTAX|valid=true'; then
+    if echo "$OUTPUT" | grep -q 'DEPLOY|syntax_ok=true'; then
         pass "L2-06" "Shell deploy.sh syntax valid"
     else
         gk_fail "L2-06" "Shell deploy.sh syntax not validated"
@@ -526,13 +526,13 @@ else
         gk_fail "L11-02" "Feature 1 pipeline not updated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE|1|.*pytest|PYTEST|exit='; then
+    if echo "$OUTPUT" | grep -qE 'FEATURE\\|1\\|.*pytest|PYTEST\\|exit='; then
         pass "L11-03" "Feature 1 pytest ran"
     else
         gk_fail "L11-03" "Feature 1 pytest did not run"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE|1|(complete|convergence)'; then
+    if echo "$OUTPUT" | grep -qE 'FEATURE\\|1\\|(complete|convergence)'; then
         pass "L11-04" "Feature 1 convergence"
     else
         gk_fail "L11-04" "Feature 1 did not converge"
@@ -559,13 +559,13 @@ else
         gk_fail "L12-02" "Feature 2 pipeline not updated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE|2|.*pytest|PYTEST|exit='; then
+    if echo "$OUTPUT" | grep -qE 'FEATURE\\|2\\|.*pytest|PYTEST\\|exit='; then
         pass "L12-03" "Feature 2 pytest ran"
     else
         gk_fail "L12-03" "Feature 2 pytest did not run"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE|2|(complete|convergence)'; then
+    if echo "$OUTPUT" | grep -qE 'FEATURE\\|2\\|(complete|convergence)'; then
         pass "L12-04" "Feature 2 convergence"
     else
         gk_fail "L12-04" "Feature 2 did not converge"
@@ -592,13 +592,13 @@ else
         gk_fail "L13-02" "Feature 3 pipeline not updated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE|3|.*pytest|PYTEST|exit='; then
+    if echo "$OUTPUT" | grep -qE 'FEATURE\\|3\\|.*pytest|PYTEST\\|exit='; then
         pass "L13-03" "Feature 3 pytest ran"
     else
         gk_fail "L13-03" "Feature 3 pytest did not run"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'FEATURE|3|(complete|convergence)'; then
+    if echo "$OUTPUT" | grep -qE 'FEATURE\\|3\\|(complete|convergence)'; then
         pass "L13-04" "Feature 3 convergence"
     else
         gk_fail "L13-04" "Feature 3 did not converge"
@@ -654,7 +654,7 @@ else
         gk_fail "L15-01" "deploy_dev shell access not reported"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'SEPARATION|engine_reviewer_tools=0|SEPARATION|engine_reviewer.*tools_enabled=false'; then
+    if echo "$OUTPUT" | grep -q 'SEPARATION|engine_reviewer|tool_calls=0'; then
         pass "L15-02" "engine_reviewer has no tool access"
     else
         gk_fail "L15-02" "engine_reviewer tool restriction not confirmed"
@@ -711,7 +711,7 @@ else
     # Check telemetry for CONFIG_ADJUSTMENT with ratchet rejection
     ER_REJECT=""
     if [ -f "$WORKDIR/telemetry.jsonl" ]; then
-        ER_REJECT=$(grep -c 'CONFIG_ADJUSTMENT.*ratchet' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
+        ER_REJECT=$(grep -c 'CONFIG_ADJUSTMENT.*ratchet' "$WORKDIR/telemetry.jsonl" 2>/dev/null || true)
     fi
     if [ "${ER_REJECT:-0}" -ge 1 ]; then
         pass "L17-02" "Engine rejected loosening (CONFIG_ADJUSTMENT ratchet in telemetry)"
@@ -962,7 +962,7 @@ else
     # Taint violations from telemetry (written at shutdown)
     TAINT_N=0
     if [ -f "$WORKDIR/telemetry.jsonl" ]; then
-        TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || echo 0)
+        TAINT_N=$(grep -c 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null || true)
     fi
 
     if [ "$TAINT_N" -ge 1 ] || grep -q 'taint' "$WORKDIR/telemetry.jsonl" 2>/dev/null; then
@@ -979,7 +979,12 @@ else
 
     # Count unique violations for baseline
     if [ "$TAINT_N" -ge 1 ]; then
-        UNIQUE_VIOLATIONS=$(grep 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null | sort -u | wc -l || echo 0)
+        # `|| echo 0` is the same trap as `grep -c`, one pipe further along:
+        # under `set -o pipefail` grep's exit 1 propagates through wc, so the
+        # fallback fires even though wc already printed "0", and the variable
+        # becomes the non-integer "0\n0". Every later integer test then errors.
+        UNIQUE_VIOLATIONS=$(grep 'taint_tracking\.sink_violation' "$WORKDIR/telemetry.jsonl" 2>/dev/null | sort -u | wc -l || true)
+        UNIQUE_VIOLATIONS=$(echo "${UNIQUE_VIOLATIONS:-0}" | head -1)
         pass "L25-03" "Baseline established (${UNIQUE_VIOLATIONS} unique violations)"
     else
         skip "L25-03" "No violations for baseline"
