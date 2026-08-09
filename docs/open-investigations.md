@@ -76,7 +76,7 @@ Full design in the session plan file; increments 1–2 are merged.
 |---|---|---|
 | E1 | Gate library + self-test driver (#133) | **done** |
 | E2 | v2 pattern archaeology (#132, #134) | **done** |
-| E3 | Per-agent routing in `agent_stub.py` | open |
+| E3 | Per-agent routing in `agent_stub.py` | **done** |
 | E4 | v3 scenario skeleton, ladder walked **keylessly** against the stub first | open |
 | E5 | v3 gates + negative fixtures, `--self-test` green in CI | open |
 | E6 | One keyed run | open |

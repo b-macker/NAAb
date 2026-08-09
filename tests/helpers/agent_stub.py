@@ -20,6 +20,34 @@ Fixture format (responses consumed in order; last repeats when exhausted):
       ]
     }
 
+Optional per-agent routing (each route keeps its OWN counter):
+    {
+      "routes": {
+        "AGENT-TOKEN-WORKER": {"responses": [ ... ]},
+        "AGENT-TOKEN-JUDGE":  {"responses": [ ... ]}
+      },
+      "responses": [ ... ]            # fallback, unchanged semantics
+    }
+
+A route key is matched as a plain SUBSTRING of the raw request body, so the
+harness gives each agent a unique token in its system_prompt. Without this,
+one global counter interleaves every agent's queue and a scenario cannot give
+one agent a scripted failure sequence while another stays clean.
+
+Two rules that a fixture author has to be able to rely on:
+  * First matching key in fixture order wins (json.load preserves object
+    order). A body carrying two tokens is therefore resolved deterministically
+    rather than by dict iteration luck -- but it is still a fixture bug, and
+    it is easy to cause by accident, since conversation history replays
+    earlier turns and a token pasted into one agent's prompt can end up in
+    another agent's body.
+  * Because that failure mode is silent (a plausible response from the wrong
+    queue), every request's routing decision is logged to <state_dir>/routes.log
+    as "<request-number> <route-key-or-->". Assert on it.
+
+The global response index advances only for UNROUTED requests, so a fixture
+with no "routes" key behaves exactly as before.
+
 Prints "READY <port>" on stdout once listening. Writes request bodies to
 <state_dir>/req_N.json when state_dir is given (for test assertions).
 """
@@ -34,24 +62,49 @@ class StubState:
         with open(fixture_path) as f:
             fixture = json.load(f)
         self.responses = fixture.get("responses", [])
+        # Insertion-ordered: first matching key wins, and the fixture author
+        # controls which that is.
+        self.routes = fixture.get("routes", {}) or {}
+        self.route_count = dict((k, 0) for k in self.routes)
         self.state_dir = state_dir
-        self.count = 0
+        self.count = 0        # every request, for req_N.json numbering
+        self.global_idx = 0   # advances only on UNROUTED requests
         self.lock = threading.Lock()
+
+    def _pick(self, responses, idx):
+        if not responses:
+            return {"content": "stub default response"}
+        return responses[min(idx, len(responses) - 1)]
 
     def next_response(self, body):
         with self.lock:
-            idx = min(self.count, len(self.responses) - 1) if self.responses else -1
             self.count += 1
             n = self.count
+            key = None
+            for k in self.routes:
+                if k in body:
+                    key = k
+                    break
+            if key is None:
+                idx = self.global_idx
+                self.global_idx += 1
+                responses = self.responses
+            else:
+                idx = self.route_count[key]
+                self.route_count[key] = idx + 1
+                responses = self.routes[key].get("responses", [])
         if self.state_dir:
             try:
                 with open("%s/req_%d.json" % (self.state_dir, n), "w") as f:
                     f.write(body)
             except OSError:
                 pass
-        if idx < 0:
-            return {"content": "stub default response"}
-        return self.responses[idx]
+            try:
+                with open("%s/routes.log" % self.state_dir, "a") as f:
+                    f.write("%d %s\n" % (n, key if key is not None else "-"))
+            except OSError:
+                pass
+        return self._pick(responses, idx)
 
 
 STATE = None
