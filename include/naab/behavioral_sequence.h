@@ -331,6 +331,29 @@ struct DriftState {
     std::array<int, NUM_CDD_SIGNALS> last_turn_fired = {};      // per-signal fire counts for most recent turn
     std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
     double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
+
+    // Bounded-healing ledger. coherence_score has 23 penalty sites and only two
+    // increase paths, so without a bound "recovery" is either impossible (the
+    // shipped rates are too small to outrun a single signal) or pumpable (a rate
+    // large enough to matter also lets an agent alternate one bad turn with one
+    // good one and net positive). The ledger makes recovery possible AND bounded:
+    // total healing can never exceed total damage actually taken.
+    //
+    // This is S22's own rule generalised -- "credits <= failures, pass-spam
+    // cannot pump coherence" -- applied to natural healing and to
+    // resetCoherence, which previously granted a flat amount with no reference
+    // to how much had been lost.
+    //
+    // Damage is measured post-clamp, so penalties absorbed by the 0.0 floor are
+    // not counted. Charging for damage that never landed would make recovery
+    // proportional to how long an agent stayed floored, which is the behaviour
+    // being fixed rather than a stricter version of it.
+    //
+    // Both fields are mutated only under ContextDriftAnalyzer::mutex_ (held by
+    // recordTurn and resetCoherence), so they need no separate synchronisation
+    // even though agent.batch()/fan_out() drive recordTurn from pool threads.
+    double coherence_damage_total = 0.0;   // lifetime coherence lost to penalties
+    double coherence_healed_total = 0.0;   // lifetime coherence returned by healing
     int consecutive_quarantines = 0;                               // output admissibility quarantine streak
 
     // Recovery tracking (Phase 4a)
