@@ -2152,6 +2152,41 @@ else
     echo "  test_escalation_effectiveness.sh: not found, skipping"
 fi
 
+# --- governance_v4 sweep: run any suite not registered individually above ---
+# Suites here were registered one at a time, and twelve of forty-nine had never
+# been registered at all — including both de-escalation tests. A suite that is
+# never run is indistinguishable from a suite that passes, which is the same
+# defect this directory's tests exist to catch, one level up.
+#
+# This sweep globs the directory rather than naming files, so a new suite is run
+# by default. The failure mode of forgetting is now "runs twice" (harmless,
+# slightly slower) instead of "never runs" (invisible). Anything that must NOT
+# be swept — because it needs special staging or a platform guard the blocks
+# above provide — belongs in GOVV4_SWEEP_SKIP with a reason.
+GOVV4_SWEEP_SKIP=(
+    # Windows-guarded or specially staged above; re-running is wasteful, not wrong.
+    "test_polyglot_reload.sh"
+)
+for _gv4 in tests/governance_v4/test_*.sh; do
+    [ -f "$_gv4" ] || continue
+    _gv4_base="$(basename "$_gv4")"
+    _skip=false
+    for _s in "${GOVV4_SWEEP_SKIP[@]}"; do
+        [ "$_gv4_base" = "$_s" ] && _skip=true && break
+    done
+    $_skip && continue
+    # Already handled by a dedicated block above? Those blocks name the file.
+    if grep -q "governance_v4/$_gv4_base\"" run-all-tests.sh 2>/dev/null; then
+        continue
+    fi
+    if run_shell_test "$_gv4" 2>&1; then
+        echo "  $_gv4_base: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("$_gv4_base")
+    fi
+done
+
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
     # Canary test injects/reverts source files — skip when working tree is dirty

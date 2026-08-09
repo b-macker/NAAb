@@ -7240,11 +7240,40 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
             // F6: Update system-wide governance level from sustained pressure
             const auto& cb = rules().circuit_breaker;
+            // Per-level sustained counters, each gated on its OWN threshold.
+            //
+            // These used to share `consecutive` with the reality checkpoint, which
+            // advances only above reality_checkpoint.pressure_threshold (default
+            // 0.70). Any circuit-breaker threshold below that was unreachable no
+            // matter how high pressure ran — the level test needs both
+            // `composite >= threshold` AND `consecutive >= sustained`, and the
+            // second half stayed pinned at 0. On the engine defaults (elevated
+            // 0.4, high 0.6) that meant the two middle levels could never fire
+            // from pressure at all, leaving no graduated response between NORMAL
+            // and CRITICAL.
+            //
+            // Repointing the shared counter was not an option: the checkpoint's
+            // own enforcement is SOFT (blocks, exit 3) and enabled by default, so
+            // a lower shared gate would have started blocking runs that pass
+            // today. Separate counters leave `consecutive` — and therefore the
+            // checkpoint, the dashboard line and script-visible
+            // checkpoint.sustained_turns — completely unchanged.
+            const double cb_level_thresholds[3] = {
+                cb.elevated_threshold, cb.high_threshold, cb.critical_threshold};
+            int cb_sustained[3];
+            for (int i = 0; i < 3; ++i) {
+                int c = state->cb_sustained_turns[i];
+                // Same decay-not-reset rule the checkpoint counter uses, so a
+                // single dip below threshold does not erase accumulated evidence.
+                c = (composite >= cb_level_thresholds[i]) ? c + 1 : std::max(0, c - 1);
+                cb_sustained[i] = c;
+            }
+            drift_analyzer_.updateCbSustained(handle_id, cb_sustained);
             if (cb.enabled) {
                 int target = 0;
-                if (composite >= cb.critical_threshold && consecutive >= cb.critical_sustained) target = 3;
-                else if (composite >= cb.high_threshold && consecutive >= cb.high_sustained) target = 2;
-                else if (composite >= cb.elevated_threshold && consecutive >= cb.elevated_sustained) target = 1;
+                if (composite >= cb.critical_threshold && cb_sustained[2] >= cb.critical_sustained) target = 3;
+                else if (composite >= cb.high_threshold && cb_sustained[1] >= cb.high_sustained) target = 2;
+                else if (composite >= cb.elevated_threshold && cb_sustained[0] >= cb.elevated_sustained) target = 1;
 
                 // Pulse escalation: raises per-call floor (never below pressure-computed level)
                 if (pv == PulseVerdict::IMPAIRED && target < 2) target = 2;
