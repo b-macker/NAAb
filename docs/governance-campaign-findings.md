@@ -748,6 +748,48 @@ names the gate and lists precisely which configured levels are unreachable
 through pressure, and stays silent when `pressure_threshold` is at or below them
 (verified both ways, plus silent when the checkpoint is enabled).
 
+### Escalation requires evidence, not longevity (Aug 8, v2)
+
+The first keyed run of v2 on the post-#129 engine came back entirely quiescent:
+35 CDD turns, peak composite **0.225**, nothing above `elevated_threshold` 0.35,
+no escalation, no challenges. Both counter families read 0 — which proves nothing
+about their independence, since neither gate was approached.
+
+The obvious explanation was topology: v2 spreads 35 turns across 11 handles (3.2
+each, max 6) where v1 ran 117 across 7 (16.7 each, max 44), and
+`conversation_depth` is scaled per handle. That explanation is **wrong**, and the
+correct one is more useful.
+
+`depth` is clamped: `std::min(1.0, turn / expected_conversation_depth)`. Its
+contribution therefore caps at its weight, **0.10**, however long a handle runs.
+`risk_score_proximity` likewise caps at 0.20. So with coherence intact and no
+signals firing, composite pressure has a hard ceiling of **0.30 — below
+`elevated_threshold` 0.35**.
+
+A well-behaved agent cannot escalate at *any* run length or topology. Escalation
+requires at least one of: coherence degradation, a signal firing, or BSD partial
+progress — all of which are behavioural evidence rather than mere longevity.
+v1's peak of 0.375 confirms it from the other side: that turn carried
+`signals_fired: 2`, coherence down to 0.708, and penalties from
+`vocab_contraction` and `entity_consistency`. v2's peak carried coherence 1.0 and
+zero signals.
+
+This is a good property and it was not designed deliberately so much as
+discovered — the two factors that accumulate for free are capped below the first
+escalation threshold, so scrutiny tracks misbehaviour rather than uptime. Worth
+knowing before anyone "fixes" the depth clamp or raises its weight.
+
+Two corrections to the analysis that produced this, both in the direction of
+overstating what longevity buys: the claim that a 40-turn handle contributes
+`40/20 * 0.10 = 0.20` of depth pressure drops the clamp (it is 0.10), and the
+report's "max 12 turns on engine_dev" does not reconcile with the telemetry
+(`engine_dev` has 5 CDD turns; the highest for any handle is 6).
+
+**Consequence for instrument choice:** v2 is a good example and a poor pressure
+instrument, but not for the reason first proposed. Any scenario whose agents
+behave will sit at or below 0.30. Exercising de-escalation or the upper levels
+needs a scenario that produces genuine drift, not merely a longer one.
+
 ### Keyed run Aug 8: escalation confirmed working, with the gate corrected
 
 One line changed — `reality_checkpoint: {"enabled": false, "pressure_threshold":
