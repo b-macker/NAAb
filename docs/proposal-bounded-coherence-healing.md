@@ -246,3 +246,70 @@ the same change that makes it bounded. That would be a behaviour change hidden
 inside a safety improvement — the pattern this campaign has now rejected three
 times, in default-on secret scanning, `restrictions.*.enabled`, and the inert
 `limits.data` keys.
+
+---
+
+## R3 — WITHDRAWN ON EVIDENCE (2026-08-09)
+
+R3 was "raise the shipped healing rate", held back as the loosening while
+R1/R2/R4 shipped. It is now withdrawn, because measuring it properly showed
+there is no safe absolute number to raise it to.
+
+### The re-measurement
+
+The original evidence for R3 — 0.25 restores `elevated → normal` — was taken
+**before the ledger existed**, so it had to be redone rather than carried over.
+It reproduced, and the bound saturates exactly (healed == damage):
+
+| rate | inadmissible | final coherence | damage / healed | levels |
+|---|---|---|---|---|
+| 0.0 | 30/36 | 0.000 | 1.00 / 0.00 | …→high→elevated |
+| 0.03 (shipped) | 30/36 | 0.000 | 1.10 / 0.48 | …→high→elevated |
+| 0.25 | 18/36 | 0.396 | 3.70 / 3.70 | …→high→elevated→**normal** |
+| 0.45 | 7/36 | 0.375 | 4.16 / 4.16 | …→high→elevated→normal |
+| 0.48 | 7/36 | — | — | …→high→elevated→normal |
+| **0.50** | 6/36 | 0.443 | 4.35 / 4.35 | normal→elevated→normal — **HIGH never reached** |
+
+Runs are deterministic: 0.25 gave identical output three times, so these are
+single-run numbers that can be trusted.
+
+Two things the ledger changed that are worth recording. 0.03 is no longer
+byte-identical to 0.0 — it now books 0.478 of healing where previously the
+clamp swallowed it — though the *outcome* is unchanged, so "inert at shipped
+rates" survives as a statement about behaviour. And `damage` is path-dependent,
+growing from 1.00 to 4.35 as the rate rises, because each recovery gets
+re-damaged. The bound is therefore "cumulative recovery never exceeds
+cumulative harm", not "you may only ever recover 1.0" — and alternating one bad
+turn with one good one still nets exactly zero, so it remains unpumpable.
+
+### Why there is no number to pick
+
+The cliff at 0.50 looked like a wide safe band with comfortable margin. It is
+not a fixed cliff. Re-running the same scenario with two CDD signals disabled on
+`drift_worker` — less damage per turn, nothing else changed:
+
+| scenario | HIGH lost at |
+|---|---|
+| v3, full drift | 0.50 |
+| v3, two signals disabled | **0.15** |
+
+**The cliff is damage-relative.** Healing suppresses escalation once it outpaces
+the scenario's own damage rate, and that rate varies with which signals fire —
+which varies per agent, per config, per workload. A default of 0.25 is
+comfortable for one profile and silently prevents HIGH for a lighter one.
+
+Silently is the operative word: an agent that never escalates looks exactly like
+an agent that behaved. That is the failure mode this entire campaign exists to
+catch, and shipping a fixed default would have manufactured it.
+
+### What replaces R3
+
+Nothing, for now. The rate stays where it is and the finding is documented:
+**`coherence_natural_healing` must be tuned relative to a workload's damage
+rate, and cannot be set correctly as a global constant.**
+
+The principled fix is a different change — make healing relative rather than
+absolute, e.g. capped at a fraction of the agent's own recent damage per
+damaging turn, so it self-scales and has no cliff to find. That is new design
+with its own regression surface and is not proposed here. Tracked as R5 in
+`docs/open-investigations.md`.
