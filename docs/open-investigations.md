@@ -51,8 +51,8 @@ campaign doc's live-status column.
 
 | # | Item | Status | Blocker |
 |---|---|---|---|
-| C1 | **De-escalation hysteresis** | open | Needs a run where the *raising handle* takes ≥3 further turns. v3 is designed for this. |
-| C2 | **HIGH and CRITICAL levels** | open | Peak live pressure ever observed is 0.375 against a 0.55 threshold. Needs genuine drift, not a longer run. |
+| C1 | **De-escalation hysteresis** | **open — now known to be structurally blocked** | Not just "no run has produced it": with `coherence_natural_healing` at its default 0.0, a floored agent's composite cannot fall back below `elevated_threshold`, so the mechanism's input never occurs. See the E-section probe result. Decide whether that is intended before spending a keyed run on it. |
+| C2 | **HIGH and CRITICAL levels** | **HIGH reached (stub), CRITICAL open** | HIGH reached keylessly at turn 5 on 2026-08-09 — the scenario question is answered, only the live run remains. CRITICAL was deliberately tuned out of reach in that probe. |
 | C3 | **Five campaign findings** — pulse streak field, evidence-count shrink, lease expiry mid-deliberation, config generation guard, CRITICAL suspension | open | All five need adversarial conditions a clean run cannot produce. |
 | C4 | **Reviewer separation of duties** (`allowed_actions: ["AGENT_SEND"]` only) | open | Never live-confirmed: no reviewer has yet *attempted* a tool call, so the absence of blocks proves nothing. |
 
@@ -81,6 +81,43 @@ Full design in the session plan file; increments 1–2 are merged.
 | E4 | v3 scenario skeleton, ladder walked **keylessly** against the stub first | open |
 | E5 | v3 gates + negative fixtures, `--self-test` green in CI | open |
 | E6 | One keyed run | open |
+
+**Increment 4b result (probed keylessly 2026-08-09, routed stub, 2 agents,
+20 turns).** The ladder *does* walk: `normal → elevated` at turn 3,
+`elevated → high` at turn 5, with the plan's tuning
+(`check_interval_turns: 1`, elevated 0.35/2, high 0.55/3). **This is the first
+time HIGH has been reached at all** — C2 above is no longer blocked on "needs
+genuine drift", only on doing it live. Composite peaked at 0.70.
+
+**De-escalation did not fire, and the reason is structural, not scenario shape:**
+
+- `context_drift.coherence_natural_healing` defaults to **0.0**
+  (`governance.h:1343`). With it off, coherence only ever decreases — the sole
+  increase path is S22's fail→pass credit (`behavioral_sequence.cpp:1458`),
+  which needs `agent.record_validation()`.
+- Once coherence floored at 0.0, twelve consecutive calm turns brought composite
+  down only to **0.567**, never near `elevated_threshold` 0.35. The level
+  therefore cannot step down however well the agent behaves. The hysteresis
+  machinery (`deescalate_sustained`, `deescalate_pressure_handle_`) is not
+  reached because its input — a lower computed target — never occurs.
+- Enabling healing at 0.06/turn was **not** enough: `heal_factor` is
+  `1/(1 + signals_fired_this_turn)`, and ~2 signals kept firing through the calm
+  phase, so healing stayed below the penalties.
+- Part of that tail is `mandate_alignment`'s rolling window of 20 — a 6-turn
+  drift keeps paying for roughly 20 calm turns. A v3 recovery phase of 8–10
+  turns is too short by construction; it needs to outlast the window.
+
+Two fixture bugs of my own were found and fixed on the way, both worth not
+repeating: 14 identical "recovery" responses fire `response_repetition` every
+turn (a recovery phase must be varied *and* on-mandate), and the first drift
+fixture was so far off-mandate that coherence floored by turn 3, which destroys
+the de-escalation observation before the recovery phase begins. Drift has to be
+strong enough to escalate and mild enough to leave headroom.
+
+**Open question this raises (new, not yet an item above):** is a permanently
+pinned level the intended design? It is defensible — scrutiny earned should not
+be cheap to shed — but combined with B1 (scrutiny does not survive a restart)
+the pair is odd: unshakeable within a process, free to reset by restarting it.
 
 **Two constraints verified in source; do not re-derive:**
 - `check_interval_turns` **must be 1**. `behavioral_sequence.cpp:785` zeroes
