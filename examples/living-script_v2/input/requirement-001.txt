@@ -1,0 +1,1 @@
+Add parallel build execution to BuildEngine. When building a target with multiple independent dependencies, execute them concurrently using a thread pool. Add methods: build_parallel(target, max_workers=4) that resolves dependencies and builds independent targets in parallel, get_build_timeline() that returns the execution order with timestamps.

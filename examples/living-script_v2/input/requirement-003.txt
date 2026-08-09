@@ -1,0 +1,1 @@
+Add remote caching to BuildEngine. Cache build outputs keyed by content hash of inputs (source + dependencies). Add methods: enable_cache(cache_dir), cache_lookup(target) returning CacheResult(hit, path, hash), cache_store(target, output), get_cache_stats() returning dict with hits, misses, hit_rate, total_size. Cache invalidation when any input changes.

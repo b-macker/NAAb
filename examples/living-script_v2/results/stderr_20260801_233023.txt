@@ -1,0 +1,81 @@
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/usr/tmp/living-script-v2-9599/work-9599-30189/govern.json (mode: enforce)
+[hint] dict.get("tool_calls_total") returned null — did you mean "tool_integrity_count"?
+[hint] dict.get("tool_probe_pm") returned null — available keys: "engine_lead_delegate"
+[hint] dict.get("engine_reviewer") returned null — did you mean "engine_lead_delegate"?
+[hint] dict.get("engine_lead") returned null — did you mean "engine_lead_delegate"?
+[hint] dict.get("deploy_lead") returned null — available keys: "engine_reviewer", "engine_lead", "tool_probe_pm", "engine_lead_delegate"
+[hint] dict.get("test_lead") returned null — available keys: "deploy_lead", "engine_reviewer", "engine_lead", "tool_probe_pm", "engine_lead_delegate"
+[hint] dict.get("operator") returned null — available keys: "test_lead", "deploy_lead", "engine_reviewer", "engine_lead", "tool_probe_pm", "engine_lead_delegate"
+[hint] dict.get("engine_dev") returned null — did you mean "engine_reviewer"?
+[hint] dict.get("deploy_dev") returned null — did you mean "deploy_lead"?
+[hint] dict.get("test_dev") returned null — did you mean "test_lead"?
+[hint] dict.get("test_reviewer") returned null — did you mean "test_lead"?
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 1 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[governance] WARNING taint_tracking.sink_violation
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Reload rejected: ratchet violation(s): output_admissibility.threshold: 0.60 -> 0.05 (loosened); output_admissibility.max_quarantine_streak: 3 -> 99 (loosened); context_drift.signals.mandate_alignment: enabled -> disabled (loosened)
+[governance] WARNING taint_tracking.sink_violation (occurrence 2/8)
+[governance] Risk score 16 reached yellow threshold 15 (red threshold: 50)
+[governance] Top contributor: taint_tracking.sink_violation (+16)
+[governance] Note: reality_checkpoint explicitly disabled — circuit breaker levels will update but checkpoint enforcement is inactive
+[governance] Config reloaded mid-run: 0 change(s) applied
+[hint] dict.get("batch_1") returned null — did you mean "batch_0"?
+[hint] dict.get("TRANSCRIPT_REF") returned null — available keys: "RunStart"
+[hint] dict.get("AGENT_TOOL_REGISTERED") returned null — available keys: "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("GOVERNANCE_HEALTH_QUERY") returned null — available keys: "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("PROMPT_SCAN") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "RunStart"
+[hint] dict.get("ADMISSION_EVAL") returned null — available keys: "GOVERNANCE_HEALTH_QUERY", "AGENT_TOOL_REGISTERED", "TRANSCRIPT_REF", "PROMPT_SCAN", "RunStart"
+[hint] dict.get("AGENT_RESPONSE") returned null — did you mean "AGENT_TOOL_REGISTERED"?
+[hint] dict.get("AGENT_TOOL_LOOP_START") returned null — did you mean "AGENT_RESPONSE"?
+[hint] dict.get("AGENT_TOOL_CALL") returned null — did you mean "AGENT_TOOL_LOOP_START"?
+[hint] dict.get("AGENT_TOOL_RESULT") returned null — did you mean "AGENT_TOOL_LOOP_START"?
+[hint] dict.get("AGENT_TOOL_LOOP_END") returned null — did you mean "AGENT_TOOL_LOOP_START"?
+[hint] dict.get("RESPONSE_SUPPRESSED") returned null — did you mean "RESPONSE_SCAN"?
+[hint] dict.get("AGENT_PROPOSE") returned null — did you mean "AGENT_TOOL_LOOP_END"?
+[hint] dict.get("CONFIG_ADJUSTMENT") returned null — did you mean "CONVERGENCE_CHECK"?
+[hint] dict.get("OUTPUT_INADMISSIBLE") returned null — did you mean "OUTPUT_ADMISSIBILITY_EVAL"?
+[hint] dict.get("AGENT_CHALLENGE_PASS") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("AGENT_CHALLENGE_FAIL") returned null — did you mean "AGENT_PROPOSE"?
+[hint] dict.get("GOVERNANCE_LEVEL_CHANGE") returned null — did you mean "GOVERNANCE_HEALTH_QUERY"?
+[hint] dict.get("RESPONSE_TRUNCATED") returned null — did you mean "RESPONSE_SCAN"?
+[hint] dict.get("AGENT_PROPOSAL_COMMIT") returned null — did you mean "AGENT_PROPOSE"?
+[governance] WARNING taint_tracking.sink_violation (occurrence 2/8)
+[hint] dict.get("error_message") returned null — available keys: "valid"
+
+[governance] Summary (mode: enforce): 132 passed, 6 warnings, 0 blocked
+  ⚠ taint_tracking.sink_violation       [advisory]  WARN
+
+[governance] Telemetry: 38 events written to telemetry.jsonl
+-- Governance: PASS (138 static, 1 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Reloads:    4 mid-run reload(s) applied
+Checks:     133 passed, 0 blocked, 6 advisory
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+  Detail:   Warning: taint_tracking.sink_violation — project governance policy.
+Risk score: 20 (YELLOW) [15/50]
+  +20  taint_tracking.sink_violation (6x @3)
+  INTEGRITY: score mismatch (incremental vs recomputed)
+Telemetry:  139 events → telemetry.jsonl
+BSD:        197 events (47 evicted), 0 patterns matched
+CDD:        coherence=1.00 vel=0.000 accel=0.000 (36 turns analyzed)
+CDD agents: operator=1.00 engine_dev=1.00 engine_lead=1.00 deploy_dev=1.00 deploy_lead=1.00 test_lead=1.00 engine_reviewer=1.00 quality_judge=1.00 pm=1.00 test_dev=0.83 test_reviewer=1.00 min=0.83
+OA Gate:    threshold=0.60, action=quarantine, level=n/a
+Exposure:   37 autonomous actions, 11 unique agents
+Dispatch:   39 calls (0 retries, 191484 tokens, 131639ms)
+Tools:      1 calls (0 blocked, 8591ms)
+Codegen:    3 calls (0 blocked, 22ms)
+Pulse:      HEALTHY (138 checks, 1 clean turns, epoch 4)
+────────────────────────────────

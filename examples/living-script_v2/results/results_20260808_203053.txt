@@ -1,0 +1,167 @@
+# commit=b6e8ebd782e210009ee63d97092915d13712da63 binary=/data/data/com.termux/files/home/.naab/language/examples/living-script_v2/../../build/naab-lang binary_mtime=2026-08-07T21:48:05-0400 governance_kill=none
+PHASE|INIT|start
+INIT_AGENTS: 10
+PHASE|TOOL_REGISTRATION|start
+TOOL_REGISTRATION|validate_python=true
+TOOL_REGISTRATION|validate_shell=true
+TOOL_REGISTRATION|delegate_engine=true
+TOOL_REGISTRATION|delegate_deploy=true
+TOOL_REGISTRATION|delegate_test=true
+TOOL_REGISTRATION|total=5
+PHASE|PREFLIGHT|start
+PREFLIGHT|agent_checks=13|total_configs=13
+PREFLIGHT|baseline_health=healthy|baseline_epoch=0
+PREFLIGHT|codegen_enabled=true|has_python=true|has_shell=true|languages=2
+PREFLIGHT|pm_tools_enabled=true|pm_tools_available=[delegate_engine, delegate_deploy, delegate_test]
+PHASE|TOOL_EXEC|start
+TOOL_EXEC|positive_control|calls=0|loop_turns=0|results=0|exit=none
+TOOL_EXEC|negative_control_calls=-1
+TOOL_EXEC|dual_gate_held=true
+PHASE|DESIGN|start
+TURN|engine_lead|design|c=-1
+TURN|deploy_lead|design|c=-1
+TURN|test_lead|design|c=-1
+PHASE|IMPLEMENT|start
+TURN|engine_dev|build_engine|c=-1
+IMPLEMENT|engine_extract_empty|retrying|len=0
+TURN|deploy_dev|deploy_sh|c=-1
+TURN|test_dev|test_build|c=-1
+CODE|engine=0|deploy=0|test=0
+PHASE|REFINE|start
+REFINE_ITER|1|start
+VALIDATE|iter1|total_checks=0
+REFINE_ITER|1|end|passed=false
+REFINE_ITER|2|start
+VALIDATE|iter2|total_checks=0
+REFINE_ITER|2|end|passed=false
+REFINE_ITER|3|start
+VALIDATE|iter3|total_checks=0
+REFINE_ITER|3|end|passed=false
+REFINE|total_iterations=3|passed=false
+PHASE|REVIEW|start
+PHASE|PROPOSE_SELECT|start
+PROPOSE_SELECT|candidates=0|committed=false
+PHASE|FAN_OUT_REVIEW|start
+FAN_OUT_REVIEW|final_verdict=SKIPPED
+PHASE|FEATURES|start
+FEATURES|scanning|found=3 requirements
+FEATURE|1|start|Add parallel build execution to BuildEngine. When building a target with multiple independent dependencies, execute them concurrently using a thread pool. Add methods: build_parallel(target, max_workers=4) that resolves dependencies and builds independent targets in parallel, get_build_timeline() that returns the execution order with timestamps.
+VALIDATE|feat1|total_checks=0
+FEATURE|1|unvalidated
+FEATURE|2|start|Add a build plugin system. Plugins register via register_plugin(name, plugin) where plugin has hooks: pre_build(target), post_build(target, result), on_error(target, error). Add methods: register_plugin(name, plugin), list_plugins(), enable_plugin(name), disable_plugin(name). Plugins execute in registration order. Plugin errors are isolated (caught and logged, never crash the build).
+VALIDATE|feat2|total_checks=0
+FEATURE|2|unvalidated
+FEATURE|3|start|Add remote caching to BuildEngine. Cache build outputs keyed by content hash of inputs (source + dependencies). Add methods: enable_cache(cache_dir), cache_lookup(target) returning CacheResult(hit, path, hash), cache_store(target, output), get_cache_stats() returning dict with hits, misses, hit_rate, total_size. Cache invalidation when any input changes.
+VALIDATE|feat3|total_checks=0
+FEATURE|3|unvalidated
+FEATURES|total=3
+PHASE|SHELL_CODEGEN_BOUNDARY|start
+SHELL_CODEGEN|basic|output={"output": 42, "exit_code": 0, "language": shell, "duration_ms": 9}|contains_42=true
+SHELL_CODEGEN|args|output={"output": 30, "exit_code": 0, "language": shell, "duration_ms": 1}|contains_30=true
+SHELL_CODEGEN|strict|threw={"message": Codegen error: codegen.run_strict() execution failed
+
+  Language: shell
+  Exit code: 1
+
+  Error output:
+  shell execution error: Persistent shell executor: Process exited unexpectedly
+
+
+  at <script>() [/data/data/com.termux/files/usr/tmp/living-script-v2-20490/work-20490-25850/living-script.naab:0]}
+SHELL_CODEGEN|strict_threw=true
+PHASE|INTROSPECTION|start
+INTROSPECTION|pm|max_tokens=2048|coherence=1|tools_enabled=true
+INTROSPECTION|pm_usage|retries=0|fallbacks=0|truncations=0|latency_ms=0
+INTROSPECTION|engine_lead|max_tokens=2048|coherence=1|ctx_window=20
+INTROSPECTION|engine_lead_usage|retries=0|latency_ms=0
+INTROSPECTION|deploy_lead|coherence=1
+INTROSPECTION|key_health|available=0|active=[]|dead=[GK1, GK2, GK3, GK4, GK5, GK6]
+INTROSPECTION|dispatch|calls=6|tokens=0|hard_stopped=false
+PHASE|SEPARATION_OF_DUTIES|start
+SEPARATION|deploy_dev|shell_allowed=true|actions=[AGENT_SEND, TOOL_EXEC, FS_WRITE]
+SEPARATION|pm_agent_send=true|actions=[AGENT_SEND, TOOL_EXEC]
+PHASE|RATCHET|start
+[operator] BLOCKED: context_window can only decrease (20 -> 50)
+[operator] No valid changes to apply
+RATCHET|loosen_blocked=true|result=no_valid_changes
+RATCHET|tighten_ok=true|result=
+[operator] Skipped unknown field: system_prompt for engine_dev
+[operator] No valid changes to apply
+RATCHET|field_blocked=true|result=no_valid_changes
+RATCHET|free_adjust_ok=true|result=
+PHASE|ENGINE_RATCHET|start
+ENGINE_RATCHET|loosened_write=|threshold=0.6->0.05|streak=3->99
+ENGINE_RATCHET|restored=
+ENGINE_RATCHET|probe_ok=false|new_notices=0
+ENGINE_RATCHET|config_events=1->3|ratchet_events=0->1
+ENGINE_RATCHET|reload_evaluated=true
+ENGINE_RATCHET|engine_rejected_loosening=true
+PHASE|BATCH_PIPELINE|start
+BATCH_PIPELINE|batch_responses=2
+BATCH_PIPELINE|seq_plan=true|pattern=sequential_refinement|iterations=2
+PHASE|GOVERNANCE_HEALTH|start
+GOVERNANCE_HEALTH|verdict=healthy|coherence=1|epoch=3|why=
+GOVERNANCE_HEALTH|baseline_verdict=healthy|baseline_epoch=0
+GOVERNANCE_HEALTH|epoch_advanced=true
+PHASE|TELEMETRY_AUDIT|start
+TELEMETRY_AUDIT|unique_types=11|total_events=104
+TELEMETRY_AUDIT|type=CONFIG_ADJUSTMENT|count=4
+TELEMETRY_AUDIT|type=POLYGLOT_EXEC|count=3
+TELEMETRY_AUDIT|type=CODEGEN_EXEC|count=3
+TELEMETRY_AUDIT|type=ADMISSION_EVAL|count=21
+TELEMETRY_AUDIT|type=AGENT_KEY_DISABLED|count=6
+TELEMETRY_AUDIT|type=AGENT_RETRY|count=6
+TELEMETRY_AUDIT|type=GOVERNANCE_HEALTH_QUERY|count=2
+TELEMETRY_AUDIT|type=RunStart|count=1
+TELEMETRY_AUDIT|type=AGENT_TOOL_REGISTERED|count=5
+TELEMETRY_AUDIT|type=TRANSCRIPT_REF|count=32
+TELEMETRY_AUDIT|type=PROMPT_SCAN|count=21
+TELEMETRY_AUDIT|expected_found=2|expected_total=5
+TELEMETRY_AUDIT|tool_events_found=1|tool_events_checked=3
+TELEMETRY_AUDIT|consequence|OUTPUT_ADMISSIBILITY_EVAL=0
+TELEMETRY_AUDIT|consequence|OUTPUT_INADMISSIBLE=0
+TELEMETRY_AUDIT|consequence|AGENT_CHALLENGE_PASS=0
+TELEMETRY_AUDIT|consequence|AGENT_CHALLENGE_FAIL=0
+TELEMETRY_AUDIT|consequence|GOVERNANCE_LEVEL_CHANGE=0
+TELEMETRY_AUDIT|consequence|CONFIG_ADJUSTMENT=4
+TELEMETRY_AUDIT|consequence|VALIDATION_RECORDED=0
+TELEMETRY_AUDIT|consequence|BSD_MATCH=0
+TELEMETRY_AUDIT|consequence|RESPONSE_TRUNCATED=0
+TELEMETRY_AUDIT|consequence|AGENT_PROPOSE=0
+TELEMETRY_AUDIT|consequence|AGENT_PROPOSAL_COMMIT=0
+TELEMETRY_AUDIT|consequence|AGENT_TOOL_CALL=0
+TELEMETRY_AUDIT|consequence|AGENT_TOOL_RESULT=0
+TELEMETRY_AUDIT|consequence|TRANSCRIPT_REF=32
+TELEMETRY_AUDIT|consequence_found=2|consequence_total=14
+PHASE|TRANSCRIPT_AUDIT|start
+TRANSCRIPT_AUDIT|lines=32|entry_hash=32|sends=21|creates=11|transcript_ref=32
+TRANSCRIPT_AUDIT|every_entry_hashed=true
+TRANSCRIPT_AUDIT|ref_matches_entries=true
+PHASE|EVIDENCE_AUDIT|start
+EVIDENCE|exec_attestations=0|send_attestations=0|commit_attestations=0|script_sends=21
+EVIDENCE|signed=0|fingerprinted=0
+EVIDENCE|snapshots=0|semantic_turns=0|oa_evals=0
+EVIDENCE|refusals=0|refusal_attestations=0
+PHASE|CROSS_RUN_MEMORY|start
+MEMORY|saved|run=1
+PHASE|FINAL_VERDICT|start
+FINAL_VERDICT|result=NONE
+SUMMARY_AGENTS: 11
+SUMMARY_SENDS: 22
+SUMMARY_ERRORS: 22
+SUMMARY_ADJUSTMENTS: 0
+SUMMARY_FEATURES: 3
+SUMMARY_VERDICT: NONE
+SUMMARY_TOOL_CALLS: 0
+SUMMARY_PHASES: 23
+SUMMARY_OA_QUARANTINED: 0
+SUMMARY_CHALLENGE_PASSES: 0
+SUMMARY_SHELL_CODEGEN: 3
+CODE_EXTRACT|build_engine.py|extracted=false|len=0
+CODE_EXTRACT|deploy.sh|extracted=false|len=0
+CODE_EXTRACT|test_build.py|extracted=false|len=0
+TELEM_EVENTS: 107
+TELEM_CHAIN: true
+HEALTH: healthy
+SUMMARY_ELAPSED: 31.2369999885559
+=== LIVING SCRIPT V2 COMPLETE ===
