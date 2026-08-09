@@ -67,17 +67,11 @@ presign() {  # $1=json content
     rm -rf "$pdir"
 }
 
-start_stub() {  # $1=fixture $2=workdir
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do
-        grep -q READY "$2/stub.log" 2>/dev/null && return 0
-        sleep 0.1
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+# The one-shot port pick this used to carry is why CI went red the first time
+# it ran: a collision leaves the stub dead and the suite aborts at P-00 for a
+# reason unrelated to what it measures. The hardened launcher lives in
+# tests/helpers/stub_launch.sh so the next fix reaches every caller.
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"
 
 # Off-mandate fixture: HTML-parser code with zero overlap with the
 # calculator mandate — mandate_alignment fires unless overridden off.
