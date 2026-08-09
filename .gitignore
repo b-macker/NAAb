@@ -163,6 +163,11 @@ docs/book/verification/ch0_full_projects/*/bin/
 docs/book/verification/ch0_full_projects/*/vessels/*_bin_*
 docs/book/verification/ch0_full_projects/*/vessels/production_binary
 telemetry.jsonl
+# ...except committed gate fixtures. Those are evidence, not run artifacts:
+# each is seeded from a real run, trimmed to the fields the gate reads, then
+# mutated to remove exactly the property that gate claims. Without them the
+# self-test cannot prove a gate is failable, which is the whole point of it.
+!examples/*/gates/fixtures/**/telemetry.jsonl
 external/quickjs-2021-03-27/version
 
 # Internal review/audit documents

@@ -35,16 +35,28 @@
 # guard is kept here so this is safe for the ones that do not.
 #
 # USAGE
-#   source "$SCRIPT_DIR/../helpers/stub_launch.sh"
+#   source "<repo>/tests/helpers/stub_launch.sh"
 #   start_stub "$WDIR/fixture.json" "$WDIR" || { skip "X-00" "stub failed"; exit 0; }
 #   ...                                     # $STUB_PORT is set
 #   stop_stub
 #
-# Requires $SCRIPT_DIR to point at the calling suite's directory.
+# Source it by any path you like — it locates agent_stub.py relative to itself,
+# so it does not care where the caller lives.
 # ============================================================
 
 STUB_PID="${STUB_PID:-}"
 STUB_PORT="${STUB_PORT:-}"
+
+# Resolve agent_stub.py from THIS file's location, not the caller's $SCRIPT_DIR.
+# The original form was "$SCRIPT_DIR/../helpers/agent_stub.py", which silently
+# assumes every caller lives in tests/<something>/ — true of the 30 suites this
+# was extracted from, and false the moment examples/living-script_v3/run.sh
+# sourced it, where it resolved to examples/helpers/ and the stub "failed to
+# start" for a reason having nothing to do with ports.
+#
+# A helper that only works from one directory depth is a helper that will be
+# copied rather than shared, which is the failure this file exists to end.
+STUB_HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 start_stub() {  # $1=fixture json  $2=workdir
     local _fx="$1" _dir="$2" _try _i _tries=3
@@ -54,7 +66,7 @@ start_stub() {  # $1=fixture json  $2=workdir
     for _try in $(seq 1 $_tries); do
         STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
         : > "$_dir/stub.log"
-        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$_fx" "$_dir" \
+        python3 "$STUB_HELPER_DIR/agent_stub.py" "$STUB_PORT" "$_fx" "$_dir" \
             > "$_dir/stub.log" 2>&1 &
         STUB_PID=$!
 

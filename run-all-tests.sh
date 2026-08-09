@@ -2187,6 +2187,23 @@ for _gv4 in tests/governance_v4/test_*.sh; do
     fi
 done
 
+V3_SELFTEST="examples/living-script_v3/run.sh"
+if [ -f "$V3_SELFTEST" ]; then
+    # Keyless, no binary, no stub, no network: every living-script_v3 gate is
+    # run against its own pass fixture and its negative fixture and must produce
+    # exactly one PASS then exactly one FAIL. This is the cheap half of the
+    # campaign's split -- "can this assertion fail?" runs on every commit, while
+    # "did the property hold?" costs a keyed run.
+    if run_shell_test "$V3_SELFTEST" --self-test 2>&1; then
+        echo "  living-script_v3 --self-test: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("living-script_v3 --self-test")
+    fi
+else
+    echo "  living-script_v3 --self-test: not found, skipping"
+fi
+
 CANARY_SCRIPT="tests/self-audit/test_prescan_canaries.sh"
 if [ -f "$CANARY_SCRIPT" ]; then
     # Canary test injects/reverts source files — skip when working tree is dirty

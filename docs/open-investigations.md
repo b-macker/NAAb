@@ -51,7 +51,8 @@ campaign doc's live-status column.
 
 | # | Item | Status | Blocker |
 |---|---|---|---|
-| C1 | **De-escalation hysteresis** | **open — now known to be structurally blocked** | Not just "no run has produced it": with `coherence_natural_healing` at its default 0.0, a floored agent's composite cannot fall back below `elevated_threshold`, so the mechanism's input never occurs. See the E-section probe result. Decide whether that is intended before spending a keyed run on it. |
+| C1 | **De-escalation hysteresis** | **observed working (stub)** | `living-script_v3` steps `high → elevated` at turn 18 — first observation of the hysteresis firing. Only the live run remains. |
+| C1a | **`elevated → normal` is unreachable once coherence floors.** With `coherence_natural_healing` at its default 0.0, coherence never climbs back, and `coherence_prox` alone holds composite above `elevated_threshold` — 18 quiet turns in the v3 run left it pinned at 0.5125 vs a 0.35 threshold. | open | A design question, not obviously a defect: scrutiny earned arguably should not be cheap to shed. But pair it with B1 (a process restart clears the level outright) and the combination is odd — unshakeable within a process, free by restarting it. Both available fixes are loosenings, so this needs a decision before code. |
 | C2 | **HIGH and CRITICAL levels** | **HIGH reached (stub), CRITICAL open** | HIGH reached keylessly at turn 5 on 2026-08-09 — the scenario question is answered, only the live run remains. CRITICAL was deliberately tuned out of reach in that probe. |
 | C3 | **Five campaign findings** — pulse streak field, evidence-count shrink, lease expiry mid-deliberation, config generation guard, CRITICAL suspension | open | All five need adversarial conditions a clean run cannot produce. |
 | C4 | **Reviewer separation of duties** (`allowed_actions: ["AGENT_SEND"]` only) | open | Never live-confirmed: no reviewer has yet *attempted* a tool call, so the absence of blocks proves nothing. |
@@ -78,8 +79,8 @@ Full design in the session plan file; increments 1–2 are merged.
 | E1 | Gate library + self-test driver (#133) | **done** |
 | E2 | v2 pattern archaeology (#132, #134) | **done** |
 | E3 | Per-agent routing in `agent_stub.py` | **done** |
-| E4 | v3 scenario skeleton, ladder walked **keylessly** against the stub first | open |
-| E5 | v3 gates + negative fixtures, `--self-test` green in CI | open |
+| E4 | v3 scenario skeleton, ladder walked **keylessly** against the stub first | **done** |
+| E5 | v3 gates + negative fixtures, `--self-test` green in CI | **done** — 11 gates, 11 negative fixtures, registered in `run-all-tests.sh` |
 | E6 | One keyed run | open |
 
 **Increment 4b result (probed keylessly 2026-08-09, routed stub, 2 agents,
@@ -89,7 +90,28 @@ Full design in the session plan file; increments 1–2 are merged.
 time HIGH has been reached at all** — C2 above is no longer blocked on "needs
 genuine drift", only on doing it live. Composite peaked at 0.70.
 
-**De-escalation did not fire, and the reason is structural, not scenario shape:**
+**Correction (same day, from the v3 run).** The probe's conclusion below —
+"de-escalation is structurally unreachable" — was **wrong**, and wrong in an
+instructive way. `living-script_v3` steps `high → elevated` at turn 18. The
+hysteresis works; this is the first time it has been observed doing so.
+
+The probe missed it because its recovery phase still fired ~2 signals a turn,
+so composite floored at 0.567 — just above `high_threshold` 0.55. Nothing
+stepped down because nothing ever dropped below a threshold, which is
+indistinguishable from a mechanism that cannot fire. The lesson is the campaign's
+own: *a mechanism that did not fire and a mechanism that cannot fire produce the
+same observation*, and I took the stronger reading on one run.
+
+**What is genuinely blocked is the LAST step, `elevated → normal`.** In the v3
+run the handle is quiet from turn 18 to 36 — eighteen turns — with composite
+pinned at exactly 0.5125, above `elevated_threshold` 0.35. With coherence
+floored at 0.0 the `coherence_prox` term alone holds the composite up, and
+`coherence_natural_healing` defaults to 0.0, so it never climbs back. An agent
+that has once floored its coherence can return to HIGH-minus-one and no further,
+for the life of the process.
+
+The original probe notes follow, kept because the arithmetic in them is right
+even though the conclusion drawn from it was too strong:
 
 - `context_drift.coherence_natural_healing` defaults to **0.0**
   (`governance.h:1343`). With it off, coherence only ever decreases — the sole
