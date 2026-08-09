@@ -244,7 +244,10 @@ else
         gk_fail "L1-01" "Agent creation" "only $AGENTS_CREATED agents, expected >= 8"
     fi
 
-    OP_ACTIONS=$(echo "$OUTPUT" | grep -cE 'OPERATOR|action=' || true)
+    # BRE: 'OPERATOR|action=' is a literal marker, not an alternation of
+    # "OPERATOR" or "action=". Under -E this counted every line containing
+    # either token, inflating the operator-consultation count.
+    OP_ACTIONS=$(echo "$OUTPUT" | grep -c 'OPERATOR|action=' || true)
     if [ "$OP_ACTIONS" -ge 3 ]; then
         pass "L1-02" "Operator consulted ($OP_ACTIONS times)"
     else
@@ -257,7 +260,7 @@ else
         gk_fail "L1-03" "No adjustments tracked (ADJUSTMENTS=$ADJUSTMENTS)"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'PHASE|INIT'; then
+    if echo "$OUTPUT" | grep -q 'PHASE|INIT|'; then
         pass "L1-04" "PM agent created (INIT phase reached)"
     else
         gk_fail "L1-04" "PM agent not created (no INIT phase)"
@@ -274,7 +277,7 @@ else
     # ============================================================
     echo -e "${CYAN}Level 2: Pytest Validation${NC}"
 
-    PYTEST_RUNS=$(echo "$OUTPUT" | grep -cE 'PYTEST|exit=' || true)
+    PYTEST_RUNS=$(echo "$OUTPUT" | grep -c 'PYTEST|exit=' || true)
     if [ "$PYTEST_RUNS" -ge 1 ]; then
         pass "L2-01" "Pytest executed ($PYTEST_RUNS runs)"
     else
@@ -423,7 +426,13 @@ else
         gk_fail "L7-02" "deploy.sh syntax not validated"
     fi
 
-    if echo "$OUTPUT" | grep -qE 'CODEGEN_EXEC|shell|SHELL_CODEGEN|'; then
+    # BRE, not -E: every marker this harness emits is pipe-delimited, so in an
+    # extended regex an unescaped `|` is alternation rather than the literal it
+    # was meant to be. This pattern was 'CODEGEN_EXEC|shell|SHELL_CODEGEN|' under
+    # -E — a trailing EMPTY alternative, which matches every non-empty line, so
+    # L7-03 could not fail on any run that produced output at all.
+    # The real evidence is the telemetry audit line: TELEMETRY_AUDIT|type=CODEGEN_EXEC|count=N
+    if echo "$OUTPUT" | grep -q 'type=CODEGEN_EXEC|count=[1-9]'; then
         pass "L7-03" "Shell codegen.run executed"
     else
         gk_fail "L7-03" "Shell codegen.run not executed"
@@ -482,7 +491,9 @@ else
 
     if ! govkill_block "L10-*" 'PHASE|FAN_OUT_REVIEW|'; then
 
-    if echo "$OUTPUT" | grep -qE 'FAN_OUT|judges=|FAN_OUT_REVIEW|'; then
+    # Was 'FAN_OUT|judges=|FAN_OUT_REVIEW|' under -E: trailing empty alternative,
+    # so L10-01 passed on any non-empty output. BRE keeps the pipes literal.
+    if echo "$OUTPUT" | grep -q 'PHASE|FAN_OUT_REVIEW|'; then
         pass "L10-01" "Fan-out review executed"
     else
         gk_fail "L10-01" "Fan-out review not executed"
