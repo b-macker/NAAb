@@ -3865,6 +3865,37 @@ static bool checkRatchetViolation(
             notices.push_back(fmt::format("context_drift.adaptive_absorption_limit: unlimited -> {} (tightened)", new_lim));
     }
 
+    // The three coherence recovery knobs were un-ratcheted while their two
+    // siblings (validation_recovery_amount below, rate_normalized_floor) were
+    // guarded — so raising them mid-run refunded penalties with nothing to stop
+    // it. Every one of them makes drift cost less net, which is the same
+    // loosening the sibling checks already refuse.
+    //
+    // coherence_recovery_cap is the ceiling resetCoherence may restore to, so
+    // RAISING it permits more recovery and is the loosening direction, matching
+    // the other two rather than inverting like exclude_infrastructure_errors.
+    {
+        const auto& ocd = old_r.context_drift;
+        const auto& ncd = new_r.context_drift;
+        struct { const char* key; double oldv; double newv; const char* why; } coh[] = {
+            {"coherence_natural_healing", ocd.coherence_natural_healing,
+             ncd.coherence_natural_healing, "drift heals faster per clean turn"},
+            {"coherence_recovery_amount", ocd.coherence_recovery_amount,
+             ncd.coherence_recovery_amount, "each recovery event returns more"},
+            {"coherence_recovery_cap",    ocd.coherence_recovery_cap,
+             ncd.coherence_recovery_cap,    "recovery may climb higher"},
+        };
+        for (const auto& c : coh) {
+            if (c.newv > c.oldv)
+                violations.push_back(fmt::format(
+                    "context_drift.{}: {:.3f} -> {:.3f} (loosened — {})",
+                    c.key, c.oldv, c.newv, c.why));
+            else if (c.newv < c.oldv)
+                notices.push_back(fmt::format("context_drift.{}: {:.3f} -> {:.3f} (tightened)",
+                    c.key, c.oldv, c.newv));
+        }
+    }
+
     // Raising the validation recovery credit = loosening (failures cost less net)
     if (new_r.context_drift.validation_recovery_amount > old_r.context_drift.validation_recovery_amount)
         violations.push_back(fmt::format("context_drift.validation_recovery_amount: {:.3f} -> {:.3f} (loosened — validation failures recover more cheaply)",

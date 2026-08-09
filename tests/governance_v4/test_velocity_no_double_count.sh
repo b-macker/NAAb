@@ -57,17 +57,18 @@ sign_govern() {
     (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 }
 
-start_stub() {  # $1=fixture $2=workdir
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do
-        grep -q READY "$2/stub.log" 2>/dev/null && return 0
-        sleep 0.1
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+# This suite carried its own copy of start_stub: one port pick, no bind check,
+# and a flat 5s ceiling for READY. On a loaded runner that is not enough — a
+# collision or a lingering TIME_WAIT socket leaves the stub dead, python3
+# startup plus bind can exceed 5s, and either way V-00 skips and the suite
+# exits 1 for a reason unrelated to what it measures. That is exactly what
+# turned master red on d6e3bd4: "SKIP [V-00] stub failed to start", on a commit
+# that changed nothing this suite touches.
+#
+# The hardened launcher retries three ports, waits 30s, notices a dead child,
+# and prints the stub log tail on failure. Sourcing it deletes this copy rather
+# than fixing it, so the next fix reaches here too.
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"
 
 cdd_turn_line() { grep '"event_type":"CDD_TURN"' "$1" 2>/dev/null | sed -n "${2}p"; }
 

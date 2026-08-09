@@ -785,6 +785,14 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     state.signals_fired_this_turn = 0;
     state.turns_analyzed++;
 
+    // Bounded healing: snapshot coherence before this turn's penalties so the
+    // damage ledger can be updated from one place. Measuring the net movement
+    // here rather than instrumenting all 23 penalty sites is deliberate -- 23
+    // edits is 23 chances to miss one, and a ledger that misses a penalty
+    // under-counts damage and so under-permits recovery, failing quietly in the
+    // direction that looks like the bound working.
+    const double coh_at_turn_start = state.coherence_score;
+
     // Temporal trust decay — coherence erodes over time even when idle
     if (config_->temporal_decay_enabled) {
         auto now = std::chrono::steady_clock::now();
@@ -1978,11 +1986,43 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     state.last_turn_fired = turn_fired;
     state.last_turn_penalties = turn_penalties;
 
+    // Bounded healing, part 1 of 2: book this turn's damage before healing it.
+    //
+    // Damage is the drop from the turn's starting coherence, measured against
+    // the clamped value so penalties swallowed by the 0.0 floor are not booked.
+    // A turn that ended higher than it started (S22's fail->pass credit is the
+    // only way that happens mid-turn) books nothing rather than negative
+    // damage, which would silently enlarge the healing allowance.
+    {
+        const double post_penalty = std::max(0.0, state.coherence_score);
+        const double lost = coh_at_turn_start - post_penalty;
+        if (lost > 0.0) state.coherence_damage_total += lost;
+    }
+
     // F15: Natural healing — proportional to signal cleanliness.
     // Full healing at 0 signals, half at 1, third at 2, etc.
+    //
+    // Bounded healing, part 2 of 2: capped at damage not yet healed. An agent
+    // that never drifted has an empty ledger and heals nothing, so healing can
+    // never inflate a healthy score; an agent that drifted recovers at most
+    // exactly what it lost, so alternating one bad turn with one good one nets
+    // zero instead of positive.
+    //
+    // The clamp below is deliberately left where it was. Healing is added to
+    // the raw (possibly negative) score exactly as before, so this change can
+    // only ever reduce the amount healed -- it is a tightening, and configs at
+    // today's shipped rates see no practical difference because those rates are
+    // already too small to outrun a single firing signal.
     if (config_->coherence_natural_healing > 0.0) {
         double heal_factor = 1.0 / (1.0 + state.signals_fired_this_turn);
-        state.coherence_score += config_->coherence_natural_healing * heal_factor;
+        double want = config_->coherence_natural_healing * heal_factor;
+        double allowance = std::max(0.0, state.coherence_damage_total -
+                                         state.coherence_healed_total);
+        double granted = std::min(want, allowance);
+        if (granted > 0.0) {
+            state.coherence_score += granted;
+            state.coherence_healed_total += granted;
+        }
     }
 
     // Clamp coherence score to [0.0, 1.0]
@@ -2048,6 +2088,11 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     j["coherence_velocity"] = s.coherence_velocity;
     j["coherence_acceleration"] = s.coherence_acceleration;
     j["min_coherence_lifetime"] = s.min_coherence_lifetime;
+    // Bounded-healing ledger: without these two the bound is invisible in
+    // evidence -- a turn that healed nothing and a turn whose allowance was
+    // exhausted look identical from coherence alone.
+    j["coherence_damage_total"] = s.coherence_damage_total;
+    j["coherence_healed_total"] = s.coherence_healed_total;
     j["turns_analyzed"] = s.turns_analyzed;
     j["last_checked_turn"] = s.last_checked_turn;
     j["contradictions"] = s.contradictions;
@@ -2273,10 +2318,25 @@ void ContextDriftAnalyzer::resetCoherence(int handle_id, double amount) {
         // Penalties are additive (weight * count), so recovery must also be
         // additive to maintain arithmetic balance across lease cycles.
         // The cap prevents overshooting — no diminishing returns needed.
+        //
+        // Bounded healing: this path debits the SAME ledger as natural healing.
+        // It is called on a passed step-up challenge and at two pipeline-stage
+        // boundaries, granting a flat coherence_recovery_amount (default 0.2)
+        // with no reference to how much was actually lost. Left out of the
+        // ledger it would be a bypass rather than an exception: any agent in a
+        // pipeline could out-recover its own damage on stage transitions alone,
+        // and the bound on natural healing would be decorative for exactly the
+        // topology most likely to need it.
         double cap = config_ ? config_->coherence_recovery_cap : 1.0;
         double old = it->second.coherence_score;
-        if (old < cap) {
-            it->second.coherence_score = std::min(cap, old + amount);
+        double allowance = std::max(0.0, it->second.coherence_damage_total -
+                                         it->second.coherence_healed_total);
+        double granted = std::min(amount, allowance);
+        if (old < cap && granted > 0.0) {
+            double before = it->second.coherence_score;
+            it->second.coherence_score = std::min(cap, old + granted);
+            it->second.coherence_healed_total +=
+                (it->second.coherence_score - before);
         }
         // Clear history and derivatives to prevent false velocity/acceleration signals
         it->second.coherence_history.clear();
