@@ -1993,10 +1993,27 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // A turn that ended higher than it started (S22's fail->pass credit is the
     // only way that happens mid-turn) books nothing rather than negative
     // damage, which would silently enlarge the healing allowance.
+    //
+    // A turn that ends HIGHER than it started is recovery, and it is booked as
+    // healing rather than ignored. Recovery is finite by design -- an agent can
+    // recover and still be a bad agent -- so every channel that returns
+    // coherence draws on the same budget, whichever one delivers it.
+    //
+    // This is deliberately channel-agnostic instead of special-casing S22's
+    // fail->pass credit (the only such path today, at the `+= credit` line
+    // above). Measuring net movement means any future increase path is booked
+    // automatically; a special case would have to be remembered, and this
+    // codebase's most repeated defect is a fix that reached one of N callers.
+    //
+    // Without it the conservation identity below is violated by exactly the
+    // credit amount whenever a validation credit exceeds that turn's penalties
+    // -- verified: coherence jumped 0.29 -> 0.79 on a recorded fail->pass while
+    // both ledger fields stood still.
     {
         const double post_penalty = std::max(0.0, state.coherence_score);
-        const double lost = coh_at_turn_start - post_penalty;
-        if (lost > 0.0) state.coherence_damage_total += lost;
+        const double delta = coh_at_turn_start - post_penalty;
+        if (delta > 0.0)      state.coherence_damage_total += delta;
+        else if (delta < 0.0) state.coherence_healed_total += -delta;
     }
 
     // F15: Natural healing — proportional to signal cleanliness.
@@ -2018,7 +2035,17 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         double want = config_->coherence_natural_healing * heal_factor;
         double allowance = std::max(0.0, state.coherence_damage_total -
                                          state.coherence_healed_total);
-        double granted = std::min(want, allowance);
+        // Also cap at the actual deficit. Under the ledger alone the allowance
+        // equals 1 - coherence exactly, so this looks redundant -- and it is,
+        // right up until a recovery channel raises coherence without booking
+        // it. That was the state before the delta accounting above, and the
+        // consequence was healing overshooting into the clamp while
+        // coherence_healed_total booked the full grant: the ledger recording
+        // more recovery than the agent received. Harmless in direction (an
+        // over-booked ledger shrinks future allowance) but it breaks the
+        // invariant, and an invariant with an exception cannot be asserted.
+        double deficit = std::max(0.0, 1.0 - state.coherence_score);
+        double granted = std::min(want, std::min(allowance, deficit));
         if (granted > 0.0) {
             state.coherence_score += granted;
             state.coherence_healed_total += granted;

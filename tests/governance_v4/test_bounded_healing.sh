@@ -38,21 +38,27 @@
 # EVERY GATE HAS A DEMONSTRATED FAILURE CASE
 #
 #   G1  bound removed (heal the full want)      -> BH-01 BH-03
+#   G2  damage ledger inflated by +10/turn      -> BH-08
 #   G3  ratchet block removed                   -> BH-04 BH-05
 #   G4  ratchet fires on ANY change             -> BH-06
+#   G5  net gain no longer booked as healing    -> BH-08
+#   G6  damage never booked                     -> BH-01 BH-02 BH-03 BH-08
+#   G7  ledger dropped from snapshots           -> BH-01 BH-02 BH-03 BH-07 BH-08
 #
-# BH-07 fails whenever the snapshot fields are dropped, which G1..G4 leave
-# intact by construction.
+# VACUITY: every gate must FAIL on absent data, not pass on 0 <= 0. G7 is the
+# check for that, and it caught a real one -- BH-03 tested only for an empty
+# string, which ledger() never produces, so with the snapshot fields dropped it
+# passed on "healed=0 <= damage=0" while every other gate failed. It now
+# requires a positive row count AND positive damage, because a bound on zero
+# damage holds trivially.
 #
-# A KNOWN GAP, recorded rather than papered over. G2 inflated the damage ledger
-# by +10 per turn and NOTHING failed: BH-03 asserts healed <= damage, which an
-# over-counted ledger satisfies trivially while permitting more healing than was
-# ever lost -- a loosening these gates cannot see. Catching it needs a
-# consistency check (damage booked should reconcile with coherence actually
-# lost, i.e. damage ~= (1 - min_coherence_lifetime) + healed). Not written here;
-# tracked in docs/open-investigations.md. The bound is verified in the direction
-# that matters for safety (healing cannot exceed damage) and unverified in the
-# direction that would require the engine to lie to itself about damage.
+# G2 is worth its own note. It was once a KNOWN GAP: an over-counted ledger
+# satisfies healed <= damage trivially while permitting more healing than was
+# ever lost, and nothing in the suite could see it. The consistency check first
+# proposed for it -- damage ~= (1 - min_coherence_lifetime) + healed -- is
+# WRONG, and testing it is how that was found: the identity only holds if all
+# healing happens after the coherence minimum. The real invariant is exact and
+# is what BH-08 asserts.
 #
 # BH-01 is worth reading before trusting it. Its first version used a control
 # agent with every CDD signal disabled -- which emits NO snapshots at all, so
@@ -100,6 +106,7 @@ gate_def BH-04 RATCHET "raising coherence_natural_healing mid-run is a violation
 gate_def BH-05 RATCHET "raising coherence_recovery_amount mid-run is a violation"
 gate_def BH-06 CONTROL "lowering a coherence key mid-run is accepted"
 gate_def BH-07 EVIDENCE "the ledger is visible in decision snapshots"
+gate_def BH-08 INVARIANT "coherence == 1 - damage + healed, on every turn"
 
 # ------------------------------------------------------------------
 # Fixtures: a clean agent and a drifting one, on separate routes.
@@ -134,7 +141,8 @@ cat > "$W/govern.json" << GOVEOF
   "context_drift": {
     "enabled": true,
     "check_interval_turns": 1,
-    "coherence_natural_healing": 0.25
+    "coherence_natural_healing": 0.25,
+    "validation_recovery_amount": 0.5
   },
   "agents": {
     "clean": {
@@ -175,6 +183,11 @@ main {
     while i < 8 {
         let rc = agent.send(c, "Continue the calculator work")
         let rd = agent.send(d, "Continue the calculator work")
+        // Drive S22's fail->pass credit, the one recovery channel that is not
+        // natural healing. Without it BH-08 never exercises the delta booking
+        // and the invariant is asserted only where it held before the fix.
+        if i == 2 { agent.record_validation(d, false, "assert failed: totals mismatch") }
+        if i == 4 { agent.record_validation(d, true) }
         i = i + 1
     }
     print("RUN_DONE")
@@ -274,8 +287,18 @@ else
 fi
 
 # BH-03 — the load-bearing invariant.
-if [ -z "$D_HEAL" ] || [ -z "$D_DMG" ]; then
-    gk_fail BH-03 "ledger unreadable" "cannot evaluate the bound"
+# The row count and the positive-damage guard are both load-bearing. ledger()
+# prints numbers unconditionally, so an emptiness test never fires; and
+# "healed <= damage" is trivially TRUE at 0 <= 0, which is exactly what the run
+# produces when the snapshot fields are missing. Verified: with only the
+# emptiness test, dropping the ledger from snapshots left BH-03 passing on
+# 0 <= 0 while every other gate failed.
+if [ "${D_ROWS:-0}" -eq 0 ]; then
+    gk_fail BH-03 "no ledger snapshots for the drifting agent" \
+            "0 <= 0 is not evidence of a bound"
+elif ! gt "$D_DMG" 0.0; then
+    gk_fail BH-03 "drifting agent booked no damage" \
+            "a bound on zero damage holds trivially and proves nothing"
 elif le "$D_HEAL" "$D_DMG"; then
     pass BH-03 "healing never exceeds damage (healed=$D_HEAL <= damage=$D_DMG)"
 else
@@ -368,6 +391,60 @@ if grep -q 'coherence_damage_total' "$W/telemetry.jsonl" 2>/dev/null; then
 else
     gk_fail BH-07 "ledger absent from snapshots" \
             "a turn that healed nothing and one whose allowance was spent look identical without it"
+fi
+
+
+# BH-08 — the conservation invariant, over every snapshot in the run.
+#
+# validation_recovery_amount is set to 0.5 in this suite's config ON PURPOSE.
+# At the engine default (0.075) the credit is smaller than a drifting turn's
+# penalties, so it is absorbed inside the turn's net movement and never produces
+# a net GAIN -- which means the delta-booking half of the fix is never
+# exercised. Verified: with the default, reverting that half left BH-08 passing.
+# A gate that cannot see the change it exists to protect is not a gate.
+#
+# coherence_score == 1 - damage_total + healed_total, exactly. It holds because
+# damage is measured post-clamp and because ANY net gain within a turn is booked
+# as healing, so no recovery channel can move coherence without the ledger
+# seeing it. Verified through an S22 fail->pass credit, which before the delta
+# accounting broke it by exactly the credit (coherence 0.29 -> 0.79 with both
+# ledger fields standing still).
+#
+# This is the gate that catches an over-counted ledger -- the gap BH-03 cannot
+# see, because healed <= damage is trivially true when damage is inflated.
+INV=$(python3 - "$W/telemetry.jsonl" << 'PY'
+import json, sys
+rows = 0; worst = 0.0; worst_turn = -1
+try:
+    for line in open(sys.argv[1]):
+        try: d = json.loads(line)
+        except Exception: continue
+        if d.get("event_type") != "SEMANTIC_TURN": continue
+        sn = d.get("cdd_snapshot")
+        if isinstance(sn, str):
+            try: sn = json.loads(sn)
+            except Exception: continue
+        if not isinstance(sn, dict) or "coherence_damage_total" not in sn: continue
+        rows += 1
+        res = abs(float(sn.get("coherence_score", 0.0))
+                  - (1.0 - float(sn["coherence_damage_total"])
+                         + float(sn["coherence_healed_total"])))
+        if res > worst: worst, worst_turn = res, d.get("turn", -1)
+except OSError:
+    pass
+print("%d %.12f %s" % (rows, worst, worst_turn))
+PY
+)
+read -r I_ROWS I_WORST I_TURN <<< "$INV"
+
+if [ "${I_ROWS:-0}" -eq 0 ]; then
+    gk_fail BH-08 "no snapshots to check the invariant against" \
+            "a residual of zero over zero rows is not evidence"
+elif awk -v w="$I_WORST" 'BEGIN{exit !(w < 1e-9)}'; then
+    pass BH-08 "coherence == 1 - damage + healed over $I_ROWS snapshots (worst residual $I_WORST)"
+else
+    fail BH-08 "conservation invariant violated" \
+         "worst residual $I_WORST at turn $I_TURN — a recovery channel is moving coherence without booking it, or damage is mis-counted"
 fi
 
 gate_print_summary
