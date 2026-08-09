@@ -825,6 +825,35 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     if (j.contains("restrictions") && j["restrictions"].is_object()) {
         auto& res = j["restrictions"];
 
+        // Six of the twelve restrictions.* sub-blocks enable themselves from the
+        // mere PRESENCE of the block and never read "enabled" at all, so writing
+        //     "restrictions": {"crypto": {"enabled": false}}
+        // does not disable the check -- it turns it ON, identically to writing
+        // true. The only way to leave one off is to omit the block. The other
+        // five (vcs_secret_extraction, obfuscation, data_exfiltration,
+        // resource_abuse, information_disclosure) DO read the key and disable
+        // properly, so the same JSON means opposite things depending on which
+        // sibling it is written under, and an operator cannot learn the rule
+        // from one example.
+        //
+        // The value is deliberately NOT honoured here. Making all twelve read
+        // the key is a loosening: every config carrying "enabled": false today
+        // is being enforced, and would silently stop being enforced on upgrade.
+        // That is the same trade rejected for default-on secret scanning, in
+        // the other direction. What is actually wrong is the silence -- the
+        // operator believes they turned something off -- so the silence is what
+        // gets fixed, additively, with no change to what is enforced.
+        auto warnIgnoredEnable = [](const nlohmann::json& blk, const char* name) {
+            if (blk.contains("enabled") && blk["enabled"].is_boolean() &&
+                !blk["enabled"].get<bool>()) {
+                fprintf(stderr,
+                        "[governance] Warning: \"restrictions.%s.enabled\": false has no effect — "
+                        "this check is enabled by the presence of its block. "
+                        "Remove the \"%s\" block to leave it disabled.\n",
+                        name, name);
+            }
+        };
+
         if (res.contains("polyglot_output") && res["polyglot_output"].is_object()) {
             auto& po = res["polyglot_output"];
             if (po.contains("format") && po["format"].is_string()) { rules_.restrictions.polyglot_output.format = po["format"].get<std::string>(); rules_.polyglot_output = rules_.restrictions.polyglot_output.format; rules_.explicitly_set.insert("restrictions.polyglot_output.format"); }
@@ -834,6 +863,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (res.contains("dangerous_calls") && res["dangerous_calls"].is_object()) {
             auto& dc = res["dangerous_calls"];
+            warnIgnoredEnable(dc, "dangerous_calls");
             rules_.restrictions.dangerous_calls.enabled = true;
             rules_.explicitly_set.insert("restrictions.dangerous_calls");
             rules_.restrict_dangerous_calls = true;
@@ -844,6 +874,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (res.contains("shell_injection") && res["shell_injection"].is_object()) {
             auto& si = res["shell_injection"];
+            warnIgnoredEnable(si, "shell_injection");
             rules_.restrictions.shell_injection.enabled = true;
             rules_.explicitly_set.insert("restrictions.shell_injection");
             if (si.contains("level")) { auto [en, lv] = parseEnforcementLevel(si["level"]); rules_.restrictions.shell_injection.level = lv; }
@@ -852,6 +883,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (res.contains("privilege_escalation") && res["privilege_escalation"].is_object()) {
             auto& pe = res["privilege_escalation"];
+            warnIgnoredEnable(pe, "privilege_escalation");
             rules_.restrictions.privilege_escalation.enabled = true;
             rules_.explicitly_set.insert("restrictions.privilege_escalation");
             if (pe.contains("level")) { auto [en, lv] = parseEnforcementLevel(pe["level"]); rules_.restrictions.privilege_escalation.level = lv; }
@@ -861,6 +893,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (res.contains("code_injection") && res["code_injection"].is_object()) {
             auto& ci = res["code_injection"];
+            warnIgnoredEnable(ci, "code_injection");
             rules_.restrictions.code_injection.enabled = true;
             rules_.explicitly_set.insert("restrictions.code_injection");
             if (ci.contains("level")) { auto [en, lv] = parseEnforcementLevel(ci["level"]); rules_.restrictions.code_injection.level = lv; }
@@ -874,6 +907,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (res.contains("crypto") && res["crypto"].is_object()) {
             auto& cr = res["crypto"];
+            warnIgnoredEnable(cr, "crypto");
             rules_.restrictions.crypto.enabled = true;
             rules_.explicitly_set.insert("restrictions.crypto");
             if (cr.contains("level")) { auto [en, lv] = parseEnforcementLevel(cr["level"]); rules_.restrictions.crypto.level = lv; }
@@ -897,6 +931,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (res.contains("imports") && res["imports"].is_object()) {
             auto& im = res["imports"];
+            warnIgnoredEnable(im, "imports");
             rules_.restrictions.imports.enabled = true;
             rules_.explicitly_set.insert("restrictions.imports");
             if (im.contains("level")) { auto [en, lv] = parseEnforcementLevel(im["level"]); rules_.restrictions.imports.level = lv; }

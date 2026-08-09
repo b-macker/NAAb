@@ -1110,3 +1110,85 @@ A key dated Aug 3 sits in `~/.naab/trusted-keys`. Suites that write an unsigned
 failing standalone, 12/12 isolated). Pre-existing on master, and the same shape
 one level up — the harness hides the state the test would have reported. Not
 fixed here; whichever suite installs a key without isolation needs finding first.
+
+## `"enabled": false` that turns a check on
+
+Working the contradiction-check coverage list turned this up sideways, which is
+the same way `CONTRA-007` and the pressure ladder were found.
+
+`CONTRA-010` fires when `capabilities.shell.blocked_commands` is set while
+`restrictions.code_injection` is off. A config written to trip it — blocked
+commands plus `"restrictions": {"code_injection": {"enabled": false}}` — stayed
+silent. The check was fine. The config was not doing what it said: writing
+`"enabled": false` had **enabled** code_injection.
+
+Six of the twelve `restrictions.*` sub-blocks enable themselves from the mere
+presence of the block and never read `enabled` at all:
+
+| honours `enabled` | ignores it, forces on |
+|---|---|
+| `vcs_secret_extraction`, `obfuscation`, `data_exfiltration`, `resource_abuse`, `information_disclosure` | `dangerous_calls`, `shell_injection`, `privilege_escalation`, `code_injection`, `crypto`, `imports` |
+
+(`polyglot_output` has no `enabled` concept at all.)
+
+So the same JSON means opposite things depending on which sibling it is written
+under, and omitting the block is the only way to leave one of the six off. All
+six were confirmed empirically, not read off the source: each fires with
+`"enabled": false` exactly as it does with `true`, and not at all when the block
+is absent. The control matters as much — `data_exfiltration` with a canary
+pattern gives 0 findings at `false` and 1 at `true`, so the key demonstrably
+works on that side of the table.
+
+**Direction of risk.** Fail-closed: the accident is *more* enforcement, not
+less. Nothing is unprotected because of this. What is wrong is that an operator
+who believes they turned a check off is wrong, has no way to find out, and
+cannot generalise from the five siblings where the key does work.
+
+**What was changed: only the silence.** The value is still ignored. Making all
+twelve honour the key is a **loosening** — every config carrying `"enabled":
+false` today is being enforced and would silently stop being enforced on
+upgrade. That is the trade already rejected for default-on secret scanning, run
+in the other direction, and it is not one to make while closing a reporting gap.
+So the six now print
+
+```
+[governance] Warning: "restrictions.crypto.enabled": false has no effect — this
+check is enabled by the presence of its block. Remove the "crypto" block to
+leave it disabled.
+```
+
+following the precedent of the existing `security.blocked_commands` warning. One
+helper, called from six sites, with a brace-accurate audit asserting the call
+reaches exactly the sub-blocks that force and none that read — because "a fix
+that reached one of N callers" is this campaign's most repeated finding and a
+sixth copy of a `fprintf` is how it happens.
+
+`tests/governance_v4/test_restrictions_enabled_key.sh` covers it, and RE-10 is
+the gate that matters: it asserts the check *still runs* under `"enabled":
+false`, so it fails if someone later converts this into the loosening. Verified
+by doing exactly that (degradation E4). RE-07/RE-08/RE-09 are the controls
+against an indiscriminate warning — without them, warning on every sub-block
+passes six of ten gates.
+
+### A vacuity in the gate written to catch a vacuity
+
+RE-10 first passed while measuring nothing. Its counter was
+`grep -c 'restrictions.crypto'`, and the new warning *names the rule it is
+warning about* — so the gate counted its own warning as evidence that the check
+had run. It was only visible because the trust-store leak (below) was in its
+active state at that moment: every config was an `INTEGRITY BLOCK`, nothing
+executed at all, and RE-10 still passed. Under an isolated trust store it would
+have passed for the right reason and the defect would have shipped.
+
+Two things follow. A gate must exclude the artefact it introduced from its own
+evidence. And the environment did the work here that review did not — the same
+lesson as everything else in this document, arriving from the least convenient
+direction available.
+
+The trust-store leak also has a better description now than "unknown cause": the
+store is not written during a run. `~/.naab/trusted-keys` is dated Aug 3 and
+unchanged since; what varies is that suites using `trust_setup.sh` point
+`NAAB_TRUST_STORE_DIR` elsewhere while they run. Probes issued during that
+window see an empty store and succeed; the same probes outside it are blocked.
+Findings taken from ad-hoc runs against a developer container are therefore
+timing-dependent unless the probe isolates the store itself.
