@@ -1,0 +1,7 @@
+# Run artifacts. The committed evidence is gates/fixtures/, which is seeded from
+# a real run and then hand-mutated; duplicating whole runs here bloats the repo
+# without adding a claim. A KEYED run's summary.json is the exception and is
+# committed deliberately when one is done.
+*
+!.gitignore
+!summary.json

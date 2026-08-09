@@ -1192,3 +1192,108 @@ unchanged since; what varies is that suites using `trust_setup.sh` point
 window see an empty store and succeed; the same probes outside it are blocked.
 Findings taken from ad-hoc runs against a developer container are therefore
 timing-dependent unless the probe isolates the store itself.
+
+## Three data limits that are configured, ratcheted, and enforce nothing
+
+The A3 sweep, run properly. The first attempt was worthless and is recorded
+first because the mistake is more useful than the result.
+
+### Evidence mining does not discriminate
+
+Cross-referencing all 107 rule names reaching `enforce()`/`recordPass()`
+against 21 MB of archived runs reported **95 of 107 "never fired"** — including
+five I had fired by hand an hour earlier. Every archived run is `living-script`,
+which exercises agent governance and almost no static-source checks, so the
+sweep measured *what those runs covered*, not *what can fire*. Only 12 rules
+appear at all.
+
+That is this campaign's own rule turned on its own instrument: a zero is only
+evidence if you can say what would have made it non-zero. **Source reachability
+discriminates; evidence mining does not.**
+
+### What reachability found
+
+Of 82 check-bearing `GovernanceEngine` methods, **five have zero call sites**
+anywhere in `src/` — defined once, declared once in `governance.h`, never
+invoked:
+
+| method | verdict |
+|---|---|
+| `checkStringLength` | backs an inert key |
+| `checkNestingDepth` | backs an inert key |
+| `checkDictSize` | backs an inert key |
+| `checkOutputSize` | **not** a gap — the value has a live consumer |
+| `checkCodegenAllowed` | **not** a gap — dead duplicate of live enforcement |
+
+Two of the five would have been false findings, which is the argument for
+tracing each one rather than reporting the list:
+
+- **`limits.data.output_size` is enforced**, at `polyglot.cpp:718`. But it
+  throws a plain `std::runtime_error` instead of calling `enforce()`, so it
+  produces no governance finding, no telemetry and no report entry, and is
+  **catchable** by NAAb `try/catch` unlike the HARD block it resembles.
+  Enforcement without evidence — a different finding, filed as A3a.
+- **`codegen.*` is fully enforced** in `codegen_impl.cpp` — `enabled`,
+  `allowed_languages`, `blocked_languages` and `max_code_size_bytes` all have
+  live checks. `checkCodegenAllowed` is a dead duplicate: a maintenance hazard
+  (someone fixing it would achieve nothing) rather than a hole.
+
+So the real finding is three keys: **`limits.data.string_length`,
+`nesting_depth` and `dict_size`** are parsed, recorded in `explicitly_set` so
+they take part in the ratchet and in inheritance, clamped — and then read by
+nothing except their own dead methods. An operator can set a HARD data limit,
+watch it survive validation, and get no enforcement at all.
+
+### The sharper half: one setting, two spellings, different behaviour
+
+`limits.data.max_json_depth` is documented as an alias for `nesting_depth` and
+writes the same struct field — but it *also* calls `setMaxJsonDepth()`, which
+`json_impl.cpp` reads at parse time. So `max_json_depth` enforces and
+`nesting_depth` does nothing, for what the config presents as one setting. The
+warning names the working spelling for that reason; telling an operator only
+that their key is dead leaves them unable to find the one that works.
+
+### Why the checks were not simply wired in
+
+This is the part that assuming additivity would have got wrong. The dead checks
+enforce at **HARD** — exit 3, uncatchable — and **32 config sites in this repo
+already set these keys**, including:
+
+- both `govern-template.json` copies, the files users are told to copy;
+- `tests/gorilla/naab-32/phases/phase1-hardening.json`, which sets
+  `dict_size: 50` and `nesting_depth: 8` — tight enough to block ordinary data,
+  and passing today *only because the check is dead*.
+
+Wiring them in would start hard-blocking configs that pass today, including the
+project's own template and one of its own tests. That is the third time in this
+campaign that the safe-looking direction turned out to be a behaviour change
+wearing a bug fix's clothes, after default-on secret scanning and
+`restrictions.*.enabled`. So again only the silence is fixed: the three keys now
+warn, and nothing about what is enforced changes.
+
+### The second shape found nothing, which is worth recording
+
+The checksheet names two shapes. Shape one (a check whose method nothing calls)
+produced the five above. Shape two — *a check reading state that a loader
+normalizes away*, the `CONTRA-007` shape — was swept across every
+clear/erase/overwrite of parsed state in `governance_config.cpp` and yields
+**exactly one instance, the already-fixed line 315**. Everything else is
+clear-then-repopulate, which is ordinary. A negative result, recorded so the
+sweep is not repeated.
+
+A generalised version — config fields the loader writes that nothing reads —
+returned 0 candidates under a conservative test and 139 under a loose one, both
+useless: the loose test misses reads through local references, and the
+conservative test cannot tell a live reader from a dead one. Only the
+reachability-aware combination works, and it reproduces the hand analysis
+exactly.
+
+`tests/governance_v4/test_inert_limits.sh` covers the result, 8 gates. LD-04 to
+LD-06 are the controls — three sibling keys in the same config block that *are*
+enforced, so a warning that fired on the block would satisfy LD-01..03
+completely. LD-08 is the substantive one: it asserts the warning is *true*, by
+showing a tiny `string_length` does not block a long string while a tiny
+`max_json_depth` does block deep JSON. Its first degradation attempt was itself
+wrong — it "wired in" `string_length` by setting the JSON depth, which LD-08's
+string test cannot see — and the degradation that works breaks the live half
+instead, collapsing the comparison to two absences.
