@@ -1,77 +1,41 @@
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "1"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "1", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 1.0, "coherence_damage_total": 0.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "2"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "2", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 1.0, "coherence_damage_total": 0.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "3"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "3", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 1.0, "coherence_damage_total": 0.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "pm", "event_type": "CDD_TURN", "turn": "1"}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "4"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "4", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 1.0, "coherence_damage_total": 0.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "5"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "5", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 1.0, "coherence_damage_total": 0.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "6"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "6", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 1.0, "coherence_damage_total": 0.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "7"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "7", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.8200000000000001, "coherence_damage_total": 0.17999999999999994, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "8"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "8", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.6400000000000001, "coherence_damage_total": 0.3599999999999999, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "9"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "9", "cdd_snapshot": {"cb_sustained_elevated": 0, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.46000000000000013, "coherence_damage_total": 0.5399999999999998, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "10"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "10", "cdd_snapshot": {"cb_sustained_elevated": 1, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.2800000000000001, "coherence_damage_total": 0.7199999999999999, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "11"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "11", "cdd_snapshot": {"cb_sustained_elevated": 2, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.10000000000000007, "coherence_damage_total": 0.8999999999999999, "coherence_healed_total": 0.0}}
-{"coherence_at_escalation": "0.1000", "config_name": "drift_worker", "event_type": "GOVERNANCE_LEVEL_CHANGE", "from_level": "normal", "to_level": "elevated", "turn": "11"}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "12"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "12", "cdd_snapshot": {"cb_sustained_elevated": 3, "cb_sustained_high": 1, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "13"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "13", "cdd_snapshot": {"cb_sustained_elevated": 4, "cb_sustained_high": 2, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "14"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "14", "cdd_snapshot": {"cb_sustained_elevated": 5, "cb_sustained_high": 3, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"coherence_at_escalation": "0.0000", "config_name": "drift_worker", "event_type": "GOVERNANCE_LEVEL_CHANGE", "from_level": "elevated", "to_level": "high", "turn": "14"}
-{"analyzed": "true", "config_name": "pm", "event_type": "CDD_TURN", "turn": "2"}
-{"analyzed": "true", "config_name": "judge", "event_type": "CDD_TURN", "turn": "1"}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "15"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "15", "cdd_snapshot": {"cb_sustained_elevated": 6, "cb_sustained_high": 2, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "16"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "16", "cdd_snapshot": {"cb_sustained_elevated": 7, "cb_sustained_high": 1, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "17"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "17", "cdd_snapshot": {"cb_sustained_elevated": 8, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "18"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "18", "cdd_snapshot": {"cb_sustained_elevated": 9, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "19"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "19", "cdd_snapshot": {"cb_sustained_elevated": 10, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "20"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "20", "cdd_snapshot": {"cb_sustained_elevated": 11, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "21"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "21", "cdd_snapshot": {"cb_sustained_elevated": 12, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "22"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "22", "cdd_snapshot": {"cb_sustained_elevated": 13, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "23"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "23", "cdd_snapshot": {"cb_sustained_elevated": 14, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "24"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "24", "cdd_snapshot": {"cb_sustained_elevated": 15, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "25"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "25", "cdd_snapshot": {"cb_sustained_elevated": 16, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "26"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "26", "cdd_snapshot": {"cb_sustained_elevated": 17, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "27"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "27", "cdd_snapshot": {"cb_sustained_elevated": 18, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "28"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "28", "cdd_snapshot": {"cb_sustained_elevated": 19, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "29"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "29", "cdd_snapshot": {"cb_sustained_elevated": 20, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "30"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "30", "cdd_snapshot": {"cb_sustained_elevated": 21, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "31"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "31", "cdd_snapshot": {"cb_sustained_elevated": 22, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "32"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "32", "cdd_snapshot": {"cb_sustained_elevated": 23, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "33"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "33", "cdd_snapshot": {"cb_sustained_elevated": 24, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "34"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "34", "cdd_snapshot": {"cb_sustained_elevated": 25, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "35"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "35", "cdd_snapshot": {"cb_sustained_elevated": 26, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
-{"analyzed": "true", "config_name": "drift_worker", "event_type": "CDD_TURN", "turn": "36"}
-{"config_name": "drift_worker", "event_type": "SEMANTIC_TURN", "turn": "36", "cdd_snapshot": {"cb_sustained_elevated": 27, "cb_sustained_high": 0, "cb_sustained_critical": 0, "coherence_score": 0.0, "coherence_damage_total": 1.0, "coherence_healed_total": 0.0}}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "1", "analyzed": "true", "pressure": "0.0000", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "2", "analyzed": "true", "pressure": "0.0083", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "3", "analyzed": "true", "pressure": "0.0167", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "pm", "turn": "1", "analyzed": "true", "pressure": "0.0000", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "4", "analyzed": "true", "pressure": "0.0250", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "5", "analyzed": "true", "pressure": "0.0333", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "6", "analyzed": "true", "pressure": "0.0417", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "7", "analyzed": "true", "pressure": "0.1750", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "8", "analyzed": "true", "pressure": "0.2133", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "9", "analyzed": "true", "pressure": "0.3117", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "10", "analyzed": "true", "pressure": "0.4100", "governance_level": "normal"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "11", "analyzed": "true", "pressure": "0.5083", "governance_level": "elevated"}
+{"event_type": "GOVERNANCE_LEVEL_CHANGE", "turn": "11", "from_level": "normal", "to_level": "elevated", "config_name": "drift_worker", "handle_id": "1"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "12", "analyzed": "true", "pressure": "0.5667", "governance_level": "elevated"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "13", "analyzed": "true", "pressure": "0.5750", "governance_level": "elevated"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "14", "analyzed": "true", "pressure": "0.5750", "governance_level": "high"}
+{"event_type": "GOVERNANCE_LEVEL_CHANGE", "turn": "14", "from_level": "elevated", "to_level": "high", "config_name": "drift_worker", "handle_id": "1"}
+{"event_type": "CDD_TURN", "config_name": "pm", "turn": "2", "analyzed": "true", "pressure": "0.0083", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "judge", "turn": "1", "analyzed": "true", "pressure": "0.0000", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "15", "analyzed": "true", "pressure": "0.5125", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "16", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "17", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "18", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "19", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "20", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "21", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "22", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "23", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "24", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "25", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "26", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "27", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "28", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "29", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "30", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "31", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "32", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "33", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "34", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "35", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
+{"event_type": "CDD_TURN", "config_name": "drift_worker", "turn": "36", "analyzed": "true", "pressure": "0.4500", "governance_level": "high"}
