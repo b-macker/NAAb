@@ -61,6 +61,44 @@ print(eval(sys.argv[2]))
 PY
 }
 
+# Longest run of CONSECUTIVE calm turns from drift_worker after the first
+# escalation, where "calm" is the engine's own predicate: composite pressure
+# below the threshold the level in force at that moment must hold. Kept as its
+# own helper because expressing it inline made it unreadable, and an unreadable
+# predicate is how the two earlier wrong versions survived review.
+_calm_run() {
+    python3 - "$G_TELE" <<'PY' 2>/dev/null
+import json, sys, itertools
+rows = []
+try:
+    for line in open(sys.argv[1]):
+        try: rows.append(json.loads(line))
+        except Exception: pass
+except OSError:
+    pass
+def ev(t): return [r for r in rows if r.get("event_type") == t]
+LV = {"normal": 0, "elevated": 1, "high": 2, "critical": 3}
+HOLD = {1: 0.35, 2: 0.55, 3: 0.80}   # v3 govern.json circuit_breaker
+lc = ev("GOVERNANCE_LEVEL_CHANGE")
+first = min([int(r.get("turn", 0)) for r in lc] or [10**9])
+cdd = sorted([r for r in ev("CDD_TURN")
+              if r.get("config_name") == "drift_worker"
+              and str(r.get("analyzed")) == "true"],
+             key=lambda r: int(r.get("turn", 0)))
+flags = []
+for i in range(1, len(cdd)):
+    if int(cdd[i].get("turn", 0)) <= first:
+        continue
+    # level IN FORCE for this turn = the previous row's, since a row's own
+    # governance_level is written after the update
+    lvl = LV.get(str(cdd[i - 1].get("governance_level")), 0)
+    try: p = float(cdd[i].get("pressure") or 0)
+    except Exception: p = 0.0
+    flags.append(lvl > 0 and p < HOLD[lvl])
+print(max([0] + [sum(1 for _ in g) for k, g in itertools.groupby(flags) if k]))
+PY
+}
+
 # --- gates -----------------------------------------------------------------
 gate_V3_01() {
     if grep -q 'AGENTS|created|3' "$G_OUT" 2>/dev/null; then
@@ -196,12 +234,32 @@ gate_V3_10() {
 gate_V3_11() {
     local down post
     down=$(_tel 'len([r for r in ev("GOVERNANCE_LEVEL_CHANGE") if (r.get("from_level"),r.get("to_level")) in (("high","elevated"),("elevated","normal"),("high","normal"))])')
-    # CALM turns, not merely turns. The first version counted every analyzed
-    # CDD_TURN after the first escalation, which is not the precondition
-    # de-escalation actually needs -- keyed run 2 reported "8 calm turns" when
-    # all 8 fired 2-3 signals each, so the gate called a correct non-firing a
-    # failure. A turn is calm only if it recorded no penalty.
-    post=$(_tel '(lambda t: len([r for r in ev("CDD_TURN") if r.get("config_name")=="drift_worker" and str(r.get("analyzed"))=="true" and int(r.get("turn",0))>t and not str(r.get("penalties_detail") or "").strip()]))(min([int(r.get("turn",0)) for r in ev("GOVERNANCE_LEVEL_CHANGE")] or [10**9]))')
+    # The engine's actual precondition, twice corrected. Version 1 counted every
+    # analyzed CDD_TURN after the first escalation, so keyed run 2 reported "8
+    # calm turns" when all 8 fired 2-3 signals and a correct non-firing was
+    # called a governance failure. Version 2 counted turns with no penalty --
+    # closer, but still not what the engine tests, and far too generous: on a
+    # keyless run it reads 21 where the mechanism saw 3.
+    #
+    # The engine steps down when the COMPUTED TARGET is below the current level
+    # for deescalate_sustained CONSECUTIVE turns from the raising handle. A turn
+    # is calm when composite pressure falls below the threshold its CURRENT level
+    # must hold -- that alone is sufficient for target < level. Two details this
+    # depends on, both of which invert the answer if missed:
+    #
+    #   1. HOLD is keyed by the level being LEFT (elevated 0.35, high 0.55), not
+    #      the level being entered.
+    #   2. A row's governance_level is written AFTER the update, so on the very
+    #      turn a step-down lands the row already shows the LOWER level and would
+    #      score itself against a threshold it was never held to. Judge each turn
+    #      by the previous row's level -- the one in force when it was evaluated.
+    #
+    # With both right this reproduces the run exactly: 3 calm turns,
+    # deescalate_sustained 3, one step-down. With (2) wrong it reads 2, and the
+    # gate contradicts a step-down sitting in its own telemetry.
+    #
+    # CONSECUTIVE, not total: the counter resets on any non-calm turn.
+    post=$(_calm_run)
     if [ "${down:-0}" -gt 0 ]; then
         pass V3-11 "de-escalation fired ($down step-downs)"
     elif [ "${post:-0}" -lt 3 ]; then
@@ -209,7 +267,7 @@ gate_V3_11() {
         # simply did not act enough times afterwards for the calm counter to
         # reach deescalate_sustained. SKIP naming why, rather than failing.
         skip V3-11 "de-escalation not evaluable" \
-             "raising handle had only ${post:-0} CALM turns after escalating (turns with no penalty); needs >= deescalate_sustained"
+             "longest run of consecutive calm turns from the raising handle was ${post:-0}; needs >= deescalate_sustained (3)"
     else
         # The precondition held and nothing stepped down. This branch was a
         # SKIP while I believed the hysteresis could not fire at all; the run
