@@ -67,17 +67,18 @@ presign() {  # $1=json content
     rm -rf "$pdir"
 }
 
-start_stub() {  # $1=fixture $2=workdir
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do
-        grep -q READY "$2/stub.log" 2>/dev/null && return 0
-        sleep 0.1
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+# Repointed at the shared hardened launcher (checksheet item D1, "repoint on
+# touch"). The local copy this replaces picked a port with `(RANDOM % 20000) +
+# 20000`, once, with no bind check and no retry -- at FIVE call sites in this
+# one suite, so it rolled that die five times per run. On a loaded runner a
+# collision or a lingering TIME_WAIT socket leaves the stub dead, and then every
+# assertion in the group fails for a reason that has nothing to do with what the
+# suite measures. That is what took CI red on 3643ccb, a docs-only commit, while
+# the same code passed six consecutive local runs.
+#
+# The shared launcher retries the pick, verifies the bind, and resolves
+# agent_stub.py relative to itself rather than the caller's $SCRIPT_DIR.
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
