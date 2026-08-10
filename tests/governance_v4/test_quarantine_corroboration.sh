@@ -140,6 +140,25 @@ print(json.dumps({"responses": [{"content": c, "output_tokens": 45} for c in out
 PY
 }
 
+# context_growth is disabled in the signals block below, and that is load-bearing
+# rather than tidying. This suite's premise is "ONE noisy signal must not kill a
+# compliant agent", which requires exactly one signal to BE noisy. S12 fires
+# structurally in any unwindowed conversation: its baseline is the mean of the
+# first adaptive_baseline_window turns and is never revisited, because the EMA
+# that would track natural growth is gated on adaptive_baseline_enabled, which is
+# false here. It therefore fired on every turn, supplied a second DISTINCT
+# penalising signal, corroborated the noise, advanced the streak and killed the
+# compliant agent -- QC-02 failing for a reason with nothing to do with
+# corroboration logic.
+#
+# This was invisible until the shared stub began reporting prompt tokens derived
+# from the real request body: with the previous hardcoded constant, S12 could
+# never fire at all and this premise held by accident rather than by construction.
+#
+# QC-01 is the guard on this change. If disabling S12 also stopped the compliant
+# agent being killed at corroboration 0, the premise would be broken the other
+# way and QC-01 would fail -- so this cannot be used to make the suite pass by
+# silencing it.
 write_config() {  # $1=workdir $2=port $3=require_corroboration
     cat > "$1/govern.json" <<GOVEOF
 {
@@ -156,7 +175,7 @@ write_config() {  # $1=workdir $2=port $3=require_corroboration
       "coherence_velocity": true, "capability_underutilization": true,
       "response_quality": true, "thinking_collapse": true,
       "semantic_stability": true, "mandate_alignment": true,
-      "context_growth": true, "instruction_recall": true, "plan_drift": true,
+      "context_growth": false, "instruction_recall": true, "plan_drift": true,
       "entity_consistency": true, "instruction_conflict": true,
       "persona_fingerprint": true, "tool_chain_integrity": true,
       "claim_result_reconciliation": true, "prompt_compliance": true,
