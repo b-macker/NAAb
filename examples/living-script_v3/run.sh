@@ -3,7 +3,7 @@
 # living-script_v3 — run the scenario and gate the result.
 #
 #   ./run.sh              keyless: drive the scenario against the routed stub
-#   ./run.sh --keyed      live: requires NAAB_V3_API_KEY
+#   ./run.sh --keyed      live: requires GK1 (GK2..GK6 optional, for rotation)
 #
 # The keyless mode is not a degraded stand-in for the keyed one. It is the
 # thing that makes a keyed run worth paying for: if the ladder cannot be walked
@@ -107,7 +107,11 @@ cp "$SCRIPT_DIR/src/living-script.naab" "$WDIR/"
 cp "$SCRIPT_DIR/src/govern.json" "$WDIR/govern.json"
 
 if [ "$MODE" = keyless ]; then
-    export NAAB_V3_API_KEY="stub-key-not-a-real-credential"
+    # The engine still requires the configured key env to exist, even though
+    # the stub never validates it. GK1 is the first entry of the rotation the
+    # committed config uses, matching living-script v1/v2 so a keyed run needs
+    # no new environment setup.
+    export GK1="stub-key-not-a-real-credential"
     python3 "$SCRIPT_DIR/gen_fixture.py" "$WDIR/fixture.json" || exit 1
     start_stub "$WDIR/fixture.json" "$WDIR" || { echo "stub failed to start" >&2; exit 1; }
     # api_base is injected rather than committed: the port is chosen at launch,
@@ -121,8 +125,23 @@ for a in d["agents"].values():
 json.dump(d, open(p, "w"), indent=2)
 PY
 else
-    if [ -z "${NAAB_V3_API_KEY:-}" ]; then
-        echo "  --keyed requires NAAB_V3_API_KEY" >&2
+    # Inter-call spacing is injected for keyed runs only. v1 and v2 both carry
+    # delay_between_calls_ms 1000 against the same provider; without it a live
+    # run invites rate-limit errors, which CDD would then have to be told to
+    # treat as infrastructure rather than drift. It is NOT committed to the
+    # config because it would add ~40s to every keyless CI run for no benefit --
+    # the stub has no rate limit.
+    python3 - "$WDIR/govern.json" <<'PYX'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+for a in d["agents"].values():
+    a["rate_limit"] = {"requests_per_minute": 0, "delay_between_calls_ms": 1000}
+json.dump(d, open(p, "w"), indent=2)
+PYX
+    if [ -z "${GK1:-}" ]; then
+        echo "  --keyed requires GK1 (and optionally GK2..GK6 for rotation)" >&2
+        echo "  These are the same key envs living-script v1 and v2 use." >&2
         exit 2
     fi
 fi
@@ -130,7 +149,11 @@ fi
 (cd "$WDIR" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1)
 
 echo "=== living-script_v3 ($MODE) ==="
-(cd "$WDIR" && timeout 600s "$NAAB" living-script.naab) > "$WDIR/stdout.txt" 2> "$WDIR/stderr.txt"
+# The shell `timeout` is a backstop only. The ENGINE's own script timeout is
+# limits.timeout.global in govern.json, which defaults to 30s -- and that is
+# what killed the first keyed run at 11 of ~39 calls, not this wrapper. Keep
+# the wrapper above the engine limit so whichever fires is the configured one.
+(cd "$WDIR" && timeout 960s "$NAAB" living-script.naab) > "$WDIR/stdout.txt" 2> "$WDIR/stderr.txt"
 RC=$?
 stop_stub
 [ "$RC" -eq 3 ] && GOV_KILL="engine exited 3 (governance block)"

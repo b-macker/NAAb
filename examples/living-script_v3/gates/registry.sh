@@ -196,7 +196,12 @@ gate_V3_10() {
 gate_V3_11() {
     local down post
     down=$(_tel 'len([r for r in ev("GOVERNANCE_LEVEL_CHANGE") if (r.get("from_level"),r.get("to_level")) in (("high","elevated"),("elevated","normal"),("high","normal"))])')
-    post=$(_tel '(lambda t: len([r for r in ev("CDD_TURN") if r.get("config_name")=="drift_worker" and str(r.get("analyzed"))=="true" and int(r.get("turn",0))>t]))(min([int(r.get("turn",0)) for r in ev("GOVERNANCE_LEVEL_CHANGE")] or [10**9]))')
+    # CALM turns, not merely turns. The first version counted every analyzed
+    # CDD_TURN after the first escalation, which is not the precondition
+    # de-escalation actually needs -- keyed run 2 reported "8 calm turns" when
+    # all 8 fired 2-3 signals each, so the gate called a correct non-firing a
+    # failure. A turn is calm only if it recorded no penalty.
+    post=$(_tel '(lambda t: len([r for r in ev("CDD_TURN") if r.get("config_name")=="drift_worker" and str(r.get("analyzed"))=="true" and int(r.get("turn",0))>t and not str(r.get("penalties_detail") or "").strip()]))(min([int(r.get("turn",0)) for r in ev("GOVERNANCE_LEVEL_CHANGE")] or [10**9]))')
     if [ "${down:-0}" -gt 0 ]; then
         pass V3-11 "de-escalation fired ($down step-downs)"
     elif [ "${post:-0}" -lt 3 ]; then
@@ -204,7 +209,7 @@ gate_V3_11() {
         # simply did not act enough times afterwards for the calm counter to
         # reach deescalate_sustained. SKIP naming why, rather than failing.
         skip V3-11 "de-escalation not evaluable" \
-             "raising handle took only ${post:-0} turns after escalating; needs >= deescalate_sustained"
+             "raising handle had only ${post:-0} CALM turns after escalating (turns with no penalty); needs >= deescalate_sustained"
     else
         # The precondition held and nothing stepped down. This branch was a
         # SKIP while I believed the hysteresis could not fire at all; the run
@@ -212,6 +217,6 @@ gate_V3_11() {
         # report as one. A gate that skips on both of its negative branches
         # cannot fail, which is the defect this whole harness exists to prevent.
         gk_fail V3-11 "de-escalation did not fire despite ${post} calm turns from the raising handle" \
-             "hysteresis is known to work (high -> elevated observed); absence here is a regression"
+             "hysteresis is known to work (high -> elevated observed); with genuinely calm turns available, absence here is a regression"
     fi
 }

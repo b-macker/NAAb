@@ -885,6 +885,64 @@ challenge fires at turn 20 — this is a known timing limitation of the in-scrip
 telemetry audit, not a vacuous assertion (Q02 counts from the script's own
 tracking).
 
+### Keyed runs Aug 10 (v3): the ladder walks live, on drift nobody scripted
+
+Two keyed runs of `living-script_v3`. **Neither finished** — both died on a
+configured limit that was doing its job — but run 2 got far enough to answer the
+question v1 and v2 could not.
+
+**Confirmed live, against a real model:** `normal -> elevated` at turn 8,
+`elevated -> high` at turn 10, `drift_worker` the pressure handle at both. HIGH
+had previously been reached only against the stub. The drift was not scripted:
+no agent was ever instructed to misbehave, and the phases differ only in how
+*specified* the task is — DRIFT_PRESSURE names the same objects as the mandate
+without saying what to do with them. Real signals on real responses moved the
+ladder.
+
+**Two further live confirmations from the same run:**
+
+- **The conservation invariant holds against live traffic** — residual
+  `0.000000000000` over all 16 snapshots
+  (`coherence == 1 - damage + healed`). The bounded-healing ledger had only ever
+  been checked against stub runs.
+- **S20 fired 0 times.** The scenario's prompts were reworded after an earlier
+  version fired `prompt_compliance` on 35 of 36 turns, including the phases where
+  the agent was doing exactly the right thing. That is the scenario penalising
+  the agent for the *harness author's* vocabulary — the instruction-following
+  trap arriving through the user prompt instead of the system prompt. The reword
+  held against a real model, which is the only place it could be tested: S20's
+  first gate compares the prompt against the mandate, so it is decided before the
+  response exists.
+
+**Still not observed: de-escalation live.** Run 2 died one turn into
+DRIFT_RECOVERY, the only phase that could have produced it.
+
+**Both runs died on a limit whose name was not the one in the error text**, and
+in both cases the first diagnosis named the sibling knob:
+
+| run | died at | actual cause | first diagnosis (wrong) |
+|---|---|---|---|
+| 1 | 33s, 11 of ~39 calls | `limits.timeout.global`, unset, defaults to **30s** | `agent_dispatch.default_timeout_seconds` — the PER-CALL timeout; nothing reads it as a run limit |
+| 2 | 110070 tokens | per-agent `max_total_tokens`, unset, defaults to **100000** | `hard_stop.max_tokens_per_run` — set to 500000 and never approached |
+
+`run.sh`'s `timeout 600s` wrapper never governed run 1: the engine's own limit
+always fired first, so the visible backstop was structurally unreachable — the
+same shape as an inert mechanism, in the harness rather than the engine.
+
+Both fixed by setting the limits explicitly, with `meta` entries recording that
+the two similarly-named limits are different and that the error text quotes the
+per-agent one. Also worth keeping: history is resent every turn, so token spend
+grows roughly with the **square** of turn count — 19 calls cost 110k against a
+36-call scenario.
+
+**A gate of mine was mis-measuring its own precondition.** V3-11 counted every
+analyzed `CDD_TURN` after the first escalation as a "calm turn", and reported
+*"de-escalation did not fire despite 8 calm turns"* when all 8 fired 2-3 signals
+each. A correct non-firing was reported as a governance failure — the mirror
+image of vacuity, and the same root shape as every other entry in this document:
+the predicate the gate stated and the predicate it evaluated were not the same
+one. Now requires empty `penalties_detail`.
+
 ## Vacuity audit: tier 1
 
 `tests/security` and `tests/governance_v4` — 105 suites, 782 `pass`/`ok` sites.
