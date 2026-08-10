@@ -149,7 +149,11 @@ fi
 (cd "$WDIR" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1)
 
 echo "=== living-script_v3 ($MODE) ==="
-(cd "$WDIR" && timeout 600s "$NAAB" living-script.naab) > "$WDIR/stdout.txt" 2> "$WDIR/stderr.txt"
+# The shell `timeout` is a backstop only. The ENGINE's own script timeout is
+# limits.timeout.global in govern.json, which defaults to 30s -- and that is
+# what killed the first keyed run at 11 of ~39 calls, not this wrapper. Keep
+# the wrapper above the engine limit so whichever fires is the configured one.
+(cd "$WDIR" && timeout 960s "$NAAB" living-script.naab) > "$WDIR/stdout.txt" 2> "$WDIR/stderr.txt"
 RC=$?
 stop_stub
 [ "$RC" -eq 3 ] && GOV_KILL="engine exited 3 (governance block)"

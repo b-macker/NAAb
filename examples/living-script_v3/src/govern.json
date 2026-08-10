@@ -3,7 +3,8 @@
   "mode": "enforce",
   "meta": {
     "name": "living-script_v3",
-    "rationale": "A scenario built to make the circuit-breaker ladder observable. v1 and v2 both ran to completion at NORMAL: with coherence intact and no signals firing, composite pressure caps at 0.30 (depth and risk_prox are both clamped), below any usable elevated_threshold. So a well-behaved agent cannot escalate at any run length, and neither earlier run had anything to observe. Drift here comes from task structure, never from instructing an agent to misbehave -- that would test instruction-following instead."
+    "rationale": "A scenario built to make the circuit-breaker ladder observable. v1 and v2 both ran to completion at NORMAL: with coherence intact and no signals firing, composite pressure caps at 0.30 (depth and risk_prox are both clamped), below any usable elevated_threshold. So a well-behaved agent cannot escalate at any run length, and neither earlier run had anything to observe. Drift here comes from task structure, never from instructing an agent to misbehave -- that would test instruction-following instead.",
+    "timeout_rationale": "limits.timeout.global is the SCRIPT execution timeout and it defaults to 30 seconds. v3 set nothing, so the first keyed run died at 33s of telemetry -- after 11 of ~39 calls, mid-DRIFT_PRESSURE -- with 'Execution timeout: script exceeded the configured time limit'. run.sh's `timeout 600s` wrapper never governed anything, because the engine always died first. agent_dispatch.default_timeout_seconds is NOT this knob: it sets each agent's PER-CALL timeout (agent.timeout_seconds) and nothing reads it as a run limit."
   },
   "security": {
     "sandbox_level": "elevated"
@@ -136,6 +137,11 @@
       "max_agent_time_ms": 900000,
       "consecutive_failure_limit": 5,
       "action": "block"
+    }
+  },
+  "limits": {
+    "timeout": {
+      "global": 900
     }
   }
 }
