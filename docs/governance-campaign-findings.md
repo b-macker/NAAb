@@ -1355,3 +1355,60 @@ showing a tiny `string_length` does not block a long string while a tiny
 wrong — it "wired in" `string_length` by setting the JSON depth, which LD-08's
 string test cannot see — and the degradation that works breaks the live half
 instead, collapsing the comparison to two absences.
+
+## Blast-radius audit of a shared test helper
+
+Changing `agent_stub.py` to report `promptTokenCount` derived from the real
+request body (#142) altered a helper used by **38 suites**. The full suite came
+back 441/441, which says nothing on its own: a suite that quietly begins
+exercising a different path while still passing is invisible, and that is
+exactly how `test_quarantine_corroboration.sh` had been holding its premise by
+accident for however long the constant had been there.
+
+**Method.** Run the whole suite twice — once with the old constant restored,
+once shipped — normalise timestamps, temp paths and PIDs, and diff at line
+granularity rather than comparing totals.
+
+**Result: byte-identical.** 3948 lines each way, 24 differing lines, every one a
+process id inside a temp path (`gov001_32601` vs `gov001_12046`). No suite
+changed behaviour.
+
+**That result is worthless without the next step,** because "no diff" and "an
+instrument that cannot detect a diff" are the same observation — the failure
+this document is largely a catalogue of. So the stub was mutated to report a
+flatly absurd `promptTokenCount` of 50000 and the suite run a third time:
+
+| arm | unexpected failures | diff vs shipped |
+|---|---|---|
+| old constant (10) | 0 | 24 lines, all PIDs |
+| **shipped** (body-derived) | **0** | — |
+| mutant (50000) | **20** | 850 lines |
+
+The instrument is sensitive. Twenty suites detect input-token magnitude, and the
+shipped values perturb none of them.
+
+**The prediction going in was wrong**, and in the more useful direction: the
+expectation was that the mutant diff would ALSO be empty, on the theory that
+these suites are short enough that nothing input-token-keyed can fire, making
+the whole class untested rather than unaffected. Twenty failures refute that.
+The suites are sensitive; the change is genuinely benign.
+
+**Byproduct worth keeping — the blast-radius map.** Any future change to
+input-token reporting should expect these twenty to move, and they are the
+twenty to run first:
+
+    absorption_degenerate, adversarial_detection, cb_pressure_counter,
+    challenge_fail_path, code_aware_keywords, deescalation_hysteresis,
+    deescalation_multiagent, entity_window, failure_mode_coverage,
+    instruction_recall_windowing, output_admissibility, per_agent_signals,
+    propose_commit, quarantine_corroboration, signal_discrimination,
+    split_commit, tool_admissibility_gate, truncation_exposure,
+    validation_signal, velocity_no_double_count
+
+Six further suites pin `input_tokens` explicitly and are immune by construction
+(`bounded_healing`, `developer_blindspot`, `persona_window`, `pulse_uniformity`,
+`shell_content_split`, `thinking_reported`).
+
+**What this does NOT establish.** The comparison is on OUTPUT. A suite that
+takes a different internal path while producing identical output does not
+appear, and no claim is made that none does.
