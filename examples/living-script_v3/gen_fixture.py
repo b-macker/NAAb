@@ -61,7 +61,14 @@ def on_mandate(n):
 
 
 def spec(content, out_tokens=60):
-    return {"content": content, "output_tokens": out_tokens, "input_tokens": 200}
+    # input_tokens is deliberately NOT pinned. A constant made context_growth
+    # (S12) unable to fire keylessly at all, so a run with context windowing and
+    # a run without it produced the identical observation -- zero firings -- and
+    # neither said anything about whether windowing worked. The stub now derives
+    # promptTokenCount from the real request body, which grows with the
+    # conversation the way a provider's does, so the signal is observable and
+    # the two configurations are distinguishable.
+    return {"content": content, "output_tokens": out_tokens}
 
 
 def main():

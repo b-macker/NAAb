@@ -118,10 +118,20 @@ gate_V3_02() {
 
 # The baseline must stay at NORMAL. If it does not, the tuning is wrong and
 # every ladder gate below is measuring an artefact rather than drift.
+#
+# "Did not escalate" is a WEAKER claim than "is a baseline", and the gap between
+# them is not academic: keyed run 3 passed this gate while DESIGN was already
+# paying penalties from turn 2 and had spent a third of the agent's coherence
+# (1.00 -> 0.65) before the drift phase began. Escalation needs sustained
+# pressure, so a phase can damage the agent freely without ever tripping a level
+# and still report as a clean control. The gate now asserts BOTH halves, since
+# the second is the one the scenario actually depends on.
 gate_V3_03() {
-    local design_end first_esc
+    local design_end first_esc dmg
     design_end=$(grep -n 'PHASE|DESIGN|end' "$G_OUT" 2>/dev/null | head -1 | cut -d: -f1)
     first_esc=$(_tel 'min([int(r.get("turn",0)) for r in ev("GOVERNANCE_LEVEL_CHANGE")] or [-1])')
+    # Penalties charged to drift_worker during the DESIGN turns (1..3).
+    dmg=$(_tel 'len([r for r in ev("CDD_TURN") if r.get("config_name")=="drift_worker" and str(r.get("analyzed"))=="true" and 1 <= int(r.get("turn",0)) <= 3 and str(r.get("penalties_detail") or "").strip()])')
     if [ -z "$design_end" ]; then
         gk_fail V3-03 "cannot evaluate the baseline" "DESIGN never ended"
     elif [ "${first_esc:--1}" = "-1" ]; then
@@ -130,11 +140,16 @@ gate_V3_03() {
         # exactly the vacuity this scenario exists to avoid.
         gk_fail V3-03 "no escalation occurred anywhere in the run" \
                 "a quiet DESIGN phase proves nothing when nothing ever escalated"
-    elif [ "$first_esc" -ge 3 ]; then
-        pass V3-03 "DESIGN did not escalate — the baseline is a baseline"
-    else
+    elif [ "$first_esc" -lt 3 ]; then
         fail V3-03 "escalation began during the DESIGN baseline" \
              "first level change at turn $first_esc, before the baseline finished"
+    elif [ "${dmg:-0}" -gt 1 ]; then
+        # One noisy baseline turn is tolerable; a baseline that pays on most of
+        # its turns is not a baseline, whatever the level says.
+        fail V3-03 "the DESIGN baseline was already drifting" \
+             "$dmg of 3 baseline turns charged a penalty — the control is not controlling, so later phases measure drift on top of an already-damaged agent"
+    else
+        pass V3-03 "DESIGN did not escalate and paid no sustained penalty — the baseline is a baseline"
     fi
 }
 

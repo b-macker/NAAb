@@ -110,7 +110,7 @@ class StubState:
 STATE = None
 
 
-def gemini_body(spec):
+def gemini_body(spec, request_body=""):
     parts = []
     content = spec.get("content")
     if content:
@@ -124,8 +124,17 @@ def gemini_body(spec):
     # from usageMetadata entirely, reproducing a provider that does not report
     # thinking at all. Absent and zero are different facts and the fixture has
     # to be able to express both.
+    # promptTokenCount defaults to a size derived from the ACTUAL request body,
+    # because a real provider's prompt count grows with the conversation and a
+    # constant makes every input-token-keyed signal unobservable keylessly.
+    # context_growth (S12) compares current input tokens against an early
+    # baseline; with a fixed 10 it can never fire, so a keyless run cannot tell
+    # a working context_window from a missing one -- the mechanism-never-ran
+    # vacuity, sitting in the harness that exists to prevent it. An explicit
+    # fixture "input_tokens" still wins, so no existing fixture changes.
     usage = {
-        "promptTokenCount": spec.get("input_tokens", 10),
+        "promptTokenCount": spec.get("input_tokens",
+                                     max(10, len(request_body) // 4)),
         "candidatesTokenCount": spec.get("output_tokens",
                                          max(1, len(content or "") // 4)),
     }
@@ -151,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = {"error": {"message": spec.get("error", "stub error"),
                                  "status": str(status)}}
         else:
-            payload = gemini_body(spec)
+            payload = gemini_body(spec, body)
 
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
