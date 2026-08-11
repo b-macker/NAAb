@@ -103,16 +103,43 @@ print("hold thresholds: elevated %.2f  high %.2f  critical %.2f  "
       "deescalate_sustained %d" % (HOLD[1], HOLD[2], HOLD[3], DEESC))
 print("config: %s" % _CFG_OK)
 print()
-print("%-5s %-9s %-9s %-7s %-4s %s" %
-      ("turn", "pressure", "coherence", "level", "sig", "penalties_detail"))
+# input_tokens is printed because context_growth (S12) is a RATIO against an
+# early baseline, and without the numerator no one can say whether the signal
+# fired because context genuinely grew, because the baseline was drawn from an
+# unusually small opening, or because windowing is not bounding what it should.
+# Keyed run 4 could not be diagnosed for exactly this reason: S12 fired on turns
+# 11-23 and then stopped, and the tool built to explain S12 did not print the
+# one number that would have explained it.
+print("%-5s %-9s %-9s %-8s %-7s %-4s %s" %
+      ("turn", "pressure", "coherence", "in_tok", "level", "sig",
+       "penalties_detail"))
 cdd = [r for r in ev("CDD_TURN")
        if r.get("config_name") == WORKER and str(r.get("analyzed")) == "true"]
 cdd.sort(key=lambda r: int(num(r.get("turn"))))
+# input tokens live on AGENT_RESPONSE, which carries NO turn field -- so this
+# joins POSITIONALLY: the Nth worker AGENT_RESPONSE is the Nth worker CDD_TURN,
+# both being appended in event order. Joining on r.get("turn") looks right and
+# silently yields None for every row, which is how the first version of this
+# printed "?" for the whole column.
+in_tok = {}
+_resp = [r for r in ev("AGENT_RESPONSE") if r.get("config_name") == WORKER]
+_all_cdd = [r for r in ev("CDD_TURN") if r.get("config_name") == WORKER]
+for _c, _r in zip(_all_cdd, _resp):
+    in_tok[str(_c.get("turn"))] = _r.get("input_tokens")
 for r in cdd:
-    print("%-5s %-9s %-9s %-7s %-4s %s" % (
+    print("%-5s %-9s %-9s %-8s %-7s %-4s %s" % (
         r.get("turn"), r.get("pressure"), r.get("coherence"),
+        in_tok.get(str(r.get("turn")), "?"),
         r.get("governance_level"), r.get("signals_fired"),
         (r.get("penalties_detail") or "")[:70]))
+base = [num(in_tok.get(str(r.get("turn"))), 0.0) for r in cdd[:5]]
+base = [b for b in base if b > 0]
+if base:
+    mean = sum(base) / len(base)
+    peak = max([num(v, 0.0) for v in in_tok.values()] or [0.0])
+    print("input-token baseline (first 5 analyzed turns): mean %.0f" % mean)
+    print("peak input tokens: %.0f  -> peak/baseline = %.2fx  (S12 fires above "
+          "context_growth_factor)" % (peak, peak / mean if mean else 0.0))
 skipped = len([r for r in ev("CDD_TURN")
                if r.get("config_name") == WORKER and str(r.get("analyzed")) != "true"])
 print("interval-skipped (stale) rows not shown: %d  <-- must be 0" % skipped)
