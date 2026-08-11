@@ -70,10 +70,13 @@
       "max_tokens": 2048,
       "max_turns": 60,
       "system_prompt": "V3-WORKER Build a Calculator class with add, subtract, multiply and divide methods, each recording an entry in a history log.",
-      "rationale": "The only handle with CDD signals left on, so deescalate_pressure_handle_ is pinned to it by construction rather than by hoping siblings stay quiet. Context windowing matches living-script v1 and _extended (20/summary), which v3 originally omitted. Without it a 36-turn conversation grows input tokens without bound while context_growth's baseline stays frozen (adaptive_baseline_enabled is off by default, so the EMA that would track natural growth never runs), and S12 fired on 29 of 29 turns from turn 8 in keyed run 3 -- consuming the one signal slot that composite pressure has room for below high_threshold, which is what made de-escalation unobservable. That was a v3 config gap, NOT an engine defect: run 22 of _extended saw the same signal fire 4 turns and stop, because that config windows its context.",
+      "rationale": "The only handle with CDD signals left on, so deescalate_pressure_handle_ is pinned to it by construction rather than by hoping siblings stay quiet. Context windowing matches living-script v1 and _extended (20/summary), which v3 originally omitted. Without it a 36-turn conversation grows input tokens without bound while context_growth's baseline stays frozen (adaptive_baseline_enabled is off by default, so the EMA that would track natural growth never runs), and S12 fired on 29 of 29 turns from turn 8 in keyed run 3 -- consuming the one signal slot that composite pressure has room for below high_threshold, which is what made de-escalation unobservable. That was a v3 config gap, NOT an engine defect: run 22 of _extended saw the same signal fire 4 turns and stop, because that config windows its context. context_growth (S12) is DISABLED for this handle: v3 does not test S12, and cannot. S12 is a ratio against a baseline drawn from the opening turns, so whether it fires depends on RESPONSE LENGTH, which is workload-dependent -- the same 'no safe global constant' conclusion that withdrew R3. The factor was guessed twice: 3.0 gave 29 firings on keyed run 3, 5.0 gave 0 keyless but 13 live, because keyless sits at 4.12x of a 5.0 threshold (18% headroom) and longer real responses cross it. A third guess would be the same move again. Disabling states the true position -- this scenario observes the circuit-breaker ladder, and a permanently-firing signal consumes the one signal slot composite pressure has below high_threshold once coherence floors. This is NOT a claim that S12 is fixed; see docs/open-investigations.md B5 for the standing question about its defaults.",
       "max_total_tokens": 1000000,
       "context_window": 20,
-      "context_strategy": "summary"
+      "context_strategy": "summary",
+      "context_drift_signals": {
+        "context_growth": false
+      }
     },
     "pm": {
       "provider": "gemini",
