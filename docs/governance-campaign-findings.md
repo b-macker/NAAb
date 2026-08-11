@@ -1412,3 +1412,68 @@ Six further suites pin `input_tokens` explicitly and are immune by construction
 **What this does NOT establish.** The comparison is on OUTPUT. A suite that
 takes a different internal path while producing identical output does not
 appear, and no claim is made that none does.
+
+## De-escalation is unreachable for a real agent, and that is now measured
+
+Six keyed runs of `living-script_v3` were spent trying to observe the
+de-escalation hysteresis live. It never fired. The useful result is not the
+absence — it is that the absence stopped being a scenario shortfall and became
+a measured property of the interaction between the composite formula and how a
+real model actually behaves.
+
+**The formula, confirmed exactly.** For floored coherence and saturated depth,
+
+    composite = 0.35·(1 − coherence) + 0.10·depth + 0.25·min(1, signals/4)
+
+reproduces **every** row of runs 4, 5 and 6, including the fractional values at
+turn 12 where depth is still `(turn−1)/12` rather than 1. With coherence at 0.0
+the first term is pinned at 0.35, so the floor is 0.45 and leaving HIGH (hold
+0.55) requires **≤1 signal for 3 consecutive turns**. Two signals is 0.575.
+
+**What real traffic supplies.** Across the three runs there are 84
+post-escalation worker turns:
+
+| run | ≤1-signal turns | longest consecutive | min pressure |
+|---|---|---|---|
+| 4 | 1 of 25 | 1 | 0.5125 |
+| 5 | 0 of 18 | 0 | 0.5417 |
+| 6 | 3 of 29 | 1 | 0.4958 |
+
+Four turns in 84, **never two in a row**, against a requirement of three. In run
+6 `entity_consistency` fired on 34 of 36 turns and `semantic_stability` on 29.
+At ~5% of turns quiet enough, three consecutive is ~0.01% — it does not happen
+at any run length, and a longer recovery phase does not help.
+
+**Four prompt revisions did not move it, and that is the evidence.** Runs 3-6
+each changed the scenario's prompts on a different causal theory: repeated
+prompts cause repetition signals (true — `response_repetition` and
+`circular_actions` fired 8 times each in run 3 and vanished when prompts were
+varied); varied prompts should therefore quiet the signals (false). Varying them
+merely moved which signal fired. `semantic_stability` measures Jaccard overlap
+between CONSECUTIVE RESPONSES, so a phase that varies its prompts guarantees
+consecutive answers share less vocabulary. Repeat the prompt and repetition
+signals fire; vary it and stability fires. Two signals either way.
+
+That is why this is recorded as a finding rather than fixed by a fifth revision.
+The scenario is not failing to be quiet enough; **a working agent doing varied
+work is not quiet by this measure at all.**
+
+**What it does NOT say.** Escalation works — the ladder reached ELEVATED and
+HIGH on real drift in every run, attributed to the right handle. The hysteresis
+code is not shown to be broken; it is shown to have a precondition that real
+traffic does not supply once coherence floors. And nothing here is an engine
+defect on its face: it is a design question about whether scrutiny should be
+sheddable by an agent whose ordinary output keeps two signals lit.
+
+Filed as **C1c**, which generalises C1a from `elevated → normal` to
+de-escalation from any level. The three available remedies are all loosenings
+(widen the per-level margin, count calm as a rate rather than a consecutive run,
+or require healing — which R3 withdrew as globally unsettable and R5 supersedes),
+so none should be taken off this evidence alone.
+
+**Also confirmed live across these runs, five times each:** the coherence
+conservation invariant (`coherence == 1 − damage + healed`, residual
+0.000000000000 on every snapshot of every run) and S20 silence after the prompt
+reword. Run 6 is also the first keyed run to complete end to end, after the
+`retry` gap was closed — runs 1-5 died at a timeout, a token budget, and three
+API errors respectively.
