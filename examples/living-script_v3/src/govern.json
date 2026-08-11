@@ -6,7 +6,8 @@
     "rationale": "A scenario built to make the circuit-breaker ladder observable. v1 and v2 both ran to completion at NORMAL: with coherence intact and no signals firing, composite pressure caps at 0.30 (depth and risk_prox are both clamped), below any usable elevated_threshold. So a well-behaved agent cannot escalate at any run length, and neither earlier run had anything to observe. Drift here comes from task structure, never from instructing an agent to misbehave -- that would test instruction-following instead.",
     "timeout_rationale": "limits.timeout.global is the SCRIPT execution timeout and it defaults to 30 seconds. v3 set nothing, so the first keyed run died at 33s of telemetry -- after 11 of ~39 calls, mid-DRIFT_PRESSURE -- with 'Execution timeout: script exceeded the configured time limit'. run.sh's `timeout 600s` wrapper never governed anything, because the engine always died first. agent_dispatch.default_timeout_seconds is NOT this knob: it sets each agent's PER-CALL timeout (agent.timeout_seconds) and nothing reads it as a run limit.",
     "token_budget_rationale": "Per-agent max_total_tokens defaults to 100000 and is what killed keyed run 2 at 110070 tokens -- NOT agent_dispatch.hard_stop.max_tokens_per_run, which was set to 500000 and never approached. They are different limits with similar names; the error text quotes the per-agent one. Conversation history is resent every turn so cost grows roughly with the square of turn count: 19 calls cost 110k, and drift_worker alone takes ~33 of the ~39 calls.",
-    "context_growth_rationale": "context_window 20/summary on drift_worker AND context_growth_factor 5.0 -- both, because a keyless 2x2 shows neither works alone: window only = 25 firings, factor only = 17, both = 0. The baseline is the mean of the first adaptive_baseline_window (5) turns, roughly 6 messages' worth, and it is never revisited because the EMA that would track natural growth is gated on adaptive_baseline_enabled (default off). An unwindowed 36-turn conversation reaches ~12x that and a 20-message window still plateaus at ~3.3x, so the window must bound the plateau and the factor must sit above it. v1 and living-script_extended carry exactly this pair; v3 shipped with neither, which is why S12 fired on 29 of 29 turns from turn 8 in keyed run 3 and consumed the one signal slot composite pressure has room for under high_threshold. A v3 config gap, not an engine defect."
+    "context_growth_rationale": "context_window 20/summary on drift_worker AND context_growth_factor 5.0 -- both, because a keyless 2x2 shows neither works alone: window only = 25 firings, factor only = 17, both = 0. The baseline is the mean of the first adaptive_baseline_window (5) turns, roughly 6 messages' worth, and it is never revisited because the EMA that would track natural growth is gated on adaptive_baseline_enabled (default off). An unwindowed 36-turn conversation reaches ~12x that and a 20-message window still plateaus at ~3.3x, so the window must bound the plateau and the factor must sit above it. v1 and living-script_extended carry exactly this pair; v3 shipped with neither, which is why S12 fired on 29 of 29 turns from turn 8 in keyed run 3 and consumed the one signal slot composite pressure has room for under high_threshold. A v3 config gap, not an engine defect.",
+    "retry_rationale": "RetryConfig.max_attempts defaults to 1 -- 'no retry' (governance.h). v3 set no retry block, so a single 429 ended the run and the six keys in api_key_env were never rotated to, because rotation happens on retry. Keyed runs 4 and 5 both died mid-DRIFT_RECOVERY this way, run 5 with all six keys exported and the error still reading 'All 1 attempts exhausted / Models tried: 1'. Configuring rotation without configuring retry buys nothing. Values match living-script v1 and _extended, which carry this block and which v3 was written without."
   },
   "security": {
     "sandbox_level": "elevated"
@@ -76,6 +77,21 @@
       "context_strategy": "summary",
       "context_drift_signals": {
         "context_growth": false
+      },
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 3000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [
+          429,
+          500,
+          503
+        ],
+        "skip_key_on": [
+          401
+        ],
+        "key_retry_after_seconds": 0
       }
     },
     "pm": {
@@ -106,7 +122,22 @@
         "persona_fingerprint": false
       },
       "rationale": "Signals off so this handle can never produce a level target above NORMAL. With no signals a sibling caps at risk 0.20 + depth 0.10 = 0.30, below elevated_threshold, so its turns can neither raise the level nor drain the de-escalation calm counter that belongs to drift_worker.",
-      "max_total_tokens": 200000
+      "max_total_tokens": 200000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 3000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [
+          429,
+          500,
+          503
+        ],
+        "skip_key_on": [
+          401
+        ],
+        "key_retry_after_seconds": 0
+      }
     },
     "judge": {
       "provider": "gemini",
@@ -137,7 +168,22 @@
         "response_degenerate": false
       },
       "rationale": "Terse by design -- a one-word verdict is below response_min_output_tokens, so response_degenerate would fire structurally on an agent doing exactly what it was asked. This is the per-agent audit the S23 documentation calls for, not a blanket disable.",
-      "max_total_tokens": 200000
+      "max_total_tokens": 200000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 3000,
+        "backoff_multiplier": 2.0,
+        "jitter": true,
+        "retry_on": [
+          429,
+          500,
+          503
+        ],
+        "skip_key_on": [
+          401
+        ],
+        "key_retry_after_seconds": 0
+      }
     }
   },
   "agent_dispatch": {
