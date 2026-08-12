@@ -1601,3 +1601,58 @@ stimulus known to be off-calibration, so it is a lead only.
 a prose agent — same phases, same turn counts, same thresholds, a documentation
 task instead of a Calculator. That is the control this probe was trying to buy
 cheaply, and it cannot be bought cheaply with repository text.
+
+## C1d located: it is not about code, and prose is worse
+
+The modality control ran keyed on the prose arm (overlay confirmed applied to all
+three system prompts; run header reads `keyed, prose arm`). The answer inverts
+the hypothesis the control was built to test.
+
+| | turn 3 | turn 6 | floored | escalated |
+|---|---|---|---|---|
+| code (keyed runs 4/5/6) | 0.74 / 0.64 / 0.56 | 0.21 / 0.21 / 0.03 | turn 7-8 | turn 7-8 |
+| **prose** (keyed) | **0.46** | **0.00** | **turn 5** | **turn 5** |
+
+Prose lands outside the code arm's three-run spread at turn 3 and is fully
+floored two to three turns earlier. That separation is what makes a single prose
+run worth reading at all: the code arm varied 0.74/0.64/0.56 on identical config,
+so anything inside that band would have settled nothing.
+
+**The signal mix says where it comes from:**
+
+| signal | code (run 6) | prose |
+|---|---|---|
+| `semantic_stability` | 29/36 | **35/36** |
+| `entity_consistency` | 34/36 | 35/36 |
+| `plan_drift` | 14/36 | **29/36** |
+
+So **C1d is not about code output.** Ordinary varied work of any modality trips
+these thresholds and prose trips them harder. The code-aware keyword extractor
+(`include/naab/keyword_extract.h`) appears to be doing its job -- emitting
+component words for camelCase and letter-digit boundaries keeps code answers in a
+denser shared token space, which is plausibly why the coding agent survived two
+turns longer than the prose one. The suspects are the **0.25 defaults** on
+`semantic_stability` and `entity_consistency`, not the extractor.
+
+**The keyless probe was directionally right despite being off-calibration.** It
+reported S10 at 12/36 code vs 35/36 prose and was recorded as a lead explicitly
+not to be trusted, because its stimulus floored at turn 4 against a live 7-8. The
+live arms give 29 vs 35 -- same ordering, compressed magnitude. Worth noting for
+calibration judgement: an over-severe stimulus preserved the sign and destroyed
+the scale. It was still right to refuse the verdict; the guard cost one prose run
+and bought a result that does not depend on trusting a broken instrument.
+
+### Caveats that survive the result
+
+- **n=1 for prose against n=3 for code.** The separation is clean and outside the
+  code band, but a second prose run is what would make it robust.
+- **Response length is a real confound.** Prose input-token baseline was 1717
+  against the code arm's 1220, and peak 9051 against 7777 — handbook sections are
+  wordier than code snippets. Longer responses mean larger keyword sets, which
+  changes Jaccard dynamics independently of modality. This finding does NOT
+  isolate modality from verbosity, and a proper follow-up would match response
+  length between arms.
+- **Still no threshold should move on this.** The finding says the defaults are
+  the suspect and the extractor is not; it does not say what either threshold
+  should be, and lowering a detector's sensitivity because two scenarios tripped
+  it is how a governance system is quietly disarmed.
