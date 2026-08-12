@@ -1550,3 +1550,54 @@ Nothing here has isolated which threshold is wrong, or measured a non-coding
 agent as a control, and no threshold should be moved on this evidence alone --
 lowering a detector's sensitivity because a scenario tripped it is how a
 governance system is quietly disarmed.
+
+## The C1d modality control, and why it is inconclusive
+
+C1d needs a location: is CDD miscalibrated for CODE output, or for varied work of
+any kind? The two signals responsible — `semantic_stability` and
+`entity_consistency` — read the RESPONSE STREAM and nothing else, so the control
+looked answerable without an API: run the identical scenario twice, changing only
+the responses. `examples/living-script_v3/probe_modality.sh` does that, with
+`V3_FIXTURE` overriding the generated stream.
+
+Neither arm is authored. Both signals measure vocabulary overlap between
+consecutive responses, so an author who writes the arms is choosing the quantity
+under measurement and gets back whatever they expected. Both arms are lifted
+verbatim from repository text written for other purposes.
+
+**It does not work, and the probe says so rather than returning a verdict.**
+
+| attempt | stimulus | floored at | live reference |
+|---|---|---|---|
+| 1 | chunks across MANY src/*.cpp and docs/*.md | turn 3-4 | turn 7-8 |
+| 2 | consecutive chunks of ONE large file each | turn 4 | turn 7-8 |
+
+Both attempts are HARSHER than the thing they model. A real agent's turns are
+successive work on one task, so its responses restate the same domain vocabulary;
+consecutive slices of a source file jump between unrelated functions. "Both arms
+floor" is what any sufficiently heterogeneous stream produces regardless of
+modality — it is not a result about ordinary work.
+
+**The calibration guard is the reusable part.** The first version of the probe
+checked only the too-gentle failure (neither arm floors) and would have reported
+attempt 1 as a clean positive: *both arms floor, therefore C1d is not about code*.
+Too gentle is easy to notice because nothing happens. **Too harsh looks like a
+result**, which is worse, and it is the one that fired. The probe now refuses to
+compare arms whose floor turn is far below the live reference.
+
+**Stopped rather than tuned.** The stimulus could be made to floor at turn 7 —
+sliding windows, overlapping chunks, hand-picked passages — but that is tuning a
+stimulus against a target already known, which manufactures whichever verdict it
+is tuned toward. Same failure as retuning a scenario until a gate goes green, one
+level up.
+
+**One lead, deliberately not a finding.** With length and document scope matched,
+`semantic_stability` fired 12/36 for code and 35/36 for prose. If that survives
+proper calibration it points the OPPOSITE way from the hypothesis — the
+code-aware extractor helping code and leaving prose worse off. Measured under a
+stimulus known to be off-calibration, so it is a lead only.
+
+**What would settle C1d's location:** a keyed run of the same scenario shape with
+a prose agent — same phases, same turn counts, same thresholds, a documentation
+task instead of a Calculator. That is the control this probe was trying to buy
+cheaply, and it cannot be bought cheaply with repository text.

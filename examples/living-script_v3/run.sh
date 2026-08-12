@@ -112,7 +112,16 @@ if [ "$MODE" = keyless ]; then
     # committed config uses, matching living-script v1/v2 so a keyed run needs
     # no new environment setup.
     export GK1="stub-key-not-a-real-credential"
-    python3 "$SCRIPT_DIR/gen_fixture.py" "$WDIR/fixture.json" || exit 1
+    # V3_FIXTURE overrides the generated response stream. Used by
+    # probe_modality.sh to run this scenario twice with everything identical
+    # except the responses themselves -- the only way to isolate the two signals
+    # behind C1d, since semantic_stability and entity_consistency read the
+    # response stream and nothing else.
+    if [ -n "${V3_FIXTURE:-}" ]; then
+        cp "$V3_FIXTURE" "$WDIR/fixture.json" || exit 1
+    else
+        python3 "$SCRIPT_DIR/gen_fixture.py" "$WDIR/fixture.json" || exit 1
+    fi
     start_stub "$WDIR/fixture.json" "$WDIR" || { echo "stub failed to start" >&2; exit 1; }
     # api_base is injected rather than committed: the port is chosen at launch,
     # and a committed loopback URL would be a live-run footgun.
