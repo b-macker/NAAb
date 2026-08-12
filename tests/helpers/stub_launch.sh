@@ -61,7 +61,10 @@ STUB_HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 start_stub() {  # $1=fixture json  $2=workdir
     local _fx="$1" _dir="$2" _try _i _tries=3
     case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) _tries=1 ;; esac
-    [ -n "${WINDIR:-}" ] && _tries=1
+    # `if` rather than `&&`: the short-circuit form returns 1 when WINDIR is
+    # unset, which is fatal to a `set -e` caller that invokes start_stub outside
+    # a `||` guard. Same class of bug as the one fixed in stop_stub below.
+    if [ -n "${WINDIR:-}" ]; then _tries=1; fi
 
     for _try in $(seq 1 $_tries); do
         STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
@@ -94,8 +97,24 @@ start_stub() {  # $1=fixture json  $2=workdir
     return 1
 }
 
+# SAFE UNDER `set -e`, which the previous form was not.
+#
+# `wait` on a process that was just killed returns its signal status (143 for
+# SIGTERM), and a bare `[ -n "$X" ] && cmd` returns 1 when X is empty. Under
+# `set -euo pipefail` either one terminates the CALLER mid-suite, with no error
+# text, immediately after a passing assertion -- which reads as the test dying
+# for no reason rather than as a helper bug.
+#
+# This is not hypothetical and it is a large part of why this launcher had
+# reached only 2 of 29 suites: repointing a `set -e` suite at it silently broke
+# that suite, so whoever tried it reverted. test_output_admissibility.sh had
+# already been bitten and carried `|| true` in its own local copy -- the only one
+# of twelve identical-looking copies that did, and the difference was invisible
+# until a batch repoint replaced the hardened copy with this one.
 stop_stub() {
-    [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
-    wait "$STUB_PID" 2>/dev/null
+    if [ -n "${STUB_PID:-}" ]; then
+        kill "$STUB_PID" 2>/dev/null || true
+        wait "$STUB_PID" 2>/dev/null || true
+    fi
     STUB_PID=""
 }

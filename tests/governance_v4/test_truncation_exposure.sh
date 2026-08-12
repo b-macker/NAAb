@@ -49,17 +49,19 @@ sign_govern() {
     (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 }
 
-start_stub() {  # $1=fixture $2=workdir
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do
-        grep -q READY "$2/stub.log" 2>/dev/null && return 0
-        sleep 0.1
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+# Repointed at the shared hardened launcher (checksheet D1, "repoint on touch").
+# The local copy replaced here picked a port with `(RANDOM % 20000) + 20000`
+# once, with no bind check and no retry. On a loaded runner a collision or a
+# lingering TIME_WAIT socket leaves the stub dead and every assertion in the
+# suite then fails for a reason unrelated to what it measures -- passing locally
+# and in a sibling CI job on the identical commit, which is what makes it cost a
+# full diagnosis every time it fires.
+#
+# Two of these had already fired: test_config_adjustment.sh (CI red on a
+# docs-only commit) and test_entity_window.sh (CI red while Build & Test passed
+# on the same SHA). Fixing them one at a time as they fire is what this batch
+# replaces; twelve suites shared this exact naive definition.
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
