@@ -6962,6 +6962,14 @@ GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
     return static_cast<GovernanceLevel>(governance_level_.load(std::memory_order_relaxed));
 }
 
+int GovernanceEngine::getDeescalateCalmTurns() const {
+    return deescalate_calm_turns_.load(std::memory_order_relaxed);
+}
+
+int GovernanceEngine::getDeescalatePressureHandle() const {
+    return deescalate_pressure_handle_.load(std::memory_order_relaxed);
+}
+
 int GovernanceEngine::getGovernanceEpoch() const {
     return governance_epoch_.load(std::memory_order_relaxed);
 }
@@ -7183,6 +7191,32 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 rccfg.weights.codegen_pressure * codegen_pres +
                 rccfg.weights.bsd_eviction_pressure * eviction_pres +
                 rccfg.weights.semantic_deviation * semantic_pres;
+
+            // Persist the decomposition so telemetry can explain the composite
+            // instead of a reader re-deriving it. Order matches the sum above
+            // and the kPressureFactorNames table telemetry formats it with; a
+            // reordering here without reordering there mislabels every field,
+            // so the two are kept adjacent in review by that comment.
+            //
+            // Contributions, not raw factors: these sum to `composite`, which
+            // makes the decomposition checkable against the total rather than
+            // merely plausible. Five of the ten weights ship at 0.0, so raw
+            // factors alone would not tell a reader which ones counted.
+            {
+                std::array<double, DriftState::NUM_PRESSURE_FACTORS> contrib = {
+                    rccfg.weights.coherence_proximity   * coherence_prox,
+                    rccfg.weights.risk_score_proximity  * risk_prox,
+                    rccfg.weights.signal_density        * signal_dens,
+                    rccfg.weights.conversation_depth    * depth,
+                    rccfg.weights.bsd_partial_progress  * bsd_progress,
+                    rccfg.weights.pipeline_inherited    * inherited,
+                    rccfg.weights.coherence_acceleration * accel_factor,
+                    rccfg.weights.codegen_pressure      * codegen_pres,
+                    rccfg.weights.bsd_eviction_pressure * eviction_pres,
+                    rccfg.weights.semantic_deviation    * semantic_pres,
+                };
+                drift_analyzer_.recordPressureContributions(handle_id, contrib);
+            }
 
             // Track sustained pressure
             int consecutive = state->consecutive_high_pressure_turns;

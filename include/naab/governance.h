@@ -3149,6 +3149,13 @@ public:
     PulseVerdict getPulseVerdict() const;            // read current pulse verdict
     GovernancePulse getPulse() const;                // full pulse struct for dashboard/stdlib
     int getGovernanceEpoch() const;                   // monotonic evidence epoch counter
+    // De-escalation hysteresis state, for telemetry. The engine knows whether
+    // a turn counted as calm and which handle owns the counter; nothing
+    // emitted it, so the predicate had to be reconstructed externally -- and
+    // shipped WRONG TWICE before matching (first "any analyzed turn", then
+    // "turn with no penalty", neither of which is what the engine tests).
+    int getDeescalateCalmTurns() const;
+    int getDeescalatePressureHandle() const;
     static int verifyTelemetryChain(const std::string& filepath,
         const std::string& hmac_key = "");            // CLI: --verify-telemetry-chain
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces

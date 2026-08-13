@@ -2579,6 +2579,15 @@ void ContextDriftAnalyzer::recordToolOutcome(
     state.tool_last_outcome[tool_name] = success;
 }
 
+void ContextDriftAnalyzer::recordPressureContributions(
+    int handle_id,
+    const std::array<double, DriftState::NUM_PRESSURE_FACTORS>& contrib) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    state.last_pressure_contrib = contrib;
+    state.last_pressure_valid = true;
+}
+
 bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,
     const std::unordered_set<std::string>& detail_keywords, int evidence_count) {
     std::lock_guard<std::mutex> lock(mutex_);

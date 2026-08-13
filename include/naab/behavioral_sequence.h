@@ -332,6 +332,30 @@ struct DriftState {
     std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
     double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
 
+    // Pressure decomposition for the most recent analyzed turn.
+    //
+    // Telemetry has always carried the composite ("pressure": 0.5750) and none
+    // of its inputs, so explaining any escalation meant re-deriving the formula
+    // from outside. That re-derivation was done for this campaign and was WRONG:
+    // there are ten weighted factors, not five, and coherence_prox is
+    // 1 - coherence/coherence_threshold with the threshold defaulting to 0.7,
+    // not 1 - coherence. The fitted formula matched every floored-coherence row
+    // (where both forms give 1.0) and no unfloored row, and the error reached a
+    // merged design document before a rendered-output check caught it.
+    //
+    // Five of the ten factors ship at weight 0.0, so the weighting is
+    // CONFIG-DEPENDENT: any config enabling semantic_deviation or
+    // codegen_pressure makes an external tool's hardcoded weights silently
+    // wrong. Storing the weighted CONTRIBUTIONS rather than the raw factors is
+    // deliberate -- contributions are what sum to the composite, so a reader can
+    // check the decomposition against the total instead of trusting it.
+    //
+    // Numeric here, formatted at the telemetry edge, matching how
+    // last_turn_penalties feeds penalties_detail.
+    static constexpr int NUM_PRESSURE_FACTORS = 10;
+    std::array<double, NUM_PRESSURE_FACTORS> last_pressure_contrib = {};
+    bool last_pressure_valid = false;   // false until a checkpoint block has run
+
     // Bounded-healing ledger. coherence_score has 23 penalty sites and only two
     // increase paths, so without a bound "recovery" is either impossible (the
     // shipped rates are too small to outrun a single signal) or pumpable (a rate
@@ -530,6 +554,14 @@ public:
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Persist the weighted pressure contributions computed by
+    // GovernanceEngine::checkContextDrift. That code works on a COPY returned by
+    // getDriftState(), so it cannot write them back itself -- same reason
+    // recordToolOutcome and setTurnPromptKeywords exist as setters.
+    void recordPressureContributions(
+        int handle_id,
+        const std::array<double, DriftState::NUM_PRESSURE_FACTORS>& contrib);
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);

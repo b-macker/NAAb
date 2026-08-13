@@ -2742,6 +2742,19 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 gov_engine->writeAgentTelemetry("AGENT_RESPONSE", {
                     {"handle_id", std::to_string(handle_id)},
                     {"config_name", config_name},
+                    // The turn this response BECOMES, so it joins CDD_TURN.
+                    //
+                    // current_turn here is the count BEFORE this response is
+                    // counted: tracker.turns++ happens later (~line 3976) and
+                    // current_turn is refreshed just after it, so CDD_TURN for
+                    // this same response reports current_turn + 1. Emitting the
+                    // raw value would have produced a field that looks joinable
+                    // and is off by one -- worse than the absence it replaces,
+                    // because a positional join at least fails visibly. Verified
+                    // against a keyless run rather than reasoned about: every
+                    // AGENT_RESPONSE turn matches the CDD_TURN of the same
+                    // response.
+                    {"turn", std::to_string(current_turn + 1)},
                     {"model", current_model},
                     {"api_key_env", key_env},
                     {"latency_ms", std::to_string(attempt_ms)},
@@ -4071,6 +4084,41 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                              drift_state->last_validation_recovery);
                     penalty_detail += rbuf;
                 }
+                // Pressure decomposition. `pressure` alone is a conclusion with
+                // its inputs discarded, so explaining an escalation meant
+                // re-deriving the weighting from outside -- which was done for
+                // this campaign and produced a formula that matched every
+                // floored-coherence row and no other, because coherence_prox
+                // divides by coherence_threshold (default 0.7) and five of the
+                // ten factors ship at weight 0.0.
+                //
+                // Order MUST match the contribution array built in
+                // GovernanceEngine::checkContextDrift; the two are only coupled
+                // by this comment and the one there.
+                //
+                // Non-zero contributions only, exactly like penalties_detail
+                // above: a factor at weight 0.0 or value 0.0 contributed
+                // nothing, and listing ten mostly-zero fields on every turn
+                // would bury the two or three that moved the number.
+                static const char* kPressureFactorNames[
+                        governance::DriftState::NUM_PRESSURE_FACTORS] = {
+                    "coherence_prox", "risk_prox", "signal_density",
+                    "depth", "bsd_progress", "pipeline_inherited",
+                    "coherence_accel", "codegen_pressure",
+                    "bsd_eviction", "semantic_deviation"
+                };
+                std::string pressure_detail;
+                if (drift_state->last_pressure_valid) {
+                    for (int i = 0; i < governance::DriftState::NUM_PRESSURE_FACTORS; i++) {
+                        double c = drift_state->last_pressure_contrib[i];
+                        if (c == 0.0) continue;
+                        if (!pressure_detail.empty()) pressure_detail += ",";
+                        char cbuf[64];
+                        snprintf(cbuf, sizeof(cbuf), "%s=%.4f",
+                                 kPressureFactorNames[i], c);
+                        pressure_detail += cbuf;
+                    }
+                }
                 // A refused credit has to be visible. Reported as an absence it
                 // is indistinguishable from a turn where no validation ran.
                 if (drift_state->last_validation_credit_withheld) {
@@ -4110,6 +4158,20 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
                     {"penalties_detail", penalty_detail},
+                    // Weighted contributions that SUM to `pressure` above, so a
+                    // reader can check the decomposition against the total
+                    // rather than trusting a formula reconstructed elsewhere.
+                    {"pressure_detail",  pressure_detail},
+                    // De-escalation hysteresis, straight from the engine. The
+                    // step-down predicate had to be reconstructed externally and
+                    // was wrong twice -- once counting every analyzed turn, once
+                    // counting turns with no penalty, neither being what the
+                    // engine tests. The counter and its owning handle are what
+                    // the engine actually compares against deescalate_sustained.
+                    {"deescalate_calm_turns",
+                        std::to_string(gov_engine->getDeescalateCalmTurns())},
+                    {"deescalate_pressure_handle",
+                        std::to_string(gov_engine->getDeescalatePressureHandle())},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"},
