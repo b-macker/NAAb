@@ -1531,12 +1531,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Enforce token budget from tracker (not handle dict)
         int total_used = tracker.input_tokens + tracker.output_tokens;
         if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
+            // Say WHICH of the two token budgets bound. There are two with
+            // confusingly similar names: this PER-AGENT one, and a separate
+            // run-level one under agent_dispatch. Two keyed runs of
+            // living-script_v3 died here and BOTH were first attributed to the
+            // run-level budget, which was set far higher and never reached --
+            // the numbers in the message were true and the diagnosis was wrong,
+            // twice.
+            //
+            // It says "per-agent, for agent X" rather than naming a config key.
+            // That is deliberate: the error-message policy enforced by
+            // tests/security/test_error_msg_leaks.sh is that errors must never
+            // point at specific configuration keys, only at the concept. Naming
+            // the SCOPE that bound is the whole diagnostic -- the ambiguity was
+            // never "which key", it was "which of the two budgets" -- so the
+            // scope satisfies the need with nothing the policy forbids.
             throw std::runtime_error(fmt::format(
                 "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
+                "  Scope: per-agent budget for agent '{}' — not the run-level budget\n\n"
                 "  Help:\n"
                 "  - Create a new agent handle for a fresh conversation\n"
                 "  - Or create a new agent handle with a larger token budget\n",
-                total_used, config->max_total_tokens));
+                total_used, config->max_total_tokens, config_name));
         }
         current_turn = tracker.turns;
         if (transcript_active) {
@@ -4769,12 +4785,18 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
                 config->max_turns, tracker.turns));
         }
         int total_used = tracker.input_tokens + tracker.output_tokens;
+        // Same limit, same ambiguity, second call site (agentPropose). Fixing
+        // only agentSend would have left propose reporting the old message --
+        // "a fix reaching one of N callers is the default outcome, not the
+        // exception" is this campaign's most-repeated finding, observed at
+        // 1/29, 2/29 and 2/31.
         if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
             throw std::runtime_error(fmt::format(
                 "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
+                "  Scope: per-agent budget for agent '{}' — not the run-level budget\n\n"
                 "  Help:\n"
                 "  - Create a new agent handle for a fresh conversation\n",
-                total_used, config->max_total_tokens));
+                total_used, config->max_total_tokens, config_name));
         }
         current_turn = tracker.turns;
     }
