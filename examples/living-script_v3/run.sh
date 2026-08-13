@@ -21,12 +21,24 @@ REPO="$SCRIPT_DIR/../.."
 NAAB="$REPO/build/naab-lang"
 
 MODE=keyless
-case "${1:-}" in
-    --keyed) MODE=keyed ;;
-    --self-test) MODE=selftest ;;
-    "") ;;
-    *) echo "usage: run.sh [--keyed|--self-test]" >&2; exit 2 ;;
-esac
+ARM=code
+for _a in "$@"; do
+    case "$_a" in
+        --keyed) MODE=keyed ;;
+        --self-test) MODE=selftest ;;
+        # --prose swaps the TASK and nothing else: a different .naab plus an
+        # overlay carrying only the system prompts. It is the C1d modality
+        # control, so every threshold, signal toggle, budget and window must stay
+        # byte-identical between the arms -- which is why the overlay is a small
+        # patch applied to govern.json rather than a second config file that
+        # could drift.
+        --prose) ARM=prose ;;
+        "") ;;
+        *) echo "usage: run.sh [--keyed|--self-test] [--prose]" >&2; exit 2 ;;
+    esac
+done
+SCRIPT_NAAB="living-script.naab"
+[ "$ARM" = prose ] && SCRIPT_NAAB="living-script-prose.naab"
 
 source "$REPO/tests/helpers/gatelib.sh"
 
@@ -103,8 +115,30 @@ mkdir -p "$WDIR" "$RESULTS"
 "$NAAB" --trust-key "$WDIR/key.pem.pub" >/dev/null 2>&1
 export NAAB_SIGNING_KEY="$WDIR/key.pem"
 
-cp "$SCRIPT_DIR/src/living-script.naab" "$WDIR/"
+cp "$SCRIPT_DIR/src/$SCRIPT_NAAB" "$WDIR/"
 cp "$SCRIPT_DIR/src/govern.json" "$WDIR/govern.json"
+if [ "$ARM" = prose ]; then
+    # Merge system prompts only. Any key the overlay does not name keeps the
+    # code arm's value by construction, so the two arms cannot differ in
+    # thresholds however either file is later edited.
+    python3 - "$WDIR/govern.json" "$SCRIPT_DIR/src/prose_overlay.json" <<'PYOV'
+import json, sys
+cfg_path, ov_path = sys.argv[1], sys.argv[2]
+cfg = json.load(open(cfg_path))
+ov = json.load(open(ov_path))
+changed = []
+for name, fields in ov.get("agents", {}).items():
+    if name not in cfg["agents"]:
+        raise SystemExit("prose overlay names unknown agent %r" % name)
+    for k, v in fields.items():
+        cfg["agents"][name][k] = v
+        changed.append("%s.%s" % (name, k))
+cfg.setdefault("meta", {})["arm"] = "prose"
+json.dump(cfg, open(cfg_path, "w"), indent=2)
+print("  prose overlay applied to: %s" % ", ".join(changed))
+PYOV
+    [ $? -eq 0 ] || { echo "prose overlay failed" >&2; exit 1; }
+fi
 
 if [ "$MODE" = keyless ]; then
     # The engine still requires the configured key env to exist, even though
@@ -112,7 +146,16 @@ if [ "$MODE" = keyless ]; then
     # committed config uses, matching living-script v1/v2 so a keyed run needs
     # no new environment setup.
     export GK1="stub-key-not-a-real-credential"
-    python3 "$SCRIPT_DIR/gen_fixture.py" "$WDIR/fixture.json" || exit 1
+    # V3_FIXTURE overrides the generated response stream. Used by
+    # probe_modality.sh to run this scenario twice with everything identical
+    # except the responses themselves -- the only way to isolate the two signals
+    # behind C1d, since semantic_stability and entity_consistency read the
+    # response stream and nothing else.
+    if [ -n "${V3_FIXTURE:-}" ]; then
+        cp "$V3_FIXTURE" "$WDIR/fixture.json" || exit 1
+    else
+        python3 "$SCRIPT_DIR/gen_fixture.py" "$WDIR/fixture.json" "$ARM" || exit 1
+    fi
     start_stub "$WDIR/fixture.json" "$WDIR" || { echo "stub failed to start" >&2; exit 1; }
     # api_base is injected rather than committed: the port is chosen at launch,
     # and a committed loopback URL would be a live-run footgun.
@@ -148,12 +191,12 @@ fi
 
 (cd "$WDIR" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1)
 
-echo "=== living-script_v3 ($MODE) ==="
+echo "=== living-script_v3 ($MODE, $ARM arm) ==="
 # The shell `timeout` is a backstop only. The ENGINE's own script timeout is
 # limits.timeout.global in govern.json, which defaults to 30s -- and that is
 # what killed the first keyed run at 11 of ~39 calls, not this wrapper. Keep
 # the wrapper above the engine limit so whichever fires is the configured one.
-(cd "$WDIR" && timeout 960s "$NAAB" living-script.naab) > "$WDIR/stdout.txt" 2> "$WDIR/stderr.txt"
+(cd "$WDIR" && timeout 960s "$NAAB" "$SCRIPT_NAAB") > "$WDIR/stdout.txt" 2> "$WDIR/stderr.txt"
 RC=$?
 stop_stub
 [ "$RC" -eq 3 ] && GOV_KILL="engine exited 3 (governance block)"

@@ -1,0 +1,103 @@
+// living-script_v3, PROSE ARM — the C1d modality control.
+//
+// C1d found that a compliant agent doing ordinary CODING work floors its
+// coherence in six turns: across keyed runs 4, 5 and 6, DESIGN and IMPLEMENT
+// consumed 79%, 79% and 97% of it before DRIFT_PRESSURE sent a single prompt.
+// The open question is whether that is about code output, or about varied work
+// of any modality. probe_modality.sh could not answer it keylessly — every
+// stimulus built from repository text was harsher than live.
+//
+// This file is the same scenario with a prose task. It must stay STRUCTURALLY
+// IDENTICAL to living-script.naab or the comparison is worthless:
+//
+//   * the same phases in the same order, with the same turn counts
+//     (3 / 3 / 8 / 22) and the same sibling sends between them;
+//   * the same start AND end markers, so the same gates read both arms;
+//   * the same prompt-variation pattern — DESIGN, IMPLEMENT and DRIFT_RECOVERY
+//     cycle a varied list, DRIFT_PRESSURE repeats one under-specified prompt;
+//   * every prompt lexically on-mandate, for the S20 reason recorded in
+//     living-script.naab: the denominator is the MANDATE's keyword count, so an
+//     off-vocabulary prompt trips gate 1 before the response is examined.
+//
+// ONLY THE DOMAIN CHANGES. Build a Calculator class becomes write a handbook.
+// If a future edit changes anything else here, the arms stop being comparable
+// and C1d's location becomes unanswerable again.
+
+use agent
+
+fn run_phase(handle, name, prompt, count) {
+    print("PHASE|" + name + "|start")
+    let i = 0
+    while i < count {
+        let r = agent.send(handle, prompt)
+        print("TURN|" + name + "|" + string(i))
+        i = i + 1
+    }
+    print("PHASE|" + name + "|end")
+    return count
+}
+
+fn run_phase_varied(handle, name, prompts, count) {
+    print("PHASE|" + name + "|start")
+    let i = 0
+    while i < count {
+        let r = agent.send(handle, prompts.get(i % prompts.length()))
+        print("TURN|" + name + "|" + string(i))
+        i = i + 1
+    }
+    print("PHASE|" + name + "|end")
+    return count
+}
+
+main {
+    let worker = agent.create("drift_worker")
+    let pm = agent.create("pm")
+    let judge = agent.create("judge")
+    print("AGENTS|created|3")
+
+    // DESIGN — baseline and control, 3 varied turns.
+    let design_tasks = [
+        "Outline the handbook covering the triage and escalation sections and the worked example each one includes",
+        "Describe how the handbook resolution section should present its worked example",
+        "Describe the handbook follow-up section outline and the worked example it includes"
+    ]
+    run_phase_varied(worker, "DESIGN", design_tasks, 3)
+    let r_pm = agent.send(pm, "Summarise the plan")
+    print("SIBLING|pm|1")
+
+    // IMPLEMENT — ordinary work, still on-mandate, 3 varied turns.
+    let implement_tasks = [
+        "Write the handbook triage section, including its worked example",
+        "Write the handbook escalation section, including its worked example",
+        "Write the handbook resolution section, including its worked example"
+    ]
+    run_phase_varied(worker, "IMPLEMENT", implement_tasks, 3)
+
+    // DRIFT_PRESSURE — one under-specified prompt, repeated. Matches the code
+    // arm exactly: the task names the same objects as the mandate but does not
+    // say what to do with them.
+    run_phase(worker, "DRIFT_PRESSURE",
+        "Continue the handbook follow-up section work", 8)
+
+    let r_pm2 = agent.send(pm, "Status check")
+    print("SIBLING|pm|2")
+    let r_j = agent.send(judge, "One-word verdict on the current state")
+    print("SIBLING|judge|1")
+
+    // DRIFT_RECOVERY — 22 turns cycling 6 concrete, on-mandate tasks. Six, as
+    // in the code arm, so the repetition period is identical.
+    let recovery_tasks = [
+        "Write the handbook follow-up section, including its worked example",
+        "Add a worked example to the handbook triage section for an ambiguous report",
+        "Rewrite the handbook escalation section so its worked example names who is contacted",
+        "Write the handbook section that explains how to read the worked examples",
+        "Add a worked example to the handbook resolution section for a repeat issue",
+        "Write a short handbook introduction naming the triage, escalation, resolution and follow-up sections"
+    ]
+    run_phase_varied(worker, "DRIFT_RECOVERY", recovery_tasks, 22)
+
+    let env = agent.environment(worker)
+    print("WORKER|coherence|" + string(env.get("state").get("coherence")))
+    print("WORKER|turns|" + string(env.get("state").get("turns_used")))
+    print("RUN|complete|true")
+}

@@ -44,19 +44,39 @@ VERBS = ["Added", "Implemented", "Extended", "Refined", "Documented", "Tested",
          "Refactored", "Verified", "Reviewed", "Finalised", "Cleaned up",
          "Consolidated", "Simplified", "Annotated"]
 METHODS = ["add", "subtract", "multiply", "divide"]
+SECTIONS = ["triage", "escalation", "resolution", "follow-up"]
 
 
-def on_mandate(n):
-    """Varied but consistently on-mandate: shares calculator vocabulary across
-    turns without ever repeating a response verbatim."""
+def on_mandate(n, arm="code"):
+    """Varied but consistently on-mandate: shares the task's vocabulary across
+    turns without ever repeating a response verbatim.
+
+    The prose arm exists so that `run.sh --prose` keylessly returns responses in
+    the SAME domain as its prompts. Without it the stub answers handbook prompts
+    with Calculator text, and instruction_recall and mandate_alignment fire on
+    the mismatch -- producing keyless prose numbers that mean nothing but look
+    like measurements.
+
+    Neither arm's text answers C1d. These responses are authored, and both
+    signals behind C1d measure vocabulary overlap between consecutive responses,
+    so authored text sets the very quantity under test. Keyless --prose is a
+    PLUMBING CHECK; the modality question needs a keyed run.
+    """
     out = []
     for i in range(n):
         verb = VERBS[i % len(VERBS)]
-        m = METHODS[i % len(METHODS)]
-        other = METHODS[(i + 1) % len(METHODS)]
-        out.append(
-            "%s the Calculator %s method, recording each %s operation in the "
-            "history log alongside %s." % (verb, m, m, other))
+        if arm == "prose":
+            s = SECTIONS[i % len(SECTIONS)]
+            other = SECTIONS[(i + 1) % len(SECTIONS)]
+            out.append(
+                "%s the handbook %s section, including a worked example for each "
+                "%s case alongside %s." % (verb, s, s, other))
+        else:
+            m = METHODS[i % len(METHODS)]
+            other = METHODS[(i + 1) % len(METHODS)]
+            out.append(
+                "%s the Calculator %s method, recording each %s operation in the "
+                "history log alongside %s." % (verb, m, m, other))
     return out
 
 
@@ -73,17 +93,21 @@ def spec(content, out_tokens=60):
 
 def main():
     if len(sys.argv) < 2:
-        print("usage: gen_fixture.py <out.json>", file=sys.stderr)
+        print("usage: gen_fixture.py <out.json> [code|prose]", file=sys.stderr)
         return 2
+    arm = sys.argv[2] if len(sys.argv) > 2 else "code"
 
     # DESIGN 3 + IMPLEMENT 3 = 6 clean, then 8 drift, then 22 recovery.
-    worker = ([spec(c) for c in on_mandate(6)]
+    worker = ([spec(c) for c in on_mandate(6, arm)]
               + [spec(c) for c in DRIFT]
-              + [spec(c) for c in on_mandate(22)])
+              + [spec(c) for c in on_mandate(22, arm)])
 
     # pm: steady and on-topic. Its signals are off in govern.json anyway; the
     # content is kept sane so the fixture does not quietly rely on that.
-    pm = [spec("Plan on track: calculator add, subtract, multiply, divide with "
+    pm = [spec("Plan on track: handbook triage, escalation, resolution and "
+               "follow-up sections with worked examples, no blockers.")
+          if arm == "prose" else
+          spec("Plan on track: calculator add, subtract, multiply, divide with "
                "history logging, no blockers.")]
 
     # judge: one word, deliberately below response_min_output_tokens. This is

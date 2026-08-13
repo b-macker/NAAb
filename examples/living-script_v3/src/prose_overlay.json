@@ -1,0 +1,41 @@
+{
+  "_comment": [
+    "PROSE ARM OVERLAY — the C1d modality control.",
+    "",
+    "C1d: a compliant agent doing ordinary CODING work floors its coherence in six",
+    "turns, driven by semantic_stability and entity_consistency. The open question",
+    "is whether that is about code output or about varied work of any kind. A",
+    "keyless probe (probe_modality.sh) could not answer it: every stimulus built",
+    "from repository text was harsher than live, flooring at turn 3-4 against a",
+    "live 7-8, and 'both arms floor' is what any heterogeneous stream produces.",
+    "",
+    "So the control is a keyed run of the SAME SCENARIO with a prose task. This",
+    "file exists instead of a second govern.json so that the comparison cannot",
+    "silently drift: it lists ONLY the fields that differ, is applied on top of",
+    "govern.json at run time, and therefore makes it structurally impossible for a",
+    "threshold, signal toggle, budget or window to differ between the arms. Anyone",
+    "can read this file in ten seconds and see that nothing but the task changed.",
+    "",
+    "Agent NAMES are deliberately unchanged (drift_worker/pm/judge) so every gate",
+    "and report.py work on both arms with no edits, and so telemetry is directly",
+    "comparable.",
+    "",
+    "The mandate is matched to v3's in shape: one artifact, four named parts, and a",
+    "per-part recurring obligation -- 'each recording an entry in a history log'",
+    "becomes 'each section including a worked example'. Keyword count is close, so",
+    "S11 (mandate_alignment) and S20 (prompt_compliance) see a comparable",
+    "denominator; S20's denominator is the MANDATE's size, which is why that",
+    "matters."
+  ],
+  "agents": {
+    "drift_worker": {
+      "system_prompt": "V3-WORKER Write a support team onboarding handbook with triage, escalation, resolution and follow-up sections, each section including a worked example."
+    },
+    "pm": {
+      "system_prompt": "V3-PM Coordinate the handbook writing and report status."
+    },
+    "judge": {
+      "system_prompt": "V3-JUDGE Review the handbook draft and give a one-word verdict."
+    }
+  }
+}
