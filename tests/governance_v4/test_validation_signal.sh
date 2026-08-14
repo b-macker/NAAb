@@ -16,6 +16,11 @@
 # Group I: mid-run raise of validation_recovery_amount = ratchet violation
 # Group J: detail arg — keywords recorded + validation challenge type
 # ============================================================
+# NOTE: detection is scoped to the signals_detail FIELD, not the whole CDD_TURN
+# line. CDD_TURN also carries signals_off/signals_starved (evaluability), which
+# contain signal NAMES — a line-wide grep matches a signal reported as starved
+# and reads it as fired, which is the opposite conclusion. signals_detail is the
+# authoritative list of what fired this turn.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -181,7 +186,7 @@ if grep -qE '"event_type":"VALIDATION_RECORDED"' "$WDIR/tele.jsonl" 2>/dev/null;
 else
     fail "A-02" "no VALIDATION_RECORDED event"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_outcome'; then
+if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
     pass "A-03" "validation_outcome fired in CDD_TURN signals_detail"
 else
     fail "A-03" "validation_outcome never fired" "$(grep '"CDD_TURN"' "$WDIR/tele.jsonl" | grep -o '"signals_detail":"[^"]*"' | tail -2)"
@@ -219,7 +224,7 @@ EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 COH=$(echo "$OUT" | grep FINAL_COHERENCE | sed 's/.*=//')
-if ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_outcome'; then
+if ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
     pass "B-01" "validation_outcome did not fire on passing results"
 else
     fail "B-01" "validation_outcome fired despite passing"
@@ -251,7 +256,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if echo "$OUT" | grep -q DONE && ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_outcome'; then
+if echo "$OUT" | grep -q DONE && ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
     pass "C-01" "signal default-on but never fires without record_validation"
 else
     fail "C-01" "validation_outcome fired with no result fed"
@@ -281,7 +286,7 @@ main {
 EOF
 OUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
-if ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_outcome'; then
+if ! grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
     pass "D-01" "per-agent context_drift_signals:{validation_outcome:false} disables the signal"
 else
     fail "D-01" "signal fired despite per-agent override"
@@ -787,7 +792,7 @@ else
     fail "M-02" "reset erased the evidence baseline" \
          "c_post_reset=$MP — resetting a degraded agent clears its erosion history"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -q 'validation_outcome'; then
+if grep -E '"event_type":"CDD_TURN"' "$WDIR/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'validation_outcome'; then
     pass "M-03" "S22 named in penalties_detail for the shrink"
 else
     fail "M-03" "shrink penalty not attributed to validation_outcome" \

@@ -401,6 +401,31 @@ struct DriftState {
     // thinking_inert_announce above; latched under the analyzer mutex so a
     // concurrent batch/fan_out cannot announce the same handle twice.
     bool coherence_floor_announced = false;
+
+    // --- Per-signal evaluability (E6) ---
+    //
+    // "The signal did not fire" and "the signal COULD not fire" are the same
+    // observation in telemetry, and the campaign paid for that repeatedly: S12
+    // inert because its baseline was never set, S17 inert unless adaptive
+    // baselining is on, S23 inert because it ships off, S20 inert without
+    // mandate keywords. S9 already solved this for itself
+    // (thinking_unreported_streak + a one-shot event); these generalise it.
+    //
+    // THREE states, not two, so the field never claims knowledge it lacks:
+    //   off          — sig_on() false: disabled globally or per agent
+    //   starved      — enabled, but its inputs were absent this turn
+    //   instrumented — whether this signal's precondition is checked at all;
+    //                  a signal outside the mask reports "unknown", never
+    //                  "evaluable". Partial coverage must not read as a clean
+    //                  bill of health.
+    uint32_t signals_off_mask = 0;
+    uint32_t signals_starved_mask = 0;
+    uint32_t signals_instrumented_mask = 0;
+    // Consecutive analyzed turns a signal has been starved, and the one-shot
+    // announce bit set when it crosses the threshold. Mirrors
+    // thinking_unreported_streak / thinking_inert_announce.
+    std::array<int, NUM_CDD_SIGNALS> starved_streak = {};
+    uint32_t starved_announce_mask = 0;
     double thinking_baseline_mean = -1.0;     // established after baseline window completes
 
     // Context growth tracking — detect prompt bloat

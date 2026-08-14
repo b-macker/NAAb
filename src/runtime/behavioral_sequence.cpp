@@ -888,6 +888,84 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         return global_enabled;
     };
 
+    // --- Per-signal evaluability (E6) ---
+    //
+    // A signal that did not fire and one that COULD not fire read identically in
+    // telemetry. This records which is which.
+    //
+    // Computed here rather than by editing the 23 gates below, deliberately: this
+    // is observability and must not alter what the engine enforces, and rewriting
+    // every live gate to thread a flag risks exactly that. The cost is that these
+    // preconditions MIRROR the gates rather than share them, so they can drift —
+    // test_signal_evaluability.sh pins each instrumented signal against a scenario
+    // that starves it, so drift fails a test instead of quietly lying.
+    //
+    // Only preconditions that are a pure function of accumulated state are
+    // instrumented. Per-event conditions (S8's total_gen, S10/S15/S17's
+    // content_keywords, S12's baseline, S21's fingerprint) live inside per-event
+    // loops and are NOT covered — those signals are absent from
+    // signals_instrumented_mask and therefore report "unknown", never
+    // "evaluable". Partial coverage must not read as a clean bill of health.
+    {
+        state.signals_off_mask = 0;
+        state.signals_starved_mask = 0;
+        state.signals_instrumented_mask = 0;
+        // Cleared every turn so the announce below is genuinely one-shot: the
+        // bit is set only on the turn the streak EQUALS the threshold. Without
+        // this reset the bit latches and the emitter re-fires it every
+        // remaining turn — the same failure mode the coherence-floor warning
+        // needed a latch to avoid, arriving from the opposite direction.
+        state.starved_announce_mask = 0;
+
+        auto note = [&](int sig, bool globally_on, bool has_inputs) {
+            state.signals_instrumented_mask |= (1u << sig);
+            if (!sig_on(globally_on, sig)) {
+                state.signals_off_mask |= (1u << sig);
+            } else if (!has_inputs) {
+                state.signals_starved_mask |= (1u << sig);
+            }
+        };
+
+        const auto& sg = config_->signals;
+        // Mirrors the gate preconditions below, signal by signal.
+        note(SIG_REPEATED_FAILURES,   sg.repeated_failures,          !error_if_any.empty());
+        // S3 and S5 gate on turn_types, which is derived further down from
+        // turn_events. Deriving it a second time here would duplicate parsing
+        // logic that could silently diverge from the real gate, so they stay
+        // UNINSTRUMENTED and report "unknown" rather than a guess. This is the
+        // three-state model earning its keep on its first contact with reality.
+        note(SIG_CONTRADICTIONS,      sg.intent_contradictions,      !turn_events.empty());
+        note(SIG_COHERENCE_VELOCITY,  sg.coherence_velocity,         state.coherence_history.size() >= 2);
+        note(SIG_VALIDATION,          sg.validation_outcome,         state.has_validation_result);
+        note(SIG_MANDATE_ALIGNMENT,   sg.mandate_alignment,          !state.mandate_keywords.empty());
+        note(SIG_INSTRUCTION_RECALL,  sg.instruction_recall,         !state.instruction_keywords.empty());
+        note(SIG_PLAN_DRIFT,          sg.plan_drift,                 !state.plan_step_keywords.empty());
+        note(SIG_INSTRUCTION_CONFLICT,sg.instruction_conflict,       state.instruction_history.size() >= 2);
+        note(SIG_TOOL_CHAIN_INTEGRITY,sg.tool_chain_integrity,       !state.tool_result_keywords.empty());
+        note(SIG_CLAIM_RESULT,        sg.claim_result_reconciliation,!state.tool_last_outcome.empty());
+        note(SIG_PROMPT_COMPLIANCE,   sg.prompt_compliance,          !state.mandate_keywords.empty());
+        // Config-gate only: these have no state-level precondition to check, but
+        // being switched off is itself a reason a signal never fires — S23 ships
+        // off by default and its silence was read as "nothing detected".
+        note(SIG_CIRCULAR,            sg.circular_actions,           true);
+        note(SIG_RESPONSE_DEGENERATE, sg.response_degenerate,        true);
+        note(SIG_CAPABILITY_UNDERUTIL,sg.capability_underutilization,true);
+
+        // Streak + one-shot announce, mirroring thinking_unreported_streak.
+        const int announce_at = std::max(2, config_->thresholds.thinking_history_window / 2);
+        for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+            const bool inert = ((state.signals_off_mask | state.signals_starved_mask) >> i) & 1u;
+            if (inert) {
+                state.starved_streak[i]++;
+                if (state.starved_streak[i] == announce_at) {
+                    state.starved_announce_mask |= (1u << i);
+                }
+            } else {
+                state.starved_streak[i] = 0;
+            }
+        }
+    }
+
     // Signal 1: Circular actions (same fingerprint repeats)
     if (sig_on(config_->signals.circular_actions, SIG_CIRCULAR) && isCircular(state, fp)) {
         state.circular_action_count++;

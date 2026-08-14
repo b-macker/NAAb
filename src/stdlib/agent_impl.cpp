@@ -4115,6 +4115,29 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // above: a factor at weight 0.0 or value 0.0 contributed
                 // nothing, and listing ten mostly-zero fields on every turn
                 // would bury the two or three that moved the number.
+                // Signal evaluability (E6). A signal that did not fire and one
+                // that COULD not fire are the same observation without this.
+                //
+                // Reported as govern.json CONFIG KEYS, not signalName() telemetry
+                // labels: the action a reader takes from this field is editing a
+                // config, and those two name sets diverge for four signals —
+                // copying a telemetry label into govern.json silently disables
+                // nothing (see test_signal_key_suggestion.sh).
+                //
+                // Signals outside signals_instrumented_mask appear in NEITHER
+                // list. Their evaluability is unknown, not clean.
+                std::string signals_off, signals_starved;
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (!((drift_state->signals_instrumented_mask >> i) & 1u)) continue;
+                    if ((drift_state->signals_off_mask >> i) & 1u) {
+                        if (!signals_off.empty()) signals_off += ",";
+                        signals_off += governance::kCddSignalKeys[i];
+                    } else if ((drift_state->signals_starved_mask >> i) & 1u) {
+                        if (!signals_starved.empty()) signals_starved += ",";
+                        signals_starved += governance::kCddSignalKeys[i];
+                    }
+                }
+
                 static const char* kPressureFactorNames[
                         governance::DriftState::NUM_PRESSURE_FACTORS] = {
                     "coherence_prox", "risk_prox", "signal_density",
@@ -4162,6 +4185,35 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         + " consecutive responses — thinking_collapse is inert"},
                     });
                 }
+                // One-shot per signal, generalising the THINKING_UNREPORTED
+                // announce directly above: S9 already distinguished "did no
+                // thinking" from "provider never reported thinking", and that
+                // concept existed in exactly one place. A signal silent because
+                // it is switched off, or because its inputs never arrive, is not
+                // evidence of good behaviour — and read as such, repeatedly.
+                //
+                // Emitted once per signal per handle when the streak crosses the
+                // threshold, not per turn: the condition persists by nature, so
+                // a per-turn event would be noise on every remaining turn.
+                if (drift_state->starved_announce_mask) {
+                    for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                        if (!((drift_state->starved_announce_mask >> i) & 1u)) continue;
+                        const bool off = ((drift_state->signals_off_mask >> i) & 1u) != 0;
+                        gov_engine->writeAgentTelemetry("SIGNAL_INERT", {
+                            {"handle_id",   std::to_string(handle_id)},
+                            {"config_name", config_name},
+                            {"turn",        std::to_string(current_turn)},
+                            {"signal",      governance::kCddSignalKeys[i]},
+                            {"reason",      off ? "disabled" : "no_inputs"},
+                            {"streak",      std::to_string(drift_state->starved_streak[i])},
+                            {"detail",      std::string("signal has been inert for ")
+                                            + std::to_string(drift_state->starved_streak[i])
+                                            + " consecutive analyzed turns ("
+                                            + (off ? "disabled in config"
+                                                   : "enabled but its inputs never arrived") + ")"},
+                        });
+                    }
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
@@ -4173,6 +4225,8 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
                     {"penalties_detail", penalty_detail},
+                    {"signals_off",     signals_off},
+                    {"signals_starved", signals_starved},
                     // Join key shared with AGENT_RESPONSE. `turn` below is
                     // the POST-tool-loop counter and cannot be matched to a
                     // response event, which reports before the loop runs.
