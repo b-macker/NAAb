@@ -1,6 +1,6 @@
 # Plan — engine observability and config validation
 
-**Status:** E1, E2 landed. E5 → E4 → E3 → E6 remaining, in that order.
+**Status:** E1–E5 landed. **E6 is the only item remaining** (E7 deferred).
 
 This file exists on disk because the previous version of this plan lived only in
 conversation and was lost to a context summary — its E3 could not be recovered
@@ -38,6 +38,9 @@ right.
 |---|---|---|---|
 | E1 | Budget errors name the scope that bound, both call sites | `38366e5` | `test_limit_attribution.sh` |
 | E2 | `pressure_detail`, calm counter, join key, signal-key suggestion | `596bd82`, `1bbbd79` | residual 0.0 over 36 rows; `test_signal_key_suggestion.sh` |
+| E5 | Health check gains the false-positive direction | `2bca69d` | `test_health_floor_symmetry.sh` |
+| E4 | CONTRA-011 / CONTRA-012, with one premise corrected | `d9b1626` | `test_config_contradictions.sh` |
+| E3 | `RunStart` carries config fingerprint + mandate digest | `cf02e28` | `test_run_identity.sh` |
 | — | Join key fixed after it shipped broken | `fd89579` | `test_telemetry_join_key.sh` |
 | — | Findings + open-investigations recorded | `096fecd` | docs only |
 
@@ -49,7 +52,7 @@ test must cover, not just the assertion.
 
 ---
 
-## E5 — Make the health check symmetric (do first)
+## E5 — Make the health check symmetric — **LANDED** (`2bca69d`)
 
 `checkGovernanceHealth()` (`governance_engine.cpp:6599`) has three checks, all
 asking *is detection being bypassed?*
@@ -87,18 +90,25 @@ the check → the first assertion fails.
 
 ---
 
-## E4 — Config-contradiction checks (do second)
+## E4 — Config-contradiction checks — **LANDED** (`d9b1626`)
 
 Two footguns that cost four keyed runs, both the exact shape
 `detectContradictions()` already handles — configured, believed working,
 structurally unable to fire:
 
-- `api_key_env` lists 6 keys but `retry.max_attempts == 1` → rotation is inert,
-  because rotation happens on retry. Killed runs 4 and 5 with all six keys
-  exported.
+- `api_key_env` lists 6 keys but `retry.max_attempts == 1`. Killed runs 4 and 5
+  with all six keys exported. **The premise as originally written — "rotation is
+  inert, because rotation happens on retry" — is FALSE**, and tracing caught it
+  before the warning shipped: `key_offset` advances on every send and persists on
+  the tracker, so keys do rotate between calls, and a key returning a
+  `skip_key_on` code is still retired on the first attempt. What `max_attempts: 1`
+  removes is failover *within* a call — the first key error aborts the call that
+  hit it. The shipped wording says that.
 - `context_growth` + no `context_window` + `adaptive_baseline_enabled: false` +
   high `max_turns` → fires permanently from ~turn 8 and never recovers. Three
-  readers took its firing for drift.
+  readers took its firing for drift. **Premise verified exactly**: the S12
+  input-token baseline is set once and only EMA-updated when adaptive baselining
+  is on, so it freezes while the resent history keeps input tokens climbing.
 
 **Regression surface (traced — this was the gate on the plan, and it passes):**
 - `detectContradictions()` has ONE caller: `governance_config.cpp:5192`, inside
@@ -127,7 +137,7 @@ must fail it.
 
 ---
 
-## E3 — Runs carry their own identity (do third)
+## E3 — Runs carry their own identity — **LANDED** (`cf02e28`)
 
 `RunStart` (`governance_reports.cpp:272`) should carry a config fingerprint and
 per-agent mandate digest. Evidence: the prose-arm round trip — `report.py` reads
@@ -155,7 +165,7 @@ which a random value passes).
 
 ---
 
-## E6 — Per-signal evaluability (do last)
+## E6 — Per-signal evaluability — **NEXT, and the only item left**
 
 Generalise `THINKING_UNREPORTED`: S9 already distinguishes "did no thinking" from
 "provider did not report thinking", with a one-shot event when the signal goes
@@ -182,6 +192,35 @@ optional label on `agent.send()` would put phase in telemetry and let every gate
 read one source. **Deferred: changes a stdlib signature.**
 
 ---
+
+## What execution changed about the plan
+
+Each item is annotated above with what it claimed; this records where the claim
+did not survive contact.
+
+- **E4's central risk did not exist.** The plan called it "the gate on the whole
+  plan" because contradictions reach `enforce()` and advisory escalation hardens
+  repeats into SOFT blocks. `detectContradictions()` has one caller inside
+  `loadFromFile`, so it runs once per process, and `reloadIfChanged()` calls
+  `loadFromJson` instead — the advisory cannot repeat, so it cannot escalate.
+- **E4's rotation premise was wrong.** "Six keys with `max_attempts: 1` makes
+  rotation inert, because rotation happens on retry" is false: `key_offset`
+  advances every send and persists on the tracker. What is lost is failover
+  *within* a call. Shipping the original wording would have put a false statement
+  into an operator-facing warning.
+- **E3 was not trivial.** ~50 unordered containers and no canonical serializer
+  meant the natural implementation was non-deterministic, and its own vacuity
+  test would have flaked rather than failed.
+- **E5's premise held exactly**, and it was the safest item — no `enforce()` path
+  at all. The correction was operational: it runs per turn, so the warning needed
+  a one-shot latch.
+- **E2 shipped a defect that this plan's own rules caught later.** The join key
+  was verified on a tool-free scenario and was wrong by the tool round-trip
+  count. Hence the third standing rule below.
+
+Fire rates were measured against the in-tree corpus *before* writing E4, not
+after: CONTRA-012 on 36/190 agents, CONTRA-011 on 17/190. A contradiction that
+fires on the default config is noise rather than a finding.
 
 ## Order and rationale
 

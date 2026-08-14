@@ -473,6 +473,10 @@ engine only stops withholding what it already computed.
 | De-escalation predicate invisible | Calm counter and its owning handle were engine-internal | `596bd82` | trace reads 1 → 2 → step-down | confirmed |
 | `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82`, corrected below | `test_telemetry_join_key.sh` | confirmed |
 | Telemetry label ≠ config key | Copying a firing signal's name into govern.json disabled nothing | `1bbbd79` | `test_signal_key_suggestion.sh` | stub-only |
+| Health check had no false-positive direction | Three checks, all asking whether detection is bypassed | `2bca69d` | `test_health_floor_symmetry.sh` | stub-only |
+| Rotation keys without within-call failover | N keys configured; first key error still aborts the call | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
+| `context_growth` unable to recover | Frozen baseline + unbounded history = fires forever | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
+| Runs had no identity | Telemetry could not name the config that produced it | `cf02e28` | `test_run_identity.sh` | confirmed |
 
 Two method notes worth keeping, because both nearly produced a worse artifact
 than the gap they closed:
@@ -512,6 +516,41 @@ JK-02 is the tool-free control the broken version satisfied.
 Method note that generalises: **a verification narrower than the claim it
 supports is not evidence for the claim.** Nothing about 39/39 was wrong; it was
 answering a smaller question than the one being asserted.
+
+### The asymmetry E5 closed
+
+`checkGovernanceHealth()` asked three questions and all were the same question:
+is *detection* being bypassed? BSD silent, CDD silent, coherence suspiciously
+perfect. Nothing asked whether governance was scoring a compliant agent into the
+floor — which is what every keyed run actually did, by turn 5–8, in silence.
+
+A monitor built only to catch evasion cannot see its own false positives. The
+mirror warning names the signals holding coherence down, because "governance says
+this agent is bad" is not actionable and "mandate_alignment, semantic_stability
+and instruction_recall are firing every turn" is.
+
+Scope stated honestly: `governance_health.enabled` defaults **false** and
+`living-script_v3` does not enable it, so the runs that motivated the fix would
+not have warned without also turning the check on.
+
+### A premise that did not survive tracing (E4)
+
+The rotation footgun was proposed as "six keys with `retry.max_attempts: 1` makes
+rotation inert, because rotation happens on retry." That is false. `key_offset`
+advances on every send and persists on the tracker, so keys rotate between calls
+regardless, and a key returning a `skip_key_on` code is retired on the first
+attempt. The real loss is failover *within* a call.
+
+Worth recording because of where it would have ended up: an operator-facing
+warning stating something untrue about the engine. Every other instance of this
+campaign's signature defect — a control that cannot do what it claims — was found
+pointing inward. This one would have pointed outward.
+
+Fire rates were measured against all 190 in-tree agent configs *before* writing
+the patterns (CONTRA-012: 36, CONTRA-011: 17). A contradiction check that fires
+on the default configuration is noise, not a finding.
+
+---
 
 ---
 
