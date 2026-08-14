@@ -107,6 +107,21 @@ similarly-named limits where the error text quotes one of them.
 always died first, so the visible backstop was structurally unreachable. Both
 limits are now set explicitly with `meta` entries recording the distinction.
 
+**The messages themselves are fixed now** (`38366e5`). The per-agent budget error
+names the budget that bound instead of quoting a number that fits two limits, at
+both call sites — `agentSend` and `agentPropose`. Neither misdiagnosis above was
+caused by a wrong value; every number printed was correct. They were caused by
+the engine declining to say which thing the number belonged to, which is the
+whole shape of the diagnostics work in `governance-campaign-findings.md`.
+
+Run 1's timeout half is **not** fixed. `ErrorSanitizer` mangles
+`max_tokens_per_run` into `max_<redacted>` at rendered output, so the run-level
+error still does not name its key even though its source string does — recorded
+under "Found in `src/`, not fixed" and pinned by `test_limit_attribution.sh`
+LA-03. The `limits.timeout.global` message names no limit at all; giving it one
+requires `ResourceLimiter` to retain its configured value, which it does not, and
+touches the per-instruction VM dispatch macro. Separate increment, not done.
+
 Cost model worth keeping: conversation history is resent every turn, so token
 spend grows roughly with the **square** of turn count — 19 calls cost 110k
 against a 36-call scenario, and `drift_worker` alone takes ~33 of those calls.

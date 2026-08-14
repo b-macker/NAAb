@@ -457,6 +457,71 @@ the defect it was hunting; see the method note on keyword filters.
 
 ---
 
+## Diagnostics the engine had and did not say
+
+Runs 1 and 2 of the E6 keyed pair both died on a limit that was doing its job,
+and both were first attributed to the wrong knob (see `open-investigations.md`,
+E6). Neither misdiagnosis was caused by a wrong value — every number printed was
+correct. They were caused by the engine declining to say *which* thing the number
+belonged to. The fixes below are all of that shape: no behaviour changes, the
+engine only stops withholding what it already computed.
+
+| Gap | What was missing | Fix | Test | Live status |
+|---|---|---|---|---|
+| Budget error named no budget | Two similarly-named token budgets; the message quoted neither | `38366e5` | `test_limit_attribution.sh` LA-01/02 | confirmed |
+| `pressure` had no inputs | Composite emitted, ten weighted factors discarded | `596bd82` | sum-vs-total check, residual 0.0 over 36 rows | confirmed |
+| De-escalation predicate invisible | Calm counter and its owning handle were engine-internal | `596bd82` | trace reads 1 → 2 → step-down | confirmed |
+| `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82` | 39/39, identical key sets | confirmed |
+| Telemetry label ≠ config key | Copying a firing signal's name into govern.json disabled nothing | `1bbbd79` | `test_signal_key_suggestion.sh` | stub-only |
+
+Two method notes worth keeping, because both nearly produced a worse artifact
+than the gap they closed:
+
+**The pressure formula was re-derived externally and was wrong.** Ten factors,
+not five, and `coherence_prox` divides by `coherence_threshold` (default 0.7).
+The wrong form matched every floored-coherence row — where both forms give 1.0 —
+and no other, so it survived spot-checking and reached a merged document.
+`pressure_detail` therefore carries weighted CONTRIBUTIONS rather than raw
+factors: contributions sum to the composite, so the decomposition is checkable
+against the total instead of merely plausible. Five of the ten weights ship at
+0.0, so any external tool hardcoding the weighting is silently wrong on a config
+that opts into `semantic_deviation` or `codegen_pressure`.
+
+**A joinable-looking field that is off by one is worse than no field.**
+`current_turn` at the `AGENT_RESPONSE` site is the count *before* the response is
+counted; `CDD_TURN` reports *after*. Emitting it raw would have replaced a
+positional join that fails visibly with a keyed join that fails silently.
+
+---
+
+## Found in `src/`, not fixed
+
+Both were found while building the diagnostics above. Both are left alone
+deliberately: repairing either changes what a security control does, which is not
+a drive-by edit inside an unrelated increment.
+
+**`ErrorSanitizer` over-redacts identifiers.** Its `API_KEY` pattern
+(`include/naab/error_sanitizer.h:189`) alternates on the bare word `token`, then
+`[:\s]*` matches EMPTY, then the capture eats 8+ identifier characters. So
+`max_tokens_per_run (60) exceeded` renders as `max_<redacted> (60) exceeded`;
+`tokens_remaining` and `authorization_required` are swallowed whole. A security
+control whose false positives destroy the diagnostics it was never meant to
+touch — and the reason the run-level budget error does not name its key at
+rendered output even though its source string does. Pinned by
+`test_limit_attribution.sh` LA-03, written to PASS while the defect stands and
+FAIL the moment it is fixed. The candidate fix (require a separator) LOOSENS a
+redaction pattern; the open question is whether any real secret form lacks one.
+
+**The leak suite's comment filter cannot match.** `test_error_msg_leaks.sh` pipes
+`grep -n` output into `grep -v '^\s*//'`, but every line already carries an `N:`
+prefix by then, so the anchor never matches and commented-out code is scanned as
+if it were live. A sibling filter in the same pipeline *does* account for the
+prefix, so this is a bug rather than a choice. Repairing it INCREASES what the
+suite reports, so it may surface existing violations needing triage. Fifth
+instance in this campaign of a control structurally incapable of firing.
+
+---
+
 ## Recorded, deliberately not changed
 
 Each of these is a real observation that did **not** justify a change. They are
