@@ -3111,6 +3111,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (gh.contains("enabled") && gh["enabled"].is_boolean()) cfg.enabled = gh["enabled"].get<bool>();
         if (gh.contains("check_after_turns") && gh["check_after_turns"].is_number_integer()) cfg.check_after_turns = gh["check_after_turns"].get<int>();
         if (gh.contains("governance_entropy_warning") && gh["governance_entropy_warning"].is_number()) cfg.governance_entropy_warning = gh["governance_entropy_warning"].get<double>();
+        if (gh.contains("coherence_floor_warning") && gh["coherence_floor_warning"].is_number()) cfg.coherence_floor_warning = gh["coherence_floor_warning"].get<double>();
         if (gh.contains("consecutive_passes_suspicion") && gh["consecutive_passes_suspicion"].is_number_integer()) cfg.consecutive_passes_suspicion = std::max(1, gh["consecutive_passes_suspicion"].get<int>());
         if (gh.contains("impaired_degraded_turns") && gh["impaired_degraded_turns"].is_number_integer()) cfg.impaired_degraded_turns = std::max(1, gh["impaired_degraded_turns"].get<int>());
         if (gh.contains("impaired_signal_count") && gh["impaired_signal_count"].is_number_integer()) cfg.impaired_signal_count = std::max(1, gh["impaired_signal_count"].get<int>());

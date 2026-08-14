@@ -1760,6 +1760,12 @@ struct GovernanceHealthConfig {
     std::string rationale;
     int check_after_turns = 10;           // begin checking after N agent turns
     double governance_entropy_warning = 0.5;  // F16: low entropy in check results = suspicious
+    // Mirror of the perfect-coherence check. That one asks whether an agent is
+    // evading detection; nothing asked whether governance is scoring a
+    // compliant agent into the floor. Every keyed run of living-script_v3
+    // floored by turn 5-8 with no agent misbehaving and the engine said
+    // nothing. 0 disables. Warning only -- never reaches enforce().
+    double coherence_floor_warning = 0.25;
     // Pulse verdict thresholds — control when governance self-health transitions.
     // 50 consecutive passes: a well-functioning governance system should occasionally
     // fire advisories. 50+ consecutive passes with zero findings suggests governance

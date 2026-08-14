@@ -6644,6 +6644,41 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
         }
     }
 
+    // Check 3b: coherence at or below the floor → probable FALSE POSITIVE.
+    //
+    // The mirror of check 3, and the reason it exists: checks 1, 2 and 3 all ask
+    // whether DETECTION is being bypassed — instrumentation silent, or an agent
+    // scoring suspiciously well. Nothing asked whether governance is scoring a
+    // compliant agent into the floor. Every keyed run of living-script_v3 floored
+    // by turn 5–8 with no agent misbehaving, and the engine said nothing, because
+    // the health check is built to catch an agent evading detection and is blind
+    // to governance evading correctness.
+    //
+    // Named signals, not just a verdict: floored coherence is only actionable if
+    // the operator can see WHICH signals hold it there — that is the difference
+    // between "governance says this agent is bad" and "semantic_stability and
+    // instruction_recall are firing every turn on an agent doing its job".
+    //
+    // Warning only. This function never calls enforce(); its output goes to
+    // stderr and GOVERNANCE_HEALTH_WARNING telemetry, so no enforcement path,
+    // no advisory escalation, and no possibility of blocking a run. Deliberate:
+    // the campaign's evidence names threshold suspects but no values, so this
+    // reports a suspicion and changes nothing.
+    //
+    // takeFlooredAgents() latches per handle, because this function runs EVERY
+    // turn and the condition it detects persists — without the latch it would
+    // print for every remaining turn of the run.
+    if (cfg.coherence_floor_warning > 0.0 && turn >= 10) {
+        for (const auto& fa : drift_analyzer_.takeFlooredAgents(cfg.coherence_floor_warning)) {
+            warnings += fmt::format(
+                "WARNING: Coherence floored at {:.4f} for agent '{}' by turn {} "
+                "(possible governance false positive{}{})\n",
+                fa.coherence, fa.name, turn,
+                fa.top_signals.empty() ? "" : " — top signals: ",
+                fa.top_signals);
+        }
+    }
+
     // F16: Check governance entropy
     // Suppress when CDD is actively analyzing turns — low entropy is structural,
     // not suspicious, because static source passes dominate the check_results_ buffer

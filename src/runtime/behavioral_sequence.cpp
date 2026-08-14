@@ -2579,6 +2579,48 @@ void ContextDriftAnalyzer::recordToolOutcome(
     state.tool_last_outcome[tool_name] = success;
 }
 
+std::vector<ContextDriftAnalyzer::FlooredAgent>
+ContextDriftAnalyzer::takeFlooredAgents(double threshold) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<FlooredAgent> out;
+    for (auto& [hid, st] : drift_states_) {
+        if (st.coherence_floor_announced) continue;
+        if (st.coherence_score > threshold) continue;
+
+        // Latch inside the same critical section as the test. Concurrent
+        // agent.batch() sends both call checkGovernanceHealth; a check here and
+        // a set by the caller would let both observe un-announced state and both
+        // warn for one handle.
+        st.coherence_floor_announced = true;
+
+        FlooredAgent fa;
+        fa.name = st.config_name.empty() ? std::to_string(hid) : st.config_name;
+        fa.coherence = st.coherence_score;
+
+        // Name what is holding it down, highest penalty first. Uses the most
+        // recent turn rather than a lifetime accumulator: an agent floored at
+        // turn 10+ is being held there by what is still firing, and no
+        // cumulative per-signal penalty array exists to consult.
+        std::vector<std::pair<double, int>> ranked;
+        for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+            if (st.last_turn_penalties[i] > 0.0) {
+                ranked.emplace_back(st.last_turn_penalties[i], i);
+            }
+        }
+        std::sort(ranked.begin(), ranked.end(),
+                  [](const auto& a, const auto& b) {
+                      if (a.first != b.first) return a.first > b.first;
+                      return a.second < b.second;   // deterministic ties
+                  });
+        for (size_t k = 0; k < ranked.size() && k < 3; k++) {
+            if (!fa.top_signals.empty()) fa.top_signals += ",";
+            fa.top_signals += signalName(ranked[k].second);
+        }
+        out.push_back(std::move(fa));
+    }
+    return out;
+}
+
 void ContextDriftAnalyzer::recordPressureContributions(
     int handle_id,
     const std::array<double, DriftState::NUM_PRESSURE_FACTORS>& contrib) {

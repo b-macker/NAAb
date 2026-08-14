@@ -394,6 +394,13 @@ struct DriftState {
     // that silence back into something observable.
     int thinking_unreported_streak = 0;
     bool thinking_inert_announce = false;      // one-shot: streak just reached the inert threshold
+    // One-shot latch for the coherence-floor health warning. checkGovernanceHealth
+    // runs EVERY turn, so without this the warning prints once per turn for the
+    // rest of the run on an agent that is floored and staying floored -- which is
+    // the normal case for the condition it detects. Same shape as
+    // thinking_inert_announce above; latched under the analyzer mutex so a
+    // concurrent batch/fan_out cannot announce the same handle twice.
+    bool coherence_floor_announced = false;
     double thinking_baseline_mean = -1.0;     // established after baseline window completes
 
     // Context growth tracking — detect prompt bloat
@@ -562,6 +569,18 @@ public:
     void recordPressureContributions(
         int handle_id,
         const std::array<double, DriftState::NUM_PRESSURE_FACTORS>& contrib);
+
+    // One floored agent, for the governance-health false-positive warning.
+    struct FlooredAgent {
+        std::string name;
+        double coherence = 0.0;
+        std::string top_signals;   // comma-joined, highest penalty first
+    };
+    // Returns agents at/below `threshold` that have NOT yet been announced, and
+    // latches them in the same critical section. Check and latch must be atomic:
+    // concurrent agent.batch() sends would otherwise both observe un-announced
+    // state and both warn.
+    std::vector<FlooredAgent> takeFlooredAgents(double threshold);
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);
