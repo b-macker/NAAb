@@ -3365,6 +3365,24 @@ private:
     mutable int64_t approval_mtime_ = 0;
     mutable std::mutex approval_mutex_;
     std::string loaded_path_;
+    // Run identity, computed once at load and emitted on the RunStart anchor.
+    //
+    // Telemetry could not say WHICH config produced a run. report.py reads
+    // src/govern.json, which need not be the file that ran, and nothing in the
+    // evidence could settle it — the prose-arm verification had to be resolved
+    // by asking a human which arm had been executed.
+    //
+    // Deliberately hashes FILE CONTENT, not the resolved GovernanceRules:
+    // GovernanceRules holds ~50 unordered containers and has no canonical
+    // serializer, so hashing it would be non-deterministic and the fingerprint
+    // would differ between two runs of one config — failing the only test that
+    // makes it meaningful. Content hashes are also machine-independent, where
+    // canonical PATHS would vary per checkout.
+    //
+    // Digests, never the prompts themselves: system prompts are operator content
+    // and telemetry is forwarded to webhooks and SIEMs.
+    std::string config_fingerprint_;   // over every file in the extends chain
+    std::string mandate_digest_;       // over agent name + system_prompt, sorted
     std::string last_error_;   // "not_found" or empty when loaded successfully
     std::shared_ptr<const GovernanceRules> rules_ptr_;
     std::vector<CheckResult> check_results_;

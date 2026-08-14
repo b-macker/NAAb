@@ -11,6 +11,7 @@
 #include "naab/safe_regex.h"
 #include "naab/sandbox.h"
 #include "naab/subprocess_helpers.h"  // V-SC-006-ext: env scrub policy
+#include "naab/crypto_utils.h"       // run-identity fingerprint (E3)
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -5072,6 +5073,11 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
 
         // --- Policy distribution: resolve extends chain ---
+        // chain_files collects every file that contributed, so the run
+        // fingerprint below covers a parent policy change too — a child whose
+        // own bytes never moved still ran a different effective config.
+        std::set<std::string> chain_files;
+        chain_files.insert(std::filesystem::weakly_canonical(path).string());
         if (!new_rules->extends_path.empty()) {
             auto config_dir = std::filesystem::path(path).parent_path().string();
             auto resolved = resolveExtendsPath(new_rules->extends_path, config_dir);
@@ -5087,6 +5093,34 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             if (!loadWithExtends(resolved, 1, max_depth, visited, *new_rules)) {
                 return false;
             }
+            chain_files = visited;   // every file that took part
+        }
+
+        // Run identity. std::set gives a deterministic traversal, and hashing
+        // CONTENT rather than paths keeps the fingerprint identical across
+        // checkouts of the same config.
+        {
+            std::string acc;
+            for (const auto& f : chain_files) {
+                acc += security::CryptoUtils::sha256File(f);
+                acc += ";";
+            }
+            config_fingerprint_ = security::CryptoUtils::sha256(acc).substr(0, 16);
+
+            // Mandate digest: agent name + system prompt, sorted by name so the
+            // parse order of the agents vector cannot change the value. Hashes
+            // only — prompts are operator content and telemetry is forwarded.
+            std::vector<std::pair<std::string, std::string>> mandates;
+            for (const auto& a : new_rules->agents) {
+                mandates.emplace_back(a.name,
+                    security::CryptoUtils::sha256(a.system_prompt).substr(0, 16));
+            }
+            std::sort(mandates.begin(), mandates.end());
+            std::string macc;
+            for (const auto& [n, h] : mandates) macc += n + "=" + h + ";";
+            mandate_digest_ = mandates.empty()
+                ? std::string("none")
+                : security::CryptoUtils::sha256(macc).substr(0, 16);
         }
 
         active_.store(new_rules->mode != GovernanceMode::OFF);

@@ -271,6 +271,17 @@ std::string GovernanceEngine::chainPrevLocked(FILE* fp) const {
         rs["agent_id"] = agent_id_;
         rs["event_type"] = "RunStart";
         rs["timestamp"] = isoTimestampNow();
+        // Run identity. Without these, telemetry cannot say which config
+        // produced it: report.py reads src/govern.json, which need not be the
+        // file that ran, and the prose-arm verification had to be settled by
+        // asking a human which arm had executed.
+        //
+        // Added before computeHash below, so they sit INSIDE the hashed payload
+        // and cannot be edited after the fact without breaking the chain.
+        rs["config_fingerprint"] = config_fingerprint_.empty()
+            ? std::string("unset") : config_fingerprint_;
+        rs["mandate_digest"] = mandate_digest_.empty()
+            ? std::string("unset") : mandate_digest_;
 #ifndef _WIN32
         rs["pid"] = static_cast<long>(getpid());
 #endif
