@@ -5813,6 +5813,76 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         results.push_back(c);
     }
 
+    // CONTRA-011: multiple rotation keys configured, but no within-call failover.
+    //
+    // WORDING MATTERS HERE, because the obvious phrasing is wrong. Rotation is
+    // NOT inert with max_attempts == 1: key_offset advances on every send and is
+    // persisted on the tracker (agent_impl.cpp), so keys still round-robin across
+    // calls, and a key that returns a skip_key_on code is still retired on the
+    // first attempt. What max_attempts == 1 removes is FAILOVER WITHIN a call —
+    // when the selected key fails, the call aborts instead of trying the next
+    // key. An operator who exports six keys has stated an intent to survive a bad
+    // key; with no retry, the first key error still kills the call that hit it.
+    //
+    // Two keyed runs died this way with all six keys exported and healthy.
+    for (const auto& role : rules().agents) {
+        if (role.api_key_envs.size() > 1 && role.retry.max_attempts <= 1) {
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-011";
+            c.description = fmt::format(
+                "Agent '{}' lists {} rotation keys but retry.max_attempts is {} — "
+                "keys still rotate between calls, but a key failure cannot fail "
+                "over within a call, so the first key error aborts that call",
+                role.name, role.api_key_envs.size(), role.retry.max_attempts);
+            c.level = level;
+            c.resolution = "Raise retry.max_attempts to at least the number of rotation keys";
+            results.push_back(c);
+        }
+    }
+
+    // CONTRA-012: context_growth can never recover under this combination.
+    //
+    // S12 sets input_tokens_baseline_mean ONCE and only EMA-updates it when
+    // adaptive_baseline_enabled is true (behavioral_sequence.cpp). With no
+    // context window the full history is resent every turn, so input tokens grow
+    // monotonically. Once current exceeds baseline * context_growth_factor the
+    // signal fires and — with the baseline frozen and the input still climbing —
+    // fires every remaining turn and never recovers.
+    //
+    // Three readers took its firing for agent drift, twice by the same reader.
+    //
+    // max_turns >= 15 is the reachability bar, not a guess: the campaign observed
+    // the crossing at about turn 8, so 15 carries margin while keeping short-run
+    // configs (which cannot reach it) silent. This is why the check does not fire
+    // on every default config — most agents set a shorter max_turns.
+    {
+        const auto& cd = rules().context_drift;
+        for (const auto& role : rules().agents) {
+            // Honour a per-agent override that switched this signal off.
+            auto ov = role.context_drift_signals.find("context_growth");
+            bool signal_on = (ov != role.context_drift_signals.end())
+                             ? ov->second : cd.signals.context_growth;
+            if (!signal_on) continue;
+            if (cd.adaptive_baseline_enabled) continue;   // baseline tracks growth
+            if (role.context_window > 0) continue;         // history is bounded
+            if (role.max_turns < 15) continue;             // cannot reach the crossing
+
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-012";
+            c.description = fmt::format(
+                "Agent '{}' can run {} turns with context_growth enabled, no "
+                "context_window and adaptive_baseline_enabled false — the input "
+                "token baseline is set once and never updated, so once growth "
+                "crosses the factor the signal fires every remaining turn and "
+                "cannot recover",
+                role.name, role.max_turns);
+            c.level = level;
+            c.resolution = "Set a per-agent context_window, or enable "
+                           "context_drift.adaptive_baseline_enabled";
+            results.push_back(c);
+        }
+    }
+
     // CONTRA-010: blocked_commands configured but code_injection not enabled
     if (!rules().capabilities.shell.blocked_commands.empty() &&
         !rules().restrictions.code_injection.enabled) {
