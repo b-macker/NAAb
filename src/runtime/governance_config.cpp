@@ -2556,9 +2556,46 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                             if (sig_key == kCddSignalKeys[si]) { known = true; break; }
                         }
                         if (!known) {
-                            fprintf(stderr,
-                                "[governance] Warning: unknown context_drift_signals key \"%s\" for agent \"%s\"\n",
-                                sig_key.c_str(), agent.name.c_str());
+                            // The name a reader is most likely to type here is
+                            // the one they just saw firing in telemetry -- and
+                            // for four signals that is NOT the config key:
+                            //
+                            //   config key                   telemetry label
+                            //   circular_actions             circular
+                            //   intent_contradictions        contradictions
+                            //   vocabulary_contraction       vocab_contraction
+                            //   capability_underutilization  capability_underutil
+                            //
+                            // penalties_detail/signals_detail print signalName();
+                            // this parser matches kCddSignalKeys. Copying a name
+                            // across therefore disables NOTHING: the signal keeps
+                            // firing and paying, and the only symptom is one
+                            // stderr line that says "unknown" about a signal the
+                            // operator can plainly see working.
+                            //
+                            // The alias is deliberately NOT accepted. A second
+                            // spelling silently working would be config surface
+                            // the ratchet comparison and the override bitmask do
+                            // not know about. Naming the canonical key turns a
+                            // dead-end warning into the fix.
+                            const char* suggestion = nullptr;
+                            for (int si = 0; si < NUM_CDD_SIGNALS; si++) {
+                                if (sig_key == ContextDriftAnalyzer::signalName(si)) {
+                                    suggestion = kCddSignalKeys[si];
+                                    break;
+                                }
+                            }
+                            if (suggestion) {
+                                fprintf(stderr,
+                                    "[governance] Warning: unknown context_drift_signals key \"%s\" "
+                                    "for agent \"%s\" — that is the telemetry label; "
+                                    "the config key is \"%s\" (signal NOT overridden)\n",
+                                    sig_key.c_str(), agent.name.c_str(), suggestion);
+                            } else {
+                                fprintf(stderr,
+                                    "[governance] Warning: unknown context_drift_signals key \"%s\" for agent \"%s\"\n",
+                                    sig_key.c_str(), agent.name.c_str());
+                            }
                             continue;
                         }
                         if (sig_val.is_boolean()) {
