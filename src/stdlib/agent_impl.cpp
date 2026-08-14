@@ -1418,6 +1418,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int handle_id = validated_id;
     int current_turn = 0;
 
+    // The turn counter as it stood when the API response came back, captured so
+    // AGENT_RESPONSE and CDD_TURN can be joined on one value both are certain of.
+    //
+    // The turn a response BECOMES is not knowable at AGENT_RESPONSE time. That
+    // event is emitted once, before the tool loop; the loop then increments
+    // tracker.turns once per round-trip, and one more increment follows it. So
+    // CDD_TURN reports request_turn + tool_round_trips + 1, and any value
+    // AGENT_RESPONSE guesses is wrong by the number of round-trips -- verified
+    // against a two-round-trip stub run: AGENT_RESPONSE 1 vs CDD_TURN 3.
+    //
+    // Keying both on the REQUEST turn instead is exact in every case, because
+    // this is assigned at the single point where the response arrives and read
+    // unchanged by both emitters.
+    int turn_at_request = -1;
+
     // Transcript: accumulate per-turn data, write once at end
     auto* gov_for_transcript = governance::GovernanceEngine::getCurrent();
     bool transcript_active = gov_for_transcript && gov_for_transcript->isActive()
@@ -2730,6 +2745,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             agent_resp.fallback_used = (model_idx > 0);
             agent_resp.original_model = models[0];
 
+            // Assigned OUTSIDE the telemetry guard below and before the tool
+            // loop: this is the one point the response is known to have arrived,
+            // so both emitters read the same value whatever runs after it.
+            turn_at_request = current_turn;
+
             // Telemetry: successful response
             if (gov_engine && gov_engine->isActive()) {
                 // Content hash for post-hoc audit (hash first 500 chars)
@@ -2742,19 +2762,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 gov_engine->writeAgentTelemetry("AGENT_RESPONSE", {
                     {"handle_id", std::to_string(handle_id)},
                     {"config_name", config_name},
-                    // The turn this response BECOMES, so it joins CDD_TURN.
-                    //
-                    // current_turn here is the count BEFORE this response is
-                    // counted: tracker.turns++ happens later (~line 3976) and
-                    // current_turn is refreshed just after it, so CDD_TURN for
-                    // this same response reports current_turn + 1. Emitting the
-                    // raw value would have produced a field that looks joinable
-                    // and is off by one -- worse than the absence it replaces,
-                    // because a positional join at least fails visibly. Verified
-                    // against a keyless run rather than reasoned about: every
-                    // AGENT_RESPONSE turn matches the CDD_TURN of the same
-                    // response.
-                    {"turn", std::to_string(current_turn + 1)},
+                    // Join key shared with CDD_TURN. NOT the turn this
+                    // response becomes -- that is unknowable here, because the
+                    // tool loop has not run yet and each round-trip advances the
+                    // counter. An earlier version emitted current_turn + 1 and
+                    // was correct ONLY for tool-free agents: with two round-trips
+                    // it read 1 against CDD_TURN's 3. Both events now carry the
+                    // request turn, which neither has to predict.
+                    {"turn_at_request", std::to_string(turn_at_request)},
                     {"model", current_model},
                     {"api_key_env", key_env},
                     {"latency_ms", std::to_string(attempt_ms)},
@@ -4158,6 +4173,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
                     {"penalties_detail", penalty_detail},
+                    // Join key shared with AGENT_RESPONSE. `turn` below is
+                    // the POST-tool-loop counter and cannot be matched to a
+                    // response event, which reports before the loop runs.
+                    {"turn_at_request", std::to_string(turn_at_request)},
                     // Weighted contributions that SUM to `pressure` above, so a
                     // reader can check the decomposition against the total
                     // rather than trusting a formula reconstructed elsewhere.

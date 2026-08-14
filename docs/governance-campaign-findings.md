@@ -471,7 +471,7 @@ engine only stops withholding what it already computed.
 | Budget error named no budget | Two similarly-named token budgets; the message quoted neither | `38366e5` | `test_limit_attribution.sh` LA-01/02 | confirmed |
 | `pressure` had no inputs | Composite emitted, ten weighted factors discarded | `596bd82` | sum-vs-total check, residual 0.0 over 36 rows | confirmed |
 | De-escalation predicate invisible | Calm counter and its owning handle were engine-internal | `596bd82` | trace reads 1 → 2 → step-down | confirmed |
-| `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82` | 39/39, identical key sets | confirmed |
+| `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82`, corrected below | `test_telemetry_join_key.sh` | confirmed |
 | Telemetry label ≠ config key | Copying a firing signal's name into govern.json disabled nothing | `1bbbd79` | `test_signal_key_suggestion.sh` | stub-only |
 
 Two method notes worth keeping, because both nearly produced a worse artifact
@@ -487,10 +487,31 @@ against the total instead of merely plausible. Five of the ten weights ship at
 0.0, so any external tool hardcoding the weighting is silently wrong on a config
 that opts into `semantic_deviation` or `codegen_pressure`.
 
-**A joinable-looking field that is off by one is worse than no field.**
-`current_turn` at the `AGENT_RESPONSE` site is the count *before* the response is
-counted; `CDD_TURN` reports *after*. Emitting it raw would have replaced a
-positional join that fails visibly with a keyed join that fails silently.
+**A joinable-looking field that is off by one is worse than no field — and
+this one shipped before the trace caught it.** `current_turn` at the
+`AGENT_RESPONSE` site is the count *before* the response is counted, so the field
+was emitted as `current_turn + 1`. That reasoning was incomplete: `AGENT_RESPONSE`
+fires ONCE, *before* the tool loop, and each tool round-trip advances the counter,
+with one further increment after the loop. `CDD_TURN` therefore reports
+`request_turn + round_trips + 1`, and no value computed at response time can
+predict it.
+
+The `+1` was verified against a tool-FREE scenario — 39/39, identical key sets —
+which structurally could not exercise the tool path. A two-round-trip stub run
+gives `AGENT_RESPONSE` 1 against `CDD_TURN` 3. The exact defect the note above
+warned about, committed by the same change that wrote the warning, because the
+verification and the claim had different scopes.
+
+Fixed by keying both events on `turn_at_request`, assigned at the single point
+the response arrives so neither emitter predicts anything; `CDD_TURN` keeps its
+own post-loop `turn`. `report.py` now joins on it (with a positional fallback for
+telemetry written before the key existed). Tests: `test_telemetry_join_key.sh`,
+where JK-01 is the tool case the original verification could not have caught and
+JK-02 is the tool-free control the broken version satisfied.
+
+Method note that generalises: **a verification narrower than the claim it
+supports is not evidence for the claim.** Nothing about 39/39 was wrong; it was
+answering a smaller question than the one being asserted.
 
 ---
 
