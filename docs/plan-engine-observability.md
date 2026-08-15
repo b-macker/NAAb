@@ -67,9 +67,9 @@ keyed run floored coherence by turn 5–8 with no agent misbehaving and the engi
 said nothing. The asymmetry is arguably a design bug — built to catch an agent
 evading detection, blind to governance evading correctness.
 
-Add the mirror: coherence floored or near-floored within the first N turns →
-probable false positive, naming the top contributing signals. Consider folding in
-the aggregate (33 of 36 responses inadmissible in run 6, never surfaced as one
+The mirror added: coherence floored or near-floored within the first N turns →
+probable false positive, naming the top contributing signals. Not folded in, and
+still open: the aggregate (33 of 36 responses inadmissible in run 6, never surfaced as one
 statement).
 
 **Regression surface (traced):**
@@ -140,8 +140,8 @@ must fail it.
 
 ## E3 — Runs carry their own identity — **LANDED** (`cf02e28`)
 
-`RunStart` (`governance_reports.cpp:272`) should carry a config fingerprint and
-per-agent mandate digest. Evidence: the prose-arm round trip — `report.py` reads
+`RunStart` (`governance_reports.cpp:272`) now carries a config fingerprint and
+per-agent mandate digest. Evidence that prompted it: the prose-arm round trip — `report.py` reads
 `src/govern.json`, which need not be the config that ran, and telemetry could not
 settle it.
 
@@ -168,7 +168,7 @@ which a random value passes).
 
 ## E6 — Per-signal evaluability — **LANDED** (`2d46a4c`)
 
-Generalise `THINKING_UNREPORTED`: S9 already distinguishes "did no thinking" from
+Generalised from `THINKING_UNREPORTED`: S9 already distinguished "did no thinking" from
 "provider did not report thinking", with a one-shot event when the signal goes
 silently inert. The campaign hit the same problem for S12 (baseline unset), S17
 (inert unless adaptive baselining is on), S23 (default off) and S20 (depends on
