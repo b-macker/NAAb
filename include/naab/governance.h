@@ -1760,6 +1760,12 @@ struct GovernanceHealthConfig {
     std::string rationale;
     int check_after_turns = 10;           // begin checking after N agent turns
     double governance_entropy_warning = 0.5;  // F16: low entropy in check results = suspicious
+    // Mirror of the perfect-coherence check. That one asks whether an agent is
+    // evading detection; nothing asked whether governance is scoring a
+    // compliant agent into the floor. Every keyed run of living-script_v3
+    // floored by turn 5-8 with no agent misbehaving and the engine said
+    // nothing. 0 disables. Warning only -- never reaches enforce().
+    double coherence_floor_warning = 0.25;
     // Pulse verdict thresholds — control when governance self-health transitions.
     // 50 consecutive passes: a well-functioning governance system should occasionally
     // fire advisories. 50+ consecutive passes with zero findings suggests governance
@@ -3149,6 +3155,13 @@ public:
     PulseVerdict getPulseVerdict() const;            // read current pulse verdict
     GovernancePulse getPulse() const;                // full pulse struct for dashboard/stdlib
     int getGovernanceEpoch() const;                   // monotonic evidence epoch counter
+    // De-escalation hysteresis state, for telemetry. The engine knows whether
+    // a turn counted as calm and which handle owns the counter; nothing
+    // emitted it, so the predicate had to be reconstructed externally -- and
+    // shipped WRONG TWICE before matching (first "any analyzed turn", then
+    // "turn with no penalty", neither of which is what the engine tests).
+    int getDeescalateCalmTurns() const;
+    int getDeescalatePressureHandle() const;
     static int verifyTelemetryChain(const std::string& filepath,
         const std::string& hmac_key = "");            // CLI: --verify-telemetry-chain
     int checkDecisionTraceCoherence(const std::string& agent_config);  // F17: contradictions in traces
@@ -3352,6 +3365,24 @@ private:
     mutable int64_t approval_mtime_ = 0;
     mutable std::mutex approval_mutex_;
     std::string loaded_path_;
+    // Run identity, computed once at load and emitted on the RunStart anchor.
+    //
+    // Telemetry could not say WHICH config produced a run. report.py reads
+    // src/govern.json, which need not be the file that ran, and nothing in the
+    // evidence could settle it — the prose-arm verification had to be resolved
+    // by asking a human which arm had been executed.
+    //
+    // Deliberately hashes FILE CONTENT, not the resolved GovernanceRules:
+    // GovernanceRules holds ~50 unordered containers and has no canonical
+    // serializer, so hashing it would be non-deterministic and the fingerprint
+    // would differ between two runs of one config — failing the only test that
+    // makes it meaningful. Content hashes are also machine-independent, where
+    // canonical PATHS would vary per checkout.
+    //
+    // Digests, never the prompts themselves: system prompts are operator content
+    // and telemetry is forwarded to webhooks and SIEMs.
+    std::string config_fingerprint_;   // over every file in the extends chain
+    std::string mandate_digest_;       // over agent name + system_prompt, sorted
     std::string last_error_;   // "not_found" or empty when loaded successfully
     std::shared_ptr<const GovernanceRules> rules_ptr_;
     std::vector<CheckResult> check_results_;

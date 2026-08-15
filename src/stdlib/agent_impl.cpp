@@ -1418,6 +1418,21 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     int handle_id = validated_id;
     int current_turn = 0;
 
+    // The turn counter as it stood when the API response came back, captured so
+    // AGENT_RESPONSE and CDD_TURN can be joined on one value both are certain of.
+    //
+    // The turn a response BECOMES is not knowable at AGENT_RESPONSE time. That
+    // event is emitted once, before the tool loop; the loop then increments
+    // tracker.turns once per round-trip, and one more increment follows it. So
+    // CDD_TURN reports request_turn + tool_round_trips + 1, and any value
+    // AGENT_RESPONSE guesses is wrong by the number of round-trips -- verified
+    // against a two-round-trip stub run: AGENT_RESPONSE 1 vs CDD_TURN 3.
+    //
+    // Keying both on the REQUEST turn instead is exact in every case, because
+    // this is assigned at the single point where the response arrives and read
+    // unchanged by both emitters.
+    int turn_at_request = -1;
+
     // Transcript: accumulate per-turn data, write once at end
     auto* gov_for_transcript = governance::GovernanceEngine::getCurrent();
     bool transcript_active = gov_for_transcript && gov_for_transcript->isActive()
@@ -1531,12 +1546,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // Enforce token budget from tracker (not handle dict)
         int total_used = tracker.input_tokens + tracker.output_tokens;
         if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
+            // Say WHICH of the two token budgets bound. There are two with
+            // confusingly similar names: this PER-AGENT one, and a separate
+            // run-level one under agent_dispatch. Two keyed runs of
+            // living-script_v3 died here and BOTH were first attributed to the
+            // run-level budget, which was set far higher and never reached --
+            // the numbers in the message were true and the diagnosis was wrong,
+            // twice.
+            //
+            // It says "per-agent, for agent X" rather than naming a config key.
+            // That is deliberate: the error-message policy enforced by
+            // tests/security/test_error_msg_leaks.sh is that errors must never
+            // point at specific configuration keys, only at the concept. Naming
+            // the SCOPE that bound is the whole diagnostic -- the ambiguity was
+            // never "which key", it was "which of the two budgets" -- so the
+            // scope satisfies the need with nothing the policy forbids.
             throw std::runtime_error(fmt::format(
                 "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
+                "  Scope: per-agent budget for agent '{}' — not the run-level budget\n\n"
                 "  Help:\n"
                 "  - Create a new agent handle for a fresh conversation\n"
                 "  - Or create a new agent handle with a larger token budget\n",
-                total_used, config->max_total_tokens));
+                total_used, config->max_total_tokens, config_name));
         }
         current_turn = tracker.turns;
         if (transcript_active) {
@@ -2714,6 +2745,11 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             agent_resp.fallback_used = (model_idx > 0);
             agent_resp.original_model = models[0];
 
+            // Assigned OUTSIDE the telemetry guard below and before the tool
+            // loop: this is the one point the response is known to have arrived,
+            // so both emitters read the same value whatever runs after it.
+            turn_at_request = current_turn;
+
             // Telemetry: successful response
             if (gov_engine && gov_engine->isActive()) {
                 // Content hash for post-hoc audit (hash first 500 chars)
@@ -2726,6 +2762,14 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 gov_engine->writeAgentTelemetry("AGENT_RESPONSE", {
                     {"handle_id", std::to_string(handle_id)},
                     {"config_name", config_name},
+                    // Join key shared with CDD_TURN. NOT the turn this
+                    // response becomes -- that is unknowable here, because the
+                    // tool loop has not run yet and each round-trip advances the
+                    // counter. An earlier version emitted current_turn + 1 and
+                    // was correct ONLY for tool-free agents: with two round-trips
+                    // it read 1 against CDD_TURN's 3. Both events now carry the
+                    // request turn, which neither has to predict.
+                    {"turn_at_request", std::to_string(turn_at_request)},
                     {"model", current_model},
                     {"api_key_env", key_env},
                     {"latency_ms", std::to_string(attempt_ms)},
@@ -4055,6 +4099,64 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                              drift_state->last_validation_recovery);
                     penalty_detail += rbuf;
                 }
+                // Pressure decomposition. `pressure` alone is a conclusion with
+                // its inputs discarded, so explaining an escalation meant
+                // re-deriving the weighting from outside -- which was done for
+                // this campaign and produced a formula that matched every
+                // floored-coherence row and no other, because coherence_prox
+                // divides by coherence_threshold (default 0.7) and five of the
+                // ten factors ship at weight 0.0.
+                //
+                // Order MUST match the contribution array built in
+                // GovernanceEngine::checkContextDrift; the two are only coupled
+                // by this comment and the one there.
+                //
+                // Non-zero contributions only, exactly like penalties_detail
+                // above: a factor at weight 0.0 or value 0.0 contributed
+                // nothing, and listing ten mostly-zero fields on every turn
+                // would bury the two or three that moved the number.
+                // Signal evaluability (E6). A signal that did not fire and one
+                // that COULD not fire are the same observation without this.
+                //
+                // Reported as govern.json CONFIG KEYS, not signalName() telemetry
+                // labels: the action a reader takes from this field is editing a
+                // config, and those two name sets diverge for four signals —
+                // copying a telemetry label into govern.json silently disables
+                // nothing (see test_signal_key_suggestion.sh).
+                //
+                // Signals outside signals_instrumented_mask appear in NEITHER
+                // list. Their evaluability is unknown, not clean.
+                std::string signals_off, signals_starved;
+                for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                    if (!((drift_state->signals_instrumented_mask >> i) & 1u)) continue;
+                    if ((drift_state->signals_off_mask >> i) & 1u) {
+                        if (!signals_off.empty()) signals_off += ",";
+                        signals_off += governance::kCddSignalKeys[i];
+                    } else if ((drift_state->signals_starved_mask >> i) & 1u) {
+                        if (!signals_starved.empty()) signals_starved += ",";
+                        signals_starved += governance::kCddSignalKeys[i];
+                    }
+                }
+
+                static const char* kPressureFactorNames[
+                        governance::DriftState::NUM_PRESSURE_FACTORS] = {
+                    "coherence_prox", "risk_prox", "signal_density",
+                    "depth", "bsd_progress", "pipeline_inherited",
+                    "coherence_accel", "codegen_pressure",
+                    "bsd_eviction", "semantic_deviation"
+                };
+                std::string pressure_detail;
+                if (drift_state->last_pressure_valid) {
+                    for (int i = 0; i < governance::DriftState::NUM_PRESSURE_FACTORS; i++) {
+                        double c = drift_state->last_pressure_contrib[i];
+                        if (c == 0.0) continue;
+                        if (!pressure_detail.empty()) pressure_detail += ",";
+                        char cbuf[64];
+                        snprintf(cbuf, sizeof(cbuf), "%s=%.4f",
+                                 kPressureFactorNames[i], c);
+                        pressure_detail += cbuf;
+                    }
+                }
                 // A refused credit has to be visible. Reported as an absence it
                 // is indistinguishable from a turn where no validation ran.
                 if (drift_state->last_validation_credit_withheld) {
@@ -4083,6 +4185,35 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                                         + " consecutive responses — thinking_collapse is inert"},
                     });
                 }
+                // One-shot per signal, generalising the THINKING_UNREPORTED
+                // announce directly above: S9 already distinguished "did no
+                // thinking" from "provider never reported thinking", and that
+                // concept existed in exactly one place. A signal silent because
+                // it is switched off, or because its inputs never arrive, is not
+                // evidence of good behaviour — and read as such, repeatedly.
+                //
+                // Emitted once per signal per handle when the streak crosses the
+                // threshold, not per turn: the condition persists by nature, so
+                // a per-turn event would be noise on every remaining turn.
+                if (drift_state->starved_announce_mask) {
+                    for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
+                        if (!((drift_state->starved_announce_mask >> i) & 1u)) continue;
+                        const bool off = ((drift_state->signals_off_mask >> i) & 1u) != 0;
+                        gov_engine->writeAgentTelemetry("SIGNAL_INERT", {
+                            {"handle_id",   std::to_string(handle_id)},
+                            {"config_name", config_name},
+                            {"turn",        std::to_string(current_turn)},
+                            {"signal",      governance::kCddSignalKeys[i]},
+                            {"reason",      off ? "disabled" : "no_inputs"},
+                            {"streak",      std::to_string(drift_state->starved_streak[i])},
+                            {"detail",      std::string("signal has been inert for ")
+                                            + std::to_string(drift_state->starved_streak[i])
+                                            + " consecutive analyzed turns ("
+                                            + (off ? "disabled in config"
+                                                   : "enabled but its inputs never arrived") + ")"},
+                        });
+                    }
+                }
                 gov_engine->writeAgentTelemetry("CDD_TURN", {
                     {"handle_id",        std::to_string(handle_id)},
                     {"config_name",      config_name},
@@ -4094,6 +4225,26 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
                     {"penalties_detail", penalty_detail},
+                    {"signals_off",     signals_off},
+                    {"signals_starved", signals_starved},
+                    // Join key shared with AGENT_RESPONSE. `turn` below is
+                    // the POST-tool-loop counter and cannot be matched to a
+                    // response event, which reports before the loop runs.
+                    {"turn_at_request", std::to_string(turn_at_request)},
+                    // Weighted contributions that SUM to `pressure` above, so a
+                    // reader can check the decomposition against the total
+                    // rather than trusting a formula reconstructed elsewhere.
+                    {"pressure_detail",  pressure_detail},
+                    // De-escalation hysteresis, straight from the engine. The
+                    // step-down predicate had to be reconstructed externally and
+                    // was wrong twice -- once counting every analyzed turn, once
+                    // counting turns with no penalty, neither being what the
+                    // engine tests. The counter and its owning handle are what
+                    // the engine actually compares against deescalate_sustained.
+                    {"deescalate_calm_turns",
+                        std::to_string(gov_engine->getDeescalateCalmTurns())},
+                    {"deescalate_pressure_handle",
+                        std::to_string(gov_engine->getDeescalatePressureHandle())},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"},
@@ -4769,12 +4920,18 @@ static NaabVal agentPropose(std::vector<NaabVal>& args) {
                 config->max_turns, tracker.turns));
         }
         int total_used = tracker.input_tokens + tracker.output_tokens;
+        // Same limit, same ambiguity, second call site (agentPropose). Fixing
+        // only agentSend would have left propose reporting the old message --
+        // "a fix reaching one of N callers is the default outcome, not the
+        // exception" is this campaign's most-repeated finding, observed at
+        // 1/29, 2/29 and 2/31.
         if (config->max_total_tokens > 0 && total_used >= config->max_total_tokens) {
             throw std::runtime_error(fmt::format(
                 "Agent error: Token budget exhausted ({}/{} tokens used)\n\n"
+                "  Scope: per-agent budget for agent '{}' — not the run-level budget\n\n"
                 "  Help:\n"
                 "  - Create a new agent handle for a fresh conversation\n",
-                total_used, config->max_total_tokens));
+                total_used, config->max_total_tokens, config_name));
         }
         current_turn = tracker.turns;
     }

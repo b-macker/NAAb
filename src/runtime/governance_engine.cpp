@@ -5813,6 +5813,76 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         results.push_back(c);
     }
 
+    // CONTRA-011: multiple rotation keys configured, but no within-call failover.
+    //
+    // WORDING MATTERS HERE, because the obvious phrasing is wrong. Rotation is
+    // NOT inert with max_attempts == 1: key_offset advances on every send and is
+    // persisted on the tracker (agent_impl.cpp), so keys still round-robin across
+    // calls, and a key that returns a skip_key_on code is still retired on the
+    // first attempt. What max_attempts == 1 removes is FAILOVER WITHIN a call —
+    // when the selected key fails, the call aborts instead of trying the next
+    // key. An operator who exports six keys has stated an intent to survive a bad
+    // key; with no retry, the first key error still kills the call that hit it.
+    //
+    // Two keyed runs died this way with all six keys exported and healthy.
+    for (const auto& role : rules().agents) {
+        if (role.api_key_envs.size() > 1 && role.retry.max_attempts <= 1) {
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-011";
+            c.description = fmt::format(
+                "Agent '{}' lists {} rotation keys but retry.max_attempts is {} — "
+                "keys still rotate between calls, but a key failure cannot fail "
+                "over within a call, so the first key error aborts that call",
+                role.name, role.api_key_envs.size(), role.retry.max_attempts);
+            c.level = level;
+            c.resolution = "Raise retry.max_attempts to at least the number of rotation keys";
+            results.push_back(c);
+        }
+    }
+
+    // CONTRA-012: context_growth can never recover under this combination.
+    //
+    // S12 sets input_tokens_baseline_mean ONCE and only EMA-updates it when
+    // adaptive_baseline_enabled is true (behavioral_sequence.cpp). With no
+    // context window the full history is resent every turn, so input tokens grow
+    // monotonically. Once current exceeds baseline * context_growth_factor the
+    // signal fires and — with the baseline frozen and the input still climbing —
+    // fires every remaining turn and never recovers.
+    //
+    // Three readers took its firing for agent drift, twice by the same reader.
+    //
+    // max_turns >= 15 is the reachability bar, not a guess: the campaign observed
+    // the crossing at about turn 8, so 15 carries margin while keeping short-run
+    // configs (which cannot reach it) silent. This is why the check does not fire
+    // on every default config — most agents set a shorter max_turns.
+    {
+        const auto& cd = rules().context_drift;
+        for (const auto& role : rules().agents) {
+            // Honour a per-agent override that switched this signal off.
+            auto ov = role.context_drift_signals.find("context_growth");
+            bool signal_on = (ov != role.context_drift_signals.end())
+                             ? ov->second : cd.signals.context_growth;
+            if (!signal_on) continue;
+            if (cd.adaptive_baseline_enabled) continue;   // baseline tracks growth
+            if (role.context_window > 0) continue;         // history is bounded
+            if (role.max_turns < 15) continue;             // cannot reach the crossing
+
+            ContradictionResult c;
+            c.pattern_id = "CONTRA-012";
+            c.description = fmt::format(
+                "Agent '{}' can run {} turns with context_growth enabled, no "
+                "context_window and adaptive_baseline_enabled false — the input "
+                "token baseline is set once and never updated, so once growth "
+                "crosses the factor the signal fires every remaining turn and "
+                "cannot recover",
+                role.name, role.max_turns);
+            c.level = level;
+            c.resolution = "Set a per-agent context_window, or enable "
+                           "context_drift.adaptive_baseline_enabled";
+            results.push_back(c);
+        }
+    }
+
     // CONTRA-010: blocked_commands configured but code_injection not enabled
     if (!rules().capabilities.shell.blocked_commands.empty() &&
         !rules().restrictions.code_injection.enabled) {
@@ -6644,6 +6714,41 @@ std::string GovernanceEngine::checkGovernanceHealth(int turn) {
         }
     }
 
+    // Check 3b: coherence at or below the floor → probable FALSE POSITIVE.
+    //
+    // The mirror of check 3, and the reason it exists: checks 1, 2 and 3 all ask
+    // whether DETECTION is being bypassed — instrumentation silent, or an agent
+    // scoring suspiciously well. Nothing asked whether governance is scoring a
+    // compliant agent into the floor. Every keyed run of living-script_v3 floored
+    // by turn 5–8 with no agent misbehaving, and the engine said nothing, because
+    // the health check is built to catch an agent evading detection and is blind
+    // to governance evading correctness.
+    //
+    // Named signals, not just a verdict: floored coherence is only actionable if
+    // the operator can see WHICH signals hold it there — that is the difference
+    // between "governance says this agent is bad" and "semantic_stability and
+    // instruction_recall are firing every turn on an agent doing its job".
+    //
+    // Warning only. This function never calls enforce(); its output goes to
+    // stderr and GOVERNANCE_HEALTH_WARNING telemetry, so no enforcement path,
+    // no advisory escalation, and no possibility of blocking a run. Deliberate:
+    // the campaign's evidence names threshold suspects but no values, so this
+    // reports a suspicion and changes nothing.
+    //
+    // takeFlooredAgents() latches per handle, because this function runs EVERY
+    // turn and the condition it detects persists — without the latch it would
+    // print for every remaining turn of the run.
+    if (cfg.coherence_floor_warning > 0.0 && turn >= 10) {
+        for (const auto& fa : drift_analyzer_.takeFlooredAgents(cfg.coherence_floor_warning)) {
+            warnings += fmt::format(
+                "WARNING: Coherence floored at {:.4f} for agent '{}' by turn {} "
+                "(possible governance false positive{}{})\n",
+                fa.coherence, fa.name, turn,
+                fa.top_signals.empty() ? "" : " — top signals: ",
+                fa.top_signals);
+        }
+    }
+
     // F16: Check governance entropy
     // Suppress when CDD is actively analyzing turns — low entropy is structural,
     // not suspicious, because static source passes dominate the check_results_ buffer
@@ -6962,6 +7067,14 @@ GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
     return static_cast<GovernanceLevel>(governance_level_.load(std::memory_order_relaxed));
 }
 
+int GovernanceEngine::getDeescalateCalmTurns() const {
+    return deescalate_calm_turns_.load(std::memory_order_relaxed);
+}
+
+int GovernanceEngine::getDeescalatePressureHandle() const {
+    return deescalate_pressure_handle_.load(std::memory_order_relaxed);
+}
+
 int GovernanceEngine::getGovernanceEpoch() const {
     return governance_epoch_.load(std::memory_order_relaxed);
 }
@@ -7183,6 +7296,32 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 rccfg.weights.codegen_pressure * codegen_pres +
                 rccfg.weights.bsd_eviction_pressure * eviction_pres +
                 rccfg.weights.semantic_deviation * semantic_pres;
+
+            // Persist the decomposition so telemetry can explain the composite
+            // instead of a reader re-deriving it. Order matches the sum above
+            // and the kPressureFactorNames table telemetry formats it with; a
+            // reordering here without reordering there mislabels every field,
+            // so the two are kept adjacent in review by that comment.
+            //
+            // Contributions, not raw factors: these sum to `composite`, which
+            // makes the decomposition checkable against the total rather than
+            // merely plausible. Five of the ten weights ship at 0.0, so raw
+            // factors alone would not tell a reader which ones counted.
+            {
+                std::array<double, DriftState::NUM_PRESSURE_FACTORS> contrib = {
+                    rccfg.weights.coherence_proximity   * coherence_prox,
+                    rccfg.weights.risk_score_proximity  * risk_prox,
+                    rccfg.weights.signal_density        * signal_dens,
+                    rccfg.weights.conversation_depth    * depth,
+                    rccfg.weights.bsd_partial_progress  * bsd_progress,
+                    rccfg.weights.pipeline_inherited    * inherited,
+                    rccfg.weights.coherence_acceleration * accel_factor,
+                    rccfg.weights.codegen_pressure      * codegen_pres,
+                    rccfg.weights.bsd_eviction_pressure * eviction_pres,
+                    rccfg.weights.semantic_deviation    * semantic_pres,
+                };
+                drift_analyzer_.recordPressureContributions(handle_id, contrib);
+            }
 
             // Track sustained pressure
             int consecutive = state->consecutive_high_pressure_turns;

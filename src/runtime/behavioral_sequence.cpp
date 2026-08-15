@@ -888,6 +888,84 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         return global_enabled;
     };
 
+    // --- Per-signal evaluability (E6) ---
+    //
+    // A signal that did not fire and one that COULD not fire read identically in
+    // telemetry. This records which is which.
+    //
+    // Computed here rather than by editing the 23 gates below, deliberately: this
+    // is observability and must not alter what the engine enforces, and rewriting
+    // every live gate to thread a flag risks exactly that. The cost is that these
+    // preconditions MIRROR the gates rather than share them, so they can drift —
+    // test_signal_evaluability.sh pins each instrumented signal against a scenario
+    // that starves it, so drift fails a test instead of quietly lying.
+    //
+    // Only preconditions that are a pure function of accumulated state are
+    // instrumented. Per-event conditions (S8's total_gen, S10/S15/S17's
+    // content_keywords, S12's baseline, S21's fingerprint) live inside per-event
+    // loops and are NOT covered — those signals are absent from
+    // signals_instrumented_mask and therefore report "unknown", never
+    // "evaluable". Partial coverage must not read as a clean bill of health.
+    {
+        state.signals_off_mask = 0;
+        state.signals_starved_mask = 0;
+        state.signals_instrumented_mask = 0;
+        // Cleared every turn so the announce below is genuinely one-shot: the
+        // bit is set only on the turn the streak EQUALS the threshold. Without
+        // this reset the bit latches and the emitter re-fires it every
+        // remaining turn — the same failure mode the coherence-floor warning
+        // needed a latch to avoid, arriving from the opposite direction.
+        state.starved_announce_mask = 0;
+
+        auto note = [&](int sig, bool globally_on, bool has_inputs) {
+            state.signals_instrumented_mask |= (1u << sig);
+            if (!sig_on(globally_on, sig)) {
+                state.signals_off_mask |= (1u << sig);
+            } else if (!has_inputs) {
+                state.signals_starved_mask |= (1u << sig);
+            }
+        };
+
+        const auto& sg = config_->signals;
+        // Mirrors the gate preconditions below, signal by signal.
+        note(SIG_REPEATED_FAILURES,   sg.repeated_failures,          !error_if_any.empty());
+        // S3 and S5 gate on turn_types, which is derived further down from
+        // turn_events. Deriving it a second time here would duplicate parsing
+        // logic that could silently diverge from the real gate, so they stay
+        // UNINSTRUMENTED and report "unknown" rather than a guess. This is the
+        // three-state model earning its keep on its first contact with reality.
+        note(SIG_CONTRADICTIONS,      sg.intent_contradictions,      !turn_events.empty());
+        note(SIG_COHERENCE_VELOCITY,  sg.coherence_velocity,         state.coherence_history.size() >= 2);
+        note(SIG_VALIDATION,          sg.validation_outcome,         state.has_validation_result);
+        note(SIG_MANDATE_ALIGNMENT,   sg.mandate_alignment,          !state.mandate_keywords.empty());
+        note(SIG_INSTRUCTION_RECALL,  sg.instruction_recall,         !state.instruction_keywords.empty());
+        note(SIG_PLAN_DRIFT,          sg.plan_drift,                 !state.plan_step_keywords.empty());
+        note(SIG_INSTRUCTION_CONFLICT,sg.instruction_conflict,       state.instruction_history.size() >= 2);
+        note(SIG_TOOL_CHAIN_INTEGRITY,sg.tool_chain_integrity,       !state.tool_result_keywords.empty());
+        note(SIG_CLAIM_RESULT,        sg.claim_result_reconciliation,!state.tool_last_outcome.empty());
+        note(SIG_PROMPT_COMPLIANCE,   sg.prompt_compliance,          !state.mandate_keywords.empty());
+        // Config-gate only: these have no state-level precondition to check, but
+        // being switched off is itself a reason a signal never fires — S23 ships
+        // off by default and its silence was read as "nothing detected".
+        note(SIG_CIRCULAR,            sg.circular_actions,           true);
+        note(SIG_RESPONSE_DEGENERATE, sg.response_degenerate,        true);
+        note(SIG_CAPABILITY_UNDERUTIL,sg.capability_underutilization,true);
+
+        // Streak + one-shot announce, mirroring thinking_unreported_streak.
+        const int announce_at = std::max(2, config_->thresholds.thinking_history_window / 2);
+        for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+            const bool inert = ((state.signals_off_mask | state.signals_starved_mask) >> i) & 1u;
+            if (inert) {
+                state.starved_streak[i]++;
+                if (state.starved_streak[i] == announce_at) {
+                    state.starved_announce_mask |= (1u << i);
+                }
+            } else {
+                state.starved_streak[i] = 0;
+            }
+        }
+    }
+
     // Signal 1: Circular actions (same fingerprint repeats)
     if (sig_on(config_->signals.circular_actions, SIG_CIRCULAR) && isCircular(state, fp)) {
         state.circular_action_count++;
@@ -2577,6 +2655,57 @@ void ContextDriftAnalyzer::recordToolOutcome(
     std::lock_guard<std::mutex> lock(mutex_);
     auto& state = drift_states_[handle_id];
     state.tool_last_outcome[tool_name] = success;
+}
+
+std::vector<ContextDriftAnalyzer::FlooredAgent>
+ContextDriftAnalyzer::takeFlooredAgents(double threshold) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<FlooredAgent> out;
+    for (auto& [hid, st] : drift_states_) {
+        if (st.coherence_floor_announced) continue;
+        if (st.coherence_score > threshold) continue;
+
+        // Latch inside the same critical section as the test. Concurrent
+        // agent.batch() sends both call checkGovernanceHealth; a check here and
+        // a set by the caller would let both observe un-announced state and both
+        // warn for one handle.
+        st.coherence_floor_announced = true;
+
+        FlooredAgent fa;
+        fa.name = st.config_name.empty() ? std::to_string(hid) : st.config_name;
+        fa.coherence = st.coherence_score;
+
+        // Name what is holding it down, highest penalty first. Uses the most
+        // recent turn rather than a lifetime accumulator: an agent floored at
+        // turn 10+ is being held there by what is still firing, and no
+        // cumulative per-signal penalty array exists to consult.
+        std::vector<std::pair<double, int>> ranked;
+        for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+            if (st.last_turn_penalties[i] > 0.0) {
+                ranked.emplace_back(st.last_turn_penalties[i], i);
+            }
+        }
+        std::sort(ranked.begin(), ranked.end(),
+                  [](const auto& a, const auto& b) {
+                      if (a.first != b.first) return a.first > b.first;
+                      return a.second < b.second;   // deterministic ties
+                  });
+        for (size_t k = 0; k < ranked.size() && k < 3; k++) {
+            if (!fa.top_signals.empty()) fa.top_signals += ",";
+            fa.top_signals += signalName(ranked[k].second);
+        }
+        out.push_back(std::move(fa));
+    }
+    return out;
+}
+
+void ContextDriftAnalyzer::recordPressureContributions(
+    int handle_id,
+    const std::array<double, DriftState::NUM_PRESSURE_FACTORS>& contrib) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& state = drift_states_[handle_id];
+    state.last_pressure_contrib = contrib;
+    state.last_pressure_valid = true;
 }
 
 bool ContextDriftAnalyzer::recordValidationOutcome(int handle_id, bool passed,

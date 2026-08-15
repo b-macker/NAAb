@@ -332,6 +332,30 @@ struct DriftState {
     std::array<double, NUM_CDD_SIGNALS> last_turn_penalties = {}; // penalty applied per signal most recent turn
     double min_coherence_lifetime = 1.0;                         // lowest coherence ever seen for this agent
 
+    // Pressure decomposition for the most recent analyzed turn.
+    //
+    // Telemetry has always carried the composite ("pressure": 0.5750) and none
+    // of its inputs, so explaining any escalation meant re-deriving the formula
+    // from outside. That re-derivation was done for this campaign and was WRONG:
+    // there are ten weighted factors, not five, and coherence_prox is
+    // 1 - coherence/coherence_threshold with the threshold defaulting to 0.7,
+    // not 1 - coherence. The fitted formula matched every floored-coherence row
+    // (where both forms give 1.0) and no unfloored row, and the error reached a
+    // merged design document before a rendered-output check caught it.
+    //
+    // Five of the ten factors ship at weight 0.0, so the weighting is
+    // CONFIG-DEPENDENT: any config enabling semantic_deviation or
+    // codegen_pressure makes an external tool's hardcoded weights silently
+    // wrong. Storing the weighted CONTRIBUTIONS rather than the raw factors is
+    // deliberate -- contributions are what sum to the composite, so a reader can
+    // check the decomposition against the total instead of trusting it.
+    //
+    // Numeric here, formatted at the telemetry edge, matching how
+    // last_turn_penalties feeds penalties_detail.
+    static constexpr int NUM_PRESSURE_FACTORS = 10;
+    std::array<double, NUM_PRESSURE_FACTORS> last_pressure_contrib = {};
+    bool last_pressure_valid = false;   // false until a checkpoint block has run
+
     // Bounded-healing ledger. coherence_score has 23 penalty sites and only two
     // increase paths, so without a bound "recovery" is either impossible (the
     // shipped rates are too small to outrun a single signal) or pumpable (a rate
@@ -370,6 +394,38 @@ struct DriftState {
     // that silence back into something observable.
     int thinking_unreported_streak = 0;
     bool thinking_inert_announce = false;      // one-shot: streak just reached the inert threshold
+    // One-shot latch for the coherence-floor health warning. checkGovernanceHealth
+    // runs EVERY turn, so without this the warning prints once per turn for the
+    // rest of the run on an agent that is floored and staying floored -- which is
+    // the normal case for the condition it detects. Same shape as
+    // thinking_inert_announce above; latched under the analyzer mutex so a
+    // concurrent batch/fan_out cannot announce the same handle twice.
+    bool coherence_floor_announced = false;
+
+    // --- Per-signal evaluability (E6) ---
+    //
+    // "The signal did not fire" and "the signal COULD not fire" are the same
+    // observation in telemetry, and the campaign paid for that repeatedly: S12
+    // inert because its baseline was never set, S17 inert unless adaptive
+    // baselining is on, S23 inert because it ships off, S20 inert without
+    // mandate keywords. S9 already solved this for itself
+    // (thinking_unreported_streak + a one-shot event); these generalise it.
+    //
+    // THREE states, not two, so the field never claims knowledge it lacks:
+    //   off          — sig_on() false: disabled globally or per agent
+    //   starved      — enabled, but its inputs were absent this turn
+    //   instrumented — whether this signal's precondition is checked at all;
+    //                  a signal outside the mask reports "unknown", never
+    //                  "evaluable". Partial coverage must not read as a clean
+    //                  bill of health.
+    uint32_t signals_off_mask = 0;
+    uint32_t signals_starved_mask = 0;
+    uint32_t signals_instrumented_mask = 0;
+    // Consecutive analyzed turns a signal has been starved, and the one-shot
+    // announce bit set when it crosses the threshold. Mirrors
+    // thinking_unreported_streak / thinking_inert_announce.
+    std::array<int, NUM_CDD_SIGNALS> starved_streak = {};
+    uint32_t starved_announce_mask = 0;
     double thinking_baseline_mean = -1.0;     // established after baseline window completes
 
     // Context growth tracking — detect prompt bloat
@@ -530,6 +586,26 @@ public:
 
     // Set per-turn prompt keywords (for prompt compliance signal)
     void setTurnPromptKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
+
+    // Persist the weighted pressure contributions computed by
+    // GovernanceEngine::checkContextDrift. That code works on a COPY returned by
+    // getDriftState(), so it cannot write them back itself -- same reason
+    // recordToolOutcome and setTurnPromptKeywords exist as setters.
+    void recordPressureContributions(
+        int handle_id,
+        const std::array<double, DriftState::NUM_PRESSURE_FACTORS>& contrib);
+
+    // One floored agent, for the governance-health false-positive warning.
+    struct FlooredAgent {
+        std::string name;
+        double coherence = 0.0;
+        std::string top_signals;   // comma-joined, highest penalty first
+    };
+    // Returns agents at/below `threshold` that have NOT yet been announced, and
+    // latches them in the same critical section. Check and latch must be atomic:
+    // concurrent agent.batch() sends would otherwise both observe un-announced
+    // state and both warn.
+    std::vector<FlooredAgent> takeFlooredAgents(double threshold);
 
     // Record governance level escalation for effectiveness tracking
     void recordEscalation(int handle_id, int from_level, int to_level);

@@ -194,8 +194,22 @@ tests/gorilla/*/trust*/
 *.pem
 *.pem.pub
 
-# Agent transcript logs
+# Agent transcript logs — raw prompts and responses from live runs. These must
+# never be committed: telemetry is audited and carries no model content (response
+# text appears only as content_hash), but a transcript is the content.
+#
+# The pattern below was `transcript.jsonl`, an exact filename with no wildcard.
+# Every transcript the engine writes is named transcript_<TIMESTAMP>.jsonl, so
+# the rule matched nothing and 35 files (148 MB) reached a PUBLIC repo in
+# 4e0d025. A control believed to be in place and structurally unable to fire --
+# the same shape as CONTRA-007 and the circuit-breaker ladder gate, found the
+# same way, by accident from a different direction.
+#
+# Note this does not untrack what is already tracked; gitignore does not apply to
+# files already in the index. It stops the next one.
 transcript.jsonl
+transcript_*.jsonl
+**/transcript_*.jsonl
 
 # Demo output
 demos/agent-orchestration/report.json

@@ -457,6 +457,132 @@ the defect it was hunting; see the method note on keyword filters.
 
 ---
 
+## Diagnostics the engine had and did not say
+
+Runs 1 and 2 of the E6 keyed pair both died on a limit that was doing its job,
+and both were first attributed to the wrong knob (see `open-investigations.md`,
+E6). Neither misdiagnosis was caused by a wrong value — every number printed was
+correct. They were caused by the engine declining to say *which* thing the number
+belonged to. The fixes below are all of that shape: no behaviour changes, the
+engine only stops withholding what it already computed.
+
+| Gap | What was missing | Fix | Test | Live status |
+|---|---|---|---|---|
+| Budget error named no budget | Two similarly-named token budgets; the message quoted neither | `38366e5` | `test_limit_attribution.sh` LA-01/02 | confirmed |
+| `pressure` had no inputs | Composite emitted, ten weighted factors discarded | `596bd82` | sum-vs-total check, residual 0.0 over 36 rows | confirmed |
+| De-escalation predicate invisible | Calm counter and its owning handle were engine-internal | `596bd82` | trace reads 1 → 2 → step-down | confirmed |
+| `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82`, corrected below | `test_telemetry_join_key.sh` | confirmed |
+| Telemetry label ≠ config key | Copying a firing signal's name into govern.json disabled nothing | `1bbbd79` | `test_signal_key_suggestion.sh` | stub-only |
+| Health check had no false-positive direction | Three checks, all asking whether detection is bypassed | `2bca69d` | `test_health_floor_symmetry.sh` | stub-only |
+| Rotation keys without within-call failover | N keys configured; first key error still aborts the call | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
+| `context_growth` unable to recover | Frozen baseline + unbounded history = fires forever | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
+| Runs had no identity | Telemetry could not name the config that produced it | `cf02e28` | `test_run_identity.sh` | confirmed |
+| Silence had one meaning | A signal off, starved, or clean all read identically | `2d46a4c` | `test_signal_evaluability.sh` | confirmed |
+
+Two method notes worth keeping, because both nearly produced a worse artifact
+than the gap they closed:
+
+**The pressure formula was re-derived externally and was wrong.** Ten factors,
+not five, and `coherence_prox` divides by `coherence_threshold` (default 0.7).
+The wrong form matched every floored-coherence row — where both forms give 1.0 —
+and no other, so it survived spot-checking and reached a merged document.
+`pressure_detail` therefore carries weighted CONTRIBUTIONS rather than raw
+factors: contributions sum to the composite, so the decomposition is checkable
+against the total instead of merely plausible. Five of the ten weights ship at
+0.0, so any external tool hardcoding the weighting is silently wrong on a config
+that opts into `semantic_deviation` or `codegen_pressure`.
+
+**A joinable-looking field that is off by one is worse than no field — and
+this one shipped before the trace caught it.** `current_turn` at the
+`AGENT_RESPONSE` site is the count *before* the response is counted, so the field
+was emitted as `current_turn + 1`. That reasoning was incomplete: `AGENT_RESPONSE`
+fires ONCE, *before* the tool loop, and each tool round-trip advances the counter,
+with one further increment after the loop. `CDD_TURN` therefore reports
+`request_turn + round_trips + 1`, and no value computed at response time can
+predict it.
+
+The `+1` was verified against a tool-FREE scenario — 39/39, identical key sets —
+which structurally could not exercise the tool path. A two-round-trip stub run
+gives `AGENT_RESPONSE` 1 against `CDD_TURN` 3. The exact defect the note above
+warned about, committed by the same change that wrote the warning, because the
+verification and the claim had different scopes.
+
+Fixed by keying both events on `turn_at_request`, assigned at the single point
+the response arrives so neither emitter predicts anything; `CDD_TURN` keeps its
+own post-loop `turn`. `report.py` now joins on it (with a positional fallback for
+telemetry written before the key existed). Tests: `test_telemetry_join_key.sh`,
+where JK-01 is the tool case the original verification could not have caught and
+JK-02 is the tool-free control the broken version satisfied.
+
+Method note that generalises: **a verification narrower than the claim it
+supports is not evidence for the claim.** Nothing about 39/39 was wrong; it was
+answering a smaller question than the one being asserted.
+
+### The asymmetry E5 closed
+
+`checkGovernanceHealth()` asked three questions and all were the same question:
+is *detection* being bypassed? BSD silent, CDD silent, coherence suspiciously
+perfect. Nothing asked whether governance was scoring a compliant agent into the
+floor — which is what every keyed run actually did, by turn 5–8, in silence.
+
+A monitor built only to catch evasion cannot see its own false positives. The
+mirror warning names the signals holding coherence down, because "governance says
+this agent is bad" is not actionable and "mandate_alignment, semantic_stability
+and instruction_recall are firing every turn" is.
+
+Scope stated honestly: `governance_health.enabled` defaults **false** and
+`living-script_v3` does not enable it, so the runs that motivated the fix would
+not have warned without also turning the check on.
+
+### A premise that did not survive tracing (E4)
+
+The rotation footgun was proposed as "six keys with `retry.max_attempts: 1` makes
+rotation inert, because rotation happens on retry." That is false. `key_offset`
+advances on every send and persists on the tracker, so keys rotate between calls
+regardless, and a key returning a `skip_key_on` code is retired on the first
+attempt. The real loss is failover *within* a call.
+
+Worth recording because of where it would have ended up: an operator-facing
+warning stating something untrue about the engine. Every other instance of this
+campaign's signature defect — a control that cannot do what it claims — was found
+pointing inward. This one would have pointed outward.
+
+Fire rates were measured against all 190 in-tree agent configs *before* writing
+the patterns (CONTRA-012: 36, CONTRA-011: 17). A contradiction check that fires
+on the default configuration is noise, not a finding.
+
+---
+
+---
+
+## Found in `src/`, not fixed
+
+Both were found while building the diagnostics above. Both are left alone
+deliberately: repairing either changes what a security control does, which is not
+a drive-by edit inside an unrelated increment.
+
+**`ErrorSanitizer` over-redacts identifiers.** Its `API_KEY` pattern
+(`include/naab/error_sanitizer.h:189`) alternates on the bare word `token`, then
+`[:\s]*` matches EMPTY, then the capture eats 8+ identifier characters. So
+`max_tokens_per_run (60) exceeded` renders as `max_<redacted> (60) exceeded`;
+`tokens_remaining` and `authorization_required` are swallowed whole. A security
+control whose false positives destroy the diagnostics it was never meant to
+touch — and the reason the run-level budget error does not name its key at
+rendered output even though its source string does. Pinned by
+`test_limit_attribution.sh` LA-03, written to PASS while the defect stands and
+FAIL the moment it is fixed. The candidate fix (require a separator) LOOSENS a
+redaction pattern; the open question is whether any real secret form lacks one.
+
+**The leak suite's comment filter cannot match.** `test_error_msg_leaks.sh` pipes
+`grep -n` output into `grep -v '^\s*//'`, but every line already carries an `N:`
+prefix by then, so the anchor never matches and commented-out code is scanned as
+if it were live. A sibling filter in the same pipeline *does* account for the
+prefix, so this is a bug rather than a choice. Repairing it INCREASES what the
+suite reports, so it may surface existing violations needing triage. Fifth
+instance in this campaign of a control structurally incapable of firing.
+
+---
+
 ## Recorded, deliberately not changed
 
 Each of these is a real observation that did **not** justify a change. They are

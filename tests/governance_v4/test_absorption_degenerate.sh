@@ -20,6 +20,11 @@
 # Group G: CDD_TURN "analyzed" field — interval-skipped turns are flagged
 #          false (their coherence/signals_detail are stale re-shown state).
 # ============================================================
+# NOTE: detection is scoped to the signals_detail FIELD, not the whole CDD_TURN
+# line. CDD_TURN also carries signals_off/signals_starved (evaluability), which
+# contain signal NAMES — a line-wide grep matches a signal reported as starved
+# and reads it as fired, which is the opposite conclusion. signals_detail is the
+# authoritative list of what fired this turn.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -198,7 +203,7 @@ if [ -n "${COH:-}" ] && awk "BEGIN{exit !($COH == 1.0)}"; then
 else
     fail "A-01" "Default-off regression" "coherence=$COH"
 fi
-if ! grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/a/tele.jsonl" 2>/dev/null | grep -q 'response_degenerate'; then
+if ! grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/a/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'response_degenerate'; then
     pass "A-02" "response_degenerate absent from telemetry when disabled"
 else
     fail "A-02" "signal fired while disabled"
@@ -215,7 +220,7 @@ if [ -n "${COH:-}" ] && awk "BEGIN{exit !($COH < 0.85)}"; then
 else
     fail "B-01" "No penalty for degenerate responses" "coherence=$COH"
 fi
-if grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/b/tele.jsonl" 2>/dev/null | grep -q 'response_degenerate'; then
+if grep -E '"event_type":"CDD_TURN"' "$TEST_TMP/b/tele.jsonl" 2>/dev/null | grep -o '"signals_detail":"[^"]*"' | grep -q 'response_degenerate'; then
     pass "B-02" "response_degenerate fired in CDD_TURN signals_detail"
 else
     fail "B-02" "signal never fired"

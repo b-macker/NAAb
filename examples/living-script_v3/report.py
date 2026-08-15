@@ -116,16 +116,32 @@ print("%-5s %-9s %-9s %-8s %-7s %-4s %s" %
 cdd = [r for r in ev("CDD_TURN")
        if r.get("config_name") == WORKER and str(r.get("analyzed")) == "true"]
 cdd.sort(key=lambda r: int(num(r.get("turn"))))
-# input tokens live on AGENT_RESPONSE, which carries NO turn field -- so this
-# joins POSITIONALLY: the Nth worker AGENT_RESPONSE is the Nth worker CDD_TURN,
-# both being appended in event order. Joining on r.get("turn") looks right and
-# silently yields None for every row, which is how the first version of this
-# printed "?" for the whole column.
+# Input tokens live on AGENT_RESPONSE. Both events now carry turn_at_request,
+# a key neither has to predict, so this is a real join rather than a positional
+# guess.
+#
+# Do NOT join on "turn". AGENT_RESPONSE is emitted before the tool loop, and each
+# tool round-trip advances the counter -- so CDD_TURN's "turn" is
+# turn_at_request + round_trips + 1 and matches nothing on the response side. An
+# earlier attempt put a predicted turn on AGENT_RESPONSE; it was right only for
+# tool-free agents and read 1 against CDD_TURN's 3 with two round-trips.
+#
+# The positional zip this replaces was correct only while responses and analyzed
+# turns stayed 1:1 and in order. It is kept as a fallback for telemetry written
+# before turn_at_request existed, since old runs are still read by this script.
 in_tok = {}
 _resp = [r for r in ev("AGENT_RESPONSE") if r.get("config_name") == WORKER]
 _all_cdd = [r for r in ev("CDD_TURN") if r.get("config_name") == WORKER]
-for _c, _r in zip(_all_cdd, _resp):
-    in_tok[str(_c.get("turn"))] = _r.get("input_tokens")
+_keyed = {str(_r.get("turn_at_request")): _r.get("input_tokens")
+          for _r in _resp if _r.get("turn_at_request") is not None}
+if _keyed:
+    for _c in _all_cdd:
+        _k = str(_c.get("turn_at_request"))
+        if _k in _keyed:
+            in_tok[str(_c.get("turn"))] = _keyed[_k]
+else:
+    for _c, _r in zip(_all_cdd, _resp):
+        in_tok[str(_c.get("turn"))] = _r.get("input_tokens")
 for r in cdd:
     print("%-5s %-9s %-9s %-8s %-7s %-4s %s" % (
         r.get("turn"), r.get("pressure"), r.get("coherence"),

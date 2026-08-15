@@ -11,6 +11,7 @@
 #include "naab/safe_regex.h"
 #include "naab/sandbox.h"
 #include "naab/subprocess_helpers.h"  // V-SC-006-ext: env scrub policy
+#include "naab/crypto_utils.h"       // run-identity fingerprint (E3)
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -2556,9 +2557,46 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                             if (sig_key == kCddSignalKeys[si]) { known = true; break; }
                         }
                         if (!known) {
-                            fprintf(stderr,
-                                "[governance] Warning: unknown context_drift_signals key \"%s\" for agent \"%s\"\n",
-                                sig_key.c_str(), agent.name.c_str());
+                            // The name a reader is most likely to type here is
+                            // the one they just saw firing in telemetry -- and
+                            // for four signals that is NOT the config key:
+                            //
+                            //   config key                   telemetry label
+                            //   circular_actions             circular
+                            //   intent_contradictions        contradictions
+                            //   vocabulary_contraction       vocab_contraction
+                            //   capability_underutilization  capability_underutil
+                            //
+                            // penalties_detail/signals_detail print signalName();
+                            // this parser matches kCddSignalKeys. Copying a name
+                            // across therefore disables NOTHING: the signal keeps
+                            // firing and paying, and the only symptom is one
+                            // stderr line that says "unknown" about a signal the
+                            // operator can plainly see working.
+                            //
+                            // The alias is deliberately NOT accepted. A second
+                            // spelling silently working would be config surface
+                            // the ratchet comparison and the override bitmask do
+                            // not know about. Naming the canonical key turns a
+                            // dead-end warning into the fix.
+                            const char* suggestion = nullptr;
+                            for (int si = 0; si < NUM_CDD_SIGNALS; si++) {
+                                if (sig_key == ContextDriftAnalyzer::signalName(si)) {
+                                    suggestion = kCddSignalKeys[si];
+                                    break;
+                                }
+                            }
+                            if (suggestion) {
+                                fprintf(stderr,
+                                    "[governance] Warning: unknown context_drift_signals key \"%s\" "
+                                    "for agent \"%s\" — that is the telemetry label; "
+                                    "the config key is \"%s\" (signal NOT overridden)\n",
+                                    sig_key.c_str(), agent.name.c_str(), suggestion);
+                            } else {
+                                fprintf(stderr,
+                                    "[governance] Warning: unknown context_drift_signals key \"%s\" for agent \"%s\"\n",
+                                    sig_key.c_str(), agent.name.c_str());
+                            }
                             continue;
                         }
                         if (sig_val.is_boolean()) {
@@ -3074,6 +3112,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (gh.contains("enabled") && gh["enabled"].is_boolean()) cfg.enabled = gh["enabled"].get<bool>();
         if (gh.contains("check_after_turns") && gh["check_after_turns"].is_number_integer()) cfg.check_after_turns = gh["check_after_turns"].get<int>();
         if (gh.contains("governance_entropy_warning") && gh["governance_entropy_warning"].is_number()) cfg.governance_entropy_warning = gh["governance_entropy_warning"].get<double>();
+        if (gh.contains("coherence_floor_warning") && gh["coherence_floor_warning"].is_number()) cfg.coherence_floor_warning = gh["coherence_floor_warning"].get<double>();
         if (gh.contains("consecutive_passes_suspicion") && gh["consecutive_passes_suspicion"].is_number_integer()) cfg.consecutive_passes_suspicion = std::max(1, gh["consecutive_passes_suspicion"].get<int>());
         if (gh.contains("impaired_degraded_turns") && gh["impaired_degraded_turns"].is_number_integer()) cfg.impaired_degraded_turns = std::max(1, gh["impaired_degraded_turns"].get<int>());
         if (gh.contains("impaired_signal_count") && gh["impaired_signal_count"].is_number_integer()) cfg.impaired_signal_count = std::max(1, gh["impaired_signal_count"].get<int>());
@@ -5034,6 +5073,11 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         }
 
         // --- Policy distribution: resolve extends chain ---
+        // chain_files collects every file that contributed, so the run
+        // fingerprint below covers a parent policy change too — a child whose
+        // own bytes never moved still ran a different effective config.
+        std::set<std::string> chain_files;
+        chain_files.insert(std::filesystem::weakly_canonical(path).string());
         if (!new_rules->extends_path.empty()) {
             auto config_dir = std::filesystem::path(path).parent_path().string();
             auto resolved = resolveExtendsPath(new_rules->extends_path, config_dir);
@@ -5049,6 +5093,34 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
             if (!loadWithExtends(resolved, 1, max_depth, visited, *new_rules)) {
                 return false;
             }
+            chain_files = visited;   // every file that took part
+        }
+
+        // Run identity. std::set gives a deterministic traversal, and hashing
+        // CONTENT rather than paths keeps the fingerprint identical across
+        // checkouts of the same config.
+        {
+            std::string acc;
+            for (const auto& f : chain_files) {
+                acc += security::CryptoUtils::sha256File(f);
+                acc += ";";
+            }
+            config_fingerprint_ = security::CryptoUtils::sha256(acc).substr(0, 16);
+
+            // Mandate digest: agent name + system prompt, sorted by name so the
+            // parse order of the agents vector cannot change the value. Hashes
+            // only — prompts are operator content and telemetry is forwarded.
+            std::vector<std::pair<std::string, std::string>> mandates;
+            for (const auto& a : new_rules->agents) {
+                mandates.emplace_back(a.name,
+                    security::CryptoUtils::sha256(a.system_prompt).substr(0, 16));
+            }
+            std::sort(mandates.begin(), mandates.end());
+            std::string macc;
+            for (const auto& [n, h] : mandates) macc += n + "=" + h + ";";
+            mandate_digest_ = mandates.empty()
+                ? std::string("none")
+                : security::CryptoUtils::sha256(macc).substr(0, 16);
         }
 
         active_.store(new_rules->mode != GovernanceMode::OFF);
