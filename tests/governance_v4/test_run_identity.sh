@@ -79,17 +79,21 @@ GOVEOF
     (cd "$TEST_TMP/$1" && "$NAAB" t.naab > out.txt 2>&1)
 }
 
+# Extraction uses grep/sed, NOT python3, and that is load-bearing on Windows.
+# On MSYS2 python3 is frequently native Windows Python, which cannot resolve the
+# POSIX $TEST_TMP path this script builds — it reports the file as missing while
+# grep, which is MSYS-aware, reads it fine. The first version of this helper used
+# python3 and every fingerprint assertion failed on the Windows runner with
+# "NOFILE" while the binary had in fact written the file.
 field() {
-    python3 -c "
-import json,sys
-try:
-    for l in open('$TEST_TMP/$1/t.jsonl'):
-        r=json.loads(l)
-        if r.get('event_type')=='RunStart':
-            print(r.get('$2') or 'MISSING'); sys.exit()
-except Exception: pass
-print('NOFILE')
-"
+    local f="$TEST_TMP/$1/t.jsonl"
+    if [ ! -f "$f" ]; then echo "NOFILE"; return; fi
+    local line
+    line=$(grep '"event_type":"RunStart"' "$f" 2>/dev/null | head -1)
+    if [ -z "$line" ]; then echo "NORUNSTART"; return; fi
+    local v
+    v=$(echo "$line" | grep -o "\"$2\":\"[^\"]*\"" | head -1 | sed 's/.*":"//; s/"$//')
+    if [ -z "$v" ]; then echo "MISSING"; else echo "$v"; fi
 }
 
 mk arm_a "Report on the inventory service."  50
@@ -143,7 +147,14 @@ else
 fi
 
 # --- RI-05: prompts must not appear in telemetry --------------------------
-if grep -q "poem about the sea" "$TEST_TMP/arm_b/t.jsonl" 2>/dev/null; then
+# The file must EXIST for this to mean anything. grep -q on a missing file
+# returns non-zero, so the original form scored "no telemetry at all" as "no
+# prompt leaked" — it passed on the Windows runner precisely when every other
+# assertion in this suite was failing for want of that same file.
+if [ ! -f "$TEST_TMP/arm_b/t.jsonl" ]; then
+    fail "RI-05" "no telemetry file to check for prompt leakage" \
+         "absence is not evidence of absence"
+elif grep -q "poem about the sea" "$TEST_TMP/arm_b/t.jsonl" 2>/dev/null; then
     fail "RI-05" "system prompt text leaked into telemetry" \
          "digests exist so forwarded telemetry carries no operator content"
 else
