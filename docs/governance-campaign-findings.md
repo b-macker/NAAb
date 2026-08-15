@@ -477,6 +477,7 @@ engine only stops withholding what it already computed.
 | Rotation keys without within-call failover | N keys configured; first key error still aborts the call | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
 | `context_growth` unable to recover | Frozen baseline + unbounded history = fires forever | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
 | Runs had no identity | Telemetry could not name the config that produced it | `cf02e28` | `test_run_identity.sh` | confirmed |
+| Silence had one meaning | A signal off, starved, or clean all read identically | `2d46a4c` | `test_signal_evaluability.sh` | confirmed |
 
 Two method notes worth keeping, because both nearly produced a worse artifact
 than the gap they closed:

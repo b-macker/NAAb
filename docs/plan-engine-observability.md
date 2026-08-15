@@ -1,6 +1,6 @@
 # Plan — engine observability and config validation
 
-**Status:** E1–E5 landed. **E6 is the only item remaining** (E7 deferred).
+**Status:** **E1–E6 all landed.** Plan complete; only E7 remains, deferred as a stdlib signature change.
 
 This file exists on disk because the previous version of this plan lived only in
 conversation and was lost to a context summary — its E3 could not be recovered
@@ -41,6 +41,7 @@ right.
 | E5 | Health check gains the false-positive direction | `2bca69d` | `test_health_floor_symmetry.sh` |
 | E4 | CONTRA-011 / CONTRA-012, with one premise corrected | `d9b1626` | `test_config_contradictions.sh` |
 | E3 | `RunStart` carries config fingerprint + mandate digest | `cf02e28` | `test_run_identity.sh` |
+| E6 | `signals_off` / `signals_starved` + one-shot `SIGNAL_INERT` | `2d46a4c` | `test_signal_evaluability.sh` |
 | — | Join key fixed after it shipped broken | `fd89579` | `test_telemetry_join_key.sh` |
 | — | Findings + open-investigations recorded | `096fecd` | docs only |
 
@@ -165,7 +166,7 @@ which a random value passes).
 
 ---
 
-## E6 — Per-signal evaluability — **NEXT, and the only item left**
+## E6 — Per-signal evaluability — **LANDED** (`2d46a4c`)
 
 Generalise `THINKING_UNREPORTED`: S9 already distinguishes "did no thinking" from
 "provider did not report thinking", with a one-shot event when the signal goes
@@ -217,6 +218,18 @@ did not survive contact.
 - **E2 shipped a defect that this plan's own rules caught later.** The join key
   was verified on a tool-free scenario and was wrong by the tool round-trip
   count. Hence the third standing rule below.
+
+- **E6 broke two suites, and the breakage was informative.** Both detected
+  "signal X fired" by grepping the whole `CDD_TURN` line for a bare signal name.
+  `signals_starved` contains signal names, so a starved signal read as a fired one
+  — the opposite conclusion. Their line-wide grep was always imprecise; the new
+  field made it bite. Detection is now scoped to `signals_detail`. The regression
+  surface traced for E6 covered enforcement behaviour and missed the question
+  *who greps telemetry for signal names* — a reminder that "additive" is a claim
+  about consumers, not just about code.
+- **E6's three-state model was needed on first contact.** `scope_creep` and
+  `vocabulary_contraction` gate on `turn_types`, derived further down the same
+  function, so they are reported **unknown** rather than guessed at.
 
 Fire rates were measured against the in-tree corpus *before* writing E4, not
 after: CONTRA-012 on 36/190 agents, CONTRA-011 on 17/190. A contradiction that
