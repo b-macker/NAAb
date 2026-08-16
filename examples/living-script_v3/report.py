@@ -273,18 +273,18 @@ if lc:
               " longest run %d" % eng_max)
         print("         pressure handle(s) owning the counter: %s"
               % (",".join(handles) or "n/a"))
-        # THE COUNTER CANNOT SHOW ITS OWN TRIGGER VALUE. It is reset when the
-        # step-down fires and the row is written afterwards, so on the firing
-        # turn it reads 0. Observed directly: calm 1 (t15), 2 (t16), then 0 at
-        # t17 with high->elevated on that same turn. The observable maximum is
-        # therefore deescalate_sustained - 1 on any run that steps down, and
-        # max(counter) must NOT be compared to deescalate_sustained.
-        eff_max = eng_max + 1 if downs else eng_max
-        if downs:
-            print("         a step-down fired, so the counter reached %d and was"
-                  % DEESC)
-            print("         reset before this row was written — observable max %d"
-                  " understates by one" % eng_max)
+        # The field reports the value the engine EVALUATED this turn, not the
+        # live counter, so the firing turn shows the count that fired it and
+        # max(field) is directly comparable to deescalate_sustained.
+        #
+        # It did not always. The field first emitted live state, which is reset
+        # the instant the step-down fires with the row written afterwards — so
+        # the firing turn read 0 and the visible maximum was
+        # deescalate_sustained - 1. Traces captured before that engine fix
+        # under-report by one on the firing turn; there is no marker
+        # distinguishing them, so a max of exactly DEESC-1 on a run that DID step
+        # down is the signature of an old trace rather than a near miss.
+        eff_max = eng_max
         if a_max == eff_max:
             print("         proxy A agrees with the engine (%d)" % a_max)
         else:
@@ -365,14 +365,26 @@ for k, v in sorted(sig.items(), key=lambda kv: -kv[1]):
 # A signal absent from the counts above is not evidence of good behaviour: it may
 # be switched off, or enabled but never given its inputs. Those three states used
 # to be one observation.
-_off, _starved = set(), set()
+# Counted per signal and reported only when it held on EVERY analyzed turn.
+#
+# A union across turns is misleading: coherence_velocity is starved until
+# coherence_history reaches 2 and evaluable afterwards, so a union listed it as
+# "could not have fired" on a run where it fired five times. The claim worth
+# making is "never evaluable in this run", which is an intersection.
+_offc, _starvedc, _rows = collections.Counter(), collections.Counter(), 0
 for r in cdd:
+    if r.get("signals_off") is None and r.get("signals_starved") is None:
+        continue
+    _rows += 1
     for k in str(r.get("signals_off") or "").split(","):
         if k.strip():
-            _off.add(k.strip())
+            _offc[k.strip()] += 1
     for k in str(r.get("signals_starved") or "").split(","):
         if k.strip():
-            _starved.add(k.strip())
+            _starvedc[k.strip()] += 1
+_off = {k for k, v in _offc.items() if v == _rows}
+_starved = {k for k, v in _starvedc.items() if v == _rows}
+_partial = {k: v for k, v in _starvedc.items() if 0 < v < _rows}
 if _off or _starved:
     print()
     print("signals that could not have fired (names are govern.json config keys):")
@@ -380,6 +392,10 @@ if _off or _starved:
         print("  disabled : %s" % ",".join(sorted(_off)))
     if _starved:
         print("  starved  : %s" % ",".join(sorted(_starved)))
+    if _partial:
+        print("  starved on SOME turns only (evaluable later, so not inert):")
+        for k, v in sorted(_partial.items(), key=lambda kv: -kv[1]):
+            print("    %-28s %d/%d turns" % (k, v, _rows))
     print("  anything in neither list and absent above genuinely evaluated and"
           " did not fire;")
     print("  signals with no instrumented precondition appear in neither list —"

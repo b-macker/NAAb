@@ -7068,7 +7068,10 @@ GovernanceLevel GovernanceEngine::getGovernanceLevel() const {
 }
 
 int GovernanceEngine::getDeescalateCalmTurns() const {
-    return deescalate_calm_turns_.load(std::memory_order_relaxed);
+    // The value evaluated this turn, NOT the live counter — see
+    // deescalate_calm_observed_ in governance.h for why they differ on exactly
+    // the turn that matters.
+    return deescalate_calm_observed_.load(std::memory_order_relaxed);
 }
 
 int GovernanceEngine::getDeescalatePressureHandle() const {
@@ -7429,6 +7432,7 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                 if (target >= prev_level) {
                     level = target;
                     deescalate_calm_turns_.store(0, std::memory_order_relaxed);
+                    deescalate_calm_observed_.store(0, std::memory_order_relaxed);
                     // Remember which handle is applying pressure — its calm,
                     // not a sibling's, is what de-escalation must observe.
                     if (target > 0) {
@@ -7443,8 +7447,19 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                     // still-degraded agent earned.
                     int pressure_handle =
                         deescalate_pressure_handle_.load(std::memory_order_relaxed);
+                    if (!(pressure_handle == 0 || pressure_handle == state->handle_id)) {
+                        // Sibling turn: the counter is untouched, so report it as
+                        // it stands rather than leaving another handle's value.
+                        deescalate_calm_observed_.store(
+                            deescalate_calm_turns_.load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+                    }
                     if (pressure_handle == 0 || pressure_handle == state->handle_id) {
                         int calm = deescalate_calm_turns_.fetch_add(1, std::memory_order_relaxed) + 1;
+                        // Recorded before the reset below: this is the number the
+                        // engine compared against deescalate_sustained, and the
+                        // only turn it is interesting is the turn it fires.
+                        deescalate_calm_observed_.store(calm, std::memory_order_relaxed);
                         if (calm >= std::max(1, cb.deescalate_sustained)) {
                             level = prev_level - 1;
                             deescalate_calm_turns_.store(0, std::memory_order_relaxed);
