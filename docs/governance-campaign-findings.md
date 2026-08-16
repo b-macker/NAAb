@@ -24,6 +24,7 @@ in.
 |---|---|
 | **confirmed** | Observed working on a live run, with before/after evidence |
 | **inert-verified** | Live run shows it correctly declining to fire; the firing path is stub-only |
+| **keyless-confirmed** | Observed working end to end on a full engine run driven by the stub, and the mechanism does not depend on model output — so a keyed run exercises the same code path. **Weaker than `confirmed`**, which everywhere in this document means a keyed run against a real model. Introduced because six rows were labelled `confirmed` on keyless evidence; relabelling them to `stub-only` would have understated them, and leaving them `confirmed` overstated. |
 | **stub-only** | Passes its test; no live run has produced the triggering condition |
 | **n/a** | Cannot be distinguished live by construction (e.g. same-default decoupling) |
 
@@ -468,16 +469,29 @@ engine only stops withholding what it already computed.
 
 | Gap | What was missing | Fix | Test | Live status |
 |---|---|---|---|---|
-| Budget error named no budget | Two similarly-named token budgets; the message quoted neither | `38366e5` | `test_limit_attribution.sh` LA-01/02 | confirmed |
-| `pressure` had no inputs | Composite emitted, ten weighted factors discarded | `596bd82` | sum-vs-total check, residual 0.0 over 36 rows | confirmed |
-| De-escalation predicate invisible | Calm counter and its owning handle were engine-internal | `596bd82` | trace reads 1 → 2 → step-down | confirmed |
-| `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82`, corrected below | `test_telemetry_join_key.sh` | confirmed |
+| Budget error named no budget | Two similarly-named token budgets; the message quoted neither | `38366e5` | `test_limit_attribution.sh` LA-01/02 | keyless-confirmed |
+| `pressure` had no inputs | Composite emitted, ten weighted factors discarded | `596bd82` | sum-vs-total check, residual 0.0 over 36 rows | keyless-confirmed |
+| De-escalation predicate invisible | Calm counter and its owning handle were engine-internal | `596bd82` | trace reads 1 → 2 → step-down | keyless-confirmed |
+| `AGENT_RESPONSE` had no turn | Joining it to `CDD_TURN` required a positional guess | `596bd82`, corrected below | `test_telemetry_join_key.sh` | keyless-confirmed |
 | Telemetry label ≠ config key | Copying a firing signal's name into govern.json disabled nothing | `1bbbd79` | `test_signal_key_suggestion.sh` | stub-only |
 | Health check had no false-positive direction | Three checks, all asking whether detection is bypassed | `2bca69d` | `test_health_floor_symmetry.sh` | stub-only |
 | Rotation keys without within-call failover | N keys configured; first key error still aborts the call | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
 | `context_growth` unable to recover | Frozen baseline + unbounded history = fires forever | `d9b1626` | `test_config_contradictions.sh` | n/a (static) |
-| Runs had no identity | Telemetry could not name the config that produced it | `cf02e28` | `test_run_identity.sh` | confirmed |
-| Silence had one meaning | A signal off, starved, or clean all read identically | `2d46a4c` | `test_signal_evaluability.sh` | confirmed |
+| Runs had no identity | Telemetry could not name the config that produced it | `cf02e28` | `test_run_identity.sh` | keyless-confirmed |
+| Silence had one meaning | A signal off, starved, or clean all read identically | `2d46a4c` | `test_signal_evaluability.sh` | keyless-confirmed |
+
+**These rows say `keyless-confirmed`, not `confirmed`, and that correction is
+itself a finding.** They were first written as `confirmed` on the strength of
+`living-script_v3` runs driven by `agent_stub.py`. Every other `confirmed` row in
+this document cites a keyed run against a real model — the term had a meaning and
+these entries quietly widened it. What the keyless runs do establish is real:
+each mechanism ran end to end in the engine, and none of them depends on model
+output (error text, file hashing, weighted arithmetic, counter arithmetic). What
+they do NOT establish is that live drift produces the triggering conditions,
+which is exactly what E5's floor warning and E6's `SIGNAL_INERT` still need.
+
+Overclaiming in the evidence ledger is the same defect this campaign keeps
+finding in the engine, committed in the record of finding it.
 
 Two method notes worth keeping, because both nearly produced a worse artifact
 than the gap they closed:
@@ -596,6 +610,14 @@ Regression: `test_deescalation_hysteresis.sh` D-06, verified to FAIL when the fi
 is reverted (it reports 0, the pre-fix value). D-07 is its control — a non-firing
 calm turn must still report its running count, without which D-06 would pass on a
 field pinned to the threshold.
+
+- **Live status: keyless-confirmed** — the firing turn reads 3 against
+  `deescalate_sustained` 3 on a `living-script_v3` keyless trace, where it read 0
+  before, and D-06/D-07 pin both directions against the stub. Counter arithmetic
+  does not depend on model output, so a keyed run exercises the same path; what it
+  would add is a step-down produced by real drift rather than a scripted pressure
+  curve. Note the campaign has **never observed de-escalation on a keyed run**
+  (open-investigations E6), so that remains genuinely unobserved live.
 
 ---
 
