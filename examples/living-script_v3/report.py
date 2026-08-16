@@ -67,6 +67,17 @@ print("=" * 72)
 print("SECTION 1 — run shape")
 print("=" * 72)
 print("telemetry rows: %d" % len(rows))
+# Run identity, straight off the RunStart anchor. Before E3 this report read
+# src/govern.json to say what config ran — a file that need not be the one the
+# run actually loaded. The prose-arm verification had to be settled by asking a
+# human which arm had executed.
+_rs = ev("RunStart")
+if _rs and _rs[0].get("config_fingerprint"):
+    print("config fingerprint: %s   mandate digest: %s"
+          % (_rs[0].get("config_fingerprint"), _rs[0].get("mandate_digest")))
+    print("  (hashes of the config FILES that loaded, not of src/govern.json)")
+else:
+    print("config fingerprint: absent (pre-E3 telemetry)")
 kinds = collections.Counter(r.get("event_type") for r in rows)
 for k, v in sorted(kinds.items(), key=lambda kv: -kv[1]):
     print("  %-32s %d" % (k, v))
@@ -148,6 +159,42 @@ for r in cdd:
         in_tok.get(str(r.get("turn")), "?"),
         r.get("governance_level"), r.get("signals_fired"),
         (r.get("penalties_detail") or "")[:70]))
+# Where pressure came from. The composite used to be emitted with its inputs
+# discarded, so the weighting was re-derived externally — and the derivation was
+# wrong: ten factors, not five, and coherence_prox divides by coherence_threshold.
+# The contributions below SUM to the pressure column above, so the decomposition
+# is checkable rather than merely plausible.
+# Dedup on the SET OF TERM NAMES, not the whole string: the values move every
+# turn, so comparing full strings prints a line per turn and buries the thing
+# worth seeing — which factors are contributing at all.
+_comps, _prevkeys = [], None
+for r in cdd:
+    d = str(r.get("pressure_detail") or "")
+    if not d:
+        continue
+    keys = tuple(sorted(p.split("=")[0] for p in d.split(",") if p))
+    if keys != _prevkeys:
+        _comps.append((r.get("turn"), d))
+        _prevkeys = keys
+if _comps:
+    print()
+    print("pressure decomposition (printed when the set of contributing terms changes):")
+    for t, d in _comps:
+        print("  turn %-4s %s" % (t, d))
+    _bad = []
+    for r in cdd:
+        d = str(r.get("pressure_detail") or "")
+        if not d:
+            continue
+        tot = sum(float(v) for _, v in (p.split("=") for p in d.split(",") if p))
+        if abs(tot - num(r.get("pressure"))) > 1e-6:
+            _bad.append(r.get("turn"))
+    print("  terms sum to pressure on every row: %s"
+          % ("yes" if not _bad else "NO — turns %s" % _bad[:5]))
+else:
+    print()
+    print("pressure decomposition: absent (pre-E2 telemetry)")
+
 base = [num(in_tok.get(str(r.get("turn"))), 0.0) for r in cdd[:5]]
 base = [b for b in base if b > 0]
 if base:
@@ -204,18 +251,68 @@ if lc:
     print("first escalation at turn %d; %d analyzed worker turns after it" % (first, len(post)))
     print("  A (pressure below the level it must hold): %d turns, longest run %d" % (a, a_max))
     print("  B (no penalty recorded):                   %d turns, longest run %d" % (b, b_max))
+
+    # ---- the engine's own counter, and what it says about A and B ----
+    #
+    # This whole section exists because the engine did not publish the predicate
+    # it actually uses, so it was reconstructed from the outside — three times,
+    # wrong twice. The engine now emits deescalate_calm_turns (the running count
+    # it compares against deescalate_sustained) and deescalate_pressure_handle
+    # (whose turns are allowed to advance it).
+    #
+    # A and B are kept and CHECKED against the counter rather than deleted. A
+    # proxy that silently disagrees with the engine is exactly the failure this
+    # campaign kept finding; the disagreement is the interesting output, so it is
+    # printed rather than assumed away.
+    eng = [r for r in post if r.get("deescalate_calm_turns") is not None]
+    if eng:
+        eng_max = max(int(num(r.get("deescalate_calm_turns"))) for r in eng)
+        handles = sorted({str(r.get("deescalate_pressure_handle")) for r in eng
+                          if r.get("deescalate_pressure_handle") is not None})
+        print("  ENGINE (deescalate_calm_turns, the counter actually compared):"
+              " longest run %d" % eng_max)
+        print("         pressure handle(s) owning the counter: %s"
+              % (",".join(handles) or "n/a"))
+        # THE COUNTER CANNOT SHOW ITS OWN TRIGGER VALUE. It is reset when the
+        # step-down fires and the row is written afterwards, so on the firing
+        # turn it reads 0. Observed directly: calm 1 (t15), 2 (t16), then 0 at
+        # t17 with high->elevated on that same turn. The observable maximum is
+        # therefore deescalate_sustained - 1 on any run that steps down, and
+        # max(counter) must NOT be compared to deescalate_sustained.
+        eff_max = eng_max + 1 if downs else eng_max
+        if downs:
+            print("         a step-down fired, so the counter reached %d and was"
+                  % DEESC)
+            print("         reset before this row was written — observable max %d"
+                  " understates by one" % eng_max)
+        if a_max == eff_max:
+            print("         proxy A agrees with the engine (%d)" % a_max)
+        else:
+            print("         >>> proxy A and the engine differ: A=%d, engine=%d"
+                  % (a_max, eff_max))
+            print("         >>> the engine counts only turns from the handle that"
+                  " raised")
+            print("         >>> the level, which A does not model.")
+        if b_max != eff_max:
+            print("         proxy B differs (%d vs %d), as expected — B is stricter"
+                  % (b_max, eff_max))
+    else:
+        print("  ENGINE counter absent from this trace (pre-E2 telemetry);"
+              " proxies are all there is")
+
     print()
-    print("Reading it: A's LONGEST RUN is what deescalate_sustained (%d) is" % DEESC)
-    print("compared against.")
-    if a_max >= DEESC and not downs:
+    print("Reading it: the ENGINE counter is what deescalate_sustained (%d) is" % DEESC)
+    print("compared against. A and B remain as cross-checks only.")
+    calm_max = eff_max if eng else a_max
+    if calm_max >= DEESC and not downs:
         print("  >>> longest calm run %d >= %d and ZERO step-downs: the"
-              % (a_max, DEESC))
+              % (calm_max, DEESC))
         print("  >>> hysteresis had what it needs and did not fire. REGRESSION.")
     elif downs:
         print("  >>> %d step-down(s) occurred. The mechanism fired." % len(downs))
     else:
         print("  >>> longest calm run %d < %d: the run never gave the mechanism"
-              % (a_max, DEESC))
+              % (calm_max, DEESC))
         print("  >>> the calm it needs. Scenario shortfall, NOT a governance")
         print("  >>> failure -- do not report this as a defect.")
     print("  min pressure after first escalation: %s" %
@@ -265,6 +362,32 @@ for r in cdd:
             sig[part.split("=")[0].split("(")[0].strip()] += 1
 for k, v in sorted(sig.items(), key=lambda kv: -kv[1]):
     print("  %-32s %d" % (k, v))
+# A signal absent from the counts above is not evidence of good behaviour: it may
+# be switched off, or enabled but never given its inputs. Those three states used
+# to be one observation.
+_off, _starved = set(), set()
+for r in cdd:
+    for k in str(r.get("signals_off") or "").split(","):
+        if k.strip():
+            _off.add(k.strip())
+    for k in str(r.get("signals_starved") or "").split(","):
+        if k.strip():
+            _starved.add(k.strip())
+if _off or _starved:
+    print()
+    print("signals that could not have fired (names are govern.json config keys):")
+    if _off:
+        print("  disabled : %s" % ",".join(sorted(_off)))
+    if _starved:
+        print("  starved  : %s" % ",".join(sorted(_starved)))
+    print("  anything in neither list and absent above genuinely evaluated and"
+          " did not fire;")
+    print("  signals with no instrumented precondition appear in neither list —"
+          " unknown, not clean.")
+_inert = ev("SIGNAL_INERT")
+if _inert:
+    print("  SIGNAL_INERT events: %d (one-shot per signal)" % len(_inert))
+
 print()
 for t in ("RESPONSE_SUPPRESSED", "RESPONSE_TRUNCATED", "AGENT_RETRY", "AGENT_FALLBACK",
           "AGENT_KEY_DISABLED", "AGENT_HARD_STOP", "OUTPUT_INADMISSIBLE",
