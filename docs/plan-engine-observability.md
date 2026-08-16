@@ -24,11 +24,24 @@ campaign's evidence names threshold suspects but no values, so anything moving a
 threshold is unsupported. Observability and config validation are supported by
 everything found.
 
-**Test of success:** `report.py` should shrink. Its Sections 3–4 are
-reconstructions; if this plan lands they become reads. A forensic tool
-re-deriving what the engine already computed is a standing bug report about the
-engine's observability — and this one re-derived it wrong twice before it was
-right.
+**Test of success (as written, and it was WRONG):** `report.py` should shrink.
+Its Sections 3–4 are reconstructions; if this plan lands they become reads. A
+forensic tool re-deriving what the engine already computed is a standing bug
+report about the engine's observability — and this one re-derived it wrong twice
+before it was right.
+
+**Corrected after execution.** The migration kept the old reconstructions running
+beside the new fields instead of deleting them, and they disagreed: the proxy was
+right and the new engine field, read naively, was off by one — the counter is
+reset before its row is written, so it could not show the value that triggered
+the step-down. Deleting the proxy on sight, which "shrink" called for, would have
+replaced a correct external reconstruction with an authoritative-looking field
+that silently understated.
+
+So `report.py` GREW, and should. The right criterion is **not** that the report
+shrinks but that it stops being the ONLY source of truth: the engine publishes its
+inputs, and the report cross-checks them. An independent reconstruction that
+agrees is cheap; one that disagrees is a finding. Keep the proxies.
 
 ---
 

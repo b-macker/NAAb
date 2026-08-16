@@ -3462,6 +3462,19 @@ private:
     // sibling agent says nothing about the degraded one (all handles share the
     // system-wide governance level). 0 = none recorded.
     std::atomic<int> deescalate_pressure_handle_{0};
+    // The calm count AS EVALUATED THIS TURN, which is what telemetry reports.
+    //
+    // deescalate_calm_turns_ above is live state: it is reset to 0 the instant
+    // the step-down fires, and the CDD_TURN row is written afterwards, so an
+    // observer reading the live counter sees 0 on exactly the turn the value
+    // mattered. Its visible maximum was deescalate_sustained - 1 on any run that
+    // stepped down, which made max(field) look comparable to
+    // deescalate_sustained while being reliably off by one. Found by keeping an
+    // external reconstruction running beside the field and noticing they
+    // disagreed (report.py Section 4).
+    //
+    // This mirror holds the value the engine actually tested, before any reset.
+    std::atomic<int> deescalate_calm_observed_{0};
 
     // Governance plugins
     std::string govern_json_dir_;           // Directory containing govern.json

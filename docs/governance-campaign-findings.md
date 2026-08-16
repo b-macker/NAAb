@@ -580,10 +580,22 @@ engine field said 2, and the disagreement was the finding. Deleting the proxy
 first would have replaced a correct external reconstruction with an
 authoritative-looking field that silently understated.
 
-`report.py` now corrects for it explicitly. The engine is unchanged: emitting the
-pre-reset value would mean capturing it before the reset, which is a change to
-freshly-merged enforcement-adjacent code and wants its own trace and test. Filed
-here rather than fixed in a report migration.
+**Fixed.** The engine now reports the value it EVALUATED this turn rather than
+live counter state (`deescalate_calm_observed_`), so the firing turn shows the
+count that fired it and `max(field)` is directly comparable to
+`deescalate_sustained`. The trigger value was never lost — it already existed in
+a local at the `fetch_add` site and was discarded before telemetry read the
+atomic.
+
+`report.py`'s compensation is removed accordingly. Traces captured before the fix
+under-report by one on the firing turn and carry no marker distinguishing them, so
+a maximum of exactly `deescalate_sustained - 1` on a run that DID step down is the
+signature of an old trace rather than a near miss.
+
+Regression: `test_deescalation_hysteresis.sh` D-06, verified to FAIL when the fix
+is reverted (it reports 0, the pre-fix value). D-07 is its control — a non-firing
+calm turn must still report its running count, without which D-06 would pass on a
+field pinned to the threshold.
 
 ---
 

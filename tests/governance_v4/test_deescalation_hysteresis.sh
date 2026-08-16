@@ -79,6 +79,11 @@ cdd_level() {  # $1=telemetry file $2=nth CDD_TURN
         | grep -o '"governance_level":"[a-z]*"' | grep -o ':"[a-z]*"' | tr -d ':"'
 }
 
+cdd_field() {  # $1=telemetry file $2=nth CDD_TURN $3=field name
+    grep '"event_type":"CDD_TURN"' "$1" 2>/dev/null | sed -n "${2}p" \
+        | grep -o "\"$3\":\"[^\"]*\"" | head -1 | sed 's/.*":"//; s/"$//'
+}
+
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 echo -e "${CYAN}|         Governance level de-escalation hysteresis            |${NC}"
@@ -189,6 +194,38 @@ if [ "$L4" = "normal" ]; then
     pass "D-05" "Second consecutive calm turn steps down to NORMAL"
 else
     fail "D-05" "De-escalation after sustained calm broken" "turn4 level=$L4"
+fi
+
+# D-06: the counter must report the value that FIRED the step-down.
+#
+# deescalate_calm_turns_ is live state and is reset the instant the step-down
+# fires; the CDD_TURN row is written afterwards. So the field originally read 0
+# on exactly the turn the value mattered, and its visible maximum was
+# deescalate_sustained - 1 on any run that stepped down — which made
+# max(field) look comparable to deescalate_sustained while being reliably off by
+# one. Telemetry now reports the value the engine EVALUATED this turn.
+#
+# This assertion FAILS if that fix is reverted: pre-fix the firing turn reports
+# 0. deescalate_sustained is 2 in this config and turn 4 is the step-down (D-05).
+CALM4=$(cdd_field "$WDIR/telemetry.jsonl" 4 "deescalate_calm_turns")
+if [ "$CALM4" = "2" ]; then
+    pass "D-06" "Firing turn reports the count that fired it (calm=2 = deescalate_sustained)"
+elif [ "$CALM4" = "0" ]; then
+    fail "D-06" "Firing turn reports 0 — the counter was reset before the row was written" \
+         "pre-fix behaviour: max(field) understates deescalate_sustained by one"
+else
+    fail "D-06" "Firing turn reports an unexpected calm count" "got '$CALM4', expected 2"
+fi
+
+# D-07 is the control for D-06: a NON-firing calm turn must still report its
+# running count, so D-06 cannot pass by the field being hardcoded to the
+# threshold. Turn 3 is the first calm turn (D-04 pins that it did NOT step down).
+CALM3=$(cdd_field "$WDIR/telemetry.jsonl" 3 "deescalate_calm_turns")
+if [ "$CALM3" = "1" ]; then
+    pass "D-07" "Non-firing calm turn reports its running count (calm=1) (control)"
+else
+    fail "D-07" "Non-firing calm turn reports '$CALM3', expected 1" \
+         "without this, D-06 would pass on a field pinned to deescalate_sustained"
 fi
 
 echo ""
