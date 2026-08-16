@@ -553,6 +553,40 @@ on the default configuration is noise, not a finding.
 
 ---
 
+### A counter that cannot show its own trigger value (found migrating report.py)
+
+E2 added `deescalate_calm_turns` so the de-escalation predicate would stop being
+reconstructed from outside. Migrating `report.py` to read it surfaced a limit of
+the field itself.
+
+The counter is reset when the step-down fires, and the CDD_TURN row is written
+afterwards, so **on the firing turn it reads 0**. Observed directly on a keyless
+v3 trace:
+
+| turn | calm | level change |
+|---|---|---|
+| 15 | 1 | |
+| 16 | 2 | |
+| 17 | **0** | high → elevated |
+
+The value that causes the action is therefore never observable. The maximum an
+observer can see is `deescalate_sustained - 1` on any run that steps down, and
+`max(deescalate_calm_turns)` must NOT be compared against `deescalate_sustained`
+— the comparison looks natural and is off by exactly one.
+
+This was caught only because the migration kept the old reconstructions running
+beside the new field instead of deleting them on sight: proxy A said 3, the
+engine field said 2, and the disagreement was the finding. Deleting the proxy
+first would have replaced a correct external reconstruction with an
+authoritative-looking field that silently understated.
+
+`report.py` now corrects for it explicitly. The engine is unchanged: emitting the
+pre-reset value would mean capturing it before the reset, which is a change to
+freshly-merged enforcement-adjacent code and wants its own trace and test. Filed
+here rather than fixed in a report migration.
+
+---
+
 ---
 
 ## Found in `src/`, not fixed
