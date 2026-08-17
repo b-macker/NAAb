@@ -642,9 +642,18 @@ de-escalation mechanism and the counter fix.
 
 Not obviously a defect: an agent at zero coherence arguably should stay under
 scrutiny. But the escape becomes coherence recovery rather than calm, and on this
-run `healed` stayed 0.0 throughout — the bounded-healing ledger had nothing to
-credit. Recorded, not changed: this is a threshold interaction, and the campaign's
-evidence names threshold suspects and no values.
+run `healed` stayed 0.0 throughout. Recorded, not changed: this is a threshold
+interaction, and the campaign's evidence names threshold suspects and no values.
+
+**Correction (traced after the local deep review).** The sentence above
+originally continued "— the bounded-healing ledger had nothing to credit." That
+was wrong, and wrong in the direction that made the floor look structural. The
+allowance is `coherence_damage_total - coherence_healed_total`, which on a run
+that floored by turn 10 was *large*. Healing did not run because the whole F15
+block is gated on `coherence_natural_healing > 0.0`, and v3 leaves the key
+**unset** (default `0.0`). See the deep-review section below: v3 is the only
+living-script generation that does, and the break-even arithmetic says the key
+alone would have unlocked NORMAL.
 
 ### E5's "top signals" is a snapshot, not an attribution
 
@@ -674,6 +683,146 @@ reported nowhere. Fixed — the off half now covers all 23 via
 `globalSignalEnabled()`, the starved half stays honestly partial, and
 `test_signal_evaluability.sh` SE-07 pins the case. SE-05 still passes, so the
 three-state model is intact.
+
+---
+
+## The local deep review: what survived tracing
+
+An independent review of run 24's telemetry, transcripts and shim log asked
+whether the engine earned its complexity, and answered no. Each of its five
+ENGINE claims was traced against the source before being accepted. **Two
+survived, three did not**, and the two that didn't survive are the two the
+verdict leaned on hardest.
+
+### Survived — and is sharper than the review states
+
+**S10 and S15 are structurally blind to repetition drift while paying full price
+for legitimate topic change.** Measured firing rates for `drift_worker`, by
+scenario phase:
+
+| signal | DESIGN | IMPLEMENT | DRIFT_PRESSURE | DRIFT_RECOVERY |
+|---|---|---|---|---|
+| `entity_consistency` (S15) | 67% | 67% | **0%** | 37% |
+| `semantic_stability` (S10) | 33% | 33% | **12%** | 32% |
+
+Both fired *less* during the induced-drift phase than during ordinary on-mandate
+work. That is not a false-positive rate, it is an **anti-correlation**, and it has
+a clean mechanism: both signals score inter-turn *variation* (S10 Jaccard between
+consecutive response keyword sets, S15 max Jaccard over an entity's recent
+sightings). The drift this run induced was verbatim repetition — five consecutive
+responses sharing fingerprint `2f66a2eb…` — which is *minimal* variation, so both
+signals go quiet exactly when the agent is most degraded. Meanwhile moving from
+"design add" to "design multiply" rewrites the keyword set and both fire.
+
+The corroborating detail is the strongest part of the review: during
+DRIFT_RECOVERY the two fire together on turns 20, 26 and 32 — a period of exactly
+6, matching the scenario's 6-task rotation. On those turns the signals are
+measuring the *prompt schedule*, not the model.
+
+This generalises. Any multi-step workload with varying sub-tasks trips both, and
+any repetition-flavoured degradation evades both. Recorded, not fixed: the remedy
+is a threshold or a redesign, and the campaign's evidence names suspects and no
+values.
+
+### Survived — already known, independently rediscovered
+
+The warning naming the wrong signals is the same finding as *E5's "top signals" is
+a snapshot* above, reached from the opposite direction (phase-rate telemetry
+rather than reading `takeFlooredAgents()`). Two methods, one conclusion, same two
+signals named. That raises confidence; it is not new.
+
+### Did not survive — "coherence is a one-way ratchet, architectural"
+
+The review's headline. It is a **v3 config gap**, not a property of the formula.
+
+`recordTurn` carries F15 natural healing — deliberately channel-agnostic, with a
+damage/healed ledger so an agent can recover at most exactly what it lost. It is
+gated on `coherence_natural_healing > 0.0`, default `0.0`, and:
+
+| config | value |
+|---|---|
+| `govern-template.json` | 0.02 |
+| `living-script` / `_v2` / `_extended` | 0.03 |
+| **`living-script_v3`** | **unset → 0.0** |
+
+v3 is the only generation that omits it — the same shape as the S12 gap its own
+rationale already documents ("v3 shipped with neither"). `step_up_enabled: false`
+closes the challenge-pass channel too, and nothing calls `record_validation`, so
+all three recovery paths were off *by configuration*.
+
+The arithmetic says this one key explains the rest of the review. De-escalation to
+NORMAL needs `0.35·(1 − c/0.7) + 0.10 < 0.35`, i.e. **c > 0.20**. Healing grants
+`0.03 · 1/(1 + signals_fired)` per turn, so ~7 clean turns clears it; DRIFT_RECOVERY
+had 19 turns with signals on only 3. So the unset key plausibly accounts for the
+permanent floor, the 19 quarantined-but-acceptable responses, *and* the failure to
+reach NORMAL — all of which the review attributed to architecture.
+
+**Testable, and worth testing**: re-run v3 with `coherence_natural_healing: 0.03`
+and nothing else changed.
+
+### Did not survive — "`response_repetition_count` does not decay"
+
+Correct observation, non-finding. The counter is monotonic *by design*: it feeds
+`adaptive_penalty` as the numerator of a **rate** (`(count − baseline_snapshot) /
+post_baseline_checks`), which a decaying counter would break. Detection does not
+read it at all — S21 fires off `response_fingerprints`, a bounded deque that pops
+at `response_repetition_lookback` — so "could re-fire on stale history" is not a
+reachable state. And on this run it had *no effect whatsoever*: with
+`adaptive_baseline_enabled` and `rate_normalized` both off (defaults, unset in
+v3), `base_penalty` returns bare `weight` and ignores `count`.
+
+### Did not survive — "`cb_sustained_elevated` does not reset on de-escalation"
+
+It was never coupled to de-escalation. `governance_engine.cpp:7407` recomputes it
+per turn as a pure function of pressure against *that level's own* threshold:
+`c = (composite >= threshold) ? c+1 : max(0, c-1)`. Decay exists.
+
+The observed monotonic climb 1→25 means composite stayed ≥ 0.35 on all 25 turns —
+which is the **floor lock**, already recorded above, and is therefore evidence for
+that finding rather than a separate counter defect.
+
+### Not a defect — `turn` vs `turn_at_request`
+
+A consistent off-by-one on all 36 CDD_TURN rows is the designed behaviour of the
+E2 join-key fix. `turn_at_request` is captured before the tracker increments;
+`turn` is read after. They differ by exactly 1 when no tool round-trips intervene,
+and by the round-trip count when they do — which is the entire reason the field
+was added.
+
+### What the review got right that no code trace could have shown
+
+- **Cost**: 387 telemetry events and 413 KB for 36 API calls, against 4 actionable
+  items. Roughly 11 KB per call to surface 3 level changes and 1 warning.
+- **Quarantine acts on stale state**: 19 of 25 quarantined responses were varied
+  and on-topic, quarantined solely because coherence was pinned at 0.0. The
+  floor-lock entry above covers the *level* consequence; this is the *admissibility*
+  consequence, and it is worse, because it rejects usable output.
+
+  Traced, and the mechanism is sharper than the observation. `checkOutputAdmissibility()`
+  (`governance_engine.cpp:6568`) reads `state->coherence_score` and compares it to
+  the threshold. **It never inspects the response it is judging.** The gate named
+  "output admissibility" is a pure function of accumulated state, so paired with
+  healing switched off it is not a gate at all — it is a **latch**: the first turn
+  that crosses the threshold downward condemns every subsequent output for the rest
+  of the run, whatever the agent produces. `max_quarantine_streak` then converts
+  that latch into a kill on a timer.
+
+  This is the compound defect worth taking from the review: neither half is
+  obviously wrong alone (accumulated coherence *should* inform admissibility; a
+  ratchet is a config choice), but together they make output quality irrelevant to
+  the output-quality gate. Healing being on is what keeps it a gate.
+- **The 128-token shim cap dominates response quality** and is not an engine
+  property. Every `drift_worker` response was truncated mid-thought.
+
+### The honest position
+
+The review's own closing is the right one and survives all of the above: this run
+cannot settle whether the engine provides value against a production model. What
+it does settle is that the mechanical parts work (escalation, de-escalation,
+quarantine, chaining, the conservation invariant), and that S10/S15 have a
+generalising discrimination failure. The verdict "did not earn its complexity"
+rests substantially on the coherence ratchet, and that premise was a config
+default v3 alone declined to set.
 
 ---
 

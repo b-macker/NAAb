@@ -25,6 +25,8 @@
     "enabled": true,
     "check_interval_turns": 1,
     "rationale": "check_interval_turns MUST be 1. behavioral_sequence.cpp zeroes signals_fired_this_turn and the interval gate returns before anything can increment it, so every skipped turn contributes zero signal density AND decays cb_sustained. Any value above 1 makes escalation unreliable by construction.",
+    "coherence_natural_healing": 0.03,
+    "healing_rationale": "Matches living-script v1, _v2 and _extended (0.03); govern-template ships 0.02. v3 alone left this UNSET, and the default is 0.0 -- meaning the F15 healing block never executed, so coherence was a one-way ratchet for the whole run. Same class of gap as the context_window/context_growth_factor pair above, and the same fix: carry what the sibling configs carry. Consequences on run 24, all three traced to this one key: coherence floored by turn 10 and stayed there; 19 of 25 quarantined responses were varied and on-topic but inadmissible because coherence was pinned at 0.0; and ELEVATED->NORMAL never fired. De-escalation to NORMAL needs 0.35*(1 - c/0.7) + 0.10 < 0.35, i.e. c > 0.20, and healing grants 0.03 * 1/(1 + signals_fired) per turn -- about 7 clean turns, against a recovery phase with 19 turns that fired on only 3. NOTE this does not disarm the ladder: healing is capped at the damage/healed ledger allowance, so an agent recovers at most exactly what it lost and a genuinely drifting agent still escalates.",
     "signals": {
       "response_degenerate": true
     },
