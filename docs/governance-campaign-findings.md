@@ -24,6 +24,7 @@ in.
 |---|---|
 | **confirmed** | Observed working on a live run, with before/after evidence |
 | **inert-verified** | Live run shows it correctly declining to fire; the firing path is stub-only |
+| **keyless-confirmed** | Observed working end to end on a full engine run driven by the stub, where the mechanism does not depend on model output. **Weaker than `confirmed`**, which everywhere in this document means a live run against a real model. |
 | **stub-only** | Passes its test; no live run has produced the triggering condition |
 | **n/a** | Cannot be distinguished live by construction (e.g. same-default decoupling) |
 
@@ -479,6 +480,26 @@ engine only stops withholding what it already computed.
 | Runs had no identity | Telemetry could not name the config that produced it | `cf02e28` | `test_run_identity.sh` | confirmed |
 | Silence had one meaning | A signal off, starved, or clean all read identically | `2d46a4c` | `test_signal_evaluability.sh` | confirmed |
 
+**These rows read `confirmed`, and for a while they should not have.** They were
+written that way on the strength of `living-script_v3` runs driven by
+`agent_stub.py`, while every other `confirmed` row in this document cites a live
+run against a real model. That was an overclaim, and `keyless-confirmed` was added
+to the legend for exactly this case.
+
+**A live run has since made the label correct** (2026-08-16, Qwen2.5-0.5B-Instruct
+behind a Gemini-shaped shim on loopback). Every field is present and populated
+under real model output: `pressure_detail` on all CDD_TURN rows,
+`config_fingerprint` `c08186a3149aca31` and a stable `mandate_digest`,
+`turn_at_request` on 72 events, 6 `SIGNAL_INERT` events, `THINKING_UNREPORTED` at
+turn 10, and the coherence-floor warning firing at turn 10 with its contributing
+signals named.
+
+The first attempt at that run produced six apparent "telemetry gaps" that were one
+cause: a checkout predating the merges. Worth recording because it looked exactly
+like six engine defects and was none — **a live run proves nothing about code the
+binary does not contain.** A 30-second keyless preflight grepping for a single new
+field would have caught it before 90 minutes of inference.
+
 Two method notes worth keeping, because both nearly produced a worse artifact
 than the gap they closed:
 
@@ -596,6 +617,63 @@ Regression: `test_deescalation_hysteresis.sh` D-06, verified to FAIL when the fi
 is reverted (it reports 0, the pre-fix value). D-07 is its control — a non-firing
 calm turn must still report its running count, without which D-06 would pass on a
 field pinned to the threshold.
+
+---
+
+### The floor lock: de-escalation to NORMAL is arithmetically unreachable at zero coherence
+
+Found on the first live run, and found *because* `pressure_detail` exists — the
+decomposition is what made the arithmetic legible.
+
+Once coherence reaches 0.0 the composite has a floor:
+
+    coherence_prox  0.35   (weight 0.35 x capped 1.0, coherence_threshold 0.7)
+    depth           0.10   (capped)
+    ------------------------
+    floor           0.45
+
+`circuit_breaker.elevated_threshold` is **0.35**. The floor exceeds it, so the
+computed target can never fall below ELEVATED and the ELEVATED->NORMAL step-down
+cannot fire however calm the agent becomes. HIGH->ELEVATED still works — 0.45 is
+below `high_threshold` 0.55 — and was observed live: calm 1, 2, 3 on consecutive
+turns, then the step-down, with the counter reading **3** on the firing turn
+exactly as `d8fa40c` intended. That is the first live confirmation of both the
+de-escalation mechanism and the counter fix.
+
+Not obviously a defect: an agent at zero coherence arguably should stay under
+scrutiny. But the escape becomes coherence recovery rather than calm, and on this
+run `healed` stayed 0.0 throughout — the bounded-healing ledger had nothing to
+credit. Recorded, not changed: this is a threshold interaction, and the campaign's
+evidence names threshold suspects and no values.
+
+### E5's "top signals" is a snapshot, not an attribution
+
+The live warning named `response_repetition, circular`. The signals that actually
+drove coherence to the floor over the preceding turns were `semantic_stability`
+and `entity_consistency`. Both are correct; they answer different questions. The
+warning reports `last_turn_penalties` — what holds the agent down *now* — while
+the cause is a lifetime accumulation no array records.
+
+That was a deliberate choice, documented in `takeFlooredAgents()`, because no
+cumulative per-signal penalty array exists. The live run shows the cost: an
+operator reading the warning gets the maintaining signals, not the originating
+ones, and could chase the wrong signal. Worth a lifetime accumulator if this is
+ever acted on.
+
+### E6 reported "off" only for signals it had instrumented
+
+`signals_off` was filtered through `signals_instrumented_mask`, conflating two
+questions. "Is it switched off?" is knowable for **all 23** signals via
+`sig_on()`; "does it have its inputs?" only for the 14 whose precondition was
+traced. Gating both on one mask let a genuinely disabled signal appear in neither
+list.
+
+The live run made it concrete: `drift_worker` sets
+`context_drift_signals {context_growth: false}` and the disabled signal was
+reported nowhere. Fixed — the off half now covers all 23 via
+`globalSignalEnabled()`, the starved half stays honestly partial, and
+`test_signal_evaluability.sh` SE-07 pins the case. SE-05 still passes, so the
+three-state model is intact.
 
 ---
 

@@ -90,7 +90,7 @@ Full design in the session plan file; increments 1–2 are merged.
 | E3 | Per-agent routing in `agent_stub.py` | **done** |
 | E4 | v3 scenario skeleton, ladder walked **keylessly** against the stub first | **done** |
 | E5 | v3 gates + negative fixtures, `--self-test` green in CI | **done** — 11 gates, 11 negative fixtures, registered in `run-all-tests.sh` |
-| E6 | One keyed run | **done — 6 runs; run 6 completed end to end** | Ladder escalation, the conservation invariant and S20 silence are all live-confirmed. De-escalation live is NOT observed and C1c now explains why it will not be. |
+| E6 | One keyed run | **done — 6 runs; run 6 completed end to end** | Ladder escalation, the conservation invariant and S20 silence are all live-confirmed. **De-escalation IS now observed live** (2026-08-16, local Qwen2.5-0.5B via a loopback Gemini shim): HIGH->ELEVATED after three consecutive calm turns, with `deescalate_calm_turns` reading 1, 2, 3 and showing the trigger value on the firing turn. C1c's reasoning held for the keyed API runs; a slower, more drift-prone local model produced the calm window they never did. ELEVATED->NORMAL remains unobserved and is arithmetically unreachable at zero coherence — see the floor-lock entry in governance-campaign-findings.md. |
 
 ### E6 — the two keyed runs (2026-08-10)
 

@@ -773,6 +773,48 @@ bool ContextDriftAnalyzer::isEnabled() const {
     return config_ && config_->enabled;
 }
 
+
+// Global toggle for a signal, by index. The Signals struct is named fields, not
+// an array, so this table is the only way to ask "is signal N switched off?"
+// generically.
+//
+// Exists because signals_off was originally reported only for signals whose
+// INPUT precondition happened to be instrumented — conflating two different
+// questions. "Is it switched off?" is knowable for all 23 through sig_on();
+// "does it have its inputs?" is knowable only where the precondition was
+// traced. A live run made the gap concrete: drift_worker sets
+// context_drift_signals {context_growth: false}, and the disabled signal
+// appeared in NEITHER list because context_growth has no instrumented
+// precondition.
+static bool globalSignalEnabled(const ContextDriftConfig::Signals& sg, CddSignalId id) {
+    switch (id) {
+        case SIG_CIRCULAR:              return sg.circular_actions;
+        case SIG_REPEATED_FAILURES:     return sg.repeated_failures;
+        case SIG_SCOPE_CREEP:           return sg.scope_creep;
+        case SIG_CONTRADICTIONS:        return sg.intent_contradictions;
+        case SIG_VOCAB_CONTRACTION:     return sg.vocabulary_contraction;
+        case SIG_COHERENCE_VELOCITY:    return sg.coherence_velocity;
+        case SIG_CAPABILITY_UNDERUTIL:  return sg.capability_underutilization;
+        case SIG_RESPONSE_QUALITY:      return sg.response_quality;
+        case SIG_THINKING_COLLAPSE:     return sg.thinking_collapse;
+        case SIG_SEMANTIC_STABILITY:    return sg.semantic_stability;
+        case SIG_MANDATE_ALIGNMENT:     return sg.mandate_alignment;
+        case SIG_CONTEXT_GROWTH:        return sg.context_growth;
+        case SIG_INSTRUCTION_RECALL:    return sg.instruction_recall;
+        case SIG_PLAN_DRIFT:            return sg.plan_drift;
+        case SIG_ENTITY_CONSISTENCY:    return sg.entity_consistency;
+        case SIG_INSTRUCTION_CONFLICT:  return sg.instruction_conflict;
+        case SIG_PERSONA_FINGERPRINT:   return sg.persona_fingerprint;
+        case SIG_TOOL_CHAIN_INTEGRITY:  return sg.tool_chain_integrity;
+        case SIG_CLAIM_RESULT:          return sg.claim_result_reconciliation;
+        case SIG_PROMPT_COMPLIANCE:     return sg.prompt_compliance;
+        case SIG_RESPONSE_REPETITION:   return sg.response_repetition;
+        case SIG_VALIDATION:            return sg.validation_outcome;
+        case SIG_RESPONSE_DEGENERATE:   return sg.response_degenerate;
+    }
+    return true;
+}
+
 bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                                        const std::vector<RuntimeEvent>& turn_events,
                                        const std::string& error_if_any) {
@@ -917,16 +959,25 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         // needed a latch to avoid, arriving from the opposite direction.
         state.starved_announce_mask = 0;
 
+        const auto& sg = config_->signals;
+
+        // The OFF half is universal: sig_on() answers it for every signal,
+        // instrumented or not. Reporting it only for instrumented signals hid
+        // genuinely disabled ones — see globalSignalEnabled() above.
+        for (int i = 0; i < NUM_CDD_SIGNALS; i++) {
+            if (!sig_on(globalSignalEnabled(sg, static_cast<CddSignalId>(i)), i)) {
+                state.signals_off_mask |= (1u << i);
+            }
+        }
+
+        // The STARVED half stays partial and says so: it is only knowable where
+        // the input precondition was traced. instrumented_mask marks those.
         auto note = [&](int sig, bool globally_on, bool has_inputs) {
             state.signals_instrumented_mask |= (1u << sig);
-            if (!sig_on(globally_on, sig)) {
-                state.signals_off_mask |= (1u << sig);
-            } else if (!has_inputs) {
+            if (sig_on(globally_on, sig) && !has_inputs) {
                 state.signals_starved_mask |= (1u << sig);
             }
         };
-
-        const auto& sg = config_->signals;
         // Mirrors the gate preconditions below, signal by signal.
         note(SIG_REPEATED_FAILURES,   sg.repeated_failures,          !error_if_any.empty());
         // S3 and S5 gate on turn_types, which is derived further down from
