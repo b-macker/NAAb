@@ -4128,11 +4128,22 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 // list. Their evaluability is unknown, not clean.
                 std::string signals_off, signals_starved;
                 for (int i = 0; i < governance::NUM_CDD_SIGNALS; i++) {
-                    if (!((drift_state->signals_instrumented_mask >> i) & 1u)) continue;
+                    // OFF is reported for every signal — being switched off is
+                    // knowable without instrumenting its input precondition.
+                    // Filtering this half through the instrumented mask hid
+                    // genuinely disabled signals: a live run had
+                    // context_growth disabled per-agent and it appeared in
+                    // neither list.
                     if ((drift_state->signals_off_mask >> i) & 1u) {
                         if (!signals_off.empty()) signals_off += ",";
                         signals_off += governance::kCddSignalKeys[i];
-                    } else if ((drift_state->signals_starved_mask >> i) & 1u) {
+                        continue;
+                    }
+                    // STARVED only where the precondition was traced. Signals
+                    // outside the instrumented mask stay absent from both
+                    // lists: unknown, not clean.
+                    if (!((drift_state->signals_instrumented_mask >> i) & 1u)) continue;
+                    if ((drift_state->signals_starved_mask >> i) & 1u) {
                         if (!signals_starved.empty()) signals_starved += ",";
                         signals_starved += governance::kCddSignalKeys[i];
                     }

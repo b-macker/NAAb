@@ -169,6 +169,50 @@ else
     pass "SE-05" "uninstrumented signals reported as neither (unknown, not clean)"
 fi
 
+# --- SE-07: a disabled signal with NO instrumented precondition ----------
+# context_growth is disabled per-agent below and has no traced input
+# precondition, so it exercises the exact gap a live run exposed: the OFF half
+# was filtered through the instrumented mask, hiding genuinely disabled signals
+# in NEITHER list. Being switched off is knowable for every signal.
+run_case_off_uninstrumented() {
+    local w="$TEST_TMP/offuninst"; mkdir -p "$w"
+    python3 -c "
+import json
+json.dump({'responses':[{'content':'inventory report section %d with records'%i,
+                         'output_tokens':40} for i in range(14)]},
+          open('$w/fixture.json','w'))"
+    start_stub "$w/fixture.json" "$w" || return 1
+    cat > "$w/govern.json" <<GOVEOF
+{ "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "t.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": { "enabled": true, "check_interval_turns": 1 },
+  "agents": { "w": { "provider": "gemini", "model": "m",
+      "api_base": "http://127.0.0.1:$STUB_PORT", "api_key_env": "K",
+      "max_tokens": 100, "max_turns": 30,
+      "context_drift_signals": { "context_growth": false },
+      "system_prompt": "Report on the inventory service." } } }
+GOVEOF
+    cat > "$w/t.naab" <<'NAABEOF'
+use agent
+main { let h = agent.create("w"); let i = 0
+  while i < 12 { let r = agent.send(h, "continue"); i = i + 1 }
+  print("DONE") }
+NAABEOF
+    (cd "$w" && K=x "$NAAB" t.naab > out.txt 2>&1)
+    stop_stub
+    grep '"event_type":"CDD_TURN"' "$w/t.jsonl" 2>/dev/null | tail -3 | head -1 \
+        | grep -o '"signals_off":"[^"]*"' | sed 's/.*":"//; s/"$//'
+}
+OFF_U=$(run_case_off_uninstrumented)
+if echo "$OFF_U" | grep -q "context_growth"; then
+    pass "SE-07" "per-agent disabled signal reported off even without an instrumented precondition"
+else
+    fail "SE-07" "disabled context_growth absent from signals_off" \
+         "got '$OFF_U' — the off half is being filtered through the instrumented mask"
+fi
+
 # --- SE-06: config keys, not telemetry labels ----------------------------
 # The four divergent signals must appear under their govern.json spelling.
 if echo "$OFF$STARVED" | grep -qE "vocab_contraction|capability_underutil\b|contradictions\b"; then
