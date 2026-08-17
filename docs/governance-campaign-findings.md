@@ -724,6 +724,85 @@ any repetition-flavoured degradation evades both. Recorded, not fixed: the remed
 is a threshold or a redesign, and the campaign's evidence names suspects and no
 values.
 
+### The damage model is now fully closed
+
+The follow-up review supplied per-turn coherence readings, which makes every
+transition checkable against the source weights. All eight reconstruct **exactly**:
+
+| turn | observed drop | predicted | signals |
+|---|---|---|---|
+| 2 | 0.18 | 0.18 | S15 (0.08) + S10 (0.10) |
+| 3 | 0.08 | 0.08 | S15 |
+| 4 | 0.18 | 0.18 | S15 + S10 |
+| 5 | 0.08 | 0.08 | S15 |
+| 6 | 0.00 | 0.00 | — |
+| 7 | 0.10 | 0.10 | S10 |
+| 8 | 0.00 | 0.00 | — |
+| 9 | 0.25 | 0.25 | S1 circular (0.10) + S21 repetition (0.15) |
+
+Nothing unexplained, no rounding slack, and the OA verdicts follow mechanically
+from v3's `threshold: 0.30` (pass at 0.38, fail at 0.13). The engine's accounting
+is exactly what it claims to be. **The arithmetic was never the problem** — the
+inputs were.
+
+One correction to the review's attribution: it reports `entity_consistency` as
+"11 firings x 0.08 = 0.88 penalty applied". Only **0.32** was ever applied to a
+live score (turns 2-5). The other 7 firings subtracted from an already-floored
+score and were clamped, and the damage ledger correctly declines to book them —
+`delta = coh_at_turn_start - max(0.0, score)` is 0 when both ends are 0.
+
+### Three mitigations existed and none were switched on
+
+The most important thing the follow-up surfaces, and it is not in its own
+conclusions. v3's config left every purpose-built defense against this exact
+failure inactive:
+
+| key | v3 | default | siblings | what it would have done |
+|---|---|---|---|---|
+| `coherence_natural_healing` | unset | 0.0 | 0.02-0.03 | made the floor recoverable |
+| `output_admissibility.require_corroboration` | unset | 0 | — | stopped one noisy signal reaching a kill |
+| `output_admissibility.max_quarantine_streak` | **99** | **5** | — | (v3 raised it, masking the kill) |
+| `inadmissible_history` | unset | commit | — | quarantined content still entered history |
+
+`require_corroboration` is the striking one. Its own comment in `governance.h`
+records why it was built:
+
+> Replaying real per-turn signal traces, `semantic_stability` alone — firing on
+> nothing worse than a compliant agent varying its phrasing — drove coherence
+> under the threshold three turns running and killed the run at turn 8.
+
+That is the same failure mode, in the same signal family, that the live review
+independently found. **Third independent observation of one defect**: replayed
+traces during the campaign, then the phase-rate analysis, then the per-turn
+decision trail. The engine anticipated it and shipped the fix off by default "so
+existing configs are untouched."
+
+Two consequences pull in opposite directions and both are true:
+
+- **The run understated the danger.** With the stock `max_quarantine_streak: 5`,
+  five consecutive quarantines (turns 9-13) reach the limit and throw
+  `GovernanceHardError`. v3's 99 is the only reason the run survived to show the
+  19-turn recovery phase at all. A default config dies here.
+- **The run understated the defenses.** `require_corroboration: 2` is designed to
+  prevent precisely that kill, and `coherence_natural_healing` would have lifted
+  coherence back over the 0.30 gate. Neither was on, so the review measured the
+  engine with its safety features disabled.
+
+Also note the quarantine action was close to inert here: `action: quarantine`
+(not `block`), `inadmissible_history` defaulting to `commit`, and streak 99. All
+25 flagged responses were returned to the script *and* committed to history, so
+the model saw its own quarantined output as context. Nothing was withheld from
+anyone — the gate flagged and changed nothing.
+
+**The defaults question this raises is the campaign's first well-evidenced one.**
+Every threshold proposal so far was withdrawn for naming suspects and no values.
+This is different: two keys default to their least-protective setting for
+backward-compatibility reasons, three independent observations show the failure
+they prevent, and the ratchet classifies enabling either as *loosening* — so a
+config cannot turn them on mid-run. Not changed here, because changing an engine
+default alters behaviour for every existing config and that is an owner decision,
+not a drive-by. Recorded as the strongest candidate on the list.
+
 ### Survived — already known, independently rediscovered
 
 The warning naming the wrong signals is the same finding as *E5's "top signals" is
