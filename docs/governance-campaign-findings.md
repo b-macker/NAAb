@@ -760,6 +760,31 @@ reach NORMAL — all of which the review attributed to architecture.
 **Testable, and worth testing**: re-run v3 with `coherence_natural_healing: 0.03`
 and nothing else changed.
 
+**But healing fixes the permanence, not the cause — and the numbers say so.**
+Weights are S15 `0.08`, S10 `0.10`; healing is `0.03 · 1/(1 + signals_fired)`.
+Three consequences, in increasing order of importance:
+
+1. Healing is an order of magnitude smaller than a single firing. A turn where
+   both signals fire takes `0.18` damage and heals `0.01`.
+2. **The false positives throttle the recovery channel.** `heal_factor` divides
+   by the fired-signal count, so the signals that misfire on legitimate topic
+   change also suppress the healing that would undo them. Recovery is weakest
+   exactly when the spurious damage is heaviest.
+3. Over the 6 DESIGN+IMPLEMENT turns, healing would have moved coherence from
+   0.48 to roughly **0.58** — it does not come close to cancelling the 0.52 of
+   damage taken on correct, on-mandate work.
+
+Independent corroboration of both the review and this weight reading: S15 firing
+4x at 0.08 plus S10 firing 2x at 0.10 is exactly `0.52`, and the review measured
+coherence 1.00 -> 0.48 over the same 6 turns. Two methods, same number.
+
+Where healing *is* decisive is the recovery phase — 16 clean turns of 19 grant
+`0.48`, clearing both the OA threshold (v3 sets `0.30`, not the 0.70 default) and
+the NORMAL unlock at 0.20. So the correct reading is: **the unset key converted a
+recoverable fault into a permanent one.** It did not cause the fault. Turning it
+on makes the engine's mistakes survivable rather than terminal, which is worth
+having and is not the same as the engine being right.
+
 ### Did not survive — "`response_repetition_count` does not decay"
 
 Correct observation, non-finding. The counter is monotonic *by design*: it feeds
