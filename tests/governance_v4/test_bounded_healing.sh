@@ -107,6 +107,7 @@ gate_def BH-05 RATCHET "raising coherence_recovery_amount mid-run is a violation
 gate_def BH-06 CONTROL "lowering a coherence key mid-run is accepted"
 gate_def BH-07 EVIDENCE "the ledger is visible in decision snapshots"
 gate_def BH-08 INVARIANT "coherence == 1 - damage + healed, on every turn"
+gate_def BH-09 CONTROL "the run reaches the floor with healing active"
 
 # ------------------------------------------------------------------
 # Fixtures: a clean agent and a drifting one, on separate routes.
@@ -125,8 +126,16 @@ drift = [{"content": c, "output_tokens": 60, "input_tokens": 200} for c in (
     "Implemented the Calculator subtract method, logging each operation.",
     "Implemented the Calculator multiply method with history logging retained.",
     "Implemented the Calculator divide method, guarding against zero.")]
+# BH-FLOOR: byte-identical responses, so circular (0.10) and
+# response_repetition (0.15) fire together every turn after the first. 0.25/turn
+# of damage outruns any healing rate this suite would set, which drives the
+# score PAST zero into the clamp -- the state BH-08 could not otherwise reach,
+# because the drifter's varied output never overshoots the floor.
+floor = [{"content": "Implemented the Calculator add method and logged the operation in history.",
+          "output_tokens": 60, "input_tokens": 200} for _ in range(8)]
 json.dump({"routes": {"BH-CLEAN": {"responses": clean},
-                      "BH-DRIFT": {"responses": drift}}}, open(sys.argv[1], "w"))
+                      "BH-DRIFT": {"responses": drift},
+                      "BH-FLOOR": {"responses": floor}}}, open(sys.argv[1], "w"))
 PY
 
 start_stub "$W/fixture.json" "$W" || { skip BH-00 "stub failed to start"; gate_exit; exit $?; }
@@ -447,9 +456,115 @@ else
          "worst residual $I_WORST at turn $I_TURN — a recovery channel is moving coherence without booking it, or damage is mis-counted"
 fi
 
-gate_print_summary
-gate_exit
+# BH-09 — the floor case, in its own single-agent run.
+#
+# WHY A SEPARATE RUN. checkContextDrift() gathers its events with
+# getEventsForTurn(turn), which selects by turn number ALONE. RuntimeEvent.turn
+# is stamped from the global current_agent_turn_, set to the SENDING agent's
+# per-handle turn — so two agents on the same turn number share a bucket, and
+# the one that sends SECOND sees the first's AGENT_RESPONSE as well as its own.
+# Most signal loops take the first matching event and break, so the later sender
+# is scored partly against the earlier sender's output. Measured: a varied-output
+# agent runs 0.88/0.66/0.44/0.22 alone and 1.00/0.85/0.70/0.55 when a repetitive
+# sibling sends ahead of it in the same turn. The first sender is unaffected.
+# The floor case therefore runs alone, so what it measures is its own behaviour.
+#
+# WHAT IT PINS. BH-08 asserts a residual of zero, which is only meaningful if the
+# run reaches the state where a nonzero residual was possible. The deficit cap
+# `1 - coherence_score` binds correctly while the score is inside [0,1] — so a
+# run whose agents never overshoot the floor cannot tell a correct ledger from a
+# broken one, and no agent in the shared run overshoots.
+#
+# The defect: the score can go NEGATIVE before the clamp below it, `1 - score`
+# then exceeds 1.0 and stops binding, and healing granted there is erased by the
+# clamp while the ledger books it in full. Unbounded — 0.0167/turn on the
+# reproduction, residual 0.10 by turn 11 and still climbing — and because
+# allowance is damage minus healed, every fictitious credit permanently consumes
+# healing the agent could later earn.
+#
+# Byte-identical responses fire circular (0.10) and response_repetition (0.15)
+# together every turn after the first: 0.25/turn outruns any healing rate here,
+# which is what drives the score past zero.
+FLOOR_W="$W/floor"; mkdir -p "$FLOOR_W"
+python3 - "$FLOOR_W/fixture.json" << 'BH9FIX'
+import json, sys
+r = [{"content": "Implemented the Calculator add method and logged the operation in history.",
+      "output_tokens": 60, "input_tokens": 200} for _ in range(12)]
+json.dump({"responses": r}, open(sys.argv[1], "w"))
+BH9FIX
+if start_stub "$FLOOR_W/fixture.json" "$FLOOR_W"; then
+  cat > "$FLOOR_W/govern.json" << BH9GOV
+{
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "behavioral_sequences": { "enabled": true },
+  "telemetry": { "enabled": true, "output_file": "telemetry.jsonl", "decision_snapshots": true },
+  "context_drift": { "enabled": true, "check_interval_turns": 1,
+                     "coherence_natural_healing": 0.05 },
+  "agents": {
+    "floorer": {
+      "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$STUB_PORT",
+      "api_key_env": "FAKE_KEY_BH",
+      "max_tokens": 1024, "max_turns": 30,
+      "system_prompt": "$MANDATE"
+    }
+  }
+}
+BH9GOV
+  # Trusted keys are installed for this suite, so every governance file must be
+  # signed — an unsigned one is INTEGRITY BLOCKED and the run produces nothing.
+  (cd "$FLOOR_W" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1)
+  cat > "$FLOOR_W/t.naab" << 'BH9NAAB'
+use agent
+main {
+    let f = agent.create("floorer")
+    let i = 0
+    while i < 11 { let r = agent.send(f, "Continue the calculator work"); i = i + 1 }
+    print("FLOOR_DONE")
+}
+BH9NAAB
+  (cd "$FLOOR_W" && timeout 180s "$NAAB" t.naab) > "$FLOOR_W/out.txt" 2>&1
+  stop_stub
 
-# ============================================================
-# DEGRADATION MATRIX — filled in by running each against this suite.
-# ============================================================
+  FL=$(python3 - "$FLOOR_W/telemetry.jsonl" << 'BH9PY'
+import json, sys
+floored = 0; rows = 0; worst = 0.0
+try:
+    for line in open(sys.argv[1]):
+        try: d = json.loads(line)
+        except Exception: continue
+        if d.get("event_type") != "SEMANTIC_TURN": continue
+        sn = d.get("cdd_snapshot")
+        if isinstance(sn, str):
+            try: sn = json.loads(sn)
+            except Exception: continue
+        if not isinstance(sn, dict) or "coherence_damage_total" not in sn: continue
+        rows += 1
+        c = float(sn.get("coherence_score", 1.0))
+        dm = float(sn["coherence_damage_total"]); h = float(sn["coherence_healed_total"])
+        if c <= 0.0 and dm > 1.0: floored += 1
+        worst = max(worst, abs(c - (1.0 - dm + h)))
+except OSError:
+    pass
+print("%d %d %.12f" % (rows, floored, worst))
+BH9PY
+)
+  read -r FL_ROWS FL_FLOORED FL_WORST <<< "$FL"
+  if [ "${FL_ROWS:-0}" -eq 0 ]; then
+      gk_fail BH-09 "the floor run produced no snapshots" \
+              "a residual of zero over zero rows is not evidence"
+  elif [ "${FL_FLOORED:-0}" -lt 2 ]; then
+      gk_fail BH-09 "the run never overshot the floor" \
+              "only $FL_FLOORED floored snapshots of $FL_ROWS — the clamp path is untested, so a zero residual here is vacuous"
+  elif awk -v w="$FL_WORST" 'BEGIN{exit !(w < 1e-9)}'; then
+      pass BH-09 "ledger honest past the floor ($FL_FLOORED floored snapshots, worst residual $FL_WORST)"
+  else
+      fail BH-09 "healing booked past the floor" \
+           "worst residual $FL_WORST over $FL_FLOORED floored snapshots — a grant erased by the clamp was still booked, and it is eating the allowance"
+  fi
+else
+  skip BH-09 "stub failed to start for the floor case"
+fi
+
+gate_print_summary

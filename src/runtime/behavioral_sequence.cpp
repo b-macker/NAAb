@@ -2176,8 +2176,28 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         double deficit = std::max(0.0, 1.0 - state.coherence_score);
         double granted = std::min(want, std::min(allowance, deficit));
         if (granted > 0.0) {
+            // Book what the agent RECEIVES, not what was granted. The deficit
+            // cap above guards the top of the range, but the score can be
+            // NEGATIVE here -- the clamp to [0,1] is below -- and then
+            // `1 - score` exceeds 1.0 and never binds. A grant applied to an
+            // over-damaged score is erased by that clamp while the ledger
+            // booked it in full, which is the very failure the deficit cap was
+            // added to stop; it was only ever fixed for the top.
+            //
+            // Not cosmetic. `allowance` is damage minus healed, so every
+            // fictitious credit permanently shrinks the budget for healing the
+            // agent could later earn. Verified: an agent held at the floor
+            // booked 0.0167/turn of healing it never received, unbounded --
+            // residual 0.10 by turn 11 and still climbing, with the same amount
+            // of genuine future recovery consumed.
+            //
+            // Coherence itself is untouched: `granted` and the clamp are
+            // unchanged, so no score moves. Only the ledger becomes honest --
+            // and with it the allowance.
+            const double before_floor = std::max(0.0, state.coherence_score);
             state.coherence_score += granted;
-            state.coherence_healed_total += granted;
+            const double realized = std::max(0.0, state.coherence_score) - before_floor;
+            if (realized > 0.0) state.coherence_healed_total += realized;
         }
     }
 
