@@ -803,6 +803,112 @@ config cannot turn them on mid-run. Not changed here, because changing an engine
 default alters behaviour for every existing config and that is an owner decision,
 not a drive-by. Recorded as the strongest candidate on the list.
 
+### The 2x2 could not run the experiment it was designed for
+
+The four arms produced **identical outcomes** — same kill turn (14), same exit
+code (3), same streak. Not because the factors cancel, but because the
+determinism requirement removed the phenomenon under test.
+
+Run 24 sampled at temperature 0.7. Its recovery phase — 19 varied, on-topic
+responses at turns 14-33, the ones wrongly quarantined — existed *because*
+sampling broke the model out of its repetition attractor. Greedy decoding never
+breaks the loop: turns 6-13 came back byte-identical (`3cc55bbe85642642`, 560
+bytes) and the run died before any recovery could begin.
+
+So the false-quarantine scenario cannot occur under the constraint that makes the
+arms comparable. **That was an error in the experiment design, mine.** The next
+attempt needs fixture replay — a fixed response sequence containing both a
+repetition phase and a recovery phase — which is deterministic by construction
+and still contains the phenomenon. `V3_FIXTURE` already supports it.
+
+Two results do survive:
+
+- **Neither default introduces a false negative.** Arm D detected the genuine
+  repetition and terminated on the same turn as arm A. That was the question that
+  would have blocked the change, and it is answered.
+- **`require_corroboration: 2` is inert against this failure shape.** Genuine
+  repetition fires circular *and* response_repetition — exactly two distinct
+  penalising signals, so the threshold is met on every quarantined turn and the
+  gate never declines an advance. It is built for the single-signal case, which
+  is a different shape. Zero `QUARANTINE_UNCORROBORATED` events: arms C and D are
+  vacuous, and the 2x2 is really a 2x1.
+
+And one prediction was confirmed incidentally: across eight consecutive
+byte-identical responses — maximal drift — **S10 and S15 never fired once**. The
+cleanest possible demonstration of the anti-correlation above. What caught it was
+the two fingerprint signals.
+
+### DEFECT: healing booked past the floor consumed real recovery budget
+
+Found in the 2x2's ledger readouts (`damage 1.0400 / healed 0.0700`), which do
+not satisfy the conservation identity: `1 - 1.04 + 0.07 = 0.03`, against an
+actual coherence of `0.00`.
+
+`recordTurn` caps a healing grant at `deficit = max(0, 1 - coherence_score)`.
+That guards the top of the range. But the clamp to `[0,1]` is *below* the healing
+block, so at that point the score can be NEGATIVE — and then `1 - (-0.21) = 1.21`
+never binds. The grant was added to a negative score, erased by the clamp, and
+booked in full.
+
+The code comment directly above it describes this exact failure ("healing
+overshooting into the clamp while `coherence_healed_total` booked the full grant:
+the ledger recording more recovery than the agent received... an invariant with
+an exception cannot be asserted"). It was only ever fixed for the top of the
+range.
+
+Not cosmetic. `allowance = damage_total - healed_total`, so every fictitious
+credit permanently shrinks the budget for healing the agent could later earn — an
+agent that floors and subsequently recovers gets less healing than it earned.
+Reproduced at 0.0167/turn, unbounded: residual 0.10 by turn 11 and still climbing.
+
+Fixed by booking the *realized* movement rather than the granted amount. No score
+moves — the grant and the clamp are unchanged, verified by an identical coherence
+trajectory before and after — only the ledger and the allowance become honest.
+
+Regression: `test_bounded_healing.sh` BH-09, in its own single-agent run. It
+fails at residual 0.10 when the fix is reverted **while BH-08 still passes**,
+which is the point: BH-08's scenario never overshoots the floor, so its zero
+residual could not distinguish a correct ledger from a broken one. BH-09 asserts
+the precondition (>=2 floored snapshots past full damage) as well as the
+invariant, so it cannot go vacuous silently.
+
+### DEFECT (open, not fixed): the second agent in a turn is scored against the first's output
+
+Found while building BH-09, when a co-running floorer and drifter produced
+DriftStates identical to 16 decimal places — a state neither agent's own
+responses produce.
+
+`checkContextDrift()` gathers events via
+`BehavioralSequenceDetector::getEventsForTurn(turn)`, which selects on turn
+number **alone**. `RuntimeEvent.turn` is stamped from the global
+`current_agent_turn_`, which `setAgentContext()` sets to the *sending* agent's
+per-handle turn. Two agents on the same turn number therefore share one bucket.
+The agent that sends **second** receives the first's `AGENT_RESPONSE` alongside
+its own, and most signal loops take the first matching event and `break` — so it
+is scored against a response it did not produce. The first sender is unaffected,
+which is why this hid for so long.
+
+Measured, same agent and fixture, differing only in whether a sibling sends ahead
+of it in the same turn:
+
+    varied-output agent, alone            0.88  0.66  0.44  0.22  0.00
+    same agent, repetitive sibling first  1.00  0.85  0.70  0.55  0.40  0.25 ...
+
+The contamination made the agent look **better**, because it was graded on the
+sibling's repetitive output instead of its own varying output.
+
+`RuntimeEvent` already carries `agent_handle`, so the filter is available and
+simply unused. NOT fixed here: adding it changes CDD inputs for every
+multi-agent configuration and would move expected values across many suites. That
+is a behaviour change with real blast radius and it needs its own increment, its
+own vacuity work, and a decision about the suites it moves.
+
+Scope note for the campaign's own conclusions: every finding above about
+`drift_worker` rests on arithmetic that reconstructs exactly from its own signals
+(8 of 8 transitions), which is what a *first* sender looks like. The
+contamination does not retroactively invalidate them — but any multi-agent
+result where a sibling sends earlier in the turn is suspect until re-measured.
+
 ### Survived — already known, independently rediscovered
 
 The warning naming the wrong signals is the same finding as *E5's "top signals" is
