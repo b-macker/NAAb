@@ -7205,6 +7205,31 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
 
     // Gather events from this turn
     std::vector<RuntimeEvent> turn_events = sequence_detector_.getEventsForTurn(turn);
+    // Keep only THIS handle's events. getEventsForTurn() selects on turn number
+    // alone, and RuntimeEvent.turn is stamped from the global
+    // current_agent_turn_, which setAgentContext() sets to the SENDING agent's
+    // per-handle turn. Two agents sitting on the same turn number therefore
+    // share one bucket, and whichever sends second received the first's
+    // AGENT_RESPONSE along with its own. Most signal loops take the first
+    // matching event and break, so that agent was scored against a response it
+    // did not produce -- and because the interfering response is a sibling's,
+    // the effect is arbitrary in direction. Measured on one agent and fixture,
+    // differing only in whether a repetitive sibling sends ahead of it:
+    //
+    //     alone                     0.88 0.66 0.44 0.22 0.00
+    //     repetitive sibling first  1.00 0.85 0.70 0.55 0.40 0.25 ...
+    //
+    // It scored BETTER for being graded on someone else's output. The first
+    // sender is unaffected, which is why this stayed hidden: single-agent
+    // suites cannot see it, and in a multi-agent run the lead agent looks right.
+    //
+    // agent_handle == 0 is kept deliberately: those are events raised outside
+    // any agent context (tool-driven file and network operations), which belong
+    // to whichever turn was open when they happened.
+    turn_events.erase(std::remove_if(turn_events.begin(), turn_events.end(),
+        [handle_id](const RuntimeEvent& ev) {
+            return ev.agent_handle != 0 && ev.agent_handle != handle_id;
+        }), turn_events.end());
 
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
 

@@ -872,7 +872,7 @@ residual could not distinguish a correct ledger from a broken one. BH-09 asserts
 the precondition (>=2 floored snapshots past full damage) as well as the
 invariant, so it cannot go vacuous silently.
 
-### DEFECT (open, not fixed): the second agent in a turn is scored against the first's output
+### DEFECT: the second agent in a turn was scored against the first's output
 
 Found while building BH-09, when a co-running floorer and drifter produced
 DriftStates identical to 16 decimal places — a state neither agent's own
@@ -897,11 +897,28 @@ of it in the same turn:
 The contamination made the agent look **better**, because it was graded on the
 sibling's repetitive output instead of its own varying output.
 
-`RuntimeEvent` already carries `agent_handle`, so the filter is available and
-simply unused. NOT fixed here: adding it changes CDD inputs for every
-multi-agent configuration and would move expected values across many suites. That
-is a behaviour change with real blast radius and it needs its own increment, its
-own vacuity work, and a decision about the suites it moves.
+`RuntimeEvent` already carries `agent_handle`, so the filter was available and
+simply unused. **Fixed** — `checkContextDrift()` now drops events belonging to
+other handles, keeping `agent_handle == 0` (events raised outside any agent
+context, such as tool-driven file and network operations, which belong to
+whichever turn was open).
+
+This was initially deferred on the assumption that it would move expected values
+across many suites. **That assumption was measured and was false**: with the
+filter applied, `run-all-tests.sh` reported 441 accounted for and 0 unexpected
+failures — identical to baseline, not one suite moved. Which is its own finding:
+nothing in the tree covered the behaviour, so single-agent suites could not see
+it and multi-agent ones only ever asserted on the lead agent, who is unaffected.
+
+Regression: `tests/governance_v4/test_turn_event_isolation.sh`. The control *is*
+the test — one agent, one fixture, run twice, differing only in whether a
+sibling sends ahead of it. TEI-02 fails without the fix and reports the
+direction, because the pre-fix behaviour made the subject score BETTER and an
+assertion of mere inequality would pass on a fix that broke it the other way.
+TEI-01 is the positive control: two empty result sets compare equal, so without
+a row-count floor TEI-02 would pass on a run that never happened. The subject
+sends SECOND deliberately — the first sender is unaffected by construction, so
+a test with the subject leading passes with or without the fix (verified).
 
 Scope note for the campaign's own conclusions: every finding above about
 `drift_worker` rests on arithmetic that reconstructs exactly from its own signals
