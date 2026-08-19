@@ -652,8 +652,9 @@ allowance is `coherence_damage_total - coherence_healed_total`, which on a run
 that floored by turn 10 was *large*. Healing did not run because the whole F15
 block is gated on `coherence_natural_healing > 0.0`, and v3 leaves the key
 **unset** (default `0.0`). See the deep-review section below: v3 is the only
-living-script generation that does, and the break-even arithmetic says the key
-alone would have unlocked NORMAL.
+living-script generation that does. The break-even *arithmetic* suggested the key
+alone would unlock NORMAL; **it was then measured and it does not** — see the
+correction under the deep-review section.
 
 ### E5's "top signals" is a snapshot, not an attribution
 
@@ -952,15 +953,36 @@ rationale already documents ("v3 shipped with neither"). `step_up_enabled: false
 closes the challenge-pass channel too, and nothing calls `record_validation`, so
 all three recovery paths were off *by configuration*.
 
-The arithmetic says this one key explains the rest of the review. De-escalation to
-NORMAL needs `0.35·(1 − c/0.7) + 0.10 < 0.35`, i.e. **c > 0.20**. Healing grants
-`0.03 · 1/(1 + signals_fired)` per turn, so ~7 clean turns clears it; DRIFT_RECOVERY
-had 19 turns with signals on only 3. So the unset key plausibly accounts for the
-permanent floor, the 19 quarantined-but-acceptable responses, *and* the failure to
-reach NORMAL — all of which the review attributed to architecture.
+The break-even arithmetic is: NORMAL needs `0.35·(1 − c/0.7) + 0.10 < 0.35`, i.e.
+**c > 0.20**, and healing grants `0.03 · 1/(1 + signals_fired)` per turn — about 7
+clean turns against a recovery phase holding 19 turns that fired on only 3.
 
-**Testable, and worth testing**: re-run v3 with `coherence_natural_healing: 0.03`
-and nothing else changed.
+**That reasoning was tested and it is WRONG.** It is recorded here rather than
+quietly deleted, because it is the most instructive error in this section: an
+arithmetic argument that survives its own sanity check and still loses to a
+measurement.
+
+Two independent results say so:
+
+- **The 2x2 itself.** Arms B and D carried `coherence_natural_healing: 0.03` and
+  produced outcomes IDENTICAL to arms A and C — same kill turn, same exit code,
+  same streak. Healing bought one turn of delay before the floor and nothing else.
+- **`open-investigations.md` C1b, which predates all of this.** Varying only the
+  rate on v3: `0.0` and `0.03` give identical results; only **0.25** restores
+  `elevated → normal`. That row was already in the tree while this claim was being
+  written, and consulting it would have pre-empted the whole detour.
+
+The reason the arithmetic failed is in the next paragraph, and it was visible
+without any run: `heal_factor = 1/(1 + signals_fired)` means the "7 clean turns"
+premise required turns that this workload does not produce, because the same
+false-positive signals that cause the damage also throttle the healing. The
+break-even calculation quietly assumed a clean-turn rate the run never had.
+
+So the corrected position: the unset key explains why the fault was **permanent**
+and nothing else. It does not account for the floor, the quarantines, or the
+failure to reach NORMAL. The v3 config still carries `0.03` — it matches every
+sibling generation and the bounded ledger makes it safe — but it is consistency,
+not a fix.
 
 **But healing fixes the permanence, not the cause — and the numbers say so.**
 Weights are S15 `0.08`, S10 `0.10`; healing is `0.03 · 1/(1 + signals_fired)`.
