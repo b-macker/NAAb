@@ -1,0 +1,110 @@
+# Config keys the loader parses that NO enforcement code reads.
+#
+# Generated and checked by test_inert_key_sweep.sh. Each line is a config path
+# whose leaf identifier appears only in: the struct declaration
+# (include/naab/governance.h), the loader (src/runtime/governance_config.cpp --
+# parse, clamp, ratchet, inheritance), and/or the config generator
+# (src/cli/governance_init.cpp). Nothing in the engine, the checks, the VM or
+# the stdlib reads them.
+#
+# WHY THIS FILE EXISTS
+#
+# Three inert-or-inverted mechanisms have been found in this engine, and all
+# three were found BY ACCIDENT from an unrelated direction, never by review:
+#   * CONTRA-007 iterated a set its own loader empties at parse time.
+#   * The circuit breaker's middle levels were gated on a threshold belonging to
+#     a different feature, so ELEVATED and HIGH were unreachable through pressure.
+#   * code_quality.<check>: {"enabled": false} silently turned the check ON.
+# A key that is parsed, clamped, ratcheted and inherited looks alive from every
+# angle except the one that matters. This baseline turns "found by accident" into
+# "fails in CI".
+#
+# HOW TO CHANGE IT
+#
+# Adding a line is a claim that a new config key enforces nothing. Do not add one
+# to make the suite green -- wire the key up, or delete it. Removing a line is
+# the good direction: it means a key that used to enforce nothing now does.
+#
+# NOT every entry is a defect. `meta.*` and `meta.inheritance.*` are consumed by
+# the loader itself by design (they configure parsing), so they belong here as
+# "loader-consumed", not "dead". The entries that matter are the ones shaped like
+# runtime enforcement -- limits.*, polyglot.*, restrictions.*, requirements.*,
+# trust_policy.* -- several of which govern-template.json ships with real-looking
+# values and `naab governance init` writes into every generated config.
+agent_dispatch.default_timeout_seconds
+agent_dispatch.max_retries_per_run
+api.tls_cert_path
+api.tls_key_path
+approval.default_expiry_hours
+audit.log_events.checks_failed
+audit.log_events.checks_passed
+audit.provenance.record_decisions
+audit.provenance.record_proof_objects
+code_quality.max_complexity.max_parameters
+code_quality.no_apologetic_language.scan_comments_only
+code_quality.no_apologetic_language.scan_strings
+code_quality.no_hardcoded_results.check_dict_success_fields
+code_quality.no_hardcoded_results.check_return_true_false
+code_quality.no_mock_data.ignore_in_test_context
+limits.code.max_functions
+limits.code.max_total_polyglot_lines
+limits.code.max_variables
+limits.data.input_size
+limits.execution.total_executions
+limits.memory.per_block_mb
+limits.memory.total_mb
+limits.rate.cooldown_on_limit_ms
+limits.timeout.total_polyglot
+meta.allow_agent_addition_mid_run
+meta.environment.allow_cli_override
+meta.environment.env_prefix
+meta.feature_flags.experimental_checks
+meta.feature_flags.verbose_parsing
+meta.inheritance.merge_arrays
+meta.inheritance.merge_strategy
+meta.schema_validation.suggest_corrections
+meta.schema_validation.warn_unknown_keys
+output.errors.max_errors_per_rule
+output.errors.max_total_errors
+output.errors.show_code_context
+output.errors.show_examples
+output.errors.show_help
+output.formatting.unicode_symbols
+output.summary.show_passing
+polyglot.output.max_output_lines
+polyglot.output.require_json_pipe
+polyglot.output.require_naab_return
+polyglot.output.validate_encoding
+polyglot.parallel.max_parallel_blocks
+polyglot.parallel.timeout_per_block
+polyglot.persistent_runtime.max_memory_per_session_mb
+polyglot.persistent_runtime.max_sessions
+polyglot.persistent_runtime.session_timeout
+polyglot.variable_binding.max_bound_variables
+polyglot_optimization.ai_guidance.include_in_errors
+polyglot_optimization.ai_guidance.show_benchmarks
+polyglot_optimization.ai_guidance.suggest_refactoring
+polyglot_optimization.calibration.auto_calibrate
+polyglot_optimization.helper_errors.fuzzy_match_threshold
+polyglot_optimization.helper_errors.show_alternative_language
+polyglot_optimization.language_diversity.max_single_language_percent
+polyglot_optimization.language_diversity.min_languages
+polyglot_optimization.verification.max_verification_time_ms
+requirements.error_handling.require_catch_body
+requirements.error_handling.require_try_catch
+requirements.naming_conventions.check_naab_code
+requirements.naming_conventions.check_polyglot_code
+restrictions.code_injection.block_ldap_injection
+restrictions.code_injection.block_template_injection
+restrictions.code_injection.block_xpath_injection
+restrictions.polyglot_output.require_structured
+restrictions.polyglot_output.validate_json
+telemetry_output.forward_batch_size
+telemetry_output.forward_buffer_max
+telemetry_output.forward_retry_count
+telemetry_output.forward_shutdown_drain_ms
+telemetry_output.forward_timeout_ms
+telemetry_output.webhook_auth_header
+trust_policy.check_key_expiry
+trust_policy.check_revocation
+trust_policy.require_fresh_signature
