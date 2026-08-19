@@ -1073,8 +1073,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     config.enabled = en;
                     config.level = lv;
                 } else if (cq[key].is_object()) {
+                    // Presence of an object still means "configure and enable" --
+                    // that is what every object form without an explicit flag has
+                    // always meant, and most in-tree configs rely on it.
                     config.enabled = true;
                     auto& obj = cq[key];
+                    // ...but an explicit `enabled` inside the object was read by
+                    // NOTHING, so `{"enabled": false}` turned the check ON: the
+                    // exact inverse of what the operator wrote. Both copies of
+                    // govern-template.json ship `no_hardcoded_urls: {"enabled":
+                    // false}` and `no_hardcoded_ips: {"enabled": false}`, so the
+                    // shipped template enabled the two checks it documents as off,
+                    // and anyone copying it inherited that.
+                    if (obj.contains("enabled") && obj["enabled"].is_boolean())
+                        config.enabled = obj["enabled"].get<bool>();
                     if (obj.contains("level")) { auto [en, lv] = parseEnforcementLevel(obj["level"]); config.level = lv; }
                     if (obj.contains("patterns"))
                         for (auto& p : obj["patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());

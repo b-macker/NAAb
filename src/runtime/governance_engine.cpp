@@ -5895,11 +5895,19 @@ std::vector<ContradictionResult> GovernanceEngine::detectContradictions() {
         results.push_back(c);
     }
 
-    // Record each contradiction as a governance finding
+    // Record each contradiction as a governance finding.
+    //
+    // rule_name goes to formatError as well as to enforce(). It used to be ""
+    // there, and the two paths disagreed about whether the operator ever learns
+    // which pattern fired: ADVISORY findings carry the rule through the finding
+    // record and print `contradiction.CONTRA-00N`, but a SOFT/HARD contradiction
+    // ABORTS THE LOAD and all the operator sees is the formatted error -- which
+    // rendered `Rule: ` empty. CONTRA-001 is hardcoded SOFT, so the one
+    // contradiction that stops a run was also the one that would not name itself.
     for (const auto& c : results) {
         std::string rule_name = "contradiction." + c.pattern_id;
         enforce(rule_name, c.level,
-                formatError(c.level, c.description, "", "", c.resolution, "", ""));
+                formatError(c.level, c.description, "", rule_name, c.resolution, "", ""));
     }
 
     return results;
