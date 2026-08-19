@@ -162,6 +162,33 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
         if (s == "soft")              return {true, EnforcementLevel::SOFT};
         if (s == "advisory")          return {true, EnforcementLevel::ADVISORY};
         if (s == "detect")            return {true, EnforcementLevel::DETECT};
+        // A1c: any OTHER string falls through to {false, HARD} below -- i.e. it
+        // silently DISABLES the check. So "level": "off", "none", "warn", or a
+        // plain typo turns a check off with no diagnostic, which is the same
+        // silence as the ignored "enabled" flag, in the very key the warning for
+        // that flag tells operators to reach for.
+        //
+        // The value is still not honoured differently -- rejecting unknown levels
+        // and defaulting them to enabled are both tightenings that could fail
+        // configs which load today. Only the silence is fixed, matching the
+        // precedent set for the enabled flag.
+        // Warn once per distinct unknown level. Several checks are parsed by two
+        // paths (no_secrets, no_placeholders, no_hardcoded_results each reach
+        // parseEnforcementLevel twice), so a single bad value printed per call
+        // site produces duplicate lines that carry no extra information -- the
+        // message does not name the key, so the second line is pure noise.
+        {
+            static std::mutex warned_mu;
+            static std::set<std::string> warned;
+            std::lock_guard<std::mutex> lk(warned_mu);
+            if (warned.insert(s).second) {
+                fprintf(stderr,
+                        "[governance] Warning: unknown enforcement level \"%s\" - "
+                        "this check is DISABLED. Valid levels: hard, soft, "
+                        "advisory, detect, approval_required.\n",
+                        s.c_str());
+            }
+        }
     }
     if (value.is_object()) {
         bool enabled = value.value("enabled", true);
