@@ -204,6 +204,27 @@ static void parseRationale(const nlohmann::json& obj, std::string& target) {
     }
 }
 
+// A check whose object form enables itself from the mere PRESENCE of the block,
+// and never reads "enabled". Writing {"enabled": false} therefore turns it ON.
+//
+// The value is deliberately not honoured -- see the long note at the
+// restrictions.* block: honouring it is a loosening, because every config
+// carrying "enabled": false today is being enforced and would silently stop on
+// upgrade. What is wrong is the silence, so the silence is what this fixes, with
+// no change to what is enforced. Shared so code_quality, requirements and
+// restrictions all say the same thing about the same JSON.
+static void warnIgnoredEnableFlag(const nlohmann::json& blk, const char* section,
+                                  const char* name) {
+    if (blk.contains("enabled") && blk["enabled"].is_boolean() &&
+        !blk["enabled"].get<bool>()) {
+        fprintf(stderr,
+                "[governance] Warning: \"%s.%s.enabled\": false has no effect - "
+                "this check is enabled by the presence of its block. "
+                "Remove the \"%s\" block to leave it disabled.\n",
+                section, name, name);
+    }
+}
+
 static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     // Mode
     if (j.contains("mode") && j["mode"].is_string()) {
@@ -1073,20 +1094,26 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                     config.enabled = en;
                     config.level = lv;
                 } else if (cq[key].is_object()) {
-                    // Presence of an object still means "configure and enable" --
-                    // that is what every object form without an explicit flag has
-                    // always meant, and most in-tree configs rely on it.
+                    // Presence of an object means "configure and enable", and an
+                    // explicit `enabled` inside it is NOT read -- so
+                    // `{"enabled": false}` turns the check ON, the inverse of what
+                    // the operator wrote. Both copies of govern-template.json ship
+                    // `no_hardcoded_urls: {"enabled": false}` and
+                    // `no_hardcoded_ips: {"enabled": false}`, so the shipped
+                    // template enables the two checks it documents as off.
+                    //
+                    // The value is deliberately NOT honoured, for the reason given
+                    // at the restrictions.* block above: honouring it is a
+                    // LOOSENING -- every config carrying "enabled": false today is
+                    // being enforced and would silently stop on upgrade. This was
+                    // briefly fixed the other way, which disabled two checks in
+                    // both templates and made the same JSON mean opposite things in
+                    // code_quality and restrictions -- the exact confusion that
+                    // comment exists to complain about. The silence is the defect;
+                    // the silence is what gets fixed.
                     config.enabled = true;
                     auto& obj = cq[key];
-                    // ...but an explicit `enabled` inside the object was read by
-                    // NOTHING, so `{"enabled": false}` turned the check ON: the
-                    // exact inverse of what the operator wrote. Both copies of
-                    // govern-template.json ship `no_hardcoded_urls: {"enabled":
-                    // false}` and `no_hardcoded_ips: {"enabled": false}`, so the
-                    // shipped template enabled the two checks it documents as off,
-                    // and anyone copying it inherited that.
-                    if (obj.contains("enabled") && obj["enabled"].is_boolean())
-                        config.enabled = obj["enabled"].get<bool>();
+                    warnIgnoredEnableFlag(obj, "code_quality", key.c_str());
                     if (obj.contains("level")) { auto [en, lv] = parseEnforcementLevel(obj["level"]); config.level = lv; }
                     if (obj.contains("patterns"))
                         for (auto& p : obj["patterns"]) if (p.is_string()) config.patterns.push_back(p.get<std::string>());
@@ -1158,6 +1185,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             } else if (cq["no_pii"].is_object()) {
                 auto& pii = cq["no_pii"];
                 rules_.code_quality.no_pii.enabled = true;
+                warnIgnoredEnableFlag(pii, "code_quality", "no_pii");
                 if (pii.contains("level")) { auto [en, lv] = parseEnforcementLevel(pii["level"]); rules_.code_quality.no_pii.level = lv; }
                 if (pii.contains("detect_ssn") && pii["detect_ssn"].is_boolean()) rules_.code_quality.no_pii.detect_ssn = pii["detect_ssn"].get<bool>();
                 if (pii.contains("detect_credit_card") && pii["detect_credit_card"].is_boolean()) rules_.code_quality.no_pii.detect_credit_card = pii["detect_credit_card"].get<bool>();
@@ -1174,6 +1202,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cq.contains("no_mock_data") && cq["no_mock_data"].is_object()) { rules_.explicitly_set.insert("code_quality.no_mock_data");
             auto& md = cq["no_mock_data"];
             rules_.code_quality.no_mock_data.enabled = true;
+            warnIgnoredEnableFlag(md, "code_quality", "no_mock_data");
             if (md.contains("level")) { auto [en, lv] = parseEnforcementLevel(md["level"]); rules_.code_quality.no_mock_data.level = lv; }
             if (md.contains("variable_prefixes")) for (auto& p : md["variable_prefixes"]) if (p.is_string()) rules_.code_quality.no_mock_data.variable_prefixes.push_back(p.get<std::string>());
             if (md.contains("function_prefixes")) for (auto& p : md["function_prefixes"]) if (p.is_string()) rules_.code_quality.no_mock_data.function_prefixes.push_back(p.get<std::string>());
@@ -1195,6 +1224,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             } else if (cq["no_apologetic_language"].is_object()) {
                 auto& al = cq["no_apologetic_language"];
                 rules_.code_quality.no_apologetic_language.enabled = true;
+                warnIgnoredEnableFlag(al, "code_quality", "no_apologetic_language");
                 if (al.contains("level")) { auto [en, lv] = parseEnforcementLevel(al["level"]); rules_.code_quality.no_apologetic_language.level = lv; }
                 if (al.contains("scan_comments_only") && al["scan_comments_only"].is_boolean()) rules_.code_quality.no_apologetic_language.scan_comments_only = al["scan_comments_only"].get<bool>();
                 if (al.contains("scan_strings") && al["scan_strings"].is_boolean()) rules_.code_quality.no_apologetic_language.scan_strings = al["scan_strings"].get<bool>();
@@ -1206,6 +1236,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cq.contains("max_complexity") && cq["max_complexity"].is_object()) { rules_.explicitly_set.insert("code_quality.max_complexity");
             auto& mc = cq["max_complexity"];
             rules_.code_quality.max_complexity.enabled = true;
+            warnIgnoredEnableFlag(mc, "code_quality", "max_complexity");
             if (mc.contains("level")) { auto [en, lv] = parseEnforcementLevel(mc["level"]); rules_.code_quality.max_complexity.level = lv; }
             if (mc.contains("max_lines_per_block") && mc["max_lines_per_block"].is_number_integer()) rules_.code_quality.max_complexity.max_lines_per_block = mc["max_lines_per_block"].get<int>();
             if (mc.contains("max_nesting_depth") && mc["max_nesting_depth"].is_number_integer()) rules_.code_quality.max_complexity.max_nesting_depth = mc["max_nesting_depth"].get<int>();
@@ -1217,6 +1248,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cq.contains("encoding") && cq["encoding"].is_object()) { rules_.explicitly_set.insert("code_quality.encoding");
             auto& enc = cq["encoding"];
             rules_.code_quality.encoding.enabled = true;
+            warnIgnoredEnableFlag(enc, "code_quality", "encoding");
             if (enc.contains("level")) { auto [en, lv] = parseEnforcementLevel(enc["level"]); rules_.code_quality.encoding.level = lv; }
             if (enc.contains("block_null_bytes") && enc["block_null_bytes"].is_boolean()) rules_.code_quality.encoding.block_null_bytes = enc["block_null_bytes"].get<bool>();
             if (enc.contains("block_unicode_bidi") && enc["block_unicode_bidi"].is_boolean()) rules_.code_quality.encoding.block_unicode_bidi = enc["block_unicode_bidi"].get<bool>();
@@ -1227,6 +1259,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cq.contains("no_hardcoded_results") && cq["no_hardcoded_results"].is_object()) { rules_.explicitly_set.insert("code_quality.no_hardcoded_results");
             auto& hr = cq["no_hardcoded_results"];
             rules_.code_quality.no_hardcoded_results.enabled = true;
+            warnIgnoredEnableFlag(hr, "code_quality", "no_hardcoded_results");
             rules_.no_hardcoded_results = true;
             if (hr.contains("level")) { auto [en, lv] = parseEnforcementLevel(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
@@ -1324,6 +1357,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto& val = cq["complexity_floor"];
             auto& cf = rules_.code_quality.complexity_floor;
             cf.enabled = true;  // Presence of section enables it
+            if (val.is_object()) warnIgnoredEnableFlag(val, "code_quality", "complexity_floor");
             if (val.is_string()) {
                 auto [en, lv] = parseEnforcementLevel(val);
                 if (en) cf.level = lv;

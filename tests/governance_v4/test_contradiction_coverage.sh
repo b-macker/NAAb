@@ -136,8 +136,18 @@ else
 fi
 
 # --- CCOV-03: CONTRA-003 — no_hardcoded_urls with a non-empty allowed_hosts ---
+# The negative OMITS the no_hardcoded_urls block rather than setting it false.
+# That is not cosmetic: a code_quality check enables itself from the PRESENCE of
+# its block and deliberately does not honour an inner "enabled" (see the note at
+# the restrictions.* block in governance_config.cpp -- honouring it would be a
+# loosening, silently disabling checks that enforce today). So
+# `{"enabled": false}` leaves the check ON, and a negative fixture written that
+# way is not negative at all: it fires exactly like the positive and the gate
+# reports a defect that is not there. Omitting the block is the only way to
+# actually leave the check off, which is precisely what the warning the loader
+# now prints tells the operator to do.
 CC3_POS='{ "version":"5.0","mode":"enforce","code_quality":{"no_hardcoded_urls":{"enabled":true}},"capabilities":{"network":{"enabled":true,"allowed_hosts":["api.example.com"]}} }'
-CC3_NEG='{ "version":"5.0","mode":"enforce","code_quality":{"no_hardcoded_urls":{"enabled":false}},"capabilities":{"network":{"enabled":true,"allowed_hosts":["api.example.com"]}} }'
+CC3_NEG='{ "version":"5.0","mode":"enforce","capabilities":{"network":{"enabled":true,"allowed_hosts":["api.example.com"]}} }'
 check_pattern "CCOV-03" "CONTRA-003" "$CC3_POS" "$CC3_NEG"
 
 # --- CCOV-04: CONTRA-004 — complexity floor >= 20 vs duplicate_calls <= 2 -------
