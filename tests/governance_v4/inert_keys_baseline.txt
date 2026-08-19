@@ -25,12 +25,39 @@
 # to make the suite green -- wire the key up, or delete it. Removing a line is
 # the good direction: it means a key that used to enforce nothing now does.
 #
-# NOT every entry is a defect. `meta.*` and `meta.inheritance.*` are consumed by
-# the loader itself by design (they configure parsing), so they belong here as
-# "loader-consumed", not "dead". The entries that matter are the ones shaped like
-# runtime enforcement -- limits.*, polyglot.*, restrictions.*, requirements.*,
-# trust_policy.* -- several of which govern-template.json ships with real-looking
-# values and `naab governance init` writes into every generated config.
+# AN UNREAD KEY DOES NOT MEAN AN ABSENT FEATURE
+#
+# This distinction was got wrong once already, in the alarming direction, and the
+# four categories below are all present in this file:
+#
+#   A. No enforcement exists. The limit is simply not implemented. VERIFIED
+#      EMPIRICALLY for limits.code.max_total_polyglot_lines / max_functions /
+#      max_variables, limits.execution.total_executions and limits.memory.total_mb
+#      / per_block_mb: all six set to 1, a program with 40+ polyglot lines across
+#      two blocks runs to completion, exit 0, "0 violations" -- with
+#      languages.blocked as a positive control on the identical program and
+#      harness, which does block at exit 3. These are the real gaps.
+#
+#   B. The feature is LIVE and the toggle is inert. trust_policy.check_revocation
+#      and trust_policy.check_key_expiry are the case: TrustStore::loadTrustedKeys
+#      skips revoked and expired keys UNCONDITIONALLY, and trust_store.cpp never
+#      consults the governance config at all. Setting either key to false does not
+#      disable anything. Wiring these up could therefore only permit WEAKENING --
+#      the opposite of the "unprotected" reading their names invite.
+#
+#   C. A live check whose sub-option is ignored.
+#      requirements.error_handling.require_try_catch / require_catch_body are read
+#      nowhere, while the check itself runs off a different field
+#      (rules().require_error_handling). The rule enforces; its two knobs do not.
+#
+#   D. Feature absent and the default admits it.
+#      trust_policy.require_fresh_signature defaults to false and no
+#      signature-age comparison exists anywhere, so nothing is promised.
+#
+# `meta.*` and `meta.inheritance.*` are a fifth, benign case: the loader itself is
+# their legitimate consumer, since they configure parsing.
+#
+# So triage before acting. The keys worth wiring or deleting are category A.
 agent_dispatch.default_timeout_seconds
 agent_dispatch.max_retries_per_run
 api.tls_cert_path
