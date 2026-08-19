@@ -162,6 +162,33 @@ static std::pair<bool, EnforcementLevel> parseEnforcementLevel(
         if (s == "soft")              return {true, EnforcementLevel::SOFT};
         if (s == "advisory")          return {true, EnforcementLevel::ADVISORY};
         if (s == "detect")            return {true, EnforcementLevel::DETECT};
+        // A1c: any OTHER string falls through to {false, HARD} below -- i.e. it
+        // silently DISABLES the check. So "level": "off", "none", "warn", or a
+        // plain typo turns a check off with no diagnostic, which is the same
+        // silence as the ignored "enabled" flag, in the very key the warning for
+        // that flag tells operators to reach for.
+        //
+        // The value is still not honoured differently -- rejecting unknown levels
+        // and defaulting them to enabled are both tightenings that could fail
+        // configs which load today. Only the silence is fixed, matching the
+        // precedent set for the enabled flag.
+        // Warn once per distinct unknown level. Several checks are parsed by two
+        // paths (no_secrets, no_placeholders, no_hardcoded_results each reach
+        // parseEnforcementLevel twice), so a single bad value printed per call
+        // site produces duplicate lines that carry no extra information -- the
+        // message does not name the key, so the second line is pure noise.
+        {
+            static std::mutex warned_mu;
+            static std::set<std::string> warned;
+            std::lock_guard<std::mutex> lk(warned_mu);
+            if (warned.insert(s).second) {
+                fprintf(stderr,
+                        "[governance] Warning: unknown enforcement level \"%s\" - "
+                        "this check is DISABLED. Valid levels: hard, soft, "
+                        "advisory, detect, approval_required.\n",
+                        s.c_str());
+            }
+        }
     }
     if (value.is_object()) {
         bool enabled = value.value("enabled", true);
@@ -221,11 +248,27 @@ static void parseRationale(const nlohmann::json& obj, std::string& target) {
 // warnIgnoredEnableFlag(), whose subject is enabled-by-presence.
 static void warnEnableNeedsLevel(const nlohmann::json& blk, const char* section,
                                  const char* name) {
-    if (blk.contains("enabled") && blk["enabled"].is_boolean()) {
+    if (!blk.contains("enabled") || !blk["enabled"].is_boolean()) return;
+    const bool asked   = blk["enabled"].get<bool>();
+    const bool actual  = blk.contains("level");   // "level" is the real trigger
+    // Only the MISMATCH is worth a warning. Warning on every block carrying an
+    // "enabled" key fires on the two combinations that already do what the
+    // operator meant -- {enabled:true, level:X} is on and stays on,
+    // {enabled:false} with no level is off and stays off -- and in the first of
+    // those the advice ("add a level") is actively wrong, because a level is
+    // right there. A warning an operator learns to ignore is worse than none.
+    if (asked == actual) return;
+    if (asked) {
         fprintf(stderr,
-                "[governance] Warning: \"%s.%s.enabled\" is not read - this check "
-                "is enabled by setting \"level\" on the \"%s\" block. "
-                "Add a \"level\" to enable it, or remove the block to leave it off.\n",
+                "[governance] Warning: \"%s.%s.enabled\": true does not enable this "
+                "check - it is enabled by setting \"level\" on the \"%s\" block, "
+                "which is absent, so the check is OFF. Add a \"level\" to enable it.\n",
+                section, name, name);
+    } else {
+        fprintf(stderr,
+                "[governance] Warning: \"%s.%s.enabled\": false has no effect - the "
+                "\"level\" key on the \"%s\" block is what enables this check, so it "
+                "is ON. Remove the block to leave it disabled.\n",
                 section, name, name);
     }
 }
