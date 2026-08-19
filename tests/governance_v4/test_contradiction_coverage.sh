@@ -27,6 +27,13 @@
 # its condition, and once against a config that differs ONLY in the field that
 # condition tests. The negative half is what makes the positive half evidence.
 #
+# GATE IDS ARE CCOV-, NOT CC-
+#
+# test_config_contradictions.sh already uses CC-01..CC-04 for different gates,
+# and both suites print into the same run log twenty lines apart. A bare
+# `grep CC-01` over that log returns two unrelated assertions, which is precisely
+# the ambiguity that has misdirected forensic passes in this campaign before.
+#
 # CONTRA-001 IS THE ODD ONE
 #
 # It is hardcoded SOFT rather than taking contradiction_detection.max_level, so
@@ -58,7 +65,7 @@ trap cleanup EXIT
 mkdir -p "$TEST_TMP/trust"
 
 if [ ! -x "$NAAB" ]; then
-    skip "CC-00" "build/naab-lang not found"
+    skip "CCOV-00" "build/naab-lang not found"
     echo "  Results: 0 passed, 0 failed, 1 skipped"
     exit 0
 fi
@@ -108,51 +115,51 @@ check_pattern() {
     fi
 }
 
-# --- CC-01: CONTRA-001 — shell disabled, 'shell' still an allowed language ---
+# --- CCOV-01: CONTRA-001 — shell disabled, 'shell' still an allowed language ---
 # Hardcoded SOFT: aborts the load. Negative flips ONLY the capability.
 CC1_POS='{ "version":"5.0","mode":"enforce","capabilities":{"shell":{"enabled":false}},"languages":{"allowed":["python","shell"]} }'
 CC1_NEG='{ "version":"5.0","mode":"enforce","capabilities":{"shell":{"enabled":true}},"languages":{"allowed":["python","shell"]} }'
-check_pattern "CC-01" "CONTRA-001" "$CC1_POS" "$CC1_NEG"
+check_pattern "CCOV-01" "CONTRA-001" "$CC1_POS" "$CC1_NEG"
 
-# --- CC-02: the SOFT path names the pattern (regression for an empty Rule:) ---
+# --- CCOV-02: the SOFT path names the pattern (regression for an empty Rule:) ---
 # ADVISORY findings carry the rule through the finding record, but a SOFT
 # contradiction aborts the load and the operator sees only the formatted error.
 # That path passed "" as the rule, so `Rule:` rendered empty on the ONE pattern
 # that stops a run. Assert the id is in the Rule line specifically, not merely
 # somewhere in the output — the description alone would satisfy the latter.
-RULE_OUT=$(run_cfg "$TEST_TMP/CC-01-pos")
+RULE_OUT=$(run_cfg "$TEST_TMP/CCOV-01-pos")
 if grep -qE '^[[:space:]]*Rule:[[:space:]]*contradiction\.CONTRA-001[[:space:]]*$' <<< "$RULE_OUT"; then
-    pass "CC-02" "a load-aborting contradiction names its pattern in Rule:"
+    pass "CCOV-02" "a load-aborting contradiction names its pattern in Rule:"
 else
-    fail "CC-02" "the Rule: line does not name the pattern" \
+    fail "CCOV-02" "the Rule: line does not name the pattern" \
          "got: $(grep -E '^[[:space:]]*Rule:' <<< "$RULE_OUT" | head -1 | sed 's/^[[:space:]]*//')"
 fi
 
-# --- CC-03: CONTRA-003 — no_hardcoded_urls with a non-empty allowed_hosts ---
+# --- CCOV-03: CONTRA-003 — no_hardcoded_urls with a non-empty allowed_hosts ---
 CC3_POS='{ "version":"5.0","mode":"enforce","code_quality":{"no_hardcoded_urls":{"enabled":true}},"capabilities":{"network":{"enabled":true,"allowed_hosts":["api.example.com"]}} }'
 CC3_NEG='{ "version":"5.0","mode":"enforce","code_quality":{"no_hardcoded_urls":{"enabled":false}},"capabilities":{"network":{"enabled":true,"allowed_hosts":["api.example.com"]}} }'
-check_pattern "CC-03" "CONTRA-003" "$CC3_POS" "$CC3_NEG"
+check_pattern "CCOV-03" "CONTRA-003" "$CC3_POS" "$CC3_NEG"
 
-# --- CC-04: CONTRA-004 — complexity floor >= 20 vs duplicate_calls <= 2 -------
+# --- CCOV-04: CONTRA-004 — complexity floor >= 20 vs duplicate_calls <= 2 -------
 # Negative raises ONLY the duplicate_calls threshold past the boundary (2 -> 5),
 # so it also pins the comparison, not just the pair of features being enabled.
 CC4_POS='{ "version":"5.0","mode":"enforce","code_quality":{"complexity_floor":{"enabled":true,"min_score":25},"duplicate_calls":{"enabled":true,"threshold":2}} }'
 CC4_NEG='{ "version":"5.0","mode":"enforce","code_quality":{"complexity_floor":{"enabled":true,"min_score":25},"duplicate_calls":{"enabled":true,"threshold":5}} }'
-check_pattern "CC-04" "CONTRA-004" "$CC4_POS" "$CC4_NEG"
+check_pattern "CCOV-04" "CONTRA-004" "$CC4_POS" "$CC4_NEG"
 
-# --- CC-05: CONTRA-005 — filesystem 'none' with a file-shaped taint sink -----
+# --- CCOV-05: CONTRA-005 — filesystem 'none' with a file-shaped taint sink -----
 # Negative keeps filesystem 'none' and taint on, changing only the SINK, so the
 # substring match on "file" is what is under test.
 CC5_POS='{ "version":"5.0","mode":"enforce","capabilities":{"filesystem":{"mode":"none"}},"taint_tracking":{"enabled":true,"sinks":["file.write"]} }'
 CC5_NEG='{ "version":"5.0","mode":"enforce","capabilities":{"filesystem":{"mode":"none"}},"taint_tracking":{"enabled":true,"sinks":["http.post"]} }'
-check_pattern "CC-05" "CONTRA-005" "$CC5_POS" "$CC5_NEG"
+check_pattern "CCOV-05" "CONTRA-005" "$CC5_POS" "$CC5_NEG"
 
-# --- CC-06: CONTRA-008 — a contract on a function banned for a language ------
+# --- CCOV-06: CONTRA-008 — a contract on a function banned for a language ------
 # Negative keeps both the contract and the ban list, and only renames the banned
 # function, so the NAME COMPARISON is what is pinned.
 CC8_POS='{ "version":"5.0","mode":"enforce","contracts":{"functions":{"compute_total":{"description":"totals","return_type":"int"}}},"languages":{"per_language":{"python":{"banned_functions":["compute_total"]}}} }'
 CC8_NEG='{ "version":"5.0","mode":"enforce","contracts":{"functions":{"compute_total":{"description":"totals","return_type":"int"}}},"languages":{"per_language":{"python":{"banned_functions":["something_else"]}}} }'
-check_pattern "CC-06" "CONTRA-008" "$CC8_POS" "$CC8_NEG"
+check_pattern "CCOV-06" "CONTRA-008" "$CC8_POS" "$CC8_NEG"
 
 echo ""
 echo -e "${CYAN}==============================================================${NC}"
