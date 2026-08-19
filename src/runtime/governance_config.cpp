@@ -213,6 +213,23 @@ static void parseRationale(const nlohmann::json& obj, std::string& target) {
 // upgrade. What is wrong is the silence, so the silence is what this fixes, with
 // no change to what is enforced. Shared so code_quality, requirements and
 // restrictions all say the same thing about the same JSON.
+// A check whose block enables itself only when "level" is present, and which
+// never reads "enabled" at all -- so BOTH {"enabled": true} and
+// {"enabled": false} are no-ops there. The first is the more dangerous reading:
+// an operator who writes {"enabled": true} with no level believes they turned a
+// requirement on, and it stays off. Distinct message from
+// warnIgnoredEnableFlag(), whose subject is enabled-by-presence.
+static void warnEnableNeedsLevel(const nlohmann::json& blk, const char* section,
+                                 const char* name) {
+    if (blk.contains("enabled") && blk["enabled"].is_boolean()) {
+        fprintf(stderr,
+                "[governance] Warning: \"%s.%s.enabled\" is not read - this check "
+                "is enabled by setting \"level\" on the \"%s\" block. "
+                "Add a \"level\" to enable it, or remove the block to leave it off.\n",
+                section, name, name);
+    }
+}
+
 static void warnIgnoredEnableFlag(const nlohmann::json& blk, const char* section,
                                   const char* name) {
     if (blk.contains("enabled") && blk["enabled"].is_boolean() &&
@@ -499,8 +516,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& cq = j["code_quality"];
 
         // Helper: parse a code quality field that may be bool/string or object with "level"
-        auto parseCodeQualityField = [](const nlohmann::json& val, bool& out_enabled, EnforcementLevel& out_level) {
+        auto parseCodeQualityField = [](const nlohmann::json& val, bool& out_enabled,
+                                        EnforcementLevel& out_level, const char* name) {
             if (val.is_object()) {
+                // An object without "level" enables the check AT HARD, and the
+                // inner "enabled" is not read -- so {"enabled": false} on
+                // no_secrets turns secret scanning ON as an uncatchable exit-3
+                // block, identical to writing true. Verified: block absent exits
+                // 0, {"enabled": false} exits 3, true exits 3. Not honoured here
+                // for the reason at the restrictions.* block (honouring is a
+                // loosening); warned instead.
+                warnIgnoredEnableFlag(val, "code_quality", name);
                 if (val.contains("level")) {
                     auto [en, lv] = parseEnforcementLevel(val["level"]);
                     out_enabled = en;
@@ -517,11 +543,11 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         };
 
         if (cq.contains("no_secrets"))
-            parseCodeQualityField(cq["no_secrets"], rules_.no_secrets, rules_.no_secrets_level);
+            parseCodeQualityField(cq["no_secrets"], rules_.no_secrets, rules_.no_secrets_level, "no_secrets");
         if (cq.contains("no_placeholders"))
-            parseCodeQualityField(cq["no_placeholders"], rules_.no_placeholders, rules_.no_placeholders_level);
+            parseCodeQualityField(cq["no_placeholders"], rules_.no_placeholders, rules_.no_placeholders_level, "no_placeholders");
         if (cq.contains("no_hardcoded_results"))
-            parseCodeQualityField(cq["no_hardcoded_results"], rules_.no_hardcoded_results, rules_.no_hardcoded_results_level);
+            parseCodeQualityField(cq["no_hardcoded_results"], rules_.no_hardcoded_results, rules_.no_hardcoded_results_level, "no_hardcoded_results");
     }
 
     // Audit (legacy simple format)
@@ -850,6 +876,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& req = j["requirements"];
         if (req.contains("main_block") && req["main_block"].is_object()) {
             auto& mb = req["main_block"];
+            warnEnableNeedsLevel(mb, "requirements", "main_block");
             rules_.explicitly_set.insert("requirements.main_block");
             if (mb.contains("level")) {
                 auto [en, lv] = parseEnforcementLevel(mb["level"]);
@@ -863,6 +890,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (req.contains("error_handling") && req["error_handling"].is_object()) {
             auto& eh = req["error_handling"];
+            warnEnableNeedsLevel(eh, "requirements", "error_handling");
             rules_.explicitly_set.insert("requirements.error_handling");
             if (eh.contains("level")) {
                 auto [en, lv] = parseEnforcementLevel(eh["level"]);
@@ -877,6 +905,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (req.contains("naming_conventions") && req["naming_conventions"].is_object()) {
             auto& nc = req["naming_conventions"];
+            warnIgnoredEnableFlag(nc, "requirements", "naming_conventions");
             rules_.requirements.naming_conventions.enabled = true;
             rules_.explicitly_set.insert("requirements.naming_conventions");
             if (nc.contains("level")) { auto [en, lv] = parseEnforcementLevel(nc["level"]); rules_.requirements.naming_conventions.level = lv; }
@@ -1259,7 +1288,6 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cq.contains("no_hardcoded_results") && cq["no_hardcoded_results"].is_object()) { rules_.explicitly_set.insert("code_quality.no_hardcoded_results");
             auto& hr = cq["no_hardcoded_results"];
             rules_.code_quality.no_hardcoded_results.enabled = true;
-            warnIgnoredEnableFlag(hr, "code_quality", "no_hardcoded_results");
             rules_.no_hardcoded_results = true;
             if (hr.contains("level")) { auto [en, lv] = parseEnforcementLevel(hr["level"]); rules_.code_quality.no_hardcoded_results.level = lv; rules_.no_hardcoded_results_level = lv; }
             if (hr.contains("check_return_true_false") && hr["check_return_true_false"].is_boolean()) rules_.code_quality.no_hardcoded_results.check_return_true_false = hr["check_return_true_false"].get<bool>();
