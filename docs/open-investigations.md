@@ -209,6 +209,67 @@ comment says that is deliberate, but it makes the governance timeout a floor
 rather than a ceiling, which is the opposite of how every other governance limit
 reads.
 
+
+###### The final two, exhaustively
+
+Both were the last candidates standing after four narrowings. Tracing them
+completely removes one and reclassifies the other.
+
+**Lifecycle, both keys.** Declared once (`governance.h:270-271`, default `0`),
+parsed once each (`governance_config.cpp:874-875`) with an `explicitly_set`
+entry, merged across `extends` (`4594`, `4602-4605`), written into every
+generated config by `naab governance init` (`max_functions: 100`,
+`max_variables: 500`), and shipped in **both** copies of `govern-template.json`.
+Read by nothing.
+
+They are also **less** plumbed than their dead siblings, which is itself a
+signal. The `clamp0` block covers 21 limits fields and omits both; the ratchet
+covers `max_total_polyglot_lines` and `max_nesting_depth` and omits both. So a
+negative value would survive parsing unclamped, and neither participates in
+mid-run tightening checks.
+
+**`limits.code.max_functions` — delete. It is redundant with a live check.**
+The scanner has `function_count` (`checks_complexity.cpp:101-109`): a configurable
+`max` (default 25), enabled at advisory level by the generator, reported as a
+proper scanner issue with a remediation hint. It is not a dormant tool —
+`main.cpp:2128` runs a **preflight scanner on every governed execution**, over the
+main file *and* its imported modules, before execution so advisories survive an
+exit-3 block. So the capability the dead key names is already delivered, by a key
+that works, at file granularity, with better reporting. This is the same
+similarly-named-sibling shape that has now produced a wrong reading five times in
+this campaign.
+
+**`limits.code.max_variables` — no equivalent anywhere, and no definition.** The
+scanner's complexity family counts cyclomatic, cognitive, file length, functions,
+classes, imports, returns and nested ternaries — **there is no variable count**.
+Nor is there one in the analyzer profile (`syntactic_analyzer.h:18-40` has
+`function_count`, `loop_count`, `max_loop_depth`, `max_function_depth`, and no
+variable field), nor in the interpreter (`values_.size()` is one Environment's
+scope map, a runtime binding count per scope, not a program total).
+
+It is therefore the single key in the whole sweep that expresses something
+nothing else expresses. That is not the same as a gap worth filling, because
+**nobody can say what it should count**: static `let` declarations? runtime
+bindings? peak live bindings across scopes? A loop declaring one `let` over a
+thousand iterations is one declaration and a thousand bindings, and the two
+readings differ by three orders of magnitude. The template ships `500`, a number
+with no definition behind it.
+
+**Wiring cost, if it were wanted.** Governance's static checks take
+`const std::string& code` (`governance.h:2823-2829`) — **source text, not an
+AST** — so any count enforced by the engine is necessarily a regex, with the usual
+miscounting inside strings and comments. The AST-accurate route does not exist
+either: `TypeChecker` visits every `FunctionDecl`, but `main.cpp:1699` runs it
+only under `--strict-types` or `--verbose`, so a limit hosted there would not
+apply to a normal run at all.
+
+**Recommendation: delete both.** `max_functions` because a live, better-specified
+key already does the job; `max_variables` because an unenforced limit whose unit
+is undefined is an unfinished idea rather than a missing feature — and defining
+it is a design decision, not a repair. If either is kept, the honest move is the
+`trust_policy` treatment: document it as accepted-but-not-enforced, so nobody
+sets it believing otherwise.
+
 **On whether these were ever wired**: this clone's history is shallow — 112
 commits beginning 2026-07-22 — so `git log -S` reports every one of the dead
 check methods as first appearing in the second visible commit, which means only
