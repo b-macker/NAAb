@@ -162,6 +162,53 @@ and treat `max_functions` / `max_variables` as the only genuine wire-or-delete
 decisions — noting that wiring them needs a program-wide counter that does not
 exist today, for a limit whose value nobody has ever been able to rely on.
 
+
+##### The three delete candidates, checked before deleting
+
+Deleting is the one recommendation that removes something, so each was traced to
+the mechanism it would attach to. Two survive as deletes; the third does not.
+
+**`limits.rate.cooldown_on_limit_ms` — delete, and the reason is structural.**
+`RateLimiter` (`governance.h:2663`) is a fixed-window counter: `max_per_second`,
+`window_start`, `count_in_window`, and a `check()` returning bool. There is no
+field a cooldown could live in and no sleep or backoff anywhere in the tree. More
+decisive than the missing wiring: on breach the callers **throw**
+(`polyglot.cpp:173`), so the run ends. A cooldown is only meaningful for a
+limiter that *waits*; you cannot cool down from a thrown error. Wiring this key
+would not be connecting a wire, it would be replacing fail-fast with throttling.
+Its default is `100`, so an operator sees a plausible value for a design that was
+never built.
+
+**`limits.execution.total_executions` — delete, redundant.** The claim was
+`limits.execution.polyglot_blocks` covers it, and the trace makes that stronger
+than assumed: `incrementAndCheckPolyglotBlockCount()` is called from **six**
+sites spanning both engines — `vm.cpp`, `polyglot.cpp` (twice),
+`call_dispatch.cpp`, `modules.cpp` — *and* `codegen_impl.cpp:360`. So the live
+counter already counts every dynamic code execution including codegen, which is
+exactly what "total executions" would mean.
+
+**`limits.timeout.total_polyglot` — do NOT delete. The earlier "subsumed"
+verdict was wrong.** Polyglot time is bounded at two scales, and neither is the
+one this key expresses:
+
+* per block — `max_cpu_seconds` from the **sandbox level** (hardcoded, 10 s at
+  RESTRICTED), applied as `RLIMIT_CPU` and read by `js_executor.cpp:114`;
+* whole run — `limits.timeout.global` → `runtime.timeout` → `main.cpp:1913`.
+
+Cumulative time *in polyglot specifically* — "this script may run for five
+minutes but must not spend more than thirty seconds in embedded code" — is
+expressible by neither. The only substitute is indirect: block count (live) times
+the per-block CPU bound, and the operator controls only the first, since the
+second is fixed by sandbox level. So this key names a real and otherwise
+unexpressible constraint. Deleting it removes intent; leave it, and either wire
+it or document it as unimplemented.
+
+Noted in passing at `main.cpp:1913`: the global timeout is applied as
+`std::max(cli, config)`, so `--timeout` can **extend** a govern.json limit. The
+comment says that is deliberate, but it makes the governance timeout a floor
+rather than a ceiling, which is the opposite of how every other governance limit
+reads.
+
 **On whether these were ever wired**: this clone's history is shallow — 112
 commits beginning 2026-07-22 — so `git log -S` reports every one of the dead
 check methods as first appearing in the second visible commit, which means only
