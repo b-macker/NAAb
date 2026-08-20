@@ -85,20 +85,41 @@ three links and dead-ends on the fourth.
 `max_file_ops_per_second`, and `limits.data.output_size` (via `polyglot.cpp:718`,
 not via the dead `checkOutputSize`).
 
-**Genuinely unenforced, with no protection behind them by any route** — these are
-the only ones that warrant a wire-or-delete decision:
+**A fourth conflation, and the one that produced the most wrong answers: the
+loader MIRRORS nested keys into flat legacy fields, and the flat field is what
+enforcement reads.** `limits.execution.call_depth` sets `rules_.max_call_depth`;
+`limits.data.array_size` sets `rules_.max_array_size`; `limits.timeout.global`
+(line 791) sets BOTH `rules_.timeout_seconds` and `rules_.runtime.timeout`, and
+`main.cpp:1913` enforces the latter. The nested key is the modern spelling, the
+flat field is the original, and a scan that excludes the loader sees the modern
+name written and never read — so a wired key reads as dead. Two entries were
+wrongly listed here as unenforced on exactly this basis, including
+`limits.timeout.global`, which had been singled out as *the* aggregate an
+operator would most reasonably assume they had. They have it.
+
+(Note one quirk found while confirming it: `main.cpp:1913` guards on
+`rules.runtime.timeout != 30`, a sentinel against the default, so configuring the
+global timeout to exactly 30 seconds is a no-op.)
+
+**Genuinely unenforced, with no protection behind them by any route** — nine
+keys, and the only ones that warrant a wire-or-delete decision:
 
     limits.code.max_functions
     limits.code.max_variables
     limits.code.max_total_polyglot_lines
     limits.code.max_nesting_depth
     limits.execution.total_executions
-    limits.execution.call_depth
     limits.execution.parallel_blocks
-    limits.timeout.global
     limits.timeout.total_polyglot
     limits.data.input_size
     limits.rate.cooldown_on_limit_ms
+
+**On whether these were ever wired**: this clone's history is shallow — 112
+commits beginning 2026-07-22 — so `git log -S` reports every one of the dead
+check methods as first appearing in the second visible commit, which means only
+that they predate the visible history. Whether enforcement was removed at some
+point cannot be answered from this repository, and no claim either way should be
+made from it.
 
 Note what unites them: every one is an **aggregate** — a total across the
 program, a whole-run timeout, a cumulative count — while every live limit is
