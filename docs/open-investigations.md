@@ -42,6 +42,71 @@ review. That base rate is the argument for looking systematically.
 | V3a | **S20's `prompt_alignment` denominator is the MANDATE's keyword count, not the prompt's** (`behavioral_sequence.cpp:1899`). A short, perfectly on-topic prompt against a long mandate scores low and trips gate 1 before the response is examined. v3's original prompts fired S20 on **35 of 36 turns**, including phases where the agent was behaving correctly. | open | Fixed in v3 by wording every prompt on-mandate, but the engine behaviour is unchanged and will bite any operator whose mandate is longer than their prompts. Worth deciding whether the denominator should be the prompt's keyword count, or whether the threshold should scale with mandate length. |
 | A3b | **Four dead check methods remain in the tree**: `checkStringLength`, `checkNestingDepth`, `checkDictSize`, `checkCodegenAllowed`. The first three back inert keys; the fourth duplicates live enforcement in `codegen_impl.cpp`. | open | Delete, or wire behind an opt-in. Wiring is **not** additive — see the campaign doc's regression surface. |
 
+
+### A2 traced properly: the `limits.*` family, key by key
+
+The screening sweep said "77 unread". Tracing each key to the point of
+enforcement — rather than to the point of *reference* — gives a different and
+much more useful answer. Three distinct things were being conflated.
+
+**Reference is not reachability.** Six check methods read a `limits.*` key and
+have **zero call sites**: `getMaxLinesForLanguage`, `getTimeoutForLanguage`,
+`checkNestingDepth`, `checkOutputSize`, `checkStringLength`, `checkDictSize`
+(whose only apparent caller is a *comment* in `governance_config.cpp` recording
+that it has none). A grep for the key finds the read and reports the key live.
+
+**A similarly-named sibling is not the same key.** `max_lines_per_block` appears
+enforced at `governance_checks.cpp:1447` — but that is
+`code_quality.max_complexity.max_lines_per_block`, not
+`limits.code.max_lines_per_block`. This is the third time in this campaign that a
+name collision has produced a wrong reading (`max_tokens_per_run` vs
+`max_total_tokens` killed two runs; `forward_batch_size` vs `batch_size` nearly
+put six working keys on a defect list).
+
+**An inert knob is not an absent protection.** Most `limits.*` keys sit on top of
+enforcement that works, driven by a different source:
+
+| key | protection | driven by |
+|---|---|---|
+| `limits.memory.total_mb`, `per_block_mb` | RLIMIT_AS / Job memory, real | the **sandbox level**, hardcoded (128 MB at RESTRICTED) — governance never sets it |
+| `limits.data.array_size`, `dict_size`, `string_length` | throws on overflow, real | `include/naab/limits.h` **compile-time constants** (10M / 1M / 100MB) |
+| `limits.data.nesting_depth` | parse depth bounded | `MAX_PARSE_DEPTH`, compile-time |
+
+`limits.memory.total_mb` is the sharpest case and corrects an earlier claim in
+this document. The loader *does* read it (`governance_config.cpp:447`) into
+`rules_.memory_limit_mb`, which is why it looked wired — but `getMemoryLimitMB()`
+has no callers, and `SubprocessContainment::max_memory_bytes` is populated from
+`ScopedSandbox::getConfig().max_memory_mb`, never from governance. The chain runs
+three links and dead-ends on the fourth.
+
+**Live from govern.json**, verified by tracing to a reachable enforcement site:
+`limits.execution.loop_iterations`, `limits.execution.polyglot_blocks`,
+`limits.rate.max_polyglot_per_second`, `max_stdlib_calls_per_second`,
+`max_file_ops_per_second`, and `limits.data.output_size` (via `polyglot.cpp:718`,
+not via the dead `checkOutputSize`).
+
+**Genuinely unenforced, with no protection behind them by any route** — these are
+the only ones that warrant a wire-or-delete decision:
+
+    limits.code.max_functions
+    limits.code.max_variables
+    limits.code.max_total_polyglot_lines
+    limits.code.max_nesting_depth
+    limits.execution.total_executions
+    limits.execution.call_depth
+    limits.execution.parallel_blocks
+    limits.timeout.global
+    limits.timeout.total_polyglot
+    limits.data.input_size
+    limits.rate.cooldown_on_limit_ms
+
+Note what unites them: every one is an **aggregate** — a total across the
+program, a whole-run timeout, a cumulative count — while every live limit is
+**per-item**: one block, one value, one call, one second. The engine enforces
+what it can decide at a single point and does not accumulate. That is a coherent
+architectural boundary rather than scattered rot, and it means "wire them up" is
+not a small change: it requires state that does not exist today.
+
 ## B. Known engine behaviour, decided but unfixed
 
 | # | Item | Status | Note |
