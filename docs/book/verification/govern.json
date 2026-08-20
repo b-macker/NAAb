@@ -118,8 +118,7 @@
     },
     "code": {
       "max_lines_per_block": 500,
-      "max_nesting_depth": 5,
-      "max_functions": 200
+      "max_nesting_depth": 5
     },
     "data": {
       "nesting_depth": 20,

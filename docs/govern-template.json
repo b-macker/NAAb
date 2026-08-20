@@ -240,8 +240,6 @@
     "code": {
       "max_lines_per_block": 500,
       "max_total_polyglot_lines": 5000,
-      "max_functions": 100,
-      "max_variables": 500,
       "max_nesting_depth": 10
     },
     "rate": {

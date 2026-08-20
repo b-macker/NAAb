@@ -623,8 +623,6 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["limits"]["code"] = {
             {"max_lines_per_block", max_lines},
             {"max_total_polyglot_lines", max_lines * 10},
-            {"max_functions", 100},
-            {"max_variables", 500},
             {"max_nesting_depth", strict_plus ? 8 : 10}
         };
     }

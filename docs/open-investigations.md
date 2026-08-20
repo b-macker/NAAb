@@ -34,13 +34,262 @@ review. That base rate is the argument for looking systematically.
 | A1a | **A SOFT/HARD contradiction block does not name which pattern fired.** `CONTRA-001` at SOFT prints `Rule: ` empty. The ADVISORY path prints `contradiction.CONTRA-001` correctly. | **done** | `rule_name` now goes to `formatError` as well as `enforce`. Pinned by `test_contradiction_coverage.sh` CCOV-02, which anchors on the `Rule:` line specifically — asserting the id appears *somewhere* in the output is satisfied by the description alone. CCOV-01 pins it too, because on the load-abort path that line is CONTRA-001's only machine-readable identification. |
 | A1b | **`code_quality.<check>: {"enabled": false}` turned the check ON.** `loadSimpleCheck` set `config.enabled = true` for any object form and never read `obj["enabled"]`, so the explicit flag was inert and the result was the inverse of what the operator wrote. **Both copies of `govern-template.json`** ship `no_hardcoded_urls: {"enabled": false}` and `no_hardcoded_ips: {"enabled": false}`, so the shipped template enabled the two checks it documents as disabled, and every config copied from it inherited that. Nine checks route through this loader. | **done** | Found by accident again — a *negative fixture* for CONTRA-003 refused to go negative. That is three for three: every inert/inverted mechanism in this repo has been found from a different direction, none by review. **First fixed the wrong way, then corrected.** Honouring the flag is a LOOSENING — the long note at the `restrictions.*` block already rejected exactly that trade for its own six sub-blocks: every config carrying `"enabled": false` today is being enforced and would silently stop on upgrade. Honouring it in `code_quality` disabled `no_hardcoded_urls` and `no_hardcoded_ips` in **both** templates, and made the same JSON mean opposite things under `code_quality` and `restrictions` — the precise confusion that note exists to complain about. Now conformed to the precedent: `warnIgnoredEnableFlag()` is shared, enforcement is unchanged, and the silence is what got fixed. **The worst instance was found last, by finishing the enumeration rather than stopping at the first family.** `parseCodeQualityField` enables an object-form check **at HARD** when it carries no `level`, and never reads the inner flag — so `code_quality.no_secrets: {"enabled": false}` turns secret scanning ON as an uncatchable exit-3 block. Measured: block absent → exit 0; `{"enabled": false}` → **exit 3**; `true` → exit 3. Same for `no_placeholders` and `no_hardcoded_results`. A second, inverted shape sits in `requirements.main_block` and `error_handling`, where `enabled` is not read at all and `level` is the only trigger — so `{"enabled": true}` with no level leaves the requirement OFF while the operator believes they switched it on; that gets its own message (`warnEnableNeedsLevel`). `telemetry.tamper_evidence` was checked and is CORRECT — guarded by `explicitly_set`, so its flag is honoured. Coverage extended past `loadSimpleCheck` to the other object forms that force-enable (`no_pii`, `no_mock_data`, `no_apologetic_language`, `max_complexity`, `encoding`, `no_hardcoded_results`, `complexity_floor`) — `complexity_floor` uses a separate parse branch and was still silently inverted after the first fix, which `tests/governance_v4/edge/govern.json` had been trying to disable all along. Pinned by CCOV-03, whose negative fixture must OMIT the block, since that is now the only way to leave a check off. |
 | A1c | **`"level"` accepts any string, and an unrecognised one silently DISABLES.** `parseEnforcementLevel` maps `hard`/`approval_required`/`soft`/`advisory`/`detect` to `{true, level}` and falls through to `return {false, HARD}` for everything else — so `"level": "off"`, `"none"`, `"warn"` or a typo turns the check off with no diagnostic. That is the same silence as A1b, in the key that A1b's own warning tells operators to reach for. | **done (warned, not honoured)** | Found while verifying A1b's warning text. Not fixed: unlike the `enabled` case there is no safe default — rejecting unknown levels is a tightening that could fail configs loading today, and defaulting them to enabled is a tightening too. Needs the same deliberate call as the A2 keys. Fixed the additive way: an unrecognised level now warns and names the five valid ones, while still disabling exactly as before — enforcement is unchanged. De-duplicated per distinct value, because three checks reach the parser by two paths and the message does not name the key, so a second identical line carries nothing. Pinned by `test_level_key_silent_disable.sh`, verified to fail when the warning is removed; LK-03 is the control (a VALID level must stay silent, or warning on everything would pass) and LK-04 separates de-duplication from blanket suppression. |
-| A2 | **Systematic inert-mechanism sweep of the engine.** Beyond CONTRA: which other checks read state that is normalized away, or depend on a counter fed by a different threshold? | **swept; one shape found and now guarded** | Three sub-sweeps ran. (1) *Loader clears state a check reads* — clean; the only `.erase`/`.clear` on check-visible state is the CONTRA-007 site, which already records the overlap before erasing. (2) *`enabled` flags never set true* — clean; an initial pass flagged 11, and all 11 were false positives from alias reads (`auto& cfg = rules_.X; cfg.enabled = ...`), which is itself the lesson: a full-path grep reports working keys as dead. (3) *Keys parsed but enforced by nothing* — **77 found**, of which **23 are enforcement-shaped**. **An unread key does NOT imply an absent feature** — that was claimed first and corrected on tracing, in the alarming direction. Four categories, all present: **(A) no enforcement exists** — verified empirically for `limits.code.max_total_polyglot_lines`/`max_functions`/`max_variables`, `limits.execution.total_executions`, `limits.memory.total_mb`/`per_block_mb`: all six set to `1`, a program with 40+ polyglot lines across two blocks runs to completion at exit 0 with "0 violations", against a `languages.blocked` positive control that blocks at exit 3 on the identical program; **(B) live feature, inert toggle** — `trust_policy.check_revocation` and `check_key_expiry`: `TrustStore::loadTrustedKeys` skips revoked and expired keys *unconditionally* and `trust_store.cpp` never reads the governance config, so setting them false disables nothing and wiring them could only permit WEAKENING; **(C) live check, ignored sub-option** — `requirements.error_handling.require_try_catch`/`require_catch_body`, while the check runs off `rules().require_error_handling`; **(D) absent and honest** — `require_fresh_signature` defaults false and no signature-age comparison exists. Category A is the real gap; the `block_{ldap,template,xpath}_injection` trio also has no pattern anywhere. `limits.code.max_total_polyglot_lines` is the emblem: declared, parsed, clamped, **ratcheted**, merged across `extends`, written into every generated config by `naab governance init`, shipped at 5000 in both templates — and read by nothing. More plumbing than most keys that work, which is why it reads as alive. Guarded by `test_inert_key_sweep.sh` + `inert_keys_baseline.txt`: the set is pinned, so a NEW unenforced key fails CI instead of waiting to be found by accident. Remaining: decide per key whether to wire or delete (A3b's warning applies — wiring is not additive). |
+| A2 | **Systematic inert-mechanism sweep of the engine.** Beyond CONTRA: which other checks read state that is normalized away, or depend on a counter fed by a different threshold? | **swept; one shape found and now guarded** | Three sub-sweeps ran. (1) *Loader clears state a check reads* — clean; the only `.erase`/`.clear` on check-visible state is the CONTRA-007 site, which already records the overlap before erasing. (2) *`enabled` flags never set true* — clean; an initial pass flagged 11, and all 11 were false positives from alias reads (`auto& cfg = rules_.X; cfg.enabled = ...`), which is itself the lesson: a full-path grep reports working keys as dead. (3) *Keys parsed but enforced by nothing* — **77 flagged by screening, of which only a verified handful are real** — the scan excludes the loader from its consumer search, and the loader is itself a legitimate consumer whenever it copies a key into a subsystem's config struct. **Six flagged keys are live**: the telemetry forwarding set is read at `governance_config.cpp` and handed to `TelemetryForwarder`, which uses them under shorter names. Tightening the rule the other way (any loader read counts) collapses 77 to 2, because ratchet and `extends` merging read every key they guard. Neither heuristic stands alone, so **no entry may be acted on without an empirical check that includes a positive control** — a control is what caught this: the polyglot output-size keys could not be settled either way, because the known-live sibling (`limits.data.output_size`) would not fire in the test harness, so its silence proved nothing about its neighbours. **An unread key does NOT imply an absent feature** — that was claimed first and corrected on tracing, in the alarming direction. Four categories, all present: **(A) no enforcement exists** — verified empirically for `limits.code.max_total_polyglot_lines`/`max_functions`/`max_variables`, `limits.execution.total_executions`, `limits.memory.total_mb`/`per_block_mb`: all six set to `1`, a program with 40+ polyglot lines across two blocks runs to completion at exit 0 with "0 violations", against a `languages.blocked` positive control that blocks at exit 3 on the identical program; **(B) live feature, inert toggle** — `trust_policy.check_revocation` and `check_key_expiry`: `TrustStore::loadTrustedKeys` skips revoked and expired keys *unconditionally* and `trust_store.cpp` never reads the governance config, so setting them false disables nothing and wiring them could only permit WEAKENING; **(C) live check, ignored sub-option** — `requirements.error_handling.require_try_catch`/`require_catch_body`, while the check runs off `rules().require_error_handling`; **(D) absent and honest** — `require_fresh_signature` defaults false and no signature-age comparison exists. Category A is the real gap; the `block_{ldap,template,xpath}_injection` trio also has no pattern anywhere. `limits.code.max_total_polyglot_lines` is the emblem: declared, parsed, clamped, **ratcheted**, merged across `extends`, written into every generated config by `naab governance init`, shipped at 5000 in both templates — and read by nothing. More plumbing than most keys that work, which is why it reads as alive. Guarded by `test_inert_key_sweep.sh` + `inert_keys_baseline.txt`: the set is pinned, so a NEW unenforced key fails CI instead of waiting to be found by accident. Remaining: decide per key whether to wire or delete (A3b's warning applies — wiring is not additive). |
 | A3 | **Which `enforce()` sites can never fire?** | **done — see the campaign doc** | The evidence-mining version of this row was wrong and is recorded as such: cross-referencing 107 rule names against 21 MB of archived runs reported 95 "never fired", including five fired by hand an hour earlier. The archive is all `living-script`, so it measures coverage, not capability. **Source reachability** is the discriminator. Result: 5 check-bearing methods with zero call sites; 3 genuinely inert config keys; 1 enforcement-without-evidence gap; 1 dead duplicate. |
 | A3a | **`limits.data.output_size` enforces without producing evidence.** `polyglot.cpp:718` throws a plain `std::runtime_error` rather than calling `enforce()`, so the block yields no governance finding, no telemetry, no report entry — and is catchable by NAAb `try/catch`, unlike the HARD block it resembles. | open | Routing it through `enforce()` changes behaviour (catchable → uncatchable). Needs the same decision as C1a. |
 | A3c | **The bounded-healing ledger could be over-counted without detection** — G2 inflated `coherence_damage_total` and no gate failed. | **done** | Closed by BH-08, which asserts the exact conservation invariant `coherence == 1 - damage + healed`. Note the check originally specified here (`damage ≈ (1 - min_coherence_lifetime) + healed`) was **wrong** — it only holds if all healing follows the coherence minimum. Testing it is how that was found. |
 | R5 | **Make healing relative rather than absolute.** `coherence_natural_healing` is a per-turn constant, so whether it suppresses escalation depends on the workload's damage rate — measured cliff at 0.50 for one profile and 0.15 for a lighter one. A rate capped at a fraction of the agent's own recent damage per damaging turn would self-scale and have no cliff. | open | New design; needs its own trace of the regression surface. The alternative is accepting that this knob cannot be set globally and documenting it, which is the current state. |
 | V3a | **S20's `prompt_alignment` denominator is the MANDATE's keyword count, not the prompt's** (`behavioral_sequence.cpp:1899`). A short, perfectly on-topic prompt against a long mandate scores low and trips gate 1 before the response is examined. v3's original prompts fired S20 on **35 of 36 turns**, including phases where the agent was behaving correctly. | open | Fixed in v3 by wording every prompt on-mandate, but the engine behaviour is unchanged and will bite any operator whose mandate is longer than their prompts. Worth deciding whether the denominator should be the prompt's keyword count, or whether the threshold should scale with mandate length. |
 | A3b | **Four dead check methods remain in the tree**: `checkStringLength`, `checkNestingDepth`, `checkDictSize`, `checkCodegenAllowed`. The first three back inert keys; the fourth duplicates live enforcement in `codegen_impl.cpp`. | open | Delete, or wire behind an opt-in. Wiring is **not** additive — see the campaign doc's regression surface. |
+
+
+### A2 traced properly: the `limits.*` family, key by key
+
+The screening sweep said "77 unread". Tracing each key to the point of
+enforcement — rather than to the point of *reference* — gives a different and
+much more useful answer. Three distinct things were being conflated.
+
+**Reference is not reachability.** Six check methods read a `limits.*` key and
+have **zero call sites**: `getMaxLinesForLanguage`, `getTimeoutForLanguage`,
+`checkNestingDepth`, `checkOutputSize`, `checkStringLength`, `checkDictSize`
+(whose only apparent caller is a *comment* in `governance_config.cpp` recording
+that it has none). A grep for the key finds the read and reports the key live.
+
+**A similarly-named sibling is not the same key.** `max_lines_per_block` appears
+enforced at `governance_checks.cpp:1447` — but that is
+`code_quality.max_complexity.max_lines_per_block`, not
+`limits.code.max_lines_per_block`. This is the third time in this campaign that a
+name collision has produced a wrong reading (`max_tokens_per_run` vs
+`max_total_tokens` killed two runs; `forward_batch_size` vs `batch_size` nearly
+put six working keys on a defect list).
+
+**An inert knob is not an absent protection.** Most `limits.*` keys sit on top of
+enforcement that works, driven by a different source:
+
+| key | protection | driven by |
+|---|---|---|
+| `limits.memory.total_mb`, `per_block_mb` | RLIMIT_AS / Job memory, real | the **sandbox level**, hardcoded (128 MB at RESTRICTED) — governance never sets it |
+| `limits.data.array_size`, `dict_size`, `string_length` | throws on overflow, real | `include/naab/limits.h` **compile-time constants** (10M / 1M / 100MB) |
+| `limits.data.nesting_depth` | parse depth bounded | `MAX_PARSE_DEPTH`, compile-time |
+
+`limits.memory.total_mb` is the sharpest case and corrects an earlier claim in
+this document. The loader *does* read it (`governance_config.cpp:447`) into
+`rules_.memory_limit_mb`, which is why it looked wired — but `getMemoryLimitMB()`
+has no callers, and `SubprocessContainment::max_memory_bytes` is populated from
+`ScopedSandbox::getConfig().max_memory_mb`, never from governance. The chain runs
+three links and dead-ends on the fourth.
+
+**Live from govern.json**, verified by tracing to a reachable enforcement site:
+`limits.execution.loop_iterations`, `limits.execution.polyglot_blocks`,
+`limits.rate.max_polyglot_per_second`, `max_stdlib_calls_per_second`,
+`max_file_ops_per_second`, and `limits.data.output_size` (via `polyglot.cpp:718`,
+not via the dead `checkOutputSize`).
+
+**A fourth conflation, and the one that produced the most wrong answers: the
+loader MIRRORS nested keys into flat legacy fields, and the flat field is what
+enforcement reads.** `limits.execution.call_depth` sets `rules_.max_call_depth`;
+`limits.data.array_size` sets `rules_.max_array_size`; `limits.timeout.global`
+(line 791) sets BOTH `rules_.timeout_seconds` and `rules_.runtime.timeout`, and
+`main.cpp:1913` enforces the latter. The nested key is the modern spelling, the
+flat field is the original, and a scan that excludes the loader sees the modern
+name written and never read — so a wired key reads as dead. Two entries were
+wrongly listed here as unenforced on exactly this basis, including
+`limits.timeout.global`, which had been singled out as *the* aggregate an
+operator would most reasonably assume they had. They have it.
+
+(Note one quirk found while confirming it: `main.cpp:1913` guards on
+`rules.runtime.timeout != 30`, a sentinel against the default, so configuring the
+global timeout to exactly 30 seconds is a no-op.)
+
+**Genuinely unenforced, with no protection behind them by any route** — nine
+keys, and the only ones that warrant a wire-or-delete decision:
+
+    limits.code.max_functions
+    limits.code.max_variables
+    limits.code.max_total_polyglot_lines
+    limits.code.max_nesting_depth
+    limits.execution.total_executions
+    limits.execution.parallel_blocks
+    limits.timeout.total_polyglot
+    limits.data.input_size
+    limits.rate.cooldown_on_limit_ms
+
+
+#### The nine, traced individually — and only two are truly uncovered
+
+Tracing each of the nine to the thing it would protect, rather than stopping at
+"nothing reads this key", collapses the list again. Two corrections to the
+framing above come first:
+
+**"The engine never accumulates" was wrong.** `limits.execution.polyglot_blocks`
+is an aggregate over the whole run, it is LIVE, and it is backed by a member
+counter (`polyglot_block_count_`, incremented by
+`incrementAndCheckPolyglotBlockCount()`). The per-item/aggregate split was a tidy
+story that the code does not support.
+
+**Parallel polyglot execution is real**, not a phantom feature —
+`polyglot_async_executor.h`, `executePolyglotGroupParallel()`,
+`group.parallel_blocks`.
+
+| key | what actually protects it |
+|---|---|
+| `limits.execution.total_executions` | **redundant** — `limits.execution.polyglot_blocks` is live and counts the same executions |
+| `limits.execution.parallel_blocks` | **inert knob** — concurrency is bounded by a hardcoded `ThreadPool(2)` in `polyglot_async_executor.cpp` |
+| `limits.timeout.total_polyglot` | **subsumed** — the whole-run timeout (`limits.timeout.global` → `runtime.timeout` → `main.cpp:1913`) already bounds it |
+| `limits.data.input_size` | **inert knob** — `limits::checkStringSize` enforces `MAX_INPUT_STRING` (100 MB) at `lexer.cpp:69` |
+| `limits.code.max_nesting_depth` | **covered** — `MAX_PARSE_DEPTH` (1000) enforced at `parser.cpp:18`; the scanner also has `deep_nesting` |
+| `limits.code.max_total_polyglot_lines` | **partly covered** — per block by `MAX_POLYGLOT_BLOCK_SIZE` (1 MB) and the live `code_quality.max_complexity.max_lines_per_block`; the program-wide total is unbounded |
+| `limits.rate.cooldown_on_limit_ms` | **nothing, and nothing to wire it to** — no cooldown or sleep exists anywhere; the live rate limits block rather than throttle. Its default is `100`, so an operator sees a plausible non-zero value for behaviour that does not exist |
+| `limits.code.max_functions` | **nothing** |
+| `limits.code.max_variables` | **nothing** |
+
+So the honest count is **two** keys where an operator gets no protection and
+nothing else covers it, plus one (`max_total_polyglot_lines`) whose aggregate
+half is uncovered.
+
+`max_functions` looked cheap to wire because `profile.function_count` already
+exists — but that is computed **per polyglot block, by regex over the block's
+source** (`syntactic_analyzer.cpp:83-90`), for complexity scoring. It is not a
+program-wide count of NAAb functions, so wiring the key to it would enforce
+something other than what the key's name promises. There is no `variable_count`
+field at all.
+
+**Recommendation, revised by the trace**: delete `cooldown_on_limit_ms`,
+`total_executions`, and `total_polyglot` as redundant or unimplementable-as-named;
+leave `parallel_blocks`, `input_size` and `max_nesting_depth` alone but document
+them as knobs over hardcoded protections (the same treatment `trust_policy` got);
+and treat `max_functions` / `max_variables` as the only genuine wire-or-delete
+decisions — noting that wiring them needs a program-wide counter that does not
+exist today, for a limit whose value nobody has ever been able to rely on.
+
+
+##### The three delete candidates, checked before deleting
+
+Deleting is the one recommendation that removes something, so each was traced to
+the mechanism it would attach to. Two survive as deletes; the third does not.
+
+**`limits.rate.cooldown_on_limit_ms` — delete, and the reason is structural.**
+`RateLimiter` (`governance.h:2663`) is a fixed-window counter: `max_per_second`,
+`window_start`, `count_in_window`, and a `check()` returning bool. There is no
+field a cooldown could live in and no sleep or backoff anywhere in the tree. More
+decisive than the missing wiring: on breach the callers **throw**
+(`polyglot.cpp:173`), so the run ends. A cooldown is only meaningful for a
+limiter that *waits*; you cannot cool down from a thrown error. Wiring this key
+would not be connecting a wire, it would be replacing fail-fast with throttling.
+Its default is `100`, so an operator sees a plausible value for a design that was
+never built.
+
+**`limits.execution.total_executions` — delete, redundant.** The claim was
+`limits.execution.polyglot_blocks` covers it, and the trace makes that stronger
+than assumed: `incrementAndCheckPolyglotBlockCount()` is called from **six**
+sites spanning both engines — `vm.cpp`, `polyglot.cpp` (twice),
+`call_dispatch.cpp`, `modules.cpp` — *and* `codegen_impl.cpp:360`. So the live
+counter already counts every dynamic code execution including codegen, which is
+exactly what "total executions" would mean.
+
+**`limits.timeout.total_polyglot` — do NOT delete. The earlier "subsumed"
+verdict was wrong.** Polyglot time is bounded at two scales, and neither is the
+one this key expresses:
+
+* per block — `max_cpu_seconds` from the **sandbox level** (hardcoded, 10 s at
+  RESTRICTED), applied as `RLIMIT_CPU` and read by `js_executor.cpp:114`;
+* whole run — `limits.timeout.global` → `runtime.timeout` → `main.cpp:1913`.
+
+Cumulative time *in polyglot specifically* — "this script may run for five
+minutes but must not spend more than thirty seconds in embedded code" — is
+expressible by neither. The only substitute is indirect: block count (live) times
+the per-block CPU bound, and the operator controls only the first, since the
+second is fixed by sandbox level. So this key names a real and otherwise
+unexpressible constraint. Deleting it removes intent; leave it, and either wire
+it or document it as unimplemented.
+
+Noted in passing at `main.cpp:1913`: the global timeout is applied as
+`std::max(cli, config)`, so `--timeout` can **extend** a govern.json limit. The
+comment says that is deliberate, but it makes the governance timeout a floor
+rather than a ceiling, which is the opposite of how every other governance limit
+reads.
+
+
+###### The final two, exhaustively
+
+Both were the last candidates standing after four narrowings. Tracing them
+completely removes one and reclassifies the other.
+
+**Lifecycle, both keys.** Declared once (`governance.h:270-271`, default `0`),
+parsed once each (`governance_config.cpp:874-875`) with an `explicitly_set`
+entry, merged across `extends` (`4594`, `4602-4605`), written into every
+generated config by `naab governance init` (`max_functions: 100`,
+`max_variables: 500`), and shipped in **both** copies of `govern-template.json`.
+Read by nothing.
+
+They are also **less** plumbed than their dead siblings, which is itself a
+signal. The `clamp0` block covers 21 limits fields and omits both; the ratchet
+covers `max_total_polyglot_lines` and `max_nesting_depth` and omits both. So a
+negative value would survive parsing unclamped, and neither participates in
+mid-run tightening checks.
+
+**`limits.code.max_functions` — delete. It is redundant with a live check.**
+The scanner has `function_count` (`checks_complexity.cpp:101-109`): a configurable
+`max` (default 25), enabled at advisory level by the generator, reported as a
+proper scanner issue with a remediation hint. It is not a dormant tool —
+`main.cpp:2128` runs a **preflight scanner on every governed execution**, over the
+main file *and* its imported modules, before execution so advisories survive an
+exit-3 block. So the capability the dead key names is already delivered, by a key
+that works, at file granularity, with better reporting. This is the same
+similarly-named-sibling shape that has now produced a wrong reading five times in
+this campaign.
+
+**`limits.code.max_variables` — no equivalent anywhere, and no definition.** The
+scanner's complexity family counts cyclomatic, cognitive, file length, functions,
+classes, imports, returns and nested ternaries — **there is no variable count**.
+Nor is there one in the analyzer profile (`syntactic_analyzer.h:18-40` has
+`function_count`, `loop_count`, `max_loop_depth`, `max_function_depth`, and no
+variable field), nor in the interpreter (`values_.size()` is one Environment's
+scope map, a runtime binding count per scope, not a program total).
+
+It is therefore the single key in the whole sweep that expresses something
+nothing else expresses. That is not the same as a gap worth filling, because
+**nobody can say what it should count**: static `let` declarations? runtime
+bindings? peak live bindings across scopes? A loop declaring one `let` over a
+thousand iterations is one declaration and a thousand bindings, and the two
+readings differ by three orders of magnitude. The template ships `500`, a number
+with no definition behind it.
+
+**Wiring cost, if it were wanted.** Governance's static checks take
+`const std::string& code` (`governance.h:2823-2829`) — **source text, not an
+AST** — so any count enforced by the engine is necessarily a regex, with the usual
+miscounting inside strings and comments. The AST-accurate route does not exist
+either: `TypeChecker` visits every `FunctionDecl`, but `main.cpp:1699` runs it
+only under `--strict-types` or `--verbose`, so a limit hosted there would not
+apply to a normal run at all.
+
+**Both were deleted.** Removed from the struct (`governance.h`), the parser and
+the `extends` merge (`governance_config.cpp`), the generator
+(`governance_init.cpp`) and all three operator-facing templates
+(`govern-template.json`, `docs/govern-template.json`,
+`docs/book/verification/govern.json`). Test fixtures under `tests/gorilla`,
+`tests/e2e` and `tests/llm-ab-testing` still carry the keys; unknown keys are
+ignored silently, so they are inert data, and rewriting 30+ scenario configs
+would risk unrelated breakage for no behavioural gain.
+
+`test_inert_key_sweep.sh` caught the removal on the first run — 77 entries to 75,
+naming both keys — which is the guard doing exactly its job in the *good*
+direction. Its failure text said "now enforced", which is wrong for a deletion;
+it now names both possibilities and asks which. Baseline updated to 75.
+
+**On whether these were ever wired**: this clone's history is shallow — 112
+commits beginning 2026-07-22 — so `git log -S` reports every one of the dead
+check methods as first appearing in the second visible commit, which means only
+that they predate the visible history. Whether enforcement was removed at some
+point cannot be answered from this repository, and no claim either way should be
+made from it.
+
+Note what unites them: every one is an **aggregate** — a total across the
+program, a whole-run timeout, a cumulative count — while every live limit is
+**per-item**: one block, one value, one call, one second. The engine enforces
+what it can decide at a single point and does not accumulate. That is a coherent
+architectural boundary rather than scattered rot, and it means "wire them up" is
+not a small change: it requires state that does not exist today.
 
 ## B. Known engine behaviour, decided but unfixed
 
