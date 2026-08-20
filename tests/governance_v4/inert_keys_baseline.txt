@@ -2,10 +2,35 @@
 #
 # Generated and checked by test_inert_key_sweep.sh. Each line is a config path
 # whose leaf identifier appears only in: the struct declaration
-# (include/naab/governance.h), the loader (src/runtime/governance_config.cpp --
-# parse, clamp, ratchet, inheritance), and/or the config generator
-# (src/cli/governance_init.cpp). Nothing in the engine, the checks, the VM or
-# the stdlib reads them.
+# (include/naab/governance.h), the loader (src/runtime/governance_config.cpp),
+# and/or the config generator (src/cli/governance_init.cpp).
+#
+# THIS IS A SCREENING SET, NOT A LIST OF DEFECTS. Read that literally.
+#
+# The scan excludes the loader from the consumer search, which produces FALSE
+# POSITIVES whenever the loader is itself a legitimate consumer -- when it copies
+# a key into a subsystem's config struct rather than merely parsing it. Six
+# entries here are exactly that and ARE live: the telemetry forwarding keys
+# (forward_batch_size, forward_buffer_max, forward_retry_count,
+# forward_timeout_ms, forward_shutdown_drain_ms, webhook_auth_header) are read at
+# governance_config.cpp and handed to TelemetryForwarder, which uses them under
+# shorter names (batch_size, buffer_max, ...). They are kept in the baseline
+# because this file's job is CHANGE DETECTION, and removing known false positives
+# would make the set drift from what the scan computes.
+#
+# The opposite correction is also live: tightening the rule to count any loader
+# read as consumption drops the set from 77 to 2, because ratchet comparisons and
+# `extends` merging read every key they guard. Neither heuristic is trustworthy
+# alone.
+#
+# So: NEVER act on an entry here without verifying that key empirically --
+# configure it at a value that must trip, run a program that must trip it, and
+# include a POSITIVE CONTROL proving enforcement was live in that same run.
+# Verified this way so far: limits.code.max_functions / max_variables /
+# max_total_polyglot_lines, limits.execution.total_executions and
+# limits.memory.total_mb / per_block_mb are genuinely unenforced (six set to 1, a
+# 40-line two-block program exits 0 with "0 violations", while languages.blocked
+# blocks the identical program at exit 3).
 #
 # WHY THIS FILE EXISTS
 #
