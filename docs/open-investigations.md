@@ -114,6 +114,54 @@ keys, and the only ones that warrant a wire-or-delete decision:
     limits.data.input_size
     limits.rate.cooldown_on_limit_ms
 
+
+#### The nine, traced individually — and only two are truly uncovered
+
+Tracing each of the nine to the thing it would protect, rather than stopping at
+"nothing reads this key", collapses the list again. Two corrections to the
+framing above come first:
+
+**"The engine never accumulates" was wrong.** `limits.execution.polyglot_blocks`
+is an aggregate over the whole run, it is LIVE, and it is backed by a member
+counter (`polyglot_block_count_`, incremented by
+`incrementAndCheckPolyglotBlockCount()`). The per-item/aggregate split was a tidy
+story that the code does not support.
+
+**Parallel polyglot execution is real**, not a phantom feature —
+`polyglot_async_executor.h`, `executePolyglotGroupParallel()`,
+`group.parallel_blocks`.
+
+| key | what actually protects it |
+|---|---|
+| `limits.execution.total_executions` | **redundant** — `limits.execution.polyglot_blocks` is live and counts the same executions |
+| `limits.execution.parallel_blocks` | **inert knob** — concurrency is bounded by a hardcoded `ThreadPool(2)` in `polyglot_async_executor.cpp` |
+| `limits.timeout.total_polyglot` | **subsumed** — the whole-run timeout (`limits.timeout.global` → `runtime.timeout` → `main.cpp:1913`) already bounds it |
+| `limits.data.input_size` | **inert knob** — `limits::checkStringSize` enforces `MAX_INPUT_STRING` (100 MB) at `lexer.cpp:69` |
+| `limits.code.max_nesting_depth` | **covered** — `MAX_PARSE_DEPTH` (1000) enforced at `parser.cpp:18`; the scanner also has `deep_nesting` |
+| `limits.code.max_total_polyglot_lines` | **partly covered** — per block by `MAX_POLYGLOT_BLOCK_SIZE` (1 MB) and the live `code_quality.max_complexity.max_lines_per_block`; the program-wide total is unbounded |
+| `limits.rate.cooldown_on_limit_ms` | **nothing, and nothing to wire it to** — no cooldown or sleep exists anywhere; the live rate limits block rather than throttle. Its default is `100`, so an operator sees a plausible non-zero value for behaviour that does not exist |
+| `limits.code.max_functions` | **nothing** |
+| `limits.code.max_variables` | **nothing** |
+
+So the honest count is **two** keys where an operator gets no protection and
+nothing else covers it, plus one (`max_total_polyglot_lines`) whose aggregate
+half is uncovered.
+
+`max_functions` looked cheap to wire because `profile.function_count` already
+exists — but that is computed **per polyglot block, by regex over the block's
+source** (`syntactic_analyzer.cpp:83-90`), for complexity scoring. It is not a
+program-wide count of NAAb functions, so wiring the key to it would enforce
+something other than what the key's name promises. There is no `variable_count`
+field at all.
+
+**Recommendation, revised by the trace**: delete `cooldown_on_limit_ms`,
+`total_executions`, and `total_polyglot` as redundant or unimplementable-as-named;
+leave `parallel_blocks`, `input_size` and `max_nesting_depth` alone but document
+them as knobs over hardcoded protections (the same treatment `trust_policy` got);
+and treat `max_functions` / `max_variables` as the only genuine wire-or-delete
+decisions — noting that wiring them needs a program-wide counter that does not
+exist today, for a limit whose value nobody has ever been able to rely on.
+
 **On whether these were ever wired**: this clone's history is shallow — 112
 commits beginning 2026-07-22 — so `git log -S` reports every one of the dead
 check methods as first appearing in the second visible commit, which means only
