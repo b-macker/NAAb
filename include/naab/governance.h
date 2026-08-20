@@ -265,10 +265,15 @@ struct DataLimits {
 };
 
 struct CodeLimits {
+    // max_functions / max_variables were removed: max_functions duplicated the
+    // live scanner check `complexity.function_count` (which runs preflight on
+    // every governed execution), and max_variables had no counter anywhere and
+    // no agreed unit -- a loop with one `let` over a thousand iterations is one
+    // declaration and a thousand bindings. Both were parsed, inherited, written
+    // by `naab governance init` and shipped in both templates while enforcing
+    // nothing. See docs/open-investigations.md.
     int max_lines_per_block = 0;
     int max_total_polyglot_lines = 0;
-    int max_functions = 0;
-    int max_variables = 0;
     int max_nesting_depth = 0;
 };
 

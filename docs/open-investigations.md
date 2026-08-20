@@ -263,12 +263,19 @@ either: `TypeChecker` visits every `FunctionDecl`, but `main.cpp:1699` runs it
 only under `--strict-types` or `--verbose`, so a limit hosted there would not
 apply to a normal run at all.
 
-**Recommendation: delete both.** `max_functions` because a live, better-specified
-key already does the job; `max_variables` because an unenforced limit whose unit
-is undefined is an unfinished idea rather than a missing feature — and defining
-it is a design decision, not a repair. If either is kept, the honest move is the
-`trust_policy` treatment: document it as accepted-but-not-enforced, so nobody
-sets it believing otherwise.
+**Both were deleted.** Removed from the struct (`governance.h`), the parser and
+the `extends` merge (`governance_config.cpp`), the generator
+(`governance_init.cpp`) and all three operator-facing templates
+(`govern-template.json`, `docs/govern-template.json`,
+`docs/book/verification/govern.json`). Test fixtures under `tests/gorilla`,
+`tests/e2e` and `tests/llm-ab-testing` still carry the keys; unknown keys are
+ignored silently, so they are inert data, and rewriting 30+ scenario configs
+would risk unrelated breakage for no behavioural gain.
+
+`test_inert_key_sweep.sh` caught the removal on the first run — 77 entries to 75,
+naming both keys — which is the guard doing exactly its job in the *good*
+direction. Its failure text said "now enforced", which is wrong for a deletion;
+it now names both possibilities and asks which. Baseline updated to 75.
 
 **On whether these were ever wired**: this clone's history is shallow — 112
 commits beginning 2026-07-22 — so `git log -S` reports every one of the dead

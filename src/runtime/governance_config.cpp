@@ -871,8 +871,6 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (c.contains("max_lines_per_block") && c["max_lines_per_block"].is_number_integer()) { rules_.limits.code.max_lines_per_block = c["max_lines_per_block"].get<int>(); rules_.explicitly_set.insert("limits.code.max_lines_per_block"); }
             if (c.contains("max_total_polyglot_lines") && c["max_total_polyglot_lines"].is_number_integer()) { rules_.limits.code.max_total_polyglot_lines = c["max_total_polyglot_lines"].get<int>(); rules_.explicitly_set.insert("limits.code.max_total_polyglot_lines"); }
             if (c.contains("max_nesting_depth") && c["max_nesting_depth"].is_number_integer()) { rules_.limits.code.max_nesting_depth = c["max_nesting_depth"].get<int>(); rules_.explicitly_set.insert("limits.code.max_nesting_depth"); }
-            if (c.contains("max_functions") && c["max_functions"].is_number_integer()) { rules_.limits.code.max_functions = c["max_functions"].get<int>(); rules_.explicitly_set.insert("limits.code.max_functions"); }
-            if (c.contains("max_variables") && c["max_variables"].is_number_integer()) { rules_.limits.code.max_variables = c["max_variables"].get<int>(); rules_.explicitly_set.insert("limits.code.max_variables"); }
         }
         if (lim.contains("rate") && lim["rate"].is_object()) {
             auto& r = lim["rate"];
@@ -4591,18 +4589,12 @@ void GovernanceEngine::mergeRules(const GovernanceRules& base, GovernanceRules& 
     if (parent_wins) {
         if (bl.code.max_lines_per_block > 0) cl.code.max_lines_per_block = bl.code.max_lines_per_block;
         if (bl.code.max_total_polyglot_lines > 0) cl.code.max_total_polyglot_lines = bl.code.max_total_polyglot_lines;
-        if (bl.code.max_functions > 0) cl.code.max_functions = bl.code.max_functions;
-        if (bl.code.max_variables > 0) cl.code.max_variables = bl.code.max_variables;
         if (bl.code.max_nesting_depth > 0) cl.code.max_nesting_depth = bl.code.max_nesting_depth;
     } else {
         if (!child.explicitly_set.count("limits.code.max_lines_per_block") && bl.code.max_lines_per_block > 0)
             cl.code.max_lines_per_block = bl.code.max_lines_per_block;
         if (!child.explicitly_set.count("limits.code.max_total_polyglot_lines") && bl.code.max_total_polyglot_lines > 0)
             cl.code.max_total_polyglot_lines = bl.code.max_total_polyglot_lines;
-        if (!child.explicitly_set.count("limits.code.max_functions") && bl.code.max_functions > 0)
-            cl.code.max_functions = bl.code.max_functions;
-        if (!child.explicitly_set.count("limits.code.max_variables") && bl.code.max_variables > 0)
-            cl.code.max_variables = bl.code.max_variables;
         if (!child.explicitly_set.count("limits.code.max_nesting_depth") && bl.code.max_nesting_depth > 0)
             cl.code.max_nesting_depth = bl.code.max_nesting_depth;
     }

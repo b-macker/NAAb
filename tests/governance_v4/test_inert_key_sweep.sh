@@ -111,7 +111,7 @@ if [ "${N_ACTUAL:-0}" -ge 20 ]; then
         DETAIL=""
         [ -n "$ADDED" ]   && DETAIL="${DETAIL}       NEW inert keys (parsed but nothing reads them):\n$(printf '%s\n' "$ADDED" | sed 's/^/         + /')\n"
         [ -n "$ADDED" ]   && DETAIL="${DETAIL}       Wire them up or delete them. Do NOT add them to the baseline to go green.\n"
-        [ -n "$REMOVED" ] && DETAIL="${DETAIL}       Now enforced (good) — delete these from the baseline:\n$(printf '%s\n' "$REMOVED" | sed 's/^/         - /')\n"
+        [ -n "$REMOVED" ] && DETAIL="${DETAIL}       Gone from the scan — either the key is now ENFORCED or it was DELETED.\n       Both are good; confirm which, then drop these from the baseline:\n$(printf '%s\n' "$REMOVED" | sed 's/^/         - /')\n"
         fail "IK-02" "the set of unenforced config keys changed" "$(printf '%b' "$DETAIL")"
     fi
 else

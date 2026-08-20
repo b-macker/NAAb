@@ -98,9 +98,7 @@ code_quality.no_apologetic_language.scan_strings
 code_quality.no_hardcoded_results.check_dict_success_fields
 code_quality.no_hardcoded_results.check_return_true_false
 code_quality.no_mock_data.ignore_in_test_context
-limits.code.max_functions
 limits.code.max_total_polyglot_lines
-limits.code.max_variables
 limits.data.input_size
 limits.execution.total_executions
 limits.memory.per_block_mb
