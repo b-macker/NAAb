@@ -255,6 +255,95 @@ The REPL (`naab-repl`) does not load or enforce governance rules. This is intent
 
 ---
 
+
+---
+
+## 7. Configuration Keys That Do Not Enforce What Their Name Suggests
+
+Every key below loads without complaint, survives validation, and in several
+cases ships in `govern-template.json` or is written by `naab governance init`.
+None of them does what an operator would reasonably expect. They are listed here
+because the failure mode is silent: the config is accepted, so there is nothing
+to notice.
+
+Two keys with this shape (`limits.code.max_functions`, `limits.code.max_variables`)
+were **deleted** rather than documented. The rest are kept because something real
+sits behind them, or because the name expresses a constraint worth keeping.
+
+### 7.1 Inert toggle, live protection
+
+The protection works. The key does not control it. Setting it to `false`
+disables nothing.
+
+| key | what actually protects you | where |
+|---|---|---|
+| `trust_policy.check_revocation` | revoked keys are skipped **unconditionally** | `trust_store.cpp`, which never reads governance config |
+| `trust_policy.check_key_expiry` | expired keys skipped unconditionally | same |
+| `limits.memory.total_mb`, `per_block_mb` | `RLIMIT_AS` / Windows Job memory | the **sandbox level** (128 MB at RESTRICTED), not governance |
+| `limits.execution.parallel_blocks` | concurrency capped | a hardcoded `ThreadPool(2)` |
+| `limits.data.input_size` | source size capped at 100 MB | `limits::checkStringSize` at `lexer.cpp` |
+| `limits.timeout.per_block` | per-block CPU time capped | sandbox `max_cpu_seconds`, applied as `RLIMIT_CPU` |
+
+Because these protections are unconditional, wiring the toggles would only ever
+permit **weakening** — which is why they have been left alone.
+
+### 7.2 Redundant with a key that works
+
+| key | use this instead |
+|---|---|
+| `limits.execution.total_executions` | `limits.execution.polyglot_blocks` — live, and already counts polyglot *and* codegen executions across both engines |
+
+### 7.3 Accepted, enforced by nothing, nothing else covering it
+
+| key | note |
+|---|---|
+| `limits.data.dict_size` | **no bound at either layer.** Its governance reader has no call sites, and the hardcoded `limits::checkDictSize` has none either |
+| `limits.data.string_length` | governance reader has no call sites. Runtime string *growth* is capped separately by `MAX_STRING_LENGTH` in the VM's concat path, so this is not unbounded — but the key does not control it |
+| `limits.timeout.total_polyglot` | expresses a real constraint nothing else can state — cumulative time *in polyglot specifically*, as distinct from per-block CPU and whole-run wall clock. Unimplemented, deliberately kept |
+| `limits.rate.cooldown_on_limit_ms` | ships with a plausible default of `100` for behaviour that does not exist. The live rate limiters **throw** on breach rather than throttling, and `RateLimiter` has no field a cooldown could occupy |
+| `limits.code.max_total_polyglot_lines` | per-block size *is* capped; the program-wide total is not |
+| `limits.code.max_nesting_depth` | parse depth is capped by `MAX_PARSE_DEPTH`; this key does not control it |
+| `requirements.error_handling.require_try_catch`, `require_catch_body` | the check runs off a different field; these two sub-options are read nowhere |
+| `restrictions.code_injection.block_ldap_injection`, `block_template_injection`, `block_xpath_injection` | no matching pattern exists anywhere in the engine |
+
+### 7.4 Hardcoded safety constants that are defined and never used
+
+`include/naab/limits.h` declares ten compile-time bounds. Four are enforced
+(`MAX_ARRAY_SIZE`, `MAX_INPUT_STRING`, `MAX_POLYGLOT_BLOCK_SIZE`,
+`MAX_STRING_LENGTH`), two more are enforced directly (`MAX_PARSE_DEPTH`,
+`MAX_CALL_STACK_DEPTH`), and **four are referenced by nothing**:
+
+    MAX_DICT_SIZE     (1,000,000 entries)  -- its guard has no callers
+    MAX_FILE_SIZE     (10 MB)              -- its guard has no callers
+    MAX_AST_NODES     (1,000,000)
+    MAX_LINE_LENGTH   (10,000)
+
+These are not configuration, so no operator sets them expecting protection — but
+they read as a defence-in-depth layer that is, in these four cases, absent.
+
+### 7.5 Two config-shape traps
+
+**An `enabled: false` inside a check's object does not disable it.** For checks
+enabled by the *presence* of their block, the inner flag is not read, so
+`{"enabled": false}` turns the check **on** — for `code_quality.no_secrets` that
+means an uncatchable exit-3 block. The value is deliberately not honoured
+(honouring it would silently disable checks that enforce today), but the engine
+now warns. **To leave such a check off, omit its block entirely.**
+
+**An unrecognised `level` silently disables.** Only `hard`, `soft`, `advisory`,
+`detect` and `approval_required` are recognised; anything else — `"off"`,
+`"none"`, or a typo, and the comparison is case-sensitive so `"HARD"` counts —
+disables the check. The engine now warns and lists the valid values.
+
+### 7.6 One behaviour worth knowing
+
+`--timeout` and the govern.json global timeout combine with `std::max`, so the
+CLI flag can **extend** a governance timeout, not only shrink it. This is
+deliberate per the comment at the call site, but it makes the timeout a floor
+rather than a ceiling, unlike every other governance limit.
+
+---
+
 ## Summary Table
 
 | Limitation | Severity | Category | Status |
@@ -273,6 +362,14 @@ The REPL (`naab-repl`) does not load or enforce governance rules. This is intent
 | Override all-or-nothing | Low | Config | By design |
 | Gradual typing only | Low | Types | By design |
 | No generic types | Low | Types | Not implemented |
+| `enabled: false` inside a check object turns it ON | **High** | Config | Warned, not honoured (§7.5) |
+| Unrecognised `level` silently disables the check | **High** | Config | Warned (§7.5) |
+| `limits.data.dict_size` bounded by nothing | Medium | Limits | Unenforced (§7.3) |
+| `trust_policy.*` toggles control nothing | Low | Config | Protection is unconditional (§7.1) |
+| `limits.memory.*` controls nothing | Medium | Limits | Memory bounded by sandbox level (§7.1) |
+| `cooldown_on_limit_ms` — behaviour does not exist | Low | Limits | Rate limiters throw, not throttle (§7.3) |
+| Four `limits.h` constants referenced by nothing | Low | Limits | Absent defence layer (§7.4) |
+| `--timeout` can extend a governance timeout | Low | Config | Deliberate; timeout is a floor (§7.6) |
 
 **High-severity items** are fundamental to the architecture — polyglot blocks execute in the target language's runtime, which NAAb cannot constrain. Use OS-level sandboxing for untrusted code.
 
