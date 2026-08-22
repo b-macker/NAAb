@@ -122,6 +122,38 @@
 #   C4  FAIL  PARROT is undetected by all 23 signals. Nothing in CDD notices an
 #             agent that answers every turn by repeating its instructions.
 #   V1,V2,V3,V4,V5 all pass, so the four failures are about the engine.
+#
+# ---------------------------------------------------------------------------
+# WHAT WAS TRIED AND WITHDRAWN — read before proposing either of these again
+#
+# 1. A two-sided "topical anchoring" metric, replacing the one-sided overlap
+#    tests. anchor = |R n (M u E)| / |R|, where E is vocabulary established by
+#    earlier turns: too LOW means the response is about something else, too
+#    HIGH means it recycles and adds nothing. Measured on these fixtures with
+#    the engine's own extractor:
+#
+#      CORRECT_NARROW 0.789   PARROT  0.808     <- correct work looks like parroting
+#      CORRECT_VARIED 0.056   ABANDON 0.014     <- correct work looks like abandonment
+#
+#    Correct work spans 0.06-0.79, drift spans 0.01-0.92: total overlap in BOTH
+#    tails. The unused HIGH tail of consecutive Jaccard fails the same way —
+#    PARROT 0.41-0.64 sits inside CORRECT_NARROW's 0.25-0.89. Three independent
+#    lexical metrics, none separating. Only exact identity separates, and the
+#    fingerprint signals already do that better.
+#
+# 2. Demoting S10/S11/S13/S15 to detection-only (the S6 pattern). This DOES
+#    fix C1, C2 and C3 — ensemble floors go from
+#    1.000/0.000/0.000/0.000/0.000/1.000 to 1.000/1.000/1.000/0.000/1.000/1.000.
+#    It was withdrawn anyway: it breaks NINE governance suites, including
+#    test_adversarial_detection.sh A-01 "Off-mandate agent terminated by
+#    governance (exit 3)" — a legitimate behavioural requirement, not an
+#    implementation detail. C4 caught it here first (ABANDON joins PARROT as
+#    undetected) and the suite confirmed it independently.
+#
+#    The lesson is C4's whole purpose: these signals are a detector with recall
+#    and no precision, and removing them trades a false-positive problem for a
+#    false-negative one. The fix must REPLACE, not remove — and the replacement
+#    cannot be lexical, because of (1).
 # ============================================================
 set -uo pipefail
 
