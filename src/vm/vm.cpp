@@ -2260,6 +2260,16 @@ interpreter::NaabVal VM::run() {
                 if (governance_ && governance_->isActive()) {
                     std::string gerr = governance_->checkArraySize(count);
                     if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                    // limits.data.dict_size, in ADDITION to the array limit above.
+                    // checkDictSize() was written, correct and never called, so an
+                    // operator could set a HARD dict limit, watch it survive
+                    // validation, and get no enforcement. Additive on purpose:
+                    // replacing the array check would LOOSEN every config that
+                    // sets only array_size, which today bounds dicts as well.
+                    // Default is 0 (`max > 0` guard), so nothing changes for a
+                    // config that does not set it.
+                    std::string derr = governance_->checkDictSize(static_cast<size_t>(count));
+                    if (!derr.empty()) runtimeError("%s", derr.c_str());
                 }
                 // Taint: dict is tainted if ANY value is tainted
                 bool dict_taint = false;

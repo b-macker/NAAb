@@ -297,7 +297,6 @@ permit **weakening** — which is why they have been left alone.
 
 | key | note |
 |---|---|
-| `limits.data.dict_size` | **no bound at either layer.** Its governance reader has no call sites, and the hardcoded `limits::checkDictSize` has none either |
 | `limits.data.string_length` | governance reader has no call sites. Runtime string *growth* is capped separately by `MAX_STRING_LENGTH` in the VM's concat path, so this is not unbounded — but the key does not control it |
 | `limits.timeout.total_polyglot` | expresses a real constraint nothing else can state — cumulative time *in polyglot specifically*, as distinct from per-block CPU and whole-run wall clock. Unimplemented, deliberately kept |
 | `limits.rate.cooldown_on_limit_ms` | ships with a plausible default of `100` for behaviour that does not exist. The live rate limiters **throw** on breach rather than throttling, and `RateLimiter` has no field a cooldown could occupy |
@@ -313,7 +312,13 @@ permit **weakening** — which is why they have been left alone.
 `MAX_STRING_LENGTH`), two more are enforced directly (`MAX_PARSE_DEPTH`,
 `MAX_CALL_STACK_DEPTH`), and **four are referenced by nothing**:
 
-    MAX_DICT_SIZE     (1,000,000 entries)  -- its guard has no callers
+    MAX_DICT_SIZE     (1,000,000 entries)  -- its guard has no callers. Note the
+                                             GOVERNANCE dict limit is now wired;
+                                             this hardcoded ceiling is separate
+                                             and still unused. Wiring it would be
+                                             a tightening with no opt-out, since
+                                             dict literals are bounded today by
+                                             MAX_ARRAY_SIZE at 10x this value.
     MAX_FILE_SIZE     (10 MB)              -- its guard has no callers
     MAX_AST_NODES     (1,000,000)
     MAX_LINE_LENGTH   (10,000)
@@ -364,7 +369,7 @@ rather than a ceiling, unlike every other governance limit.
 | No generic types | Low | Types | Not implemented |
 | `enabled: false` inside a check object turns it ON | **High** | Config | Warned, not honoured (§7.5) |
 | Unrecognised `level` silently disables the check | **High** | Config | Warned (§7.5) |
-| `limits.data.dict_size` bounded by nothing | Medium | Limits | Unenforced (§7.3) |
+| `limits.data.dict_size` unenforced | — | Limits | **Fixed** — now enforced in both engines |
 | `trust_policy.*` toggles control nothing | Low | Config | Protection is unconditional (§7.1) |
 | `limits.memory.*` controls nothing | Medium | Limits | Memory bounded by sandbox level (§7.1) |
 | `cooldown_on_limit_ms` — behaviour does not exist | Low | Limits | Rate limiters throw, not throttle (§7.3) |

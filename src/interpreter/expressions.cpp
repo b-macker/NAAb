@@ -1217,6 +1217,11 @@ void Interpreter::visit(ast::DictExpr& node) {
     if (governance_ && governance_->isActive()) {
         std::string err = governance_->checkArraySize(dict.size());
         if (!err.empty()) throw std::runtime_error(err);
+        // limits.data.dict_size, in ADDITION to the array limit above — see the
+        // matching note at OP_DICT in vm.cpp. Both engines must agree, or the
+        // limit enforces on one and not the other depending on --tree-walk.
+        std::string derr = governance_->checkDictSize(dict.size());
+        if (!derr.empty()) throw std::runtime_error(derr);
     }
     result_ = NaabVal::makeDict(std::move(dict));
 
