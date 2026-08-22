@@ -12,7 +12,7 @@ Input (stdin, JSON):
   {
     "oa_threshold": 0.70,
     "expected_turns": 8,
-    "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED"],
+    "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED", "CORRECT_VERBOSE"],
     "drift_arms":   ["REPEAT", "ABANDON", "PARROT"],
     "per_signal": { "<signal>": { "<arm>": {"fires": int, "turns": int} } },
     "ensemble":   { "<arm>": {"floor": float, "turns": int, "done": bool} }
@@ -162,6 +162,7 @@ def _base():
     good_sig = {
         "CORRECT_NARROW": {"fires": 0, "turns": 8},
         "CORRECT_VARIED": {"fires": 0, "turns": 8},
+        "CORRECT_VERBOSE": {"fires": 0, "turns": 8},
         "REPEAT":         {"fires": 7, "turns": 8},
         "ABANDON":        {"fires": 6, "turns": 8},
         "PARROT":         {"fires": 5, "turns": 8},
@@ -169,7 +170,7 @@ def _base():
     return {
         "oa_threshold": 0.70,
         "expected_turns": 8,
-        "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED"],
+        "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED", "CORRECT_VERBOSE"],
         "drift_arms": ["REPEAT", "ABANDON", "PARROT"],
         "min_live_signals": 3,
         "per_signal": {"sig_a": json.loads(json.dumps(good_sig)),
@@ -178,6 +179,7 @@ def _base():
         "ensemble": {
             "CORRECT_NARROW": {"floor": 0.95, "turns": 8, "done": True},
             "CORRECT_VARIED": {"floor": 0.88, "turns": 8, "done": True},
+            "CORRECT_VERBOSE": {"floor": 0.91, "turns": 8, "done": True},
             "REPEAT":         {"floor": 0.20, "turns": 8, "done": True},
             "ABANDON":        {"floor": 0.15, "turns": 8, "done": True},
             "PARROT":         {"floor": 0.30, "turns": 8, "done": True},
@@ -225,7 +227,8 @@ def selftest():
     # let through: firing identically on correct work and on drift is zero
     # mutual information, not "not inverted".
     t = _base()
-    for arm in ("CORRECT_NARROW", "CORRECT_VARIED", "REPEAT", "ABANDON", "PARROT"):
+    for arm in ("CORRECT_NARROW", "CORRECT_VARIED", "CORRECT_VERBOSE",
+                "REPEAT", "ABANDON", "PARROT"):
         t["per_signal"]["sig_a"][arm] = {"fires": 7, "turns": 8}
     check("C1 catches equal rates on correct and drift", t, "C1")
 

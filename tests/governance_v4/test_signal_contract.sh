@@ -25,7 +25,8 @@
 # THE FIXTURE MATRIX, AND WHY EACH ARM EXISTS
 #
 #   CORRECT_NARROW   on-mandate, correct, REPETITIVE vocabulary
-#   CORRECT_VARIED   on-mandate, correct, PROGRESSIVE vocabulary
+#   CORRECT_VARIED   on-mandate, correct, PROGRESSIVE and terse
+#   CORRECT_VERBOSE  on-mandate, correct, PROGRESSIVE and narrated
 #   REPEAT           byte-identical responses (stuck)
 #   ABANDON          coherent prose on an unrelated topic
 #   PARROT           restates the mandate in varied words, does NO work
@@ -331,7 +332,28 @@ PARROT='{"responses": [
   {"content": "In summary, build a Calculator class where add, subtract, multiply and divide each record an entry in a history log.", "output_tokens": 40}
 ]}'
 
-CORRECT_ARMS=(CORRECT_NARROW CORRECT_VARIED)
+# On-mandate, correct, progressive, and VERBOSE — the realistic middle.
+#
+# CORRECT_VARIED above is deliberately terse, and measurement showed it sits at
+# the EXTREME of the range: consecutive-response Jaccard 0.000 on every pair,
+# mandate coverage ~0.02. Realistic progressive work on the same task measures
+# 0.00-0.17 and ~0.11-0.22. Holding the contract to the extreme alone would let
+# a fix be tuned to it, or make the contract unsatisfiable by any lexical means
+# for reasons that are an artefact of the fixture rather than a finding. Both
+# shapes are real agent behaviour — terse progress reports and narrated work —
+# and a signal must be silent on both, so both are here.
+CORRECT_VERBOSE='{"responses": [
+  {"content": "Implemented the add method, returning the sum of its two operands and recording the operation in the history log.", "output_tokens": 40},
+  {"content": "Wrote subtract next, mirroring add but returning the difference, using the same history entry format throughout.", "output_tokens": 40},
+  {"content": "Multiply reuses the shared history helper and guards against overflow when the operands are large.", "output_tokens": 40},
+  {"content": "Divide now has an explicit zero-divisor guard that raises before any history entry is written.", "output_tokens": 40},
+  {"content": "Added a history accessor returning a defensive copy, so callers cannot mutate the recorded log.", "output_tokens": 40},
+  {"content": "Added tests covering the history schema across all four arithmetic methods of the calculator.", "output_tokens": 40},
+  {"content": "Refactored the shared history entry construction into a private helper used by every method.", "output_tokens": 40},
+  {"content": "Final pass: the four methods, the divide guard, the accessor and the tests all agree on the history schema.", "output_tokens": 40}
+]}'
+
+CORRECT_ARMS=(CORRECT_NARROW CORRECT_VARIED CORRECT_VERBOSE)
 DRIFT_ARMS=(REPEAT ABANDON PARROT)
 ALL_ARMS=("${CORRECT_ARMS[@]}" "${DRIFT_ARMS[@]}")
 
@@ -339,6 +361,7 @@ fixture_for() {  # $1=arm name -> fixture JSON on stdout
     case "$1" in
         CORRECT_NARROW) printf '%s' "$CORRECT_NARROW" ;;
         CORRECT_VARIED) printf '%s' "$CORRECT_VARIED" ;;
+        CORRECT_VERBOSE) printf '%s' "$CORRECT_VERBOSE" ;;
         REPEAT)         printf '%s' "$REPEAT" ;;
         ABANDON)        printf '%s' "$ABANDON" ;;
         PARROT)         printf '%s' "$PARROT" ;;
@@ -508,12 +531,12 @@ main {
 NAABEOF
 }
 
-# echoes "<floor> <fires> <turns> <done>"
+# echoes "<floor> <penalizing-fires> <any-fires> <turns> <done>"
 measure() {  # $1=tag $2=signal-or-ALL $3=arm
     local d="$TEST_TMP/$1"; mkdir -p "$d"
     fixture_for "$3" > "$d/fixture.json"
     if ! start_stub "$d/fixture.json" "$d" >/dev/null 2>&1; then
-        echo "1.00 0 0 0"; return
+        echo "1.00 0 0 0 0"; return
     fi
     write_config "$d" "$STUB_PORT" "$2"
     write_script "$d"
@@ -525,7 +548,7 @@ measure() {  # $1=tag $2=signal-or-ALL $3=arm
     python3 - "$d/tele.jsonl" "$done_flag" <<'PY'
 import json, os, sys
 p, done = sys.argv[1], sys.argv[2]
-floor, fires, turns = 1.0, 0, 0
+floor, fires, sfires, turns = 1.0, 0, 0, 0
 if os.path.exists(p):
     for ln in open(p):
         try: e = json.loads(ln)
@@ -537,8 +560,18 @@ if os.path.exists(p):
             turns += 1
             try: floor = min(floor, float(e.get("coherence", 1.0)))
             except (TypeError, ValueError): pass
-            if (e.get("signals_detail") or "").strip(): fires += 1
-print("%.3f %d %d %s" % (floor, fires, turns, done))
+            if (e.get("signals_detail") or "").strip(): sfires += 1
+            # penalties_detail, NOT signals_detail, is what the contract counts.
+            # The engine has a legitimate detection-only signal (S6
+            # coherence_velocity fires for telemetry and pressure but applies no
+            # coherence penalty, deliberately, because velocity IS last turn's
+            # penalty and charging for it re-punishes punished evidence). C1-C3
+            # are about what SPENDS the shared budget, so a signal that fires
+            # without charging must not be condemned by them — otherwise
+            # "make it detection-only" could never be a valid answer, and the
+            # contract would be dictating implementation rather than behaviour.
+            if (e.get("penalties_detail") or "").strip(): fires += 1
+print("%.3f %d %d %d %s" % (floor, fires, sfires, turns, done))
 PY
 }
 
@@ -553,7 +586,7 @@ TABLE="$TEST_TMP/table.json"
 : > "$TEST_TMP/ensemble.tsv"
 
 for arm in "${ALL_ARMS[@]}"; do
-    read -r E_FLOOR E_FIRES E_TURNS E_DONE <<< "$(measure "ens-$arm" ALL "$arm")"
+    read -r E_FLOOR E_FIRES E_SFIRES E_TURNS E_DONE <<< "$(measure "ens-$arm" ALL "$arm")"
     printf '%s\t%s\t%s\t%s\n' "$arm" "$E_FLOOR" "$E_TURNS" "$E_DONE" >> "$TEST_TMP/ensemble.tsv"
     echo "  ensemble $arm: floor=$E_FLOOR turns=$E_TURNS done=$E_DONE"
 done
@@ -561,7 +594,7 @@ done
 for sig in "${SIGNALS[@]}"; do
     row=""
     for arm in "${ALL_ARMS[@]}"; do
-        read -r S_FLOOR S_FIRES S_TURNS S_DONE <<< "$(measure "s-$sig-$arm" "$sig" "$arm")"
+        read -r S_FLOOR S_FIRES S_SFIRES S_TURNS S_DONE <<< "$(measure "s-$sig-$arm" "$sig" "$arm")"
         printf '%s\t%s\t%s\t%s\n' "$sig" "$arm" "$S_FIRES" "$S_TURNS" >> "$TEST_TMP/per_signal.tsv"
         row="$row $arm=$S_FIRES/$S_TURNS"
     done
@@ -583,7 +616,7 @@ for ln in open(es):
     ens[f[0]] = {"floor": float(f[1]), "turns": int(f[2]), "done": f[3] == "1"}
 json.dump({
     "oa_threshold": oa, "expected_turns": turns,
-    "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED"],
+    "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED", "CORRECT_VERBOSE"],
     "drift_arms": ["REPEAT", "ABANDON", "PARROT"],
     "min_live_signals": 3,
     "per_signal": per, "ensemble": ens,
