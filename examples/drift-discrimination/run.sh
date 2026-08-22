@@ -31,9 +31,25 @@ trap cleanup EXIT
 [ -x "$NAAB" ] || { echo "build/naab-lang not found"; exit 0; }
 
 python3 "$SCRIPT_DIR/gen_fixture.py" "$W/fixture.json"
-start_stub "$W/fixture.json" "$W" || { echo "stub failed to start"; exit 0; }
 
-cat > "$W/govern.json" <<GOV
+# Run the SAME fixture under both calibration settings.
+#
+# The first version of this experiment ran only the uncalibrated path, because
+# its govern.json set no adaptive_baseline_enabled and the engine default is
+# false. It then reported the resulting inversion as "a property of those
+# signals, not of a particular scenario or model". That conclusion was wrong,
+# and wrong by exactly one unset config key: adaptive baselining learns a
+# per-agent normal signal rate, and with it on the same signals on the same
+# fixture preserve coherence through correct work and destroy it during drift.
+#
+# The stub consumes its fixture sequentially, so each mode needs its own stub.
+run_mode() {   # $1 = off|on ; echoes the analysis, returns its exit code
+  local MODE="$1" D="$W/$1" BL
+  BL=false; [ "$MODE" = "on" ] && BL=true
+  mkdir -p "$D"
+  start_stub "$W/fixture.json" "$D" || { echo "stub failed to start"; return 2; }
+
+cat > "$D/govern.json" <<GOV
 {
   "version": "5.0", "mode": "enforce",
   "security": { "sandbox_level": "elevated" },
@@ -42,7 +58,10 @@ cat > "$W/govern.json" <<GOV
   "context_drift": {
     "enabled": true,
     "check_interval_turns": 1,
-    "coherence_natural_healing": 0.03
+    "coherence_natural_healing": 0.03,
+    "adaptive_baseline_enabled": $BL,
+    "adaptive_baseline_window": 5,
+    "adaptive_baseline_sensitivity": 2.0
   },
   "circuit_breaker": {
     "enabled": true,
@@ -63,7 +82,7 @@ cat > "$W/govern.json" <<GOV
 }
 GOV
 
-cat > "$W/t.naab" <<'NAABEOF'
+cat > "$D/t.naab" <<'NAABEOF'
 use agent
 main {
     let h = agent.create("worker")
@@ -78,15 +97,18 @@ export FAKE_KEY_DD=fake-key-drift-discrimination
 # INTEGRITY BLOCK on any machine that has trusted keys installed, and the run
 # exits 3 before producing a single telemetry line.
 export NAAB_TRUST_STORE_DIR="$W/trust"
-(cd "$W" && timeout 300s "$NAAB" t.naab) > "$W/out.txt" 2>&1
-RC=$?
-echo "run exit: $RC  (RUN_DONE markers: $(grep -c RUN_DONE "$W/out.txt" || true))"
-if [ ! -s "$W/telemetry.jsonl" ]; then
-    echo "no telemetry produced — last lines of the run:"; tail -12 "$W/out.txt" | sed 's/^/    /'; exit 1
-fi
-stop_stub
+(cd "$D" && timeout 300s "$NAAB" t.naab) > "$D/out.txt" 2>&1
+  RC=$?
+  echo ""
+  echo "=== adaptive_baseline_enabled=$BL ==="
+  echo "run exit: $RC  (RUN_DONE markers: $(grep -c RUN_DONE "$D/out.txt" || true))"
+  if [ ! -s "$D/telemetry.jsonl" ]; then
+      echo "no telemetry produced — last lines of the run:"; tail -12 "$D/out.txt" | sed 's/^/    /'
+      stop_stub; return 1
+  fi
+  stop_stub
 
-python3 - "$W/telemetry.jsonl" <<'PY'
+  python3 - "$D/telemetry.jsonl" <<'PY'
 import json, sys, collections
 
 PHASES = [("WARMUP    (correct)", 1, 5),
@@ -182,3 +204,28 @@ print("  anti-correlated with the drift it exists to detect. Both phases marked"
 print("  (correct) are on-mandate work.")
 sys.exit(1 if fails else 0)
 PY
+  return $?
+}
+
+# The uncalibrated path is the engine DEFAULT, so it runs first and is what a
+# stock config produces. Neither mode is asserted beyond the positive control:
+# the experiment reports, it does not gate. Asserting that the two modes differ
+# would build a test that fails the day the default is fixed.
+run_mode off; RC_OFF=$?
+run_mode on;  RC_ON=$?
+
+echo ""
+echo "==================================================================="
+echo "  READING THE TWO TABLES"
+echo "==================================================================="
+echo "  Same fixture, same signals, one config key apart. The per-signal"
+echo "  firing RATES barely move between them: the signals fire just as"
+echo "  invertedly either way. What changes is whether a firing PAYS --"
+echo "  adaptive baselining learns each agent's normal rate and absorbs it,"
+echo "  so the raw signal is not the engine's decision variable and cannot"
+echo "  be read as though it were."
+echo ""
+echo "  Compare the coherence traces, not the percentages."
+
+if [ "$RC_OFF" -ge 2 ] || [ "$RC_ON" -ge 2 ]; then exit 1; fi
+exit 0

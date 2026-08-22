@@ -204,12 +204,14 @@ fi
 # Measured over a full local run (99 suites): median under 1s, 29 suites above
 # 10s, and a long tail set almost entirely by ONE suite —
 #
-#   95s  test_prescan_canaries.sh      <- the pace-setter, and it runs last
+#  108s  test_premise_sensitivity.sh   <- the pace-setter (48 stub-backed runs:
+#                                      8 premise cells x 6 arms x 20 turns)
+#   95s  test_prescan_canaries.sh      <- runs last
 #   29s  test_propose_commit.sh
 #   21s  test_signal_discrimination.sh
 #   19s  run_property_tests.sh / run_fuzz_smoke.sh
 #
-# 600s is ~6x the 95s ceiling, which still holds if a Windows runner is 2-3x
+# 600s is ~5.5x the 108s ceiling, which still holds if a Windows runner is 2-3x
 # slower than this machine. Do not tighten this toward the observed maximum: a
 # sample taken before the canary suite runs shows a ceiling of 29s and invites a
 # 300s bound that a slow runner would trip on a perfectly healthy run — and a

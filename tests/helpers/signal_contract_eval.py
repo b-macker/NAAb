@@ -12,8 +12,8 @@ Input (stdin, JSON):
   {
     "oa_threshold": 0.70,
     "expected_turns": 8,
-    "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED"],
-    "drift_arms":   ["REPEAT", "ABANDON", "PARROT"],
+    "correct_arms": ["ctl_narrow", "ctl_varied", "ctl_verbose"],
+    "drift_arms":   ["drift_repeat", "drift_abandon", "drift_parrot"],
     "per_signal": { "<signal>": { "<arm>": {"fires": int, "turns": int} } },
     "ensemble":   { "<arm>": {"floor": float, "turns": int, "done": bool} }
   }
@@ -137,8 +137,8 @@ def evaluate(t):
     # the correct arm the engine treats least kindly. Using the best correct
     # arm instead would let a signal that mauls progressive work call parroting
     # "not better" purely because real work scored so badly.
-    if "PARROT" in ensemble:
-        p = ensemble["PARROT"]["floor"]
+    if "drift_parrot" in ensemble:
+        p = ensemble["drift_parrot"]["floor"]
         cfloors = {a: ensemble[a]["floor"] for a in correct if a in ensemble}
         if cfloors:
             worst_arm = min(cfloors, key=lambda a: cfloors[a])
@@ -160,27 +160,29 @@ def _base():
     """A table that satisfies every contract. Each negative case below mutates
     exactly one thing away from this."""
     good_sig = {
-        "CORRECT_NARROW": {"fires": 0, "turns": 8},
-        "CORRECT_VARIED": {"fires": 0, "turns": 8},
-        "REPEAT":         {"fires": 7, "turns": 8},
-        "ABANDON":        {"fires": 6, "turns": 8},
-        "PARROT":         {"fires": 5, "turns": 8},
+        "ctl_narrow": {"fires": 0, "turns": 8},
+        "ctl_varied": {"fires": 0, "turns": 8},
+        "ctl_verbose": {"fires": 0, "turns": 8},
+        "drift_repeat":         {"fires": 7, "turns": 8},
+        "drift_abandon":        {"fires": 6, "turns": 8},
+        "drift_parrot":         {"fires": 5, "turns": 8},
     }
     return {
         "oa_threshold": 0.70,
         "expected_turns": 8,
-        "correct_arms": ["CORRECT_NARROW", "CORRECT_VARIED"],
-        "drift_arms": ["REPEAT", "ABANDON", "PARROT"],
+        "correct_arms": ["ctl_narrow", "ctl_varied", "ctl_verbose"],
+        "drift_arms": ["drift_repeat", "drift_abandon", "drift_parrot"],
         "min_live_signals": 3,
         "per_signal": {"sig_a": json.loads(json.dumps(good_sig)),
                        "sig_b": json.loads(json.dumps(good_sig)),
                        "sig_c": json.loads(json.dumps(good_sig))},
         "ensemble": {
-            "CORRECT_NARROW": {"floor": 0.95, "turns": 8, "done": True},
-            "CORRECT_VARIED": {"floor": 0.88, "turns": 8, "done": True},
-            "REPEAT":         {"floor": 0.20, "turns": 8, "done": True},
-            "ABANDON":        {"floor": 0.15, "turns": 8, "done": True},
-            "PARROT":         {"floor": 0.30, "turns": 8, "done": True},
+            "ctl_narrow": {"floor": 0.95, "turns": 8, "done": True},
+            "ctl_varied": {"floor": 0.88, "turns": 8, "done": True},
+            "ctl_verbose": {"floor": 0.91, "turns": 8, "done": True},
+            "drift_repeat":         {"floor": 0.20, "turns": 8, "done": True},
+            "drift_abandon":        {"floor": 0.15, "turns": 8, "done": True},
+            "drift_parrot":         {"floor": 0.30, "turns": 8, "done": True},
         },
     }
 
@@ -208,40 +210,41 @@ def selftest():
 
     # C1 — a signal that fires on correct work and never on drift.
     t = _base()
-    t["per_signal"]["sig_a"]["CORRECT_VARIED"] = {"fires": 8, "turns": 8}
-    t["per_signal"]["sig_a"]["REPEAT"] = {"fires": 0, "turns": 8}
-    t["per_signal"]["sig_a"]["ABANDON"] = {"fires": 0, "turns": 8}
-    t["per_signal"]["sig_a"]["PARROT"] = {"fires": 0, "turns": 8}
+    t["per_signal"]["sig_a"]["ctl_varied"] = {"fires": 8, "turns": 8}
+    t["per_signal"]["sig_a"]["drift_repeat"] = {"fires": 0, "turns": 8}
+    t["per_signal"]["sig_a"]["drift_abandon"] = {"fires": 0, "turns": 8}
+    t["per_signal"]["sig_a"]["drift_parrot"] = {"fires": 0, "turns": 8}
     check("C1 catches inversion", t, "C1")
 
     # C1 must NOT fire on a signal that is noisy but genuinely separating.
     # Without this case, tightening C1 to "flag everything" would pass.
     t = _base()
-    t["per_signal"]["sig_a"]["CORRECT_VARIED"] = {"fires": 5, "turns": 8}
-    t["per_signal"]["sig_a"]["REPEAT"] = {"fires": 6, "turns": 8}
+    t["per_signal"]["sig_a"]["ctl_varied"] = {"fires": 5, "turns": 8}
+    t["per_signal"]["sig_a"]["drift_repeat"] = {"fires": 6, "turns": 8}
     check("C1 tolerates noisy-but-separating", t, None)
 
     # C1 catches EQUAL rates. This is the case the first draft of this gate
     # let through: firing identically on correct work and on drift is zero
     # mutual information, not "not inverted".
     t = _base()
-    for arm in ("CORRECT_NARROW", "CORRECT_VARIED", "REPEAT", "ABANDON", "PARROT"):
+    for arm in ("ctl_narrow", "ctl_varied", "ctl_verbose",
+                "drift_repeat", "drift_abandon", "drift_parrot"):
         t["per_signal"]["sig_a"][arm] = {"fires": 7, "turns": 8}
     check("C1 catches equal rates on correct and drift", t, "C1")
 
     # C2 — coherence floored by correct work.
     t = _base()
-    t["ensemble"]["CORRECT_VARIED"]["floor"] = 0.0
+    t["ensemble"]["ctl_varied"]["floor"] = 0.0
     check("C2 catches floored correct work", t, "C2")
 
     # C3 — parroting ends above correct work.
     t = _base()
-    t["ensemble"]["PARROT"]["floor"] = 0.99
+    t["ensemble"]["drift_parrot"]["floor"] = 0.99
     check("C3 catches rewarded parroting", t, "C3")
 
     # C4 — a drift arm sails through.
     t = _base()
-    t["ensemble"]["REPEAT"]["floor"] = 0.99
+    t["ensemble"]["drift_repeat"]["floor"] = 0.99
     check("C4 catches undetected drift", t, "C4")
 
     # C4 is what stops "disable everything" from passing: an inert engine
@@ -261,17 +264,17 @@ def selftest():
 
     # V1 — an arm that never completed.
     t = _base()
-    t["ensemble"]["REPEAT"]["done"] = False
+    t["ensemble"]["drift_repeat"]["done"] = False
     check("V1 catches an arm that never finished", t, "V1")
 
     # V1 — an arm short of its expected turns.
     t = _base()
-    t["per_signal"]["sig_a"]["REPEAT"] = {"fires": 0, "turns": 3}
+    t["per_signal"]["sig_a"]["drift_repeat"] = {"fires": 0, "turns": 3}
     check("V1 catches a truncated arm", t, "V1")
 
     # V5 — zero denominator must not silently become a 0.0 rate that passes C1.
     t = _base()
-    t["per_signal"]["sig_a"]["CORRECT_VARIED"] = {"fires": 0, "turns": 0}
+    t["per_signal"]["sig_a"]["ctl_varied"] = {"fires": 0, "turns": 0}
     res = evaluate(t)
     if "C1" in _ids(res):
         failures.append("V5: zero-turn arm produced a C1 verdict instead of "
