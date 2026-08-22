@@ -2166,6 +2166,19 @@ fi
 GOVV4_SWEEP_SKIP=(
     # Windows-guarded or specially staged above; re-running is wasteful, not wrong.
     "test_polyglot_reload.sh"
+    # ACCEPTANCE GATE, EXPECTED TO FAIL until the CDD signal redesign lands.
+    # It states what "fixed" means for the semantic signals: no signal may fire
+    # as often on correct work as on drift (C1), correct work must not exhaust
+    # the coherence budget (C2), restating the mandate must not outscore doing
+    # the task (C3), and every drift arm must still be caught (C4). On the
+    # engine as of this entry it fails all four while all five of its own
+    # vacuity checks pass, so the failures are about the engine.
+    #
+    # Deleting this line is the act of wiring it in. Do that in the SAME commit
+    # that makes it pass -- not before, or the suite stops being a signal.
+    # Until then run it directly:
+    #   bash tests/governance_v4/test_signal_contract.sh
+    "test_signal_contract.sh"
 )
 for _gv4 in tests/governance_v4/test_*.sh; do
     [ -f "$_gv4" ] || continue
