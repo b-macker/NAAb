@@ -124,32 +124,20 @@ jobs:
           echo "checked=$CHECKED" >> $GITHUB_OUTPUT
           echo "failed=$FAILED" >> $GITHUB_OUTPUT
 
-          # Merge all SARIF files into one for GitHub code scanning
-          python3 - <<'MERGE_PY'
-          import json, glob, sys
-          sarif_files = sorted(glob.glob('.governance-reports/sarif-*.json'))
-          if not sarif_files:
-              sys.exit(0)
-
-          merged = json.load(open(sarif_files[0]))
-          for f in sarif_files[1:]:
-              try:
-                  data = json.load(open(f))
-                  if data.get('runs'):
-                      for run in data['runs']:
-                          merged['runs'][0].setdefault('results', []).extend(run.get('results', []))
-                          existing_ids = {r['id'] for r in merged['runs'][0].get('tool', {}).get('driver', {}).get('rules', [])}
-                          for rule in run.get('tool', {}).get('driver', {}).get('rules', []):
-                              if rule['id'] not in existing_ids:
-                                  merged['runs'][0]['tool']['driver']['rules'].append(rule)
-                                  existing_ids.add(rule['id'])
-              except Exception as e:
-                  print(f"Warning: Failed to merge {f}: {e}", file=sys.stderr)
-
-          with open('.governance-reports/governance.sarif', 'w') as out:
-              json.dump(merged, out, indent=2)
-          print(f"Merged {len(sarif_files)} SARIF files into governance.sarif")
-          MERGE_PY
+          # Merge all SARIF files into one for GitHub code scanning.
+          # Lives in a real file so it is testable — `--selftest` runs in
+          # run-all-tests.sh. The inline version it replaced corrupted
+          # result.ruleIndex for every file after the first, and GitHub
+          # rejected the upload as a NEUTRAL check while this job stayed
+          # green, silently dropping every governance finding.
+          # Do NOT let a merge failure pass unnoticed: this step is
+          # continue-on-error, and silence is how the original corruption
+          # survived. An inconsistent merge means no file is written, so the
+          # upload below is skipped rather than rejected downstream.
+          if ! python3 .github/scripts/merge_sarif.py; then
+            echo "::error::SARIF merge produced an inconsistent document — not uploading"
+            EXIT=1
+          fi
 
           # Merge JUnit files
           python3 - <<'MERGE_JUNIT'
@@ -184,7 +172,10 @@ jobs:
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Code Scanning
-        if: always() && steps.find-sources.outputs.has_files == 'true'
+        # hashFiles guard: a merge that failed validation writes nothing, and
+        # pointing upload-sarif at a missing path only produces a second,
+        # less legible error.
+        if: always() && steps.find-sources.outputs.has_files == 'true' && hashFiles('.governance-reports/governance.sarif') != ''
         uses: github/codeql-action/upload-sarif@411c4c9a36b3fca4d674f06b6396b2c6d23522c6 # v3
         with:
           sarif_file: .governance-reports/governance.sarif

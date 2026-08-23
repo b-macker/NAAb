@@ -1141,8 +1141,18 @@ std::string GovernanceEngine::generateSarifReport() const {
             result["message"]["text"] = r.message.empty() ? r.rule_name : r.message;
         }
 
-        // Physical location with file and line
-        if (!r.file.empty() || r.line > 0) {
+        // Physical location with file and line.
+        //
+        // GitHub code scanning treats results[].locations[] as required — a
+        // result with no location cannot be placed on the code. Config-level
+        // findings (contradictions, capability and restriction rules) carry
+        // neither a file nor a line, so they used to emit no `locations` key
+        // at all and the whole document went up locationless.
+        //
+        // Fall back to govern.json, which is the artifact such a finding is
+        // actually about: a contradiction between two governance keys belongs
+        // on the config that declares them, not on an arbitrary source file.
+        {
             nlohmann::json location;
             nlohmann::json physical;
 
@@ -1150,6 +1160,9 @@ std::string GovernanceEngine::generateSarifReport() const {
                 std::string uri = r.file;
                 if (uri.size() >= 2 && uri[0] == '.' && uri[1] == '/') uri = uri.substr(2);
                 physical["artifactLocation"]["uri"] = uri;
+                physical["artifactLocation"]["uriBaseId"] = "%SRCROOT%";
+            } else {
+                physical["artifactLocation"]["uri"] = "govern.json";
                 physical["artifactLocation"]["uriBaseId"] = "%SRCROOT%";
             }
 
