@@ -104,6 +104,8 @@ WDIR="$TEST_TMP/multi"; mkdir -p "$WDIR"
 # totals balance") so instruction_recall stays satisfied on calm turns.
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [
+  {"content": "reconcile ledger quarterly totals balance calibration turn for bravo", "output_tokens": 20},
+  {"content": "reconcile ledger quarterly totals balance calibration turn for alpha", "output_tokens": 20},
   {"content": "meandering filler paragraph about nothing important whatsoever", "output_tokens": 20},
   {"content": "reconcile ledger quarterly totals balance work proceeding steadily", "output_tokens": 20},
   {"content": "reconcile ledger quarterly totals balance almost finished now", "output_tokens": 20},
@@ -125,6 +127,7 @@ cat > "$WDIR/govern.json" << GOVEOF
     "context_drift": {
         "enabled": true, "level": "advisory", "check_interval_turns": 1,
         "coherence_threshold": 0.05,
+        "adaptive_baseline_window": 1,
         "signals": {
             "circular_actions": false, "repeated_failures": false, "scope_creep": false,
             "intent_contradictions": false, "vocabulary_contraction": false,
@@ -177,6 +180,20 @@ use agent
 main {
     let a = agent.create("alpha")
     let b = agent.create("bravo")
+    // One CLEAN calibration turn PER HANDLE before the scenario.
+    //
+    // adaptive_baseline_enabled defaults true and each handle carries its OWN
+    // DriftState and therefore its own baseline window — a warm-up for bravo
+    // does nothing for alpha. instruction_recall is statistical, so inside a
+    // handle's window it is both suppressed and learned as that handle's normal
+    // rate; with the original scenario every send sat in a window and no level
+    // ever moved, so M-02..M-08 failed for want of a level to observe.
+    //
+    // The window is pinned to 1 and each handle gets one clean turn, so both
+    // learned rates are 0 and the first drift turn on either handle charges
+    // full weight. Telemetry turn indices below are the scenario turn PLUS TWO.
+    let w1 = agent.send(b, "reconcile ledger quarterly totals balance")
+    let w2 = agent.send(a, "reconcile ledger quarterly totals balance")
     let r1 = agent.send(b, "reconcile ledger quarterly totals balance")
     let r2 = agent.send(b, "reconcile ledger quarterly totals balance")
     let r3 = agent.send(b, "reconcile ledger quarterly totals balance")
@@ -192,16 +209,27 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-echo "$OUTPUT" | grep -q "DONE" && pass "M-01" "8 interleaved sends complete" \
+echo "$OUTPUT" | grep -q "DONE" && pass "M-01" "10 interleaved sends complete (8 scenario + 2 warm-up)" \
     || fail "M-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"
 
-L1=$(cdd_level "$WDIR/telemetry.jsonl" 1)
-L3=$(cdd_level "$WDIR/telemetry.jsonl" 3)
-L4=$(cdd_level "$WDIR/telemetry.jsonl" 4)
-L5=$(cdd_level "$WDIR/telemetry.jsonl" 5)
-L6=$(cdd_level "$WDIR/telemetry.jsonl" 6)
-L7=$(cdd_level "$WDIR/telemetry.jsonl" 7)
-L8=$(cdd_level "$WDIR/telemetry.jsonl" 8)
+# Scenario turn N is telemetry turn N+2 (turns 1-2 are the per-handle warm-ups).
+W1=$(cdd_level "$WDIR/telemetry.jsonl" 1)
+W2=$(cdd_level "$WDIR/telemetry.jsonl" 2)
+L1=$(cdd_level "$WDIR/telemetry.jsonl" 3)
+L3=$(cdd_level "$WDIR/telemetry.jsonl" 5)
+L4=$(cdd_level "$WDIR/telemetry.jsonl" 6)
+L5=$(cdd_level "$WDIR/telemetry.jsonl" 7)
+L6=$(cdd_level "$WDIR/telemetry.jsonl" 8)
+L7=$(cdd_level "$WDIR/telemetry.jsonl" 9)
+L8=$(cdd_level "$WDIR/telemetry.jsonl" 10)
+
+# Neither warm-up may escalate, or the scenario starts from the wrong level and
+# M-02 passes for a reason unrelated to bravo's drift.
+if [ "$W1" = "normal" ] && [ "$W2" = "normal" ]; then
+    pass "M-01b" "Both calibration warm-ups stayed NORMAL (clean baselines)"
+else
+    fail "M-01b" "A warm-up escalated — a baseline is contaminated" "w1=$W1 w2=$W2"
+fi
 
 if [ "$L1" = "elevated" ]; then
     pass "M-02" "bravo's pressure turn escalates immediately"

@@ -153,6 +153,8 @@ echo -e "${CYAN}--- Group B: gate denies tool at low coherence ---${NC}"
 WDIR="$TEST_TMP/group_b"; mkdir -p "$WDIR"
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [
+  {"content": "{\"revenue\": 1, \"period\": \"q1\"}", "output_tokens": 30},
+  {"content": "{\"revenue\": 2, \"period\": \"q2\"}", "output_tokens": 30},
   {"content": "not json response one for coherence decay", "output_tokens": 30},
   {"content": "not json response two for coherence decay", "output_tokens": 30},
   {"content": "not json response three for coherence decay", "output_tokens": 30},
@@ -169,7 +171,8 @@ cat > "$WDIR/govern.json" << GOVEOF
     "security": { "sandbox_level": "elevated" },
     "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
     "behavioral_sequences": { "enabled": true },
-    "context_drift": { "enabled": true, "check_interval_turns": 1 },
+    "context_drift": { "enabled": true, "check_interval_turns": 1,
+        "adaptive_baseline_window": 2 },
     "circuit_breaker": {
         "enabled": true,
         "output_admissibility": {
@@ -212,8 +215,19 @@ main {
         "parameters": { "query": {"type": "string", "description": "what to fetch"} }
     })
     let h = agent.create("tooler")
-    // Warm-up: drive coherence down with contract-failing turns
-    for i in 0..4 {
+    // Two CLEAN contract-satisfying turns first, then four failing ones.
+    //
+    // adaptive_baseline_enabled defaults true. Without the clean pair the four
+    // failing turns land INSIDE the calibration window, where two things happen
+    // and either one alone defeats this group: the penalties are suppressed, so
+    // coherence never falls; and the baseline LEARNS that failing is this
+    // agent's normal rate, so the firing stays absorbed after the window too.
+    // The gate then passes on a coherence of 1.0 and the tool RUNS — B-03
+    // caught exactly that, with the side-effect file on disk to prove it.
+    //
+    // The window is pinned rather than inherited so this does not silently
+    // re-break when the default window is retuned.
+    for i in 0..6 {
         try {
             let w = agent.send(h, "warm up turn " + string(i))
         } catch (e) {

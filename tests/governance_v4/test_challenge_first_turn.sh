@@ -82,6 +82,7 @@ WDIR="$TEST_TMP/ft"; mkdir -p "$WDIR"
 # answer (mandate-aligned), bravo's real answer.
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [
+  {"content": "reconcile ledger quarterly totals balance calibration turn for alpha", "output_tokens": 20},
   {"content": "meandering filler paragraph about nothing important whatsoever", "output_tokens": 20},
   {"content": "I remain focused on my assigned task to summarize quarterly ledger data right now", "output_tokens": 20},
   {"content": "quarterly ledger data summarized and totals verified", "output_tokens": 20}
@@ -98,6 +99,7 @@ cat > "$WDIR/govern.json" << GOVEOF
     "context_drift": {
         "enabled": true, "level": "advisory", "check_interval_turns": 1,
         "coherence_threshold": 0.05,
+        "adaptive_baseline_window": 1,
         "signals": {
             "circular_actions": false, "repeated_failures": false, "scope_creep": false,
             "intent_contradictions": false, "vocabulary_contraction": false,
@@ -153,6 +155,19 @@ cat > "$WDIR/test.naab" << 'NAABEOF'
 use agent
 main {
     let a = agent.create("alpha")
+    // One CLEAN calibration turn for alpha before its drift turn.
+    //
+    // adaptive_baseline_enabled defaults true. Alpha exists only to raise the
+    // ENGINE-GLOBAL level; its drift turn originally sat inside the calibration
+    // window, so nothing was scored, the level stayed NORMAL, and every F-0*
+    // assertion failed for want of an elevated level rather than because
+    // first-turn challenges were broken.
+    //
+    // Bravo deliberately gets NO warm-up. The subject of this suite is a
+    // BRAND-NEW handle being challenged, and the challenge is triggered by the
+    // engine-global level, not by bravo's own coherence — so bravo stays fresh
+    // and the thing under test is unchanged.
+    let w1 = agent.send(a, "reconcile ledger quarterly totals balance")
     let r1 = agent.send(a, "reconcile ledger quarterly totals balance")
     // Engine level is now ELEVATED. A brand-new handle's first send must be
     // challenged with the MANDATE type (system prompt is the only delivered
