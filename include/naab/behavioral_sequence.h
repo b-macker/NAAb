@@ -287,6 +287,21 @@ struct DriftState {
     int escalation_to_level = 0;                   // governance level after escalation
     double escalation_coherence_at = 0.0;          // coherence snapshot at escalation moment
     double post_escalation_coherence_sum = 0.0;    // sum of coherence readings in window
+    // Penalty-based effectiveness. Measured (examples/effectiveness-semantics):
+    // the coherence-based measure has NO offset/window that separates helped /
+    // no-effect / worse, because coherence saturates at 0 and recovers at only
+    // ~0.05/turn. Penalty rate does not saturate and responds the turn
+    // behaviour changes.
+    //
+    // The "before" side is the CURRENT CONTIGUOUS RUN OF PENALISED TURNS — the
+    // behaviour that provoked the escalation — not a fixed window back from it.
+    // A fixed window is config-dependent: sweeping elevated_threshold 0.30 ->
+    // 0.50 moved the working pre-window from [1,2] to [2,3,4], while the
+    // derived window worked at every setting of both.
+    double drift_run_penalty_sum = 0.0;            // penalty in the current penalised run
+    int drift_run_turns = 0;                       // length of that run
+    double trigger_penalty_mean = -1.0;            // snapshot at escalation (-1 = none)
+    double post_escalation_penalty_sum = 0.0;      // penalty since that escalation
     int post_escalation_turns_counted = 0;         // turns counted in effectiveness window
 
     // Temporal trust decay — trust erodes when not actively reinforced

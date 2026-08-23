@@ -829,11 +829,12 @@ static NaabVal buildEnvironmentDict(int handle_id, const std::string& config_nam
             state["escalation_to_level"] = NaabVal::makeInt(drift_opt->escalation_to_level);
             if (drift_opt->escalation_turn >= 0) {
                 int eff_window = ge->getRules().context_drift.escalation_effectiveness_window;
-                if (eff_window > 0 && drift_opt->post_escalation_turns_counted >= eff_window) {
-                    double mean = drift_opt->post_escalation_coherence_sum /
+                if (eff_window > 0 && drift_opt->post_escalation_turns_counted >= eff_window &&
+                    drift_opt->trigger_penalty_mean >= 0.0) {
+                    double post = drift_opt->post_escalation_penalty_sum /
                                   drift_opt->post_escalation_turns_counted;
                     state["escalation_effectiveness"] = NaabVal::makeDouble(
-                        mean - drift_opt->escalation_coherence_at);
+                        drift_opt->trigger_penalty_mean - post);
                 }
             }
         } else {
@@ -4356,12 +4357,17 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 std::string esc_eff_str = "N/A";
                 if (drift_state->escalation_turn >= 0) {
                     int eff_w = gov_engine->getRules().context_drift.escalation_effectiveness_window;
-                    if (eff_w > 0 && drift_state->post_escalation_turns_counted >= eff_w) {
-                        double eff_mean = drift_state->post_escalation_coherence_sum /
-                                          drift_state->post_escalation_turns_counted;
+                    // Penalty rate against the triggering drift — see
+                    // examples/effectiveness-semantics. Stays "N/A" when there
+                    // was no measurable drift run to compare against, rather
+                    // than reporting a number with no baseline.
+                    if (eff_w > 0 && drift_state->post_escalation_turns_counted >= eff_w &&
+                        drift_state->trigger_penalty_mean >= 0.0) {
+                        double post = drift_state->post_escalation_penalty_sum /
+                                      drift_state->post_escalation_turns_counted;
                         char eff_buf[32];
                         snprintf(eff_buf, sizeof(eff_buf), "%.4f",
-                                 eff_mean - drift_state->escalation_coherence_at);
+                                 drift_state->trigger_penalty_mean - post);
                         esc_eff_str = eff_buf;
                     }
                 }

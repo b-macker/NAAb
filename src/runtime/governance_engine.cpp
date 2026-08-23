@@ -2964,11 +2964,18 @@ void GovernanceEngine::printDashboard() const {
                         state->escalation_from_level, state->escalation_to_level,
                         state->escalation_turn);
                 int eff_w = rules().context_drift.escalation_effectiveness_window;
-                if (eff_w > 0 && state->post_escalation_turns_counted >= eff_w) {
-                    double eff_mean = state->post_escalation_coherence_sum /
-                                      state->post_escalation_turns_counted;
-                    double eff = eff_mean - state->escalation_coherence_at;
-                    fprintf(stderr, ", effectiveness=%+.2f (%d-turn window)", eff, eff_w);
+                // Penalty rate, against the drift that provoked the escalation.
+                // See examples/effectiveness-semantics: the coherence-based
+                // measure has no offset/window that separates helped from
+                // no-effect from worse, and reported a genuine recovery as
+                // -0.246. Absent when there was no measurable triggering drift.
+                if (eff_w > 0 && state->post_escalation_turns_counted >= eff_w &&
+                    state->trigger_penalty_mean >= 0.0) {
+                    double post = state->post_escalation_penalty_sum /
+                                  state->post_escalation_turns_counted;
+                    double eff = state->trigger_penalty_mean - post;
+                    fprintf(stderr, ", effectiveness=%+.3f (%d-turn window, trigger %.3f -> %.3f)",
+                            eff, eff_w, state->trigger_penalty_mean, post);
                 }
                 fprintf(stderr, "\n");
             }
