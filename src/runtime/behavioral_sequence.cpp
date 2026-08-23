@@ -2231,10 +2231,26 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     if (state.coherence_score < state.min_coherence_lifetime)
         state.min_coherence_lifetime = state.coherence_score;
 
-    // Escalation effectiveness: accumulate post-escalation coherence readings
+    // Current contiguous run of penalised turns. This is the "before" side of
+    // escalation effectiveness: the behaviour that provoked the intervention.
+    // A clean turn ends the run, so the next drift episode is measured on its
+    // own terms rather than diluted by an earlier one.
+    double turn_penalty_total = 0.0;
+    for (int i = 0; i < NUM_CDD_SIGNALS; ++i) turn_penalty_total += turn_penalties[i];
+    if (turn_penalty_total > 0.0) {
+        state.drift_run_penalty_sum += turn_penalty_total;
+        state.drift_run_turns++;
+    } else {
+        state.drift_run_penalty_sum = 0.0;
+        state.drift_run_turns = 0;
+    }
+
+    // Escalation effectiveness. Coherence is still accumulated for the legacy
+    // readers; the penalty sum is what the reported value is computed from.
     if (state.escalation_turn >= 0 &&
         state.post_escalation_turns_counted < config_->escalation_effectiveness_window) {
         state.post_escalation_coherence_sum += state.coherence_score;
+        state.post_escalation_penalty_sum += turn_penalty_total;
         state.post_escalation_turns_counted++;
     }
 
@@ -2908,7 +2924,15 @@ void ContextDriftAnalyzer::recordEscalation(
         it->second.escalation_to_level = to_level;
         it->second.escalation_coherence_at = it->second.coherence_score;
         it->second.post_escalation_coherence_sum = 0.0;
+        it->second.post_escalation_penalty_sum = 0.0;
         it->second.post_escalation_turns_counted = 0;
+        // Snapshot the mean penalty of the run that provoked this escalation.
+        // -1 means there was none to measure, and effectiveness stays absent
+        // rather than being reported against a fabricated baseline.
+        it->second.trigger_penalty_mean =
+            it->second.drift_run_turns > 0
+                ? it->second.drift_run_penalty_sum / it->second.drift_run_turns
+                : -1.0;
     }
 }
 

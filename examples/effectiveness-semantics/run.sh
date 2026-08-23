@@ -40,7 +40,7 @@ export NAAB_SIGNING_KEY="$W/k.pem" FAKE_KEY_ES=fake
 TURNS=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["turns"])' "$W/fx/meta.json")
 MANDATE=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["mandate"])' "$W/fx/meta.json")
 
-echo "Running $(ls "$W/fx"/*.json | grep -vc meta) scenarios x ${TURNS} turns"
+echo "Running $(ls "$W/fx"/*.json | grep -vc meta) scenarios x ${TURNS} turns  (elevated_threshold=${ELEVATED:-0.30})"
 for f in "$W/fx"/*.json; do
   arm=$(basename "$f" .json); [ "$arm" = "meta" ] && continue
   D="$W/$arm"; mkdir -p "$D"
@@ -58,7 +58,7 @@ for f in "$W/fx"/*.json; do
    "escalation_effectiveness_window":4,
    "reality_checkpoint":{"enabled":false}},
  "circuit_breaker":{"enabled":true,"step_up_enabled":false,
-   "elevated_threshold":0.30,"elevated_sustained":1,
+   "elevated_threshold":${ELEVATED:-0.30},"elevated_sustained":1,
    "high_threshold":0.60,"high_sustained":2,
    "critical_threshold":0.95,"critical_sustained":9,
    "deescalate_sustained":3},

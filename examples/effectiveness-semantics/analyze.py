@@ -91,6 +91,17 @@ def candidates(rows, esc, off, win, pre_win=None):
     qp = sum(m[t][1] for t in post) / len(post)
     out["C_penalty_rate"] = pp - qp
     out["D_penalty_ratio"] = (pp - qp) / max(pp, 0.01)
+
+    # E: the pre-window is DERIVED, not configured — every turn from drift
+    # onset up to the escalation, however many that happens to be. If the
+    # pre-window constraint found for C and D is really "the triggering drift"
+    # rather than "one or two turns", E should hold at any gap between onset
+    # and escalation, and C/D should drift as that gap changes.
+    onset = drift_onset(rows)
+    if onset is not None and onset < esc:
+        trig = [m[t][1] for t in range(onset, esc) if t in m]
+        if trig:
+            out["E_derived_prewindow"] = sum(trig) / len(trig) - qp
     return out
 
 
@@ -99,7 +110,8 @@ def cls(v, eps):
 
 
 EPS = {"A_coherence_delta": 0.05, "B_coherence_slope": 0.03,
-       "C_penalty_rate": 0.03, "D_penalty_ratio": 0.15}
+       "C_penalty_rate": 0.03, "D_penalty_ratio": 0.15,
+       "E_derived_prewindow": 0.03}
 
 
 def main(work, metap):
@@ -186,7 +198,8 @@ def main(work, metap):
     print("  every usable scenario correctly:")
     print("")
     found = {}
-    for kind in ("A_coherence_delta", "B_coherence_slope", "C_penalty_rate", "D_penalty_ratio"):
+    for kind in ("A_coherence_delta", "B_coherence_slope", "C_penalty_rate",
+                 "D_penalty_ratio", "E_derived_prewindow"):
         sols = []
         for off in range(1, 7):
             for win in range(2, 9):
@@ -194,7 +207,7 @@ def main(work, metap):
                     ok = 0
                     for name, (rows, esc, truth) in truths.items():
                         c = candidates(rows, esc, off, win, pw)
-                        if not c:
+                        if not c or kind not in c:
                             ok = -99
                             break
                         if cls(c[kind], EPS[kind]) == truth:

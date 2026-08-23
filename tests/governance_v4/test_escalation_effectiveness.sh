@@ -29,6 +29,13 @@
 #   EE-02  the recorded transition is an ESCALATION (to_level > from_level)
 #   EE-03  a value is reported at all — positive control that a window completes
 #
+# The reported QUANTITY is penalty rate against the drift that provoked the
+# escalation, not coherence — see examples/effectiveness-semantics, which
+# measured that no offset/window separates helped / no-effect / worse under the
+# coherence-based definition, and that a fixed pre-window is config-dependent
+# (sweeping elevated_threshold 0.30 -> 0.50 moved the working pre-window from
+# [1,2] to [2,3,4]) while a window derived from drift onset is invariant.
+#
 # WHAT IS NOT FIXED, AND IS DELIBERATELY NOT ASSERTED HERE
 #   The measure is one-sided at the floor: eff = mean(post) - coherence_at, and
 #   escalation usually fires when coherence is already low, so coherence_at is
@@ -138,7 +145,11 @@ else
     echo -e "${RED}Aborting.${NC}"; exit 1
 fi
 
-if echo "$LINE" | grep -q "(${WINDOW}-turn window)"; then
+# Match the window figure without anchoring on what follows it: the
+# dashboard line gained a "trigger X -> Y" suffix when the measure
+# changed to penalty rate, and a pattern ending in ")" broke on it
+# while the window was in fact correct.
+if echo "$LINE" | grep -q "${WINDOW}-turn window"; then
     pass "EE-01" "the configured escalation_effectiveness_window ($WINDOW) is honoured"
 else
     fail "EE-01" "the configured window was ignored" \
