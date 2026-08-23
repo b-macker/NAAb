@@ -40,10 +40,29 @@
 # A recorded mode that stops occurring fails too: it was fixed (update the
 # manifest and everything resting on it) or the sweep stopped exercising it.
 #
-# WHAT THE MAP SAYS TODAY: 0 of 16 cells are CLEAN. There is no configuration
+# WHAT THE MAP SAYS TODAY: 0 of 24 cells are CLEAN. There is no configuration
 # in the swept space where the engine both preserves correct work and catches
 # every drift. The manifest below is that finding, in a form that breaks when
 # it changes.
+#
+# WHICH CELL IS THE DEFAULT MOVED — the modes did not.
+#
+# adaptive_baseline_enabled now defaults TRUE, so the `cal=absent` column (the
+# condition every real config is in) behaves as `cal=true` did, and `cal=false`
+# is the explicit opt-out. PS-04 asserts set equality on the MODES, so it stayed
+# green across that change — correctly, because the flip introduced and removed
+# nothing. What it changed is which mode you get by default:
+#
+#   before   default = FALSE_KILL[varied,verbose]   correct progressive work dies
+#   after    default = BYPASS[abandon,parrot]       short runs miss abandonment
+#
+# That is the whole trade, and it is not a strict improvement — it is a choice
+# about which failure is worse to ship. A false-kill of correct work is what
+# makes an operator switch governance off altogether; the bypass is bounded by
+# the calibration window, is labelled `undetermined` in telemetry and the
+# response dict, and leaves the objective signals (S1, S21) and validation
+# ground truth (S22) charging from turn 1. FALSE_KILL[varied,verbose] still
+# reproduces on demand — it now requires asking for it.
 #
 # Four modes remain, down from six. Verbatim repetition used to escape whenever
 # the baseline window reached into the drift phase or swallowed the whole run
