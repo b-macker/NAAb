@@ -54,6 +54,35 @@ whichever one justifies what you already believe.
 
 ---
 
+### Name the provenance of every number
+
+Every figure you report is one of three things, and they are not comparable:
+
+  observed   — the system produced it under conditions you did not choose
+  configured — the system produced it under conditions YOU set
+  authored   — your fixture, harness or analyzer produced it
+
+Say which, in the sentence. The failure is not using authored evidence — it is
+unavoidable — it is reporting it in the grammar of an observation. "The engine
+penalises correct work" and "my fixture, which drifts on 43% of turns, declines"
+are different claims, and only the first one is wrong.
+
+The sharpest form: when you build the fixture, the harness, the analyzer AND
+draw the conclusion, nothing independent can contradict you. Every part of the
+chain shares your assumptions. Look for the one input you did not author and
+check the claim against that.
+
+### Your own prior conclusions are the least trustworthy input you have
+
+A published finding, a commit message, a doc you wrote last week: these carry
+your errors forward wearing your confidence, and you will not re-derive them
+because you remember deciding. External claims get checked; your own get
+inherited.
+
+When an investigation reverses, do not patch the conclusion — re-derive the
+whole chain. A chain of four conclusions where each was built on the last is
+one error repeated four times, not four findings.
+
 ## Investigating
 
 ### Trace to the point of EFFECT, not the point of mention
@@ -107,6 +136,57 @@ skeptic who wrote this code would say first — usually "did you check *the thin
 you assumed*?"
 
 ---
+
+### A disabled compensator looks like a broken component
+
+When a system has a mechanism that corrects, calibrates or bounds another one,
+and that mechanism is OFF, the uncompensated behaviour is indistinguishable from
+a defect in the compensated part. You will diagnose the wrong component, and
+every measurement will agree with you.
+
+Before concluding a component is broken, enumerate what is supposed to
+compensate it and check each one is live IN THE RUN YOU MEASURED. "Its
+calibration ships disabled" and "it does not work" produce identical evidence
+and opposite fixes — one is a default to change, the other is a component to
+rewrite.
+
+### Isolation can remove the property under test
+
+Holding everything constant and varying one thing is the reflex, and it is wrong
+whenever the property is emergent. If a mechanism learns from history, adapts to
+context, or compares one phase against another, then testing each case in its
+own isolated run gives every case its own baseline — and the mechanism can never
+engage. The harness looks rigorous and is structurally incapable of answering.
+
+Ask what the mechanism needs in order to act at all, and check your design
+supplies it, before trusting a null result from it.
+
+### A sweep over explicit values cannot see a default
+
+If every cell of your matrix SETS the key, changing its default moves nothing,
+and your matrix will report that the default does not matter. "Key absent" is a
+distinct condition from "key set to its default value", and it is the one most
+real configurations are in.
+
+Sweep absent | false | true, not false | true.
+
+### Empty output is not a negative result
+
+A wrong path, an unmatched pattern, a renamed field, a filter that excludes
+everything — each produces nothing, and nothing is exactly what a true negative
+looks like. This is why mechanical errors are dangerous rather than merely
+annoying: they fail in the direction you are least likely to question.
+
+Before reading meaning into an empty result, prove the pipeline that produced it
+can produce a non-empty one.
+
+### Do not mutate what you are observing
+
+Editing a script while it runs, running two jobs that share a build directory,
+regenerating a fixture mid-sweep: each produces failures that look like
+discoveries and are larger than anything the change could explain. If a result
+is surprising, ask what else was touching the same state during the run before
+believing it.
 
 ## Forming conclusions
 
@@ -162,6 +242,30 @@ out.
 
 ---
 
+### The shape of the report bounds the finding
+
+A verdict per configuration answers one question, so each new question needs a
+new experiment, and anything the verdict averages over becomes invisible — not
+uncertain, invisible. Two premises reported "inert" by a scalar summary turned
+out to be decisive the moment the same runs were reported as a table of
+outcomes.
+
+Aggregation is lossy in a direction you choose without noticing. Before
+collapsing measurements into a score, ask what distinction the collapse
+destroys, and whether that is the distinction you are investigating.
+
+Prefer output that enumerates what happened over output that scores it.
+
+### Unmeasurable is not absent
+
+If your harness cannot detect a phenomenon, that is a fact about the harness.
+Reporting only what you could measure quietly converts "not measured" into "does
+not occur", and nobody reading the result can tell which you meant.
+
+State the phenomena your setup is blind to, beside the results. If a claim
+matters and is unmeasurable, say so instead of omitting it — an acknowledged
+blind spot can be closed, an unmentioned one cannot.
+
 ## Making changes
 
 ### Check whether this was already decided
@@ -212,6 +316,26 @@ for it.
 
 ---
 
+### A confident comment is not a verified one
+
+Writing a persuasive rationale for a choice does not test it, and it makes the
+choice harder to question later — including by you. The most expensive error in
+this method's own history was a config comment that argued, fluently and
+backwards, for disabling the mechanism under test. It survived several readings
+because it read like rigor.
+
+Treat your own justifications as claims with a tier like any other. If the
+comment says "X would mask Y", that is a testable statement — test it, then say
+which tier it is.
+
+### A new test that passes first try is suspect
+
+Passing feels like the test working. It is equally consistent with the test
+being unable to fail. This is when a vacuity check is cheapest and least
+attractive, which is exactly why it gets skipped.
+
+Never accept a green new test without making it red once, deliberately.
+
 ## Acting and reporting
 
 ### Prefer under-reporting
@@ -234,3 +358,35 @@ separately; the one that doesn't belong is what the batch was hiding.
 
 Precedent: three keys were recommended for deletion under one rationale. Checking
 them individually, one expressed a constraint nothing else could state.
+
+### Name the artifact in the sentence
+
+Reporting is where a fixture property becomes an engine property, and it happens
+in the grammar rather than the reasoning. "Steering only slows the collapse" is a
+claim about a system. "My fixture models one-turn compliance, so it drifts 43% of
+turns against a 14% break-even and cannot recover" is a claim about a fixture.
+The second was true; the first was published.
+
+If the claim depends on something you built, the thing you built belongs in the
+sentence — not in a caveat further down, which readers and your future self will
+skip.
+
+### Publishing is an action, not a report
+
+A merged doc, a README, a committed conclusion: other people act on these, and
+they outlive the context that produced them. A claim that would need three
+caveats to be accurate is not ready to publish with the caveats — it is not
+ready.
+
+Ask which of your published claims would change if the investigation continued
+one more level. Those are the ones to hold.
+
+### Say which way you are erring, every time
+
+The direction rule is not only for the finding — it applies to YOU. Almost every
+error in this method's origin ran the same way: claiming a protection was
+missing, weak or broken. That is the alarming direction, and alarming findings
+get less scrutiny because they feel like diligence.
+
+Notice which direction your errors have been running lately, and spend the extra
+check there.
