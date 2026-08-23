@@ -2304,3 +2304,76 @@ and bought a result that does not depend on trusting a broken instrument.
   the suspect and the extractor is not; it does not say what either threshold
   should be, and lowering a detector's sensitivity because two scenarios tripped
   it is how a governance system is quietly disarmed.
+
+---
+
+## The circuit-breaker ladder's middle rungs are ornamental, and must stay that way for now
+
+**Tier: verified.** `tests/governance_v4/test_level_inertness.sh`.
+
+`docs/CLAUDE-TEMPLATE.md` specified all four rungs: "ELEVATED = CDD check every
+turn, HIGH = ADVISORY escalates to SOFT, CRITICAL = all agent admission denied."
+Only CRITICAL is implemented.
+
+**Traced.** Every reader of `governance_level_` is one of: a label (agent
+environment, `ADMISSION_EVAL`, `CDD_TURN`, transcript); the step-up challenge
+trigger, gated on `circuit_breaker.step_up_enabled` which defaults **false**;
+`propose()` denial behind the same gate; or CRITICAL-only (tool-loop break,
+`checkCriticalSuspension`). The CDD interval gate is
+`turn_number - last_checked_turn < config_->check_interval_turns` — a pure config
+value, and `behavioral_sequence.cpp` contains **zero** references to the
+governance level. Advisory escalation fires on `occurrence >= esc.soft_after`,
+the repeat count of one rule, with no level involvement.
+
+**Verified.** Identical fixture, two configs differing only in whether escalation
+occurs, `step_up_enabled` at its default:
+
+| arm | levels reached | quarantines | requests | coherence trace |
+|---|---|---|---|---|
+| escalates | NORMAL→ELEVATED→HIGH | 19 | 25 | — |
+| never escalates | none | 19 | 25 | **identical** |
+
+The positive control is the load-bearing half: the same comparison with
+`step_up_enabled: true` diverges hard — a challenge fires and the run ends at
+turn 8 instead of 25 — so "identical" above is not a measurement artifact.
+
+### Why implementing the documented effects would make things worse
+
+Not a scheduling preference; arithmetic.
+
+`coherence_proximity` carries weight **0.35** and reaches its full value once
+coherence floors. `conversation_depth` carries **0.10**. That is **0.45** against
+a default `elevated_threshold` of **0.4** — so a floored agent is at ELEVATED on
+those two factors alone. And correct progressive work DOES floor coherence while
+`adaptive_baseline_enabled` defaults false (`FALSE_KILL[varied,verbose]`, 8 of 8
+uncalibrated cells of the failure map).
+
+So on a stock config, **correct work alone reaches ELEVATED.** Implementing the
+documented effects on top of that would run drift checks more often on an agent
+already being wrongly penalised — a positive feedback loop toward HIGH — and then
+promote its advisories to SOFT blocks. The error direction is false blocking of
+correct work, made hard.
+
+### The precondition, in order
+
+```
+HIGH → SOFT          needs trustworthy pressure
+  └ pressure         needs trustworthy coherence
+      └ coherence    needs calibration on by default
+          └ default  needs "undetermined" to be a state the gates can consume
+```
+
+Implementing the top of that stack first inverts the dependency.
+
+### Not another opt-in flag
+
+The obvious compromise — implement behind `level_effects_enabled`, default false
+— is **the exact pattern that produced this**. Three instances so far:
+`adaptive_baseline_enabled`, `step_up_enabled`, `advisory_escalation.enabled`.
+Each is a real capability whose connector ships off, with documentation
+describing the connected behaviour. A fourth repeats the failure rather than
+fixing it.
+
+`test_level_inertness.sh` is the tripwire, and says so in its header: when the
+divergence is fixed, LI-02 **should** fail, and the repair is to replace it with
+positive assertions for each rung — never to relax it.
