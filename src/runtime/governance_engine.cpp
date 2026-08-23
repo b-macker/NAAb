@@ -6592,7 +6592,12 @@ GovernanceEngine::checkOutputAdmissibility(
     result.action = oac.action;
 
     auto state = drift_analyzer_.getDriftState(handle_id);
-    if (!state) return result;  // no CDD data yet = admissible
+    if (!state) {
+        // No CDD data at all — the purest undetermined case. Left admissible
+        // under the default policy, as before, but now labelled.
+        result.undetermined = true;
+        return result;
+    }
 
     result.coherence_score = state->coherence_score;
 
@@ -6600,20 +6605,72 @@ GovernanceEngine::checkOutputAdmissibility(
     bool pulse_override = (getPulseVerdict() == PulseVerdict::IMPAIRED);
 
     if (state->coherence_score >= oac.threshold && !pulse_override) {
-        // Pass — emit telemetry
+        // The gate would pass. Is the pass EVIDENCE?
+        //
+        // While a handle is inside its adaptive baseline window, `in_baseline`
+        // suppresses every STATISTICAL signal's penalty, so coherence sits near
+        // its ceiling whatever the agent is doing. Measured: with the window at
+        // 12 on an 8-turn run, verbatim repetition, topic abandonment and
+        // mandate parroting all passed unnoticed, and nothing distinguished
+        // that from an agent behaving.
+        //
+        // This marks the PASS DIRECTION ONLY. A low coherence stays meaningful
+        // while undetermined, because objective signals (byte-identical
+        // repetition) are exempt from absorption and charged from turn 1 — so
+        // the gate can still rule OUT, it just cannot rule IN.
+        //
+        // With adaptive baselining OFF there is no window, every signal charges
+        // from the first turn, and a pass is determined — miscalibrated
+        // perhaps, but not uninformed. "Undetermined" is about insufficient
+        // observation, not about the calibration being wrong.
+        const bool determined =
+            !rules().context_drift.adaptive_baseline_enabled || state->baseline_complete;
+        result.undetermined = !determined;
+
         std::unordered_map<std::string, std::string> oa_fields = {
             {"handle_id",   std::to_string(handle_id)},
             {"config_name", agent_config},
             {"turn",        std::to_string(turn)},
-            {"result",      "pass"},
+            {"result",      determined ? "pass" : "undetermined"},
             {"coherence",   fmt::format("{:.4f}", state->coherence_score)},
             {"threshold",   fmt::format("{:.4f}", oac.threshold)},
-            {"action",      oac.action}
+            {"action",      oac.action},
+            {"baseline_state", rules().context_drift.adaptive_baseline_enabled
+                                   ? (state->baseline_complete ? "complete" : "calibrating")
+                                   : "disabled"},
+            {"on_undetermined", oac.on_undetermined}
         };
         std::string snap = snapshotCddState(handle_id);
         if (!snap.empty()) oa_fields["cdd_snapshot"] = snap;
         writeAgentTelemetry("OUTPUT_ADMISSIBILITY_EVAL", oa_fields);
-        return result;  // pass
+
+        if (determined || oac.on_undetermined == "pass") {
+            return result;  // pass — the default, and byte-identical to before
+        }
+
+        // Policy says an unjudgeable response must not simply be delivered.
+        result.admissible = false;
+        clearTrace();
+        addTrace(fmt::format(
+            "output_undetermined: coherence {:.4f} passes threshold {:.4f} but the "
+            "adaptive baseline is incomplete, so the pass is not evidence — "
+            "on_undetermined={} for '{}'",
+            state->coherence_score, oac.threshold, oac.on_undetermined, agent_config));
+
+        if (oac.on_undetermined == "block") {
+            enforce("output_admissibility", oac.level,
+                formatError(oac.level,
+                    fmt::format("Output undetermined — the engine cannot yet judge this response\n\n"
+                        "  Coherence: {:.4f} (passes threshold {:.4f})\n"
+                        "  Agent: {}\n  Turn: {}\n\n"
+                        "  The adaptive baseline has not completed, so no statistical\n"
+                        "  signal can charge coherence and a passing score is not\n"
+                        "  evidence of coherent output.\n",
+                        state->coherence_score, oac.threshold, agent_config, turn),
+                    "", "output_admissibility",
+                    lookupRationale("output_admissibility"), "", ""));
+        }
+        return result;  // "quarantine"
     }
 
     // Gate fires

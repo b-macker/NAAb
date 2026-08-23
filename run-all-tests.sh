@@ -1749,6 +1749,19 @@ else
     echo "  test_persona_window.sh: not found, skipping"
 fi
 
+# A gate that passes because it cannot yet judge must say so.
+UNDETGATE_SCRIPT="tests/governance_v4/test_undetermined_gate.sh"
+if [ -f "$UNDETGATE_SCRIPT" ]; then
+    if run_shell_test "$UNDETGATE_SCRIPT" 2>&1; then
+        echo "  test_undetermined_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_undetermined_gate.sh")
+    fi
+else
+    echo "  test_undetermined_gate.sh: not found, skipping"
+fi
+
 # VM: break/continue out of a try must close its handler (and only its own).
 TRYLEAK_SCRIPT="tests/vm/test_try_handler_leak.sh"
 if [ -f "$TRYLEAK_SCRIPT" ]; then

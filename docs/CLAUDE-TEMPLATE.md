@@ -1303,10 +1303,36 @@ Agent admission denied when budget exhausted. 0 = unlimited. Cap-and-trade analo
 }
 ```
 System-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained
-composite pressure. Effects: ELEVATED = CDD check every turn, HIGH = ADVISORY escalates
-to SOFT, CRITICAL = all agent admission denied. Step-up challenges inject a verification
-prompt at configurable governance level — pass recovers coherence, fail blocks send.
-NYSE circuit breaker analog.
+composite pressure.
+
+**Effects, as implemented:**
+- **CRITICAL** — all agent admission denied, and the tool loop breaks. Implemented
+  and verified.
+- **ELEVATED / HIGH** — no behavioural effect of their own. They appear in
+  telemetry, the transcript and the agent environment, and they gate step-up
+  challenges when `circuit_breaker.step_up_enabled` is true (it defaults to
+  false). With step-up off, escalating NORMAL -> ELEVATED -> HIGH leaves the run
+  byte-identical: same coherence trace, same quarantine count, same request
+  count. Pinned by `tests/governance_v4/test_level_inertness.sh`.
+
+An earlier version of this section specified "ELEVATED = CDD check every turn,
+HIGH = ADVISORY escalates to SOFT". Neither is implemented — the CDD interval
+gate reads `check_interval_turns` with no reference to the level, and advisory
+escalation is driven by the repeat count of a single rule, not by the level.
+
+**They are not implemented yet on purpose.** On a default config, correct work
+alone already reaches ELEVATED: `coherence_proximity` (weight 0.35) contributes
+its full 0.35 once coherence floors, plus `conversation_depth` 0.10, giving 0.45
+against `elevated_threshold` 0.4 — and correct progressive work DOES floor
+coherence while `adaptive_baseline_enabled` defaults false. Making the middle
+rungs bite today would run drift checks more often on an agent already being
+wrongly penalised, and promote its advisories to SOFT blocks. The precondition is
+a trustworthy pressure signal, which needs trustworthy coherence, which needs
+calibration on by default, which needs "undetermined" to be a state the gates can
+consume. See `docs/governance-campaign-findings.md`.
+
+Step-up challenges inject a verification prompt at configurable governance level —
+pass recovers coherence, fail blocks send. NYSE circuit breaker analog.
 
 ### Governance Health
 ```json

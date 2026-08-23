@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Output admissibility: the `undetermined` verdict** (`circuit_breaker.output_admissibility.on_undetermined`)
+  - A gate that passes because it has no basis to judge now says so. Inside the adaptive baseline window every statistical signal's penalty is suppressed, so coherence sits at its ceiling and the threshold comparison passes on a number that was never a judgement.
+  - `OUTPUT_ADMISSIBILITY_EVAL` gains `result: "undetermined"`, `baseline_state` (`calibrating`/`complete`/`disabled`) and `on_undetermined`; `OUTPUT_INADMISSIBLE` gains `undetermined`; `response.admissibility.undetermined` exposes it to scripts on both directions.
+  - One-directional by design — it marks the PASS direction only. Objective signals (S1 `circular_actions`, S21 `response_repetition`) are exempt from baseline absorption and charge from turn 1, so the gate can still rule OUT while calibrating.
+  - Policy: `"pass"` (default, no behaviour change), `"quarantine"`, `"block"`. Ratchet-enforced (`pass` < `quarantine` < `block`).
+  - Undetermined holds never advance the quarantine streak: `adaptive_baseline_window` and `max_quarantine_streak` both default to 5, so counting them would terminate every agent on its last calibrating turn regardless of behaviour.
 - **Behavioral Sequence Detection (BSD)** — FSM-based multi-step attack pattern matching
   - Configurable via `behavioral_sequences` in govern.json — patterns are fully user-defined, no hardcoded rules
   - Detail globs for per-argument matching (e.g., `env.get:*SECRET*|*TOKEN*`)

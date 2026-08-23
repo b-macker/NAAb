@@ -2304,3 +2304,176 @@ and bought a result that does not depend on trusting a broken instrument.
   the suspect and the extractor is not; it does not say what either threshold
   should be, and lowering a detector's sensitivity because two scenarios tripped
   it is how a governance system is quietly disarmed.
+
+---
+
+## The circuit-breaker ladder's middle rungs are ornamental, and must stay that way for now
+
+**Tier: verified.** `tests/governance_v4/test_level_inertness.sh`.
+
+`docs/CLAUDE-TEMPLATE.md` specified all four rungs: "ELEVATED = CDD check every
+turn, HIGH = ADVISORY escalates to SOFT, CRITICAL = all agent admission denied."
+Only CRITICAL is implemented.
+
+**Traced.** Every reader of `governance_level_` is one of: a label (agent
+environment, `ADMISSION_EVAL`, `CDD_TURN`, transcript); the step-up challenge
+trigger, gated on `circuit_breaker.step_up_enabled` which defaults **false**;
+`propose()` denial behind the same gate; or CRITICAL-only (tool-loop break,
+`checkCriticalSuspension`). The CDD interval gate is
+`turn_number - last_checked_turn < config_->check_interval_turns` — a pure config
+value, and `behavioral_sequence.cpp` contains **zero** references to the
+governance level. Advisory escalation fires on `occurrence >= esc.soft_after`,
+the repeat count of one rule, with no level involvement.
+
+**Verified.** Identical fixture, two configs differing only in whether escalation
+occurs, `step_up_enabled` at its default:
+
+| arm | levels reached | quarantines | requests | coherence trace |
+|---|---|---|---|---|
+| escalates | NORMAL→ELEVATED→HIGH | 19 | 25 | — |
+| never escalates | none | 19 | 25 | **identical** |
+
+The positive control is the load-bearing half: the same comparison with
+`step_up_enabled: true` diverges hard — a challenge fires and the run ends at
+turn 8 instead of 25 — so "identical" above is not a measurement artifact.
+
+### Why implementing the documented effects would make things worse
+
+Not a scheduling preference; arithmetic.
+
+`coherence_proximity` carries weight **0.35** and reaches its full value once
+coherence floors. `conversation_depth` carries **0.10**. That is **0.45** against
+a default `elevated_threshold` of **0.4** — so a floored agent is at ELEVATED on
+those two factors alone. And correct progressive work DOES floor coherence while
+`adaptive_baseline_enabled` defaults false (`FALSE_KILL[varied,verbose]`, 8 of 8
+uncalibrated cells of the failure map).
+
+So on a stock config, **correct work alone reaches ELEVATED.** Implementing the
+documented effects on top of that would run drift checks more often on an agent
+already being wrongly penalised — a positive feedback loop toward HIGH — and then
+promote its advisories to SOFT blocks. The error direction is false blocking of
+correct work, made hard.
+
+### The precondition, in order
+
+```
+HIGH → SOFT          needs trustworthy pressure
+  └ pressure         needs trustworthy coherence
+      └ coherence    needs calibration on by default
+          └ default  needs "undetermined" to be a state the gates can consume
+```
+
+Implementing the top of that stack first inverts the dependency.
+
+### Not another opt-in flag
+
+The obvious compromise — implement behind `level_effects_enabled`, default false
+— is **the exact pattern that produced this**. Three instances so far:
+`adaptive_baseline_enabled`, `step_up_enabled`, `advisory_escalation.enabled`.
+Each is a real capability whose connector ships off, with documentation
+describing the connected behaviour. A fourth repeats the failure rather than
+fixing it.
+
+`test_level_inertness.sh` is the tripwire, and says so in its header: when the
+divergence is fixed, LI-02 **should** fail, and the repair is to replace it with
+positive assertions for each rung — never to relax it.
+
+## "Undetermined" now exists, and the streak would have killed every agent for it
+
+This is the bottom rung of the precondition stack the previous section ends on:
+*default needs "undetermined" to be a state the gates can consume*. It now is.
+
+### The gap
+
+While a handle sits inside its adaptive baseline window, `in_baseline`
+suppresses every **statistical** signal's penalty. Coherence therefore stays at
+its ceiling whatever the agent is doing, and the output-admissibility gate
+compares that ceiling against its threshold and passes.
+
+The pass is not a judgement. It is the absence of one. Nothing distinguished the
+two — not `OUTPUT_ADMISSIBILITY_EVAL`, not `response.admissibility`, not the
+dashboard. Measured on a purpose-built arm: with the window at 12 over 8 turns,
+verbatim repetition, topic abandonment and mandate parroting all passed
+unnoticed, and the telemetry was indistinguishable from an agent behaving.
+
+### The label is one-directional, and that is the whole design
+
+`checkOutputAdmissibility()` computes
+`determined = !adaptive_baseline_enabled || baseline_complete` and marks
+`OutputAdmissibilityResult.undetermined` on the **pass direction only**.
+
+A low coherence stays meaningful while calibrating. Objective signals — S1
+`circular_actions` and S21 `response_repetition`, both exempted from adaptive
+absorption in an earlier increment — charge from turn 1. So the gate can still
+**rule OUT**; it just cannot **rule IN**.
+
+The regression suite's Group D is the control for exactly that asymmetry: eight
+byte-identical responses produce 6 real `fail` verdicts *inside* the baseline
+window, and none of them is labelled undetermined. Without Group D the suite
+would pass for an implementation that labelled every calibrating turn and
+stopped gating altogether — which is the failure mode a "mark it unknown"
+change most naturally produces.
+
+With baselining **off** there is no window, every signal charges from turn 1,
+and a pass is *determined* — miscalibrated perhaps, but not uninformed.
+Undetermined is about insufficient observation, not about the calibration being
+wrong. Group V pins that: zero undetermined events with baselining off, and
+`baseline_state: "disabled"` rather than a default of `"complete"`.
+
+### The defect the change nearly shipped
+
+`on_undetermined: "quarantine"` routes through the same path as a real
+quarantine, and the quarantine streak is a **termination** counter — reaching
+`max_quarantine_streak` throws `GovernanceHardError` and ends the run.
+
+`adaptive_baseline_window` defaults to **5**. `max_quarantine_streak` defaults
+to **5**. They are the same length. An undetermined hold that advanced the
+streak would therefore terminate **every agent on its last calibrating turn,
+unconditionally, regardless of behaviour** — a guaranteed false kill on a run
+that had not yet observed anything.
+
+An undetermined turn is absence of evidence, not evidence of decay; counting it
+toward a degradation counter inverts the meaning. Undetermined holds are exempt
+from the advance at both enforcement sites (`agentSend` and `agentCommit` — the
+same "these two must stay identical" rule `require_corroboration` already
+carries).
+
+Verified by mutation, not by argument: removing the exemption and rebuilding
+kills the run at hold 3 against limit 3, and E-01/E-02 flip to
+`Undetermined holds terminated the agent`. E-03 is the negative control — the
+same limit with genuinely inadmissible responses must still fire
+`QUARANTINE_STREAK_EXCEEDED`, or E-02 is satisfied by a build where the streak
+never fires at all.
+
+### What the mutation run also caught in the test
+
+The first draft of Group E passed under the mutation, vacuously: the mutated
+build emitted *zero* undetermined verdicts on the arm it measured, so "the run
+survived" was true and meaningless. The guard is now explicit — the holds must
+**outnumber** the streak limit before survival counts as evidence.
+
+Two other controls were wrong on first run and were caught by the suite failing:
+B-02 and V-03 both compared an adaptive-on arm against an adaptive-**off** arm
+and called equality "no behaviour change". That control is invalid, and its
+failure *is* the phenomenon under study — without absorption the varied fixture
+drops below threshold and six turns are genuinely inadmissible. Baselining-on
+and baselining-off are different configurations that are *supposed* to differ.
+The valid forms are same-config **key-absent vs key="pass"** (a sweep over
+explicit values cannot see a default, and key-absent is the condition every
+existing config is in), plus the structural claim that under a pass policy every
+hold traces to a `fail` verdict and none to an `undetermined` one.
+
+### Ratchet
+
+`pass` < `quarantine` < `block`. Relaxing mid-run is a loosening violation: an
+unjudgeable response that would have been held is delivered instead.
+
+### What this does NOT establish
+
+The gate is **default `"pass"`** — byte-identical to prior behaviour, pinned by
+B-01/B-02/B-03. Nothing is enforced differently today. What changed is that the
+engine now *says* when its verdict carries no evidence, which is the state the
+next increment (flipping `adaptive_baseline_enabled` on by default) needs to
+exist before it can be safe.
+
+Test: `tests/governance_v4/test_undetermined_gate.sh` (20 assertions).

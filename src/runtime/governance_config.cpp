@@ -3190,13 +3190,25 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (act == "block" || act == "quarantine" || act == "attest")
                     oac.action = act;
             }
+            // What to do when the gate would PASS but has no basis to judge.
+            // Unrecognised values leave the default ("pass") rather than
+            // failing the load — same shape as `action` directly above.
+            if (oa.contains("on_undetermined") && oa["on_undetermined"].is_string()) {
+                std::string ou = oa["on_undetermined"].get<std::string>();
+                if (ou == "pass" || ou == "quarantine" || ou == "block")
+                    oac.on_undetermined = ou;
+            }
             if (oa.contains("level") && oa["level"].is_string()) {
                 auto [en, lv] = parseEnforcementLevel(oa["level"]);
                 oac.level = lv;
             }
-            // Clamp: ADVISORY/NONE can't block — minimum DETECT for "block" action
-            if (oac.action == "block" && (oac.level == EnforcementLevel::ADVISORY ||
-                oac.level == EnforcementLevel::NONE)) {
+            // Clamp: ADVISORY/NONE can't block — minimum DETECT for "block".
+            // on_undetermined="block" enforces at the SAME `level`, so it needs
+            // the same clamp: at ADVISORY, enforce() returns a string instead of
+            // throwing and the config silently degrades to a quarantine.
+            if ((oac.action == "block" || oac.on_undetermined == "block") &&
+                (oac.level == EnforcementLevel::ADVISORY ||
+                 oac.level == EnforcementLevel::NONE)) {
                 oac.level = EnforcementLevel::DETECT;
             }
             // Split commit: history disposition for quarantined/attested responses
@@ -3927,6 +3939,22 @@ static bool checkRatchetViolation(
     else if (new_rank > old_rank)
         notices.push_back(fmt::format("output_admissibility.action: {} -> {} (tightened)",
             old_oa.action, new_oa.action));
+    // Undetermined policy: pass < quarantine < block, same ordering as `action`.
+    // Relaxing it mid-run means an unjudgeable response that would have been
+    // held is delivered instead, which is the loosening the ratchet exists for.
+    auto undeterminedRank = [](const std::string& a) {
+        if (a == "block") return 3;
+        if (a == "quarantine") return 2;
+        return 1;  // "pass"
+    };
+    int old_ur = undeterminedRank(old_oa.on_undetermined);
+    int new_ur = undeterminedRank(new_oa.on_undetermined);
+    if (new_ur < old_ur)
+        violations.push_back(fmt::format("output_admissibility.on_undetermined: {} -> {} (loosened)",
+            old_oa.on_undetermined, new_oa.on_undetermined));
+    else if (new_ur > old_ur)
+        notices.push_back(fmt::format("output_admissibility.on_undetermined: {} -> {} (tightened)",
+            old_oa.on_undetermined, new_oa.on_undetermined));
     // Split commit: exclude is stricter than commit
     if (old_oa.inadmissible_history == "exclude" && new_oa.inadmissible_history == "commit")
         violations.push_back("output_admissibility.inadmissible_history: exclude -> commit (loosened)");
