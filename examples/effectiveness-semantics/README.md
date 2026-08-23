@@ -29,43 +29,57 @@ Four candidate definitions are then swept over offset 1–6 × window 2–8:
 
 ## Results
 
-**A and B have no solution anywhere in the search space.** Not at any offset, not
-at any window, against every scenario count tried (3, then 4). That is the strong
-result and it is a negative one: the current definition is not mistuned, it is
-measuring a quantity that saturates, and no parameter choice repairs it.
+**A and B have no solution anywhere in the search space** — not at any offset,
+post-window or pre-window, across 252 points and every scenario count tried.
+That is the strong result and it is negative: the current definition is not
+mistuned, it is measuring a quantity that saturates, and no parameter choice
+repairs it. On a scenario where the agent genuinely recovered it returned
+**−0.246**, reporting a successful intervention as a failed one.
 
-Concretely, on a scenario where the agent genuinely recovered, the current
-definition returned **−0.246** — confidently wrong in the dangerous direction,
-reporting a successful intervention as a failed one.
+**C and D each have 82 solutions**, and the *shape* of that set is the finding:
 
-**The parameter question is not yet answerable, and the harness says so.** Of ten
-scenarios: five were mislabelled by me and excluded, two more had
-horizon-dependent ground truth and were excluded, one is a control that
-correctly never escalated. The two survivors are both NEGATIVE, so a definition
-that answered NEGATIVE every time would score perfectly. The harness refuses to
-compare rather than report that.
+| axis | solutions span |
+|---|---|
+| offset | 1–6 — every value |
+| post-window | 2–8 — every value |
+| **pre-window** | **1–2 only** |
 
-## The finding underneath
+Indifference on two axes and a hard constraint on the third is what a real
+constraint looks like, as opposed to a lucky point. The measurement needs the
+**pre-window to be the triggering drift** — the one or two turns between drift
+onset and the engine reacting — and does not much care how long it then watches.
 
-**No POSITIVE scenario survived validation.** Every "helped" variant measured as
-ZERO or NEGATIVE, and the reason generalises past this experiment:
+## The finding: the anchor, not just the quantity
 
-- the pre-window, anchored at the escalation turn, spans back into the
-  pre-drift period where the penalty rate is 0, so "before" looks good;
-- the post-window still contains the agent's response lag, so "after" looks bad.
+A first pass concluded that no POSITIVE scenario could survive at all, and that
+recovery was structurally unmeasurable. That was wrong, and wrong because of the
+analysis rather than the engine: the derivation used a **symmetric** window
+either side of the escalation.
 
-Both push a genuine recovery toward "no change" or "worse". **The anchor is
-wrong, not only the quantity** — a stronger claim than "use penalty rate instead
-of coherence", and one that applies to any measure taken relative to the
-escalation turn. A usable definition probably has to anchor on when the drift
-began, or on when the behaviour changed, rather than on when the engine reacted.
+Escalation fires ~2 turns after drift onset. So a symmetric 8-turn pre-window
+reaches back into the clean period, "before" looks good, and a genuine recovery
+reads as no-change or worse. Anchoring the pre-window on drift onset — and
+decoupling it from the post-window — turned two scenarios from "mislabelled" to
+correctly POSITIVE and produced the result above.
 
-## What would make this answerable
+Both the quantity and the anchor were wrong, and the anchor was the one hiding
+the answer.
 
-Scenarios in which a recovery is measurable at all: a drift period long enough
-to dominate the pre-window, and a response lag short enough to leave the
-post-window. Until then the parameter choice is unsupported, and this directory
-sets no constants.
+## What this does not settle
+
+Four usable scenarios covering three verdicts. Better than the degenerate two
+that an earlier run produced, and still small. Five scenarios remain excluded as
+mislabelled by me — in each case the measurement was right and my intent was
+wrong, which is why ground truth here is re-derived rather than declared.
+
+This directory reports. It sets no constants in the engine.
+
+## Next
+
+The constraint is on the pre-window, so the open question is whether pre-window
+1–2 holds when drift onset and escalation are further apart than the ~2 turns
+these scenarios produce. A config with a higher `elevated_threshold` would widen
+that gap and is the cheapest way to test it.
 
 ## Running it
 

@@ -37,12 +37,30 @@ def load(d):
     return sorted(rows), esc
 
 
+def drift_onset(rows):
+    """First turn that paid any penalty — the behaviour that caused escalation."""
+    for t, _, p in rows:
+        if p > 0:
+            return t
+    return None
+
+
 def derive_truth(rows, esc, horizon=8):
-    """Ground truth from measured penalty rate, over a horizon long enough to
-    contain any response lag. Deliberately wider than the candidate windows:
-    the truth should not depend on the parameter being fitted."""
+    """Ground truth from measured penalty rate.
+
+    THE PRE-WINDOW IS THE TRIGGERING DRIFT, not a symmetric window back from
+    the escalation. Escalation fires 2 turns after drift onset in these
+    scenarios, so a symmetric 8-turn pre-window spans back into the CLEAN
+    period, "before" looks good, and a genuine recovery reads as no-change or
+    worse. That artifact of the derivation was briefly mistaken for a property
+    of the engine — it made every POSITIVE scenario appear mislabelled.
+
+    Anchoring on drift onset is also the principled choice: the question is
+    whether the intervention improved on THE BEHAVIOUR THAT PROVOKED IT."""
     m = {t: (c, p) for t, c, p in rows}
-    pre = [m[t][1] for t in range(esc - horizon, esc) if t in m]
+    onset = drift_onset(rows)
+    lo = onset if onset is not None and onset < esc else esc - horizon
+    pre = [m[t][1] for t in range(lo, esc) if t in m]
     post = [m[t][1] for t in range(esc + 1, esc + 1 + horizon) if t in m]
     if not pre or not post:
         return None, None, None
@@ -56,9 +74,13 @@ def derive_truth(rows, esc, horizon=8):
     return v, a, b
 
 
-def candidates(rows, esc, off, win):
+def candidates(rows, esc, off, win, pre_win=None):
+    # pre_win is DECOUPLED from win. Tying them together forces the "before"
+    # side to reach back past the drift onset into clean behaviour, which is
+    # what made every recovery scenario look like a failure.
     m = {t: (c, p) for t, c, p in rows}
-    pre = [t for t in range(esc - win, esc) if t in m]
+    pw = pre_win if pre_win is not None else win
+    pre = [t for t in range(esc - pw, esc) if t in m]
     post = [t for t in range(esc + off, esc + off + win) if t in m]
     if not pre or not post or esc not in m:
         return None
@@ -159,7 +181,8 @@ def main(work, metap):
         return 1
 
     print("")
-    print("  Searching offset 1..6 x window 2..8 for definitions that classify")
+    print("  Searching offset 1..6 x post-window 2..8 x pre-window 1..6 for")
+    print("  definitions that classify")
     print("  every usable scenario correctly:")
     print("")
     found = {}
@@ -167,22 +190,24 @@ def main(work, metap):
         sols = []
         for off in range(1, 7):
             for win in range(2, 9):
-                ok = 0
-                for name, (rows, esc, truth) in truths.items():
-                    c = candidates(rows, esc, off, win)
-                    if not c:
-                        ok = -99
-                        break
-                    if cls(c[kind], EPS[kind]) == truth:
-                        ok += 1
-                if ok == len(truths):
-                    sols.append((off, win))
+                for pw in range(1, 7):
+                    ok = 0
+                    for name, (rows, esc, truth) in truths.items():
+                        c = candidates(rows, esc, off, win, pw)
+                        if not c:
+                            ok = -99
+                            break
+                        if cls(c[kind], EPS[kind]) == truth:
+                            ok += 1
+                    if ok == len(truths):
+                        sols.append((off, win, pw))
         found[kind] = sols
         if sols:
-            offs = sorted({o for o, _ in sols})
-            wins = sorted({w for _, w in sols})
-            print("    %-20s %2d solution(s)   offsets %s  windows %s"
-                  % (kind, len(sols), offs, wins))
+            offs = sorted({o for o, _, _ in sols})
+            wins = sorted({w for _, w, _ in sols})
+            pws = sorted({p for _, _, p in sols})
+            print("    %-20s %3d solution(s)  offset %s  post-win %s  pre-win %s"
+                  % (kind, len(sols), offs, wins, pws))
         else:
             print("    %-20s NONE — no offset/window in the space classifies all %d"
                   % (kind, len(truths)))
@@ -195,12 +220,13 @@ def main(work, metap):
     print("")
     print("    A definition with solutions is NOT thereby validated. With %d"
           % len(truths))
-    print("    scenarios and a 42-point search, a narrow solution — one that")
+    print("    scenarios over a 252-point search, a NARROW solution — one that")
     print("    works at a single window size — is as consistent with overfitting")
-    print("    as with correctness. Treat the range of solutions as the evidence:")
-    print("    a definition that works across many offsets and windows is robust;")
-    print("    one that works at exactly one point is a coincidence until more")
-    print("    scenarios say otherwise.")
+    print("    as with correctness. Treat the RANGE as the evidence: a solution")
+    print("    spanning every offset and post-window, and constrained on exactly")
+    print("    one axis, is reporting a real constraint on that axis and")
+    print("    indifference on the others. A solution at one isolated point is a")
+    print("    coincidence until more scenarios say otherwise.")
     return 0
 
 
