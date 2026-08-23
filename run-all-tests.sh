@@ -1749,6 +1749,22 @@ else
     echo "  test_persona_window.sh: not found, skipping"
 fi
 
+# CI's SARIF merger corrupted result.ruleIndex for every file after the first,
+# and GitHub rejected the upload as a neutral check while the job stayed green.
+# Nothing could reach the merger while it was inline in the workflow YAML.
+SARIFMERGE_SCRIPT=".github/scripts/merge_sarif.py"
+if [ -f "$SARIFMERGE_SCRIPT" ]; then
+    if python3 "$SARIFMERGE_SCRIPT" --selftest > /dev/null 2>&1; then
+        echo "  merge_sarif.py --selftest: ALL PASSED"
+    else
+        python3 "$SARIFMERGE_SCRIPT" --selftest 2>&1 | tail -20
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("merge_sarif.py --selftest")
+    fi
+else
+    echo "  merge_sarif.py: not found, skipping"
+fi
+
 # A gate that passes because it cannot yet judge must say so.
 UNDETGATE_SCRIPT="tests/governance_v4/test_undetermined_gate.sh"
 if [ -f "$UNDETGATE_SCRIPT" ]; then
