@@ -2886,6 +2886,20 @@ void ContextDriftAnalyzer::setTurnPromptKeywords(
 
 void ContextDriftAnalyzer::recordEscalation(
     int handle_id, int from_level, int to_level) {
+    // ESCALATIONS ONLY. The caller fires on any level change, so before this
+    // guard a DE-escalation re-armed the accumulator and was then reported as
+    // an escalation — verified on the dashboard as
+    //   "Escalation: level 1->0 at turn 15, effectiveness=+0.30"
+    // which reads as "lowering scrutiny was effective" under a field named for
+    // the opposite. It also destroyed any escalation measurement still in
+    // flight: a 25-turn run with four level changes reported escalation
+    // effectiveness as N/A on every single turn, because no window ever
+    // survived long enough to complete.
+    //
+    // Semantics fixed here: the window measures the N turns following the most
+    // recent ESCALATION. A further escalation re-arms it — the newer
+    // intervention is the one being judged. A de-escalation leaves it alone.
+    if (to_level <= from_level) return;
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = drift_states_.find(handle_id);
     if (it != drift_states_.end()) {

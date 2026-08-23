@@ -2952,6 +2952,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("temporal_decay_grace_minutes") && cd["temporal_decay_grace_minutes"].is_number()) cfg.temporal_decay_grace_minutes = std::max(0.0, cd["temporal_decay_grace_minutes"].get<double>());
         if (cd.contains("adaptive_baseline_enabled") && cd["adaptive_baseline_enabled"].is_boolean()) cfg.adaptive_baseline_enabled = cd["adaptive_baseline_enabled"].get<bool>();
         if (cd.contains("adaptive_baseline_window") && cd["adaptive_baseline_window"].is_number_integer()) cfg.adaptive_baseline_window = std::max(1, cd["adaptive_baseline_window"].get<int>());
+        // escalation_effectiveness_window was declared, documented and set by a
+        // shipped test config (tests/gorilla/naab-53/src/govern.json) while never
+        // being parsed — every sibling key in ContextDriftConfig is read here and
+        // this one alone was not, so it stayed hardcoded at its default of 5
+        // whatever govern.json said. Verified by setting it to 3 and watching the
+        // dashboard report a 5-turn window.
+        if (cd.contains("escalation_effectiveness_window") && cd["escalation_effectiveness_window"].is_number_integer()) cfg.escalation_effectiveness_window = std::max(0, cd["escalation_effectiveness_window"].get<int>());
         if (cd.contains("adaptive_baseline_sensitivity") && cd["adaptive_baseline_sensitivity"].is_number()) cfg.adaptive_baseline_sensitivity = std::max(0.0, cd["adaptive_baseline_sensitivity"].get<double>());
         if (cd.contains("thresholds") && cd["thresholds"].is_object()) {
             auto& th = cd["thresholds"];
