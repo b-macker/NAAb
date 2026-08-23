@@ -4236,6 +4236,22 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     {"signals_fired",    std::to_string(drift_state->signals_fired_this_turn)},
                     {"signals_detail",   fired_names},
                     {"penalties_detail", penalty_detail},
+                    // Calibration state, declared per turn.
+                    //
+                    // While a handle is inside its adaptive baseline window,
+                    // `in_baseline` suppresses EVERY signal's penalty, so
+                    // coherence stays at its ceiling and every gate passes.
+                    // Without this field that is indistinguishable from an
+                    // agent that behaved — measured: with the window at 12 on
+                    // an 8-turn run, verbatim repetition, topic abandonment
+                    // AND mandate parroting all passed unnoticed and nothing
+                    // in the telemetry said why. "calibrating" means the
+                    // engine is not yet in a position to judge drift; it is
+                    // not evidence of good behaviour.
+                    {"baseline_state",
+                        !gov_engine->getRules().context_drift.adaptive_baseline_enabled
+                            ? "disabled"
+                            : (drift_state->baseline_complete ? "complete" : "calibrating")},
                     {"signals_off",     signals_off},
                     {"signals_starved", signals_starved},
                     // Join key shared with AGENT_RESPONSE. `turn` below is

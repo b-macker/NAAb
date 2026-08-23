@@ -203,7 +203,14 @@ UNSWEPT="drift-onset-turn agent-count tool-use multi-agent-interleaving real-mod
 
 PREMISES=(calibration healing window)
 
-write_config() {  # $1=dir $2=port $3=calibration $4=healing $5=window
+write_config() {  # $1=dir $2=port $3=calibration(absent|false|true) $4=healing $5=window
+    # "absent" omits the key so the ENGINE DEFAULT applies. That is a distinct
+    # premise from setting it false, and the one most real configs are in:
+    # sweeping only explicit values makes a default change invisible to this
+    # map, which is exactly how a prediction about flipping the default came to
+    # be checked against cells that could not move.
+    local CAL_LINE='"adaptive_baseline_enabled": '"$3"','
+    [ "$3" = "absent" ] && CAL_LINE=""
     cat > "$1/govern.json" <<GOVEOF
 {
   "version": "5.0", "mode": "enforce",
@@ -212,7 +219,7 @@ write_config() {  # $1=dir $2=port $3=calibration $4=healing $5=window
   "behavioral_sequences": { "enabled": true },
   "context_drift": {
     "enabled": true, "level": "advisory", "check_interval_turns": 1,
-    "adaptive_baseline_enabled": $3,
+    $CAL_LINE
     "adaptive_baseline_window": $5,
     "adaptive_baseline_sensitivity": 2.0,
     "coherence_natural_healing": $4,
@@ -284,13 +291,13 @@ PY
 # score. Measured — an off-mandate agent caught on a 20-turn run completes
 # every send on an 8-turn run under the identical config.
 echo ""
-echo -e "${CYAN}Sweeping run_length x calibration x healing x window (16 cells x 6 arms)${NC}"
+echo -e "${CYAN}Sweeping run_length x calibration(absent|false|true) x healing x window (24 cells x 6 arms)${NC}"
 echo ""
 
 CELLS="$TEST_TMP/cells.jsonl"; : > "$CELLS"
 for RL in short long; do
  gen_fixtures "$RL" || { fail "PS-00" "fixture generation failed for $RL"; exit 1; }
- for CAL in false true; do
+ for CAL in absent false true; do
   for HEAL in 0.0 0.03; do
    for WIN in 5 12; do
     ERR=0; FLOORS=""
