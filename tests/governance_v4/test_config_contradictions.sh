@@ -120,10 +120,17 @@ else
 fi
 
 # --- CONTRA-012 ------------------------------------------------------------
-# Positive: long run, no window, adaptive baseline off (the default).
+# Positive: long run, no window, adaptive baseline off.
+#
+# adaptive_baseline_enabled is PINNED here rather than inherited. CONTRA-012 is
+# ABOUT that key being false — the check reads `if (adaptive_baseline_enabled)
+# continue;` because the baseline tracks growth when it is on, so the
+# unrecoverable combination cannot arise. A fixture that leaves it to the
+# default is not testing the condition it names, it is testing what the default
+# happens to be, and it went silent the moment that default moved.
 OUT=$(emit c12_pos '"w": { "provider": "gemini", "model": "m", "api_key_env": "K",
       "max_tokens": 50, "max_turns": 40, "system_prompt": "x" }' \
-      '"context_drift": { "enabled": true }')
+      '"context_drift": { "enabled": true, "adaptive_baseline_enabled": false }')
 if echo "$OUT" | grep -q "CONTRA-012"; then
     pass "CC-03" "unrecoverable context_growth combination is reported"
 else
