@@ -6826,6 +6826,22 @@ void GovernanceEngine::emitEndOfRunHealthWarnings(FILE* fp, const std::string& t
         emitWarning("CDD enabled but analyzed 0 turns — context drift detection was inert this run");
     }
 
+    // Check 1b: a handle whose adaptive baseline never completed.
+    //
+    // While a handle is inside its baseline window, `in_baseline` gates EVERY
+    // signal's penalty, so a window at or above the run length means no signal
+    // ever charges coherence and drift detection is silently, completely off.
+    // Measured: with adaptive_baseline_window 12 on an 8-turn run, verbatim
+    // repetition, topic abandonment and mandate parroting ALL pass unnoticed.
+    // Nothing else in the run distinguishes that from an agent that behaved.
+    for (const auto& [agent, turns] : drift_analyzer_.incompleteBaselines()) {
+        emitWarning(fmt::format(
+            "agent '{}' ran {} turn(s) without completing its adaptive baseline "
+            "(context_drift.adaptive_baseline_window={}) — no signal could charge "
+            "coherence, so drift detection was inactive for this handle",
+            agent, turns, rules().context_drift.adaptive_baseline_window));
+    }
+
     // Check 2: BSD enabled but received no events
     if (bsd_enabled_.load(std::memory_order_relaxed) &&
         sequence_detector_.totalEventsProcessed() == 0) {

@@ -533,6 +533,13 @@ public:
     // Telemetry: total turns analyzed
     size_t totalTurnsAnalyzed() const;
 
+    // Handles whose adaptive baseline never completed, with the turns each
+    // reached. While a handle is in its baseline window NO penalty is applied
+    // to any signal, so a window at or above the run length disables drift
+    // detection for that handle silently and completely. Reported at end of
+    // run so the condition is visible rather than inferred from an absence.
+    std::vector<std::pair<std::string, int>> incompleteBaselines() const;
+
     // Update checkpoint state fields on DriftState (thread-safe)
     void updateCheckpointState(int handle_id, double pressure, int consecutive, int checkpoint_turn);
     // Circuit-breaker per-level sustained counters (0=ELEVATED, 1=HIGH, 2=CRITICAL).

@@ -59,13 +59,32 @@ TOTAL = CALIBRATE + TEST
 # --- correct work, three lexical shapes -----------------------------------
 
 def narrow(n):
-    """Repetitive: the same nouns every turn. Consecutive overlap stays high."""
-    ops = ["add", "subtract", "multiply", "divide"]
+    """Repetitive VOCABULARY, distinct strings.
+
+    The point of this arm is high consecutive-response lexical overlap while
+    the work is correct. It must NOT contain byte-identical responses: the
+    fingerprint signals (S1 circular, S21 response_repetition) catch verbatim
+    repetition by design, so an arm that repeats strings is drift wearing a
+    control's label, and every FALSE_KILL it produces is the engine being
+    right.
+
+    An earlier version cycled four sentences over twelve turns, so each
+    appeared three times verbatim and response_repetition fired on 100% of the
+    arm. That was read as a false kill for one full pass of the failure map.
+    """
+    subjects = ["add", "subtract", "multiply", "divide"]
+    verbs = ["appends", "writes", "records", "adds", "commits"]
+    tails = ["the operation and its result",
+             "the operation, operands and result",
+             "the operation name and the result value",
+             "the result together with the operation",
+             "the operands and the resulting value"]
     out = []
     for i in range(n):
-        op = ops[i % 4]
-        out.append("The calculator %s method appends a history entry recording "
-                   "the operation and its result in the history log." % op)
+        out.append("The calculator %s method %s a history entry in the history "
+                   "log recording %s."
+                   % (subjects[i % 4], verbs[i % 5], tails[(i * 3) % 5]))
+    assert len(set(out)) == len(out) or n > 100, "narrow() must not repeat verbatim"
     return out
 
 def varied(n):

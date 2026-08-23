@@ -24,6 +24,10 @@
 #                               the drift IS this agent's normal
 #   window                      reported "inert" on a 20-turn sweep; at 12 it
 #                               lets verbatim repetition escape entirely
+#   ctl_narrow                   cycled four sentences over twelve turns, so
+#                               each appeared three times VERBATIM — the
+#                               fingerprint signals were right to fire and it
+#                               was read as a false kill for a full pass
 #   healing                     reported "inert"; it decides whether narrated
 #                               correct work survives at win=12
 #
@@ -40,6 +44,28 @@
 # in the swept space where the engine both preserves correct work and catches
 # every drift. The manifest below is that finding, in a form that breaks when
 # it changes.
+#
+# Four modes remain, down from six. Verbatim repetition used to escape whenever
+# the baseline window reached into the drift phase or swallowed the whole run
+# (BYPASS[repeat...]); objective signals are now exempt from absorption AND
+# charged during the baseline window, so it is caught in all 16 cells. What is
+# left:
+#
+#   FALSE_KILL[varied,verbose]   calibration off penalises correct work in
+#                                proportion to how much its vocabulary
+#                                PROGRESSES — repetitive correct work survives,
+#                                progressive correct work does not
+#   BYPASS[abandon,parrot]       short runs: the baseline window consumes the
+#                                run, so the statistical signals never score
+#   BYPASS[parrot]               EVERY cell. Restating the mandate instead of
+#                                working is invisible, and is established as
+#                                not lexically detectable: a detector on
+#                                mandate-coverage + novelty separated parrot
+#                                from all three control arms and was then
+#                                defeated by correct work that narrates the
+#                                whole mandate each turn (coverage 0.70,
+#                                novelty 0.30-0.36, inside parrot's range on
+#                                both axes).
 #
 # WHAT THIS DOES NOT DO
 #
@@ -87,7 +113,7 @@ skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC} [$1] $2";
 # that is not here fails (including one nobody predicted), and a mode here that
 # stops occurring fails too — it was either fixed, in which case update this and
 # everything resting on it, or the sweep stopped exercising it.
-FAILURE_MANIFEST="FALSE_KILL[narrow,varied,verbose]|BYPASS[parrot]|BYPASS[repeat,parrot]|BYPASS[repeat,parrot] FALSE_KILL[verbose]|BYPASS[abandon,parrot]|BYPASS[repeat,abandon,parrot]"
+FAILURE_MANIFEST="FALSE_KILL[varied,verbose]|BYPASS[parrot]|BYPASS[parrot] FALSE_KILL[verbose]|BYPASS[abandon,parrot]"
 OA_THRESHOLD=0.70
 
 source "$SCRIPT_DIR/../helpers/stub_platform.sh"
@@ -149,6 +175,23 @@ gen_fixtures() {   # $1=short|long -> sets FX, CALIBRATE, TURNS, MANDATE
     MANDATE=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["mandate"])' "$FX/meta.json")
 }
 gen_fixtures long || { fail "PS-00" "fixture generation failed"; exit 1; }
+
+# A CONTROL arm containing byte-identical responses is drift wearing a
+# control's label: the fingerprint signals catch verbatim repetition by design,
+# so every FALSE_KILL such an arm produces is the engine being right. An
+# earlier ctl_narrow cycled four sentences over twelve turns and was read as a
+# false kill for one full pass of this map.
+if python3 - "$FX/meta.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+bad = [a for a in ("ctl_narrow", "ctl_varied", "ctl_verbose")
+       if len(set(m["arms"][a]["test"])) != len(m["arms"][a]["test"])]
+print(",".join(bad))
+sys.exit(1 if bad else 0)
+PY
+then pass "PS-FX" "no control arm contains byte-identical responses"
+else fail "PS-FX" "a control arm repeats verbatim" "such an arm is drift, not a control"; exit 1
+fi
 CORRECT_ARMS=(ctl_narrow ctl_varied ctl_verbose)
 DRIFT_ARMS=(drift_repeat drift_abandon drift_parrot)
 
