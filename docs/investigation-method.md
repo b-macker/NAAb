@@ -52,7 +52,6 @@ Prior write-ups are a *search strategy*, not evidence. They tell you where to
 look; you still confirm it yourself. Left unreconciled, the pair lets you pick
 whichever one justifies what you already believe.
 
----
 
 ### Name the provenance of every number
 
@@ -83,6 +82,7 @@ When an investigation reverses, do not patch the conclusion — re-derive the
 whole chain. A chain of four conclusions where each was built on the last is
 one error repeated four times, not four findings.
 
+---
 ## Investigating
 
 ### Trace to the point of EFFECT, not the point of mention
@@ -135,7 +135,6 @@ look for that specifically. Searching for confirmation finds it. Also ask what a
 skeptic who wrote this code would say first — usually "did you check *the thing
 you assumed*?"
 
----
 
 ### A disabled compensator looks like a broken component
 
@@ -188,6 +187,7 @@ discoveries and are larger than anything the change could explain. If a result
 is surprising, ask what else was touching the same state during the run before
 believing it.
 
+---
 ## Forming conclusions
 
 ### A pattern is a hypothesis, not an explanation
@@ -240,7 +240,6 @@ you are done, and say explicitly whether it changed the answer. If you have neve
 been wrong during an investigation, you have not yet looked hard enough to find
 out.
 
----
 
 ### The shape of the report bounds the finding
 
@@ -266,6 +265,7 @@ State the phenomena your setup is blind to, beside the results. If a claim
 matters and is unmeasurable, say so instead of omitting it — an acknowledged
 blind spot can be closed, an unmentioned one cannot.
 
+---
 ## Making changes
 
 ### Check whether this was already decided
@@ -314,7 +314,6 @@ forgot, and it will stay green through a change that silently weakens a
 protection. Treat "tests pass" as the floor for shipping, never as the argument
 for it.
 
----
 
 ### A confident comment is not a verified one
 
@@ -336,6 +335,7 @@ attractive, which is exactly why it gets skipped.
 
 Never accept a green new test without making it red once, deliberately.
 
+---
 ## Acting and reporting
 
 ### Prefer under-reporting
