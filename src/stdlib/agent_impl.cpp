@@ -4413,12 +4413,20 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // Output admissibility gate — post-CDD coherence boundary
     bool output_admissible = true;
+    // Held because the engine had no basis to judge, not because the response
+    // was found wanting. Hoisted out of the block below so the streak logic can
+    // see it — oa_result is scoped to the gate.
+    bool output_undetermined = false;
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().circuit_breaker.enabled &&
         gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
 
         auto oa_result = gov_engine->checkOutputAdmissibility(
             handle_id, current_turn, config_name);
+        // Set unconditionally: under the default on_undetermined="pass" the
+        // turn is undetermined AND admissible, and the caller still needs to
+        // know the pass carried no evidence.
+        output_undetermined = oa_result.undetermined;
         // NOTE: for "block" action, checkOutputAdmissibility() calls enforce()
         // which throws directly (GovernanceHardError for HARD/SOFT, std::runtime_error
         // for DETECT). Telemetry is emitted inside checkOutputAdmissibility() before
@@ -4434,6 +4442,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 {"coherence",   std::to_string(oa_result.coherence_score)},
                 {"threshold",   std::to_string(oa_result.threshold)},
                 {"action",      oa_result.action},
+                // A hold for lack of evidence reads identically to a hold for
+                // incoherence on every dashboard unless it is labelled here.
+                {"undetermined", oa_result.undetermined ? "true" : "false"},
                 {"history_committed",
                  gov_engine->getRules().circuit_breaker.output_admissibility
                      .inadmissible_history == "commit" ? "true" : "false"}
@@ -4471,9 +4482,16 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         // before — a quarantine is still a quarantine, it just may not count
         // toward termination without a second penalising signal.
         int corrob_distinct = -1;
-        bool advances = !output_admissible &&
+        // An UNDETERMINED hold never advances the streak. The streak is a
+        // termination counter for the quarantine+commit degradation loop; an
+        // undetermined turn is absence of evidence, not evidence of decay, and
+        // counting it inverts the meaning. It is also an unconditional kill:
+        // the baseline window (default 5) and max_quarantine_streak (default 5)
+        // are the same length, so on_undetermined="quarantine" would terminate
+        // EVERY agent on its last calibrating turn regardless of behaviour.
+        bool advances = !output_admissible && !output_undetermined &&
             quarantineAdvancesStreak(gov_engine, handle_id, &corrob_distinct);
-        if (!output_admissible && !advances) {
+        if (!output_admissible && !advances && !output_undetermined) {
             gov_engine->writeAgentTelemetry("QUARANTINE_UNCORROBORATED", {
                 {"handle_id",        std::to_string(handle_id)},
                 {"config_name",      config_name},
@@ -4755,6 +4773,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         double coh = drift_st ? drift_st->coherence_score : 1.0;
         std::unordered_map<std::string, NaabVal> adm;
         adm["admissible"] = NaabVal::makeBool(output_admissible);
+        // Present on BOTH directions: a caller that only sees it on holds
+        // cannot tell an unlabelled pass from an old build.
+        adm["undetermined"] = NaabVal::makeBool(output_undetermined);
         adm["coherence_score"] = NaabVal::makeDouble(coh);
         adm["threshold"] = NaabVal::makeDouble(
             gov_engine->getRules().circuit_breaker.output_admissibility.threshold);
@@ -5602,6 +5623,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
 
     // Output admissibility gate — full enforce-capable evaluation
     bool output_admissible = true;
+    bool output_undetermined = false;
     if (gov_engine && gov_engine->isActive() &&
         gov_engine->getRules().circuit_breaker.enabled &&
         gov_engine->getRules().circuit_breaker.output_admissibility.enabled) {
@@ -5609,6 +5631,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
             handle_id, current_turn, config_name);
         if (!oa_result.admissible) {
             output_admissible = false;
+            output_undetermined = oa_result.undetermined;
             gov_engine->writeAgentTelemetry("OUTPUT_INADMISSIBLE", {
                 {"handle_id",   std::to_string(handle_id)},
                 {"config_name", config_name},
@@ -5616,6 +5639,7 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
                 {"coherence",   std::to_string(oa_result.coherence_score)},
                 {"threshold",   std::to_string(oa_result.threshold)},
                 {"action",      oa_result.action},
+                {"undetermined", oa_result.undetermined ? "true" : "false"},
                 {"source",      "agent.commit"}
             });
             if (oa_result.action == "attest") {
@@ -5632,9 +5656,10 @@ static NaabVal agentCommit(std::vector<NaabVal>& args) {
         // Same rule as the send path. These two sites must stay identical —
         // gating only one would leave agent.commit terminating on the old rule.
         int corrob_distinct = -1;
-        bool advances = !output_admissible &&
+        // Undetermined holds do not advance — same rule as the send path.
+        bool advances = !output_admissible && !output_undetermined &&
             quarantineAdvancesStreak(gov_engine, handle_id, &corrob_distinct);
-        if (!output_admissible && !advances) {
+        if (!output_admissible && !advances && !output_undetermined) {
             gov_engine->writeAgentTelemetry("QUARANTINE_UNCORROBORATED", {
                 {"handle_id",        std::to_string(handle_id)},
                 {"config_name",      config_name},

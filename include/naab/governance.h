@@ -1734,6 +1734,11 @@ struct CircuitBreakerConfig {
         bool enabled = false;
         double threshold = 0.70;               // coherence floor for output
         std::string action = "quarantine";     // "block", "quarantine", "attest"
+        // What to do when the gate WOULD pass but the pass is not evidence of
+        // good behaviour — see checkOutputAdmissibility(). "pass" (default)
+        // preserves existing behaviour exactly; "quarantine" refuses to deliver
+        // what the engine cannot yet judge; "block" enforces at `level`.
+        std::string on_undetermined = "pass";  // "pass", "quarantine", "block"
         EnforcementLevel level = EnforcementLevel::SOFT;  // for "block" action only
         // Split commit: whether quarantine/attest responses enter handle history.
         // "commit" (default) = inadmissible content stays in conversation context;
@@ -3210,6 +3215,11 @@ public:
     // Output admissibility — post-CDD gate on response coherence
     struct OutputAdmissibilityResult {
         bool admissible = true;
+        // The verdict was reached without a basis to judge. A LOW coherence is
+        // still meaningful while undetermined — objective signals (byte-identical
+        // repetition) are charged from turn 1 — so this marks the PASS direction
+        // only: "nothing categorical fired", not "this response is coherent".
+        bool undetermined = false;
         double coherence_score = 1.0;
         double threshold = 0.70;
         std::string action;

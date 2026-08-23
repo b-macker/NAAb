@@ -2377,3 +2377,103 @@ fixing it.
 `test_level_inertness.sh` is the tripwire, and says so in its header: when the
 divergence is fixed, LI-02 **should** fail, and the repair is to replace it with
 positive assertions for each rung — never to relax it.
+
+## "Undetermined" now exists, and the streak would have killed every agent for it
+
+This is the bottom rung of the precondition stack the previous section ends on:
+*default needs "undetermined" to be a state the gates can consume*. It now is.
+
+### The gap
+
+While a handle sits inside its adaptive baseline window, `in_baseline`
+suppresses every **statistical** signal's penalty. Coherence therefore stays at
+its ceiling whatever the agent is doing, and the output-admissibility gate
+compares that ceiling against its threshold and passes.
+
+The pass is not a judgement. It is the absence of one. Nothing distinguished the
+two — not `OUTPUT_ADMISSIBILITY_EVAL`, not `response.admissibility`, not the
+dashboard. Measured on a purpose-built arm: with the window at 12 over 8 turns,
+verbatim repetition, topic abandonment and mandate parroting all passed
+unnoticed, and the telemetry was indistinguishable from an agent behaving.
+
+### The label is one-directional, and that is the whole design
+
+`checkOutputAdmissibility()` computes
+`determined = !adaptive_baseline_enabled || baseline_complete` and marks
+`OutputAdmissibilityResult.undetermined` on the **pass direction only**.
+
+A low coherence stays meaningful while calibrating. Objective signals — S1
+`circular_actions` and S21 `response_repetition`, both exempted from adaptive
+absorption in an earlier increment — charge from turn 1. So the gate can still
+**rule OUT**; it just cannot **rule IN**.
+
+The regression suite's Group D is the control for exactly that asymmetry: eight
+byte-identical responses produce 6 real `fail` verdicts *inside* the baseline
+window, and none of them is labelled undetermined. Without Group D the suite
+would pass for an implementation that labelled every calibrating turn and
+stopped gating altogether — which is the failure mode a "mark it unknown"
+change most naturally produces.
+
+With baselining **off** there is no window, every signal charges from turn 1,
+and a pass is *determined* — miscalibrated perhaps, but not uninformed.
+Undetermined is about insufficient observation, not about the calibration being
+wrong. Group V pins that: zero undetermined events with baselining off, and
+`baseline_state: "disabled"` rather than a default of `"complete"`.
+
+### The defect the change nearly shipped
+
+`on_undetermined: "quarantine"` routes through the same path as a real
+quarantine, and the quarantine streak is a **termination** counter — reaching
+`max_quarantine_streak` throws `GovernanceHardError` and ends the run.
+
+`adaptive_baseline_window` defaults to **5**. `max_quarantine_streak` defaults
+to **5**. They are the same length. An undetermined hold that advanced the
+streak would therefore terminate **every agent on its last calibrating turn,
+unconditionally, regardless of behaviour** — a guaranteed false kill on a run
+that had not yet observed anything.
+
+An undetermined turn is absence of evidence, not evidence of decay; counting it
+toward a degradation counter inverts the meaning. Undetermined holds are exempt
+from the advance at both enforcement sites (`agentSend` and `agentCommit` — the
+same "these two must stay identical" rule `require_corroboration` already
+carries).
+
+Verified by mutation, not by argument: removing the exemption and rebuilding
+kills the run at hold 3 against limit 3, and E-01/E-02 flip to
+`Undetermined holds terminated the agent`. E-03 is the negative control — the
+same limit with genuinely inadmissible responses must still fire
+`QUARANTINE_STREAK_EXCEEDED`, or E-02 is satisfied by a build where the streak
+never fires at all.
+
+### What the mutation run also caught in the test
+
+The first draft of Group E passed under the mutation, vacuously: the mutated
+build emitted *zero* undetermined verdicts on the arm it measured, so "the run
+survived" was true and meaningless. The guard is now explicit — the holds must
+**outnumber** the streak limit before survival counts as evidence.
+
+Two other controls were wrong on first run and were caught by the suite failing:
+B-02 and V-03 both compared an adaptive-on arm against an adaptive-**off** arm
+and called equality "no behaviour change". That control is invalid, and its
+failure *is* the phenomenon under study — without absorption the varied fixture
+drops below threshold and six turns are genuinely inadmissible. Baselining-on
+and baselining-off are different configurations that are *supposed* to differ.
+The valid forms are same-config **key-absent vs key="pass"** (a sweep over
+explicit values cannot see a default, and key-absent is the condition every
+existing config is in), plus the structural claim that under a pass policy every
+hold traces to a `fail` verdict and none to an `undetermined` one.
+
+### Ratchet
+
+`pass` < `quarantine` < `block`. Relaxing mid-run is a loosening violation: an
+unjudgeable response that would have been held is delivered instead.
+
+### What this does NOT establish
+
+The gate is **default `"pass"`** — byte-identical to prior behaviour, pinned by
+B-01/B-02/B-03. Nothing is enforced differently today. What changed is that the
+engine now *says* when its verdict carries no evidence, which is the state the
+next increment (flipping `adaptive_baseline_enabled` on by default) needs to
+exist before it can be safe.
+
+Test: `tests/governance_v4/test_undetermined_gate.sh` (20 assertions).
