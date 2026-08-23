@@ -1359,7 +1359,36 @@ struct ContextDriftConfig {
     // within a reasonable window. Grace period prevents penalizing normal inter-turn latency.
     double temporal_decay_per_minute = 0.01;
     double temporal_decay_grace_minutes = 1.0;
-    // Adaptive baselining — observe normal behavior before penalizing deviations
+    // Adaptive baselining — observe normal behavior before penalizing deviations.
+    //
+    // STAYS FALSE, and the reason is measured rather than inherited.
+    //
+    // With it false the engine compares each response against a global constant
+    // instead of the agent's own history, and correct work spans the entire
+    // range of every lexical statistic it uses (consecutive-response Jaccard
+    // 0.25-0.89 for stable vocabulary, 0.000 for work that progresses through
+    // sub-tasks). test_failure_mode_map.sh shows that costs FALSE_KILL of
+    // progressive correct work in every uncalibrated cell, and the calibrated
+    // cells catch strictly more. On that evidence alone this should default
+    // true.
+    //
+    // It does not, because of the CALIBRATION CLIFF: `in_baseline` suppresses
+    // EVERY signal's penalty until the window completes, so a run shorter than
+    // adaptive_baseline_window is not merely uncalibrated, it is ungoverned.
+    // Flipping the default broke 10 governance suites, and the informative
+    // half was not tests relying on the old default — it was tests whose runs
+    // are shorter than the window. test_velocity_no_double_count.sh does 3
+    // sends against a window of 5: a real invariant became unobservable, not
+    // because the invariant changed but because nothing is scored at all.
+    //
+    // Trading "wrong on long runs" for "silent on short runs" is not an
+    // improvement; a silent bypass is indistinguishable from an agent
+    // behaving. The default can flip once "undetermined" is a state the gates
+    // can consume — admissibility refusing to conclude, rather than
+    // concluding pass — which is a change to what coherence MEANS, not to its
+    // default. Until then the honest position is the declared one:
+    // CDD_TURN.baseline_state says "calibrating" every turn the engine is not
+    // in a position to judge.
     bool adaptive_baseline_enabled = false;
     int adaptive_baseline_window = 5;           // turns to observe before penalizing
     double adaptive_baseline_sensitivity = 2.0; // k*stddev threshold above mean

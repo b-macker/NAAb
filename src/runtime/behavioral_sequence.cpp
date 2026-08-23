@@ -883,9 +883,27 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // Uses post_baseline_checks (gate-passing turns after baseline) as denominator,
     // matching the counting unit of signal counters. Returns 0 when post-baseline
     // firing rate is at/below baseline mean + k*stddev; proportional excess above.
+    // Objective signals are never absorbed. S1 circular_actions and S21
+    // response_repetition fire on BYTE-IDENTICAL output, which is categorically
+    // pathological rather than statistically normal — "this agent usually
+    // repeats itself verbatim" is not a baseline worth learning, it is the
+    // finding. Every other signal is a statistic about phrasing and belongs on
+    // the adaptive path.
+    //
+    // Measured: with the baseline window at 12 turns of a 20-turn run, the
+    // window spans into the drift phase, the baseline learns the repetition as
+    // normal, and verbatim repetition escapes detection entirely
+    // (BYPASS[repeat]). No control arm emits byte-identical responses — a
+    // control that did would be drift wearing a control's label, which
+    // test_failure_mode_map.sh PS-FX now refuses — so exempting these cannot
+    // introduce a false kill.
+    auto is_objective_signal = [](int sig) {
+        return sig == SIG_CIRCULAR || sig == SIG_RESPONSE_REPETITION;
+    };
+
     auto adaptive_penalty = [&](double weight, int count, int sig) -> double {
         if (config_->adaptive_baseline_enabled && state.baseline_complete &&
-            state.post_baseline_checks > 0) {
+            state.post_baseline_checks > 0 && !is_objective_signal(sig)) {
             const auto& bl = state.signal_baselines[sig];
             int post_count = count - bl.snapshot;
             double current_rate = static_cast<double>(post_count) / state.post_baseline_checks;
@@ -1021,7 +1039,12 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     if (sig_on(config_->signals.circular_actions, SIG_CIRCULAR) && isCircular(state, fp)) {
         state.circular_action_count++;
         turn_fired[SIG_CIRCULAR]++;
-        if (!in_baseline) {
+        // Charged even DURING the baseline window — see is_objective_signal().
+        // Byte-identical output is categorically pathological, so there is no
+        // "normal rate" of it to learn, and a window at or above the run length
+        // would otherwise let it through entirely (measured: window 12 on an
+        // 8-turn run passes verbatim repetition unnoticed).
+        if (!in_baseline || is_objective_signal(SIG_CIRCULAR)) {
             double p = adaptive_penalty(config_->weights.circular, state.circular_action_count, SIG_CIRCULAR);
             if (p > 0.0) {
                 state.coherence_score -= p;
@@ -1525,7 +1548,9 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 if (duplicate) {
                     state.response_repetition_count++;
                     turn_fired[SIG_RESPONSE_REPETITION]++;
-                    if (!in_baseline) {
+                    // Charged during the baseline window too — same reasoning
+                    // as SIG_CIRCULAR above.
+                    if (!in_baseline || is_objective_signal(SIG_RESPONSE_REPETITION)) {
                         double p = adaptive_penalty(config_->weights.response_repetition,
                                                     state.response_repetition_count, SIG_RESPONSE_REPETITION);
                         if (p > 0.0) {
@@ -2457,6 +2482,20 @@ void ContextDriftAnalyzer::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     drift_states_.clear();
     turns_analyzed_ = 0;
+}
+
+std::vector<std::pair<std::string, int>>
+ContextDriftAnalyzer::incompleteBaselines() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::pair<std::string, int>> out;
+    if (!config_ || !config_->adaptive_baseline_enabled) return out;
+    for (const auto& [handle, st] : drift_states_) {
+        (void)handle;
+        if (!st.baseline_complete && st.turns_analyzed > 0) {
+            out.emplace_back(st.config_name, st.turns_analyzed);
+        }
+    }
+    return out;
 }
 
 size_t ContextDriftAnalyzer::totalTurnsAnalyzed() const {
