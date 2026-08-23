@@ -1389,7 +1389,7 @@ struct ContextDriftConfig {
     // default. Until then the honest position is the declared one:
     // CDD_TURN.baseline_state says "calibrating" every turn the engine is not
     // in a position to judge.
-    bool adaptive_baseline_enabled = false;
+    bool adaptive_baseline_enabled = true;
     int adaptive_baseline_window = 5;           // turns to observe before penalizing
     double adaptive_baseline_sensitivity = 2.0; // k*stddev threshold above mean
     // Escalation effectiveness — measure post-escalation coherence over a window
