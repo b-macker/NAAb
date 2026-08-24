@@ -1600,14 +1600,35 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             // which is a cheaper exploit than the one being closed.
             state.last_consumed_validation_failed = true;
             turn_fired[SIG_VALIDATION]++;
-            if (!in_baseline) {
-                double p = base_penalty(config_->weights.validation_outcome,
-                                        state.validation_failure_count);
-                if (p > 0.0) {
-                    state.coherence_score -= p;
-                    turn_penalties[SIG_VALIDATION] += p;
-                    state.signals_fired_this_turn++;
-                }
+            // Deliberately NOT gated on `in_baseline`, unlike every statistical
+            // signal. S22 is EXTERNAL GROUND TRUTH — a pytest exit code fed in
+            // by the operator through agent.record_validation() — not an
+            // observation of the agent's own output whose normal rate has to be
+            // learned. There is nothing to calibrate: a failing test is wrong on
+            // turn 1 for the same reason it is wrong on turn 50.
+            //
+            // The comment above this block already says the adaptive baseline
+            // must not "normalize" persistent failure. That was enforced by
+            // choosing base_penalty over adaptive_penalty, and then undone here
+            // by the OTHER baseline gate. It was unreachable while
+            // adaptive_baseline_enabled defaulted false; with calibration on it
+            // means a recorded test failure is silently discarded for the first
+            // adaptive_baseline_window turns of every agent.
+            //
+            // The asymmetry was the sharper half: the fail->pass RECOVERY branch
+            // below is not baseline-gated, so a failure inside the window cost
+            // nothing while the pass that followed still credited coherence — a
+            // fail/pass cycle during calibration netted UPWARD.
+            //
+            // S1 circular_actions and S21 response_repetition are exempt from
+            // absorption for the same reason (objective, not statistical); this
+            // puts S22 with them. Test: test_validation_signal.sh.
+            double p = base_penalty(config_->weights.validation_outcome,
+                                    state.validation_failure_count);
+            if (p > 0.0) {
+                state.coherence_score -= p;
+                turn_penalties[SIG_VALIDATION] += p;
+                state.signals_fired_this_turn++;
             }
         } else if (state.last_consumed_validation_failed) {
             // Fail→pass transition: the agent actually fixed its output. Credit

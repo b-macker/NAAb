@@ -90,8 +90,25 @@ topics = [
     "coral spawning lunar synchronisation",
     "loom shedding mechanisms in jacquard weaving",
 ]
+# Five CLEAN, on-instruction, mutually distinct warm-up turns before the drift.
+#
+# adaptive_baseline_enabled defaults true with a window of 5. A fixture that
+# drifts from turn 1 does not merely go unscored during the window — the
+# baseline LEARNS that drifting is this agent's normal rate and absorbs it for
+# the rest of the run, so the floor is never reached at ANY run length. The
+# warm-up must be clean AND mutually distinct: clean so the learned rate is
+# zero, distinct so the objective response_repetition signal (which is exempt
+# from the window and charges from turn 1) does not contaminate the baseline
+# from the other direction.
+warmup = [
+    "inventory service report: inventory records parsed for the inventory totals",
+    "inventory service report: inventory records validated against inventory stock",
+    "inventory service report: inventory records grouped by inventory location",
+    "inventory service report: inventory records reconciled with inventory counts",
+    "inventory service report: inventory records summarised for the inventory audit",
+]
 json.dump({"responses": [
-    {"content": t, "output_tokens": 40} for t in topics
+    {"content": t, "output_tokens": 40} for t in (warmup + topics)
 ]}, open(sys.argv[1], "w"))
 PY
 }
@@ -103,7 +120,7 @@ import json, sys
 base = ("inventory service report: the inventory service processes inventory "
         "records and returns inventory totals for the inventory report")
 json.dump({"responses": [
-    {"content": base + " (section %d)" % i, "output_tokens": 40} for i in range(14)
+    {"content": base + " (section %d)" % i, "output_tokens": 40} for i in range(20)
 ]}, open(sys.argv[1], "w"))
 PY
 }
@@ -134,7 +151,7 @@ use agent
 main {
     let h = agent.create("worker")
     let i = 0
-    while i < 13 {
+    while i < 18 {
         let r = agent.send(h, "continue the inventory service report")
         i = i + 1
     }
@@ -159,7 +176,7 @@ fi
 
 # --- HF-02: exactly once, not once per turn -------------------------------
 if [ "$N_FLOOR" -eq 1 ]; then
-    pass "HF-02" "warning is one-shot (1 occurrence across 13 turns)"
+    pass "HF-02" "warning is one-shot (1 occurrence across 18 turns)"
 elif [ "$N_FLOOR" -gt 1 ]; then
     fail "HF-02" "warning repeated $N_FLOOR times — latch not working" \
          "it would print every remaining turn of a real run"

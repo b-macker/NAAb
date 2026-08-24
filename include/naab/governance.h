@@ -1372,24 +1372,47 @@ struct ContextDriftConfig {
     // cells catch strictly more. On that evidence alone this should default
     // true.
     //
-    // It does not, because of the CALIBRATION CLIFF: `in_baseline` suppresses
-    // EVERY signal's penalty until the window completes, so a run shorter than
-    // adaptive_baseline_window is not merely uncalibrated, it is ungoverned.
-    // Flipping the default broke 10 governance suites, and the informative
-    // half was not tests relying on the old default — it was tests whose runs
-    // are shorter than the window. test_velocity_no_double_count.sh does 3
-    // sends against a window of 5: a real invariant became unobservable, not
-    // because the invariant changed but because nothing is scored at all.
+    // It now does. The precondition this comment used to state — that the
+    // default could flip "once 'undetermined' is a state the gates can
+    // consume" — is met: checkOutputAdmissibility() marks the pass direction
+    // undetermined while calibrating, and it is visible in
+    // OUTPUT_ADMISSIBILITY_EVAL, response.admissibility and on_undetermined.
     //
-    // Trading "wrong on long runs" for "silent on short runs" is not an
-    // improvement; a silent bypass is indistinguishable from an agent
-    // behaving. The default can flip once "undetermined" is a state the gates
-    // can consume — admissibility refusing to conclude, rather than
-    // concluding pass — which is a change to what coherence MEANS, not to its
-    // default. Until then the honest position is the declared one:
-    // CDD_TURN.baseline_state says "calibrating" every turn the engine is not
-    // in a position to judge.
-    bool adaptive_baseline_enabled = false;
+    // THE CALIBRATION CLIFF IS REAL AND BOUNDED, not eliminated. `in_baseline`
+    // suppresses STATISTICAL penalties until the window completes, so within
+    // the window a coherence-keyed gate cannot fire on statistical drift. What
+    // does still charge from turn 1: the objective signals (S1
+    // circular_actions, S21 response_repetition) and S22 validation_outcome,
+    // which is external ground truth and was itself baseline-suppressed until
+    // it was exempted alongside them.
+    //
+    // WHY THIS IS THE BETTER DEFAULT, measured rather than argued. Two designs
+    // were built and run against the same suites and the same failure-mode map:
+    //
+    //   suppress in window (this)   correct progressive work survives; short
+    //                               runs miss abandonment; objective evidence
+    //                               governs throughout
+    //   charge in window            all 6 cliff suites pass — and correct
+    //                               progressive work is false-killed, 6 of 8
+    //                               turns held, the agent terminated on the
+    //                               quarantine streak. That is "calibration
+    //                               off" for any run near window length
+    //
+    // The failure-mode map records the consequence exactly: the modes did not
+    // change, the DEFAULT moved. Before, cal=absent gave
+    // FALSE_KILL[varied,verbose] in 16 of 16 cells. Now it gives
+    // BYPASS[abandon,parrot], and the false-kill requires an explicit
+    // adaptive_baseline_enabled: false. Neither is clean — 0 of 24 cells are —
+    // and this is a judgement about which failure is worse to ship. A
+    // false-kill of correct work is what makes an operator disable governance
+    // altogether.
+    //
+    // A fixture that drifts from turn 1 is NOT merely unscored during the
+    // window: the baseline learns that drifting is that agent's normal rate
+    // and absorbs it for the rest of the run. Tests that drive drift with
+    // statistical signals therefore need a CLEAN warm-up, not just a longer
+    // run — see the retunes in tests/governance_v4/.
+    bool adaptive_baseline_enabled = true;
     int adaptive_baseline_window = 5;           // turns to observe before penalizing
     double adaptive_baseline_sensitivity = 2.0; // k*stddev threshold above mean
     // Escalation effectiveness — measure post-escalation coherence over a window

@@ -93,6 +93,7 @@ echo ""
 WDIR="$TEST_TMP/de"; mkdir -p "$WDIR"
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [
+  {"content": "reconcile the ledger: quarterly totals balance against the source", "output_tokens": 20},
   {"content": "meandering filler paragraph about nothing important whatsoever", "output_tokens": 20},
   {"content": "further meandering filler avoiding every requested subject entirely", "output_tokens": 20},
   {"content": "resuming ledger reconciliation quarterly totals verified balance", "output_tokens": 20},
@@ -110,6 +111,7 @@ cat > "$WDIR/govern.json" << GOVEOF
     "context_drift": {
         "enabled": true, "level": "advisory", "check_interval_turns": 1,
         "coherence_threshold": 0.05,
+        "adaptive_baseline_window": 1,
         "signals": {
             "circular_actions": false, "repeated_failures": false, "scope_creep": false,
             "intent_contradictions": false, "vocabulary_contraction": false,
@@ -156,10 +158,23 @@ cat > "$WDIR/test.naab" << 'NAABEOF'
 use agent
 main {
     let h = agent.create("worker")
-    let r1 = agent.send(h, "reconcile ledger quarterly totals balance")
-    let r2 = agent.send(h, "reconcile ledger quarterly totals balance")
-    let r3 = agent.send(h, "reconcile ledger quarterly totals balance")
-    let r4 = agent.send(h, "reconcile ledger quarterly totals balance")
+    // Turn 1 is a CLEAN calibration turn, not part of the scenario.
+    //
+    // adaptive_baseline_enabled defaults true. instruction_recall is the only
+    // signal this suite enables and it is STATISTICAL, so inside the window it
+    // is suppressed AND its firing rate is learned as normal. With the original
+    // 4-send scenario every turn sat in the window: nothing escalated, and
+    // D-02..D-07 all failed for want of a level to observe rather than because
+    // hysteresis was broken.
+    //
+    // The window is pinned to 1 and given a clean turn to learn from, so the
+    // learned rate is 0 and the first drift turn charges full weight. Turn
+    // indices below are therefore the scenario turn PLUS ONE.
+    let i = 0
+    while i < 5 {
+        let r = agent.send(h, "reconcile ledger quarterly totals balance")
+        i = i + 1
+    }
     print("DONE")
 }
 NAABEOF
@@ -167,13 +182,23 @@ NAABEOF
 OUTPUT=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
-echo "$OUTPUT" | grep -q "DONE" && pass "D-01" "4 sends complete" \
+echo "$OUTPUT" | grep -q "DONE" && pass "D-01" "5 sends complete" \
     || fail "D-01" "sends did not complete" "$(echo "$OUTPUT" | head -3)"
 
-L1=$(cdd_level "$WDIR/telemetry.jsonl" 1)
-L2=$(cdd_level "$WDIR/telemetry.jsonl" 2)
-L3=$(cdd_level "$WDIR/telemetry.jsonl" 3)
-L4=$(cdd_level "$WDIR/telemetry.jsonl" 4)
+# Scenario turn N is telemetry turn N+1 (turn 1 is the calibration warm-up).
+L0=$(cdd_level "$WDIR/telemetry.jsonl" 1)
+L1=$(cdd_level "$WDIR/telemetry.jsonl" 2)
+L2=$(cdd_level "$WDIR/telemetry.jsonl" 3)
+L3=$(cdd_level "$WDIR/telemetry.jsonl" 4)
+L4=$(cdd_level "$WDIR/telemetry.jsonl" 5)
+
+# The warm-up must NOT have escalated, or the scenario starts from the wrong
+# state and D-02 passes for a reason that has nothing to do with drift.
+if [ "$L0" = "normal" ]; then
+    pass "D-01b" "Calibration warm-up stayed NORMAL (clean baseline)"
+else
+    fail "D-01b" "Warm-up escalated — baseline is contaminated" "turn1 level=$L0"
+fi
 
 if [ "$L1" = "elevated" ]; then
     pass "D-02" "Escalation is immediate on the first high-pressure turn"
@@ -207,7 +232,7 @@ fi
 #
 # This assertion FAILS if that fix is reverted: pre-fix the firing turn reports
 # 0. deescalate_sustained is 2 in this config and turn 4 is the step-down (D-05).
-CALM4=$(cdd_field "$WDIR/telemetry.jsonl" 4 "deescalate_calm_turns")
+CALM4=$(cdd_field "$WDIR/telemetry.jsonl" 5 "deescalate_calm_turns")
 if [ "$CALM4" = "2" ]; then
     pass "D-06" "Firing turn reports the count that fired it (calm=2 = deescalate_sustained)"
 elif [ "$CALM4" = "0" ]; then
@@ -220,7 +245,7 @@ fi
 # D-07 is the control for D-06: a NON-firing calm turn must still report its
 # running count, so D-06 cannot pass by the field being hardcoded to the
 # threshold. Turn 3 is the first calm turn (D-04 pins that it did NOT step down).
-CALM3=$(cdd_field "$WDIR/telemetry.jsonl" 3 "deescalate_calm_turns")
+CALM3=$(cdd_field "$WDIR/telemetry.jsonl" 4 "deescalate_calm_turns")
 if [ "$CALM3" = "1" ]; then
     pass "D-07" "Non-firing calm turn reports its running count (calm=1) (control)"
 else
