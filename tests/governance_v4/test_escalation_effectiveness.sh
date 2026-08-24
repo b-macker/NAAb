@@ -36,15 +36,36 @@
 # (sweeping elevated_threshold 0.30 -> 0.50 moved the working pre-window from
 # [1,2] to [2,3,4]) while a window derived from drift onset is invariant.
 #
+#   EE-04  the measure is TWO-SIDED — it can report that an intervention made
+#          things worse, not merely that it helped
+#
+# CORRECTION. An earlier version of this header claimed the opposite:
+#
+#     "The measure is one-sided at the floor: eff = mean(post) - coherence_at
+#      ... It structurally cannot report that an intervention made things
+#      WORSE, which is the case that matters most for using it in a decision."
+#
+# That described the pre-#164 COHERENCE-based formula, which this file's own
+# text then went on to say had been replaced. Under the penalty-rate definition
+# actually shipped — trigger_penalty_mean minus the post-escalation rate, both
+# non-negative — a post rate ABOVE the trigger rate yields a negative value, and
+# it does. Measured on the EE-04 arm below, and independently at -0.058 on a
+# separate scenario. The claim was inherited rather than re-checked, which is
+# how a stale caveat outlives the thing it describes; EE-04 replaces the prose
+# with an assertion so it cannot go stale again.
+#
 # WHAT IS NOT FIXED, AND IS DELIBERATELY NOT ASSERTED HERE
-#   The measure is one-sided at the floor: eff = mean(post) - coherence_at, and
-#   escalation usually fires when coherence is already low, so coherence_at is
-#   near 0 and eff cannot go negative. It structurally cannot report that an
-#   intervention made things WORSE, which is the case that matters most for
-#   using it in a decision.
 #   Only the acting handle records the transition, while governance_level_ is
 #   engine-global — siblings whose scrutiny changed have no record of it.
-#   Both need a decision about what the number should mean, not a patch.
+#   That needs a decision about what the number should mean, not a patch.
+#
+#   NOTHING CONSUMES THE NUMBER YET, and one attempt to wire it in was reverted
+#   rather than shipped: making an ineffective escalation hold off de-escalation
+#   is correct in design and unreachable in practice, because de-escalation
+#   itself barely runs once coherence floors (coherence_natural_healing defaults
+#   to 0, so coherence_proximity pins at its maximum and pressure never falls
+#   back under elevated_threshold). See test_deescalation_reachability.sh — that
+#   is the prerequisite, and it is not this file's to fix.
 # ============================================================
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -170,6 +191,94 @@ if echo "$LINE" | grep -q "effectiveness="; then
 else
     fail "EE-03" "no effectiveness value reported" \
          "the window never completed — a later transition re-armed the accumulator"
+fi
+
+
+# ============================================================
+# EE-04 — the measure is TWO-SIDED
+#
+# The header used to claim it could not report a WORSENING. It can, and this
+# arm is the proof, because a claim about a sign is exactly the kind of thing
+# that goes stale in prose and does not go stale in an assertion.
+#
+# Shape: a SHORT mild-drift run provokes the escalation, so trigger_penalty_mean
+# is low; the effectiveness window then lands entirely inside a block of SEVERE
+# drift, so the post rate is higher than the trigger rate and the difference is
+# negative. Getting this wrong the first time is instructive — a fixture that
+# escalates at the PEAK of drift and then quiets down measures POSITIVE, because
+# the window catches the recovery. The window is frozen after
+# escalation_effectiveness_window turns, so what it lands on is the whole
+# measurement.
+# ============================================================
+echo -e "${CYAN}--- EE-04: the measure can report a worsening ---${NC}"
+W2="$TEST_TMP/neg"; mkdir -p "$W2"
+python3 - "$W2/fx.json" <<'PYEOF'
+import json, sys
+r = []
+for i in range(5):
+    r.append({"content": "Ledger reconcile step %d: quarterly totals computed and balance recorded." % i,
+              "output_tokens": 45, "thinking_tokens": 20})
+for t in ["the ledger totals may need review later",
+          "quarterly balance figures are being revisited"]:
+    r.append({"content": t, "output_tokens": 25, "thinking_tokens": 5})
+sev = ["photography lenses","mountain weather","pasta recipes","jazz history","bicycle gears",
+       "tide tables","volcano types","origami folds","desert beetles","harbour cranes"]
+for i, t in enumerate(sev):
+    r.append({"content": "Consider %s." % t, "output_tokens": max(6, 18 - i), "thinking_tokens": 0})
+json.dump({"responses": r}, open(sys.argv[1], "w"))
+PYEOF
+P2=$(( (RANDOM % 20000) + 34000 ))
+python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$P2" "$W2/fx.json" "$W2" > "$W2/stub.log" 2>&1 &
+STUB_PID=$!
+for i in $(seq 1 60); do grep -q READY "$W2/stub.log" 2>/dev/null && break; sleep 0.5; done
+if ! grep -q READY "$W2/stub.log" 2>/dev/null; then
+    skip "EE-04" "stub failed to start"
+else
+cat > "$W2/govern.json" <<GOVEOF
+{
+  "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "telemetry": { "enabled": true, "output_file": "t.jsonl" },
+  "behavioral_sequences": { "enabled": true },
+  "context_drift": {
+    "enabled": true, "check_interval_turns": 1,
+    "adaptive_baseline_enabled": true, "adaptive_baseline_window": 5,
+    "escalation_effectiveness_window": 3,
+    "reality_checkpoint": { "enabled": false }
+  },
+  "circuit_breaker": {
+    "enabled": true, "elevated_threshold": 0.35, "elevated_sustained": 1,
+    "high_threshold": 0.95, "critical_threshold": 0.99,
+    "level_effects": { "high_advisory_to_soft": false }
+  },
+  "agents": { "b": { "provider": "gemini", "model": "stub-model",
+      "api_base": "http://127.0.0.1:$P2", "api_key_env": "FAKE_KEY_EE",
+      "max_tokens": 200, "max_turns": 40,
+      "system_prompt": "You reconcile ledger data and report quarterly totals." } }
+}
+GOVEOF
+(cd "$W2" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+cat > "$W2/t.naab" <<'NAABEOF'
+use agent
+main {
+    let h = agent.create("b")
+    let i = 0
+    while i < 17 { i = i + 1; let r = agent.send(h, "continue the ledger reconciliation") }
+    print("RUN_DONE")
+}
+NAABEOF
+D2=$( (cd "$W2" && timeout 180s "$NAAB" --governance-dashboard t.naab 2>&1) )
+kill "$STUB_PID" 2>/dev/null; STUB_PID=""
+L2=$(echo "$D2" | grep -i "Escalation: level" | head -1)
+EFFVAL=$(echo "$L2" | sed -n 's/.*effectiveness=\(-\{0,1\}[0-9.]*\).*/\1/p')
+if [ -z "$EFFVAL" ]; then
+    fail "EE-04" "no effectiveness value on the worsening arm" "${L2:-<no escalation line>}"
+elif awk "BEGIN{exit !($EFFVAL < 0)}"; then
+    pass "EE-04" "a worsening is reported as negative ($EFFVAL) — the measure is two-sided"
+else
+    fail "EE-04" "drift accelerated after escalation but the measure did not go negative" \
+         "got $EFFVAL; line: $L2 — if the formula reverted to coherence-based this is one-sided again"
+fi
 fi
 
 echo ""
