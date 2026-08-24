@@ -1765,6 +1765,19 @@ else
     echo "  merge_sarif.py: not found, skipping"
 fi
 
+# What pressure drift can actually generate, and which rungs that reaches.
+PMAP_SCRIPT="tests/governance_v4/test_pressure_level_map.sh"
+if [ -f "$PMAP_SCRIPT" ]; then
+    if run_shell_test "$PMAP_SCRIPT" 2>&1; then
+        echo "  test_pressure_level_map.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pressure_level_map.sh")
+    fi
+else
+    echo "  test_pressure_level_map.sh: not found, skipping"
+fi
+
 # A gate that passes because it cannot yet judge must say so.
 UNDETGATE_SCRIPT="tests/governance_v4/test_undetermined_gate.sh"
 if [ -f "$UNDETGATE_SCRIPT" ]; then
