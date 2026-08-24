@@ -1306,30 +1306,36 @@ System-wide governance levels (NORMAL/ELEVATED/HIGH/CRITICAL) based on sustained
 composite pressure.
 
 **Effects, as implemented:**
-- **CRITICAL** — all agent admission denied, and the tool loop breaks. Implemented
-  and verified.
-- **ELEVATED / HIGH** — no behavioural effect of their own. They appear in
-  telemetry, the transcript and the agent environment, and they gate step-up
-  challenges when `circuit_breaker.step_up_enabled` is true (it defaults to
-  false). With step-up off, escalating NORMAL -> ELEVATED -> HIGH leaves the run
-  byte-identical: same coherence trace, same quarantine count, same request
-  count. Pinned by `tests/governance_v4/test_level_inertness.sh`.
+- **CRITICAL** — all agent admission denied, and the tool loop breaks.
+- **HIGH** — an ADVISORY finding is enforced as SOFT. A warning that keeps being
+  ignored while coherence sits on the floor is a decision deferred, not
+  information. SOFT still honours the operator override, so this hardens the
+  default without removing the escape hatch. Announced on stderr as
+  `[governance] LEVEL-PROMOTED <rule>`, and the block message says plainly that
+  execution stopped (the caller formats its text with the level it *requested*,
+  so the promotion notice is appended rather than substituted).
+- **ELEVATED** — context drift is analysed EVERY turn.
+  `context_drift.check_interval_turns` defaults to 3, so at NORMAL two turns in
+  three are never scored. The configured value is not modified: it returns as
+  soon as the level de-escalates. Takes effect the turn AFTER the level rises,
+  because a turn cannot retroactively decide it should have been analysed.
 
-An earlier version of this section specified "ELEVATED = CDD check every turn,
-HIGH = ADVISORY escalates to SOFT". Neither is implemented — the CDD interval
-gate reads `check_interval_turns` with no reference to the level, and advisory
-escalation is driven by the repeat count of a single rule, not by the level.
+Both middle-rung effects default **true** and are configurable under
+`circuit_breaker.level_effects` (`elevated_cdd_every_turn`,
+`high_advisory_to_soft`). Disabling either mid-run is a ratchet violation.
+Pinned by `tests/governance_v4/test_level_effects.sh`, whose LE-02 and LE-04 are
+the load-bearing controls: each re-runs the same scenario with the single effect
+switched off, so a behaviour change cannot be credited to the effect unless it
+disappears when the effect does.
 
-**They are not implemented yet on purpose.** On a default config, correct work
-alone already reaches ELEVATED: `coherence_proximity` (weight 0.35) contributes
-its full 0.35 once coherence floors, plus `conversation_depth` 0.10, giving 0.45
-against `elevated_threshold` 0.4 — and correct progressive work DOES floor
-coherence while `adaptive_baseline_enabled` defaults false. Making the middle
-rungs bite today would run drift checks more often on an agent already being
-wrongly penalised, and promote its advisories to SOFT blocks. The precondition is
-a trustworthy pressure signal, which needs trustworthy coherence, which needs
-calibration on by default, which needs "undetermined" to be a state the gates can
-consume. See `docs/governance-campaign-findings.md`.
+They were inert for a long time, and the reason is worth keeping. Making the
+middle rungs bite requires a trustworthy pressure signal, which requires
+trustworthy coherence, which required `adaptive_baseline_enabled` on by default,
+which required "undetermined" to be a state the gates can consume. While
+calibration defaulted false, correct progressive work floored its own coherence
+and reached ELEVATED on merit — so these effects would have run extra drift
+checks on an agent already being wrongly penalised, and promoted its advisories
+to blocks. See `docs/governance-campaign-findings.md`.
 
 Step-up challenges inject a verification prompt at configurable governance level —
 pass recovers coherence, fail blocks send. NYSE circuit breaker analog.

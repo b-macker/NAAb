@@ -29,7 +29,7 @@
 #
 #    This matters because CRITICAL is the only rung with an implemented effect
 #    (suspending autonomous actions). ELEVATED and HIGH are reachable and inert
-#    (see test_level_inertness.sh). So a fully incoherent agent lands on a rung
+#    (they were, until test_level_effects.sh). A fully incoherent agent lands on a rung
 #    that does nothing, and cannot reach the rung that does.
 #
 # 2. ESCALATION NEEDS COHERENCE AT OR NEAR ZERO. coherence_proximity is

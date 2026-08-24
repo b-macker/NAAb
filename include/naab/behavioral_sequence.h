@@ -518,6 +518,27 @@ public:
     // Re-bind config without clearing drift state (threshold-only reloads)
     void updateConfig(const ContextDriftConfig& config);
 
+    // Override the effective check interval, or 0 to use the configured value.
+    //
+    // Mechanism only: the ENGINE decides when scrutiny warrants every-turn
+    // analysis (governance level >= ELEVATED with
+    // circuit_breaker.level_effects.elevated_cdd_every_turn) and pushes the
+    // result here. The analyzer has no view of the governance level and is not
+    // given one — keeping the policy on the engine side means the override is
+    // visible at the single site that already owns level transitions, rather
+    // than reconstructed from two configs inside the scoring loop.
+    //
+    // Read on the NEXT turn by construction: the interval gate runs at the top
+    // of recordTurn, before this turn's pressure is computed, so a level raised
+    // by turn N takes effect from turn N+1. That is the correct direction — a
+    // turn cannot decide whether it should have been analysed.
+    void setCheckIntervalOverride(int interval) {
+        check_interval_override_.store(interval, std::memory_order_relaxed);
+    }
+    int checkIntervalOverride() const {
+        return check_interval_override_.load(std::memory_order_relaxed);
+    }
+
     // Called after each agent turn; returns true if drift detected
     bool recordTurn(int handle_id, int turn_number,
                     const std::vector<RuntimeEvent>& turn_events,
@@ -660,6 +681,8 @@ public:
     void reset();
 
 private:
+    // 0 = no override; see setCheckIntervalOverride().
+    std::atomic<int> check_interval_override_{0};
     const ContextDriftConfig* config_ = nullptr;
     std::unordered_map<int, DriftState> drift_states_;
     size_t turns_analyzed_ = 0;

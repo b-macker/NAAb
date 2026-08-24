@@ -3131,6 +3131,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cbj.contains("high_sustained") && cbj["high_sustained"].is_number_integer()) cfg.high_sustained = cbj["high_sustained"].get<int>();
         if (cbj.contains("critical_sustained") && cbj["critical_sustained"].is_number_integer()) cfg.critical_sustained = cbj["critical_sustained"].get<int>();
         if (cbj.contains("deescalate_sustained") && cbj["deescalate_sustained"].is_number_integer()) cfg.deescalate_sustained = std::max(1, cbj["deescalate_sustained"].get<int>());
+        // Level effects: what ELEVATED and HIGH actually DO. Default true —
+        // these are the documented semantics of the levels, not an opt-in
+        // feature, and shipping them off would repeat the pattern that left
+        // them inert for years.
+        if (cbj.contains("level_effects") && cbj["level_effects"].is_object()) {
+            const auto& le = cbj["level_effects"];
+            if (le.contains("elevated_cdd_every_turn") && le["elevated_cdd_every_turn"].is_boolean())
+                cfg.level_effects.elevated_cdd_every_turn = le["elevated_cdd_every_turn"].get<bool>();
+            if (le.contains("high_advisory_to_soft") && le["high_advisory_to_soft"].is_boolean())
+                cfg.level_effects.high_advisory_to_soft = le["high_advisory_to_soft"].get<bool>();
+        }
         if (cbj.contains("step_up_enabled") && cbj["step_up_enabled"].is_boolean()) cfg.step_up_enabled = cbj["step_up_enabled"].get<bool>();
         if (cbj.contains("step_up_at_level") && cbj["step_up_at_level"].is_string()) cfg.step_up_at_level = cbj["step_up_at_level"].get<std::string>();
         if (cbj.contains("step_up_challenge") && cbj["step_up_challenge"].is_string()) cfg.step_up_challenge = cbj["step_up_challenge"].get<std::string>();
@@ -3902,6 +3913,24 @@ static bool checkRatchetViolation(
 
     // --- De-escalation hysteresis ratchet ---
     // Fewer calm turns before stepping the governance level down = loosening
+    // Level effects: disabling either mid-run means a level that was biting
+    // stops biting, which is the loosening the ratchet exists for.
+    {
+        const auto& o_le = old_r.circuit_breaker.level_effects;
+        const auto& n_le = new_r.circuit_breaker.level_effects;
+        if (o_le.elevated_cdd_every_turn && !n_le.elevated_cdd_every_turn)
+            violations.push_back(
+                "circuit_breaker.level_effects.elevated_cdd_every_turn: true -> false (loosened)");
+        else if (!o_le.elevated_cdd_every_turn && n_le.elevated_cdd_every_turn)
+            notices.push_back(
+                "circuit_breaker.level_effects.elevated_cdd_every_turn: false -> true (tightened)");
+        if (o_le.high_advisory_to_soft && !n_le.high_advisory_to_soft)
+            violations.push_back(
+                "circuit_breaker.level_effects.high_advisory_to_soft: true -> false (loosened)");
+        else if (!o_le.high_advisory_to_soft && n_le.high_advisory_to_soft)
+            notices.push_back(
+                "circuit_breaker.level_effects.high_advisory_to_soft: false -> true (tightened)");
+    }
     if (new_r.circuit_breaker.deescalate_sustained < old_r.circuit_breaker.deescalate_sustained)
         violations.push_back(fmt::format("circuit_breaker.deescalate_sustained: {} -> {} (loosened)",
             old_r.circuit_breaker.deescalate_sustained, new_r.circuit_breaker.deescalate_sustained));
