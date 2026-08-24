@@ -4273,6 +4273,25 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         std::to_string(gov_engine->getDeescalateCalmTurns())},
                     {"deescalate_pressure_handle",
                         std::to_string(gov_engine->getDeescalatePressureHandle())},
+                    // The AGENT behind that handle, so a row is self-describing.
+                    //
+                    // governance_level is engine-global: every handle's row shows
+                    // the level, including handles that did nothing to earn it. A
+                    // sibling at coherence 1.0000 reads "elevated" on its own row
+                    // and, with only a numeric handle id to go on, cannot say
+                    // whose pressure put it there without joining against another
+                    // handle's rows. The id was already emitted; this resolves it.
+                    //
+                    // Scoped lock: s_agent_mutex is NOT held here (the tracker
+                    // update above closes its block well before this point), and
+                    // the lookup is a single map read.
+                    {"level_source_config", [&]() -> std::string {
+                        int src = gov_engine->getDeescalatePressureHandle();
+                        if (src == 0) return "none";
+                        std::lock_guard<std::mutex> lk(s_agent_mutex);
+                        auto it = s_trackers.find(src);
+                        return it != s_trackers.end() ? it->second.config_name : "unknown";
+                    }()},
                     {"response_repetition_count", std::to_string(drift_state->response_repetition_count)},
                     {"governance_level", level_str},
                     {"drift_detected",   drift_err.empty() ? "false" : "true"},

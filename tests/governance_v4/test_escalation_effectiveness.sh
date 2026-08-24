@@ -55,9 +55,24 @@
 # with an assertion so it cannot go stale again.
 #
 # WHAT IS NOT FIXED, AND IS DELIBERATELY NOT ASSERTED HERE
-#   Only the acting handle records the transition, while governance_level_ is
-#   engine-global — siblings whose scrutiny changed have no record of it.
-#   That needs a decision about what the number should mean, not a patch.
+#   Only the acting handle records the ESCALATION (escalation_turn, the frozen
+#   window, the effectiveness value). A sibling that was already behaving has no
+#   such record — correctly, since "did escalating help?" is not a question about
+#   an agent that did not provoke it.
+#
+#   A second clause here used to read "siblings whose scrutiny changed have no
+#   record of it". Re-derived rather than inherited, that is no longer true and
+#   predates deescalate_pressure_handle_: governance_level_ is still one
+#   engine-global atomic, but every handle's CDD_TURN row carries the handle
+#   that raised or held the level, now resolved to that agent's config name.
+#   Pinned by test_level_attribution.sh, whose LA-05 is the load-bearing part —
+#   the positive assertions alone are satisfied by hardcoding the first agent,
+#   verified by mutation.
+#
+#   The level remains ENGINE-GLOBAL for enforcement, deliberately. Per-handle
+#   levels would let a sibling keep acting while another agent sits at CRITICAL,
+#   which errs toward false reassurance — the dangerous direction for a
+#   protection, and not a change to make on the strength of a reporting gap.
 #
 #   NOTHING CONSUMES THE NUMBER YET, and one attempt to wire it in was reverted
 #   rather than shipped: making an ineffective escalation hold off de-escalation
