@@ -848,8 +848,16 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.last_activity_time = now;
     }
 
-    // Only check every N turns
-    if (turn_number - state.last_checked_turn < config_->check_interval_turns) {
+    // Only check every N turns — unless the engine has overridden the interval
+    // because the governance level warrants every-turn scrutiny. See
+    // ContextDriftAnalyzer::setCheckIntervalOverride(); the configured value is
+    // left untouched so it returns as soon as the level de-escalates.
+    int effective_interval = config_->check_interval_turns;
+    int override_interval = check_interval_override_.load(std::memory_order_relaxed);
+    if (override_interval > 0 && override_interval < effective_interval) {
+        effective_interval = override_interval;
+    }
+    if (turn_number - state.last_checked_turn < effective_interval) {
         return false;
     }
     state.last_checked_turn = turn_number;

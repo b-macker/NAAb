@@ -2309,7 +2309,7 @@ and bought a result that does not depend on trusting a broken instrument.
 
 ## The circuit-breaker ladder's middle rungs are ornamental, and must stay that way for now
 
-**Tier: verified.** `tests/governance_v4/test_level_inertness.sh`.
+**Tier: verified.** Was `tests/governance_v4/test_level_inertness.sh`; superseded by `test_level_effects.sh` once the effects were implemented — see "The ladder's middle rungs now bite" below.
 
 `docs/CLAUDE-TEMPLATE.md` specified all four rungs: "ELEVATED = CDD check every
 turn, HIGH = ADVISORY escalates to SOFT, CRITICAL = all agent admission denied."
@@ -2374,7 +2374,7 @@ Each is a real capability whose connector ships off, with documentation
 describing the connected behaviour. A fourth repeats the failure rather than
 fixing it.
 
-`test_level_inertness.sh` is the tripwire, and says so in its header: when the
+`test_level_inertness.sh` WAS the tripwire, and said so in its header: when the
 divergence is fixed, LI-02 **should** fail, and the repair is to replace it with
 positive assertions for each rung — never to relax it.
 
@@ -2477,3 +2477,84 @@ next increment (flipping `adaptive_baseline_enabled` on by default) needs to
 exist before it can be safe.
 
 Test: `tests/governance_v4/test_undetermined_gate.sh` (20 assertions).
+
+## The ladder's middle rungs now bite
+
+The previous section closed with a dependency stack and the claim that
+implementing effects for ELEVATED and HIGH would make things worse until it was
+paid off. It has been paid off, in this order:
+
+```
+HIGH → SOFT        needs trustworthy pressure     ← measured and pinned (#168)
+  └ pressure       needs trustworthy coherence    ← calibrated (#167)
+      └ coherence  needs calibration on by default ← flipped (#167)
+          └ default needs "undetermined"           ← shipped (#165)
+```
+
+### What was built
+
+- **ELEVATED and above: context drift is analysed every turn.**
+  `check_interval_turns` defaults to **3**, so at NORMAL two turns in three are
+  never scored. The configured value is not modified — an override is pushed to
+  the analyzer and cleared when the level falls, so the operator's interval
+  returns with the level.
+- **HIGH and above: an ADVISORY is enforced as SOFT.** Applied at the top of
+  `enforce()`, before the `CheckResult` is built, so the recorded severity and
+  every report format describe the level actually enforced rather than the one
+  requested.
+
+Both default **true**, configurable under `circuit_breaker.level_effects`,
+ratcheted (disabling either mid-run is a loosening). Defaulting them off would
+have repeated the exact pattern that produced this finding — the previous
+section names three capabilities already shipped disabled with documentation
+describing the connected behaviour. A fourth was not on the table.
+
+### Three things the implementation got wrong first
+
+**The message lied.** The caller formats its violation text with the level it
+*requests*, then hands it to `enforce()`. A promoted advisory therefore printed
+"[ADVISORY] … execution will continue" and then stopped the run. Rewriting a
+caller-supplied string is guesswork, so the promotion notice is appended and
+says plainly that execution stopped. It names no flag: error text must never
+carry bypass instructions, and the leak suite enforces that (874/0).
+
+**The first ELEVATED turn is still on the old interval.** The override is set
+when the level *changes*, which happens during turn N's processing — after turn
+N's interval gate has already decided. So the effect starts at N+1. This is
+structural, not a defect: a turn cannot retroactively decide it should have been
+analysed. The test excludes that turn from its post-window and says why, rather
+than asserting it away.
+
+**The two effects confound each other.** Measuring the ELEVATED effect with both
+enabled gave a post-ELEVATED window of three turns, because analysing every turn
+drives coherence down faster, the run reaches HIGH sooner, and the promoted
+advisory blocks it. Two factors moved at once and neither assertion isolated
+anything. Both arms of LE-01/LE-02 now pin `high_advisory_to_soft: false` so
+exactly one factor varies. The guard that caught this was a minimum-window
+assertion added for a different reason — "too few post-ELEVATED turns to be
+evidence" — which is the second time in this campaign a vacuity guard has
+surfaced a confound rather than a vacuity.
+
+### An interaction worth knowing
+
+`adaptive_baseline_window` counts **analysed** turns, not sends. With the
+default `check_interval_turns: 3` and window 5, calibration spans **15 sends**,
+not 5. A warm-up sized for the window rather than the interval leaves most of
+the baseline samples on the drift phase, and the baseline then learns drift as
+normal — the run is uncalibrated and unscored at the same time. This cost one
+wrong measurement before it was noticed.
+
+### What replaced the tripwire
+
+`test_level_inertness.sh` is deleted. Its header said: *"WHEN THIS IS FIXED,
+LI-02 SHOULD FAIL. Do not repair it by relaxing the assertion — implement the
+documented effects, then replace LI-02 with the positive assertions."* LI-02
+did fail, with exactly that message, and `test_level_effects.sh` is the
+replacement.
+
+Its load-bearing assertions are the controls, not the claims. LE-01 shows CDD
+going from 6/18 analysed turns to 21/21 once ELEVATED is reached; LE-02 runs the
+identical scenario with the effect off and gets 7/21. LE-03 shows the run
+blocked at HIGH with exit 3; LE-04 runs the identical scenario with promotion
+off and it completes. A behaviour change is not credited to an effect unless it
+disappears when the effect does.

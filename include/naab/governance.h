@@ -1678,6 +1678,42 @@ struct CircuitBreakerConfig {
     // to NORMAL — escalation was sustained but de-escalation was instant, so
     // scrutiny disappeared exactly when a decaying agent briefly looked calm.
     int deescalate_sustained = 2;
+    // ---- What the middle rungs of the ladder actually DO -------------------
+    //
+    // ELEVATED and HIGH shipped for a long time as pure labels: they appeared
+    // in telemetry, the transcript and the environment dict, gated step-up
+    // challenges (itself default off), and changed nothing else. Escalating
+    // NORMAL -> ELEVATED -> HIGH left a run byte-identical.
+    //
+    // Two effects were specified in docs/CLAUDE-TEMPLATE.md and never built.
+    // They are built now, and they are DEFAULT ON. Shipping a real capability
+    // behind a default-false flag is the exact pattern that produced this
+    // situation three times over (adaptive_baseline_enabled, step_up_enabled,
+    // advisory_escalation.enabled) — a fourth would repeat the failure rather
+    // than fix it. They are configurable because govern.json is primary, and
+    // ratcheted because turning them off mid-run is a loosening.
+    //
+    // The precondition, which is why this could not be done sooner: making the
+    // middle rungs bite requires a trustworthy pressure signal, which requires
+    // trustworthy coherence, which required calibration on by default. While
+    // adaptive_baseline_enabled defaulted false, correct progressive work
+    // floored its own coherence and reached ELEVATED on merit — so these
+    // effects would have run extra drift checks on an agent already being
+    // wrongly penalised, and promoted its advisories to blocks.
+    struct LevelEffects {
+        // ELEVATED and above: analyse context drift EVERY turn.
+        // context_drift.check_interval_turns defaults to 3, so at NORMAL two
+        // turns in three are never scored. Under elevated scrutiny that gap is
+        // the wrong economy — this closes it without touching the config value,
+        // so the operator's chosen interval returns when the level does.
+        bool elevated_cdd_every_turn = true;
+        // HIGH and above: an ADVISORY finding is enforced as SOFT.
+        // A warning that keeps being ignored while the agent's coherence sits
+        // on the floor is not information, it is a decision deferred. SOFT
+        // still honours --governance-override, so this hardens the default
+        // without removing the operator's escape hatch.
+        bool high_advisory_to_soft = true;
+    } level_effects;
     // Step-up challenge at elevated governance levels
     bool step_up_enabled = false;
     std::string step_up_at_level = "elevated";

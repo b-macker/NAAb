@@ -946,6 +946,38 @@ std::string GovernanceEngine::enforce(
     EnforcementLevel level,
     const std::string& violation_message) {
 
+    // LEVEL EFFECT 2 — at HIGH and above, an ADVISORY is enforced as SOFT.
+    //
+    // Applied FIRST, before the CheckResult is built, so the recorded severity,
+    // the generated explanation and every report format describe the level that
+    // was actually enforced rather than the one that was requested. Promoting
+    // later would leave reports disagreeing with behaviour.
+    //
+    // A warning that keeps being ignored while coherence sits on the floor is
+    // not information, it is a decision deferred. SOFT still honours
+    // --governance-override, so this hardens the default without removing the
+    // operator's escape hatch — unlike advisory_escalation's soft_after path,
+    // which throws GovernanceHardError and cannot be overridden at all.
+    //
+    // Deliberately NOT applied to DETECT: DETECT exists so tests can catch a
+    // block with NAAb try/catch, and silently promoting it would make those
+    // suites fail in a way that looks like the feature under test broke.
+    bool level_promoted = false;
+    if (level == EnforcementLevel::ADVISORY &&
+        rules().circuit_breaker.level_effects.high_advisory_to_soft &&
+        governance_level_.load(std::memory_order_relaxed) >=
+            static_cast<int>(GovernanceLevel::HIGH)) {
+        level = EnforcementLevel::SOFT;
+        level_promoted = true;
+        fprintf(stderr, "[governance] LEVEL-PROMOTED %s (advisory enforced as soft"
+                        " at governance level high)\n", rule_name.c_str());
+        static const char* kGovLevelNames[] = {"normal", "elevated", "high", "critical"};
+        int gl = governance_level_.load(std::memory_order_relaxed);
+        addTrace(fmt::format(
+            "level_effect: advisory promoted to soft at governance level {}",
+            (gl >= 0 && gl <= 3) ? kGovLevelNames[gl] : "unknown"));
+    }
+
     // Record the failing check with full context
     std::string cat = rule_name.substr(0, rule_name.find('.'));
     std::string sev = (level == EnforcementLevel::HARD ||
@@ -1158,14 +1190,30 @@ std::string GovernanceEngine::enforce(
             }
             // naab-29 L-09: SOFT without override is a governance block (exit 3)
             g_governance_hard_block = true;
-            emitRefusalAttestation(rule_name, level, "soft_no_override", violation_message);
-            fireHook(rules().hooks.on_violation, {
-                {"rule_name", rule_name}, {"level", "soft"},
-                {"file", current_check_file_},
-                {"line", std::to_string(current_check_line_)},
-                {"category", cat}
-            });
-            throw GovernanceHardError(violation_message);
+            {
+                // The message was formatted by the CALLER using the level it
+                // requested, so a promoted advisory still reads "[ADVISORY] …
+                // execution will continue" while this path is about to stop the
+                // run. Appending is the honest fix available here — rewriting a
+                // caller-supplied string is guesswork, and leaving it alone
+                // makes the engine contradict itself in the one message the
+                // operator actually reads.
+                std::string soft_msg = violation_message;
+                if (level_promoted) {
+                    soft_msg +=
+                        "\n  Governance level is HIGH: advisory findings are enforced\n"
+                        "  as blocks at this level. Execution stops here.\n";
+                }
+                emitRefusalAttestation(rule_name, level, "soft_no_override", soft_msg);
+                fireHook(rules().hooks.on_violation, {
+                    {"rule_name", rule_name},
+                    {"level", level_promoted ? "soft_promoted" : "soft"},
+                    {"file", current_check_file_},
+                    {"line", std::to_string(current_check_line_)},
+                    {"category", cat}
+                });
+                throw GovernanceHardError(soft_msg);
+            }
 
         case EnforcementLevel::ADVISORY: {
             // V-CONC-F7: mutex-guard emitted_advisories_ and score_yellow_warned_
@@ -7594,6 +7642,20 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
                     drift_analyzer_.recordEscalation(state->handle_id, prev_level, level);
                 }
                 governance_level_.store(level, std::memory_order_relaxed);
+            }
+
+            // LEVEL EFFECT 1 — ELEVATED and above analyse drift EVERY turn.
+            //
+            // Driven here rather than read inside the analyzer so the policy
+            // lives at the one site that owns level transitions. Applied on
+            // every pass, not only on a transition, so a reload that flips the
+            // flag or a level restored from elsewhere cannot leave a stale
+            // override behind. 0 clears it and the configured interval returns.
+            {
+                int lvl = governance_level_.load(std::memory_order_relaxed);
+                bool tighten = rules().circuit_breaker.level_effects.elevated_cdd_every_turn &&
+                               lvl >= static_cast<int>(GovernanceLevel::ELEVATED);
+                drift_analyzer_.setCheckIntervalOverride(tighten ? 1 : 0);
             }
 
             // Reality checkpoint enforcement — pulse and circuit breaker
