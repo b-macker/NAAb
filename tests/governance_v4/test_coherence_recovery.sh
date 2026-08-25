@@ -2,9 +2,22 @@
 # ============================================================
 # test_coherence_recovery.sh — what an agent gets for recovering
 #
-# THE MECHANISM, NOT THE DEFAULT. Every arm PINS coherence_natural_healing
-# explicitly, so this file keeps testing the same thing if the default ever
-# moves. The companion acceptance gate that DOES depend on the default is
+# THE MECHANISM, NOT THE DEFAULT -- but only PARTLY insulated from it. An
+# earlier version of this header claimed "every arm PINS
+# coherence_natural_healing explicitly, so this file keeps testing the same
+# thing if the default ever moves." That is FALSE and was never checked. The
+# `absent` arm sets nothing -- that is the entire point of the arm -- so two of
+# the five gates are load-bearing on the default being 0:
+#
+#   CR-02  absent -> trapped (coherence <= 0.0001, level != normal)
+#   CR-03  absent is byte-identical to explicit 0.0 ("the default IS 0")
+#
+# Both break the moment the default becomes non-zero. Whoever moves it must
+# also move CR-02 onto the explicit-0.0 arm and re-anchor CR-03 to compare
+# `absent` against the NEW value -- keeping the property that the default is
+# swept as its own case rather than inferred from explicit ones.
+#
+# The companion acceptance gate that depends on the default wholesale is
 # test_recovery_default.sh.
 #
 # WHAT IS MEASURED

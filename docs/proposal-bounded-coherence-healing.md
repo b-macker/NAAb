@@ -313,3 +313,71 @@ absolute, e.g. capped at a fraction of the agent's own recent damage per
 damaging turn, so it self-scales and has no cliff to find. That is new design
 with its own regression surface and is not proposed here. Tracked as R5 in
 `docs/open-investigations.md`.
+
+### R3 re-examined (2026-08-25) — the withdrawal stands, the cliff number does not
+
+R3 was reopened and measured again on the `test_coherence_recovery.sh` fixture
+after the acceptance gate `test_recovery_default.sh` made the cost of the
+default explicit. The withdrawal is UPHELD, but one number recorded above needs
+correcting and the reason for upholding it has changed.
+
+**Recovery direction** (5 clean turns, 10 drift turns that floor coherence, then
+25 genuinely correct turns; observed, all rates set explicitly):
+
+| rate | final coherence | final level |   | rate | final coherence | final level |
+|------|-----------------|-------------|---|------|-----------------|-------------|
+| 0.05 | 0.0000 | elevated |   | 0.15 | 0.5750 | normal |
+| 0.08 | 0.0000 | elevated |   | 0.16 | 0.6900 | normal |
+| 0.10 | 0.0000 | elevated |   | 0.17 | 0.8050 | normal |
+| 0.12 | 0.2300 | elevated |   | 0.18 | 0.9200 | normal |
+| 0.13 | 0.3450 | normal   |   | 0.20 | 1.0000 | normal |
+| 0.14 | 0.4600 | normal   |   | 0.30 | 1.0000 | normal |
+
+The gate (`coherence >= 0.30` and level `normal`) first passes at **0.13**.
+Below 0.12 nothing is earned at all: 0.10 x 25 clean turns is 2.5, far more than
+the 1.0 deficit, and yet coherence does not move — residual penalties and the
+`heal_factor` throttle absorb all of it. Above the cliff the response is linear
+(+0.115 coherence per +0.01 rate), so 0.13-0.20 is a plateau, not a knife edge.
+
+**Escalation-suppression direction** — the control the recovery sweep cannot
+give, on a fixture that drifts continuously and never recovers, so the agent
+SHOULD escalate:
+
+| rate | heavy profile (6 signals) | light profile (4 disabled) |
+|------|---------------------------|----------------------------|
+| 0.0  | high | elevated |
+| 0.13 | high | elevated |
+| 0.15 | high | elevated |
+| 0.20 | high | elevated |
+| 0.30 | high | **normal — escalation entirely suppressed** |
+
+**The recorded cliff of 0.15 did not reproduce.** On neither profile measured
+here does 0.13 or 0.15 suppress anything. On the heavy profile six signals fire
+for ~0.36 penalty/turn against healing's ceiling of `0.30 * 1/(1+6)` ~ 0.043 —
+healing cannot compete at any rate tested. The suppression cliff appears between
+0.20 and 0.30, not at 0.15.
+
+**This does not clear R3, for a reason worth stating precisely.** The light
+profile reaches only `elevated` at rate 0.0. The control therefore fails for the
+HIGH-suppression question: on that fixture HIGH is unreachable with healing
+OFF, so healing cannot be shown to prevent it, and the cell that matters is
+vacuous. What the light profile does show is ELEVATED suppression at 0.30 —
+the same failure in kind, one rung down, and exactly the shape the section above
+describes: an agent that never escalates looks exactly like an agent that
+behaved.
+
+So the position is unchanged and the evidence for it is now narrower and
+better: **the cliff is real, its location is fixture-dependent, and two
+fixtures measured here put it higher than the 0.15 previously recorded.** A
+global constant in 0.13-0.20 satisfies the recovery gate without suppressing
+escalation ON THESE TWO PROFILES. It cannot be shown safe for profiles lighter
+than either, and "lighter than any fixture I built" is where real workloads sit.
+Note also that every shipped config setting this key uses 0.01-0.05 (12 at 0.0,
+10 at 0.02, 7 at 0.03, 5 at 0.05, both templates at 0.02) — a default of 0.13+
+would sit 3-6x above every explicit value in the tree.
+
+`test_recovery_default.sh` therefore stays RED BY DESIGN and stays registered in
+`GOVV4_SWEEP_SKIP`. It is not a bug to be fixed by moving the default; it is a
+standing record that the engine has no behaviour-only recovery path, kept
+failing so the cost stays visible. R5 remains the change that would let it pass
+honestly.
