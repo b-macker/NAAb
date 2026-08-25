@@ -2223,6 +2223,23 @@ GOVV4_SWEEP_SKIP=(
     # Until then run it directly:
     #   bash tests/governance_v4/test_signal_contract.sh
     "test_signal_contract.sh"
+    # ACCEPTANCE GATE, EXPECTED TO FAIL until coherence can recover on a stock
+    # config. It states what "an agent can recover" means: after drifting and
+    # flooring coherence, twenty-five turns of genuinely correct work should end
+    # the run off the floor and back at NORMAL. Today coherence does not move at
+    # all, because coherence_natural_healing defaults to 0 and the other two
+    # recovery channels both need something external (an operator calling
+    # agent.record_validation, or step_up_enabled).
+    #
+    # Its setup assertions PASS and only the gate fails — RD-02 confirms the
+    # recovery turns hold coherence at 1.0000 when run alone, so the failure is
+    # the engine and not the fixture.
+    #
+    # Deleting this line is the act of wiring it in. Do that in the SAME commit
+    # that makes it pass -- not before, or the suite stops being a signal.
+    # Until then run it directly:
+    #   bash tests/governance_v4/test_recovery_default.sh
+    "test_recovery_default.sh"
 )
 for _gv4 in tests/governance_v4/test_*.sh; do
     [ -f "$_gv4" ] || continue
