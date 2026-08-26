@@ -170,3 +170,83 @@ suppression argument is unfalsifiable.
   semantics coherent.
 - `test_recovery_default.sh` stays red until the default moves, which R5 does
   not propose. R5 makes a future default defensible; it does not set one.
+
+
+---
+
+## Implementation outcome (2026-08-26) — what measuring changed
+
+Implemented. Two things the design got wrong, both found by running it.
+
+### 1. The proposed positive control was unreachable
+
+RH-05 was specified as "suppression reappears at `f >= 1.5`". The
+implementation clamps `f` below 1.0, because that IS the safety invariant. The
+clamp makes the proposed control impossible by construction, and asserting "no
+suppression at any `f`" without a reachable positive case would have repeated
+#172's vacuous control exactly.
+
+RH-05 moved to the mechanism R5 replaces: absolute healing at 0.30 on the same
+light profile, which #172 observed suppressing escalation. RH-09 pins the clamp
+separately. **A safety clamp and a positive control can be in direct tension;
+the clamp wins, and the control has to move.**
+
+### 2. "Recovery" on the acceptance fixture was suppression all along
+
+RH-02 and RH-08 failed on first run. The cause was not in the code.
+
+On that fixture S17 `persona_fingerprint` fires **0.0500 on every recovery turn,
+forever** — its baseline is set once from the five warm-up turns and the
+recovery responses differ from them in keyword count (observed: turns 18-40,
+that signal alone). Relative healing cannot climb through it, and the reason is
+structural rather than a tuning failure: once the damage window fills with the
+residual `r`, the rate IS `r`, so the grant is `f*r/(1+k) < r` for any `f < 1`.
+The signal always outruns its own contribution to the healing rate.
+
+The instinct was to redesign R5 — a decaying high-water reference that would not
+collapse to the residual. **Measuring first showed that would have been building
+the defect deliberately.** Absolute healing at 0.30 does climb through, and here
+is what that looks like (observed):
+
+```
+turn 18  coh 0.1000   persona_fingerprint=0.05
+turn 19  coh 0.2000   persona_fingerprint=0.05      +0.10/turn
+...                                                  = 0.30*1/(1+1) - 0.05
+turn 27  coh 1.0000   persona_fingerprint=0.05
+turn 40  coh 1.0000   persona_fingerprint=0.05   <- pinned, 14 turns
+```
+
+Fourteen consecutive turns at PERFECT coherence while a penalty signal fires on
+every one of them. Out-healing a live signal IS suppression; there is no version
+of it that is recovery. **Refusing to heal while a signal fires is R5 behaving
+correctly, and the gate was rewarding the opposite.**
+
+So the gate moved, not the mechanism. Verified afterwards, with the control that
+makes it mean anything:
+
+| arm | min | final | level |
+|---|---|---|---|
+| `f=0.5`, S17 on | 0.0000 | 0.0000 | elevated |
+| `f=0.5`, S17 off | 0.0000 | **1.0000** | **normal** |
+| **no healing**, S17 off | 0.0000 | 0.0000 | elevated |
+| absolute 0.30, S17 off | 0.0000 | 1.0000 | normal |
+
+Row 3 is the control: removing the signal alone recovers nothing, so row 2 is
+healing doing the work. **R5 works.**
+
+### Consequence for the gate merged in #172
+
+`test_recovery_default.sh` (RD-03/RD-04) is mis-specified for the same reason
+and can only ever be passed by a suppressing mechanism. Its header now says so.
+It stays red and stays in `GOVV4_SWEEP_SKIP`, but the justification recorded
+with it — "the engine has no behaviour-only recovery path" — was wrong, and its
+cited reassurance (`heal_factor` throttling) is precisely the bound absolute
+0.30 overpowers.
+
+### What the derived arithmetic missed
+
+The proposal's `recovery ~ n_damaging/f clean turns` assumed `k = 0` and no
+residual damage. With any persistently firing signal the term `1/(1+k)` and the
+residual's own entry in the window both bind, and the result inverts from
+"recovers in bounded time" to "cannot recover at all". Derived arithmetic is a
+prediction; this is the case where it was confidently wrong in prose.

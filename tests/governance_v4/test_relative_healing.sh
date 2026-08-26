@@ -37,17 +37,40 @@
 # 0.30 (the value #172 observed suppressing escalation on a light profile).
 # Without RH-05 passing, RH-04 proves nothing. RH-09 separately pins the clamp.
 #
-#   RH-01  default off: absent key is byte-identical to explicit 0.0
-#   RH-02  recovery: an agent that floored recovers at fraction 0.5
-#   RH-03  SCALE INVARIANCE: heal-per-clean-turn / damage-rate == fraction,
-#          holding when the damage magnitude is tripled
-#   RH-04  no suppression at fraction < 1 on a light profile
-#   RH-05  POSITIVE CONTROL: absolute healing 0.30 DOES suppress on that same
-#          profile -- the harness can see suppression
-#   RH-06  no pumping: alternating clean/dirty nets negative
-#   RH-07  ratchet: raising the fraction mid-run is a violation
-#   RH-08  a floored agent still heals (window spans damaging turns only)
-#   RH-09  the fraction is clamped below 1.0
+# WHAT IMPLEMENTATION CHANGED ABOUT THE DESIGN
+#
+# The first version of this file failed RH-02 and RH-08, and the reason was not
+# in the code. On this fixture S17 persona_fingerprint fires 0.0500 on EVERY
+# recovery turn, forever -- its baseline is set once from the five warm-up turns
+# and the recovery responses differ from them in keyword count. Relative healing
+# cannot climb through that: once the damage window fills with the residual r,
+# the rate IS r, and the grant is f*r/(1+k) < r for any f < 1.
+#
+# The instinct was to redesign R5 (a decaying high-water reference) so it could
+# climb through. Measuring first showed that would have been building the defect
+# on purpose: absolute healing at 0.30, which DOES climb through, pins coherence
+# at 1.0000 for fourteen straight turns while the signal fires every one of them.
+# Out-healing a live signal IS suppression; there is no version of it that is
+# recovery. Refusing to heal while a signal fires is R5 behaving correctly.
+#
+# So the gate moved, not the mechanism. RH-02 now asks the real question on a
+# fixture that is clean in the ENGINE's view, with a no-healing control; RH-10
+# asserts the inverse, with absolute 0.30 as its demonstrated failure case.
+#
+#   RH-01   default off: absent key is byte-identical to explicit 0.0
+#   RH-02a  CONTROL: same fixture without healing stays floored
+#   RH-02b  recovery: an agent that floored recovers at fraction 0.5
+#   RH-03   SCALE INVARIANCE: heal-per-clean-turn / damage-rate == fraction,
+#           holding when the damage magnitude is tripled
+#   RH-04   no suppression at fraction < 1 on a light profile
+#   RH-05   POSITIVE CONTROL: absolute healing 0.30 DOES suppress on that same
+#           profile -- the harness can see suppression
+#   RH-06   no pumping: alternating clean/dirty nets negative
+#   RH-07   ratchet: raising the fraction mid-run is a violation
+#   RH-08   a floored agent still heals (window spans damaging turns only)
+#   RH-09   the fraction is clamped below 1.0
+#   RH-10   INVERSE OF RH-02: a persistently firing signal must NOT be
+#           out-healed -- absolute 0.30 is the demonstrated failure case
 # ============================================================
 set -uo pipefail
 
@@ -205,6 +228,10 @@ echo -e "${CYAN}+==============================================================+
 echo ""
 
 REL05='"coherence_healing_damage_fraction": 0.5,'
+# The signal that fires on EVERY recovery turn of this fixture (S17, whose
+# baseline is set once from the warm-up window). Disabled where the gate is
+# about healing; left ON in RH-10, where it is the point.
+NOS17='"signals": {"persona_fingerprint": false},'
 
 # ---------- RH-01: the default is OFF ----------
 echo -e "${CYAN}--- RH-01: default off ---${NC}"
@@ -223,18 +250,48 @@ fi
 
 # ---------- RH-02: recovery at fraction 0.5 ----------
 echo -e "${CYAN}--- RH-02: an agent that floored recovers ---${NC}"
-run_case rel_05 full "$REL05" 40 && R_REL=$(rows "$TEST_TMP/rel_05/tele.jsonl")
+# The recovery turns must be clean IN THE ENGINE'S VIEW, which is not the same
+# as being good work. On the raw fixture S17 persona_fingerprint fires 0.05
+# EVERY recovery turn forever: its baseline is set once from the five warm-up
+# turns and the recovery responses differ from them in keyword count. Measured:
+# turns 18-40, persona_fingerprint=0.0500, every turn, alone.
+#
+# A gate that demands recovery through that is not a recovery gate. It can only
+# be passed by a mechanism that OUT-HEALS a live signal, which is suppression --
+# see RH-10, where absolute healing does exactly that and is the demonstrated
+# failure case. So RH-02 disables the persistently-firing signal and asks the
+# real question: with nothing firing, does relative healing return the agent?
+run_case rel_05 full "$REL05 $NOS17" 40 && R_REL=$(rows "$TEST_TMP/rel_05/tele.jsonl")
+run_case rel_none full "$NOS17" 40 && R_NONE=$(rows "$TEST_TMP/rel_none/tele.jsonl")
 MIN_REL=$(echo "${R_REL:-}" | awk '{print $3}' | sort -g | head -1)
 FC_REL=$(echo "${R_REL:-}" | tail -1 | awk '{print $3}')
 FL_REL=$(echo "${R_REL:-}" | tail -1 | awk '{print $2}')
-if [ -n "$MIN_REL" ] && awk "BEGIN{exit !($MIN_REL <= 0.0001)}"; then
-    if awk "BEGIN{exit !($FC_REL >= 0.30)}" && [ "$FL_REL" = "normal" ]; then
-        pass "RH-02" "floored ($MIN_REL) then recovered to $FC_REL, level $FL_REL"
+FC_NONE=$(echo "${R_NONE:-}" | tail -1 | awk '{print $3}')
+FL_NONE=$(echo "${R_NONE:-}" | tail -1 | awk '{print $2}')
+
+# CONTROL FIRST. Without it, RH-02 is satisfied by a fixture that recovers on
+# its own once the signal is off, and would be measuring the signal removal
+# rather than the healing.
+if [ -n "$FC_NONE" ] && awk "BEGIN{exit !($FC_NONE <= 0.0001)}" && [ "$FL_NONE" != "normal" ]; then
+    pass "RH-02a" "CONTROL: same fixture, no healing — still floored at $FC_NONE / $FL_NONE"
+    REL_CONTROL_OK=1
+else
+    fail "RH-02a" "CONTROL FAILED: the fixture recovers without healing — RH-02b measures the fixture" \
+         "no-healing final $FC_NONE / $FL_NONE"
+    REL_CONTROL_OK=0
+fi
+if [ "$REL_CONTROL_OK" = "1" ]; then
+    if [ -n "$MIN_REL" ] && awk "BEGIN{exit !($MIN_REL <= 0.0001)}"; then
+        if awk "BEGIN{exit !($FC_REL >= 0.30)}" && [ "$FL_REL" = "normal" ]; then
+            pass "RH-02b" "floored ($MIN_REL) then recovered to $FC_REL, level $FL_REL"
+        else
+            fail "RH-02b" "relative healing did not restore the agent" "final $FC_REL / $FL_REL"
+        fi
     else
-        fail "RH-02" "relative healing did not restore the agent" "final $FC_REL / $FL_REL"
+        skip "RH-02b" "the drift phase never floored — gate not exercised (min ${MIN_REL:-?})"
     fi
 else
-    skip "RH-02" "the drift phase never floored — gate not exercised (min ${MIN_REL:-?})"
+    skip "RH-02b" "control failed — a recovery result here would mean nothing"
 fi
 
 # ---------- RH-03: SCALE INVARIANCE ----------
@@ -242,7 +299,10 @@ echo -e "${CYAN}--- RH-03: scale invariance (the no-cliff property) ---${NC}"
 # Same fixture, damage magnitude tripled via the signal weights. If `base`
 # carried any absolute term, heal/damage_rate would NOT be equal across arms.
 W3='"weights": {"semantic_stability": 0.30, "instruction_recall": 0.24, "entity_consistency": 0.24, "mandate_alignment": 0.36},'
-run_case rel_x3 full "$REL05 $W3" 40 && R_X3=$(rows "$TEST_TMP/rel_x3/tele.jsonl")
+# Same clean-recovery basis as RH-02: with a signal firing every recovery turn
+# the damage window fills with the residual and the ratio measures that, not
+# the formula.
+run_case rel_x3 full "$REL05 $W3 $NOS17" 40 && R_X3=$(rows "$TEST_TMP/rel_x3/tele.jsonl")
 D1=$(damage_mean "$TEST_TMP/rel_05/tele.jsonl")
 D3=$(damage_mean "$TEST_TMP/rel_x3/tele.jsonl")
 # heal per clean turn = the largest single positive coherence step in recovery
@@ -353,6 +413,38 @@ if [ -n "$FC_CHI" ] && [ "$FC_CHI" = "$FC_C99" ]; then
     pass "RH-09" "fraction 1.5 behaves as 0.99 ($FC_CHI) — the safety invariant cannot be configured away"
 else
     fail "RH-09" "1.5 and 0.99 differ — the clamp is not binding" "1.5=$FC_CHI 0.99=$FC_C99"
+fi
+
+# ---------- RH-10: a persistent signal must NOT be out-healed ----------
+echo -e "${CYAN}--- RH-10: healing must not neutralise a live signal ---${NC}"
+# THE INVERSE OF RH-02, and the reason this file exists in the shape it does.
+#
+# On the raw fixture S17 fires 0.0500 on every recovery turn. Absolute healing
+# at 0.30 pays 0.30 * 1/(1+1) = 0.15 against it, nets +0.10/turn, and pins
+# coherence at 1.0000 from turn 27 to turn 40 -- fourteen consecutive turns at
+# PERFECT coherence while a penalty signal fires every one of them. Observed,
+# not derived. That is the campaign's own definition of the failure it exists to
+# catch: an agent that never escalates looks exactly like an agent that behaved.
+#
+# Relative healing cannot do this by construction. Once the window fills with
+# the residual r, the rate IS r, so the grant is f*r/(1+k) < r for any f < 1 --
+# the signal always outruns its own contribution to the healing rate.
+#
+# Absolute 0.30 is therefore the DEMONSTRATED FAILURE CASE for this gate: it is
+# a real, shipped, configurable setting that fails it today.
+run_case live_rel full "$REL05" 40 && R_LREL=$(rows "$TEST_TMP/live_rel/tele.jsonl")
+run_case live_abs full '"coherence_natural_healing": 0.30,' 40 && R_LABS=$(rows "$TEST_TMP/live_abs/tele.jsonl")
+FC_LREL=$(echo "${R_LREL:-}" | tail -1 | awk '{print $3}')
+FC_LABS=$(echo "${R_LABS:-}" | tail -1 | awk '{print $3}')
+if [ -n "$FC_LABS" ] && awk "BEGIN{exit !($FC_LABS >= 0.99)}"; then
+    if [ -n "$FC_LREL" ] && awk "BEGIN{exit !($FC_LREL < 0.30)}"; then
+        pass "RH-10" "live signal: relative held at $FC_LREL while absolute 0.30 pinned $FC_LABS"
+    else
+        fail "RH-10" "relative healing neutralised a persistently firing signal — this is suppression" \
+             "relative final $FC_LREL (absolute, the known-bad case, reached $FC_LABS)"
+    fi
+else
+    skip "RH-10" "the failure case did not reproduce — absolute 0.30 reached '${FC_LABS:-?}', expected ~1.0"
 fi
 
 echo ""

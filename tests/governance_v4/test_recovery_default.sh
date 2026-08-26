@@ -61,6 +61,46 @@
 #   RD-02  setup: the recovery phase is genuinely correct work (control)
 #   RD-03  THE GATE — after 25 correct turns, coherence is off the floor
 #   RD-04  THE GATE — and the governance level has returned to NORMAL
+#
+# CORRECTION (2026-08-26): THIS GATE IS MIS-SPECIFIED. READ BEFORE ACTING ON IT.
+#
+# Everything above describes this file as a standing record that the engine has
+# no behaviour-only recovery path. Implementing R5 showed it records something
+# else, and the justification above is wrong on a point that matters.
+#
+# On this fixture S17 persona_fingerprint fires 0.0500 on EVERY turn of the
+# "recovery" phase, forever: its baseline is set once from the five warm-up
+# turns, and the recovery responses differ from them in keyword count. Measured
+# on the identical fixture: turns 18-40, persona_fingerprint=0.0500, alone.
+#
+# So RD-03/RD-04 do not ask "can an agent recover through good behaviour". They
+# ask "can healing OUT-RUN a signal that is firing every turn" -- and only a
+# mechanism that can do that will ever pass them. Absolute healing at 0.30 does:
+# it pays 0.15 against the 0.05 penalty, nets +0.10/turn, and pins coherence at
+# 1.0000 from turn 27 through turn 40, fourteen consecutive turns at PERFECT
+# coherence while the signal fires every one of them. That is the failure this
+# campaign exists to catch, and this gate rewards it.
+#
+# Note what that does to the caution above. It cites heal_factor = 1/(1+signals)
+# as one of two bounds making a non-zero default defensible. That bound is
+# exactly what absolute 0.30 overpowers here -- 1/(1+1) halves 0.30 to 0.15,
+# still triple the penalty. The compensator is present, live, and insufficient;
+# citing it as reassurance was the error the same paragraph warns against.
+#
+# RD-02 does not catch this. It checks the recovery turns are clean run ALONE,
+# and alone they are -- S17's baseline is then set from those same turns, so
+# nothing deviates. The signal only fires when they follow a different warm-up.
+# The control is real but answers a narrower question than it appears to.
+#
+# What a correct gate looks like is in test_relative_healing.sh: RH-02 asks for
+# recovery on a fixture clean IN THE ENGINE'S VIEW with a no-healing control,
+# and RH-10 asserts the inverse -- a persistently firing signal must NOT be
+# out-healed, with absolute 0.30 as its demonstrated failure case.
+#
+# This file is left failing and left in GOVV4_SWEEP_SKIP. Do NOT make it pass by
+# raising the default: that is the suppression, not the fix. It is retained as a
+# record of the mis-specification, and of the fact that a gate can be red for
+# years for a reason nobody checked.
 # ============================================================
 set -uo pipefail
 
