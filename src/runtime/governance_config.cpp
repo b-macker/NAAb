@@ -2944,6 +2944,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (cd.contains("coherence_recovery_amount") && cd["coherence_recovery_amount"].is_number()) cfg.coherence_recovery_amount = cd["coherence_recovery_amount"].get<double>();
         if (cd.contains("coherence_recovery_cap") && cd["coherence_recovery_cap"].is_number()) cfg.coherence_recovery_cap = cd["coherence_recovery_cap"].get<double>();
         if (cd.contains("coherence_natural_healing") && cd["coherence_natural_healing"].is_number()) cfg.coherence_natural_healing = cd["coherence_natural_healing"].get<double>();
+        if (cd.contains("coherence_healing_damage_fraction") && cd["coherence_healing_damage_fraction"].is_number()) cfg.coherence_healing_damage_fraction = cd["coherence_healing_damage_fraction"].get<double>();
+        if (cd.contains("coherence_damage_window") && cd["coherence_damage_window"].is_number_integer()) cfg.coherence_damage_window = cd["coherence_damage_window"].get<int>();
         if (cd.contains("validation_recovery_amount") && cd["validation_recovery_amount"].is_number()) cfg.validation_recovery_amount = std::max(0.0, std::min(1.0, cd["validation_recovery_amount"].get<double>()));
         if (cd.contains("adaptive_absorption_limit") && cd["adaptive_absorption_limit"].is_number_integer()) cfg.adaptive_absorption_limit = std::max(0, cd["adaptive_absorption_limit"].get<int>());
         if (cd.contains("response_min_output_tokens") && cd["response_min_output_tokens"].is_number_integer()) cfg.thresholds.response_min_output_tokens = std::max(1, cd["response_min_output_tokens"].get<int>());
@@ -4102,6 +4104,13 @@ static bool checkRatchetViolation(
              ncd.coherence_recovery_amount, "each recovery event returns more"},
             {"coherence_recovery_cap",    ocd.coherence_recovery_cap,
              ncd.coherence_recovery_cap,    "recovery may climb higher"},
+            // R5. Raising the fraction heals a larger share of the agent's own
+            // damage rate per clean turn, so it is the loosening direction like
+            // the three above. It is the key that carries the safety invariant
+            // (< 1.0), which makes re-granting it mid-run exactly the move the
+            // ratchet exists to refuse.
+            {"coherence_healing_damage_fraction", ocd.coherence_healing_damage_fraction,
+             ncd.coherence_healing_damage_fraction, "healing covers more of the damage rate"},
         };
         for (const auto& c : coh) {
             if (c.newv > c.oldv)

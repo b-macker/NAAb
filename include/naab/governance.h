@@ -1346,6 +1346,28 @@ struct ContextDriftConfig {
     double coherence_recovery_amount = 0.2;
     double coherence_recovery_cap = 1.0;     // Maximum coherence after recovery (< 1.0 for diminishing returns)
     double coherence_natural_healing = 0.0;  // F15: per-turn recovery when no signals fire (0 = disabled)
+    // R5 — healing relative to the agent's OWN damage rate, instead of a global
+    // constant. When > 0 this REPLACES coherence_natural_healing as the source
+    // of the per-turn heal amount: base = fraction * mean(recent damage per
+    // DAMAGING turn). Default 0.0 = off, so the absolute path is untouched and
+    // no existing config changes behaviour.
+    //
+    // Why relative: whether a constant suppresses escalation depends on the
+    // workload's damage rate, so no constant is correct everywhere (R3,
+    // withdrawn twice — see docs/proposal-bounded-coherence-healing.md). With a
+    // fraction, recovery takes ~ n_damaging/fraction clean turns whatever the
+    // damage MAGNITUDE, because the rate cancels.
+    //
+    // fraction < 1.0 is the SAFETY INVARIANT: at >= 1.0 healing matches or beats
+    // the agent's own damage rate, alternating clean/dirty turns net positive,
+    // and the mechanism is pumpable on every profile at once. Ratcheted, and
+    // clamped below.
+    double coherence_healing_damage_fraction = 0.0;
+    // How many DAMAGING turns the rate mean spans. Damaging turns only — never
+    // all turns. Damage is booked post-clamp, so a floored agent books zero;
+    // a window over all turns would fill with zeros while it sat floored, drag
+    // the mean to 0 and make healing vanish exactly when needed.
+    int coherence_damage_window = 20;
     // Rationale: half the S22 validation_outcome weight (0.15), so an agent that
     // eventually fixes failing code can climb back out of the penalty loop, while
     // oscillating fail/pass stays net-negative. Credited only on a fail→pass

@@ -393,6 +393,13 @@ struct DriftState {
     // even though agent.batch()/fan_out() drive recordTurn from pool threads.
     double coherence_damage_total = 0.0;   // lifetime coherence lost to penalties
     double coherence_healed_total = 0.0;   // lifetime coherence returned by healing
+    // R5: per-turn damage deltas, DAMAGING TURNS ONLY (delta > 0). Never a
+    // window over all turns -- damage is booked post-clamp (see above), so a
+    // floored agent books zero, and zeros in this window would drag the mean
+    // toward 0 and make relative healing vanish exactly when it is needed.
+    // Bounded by config_->coherence_damage_window. Mutated only under
+    // ContextDriftAnalyzer::mutex_, like the two ledger fields above.
+    std::deque<double> damage_history;
     int consecutive_quarantines = 0;                               // output admissibility quarantine streak
 
     // Recovery tracking (Phase 4a)
