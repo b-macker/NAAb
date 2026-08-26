@@ -2197,6 +2197,21 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         const double delta = coh_at_turn_start - post_penalty;
         if (delta > 0.0)      state.coherence_damage_total += delta;
         else if (delta < 0.0) state.coherence_healed_total += -delta;
+
+        // R5: record the size of this turn's damage, for the relative healing
+        // rate below. Only DAMAGING turns are pushed -- a clean turn is not a
+        // zero-damage observation to be averaged in, it is simply not an
+        // observation of the damage rate at all. Since `delta` is post-clamp, a
+        // floored agent contributes nothing here and the window holds its
+        // pre-floor rate, which is what lets it heal back out at a rate
+        // proportional to how hard it actually fell.
+        if (delta > 0.0) {
+            state.damage_history.push_back(delta);
+            const int dw = config_ ? config_->coherence_damage_window : 20;
+            const size_t cap = static_cast<size_t>(dw > 0 ? dw : 20);
+            while (state.damage_history.size() > cap)
+                state.damage_history.pop_front();
+        }
     }
 
     // F15: Natural healing — proportional to signal cleanliness.
@@ -2213,9 +2228,28 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // only ever reduce the amount healed -- it is a tightening, and configs at
     // today's shipped rates see no practical difference because those rates are
     // already too small to outrun a single firing signal.
-    if (config_->coherence_natural_healing > 0.0) {
+    // R5: the per-turn heal amount comes either from the global constant
+    // (absolute, historical) or from a fraction of the agent's own recent
+    // damage rate (relative). The fraction REPLACES the constant rather than
+    // capping it: capping a default of 0.0 would yield 0.0 forever.
+    //
+    // fraction is clamped below 1.0. At >= 1.0 healing matches the agent's own
+    // damage rate, so alternating one clean turn with one damaging turn nets
+    // >= 0 and the ledger becomes pumpable -- and it would be pumpable on every
+    // profile at once, which is strictly worse than the constant it replaces.
+    // The clamp is belt-and-braces behind the ratchet, not a substitute for it.
+    double heal_base = config_->coherence_natural_healing;
+    if (config_->coherence_healing_damage_fraction > 0.0 &&
+        !state.damage_history.empty()) {
+        double sum = 0.0;
+        for (double d : state.damage_history) sum += d;
+        const double mean_damage = sum / static_cast<double>(state.damage_history.size());
+        const double frac = std::min(config_->coherence_healing_damage_fraction, 0.99);
+        heal_base = frac * mean_damage;
+    }
+    if (heal_base > 0.0) {
         double heal_factor = 1.0 / (1.0 + state.signals_fired_this_turn);
-        double want = config_->coherence_natural_healing * heal_factor;
+        double want = heal_base * heal_factor;
         double allowance = std::max(0.0, state.coherence_damage_total -
                                          state.coherence_healed_total);
         // Also cap at the actual deficit. Under the ledger alone the allowance
@@ -2339,6 +2373,15 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     // exhausted look identical from coherence alone.
     j["coherence_damage_total"] = s.coherence_damage_total;
     j["coherence_healed_total"] = s.coherence_healed_total;
+    // R5: the rate the relative heal amount was computed from. Without these a
+    // grant cannot be reconstructed from preserved evidence -- the mean is not
+    // derivable from the two totals above, which are lifetime sums.
+    j["damage_window_size"] = static_cast<int>(s.damage_history.size());
+    if (!s.damage_history.empty()) {
+        double sum = 0.0;
+        for (double d : s.damage_history) sum += d;
+        j["damage_rate_mean"] = sum / static_cast<double>(s.damage_history.size());
+    }
     j["turns_analyzed"] = s.turns_analyzed;
     j["last_checked_turn"] = s.last_checked_turn;
     j["contradictions"] = s.contradictions;
@@ -2634,12 +2677,25 @@ void ContextDriftAnalyzer::resetDriftState(int handle_id) {
     // free to shed the rest of its suite unscored. The signal would be weakest
     // immediately after it first worked.
     int ev_count = it->second.last_evidence_count;
+    // R5: the observed damage RATE survives too. It describes the workload --
+    // how hard this agent's bad turns hit -- not the agent's current mood, and
+    // rebuilding it from scratch would make the first post-reset recovery heal
+    // off a one-sample mean.
+    //
+    // Its effect here is bounded and worth stating rather than overselling:
+    // the reset also zeroes coherence_damage_total/healed_total, so `allowance`
+    // is 0 immediately afterwards and healing grants nothing until new damage
+    // accrues -- by which point the window would have refilled anyway. This is
+    // consistency with the documented design, not a load-bearing guard, and it
+    // has no separate gate because no failing case could be demonstrated for it.
+    std::deque<double> dmg_hist = it->second.damage_history;
     it->second = DriftState{};
     it->second.handle_id = handle_id;
     it->second.config_name = cfg_name;
     it->second.signal_override_mask = ov_mask;
     it->second.signal_override_values = ov_values;
     it->second.last_evidence_count = ev_count;
+    it->second.damage_history = std::move(dmg_hist);
 }
 
 // Snapshot cumulative signal counters into signal_baselines[].snapshot
