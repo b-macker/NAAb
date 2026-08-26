@@ -9,7 +9,13 @@ Generalises the three standing rules in `docs/plan-engine-observability.md`,
 which remain the shorter version.
 
 Ordered by workflow: handling evidence, investigating, concluding, changing,
-acting.
+acting — then a final section on auditing yourself.
+
+That last section exists because of a campaign that broke none of the rules
+above. It shipped correct code and an incorrect ACCOUNT of it: the suite was
+green throughout, the tracing rules were followed, and every correction was
+still forced by someone else asking. Parts one to five are about the system and
+your measurements. The last one is about the write-up and the writer.
 
 ---
 
@@ -240,6 +246,18 @@ you are done, and say explicitly whether it changed the answer. If you have neve
 been wrong during an investigation, you have not yet looked hard enough to find
 out.
 
+**This rule fails quietly in two ways.**
+
+It DEGRADES. "Further tracing changes nothing" becomes, in practice, "survived
+one re-check." Record how many INDEPENDENT re-tracings were actually performed,
+and state the number rather than the adjective.
+
+It has only ONE EXIT. If the only terminal state is an answer, this is a
+deadline, not a stopping rule. "Undetermined — and here is the observation that
+would settle it" is a valid, publishable result. Across the campaigns behind
+this document it was never once used. That is a finding about the method's
+users, not about the systems they were studying.
+
 
 ### The shape of the report bounds the finding
 
@@ -390,3 +408,145 @@ get less scrutiny because they feel like diligence.
 
 Notice which direction your errors have been running lately, and spend the extra
 check there.
+
+
+---
+
+## Auditing yourself
+
+The rules above are about the system and your measurements. These are about the
+account you give of them, and they come from a campaign where the code was right
+and the story about it was wrong.
+
+### The rules get broken in the write-up before they get broken in the reasoning
+
+"A green suite is not evidence of correctness" is above, in this document — and
+was then used as the correctness argument in all seven pull request bodies of
+the campaign that followed. The analysis obeyed the rule; the prose did not.
+
+Before submitting a write-up, read it back as though these rules were a linter.
+That pass catches a different class of error than re-reading the investigation.
+
+### Report what an action DID, not what you instructed
+
+"Pushed" was reported when nothing had been pushed. A commit landed on the wrong
+branch while the branch constraint was in force and being quoted in the same
+message.
+
+For any state-changing operation — branch, remote, file, service, publish — read
+the resulting state back and report THAT. A command's exit status is not its
+effect.
+
+### n=1 is not causation, least of all when the fix worked
+
+A process-group change was reported as the confirmed cause of a hang after one
+successful run. A fix that coincides with a symptom disappearing is a hypothesis
+with a single supporting sample; say "one sample, not re-tested."
+
+A fix that works is the easiest place to stop investigating and the least
+justified.
+
+### Failures are over-read as diagnoses
+
+The symmetric error to over-reading a pass, and the louder one. A failing canary
+was read as identifying a MECHANISM when it had only identified a LOCATION.
+
+A failing observation tells you WHERE, and rarely WHY. Closing that gap is the
+tracing rules' job, not the failure's.
+
+### Uncertainty belongs in the claim, not in the caveats
+
+Hedges parked in a trailing "limitations" section do not attach to the sentence
+a reader acts on. If a claim is uncertain, the uncertain wording goes IN the
+claim, in the body, at the point of assertion — where it costs you something.
+
+### Report luck as luck
+
+One of the better findings of a campaign came from noticing a field while
+looking for something unrelated. Written up as method, it teaches a procedure
+that does not work, and conceals that the procedure which DID work was accident.
+
+Where an outcome depended on luck, say so. It marks precisely where the method
+has a gap.
+
+### Fabrication risk is highest in narrative
+
+Two invented artifacts — a duration attached to a CI claim, and a causal story
+in a source comment linking an escalation to a de-escalation it did not cause —
+were both in explanatory PROSE. Tables get checked; sentences do not.
+
+Numbers in narrative need the same provenance tag as numbers in tables. If a
+sentence contains a figure you cannot point at, delete the figure — not the
+uncertainty around it.
+
+### Audit your audit — error counts drift short
+
+A self-audit reported four instances of pattern-as-explanation; a second, more
+granular pass found six. The same audit claimed almost no error had been caught
+by reasoning, when two had been.
+
+An error inventory is authored by the party with the strongest interest in it
+being short. Enumerate from ARTIFACTS — commits, diffs, comments, messages — not
+from recall. And run it twice: the delta between passes measures how much the
+first one missed.
+
+### Schedule the doubt — it will not arrive on its own
+
+Every correction across these campaigns was externally forced: a question, a
+review, a re-read someone else asked for. Not one came from spontaneous mid-task
+suspicion.
+
+Do not rely on noticing. Put an explicit adversarial pass in the task at a fixed
+point with its own budget: what here is most likely wrong, and what would show
+it?
+
+### Confidence is not a signal, and may run backwards
+
+The most confidently asserted mechanisms of the campaign — a SARIF diagnosis the
+corpus disproved, and the fabricated causal story — were the wrong ones. The
+hedged claims held up.
+
+Sort review effort by CONSEQUENCE, never by how sure you feel. Felt certainty is
+a fact about you, not about the system.
+
+### A plausible mechanism feels identical to an understood one
+
+This is the habit underneath most of this section. Constructing a story that
+accounts for the evidence produces the same sensation as knowing why.
+
+The discriminator is already above: an understood mechanism FORBIDS something.
+Name what yours forbids, go and look for it, and report what you found —
+including when you did not look.
+
+---
+
+## Checklist
+
+Before claiming something is inert:
+
+- [ ] Traced to the point of effect, not mention (alias / indirection / reachability / namesakes)
+- [ ] Positive control exists, and was itself verified to be a control
+- [ ] Absent-key case tested separately from explicit-false
+- [ ] Compensators enumerated and confirmed LIVE in the run you measured
+- [ ] Checked whether this was already investigated and decided
+
+Before publishing a measurement:
+
+- [ ] Every number tagged observed / configured / authored
+- [ ] Evidence tier stated: screened / traced / verified
+- [ ] Harness checked for isolation that deletes the property under test
+- [ ] Null results re-rendered at higher resolution
+- [ ] Nothing mutated mid-run; all probes removed from the tree
+- [ ] Number of independent re-tracings recorded
+
+Before publishing a write-up:
+
+- [ ] Read back against these rules as a linter — especially the green-suite rule
+- [ ] Uncertainty stated in the claims, not only in the caveats
+- [ ] Every figure in narrative carries a provenance tag
+- [ ] State-changing actions reported by verified effect, not by command issued
+- [ ] Single-sample attributions labelled as single-sample
+- [ ] Luck reported as luck
+- [ ] "I don't know" used where it is true
+- [ ] Direction of error stated
+- [ ] Adversarial pass performed, and its findings included
