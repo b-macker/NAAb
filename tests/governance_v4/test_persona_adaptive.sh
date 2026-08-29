@@ -87,10 +87,27 @@ terse = "Ledger reconcile part %d done."
 topics = ["photography lenses","mountain weather","pasta recipes","jazz history","bicycle gears",
           "tide tables","volcano types","origami folds","desert beetles","harbour cranes"]
 verbs = ["recomputed","verified","reconciled","audited","closed"]
-r = [{"content": terse % i, "output_tokens": 12, "thinking_tokens": 8} for i in range(5)]
+# EIGHT terse warm-up turns, not five. The baseline is computed at the first
+# response AFTER baseline_complete, and that turn's own keyword count is in the
+# window -- so with adaptive_baseline_window 5 a single verbose drift turn landed
+# inside the baseline sample, inflating mean AND stddev into a band wide enough
+# that the recovery turns sat inside it. PF-02 then failed with 0 fires: the
+# fixture change had moved the very thing being measured against. Eight terse
+# turns keep the baseline sampled from terse responses only.
+r = [{"content": terse % i, "output_tokens": 12, "thinking_tokens": 8} for i in range(8)]
+# Drift turns must be VERBOSE as well as off-topic. An earlier version used short
+# lines ("Consider photography lenses.") and PF-04 failed with ON=0 OFF=0 -- S17
+# never fired there even in STOCK behaviour, so the control was vacuous and could
+# not tell an adapted signal from a blinded one. Long off-topic text pushes the
+# keyword count far above the terse warm-up baseline (so S17 fires) while the
+# off-topic content trips the semantic signals (so the baseline stays frozen).
 for i, t in enumerate(topics):
-    r.append({"content": "Consider %s." % t, "output_tokens": max(6, 18 - i), "thinking_tokens": 0})
-for i in range(25):
+    r.append({"content": "Let me describe %s at length: the subject spans varied "
+                         "regional traditions, seasonal patterns, material choices, "
+                         "historical development, comparative technique, and numerous "
+                         "practical considerations worth surveying in detail here."
+                         % t, "output_tokens": 52, "thinking_tokens": 0})
+for i in range(22):
     r.append({"content": "Ledger reconcile resumed: quarterly totals %s and the balance "
                          "recorded against source ledger section %d with variance noted."
                          % (verbs[i % 5], i), "output_tokens": 48, "thinking_tokens": 20})
@@ -181,8 +198,8 @@ run_case on_adapt   "$ON"  && T_ON="$TEST_TMP/on_adapt/tele.jsonl"
 
 # ---------- PF-01: the default is OFF ----------
 echo -e "${CYAN}--- PF-01: default off ---${NC}"
-A_LATE=$(s17_fires "${T_ABSENT:-/dev/null}" 16 40 2>/dev/null)
-O_LATE=$(s17_fires "${T_OFF:-/dev/null}" 16 40 2>/dev/null)
+A_LATE=$(s17_fires "${T_ABSENT:-/dev/null}" 19 40 2>/dev/null)
+O_LATE=$(s17_fires "${T_OFF:-/dev/null}" 19 40 2>/dev/null)
 A_COH=$(final_coh "${T_ABSENT:-/dev/null}" 2>/dev/null)
 O_COH=$(final_coh "${T_OFF:-/dev/null}" 2>/dev/null)
 if [ -n "$A_LATE" ] && [ "$A_LATE" = "$O_LATE" ] && [ "$A_COH" = "$O_COH" ]; then
@@ -194,21 +211,21 @@ fi
 
 # ---------- PF-02: CONTROL — the bug reproduces with the flag off ----------
 echo -e "${CYAN}--- PF-02: CONTROL — permanent firing reproduces when OFF ---${NC}"
-if [ -n "$O_LATE" ] && [ "$O_LATE" -ge 15 ]; then
-    pass "PF-02" "flag OFF: S17 fired on ${O_LATE} of the 25 post-drift turns — the defect is present"
+if [ -n "$O_LATE" ] && [ "$O_LATE" -ge 12 ]; then
+    pass "PF-02" "flag OFF: S17 fired on ${O_LATE} of the 22 post-drift turns — the defect is present"
     CONTROL_OK=1
 else
     fail "PF-02" "the defect did not reproduce with the flag OFF — PF-03 would prove nothing" \
-         "S17 fired only ${O_LATE:-?}x on turns 16-40"
+         "S17 fired only ${O_LATE:-?}x on turns 19-40"
     CONTROL_OK=0
 fi
 
 # ---------- PF-03: the flag quiets S17 once the agent is otherwise clean ----------
 echo -e "${CYAN}--- PF-03: baseline follows an otherwise-clean agent ---${NC}"
-N_LATE=$(s17_fires "${T_ON:-/dev/null}" 16 40 2>/dev/null)
+N_LATE=$(s17_fires "${T_ON:-/dev/null}" 19 40 2>/dev/null)
 if [ "$CONTROL_OK" = "1" ]; then
     if [ -n "$N_LATE" ] && [ "$N_LATE" -lt "$O_LATE" ] && [ "$N_LATE" -le 5 ]; then
-        pass "PF-03" "flag ON: S17 fired ${N_LATE}x on turns 16-40 (was ${O_LATE}x) — the baseline followed"
+        pass "PF-03" "flag ON: S17 fired ${N_LATE}x on turns 19-40 (was ${O_LATE}x) — the baseline followed"
     else
         fail "PF-03" "the baseline did not follow the agent" "ON=${N_LATE:-?} OFF=${O_LATE}"
     fi
@@ -221,10 +238,10 @@ echo -e "${CYAN}--- PF-04: POSITIVE CONTROL — a genuine shift is still caught 
 # Turns 6-15 are the drift phase: OTHER signals fire there, so the baseline must
 # stay frozen and S17 must still catch the keyword-count shift. If this is 0, the
 # fix did not make S17 adaptive — it made it blind, and PF-03 is worthless.
-N_DRIFT=$(s17_fires "${T_ON:-/dev/null}" 6 15 2>/dev/null)
-O_DRIFT=$(s17_fires "${T_OFF:-/dev/null}" 6 15 2>/dev/null)
+N_DRIFT=$(s17_fires "${T_ON:-/dev/null}" 9 18 2>/dev/null)
+O_DRIFT=$(s17_fires "${T_OFF:-/dev/null}" 9 18 2>/dev/null)
 if [ -n "$N_DRIFT" ] && [ "$N_DRIFT" -ge 1 ]; then
-    pass "PF-04" "flag ON still caught the shift during drift: S17 fired ${N_DRIFT}x on turns 6-15 (OFF: ${O_DRIFT}x)"
+    pass "PF-04" "flag ON still caught the shift during drift: S17 fired ${N_DRIFT}x on turns 9-18 (OFF: ${O_DRIFT}x)"
 else
     fail "PF-04" "S17 no longer fires during genuine drift — the fix blinded it rather than adapting it" \
          "ON drift-phase fires=${N_DRIFT:-?}, OFF=${O_DRIFT:-?}"
