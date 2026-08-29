@@ -2300,6 +2300,26 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     // own terms rather than diluted by an earlier one.
     double turn_penalty_total = 0.0;
     for (int i = 0; i < NUM_CDD_SIGNALS; ++i) turn_penalty_total += turn_penalties[i];
+
+    // C1e: re-derive the persona baseline on a turn that was clean APART FROM S17.
+    // Excluding S17 from its own gate is required, not a convenience: while S17 is
+    // the only signal firing, no turn is ever "clean", and a baseline gated on
+    // cleanliness could never follow the agent -- the signal would hold its own
+    // baseline hostage and the permanent-penalty case would survive the fix.
+    // Any OTHER signal firing freezes it, so a degrading agent keeps paying.
+    if (config_->thresholds.persona_baseline_adaptive &&
+        state.persona_baseline_mean >= 0.0 &&
+        state.response_keyword_counts.size() >= 3) {
+        double other = turn_penalty_total - turn_penalties[SIG_PERSONA_FINGERPRINT];
+        if (other <= 0.0) {
+            double sum = 0, sq = 0;
+            for (int c : state.response_keyword_counts) { sum += c; sq += static_cast<double>(c) * c; }
+            const double n = static_cast<double>(state.response_keyword_counts.size());
+            state.persona_baseline_mean = sum / n;
+            state.persona_baseline_stddev = std::sqrt(std::max(0.0, sq / n - (sum / n) * (sum / n)));
+            if (state.persona_baseline_stddev < 1.0) state.persona_baseline_stddev = 1.0;
+        }
+    }
     if (turn_penalty_total > 0.0) {
         state.drift_run_penalty_sum += turn_penalty_total;
         state.drift_run_turns++;
