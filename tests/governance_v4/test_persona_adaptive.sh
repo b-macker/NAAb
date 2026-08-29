@@ -196,17 +196,21 @@ run_case off_absent ""    && T_ABSENT="$TEST_TMP/off_absent/tele.jsonl"
 run_case off_expl   "$OFF" && T_OFF="$TEST_TMP/off_expl/tele.jsonl"
 run_case on_adapt   "$ON"  && T_ON="$TEST_TMP/on_adapt/tele.jsonl"
 
-# ---------- PF-01: the default is OFF ----------
-echo -e "${CYAN}--- PF-01: default off ---${NC}"
+# ---------- PF-01: the default is ON (since 2026-08-29) ----------
+echo -e "${CYAN}--- PF-01: default on ---${NC}"
 A_LATE=$(s17_fires "${T_ABSENT:-/dev/null}" 19 40 2>/dev/null)
 O_LATE=$(s17_fires "${T_OFF:-/dev/null}" 19 40 2>/dev/null)
 A_COH=$(final_coh "${T_ABSENT:-/dev/null}" 2>/dev/null)
 O_COH=$(final_coh "${T_OFF:-/dev/null}" 2>/dev/null)
-if [ -n "$A_LATE" ] && [ "$A_LATE" = "$O_LATE" ] && [ "$A_COH" = "$O_COH" ]; then
-    pass "PF-01" "absent is byte-identical to explicit false (S17 fired ${A_LATE}x late, coherence $A_COH)"
+N_COH=$(final_coh "${T_ON:-/dev/null}" 2>/dev/null)
+N_LATE_01=$(s17_fires "${T_ON:-/dev/null}" 19 40 2>/dev/null)   # MUST match A_LATE/O_LATE range above
+# The default is TRUE since 2026-08-29, so absent must match explicit TRUE.
+# Swept as its own case rather than inferred from the explicit arms.
+if [ -n "$A_LATE" ] && [ "$A_LATE" = "$N_LATE_01" ] && [ "$A_COH" = "$N_COH" ]; then
+    pass "PF-01" "absent is byte-identical to explicit true (S17 fired ${A_LATE}x late, coherence $A_COH) — default IS on"
 else
-    fail "PF-01" "absent and explicit false differ — the default is not what it appears" \
-         "absent=${A_LATE}/${A_COH} explicit=${O_LATE}/${O_COH}"
+    fail "PF-01" "absent and explicit true differ — the default is not what it appears" \
+         "absent=${A_LATE}/${A_COH} explicit-true=${N_LATE_01}/${N_COH} (explicit-false=${O_LATE}/${O_COH})"
 fi
 
 # ---------- PF-02: CONTROL — the bug reproduces with the flag off ----------
