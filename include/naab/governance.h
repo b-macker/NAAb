@@ -1596,6 +1596,38 @@ struct ContextDriftConfig {
         // persona baseline, and the borrowed key's comment claimed it was the
         // coherence history size, which it also is not.
         int persona_history_window = 20;
+        // C1e: let the persona baseline track what the agent looks like WHEN IT IS
+        // OTHERWISE BEHAVING, instead of freezing on its warm-up turns forever.
+        //
+        // Measured problem (#176): the baseline is established once, from as few as
+        // three early samples, and never updated. On one fixture that fixed it at
+        // mean 7.167 / stddev 1.863 -- a firing band of "below 3.4 or above 10.9
+        // keywords" -- taken from five terse opening turns. The agent's later,
+        // richer, entirely correct responses cleared 10.9 and it paid 0.05 EVERY
+        // TURN for the rest of the run. The deviation test is abs(), so producing
+        // MORE is scored identically to collapsing.
+        //
+        // When enabled, the baseline is recomputed from the rolling window at the
+        // end of any turn where NO OTHER signal fired. The exclusion of S17 itself
+        // is load-bearing: while S17 is the only thing firing, the turn would never
+        // count as clean and the baseline could never follow -- the signal would
+        // hold its own baseline hostage.
+        //
+        // Why this is not naive re-baselining (candidate (a), rejected): an agent
+        // that is genuinely degrading trips OTHER signals, which freezes the
+        // baseline and leaves S17 paying. Adaptation is gated on independent
+        // evidence of health, so sustained drift cannot quietly become the norm --
+        // the failure mode that keeps S9's baseline deliberately frozen.
+        //
+        // Residual risk, stated rather than hidden: an agent whose ONLY symptom is
+        // slow persona drift, with no other signal ever firing, would be followed
+        // by the baseline. That is the boiling-frog case. It is why this ships OFF
+        // and why PF-03 (a genuine shift with other signals present must still be
+        // caught) is the load-bearing gate.
+        //
+        // Default false: enabling it strictly reduces S17 firings, so it is the
+        // loosening direction and is ratcheted.
+        bool persona_baseline_adaptive = false;
         // 0.15: at least 15% of tool result keywords should appear in the agent's response
         // when it references that tool. Below this the agent may be fabricating results.
         double tool_result_recall_min = 0.15;
