@@ -1627,7 +1627,31 @@ struct ContextDriftConfig {
         //
         // Default false: enabling it strictly reduces S17 firings, so it is the
         // loosening direction and is ratcheted.
-        bool persona_baseline_adaptive = false;
+        // DEFAULT FLIPPED TO TRUE (2026-08-29) on measured evidence. The frozen
+        // baseline inflicts a CERTAIN, UNIVERSAL false penalty: measured 22 of 22
+        // post-drift turns on an agent doing correct work, forever, because its
+        // later responses were richer than its terse warm-up.
+        //
+        // The cost is a bounded low-rate hole, measured rather than assumed
+        // (8 arms, no other signal firing in any of them, so S17 was measured
+        // alone). Drift rate in extra keywords/turn, S17 firings off -> on:
+        //
+        //     0.25   24 -> 2     (~8% retained -- the boiling-frog case)
+        //     0.5    28 -> 12    (~43%)
+        //     1.0    29 -> 12    (~41%)
+        //     2.0    30 -> 13    (~43%)
+        //
+        // So detection degrades only below ~0.5 kw/turn and never reaches zero;
+        // above that it is flat. The fixture was ENGINEERED as the worst case --
+        // on-mandate vocabulary chosen so no other signal could fire and freeze
+        // the baseline -- so 24->2 is an UPPER BOUND, not a typical outcome. Real
+        // persona drift that touches content trips the semantic signals first.
+        //
+        // Set false to restore the frozen baseline. Tests that need a
+        // persistently-firing S17 to create their conditions must pin it false --
+        // test_relative_healing.sh does, because RH-10 was relying on this defect
+        // to supply the live signal it tests against.
+        bool persona_baseline_adaptive = true;
         // 0.15: at least 15% of tool result keywords should appear in the agent's response
         // when it references that tool. Below this the agent may be fabricating results.
         double tool_result_recall_min = 0.15;

@@ -20,6 +20,19 @@
 # MAGNITUDE, because the rate cancels. That is what "no cliff" means here, and
 # RH-03 is the gate that actually tests it.
 #
+# WHY THIS FILE PINS persona_baseline_adaptive: false
+#
+# RH-10 needs a signal that fires on EVERY turn to test that healing does not
+# out-heal a live one. The only thing supplying that was S17's frozen warm-up
+# baseline -- i.e. a defect. C1e fixed it and defaulted the fix ON (2026-08-29),
+# at which point S17 correctly goes quiet on correct work, no live signal exists,
+# healing recovers, and RH-10 fails while nothing is actually wrong. Verified: on
+# the default-flip probe RH-10 reported relative reaching 1.0000.
+#
+# So every arm here pins the frozen baseline. The alternative -- letting RH-10
+# lose its premise silently -- is worse than a failing gate: a guard that has
+# stopped testing anything still looks green.
+#
 # THE POSITIVE CONTROL IS NOT THE ONE THE DESIGN PROPOSED
 #
 # docs/proposal-relative-healing.md specified RH-05 as "suppression reappears at
@@ -152,7 +165,9 @@ run_case() {
   "telemetry": { "enabled": true, "output_file": "tele.jsonl", "decision_snapshots": true },
   "behavioral_sequences": { "enabled": true },
   "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1,
-    "adaptive_baseline_window": 5, $3 "reality_checkpoint": { "enabled": false } },
+    "adaptive_baseline_window": 5, $3
+    "thresholds": { "persona_baseline_adaptive": false },
+    "reality_checkpoint": { "enabled": false } },
   "circuit_breaker": { "enabled": true,
     "elevated_threshold": 0.40, "elevated_sustained": 1,
     "high_threshold": 0.60, "high_sustained": 2, "critical_threshold": 0.99,
