@@ -1647,6 +1647,20 @@ struct ContextDriftConfig {
         // the baseline -- so 24->2 is an UPPER BOUND, not a typical outcome. Real
         // persona drift that touches content trips the semantic signals first.
         //
+        // NOT A PURE LENIENCY CHANGE. The rate curve above measures the
+        // direction where the baseline is mis-set LOW and re-derives upward,
+        // which reduces firings. A live A/B on living-script_v3 (2026-08-29)
+        // found the OPPOSITE direction is also real: on uniform responses the
+        // re-derived stddev NARROWS (observed 2.67 -> 1.00, the floor below),
+        // tightening the 2-sigma band from +/-5.34 to +/-2.00 keywords. There
+        // the fix makes S17 MORE sensitive, not less.
+        //
+        // That is arguably the correct semantics -- deviation from CURRENT
+        // behaviour rather than from warm-up -- and the stddev floor bounds it
+        // at a +/-2 keyword tolerance. But it is UNMEASURED whether an agent
+        // with naturally mild variation starts paying under the tighter band.
+        // The boiling-frog sweep measured only the lenient direction.
+        //
         // Set false to restore the frozen baseline. Tests that need a
         // persistently-firing S17 to create their conditions must pin it false --
         // test_relative_healing.sh does, because RH-10 was relying on this defect
