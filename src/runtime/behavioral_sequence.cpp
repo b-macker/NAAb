@@ -712,6 +712,17 @@ std::vector<RuntimeEvent> BehavioralSequenceDetector::getEventsForTurn(int turn)
     return result;
 }
 
+std::vector<RuntimeEvent> BehavioralSequenceDetector::getEventsSince(size_t last_seq) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<RuntimeEvent> result;
+    for (const auto& ev : event_buffer_) {
+        if (ev.sequence_id > last_seq) {
+            result.push_back(ev);
+        }
+    }
+    return result;
+}
+
 void BehavioralSequenceDetector::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     event_buffer_.clear();
@@ -867,8 +878,53 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
         state.post_baseline_checks++;
     }
 
-    // Compute fingerprint for this turn's events
-    std::string fp = computeFingerprint(turn_events);
+    // Compute fingerprint for this turn's events.
+    //
+    // Restricted to agent events under BOTH feeds. S1 asks whether THIS AGENT
+    // is repeating itself; script-driven file/env/crypto events are the
+    // orchestrator's actions, not the agent's, and putting them in the agent's
+    // behavioural fingerprint is a category error regardless of which feed is
+    // active. The default feed commits it only at turn 0 -- the one bucket a
+    // script can reach -- which is why it costs one detection there and
+    // nineteen under the richer feed. The fingerprint
+    // already includes each agent event's content_fingerprint precisely so that
+    // isCircular() fires on real loops rather than on the mechanical AS/AR
+    // shape; adding components that vary with unrelated script activity makes
+    // two turns carrying an IDENTICAL response stop matching. Measured on a
+    // fixture where every response is identical -- a genuine loop, 30 turns:
+    //
+    //     feed               plain script   varying script
+    //     turn_bucket             29              28
+    //     since_last_check        29               9   <- 68% detection loss
+    //
+    // S1 is one of the two objective signals exempt from baseline absorption
+    // because it must charge from turn 1, so that loss is not acceptable as the
+    // price of fixing S5. With the restriction applied the varying-script arm
+    // recovers to 29 under both feeds -- the content hash was always the
+    // load-bearing part; the action shape was not.
+    //
+    // KNOWN IMPRECISION: the ideal filter is "events this agent CAUSED", which
+    // would keep tool-driven FILE_READ (the agent asked for it) and drop only
+    // script-driven ones. That is not cheaply available -- emitEvent stamps
+    // agent_handle from current_agent_handle_, which after the first send still
+    // holds the handle, so a script event between sends is indistinguishable
+    // from the agent's own by handle alone. This type filter is a conservative
+    // proxy that also discards tool-driven events. Consequence: an agent that
+    // calls the same tool identically every turn while varying its prose is a
+    // real loop S1 will miss. See open-investigations B7.
+    std::string fp;
+    {
+        std::vector<RuntimeEvent> agent_only;
+        agent_only.reserve(turn_events.size());
+        for (const auto& ev : turn_events) {
+            if (ev.type == RuntimeEventType::AGENT_SEND ||
+                ev.type == RuntimeEventType::AGENT_RESPONSE) {
+                agent_only.push_back(ev);
+            }
+        }
+        fp = computeFingerprint(agent_only);
+    }
+
     state.turn_fingerprints.push_back(fp);
     if (static_cast<int>(state.turn_fingerprints.size()) > config_->fingerprint_window) {
         state.turn_fingerprints.pop_front();
@@ -2761,6 +2817,18 @@ void ContextDriftAnalyzer::setAgentConfigName(int handle_id, const std::string& 
     if (name.empty()) return;
     std::lock_guard<std::mutex> lock(mutex_);
     drift_states_[handle_id].config_name = name;
+}
+
+size_t ContextDriftAnalyzer::getLastEventSeq(int handle_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    return it == drift_states_.end() ? 0 : it->second.last_event_seq;
+}
+
+void ContextDriftAnalyzer::setLastEventSeq(int handle_id, size_t seq) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = drift_states_.find(handle_id);
+    if (it != drift_states_.end()) it->second.last_event_seq = seq;
 }
 
 // Compute override bitmasks from a context_drift_signals map. Unknown keys

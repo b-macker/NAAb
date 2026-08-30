@@ -7363,7 +7363,21 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
     if (!cdd_enabled_.load(std::memory_order_acquire)) return "";
 
     // Gather events from this turn
-    std::vector<RuntimeEvent> turn_events = sequence_detector_.getEventsForTurn(turn);
+    // Event feed selection. "turn_bucket" is the historical default and is
+    // byte-identical to it. "since_last_check" selects on sequence_id instead,
+    // so an event raised BETWEEN two sends -- which carries the earlier send's
+    // turn number, a bucket this function already consumed -- still reaches the
+    // next check. ev.turn stamping is deliberately left alone: BSD reads it for
+    // pattern decay, and re-stamping would move those windows as a side effect.
+    const bool feed_since = rules().context_drift.event_feed == "since_last_check";
+    size_t feed_watermark = 0;
+    std::vector<RuntimeEvent> turn_events;
+    if (feed_since) {
+        feed_watermark = drift_analyzer_.getLastEventSeq(handle_id);
+        turn_events = sequence_detector_.getEventsSince(feed_watermark);
+    } else {
+        turn_events = sequence_detector_.getEventsForTurn(turn);
+    }
     // Keep only THIS handle's events. getEventsForTurn() selects on turn number
     // alone, and RuntimeEvent.turn is stamped from the global
     // current_agent_turn_, which setAgentContext() sets to the SENDING agent's
@@ -7389,6 +7403,19 @@ std::string GovernanceEngine::checkContextDrift(int handle_id, int turn,
         [handle_id](const RuntimeEvent& ev) {
             return ev.agent_handle != 0 && ev.agent_handle != handle_id;
         }), turn_events.end());
+
+    // Advance the watermark BEFORE recordTurn so an exception thrown downstream
+    // cannot cause the same events to be re-delivered to the next check and
+    // double-counted. Computed from the unfiltered high-water mark, not from
+    // turn_events.back(): the handle filter above can drop the newest event, and
+    // leaving the watermark behind it would redeliver a sibling's events forever.
+    if (feed_since) {
+        size_t high = feed_watermark;
+        for (const auto& ev : sequence_detector_.getEventsSince(feed_watermark)) {
+            if (ev.sequence_id > high) high = ev.sequence_id;
+        }
+        drift_analyzer_.setLastEventSeq(handle_id, high);
+    }
 
     bool drifted = drift_analyzer_.recordTurn(handle_id, turn, turn_events, error);
 
