@@ -880,8 +880,13 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
 
     // Compute fingerprint for this turn's events.
     //
-    // Under the "since_last_check" feed the bucket also carries script-driven
-    // file/env/crypto events, and folding those in breaks S1. The fingerprint
+    // Restricted to agent events under BOTH feeds. S1 asks whether THIS AGENT
+    // is repeating itself; script-driven file/env/crypto events are the
+    // orchestrator's actions, not the agent's, and putting them in the agent's
+    // behavioural fingerprint is a category error regardless of which feed is
+    // active. The default feed commits it only at turn 0 -- the one bucket a
+    // script can reach -- which is why it costs one detection there and
+    // nineteen under the richer feed. The fingerprint
     // already includes each agent event's content_fingerprint precisely so that
     // isCircular() fires on real loops rather than on the mechanical AS/AR
     // shape; adding components that vary with unrelated script activity makes
@@ -894,11 +899,21 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
     //
     // S1 is one of the two objective signals exempt from baseline absorption
     // because it must charge from turn 1, so that loss is not acceptable as the
-    // price of fixing S5. Restricting the fingerprint to agent events keeps S1
-    // reading exactly what it read before while turn_types still gets the
-    // richer feed. Gated on the feed so the default path stays byte-identical.
+    // price of fixing S5. With the restriction applied the varying-script arm
+    // recovers to 29 under both feeds -- the content hash was always the
+    // load-bearing part; the action shape was not.
+    //
+    // KNOWN IMPRECISION: the ideal filter is "events this agent CAUSED", which
+    // would keep tool-driven FILE_READ (the agent asked for it) and drop only
+    // script-driven ones. That is not cheaply available -- emitEvent stamps
+    // agent_handle from current_agent_handle_, which after the first send still
+    // holds the handle, so a script event between sends is indistinguishable
+    // from the agent's own by handle alone. This type filter is a conservative
+    // proxy that also discards tool-driven events. Consequence: an agent that
+    // calls the same tool identically every turn while varying its prose is a
+    // real loop S1 will miss. See open-investigations B7.
     std::string fp;
-    if (config_->event_feed == "since_last_check") {
+    {
         std::vector<RuntimeEvent> agent_only;
         agent_only.reserve(turn_events.size());
         for (const auto& ev : turn_events) {
@@ -908,9 +923,8 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             }
         }
         fp = computeFingerprint(agent_only);
-    } else {
-        fp = computeFingerprint(turn_events);
     }
+
     state.turn_fingerprints.push_back(fp);
     if (static_cast<int>(state.turn_fingerprints.size()) > config_->fingerprint_window) {
         state.turn_fingerprints.pop_front();
