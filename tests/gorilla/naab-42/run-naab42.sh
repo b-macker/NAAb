@@ -286,14 +286,14 @@ else
 fi
 
 # F6-03: FILE_WRITE → FILE_READ sequence
-if awk '/cross_agent_file_relay/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'FILE_WRITE.*FILE_READ\|FILE_WRITE'; then
+if awk '/cross_agent_file_relay/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'file.write'; then
     pass "F6-03" "File relay uses FILE_WRITE -> FILE_READ steps"
 else
     fail "F6-03" "File relay steps incorrect"
 fi
 
 # F6-04: TOOL_CALL (not TOOL_EXEC) in tool chain
-if awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'TOOL_CALL'; then
+if awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'tool_call'; then
     pass "F6-04" "Tool chain uses TOOL_CALL (correct enum)"
 else
     fail "F6-04" "Tool chain uses wrong event type (should be TOOL_CALL)"
@@ -324,7 +324,7 @@ else
 fi
 
 # F6-08: AGENT_SEND step in tool chain (3-step pattern)
-if awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'AGENT_SEND'; then
+if awk '/cross_agent_tool_chain/,/push_back.*std::move/' "$SRC_DIR/runtime/behavioral_sequence.cpp" | grep -q 'agent.send'; then
     pass "F6-08" "Tool chain includes AGENT_SEND step (3-step pattern)"
 else
     fail "F6-08" "Tool chain missing AGENT_SEND step"
