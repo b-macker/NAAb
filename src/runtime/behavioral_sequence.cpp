@@ -196,8 +196,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "credential_harvesting";
-        p.steps.push_back(makeStep({"ENV_READ"}, {"*secret*|*key*|*token*|*password*|*KEY*|*SECRET*|*TOKEN*"}));
-        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.steps.push_back(makeStep({"env.get"}, {"*secret*|*key*|*token*|*password*|*KEY*|*SECRET*|*TOKEN*"}));
+        p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 5;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -208,8 +208,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "sandbox_probe_escape";
-        p.steps.push_back(makeStep({"FILE_READ"}, {"*/etc/passwd*|*/proc/*|*/etc/shadow*"}));
-        p.steps.push_back(makeStep({"SHELL_EXEC", "PROCESS_EXEC"}));
+        p.steps.push_back(makeStep({"file.read"}, {"*/etc/passwd*|*/proc/*|*/etc/shadow*"}));
+        p.steps.push_back(makeStep({"shell_exec", "process.exec"}));
         p.max_gap = 10;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -220,8 +220,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "config_tampering";
-        p.steps.push_back(makeStep({"FILE_READ"}, {"*govern.json*"}));
-        p.steps.push_back(makeStep({"FILE_WRITE"}, {"*govern.json*"}));
+        p.steps.push_back(makeStep({"file.read"}, {"*govern.json*"}));
+        p.steps.push_back(makeStep({"file.write"}, {"*govern.json*"}));
         p.max_gap = 5;
         p.level = EnforcementLevel::HARD;
         default_patterns_.push_back(std::move(p));
@@ -232,10 +232,10 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "progressive_escalation";
-        p.steps.push_back(makeStep({"CHECK_FAILED"}));
-        p.steps.push_back(makeStep({"CHECK_FAILED"}));
-        p.steps.push_back(makeStep({"CHECK_FAILED"}));
-        p.steps.push_back(makeStep({"SHELL_EXEC", "PROCESS_EXEC"}));
+        p.steps.push_back(makeStep({"check_failed"}));
+        p.steps.push_back(makeStep({"check_failed"}));
+        p.steps.push_back(makeStep({"check_failed"}));
+        p.steps.push_back(makeStep({"shell_exec", "process.exec"}));
         p.max_gap = 15;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -246,10 +246,10 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "data_staging";
-        p.steps.push_back(makeStep({"FILE_READ"}));
-        p.steps.push_back(makeStep({"FILE_READ"}));
-        p.steps.push_back(makeStep({"FILE_WRITE"}, {"*/tmp/*|*/temp/*"}));
-        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.steps.push_back(makeStep({"file.read"}));
+        p.steps.push_back(makeStep({"file.read"}));
+        p.steps.push_back(makeStep({"file.write"}, {"*/tmp/*|*/temp/*"}));
+        p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 20;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -260,9 +260,9 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "taint_bypass_via_agent";
-        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
-        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
-        p.steps.push_back(makeStep({"AGENT_SEND"}));
+        p.steps.push_back(makeStep({"taint_violation"}));
+        p.steps.push_back(makeStep({"taint_violation"}));
+        p.steps.push_back(makeStep({"agent.send"}));
         p.max_gap = 10;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -273,9 +273,9 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "repeated_taint_violations";
-        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
-        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
-        p.steps.push_back(makeStep({"TAINT_VIOLATION"}));
+        p.steps.push_back(makeStep({"taint_violation"}));
+        p.steps.push_back(makeStep({"taint_violation"}));
+        p.steps.push_back(makeStep({"taint_violation"}));
         p.max_gap = 15;
         p.level = EnforcementLevel::ADVISORY;
         default_patterns_.push_back(std::move(p));
@@ -286,8 +286,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "tool_data_exfil";
-        p.steps.push_back(makeStep({"TOOL_CALL"}, {"*read*|*get*|*fetch*"}));
-        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.steps.push_back(makeStep({"tool_call"}, {"*read*|*get*|*fetch*"}));
+        p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 5;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -298,9 +298,9 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "tool_env_harvest";
-        p.steps.push_back(makeStep({"ENV_READ"}));
-        p.steps.push_back(makeStep({"TOOL_RESULT"}));
-        p.steps.push_back(makeStep({"NET_CONNECT"}));
+        p.steps.push_back(makeStep({"env.get"}));
+        p.steps.push_back(makeStep({"tool_result"}));
+        p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 10;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -311,8 +311,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "tool_shell_escape";
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
-        p.steps.push_back(makeStep({"SHELL_EXEC", "PROCESS_EXEC"}));
+        p.steps.push_back(makeStep({"tool_call"}));
+        p.steps.push_back(makeStep({"shell_exec", "process.exec"}));
         p.max_gap = 3;
         p.level = EnforcementLevel::SOFT;
         default_patterns_.push_back(std::move(p));
@@ -323,11 +323,11 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "tool_rapid_fire";
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"tool_call"}));
+        p.steps.push_back(makeStep({"tool_call"}));
+        p.steps.push_back(makeStep({"tool_call"}));
+        p.steps.push_back(makeStep({"tool_call"}));
+        p.steps.push_back(makeStep({"tool_call"}));
         p.max_gap = 3;
         p.level = EnforcementLevel::ADVISORY;
         default_patterns_.push_back(std::move(p));
@@ -376,8 +376,8 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "cross_agent_file_relay";
-        p.steps.push_back(makeStep({"FILE_WRITE"}));
-        p.steps.push_back(makeStep({"FILE_READ"}));
+        p.steps.push_back(makeStep({"file.write"}));
+        p.steps.push_back(makeStep({"file.read"}));
         p.cross_agent = true;
         p.max_gap = 5;
         p.level = EnforcementLevel::ADVISORY;
@@ -391,14 +391,23 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "cross_agent_tool_chain";
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
-        p.steps.push_back(makeStep({"AGENT_SEND"}));
-        p.steps.push_back(makeStep({"TOOL_CALL"}));
+        p.steps.push_back(makeStep({"tool_call"}));
+        p.steps.push_back(makeStep({"agent.send"}));
+        p.steps.push_back(makeStep({"tool_call"}));
         p.cross_agent = true;
         p.max_gap = 10;
         p.level = EnforcementLevel::ADVISORY;
         p.rationale = "Cross-agent tool delegation chain — verify authorization propagation";
         default_patterns_.push_back(std::move(p));
+    }
+
+    // Observe-first: unless the operator opts into declared levels, every
+    // built-in pattern runs ADVISORY. See governance.h for why correcting the
+    // step names is an enablement rather than a repair.
+    if (!config_ || config_->default_pattern_enforcement != "declared") {
+        for (auto& dp : default_patterns_) {
+            dp.level = EnforcementLevel::ADVISORY;
+        }
     }
 }
 

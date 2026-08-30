@@ -1310,6 +1310,22 @@ struct BehavioralSequenceConfig {
     bool enabled = false;
     std::string rationale;
     size_t window_size = 200;             // max events in ring buffer
+    // Enforcement level applied to the BUILT-IN patterns.
+    //   "observe"  (default) every default pattern runs at ADVISORY
+    //   "declared"           each pattern uses the level it declares
+    // The built-in patterns shipped with enum-style step names ("TOOL_CALL")
+    // that never matched anything -- eventTypeToString returns "tool_call", and
+    // normalizeEventTypeName turns the enum form into "tool.call". Ten of the
+    // sixteen were dead at one or more steps, six of them at SOFT. Correcting
+    // the names is therefore not a repair of working behaviour but the first
+    // time these patterns have ever fired, and switching six blockers on during
+    // an upgrade is not something to do silently. credential_harvesting is the
+    // clearest case: env var matching *key*|*token*|*secret* followed by a
+    // network call inside 5 events is the intended detection AND what every
+    // legitimate API client does. Observe first, promote deliberately.
+    // Ratchet: "observe" -> "declared" tightens and is allowed; the reverse is
+    // a loosening violation.
+    std::string default_pattern_enforcement = "observe";
     std::vector<SequencePattern> patterns;
 };
 
