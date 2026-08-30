@@ -190,6 +190,12 @@ struct DriftState {
     std::unordered_set<std::string> granted_capabilities;   // capabilities granted to this agent
     std::unordered_set<std::string> exercised_capabilities; // capabilities actually used
     int first_event_turn = -1;                              // turn of first event
+    // Watermark for the "since_last_check" event feed. Events are selected by
+    // sequence_id > this value rather than by turn == N, so an event raised
+    // BETWEEN sends -- which carries the PREVIOUS send's turn number, a bucket
+    // already consumed -- is still delivered to the next check. ev.turn is left
+    // untouched, which is what keeps BSD's decay windows out of scope.
+    size_t last_event_seq = 0;
 
     // F19: Semantic stability (keyword overlap between consecutive responses)
     std::unordered_set<std::string> prev_response_keywords;
@@ -479,6 +485,10 @@ public:
 
     // Get events from the current turn (for drift analysis)
     std::vector<RuntimeEvent> getEventsForTurn(int turn) const;
+    // All buffered events newer than `last_seq`. Bounded by the same eviction
+    // as getEventsForTurn: an event dropped from event_buffer_ is not
+    // recoverable here either.
+    std::vector<RuntimeEvent> getEventsSince(size_t last_seq) const;
 
     // Reset all state
     void reset();
@@ -663,6 +673,8 @@ public:
     // Bind the govern.json agent name to a handle's drift state (for scoped
     // per-agent resets on config reload)
     void setAgentConfigName(int handle_id, const std::string& name);
+    size_t getLastEventSeq(int handle_id) const;
+    void setLastEventSeq(int handle_id, size_t seq);
 
     // Bind per-agent signal overrides (context_drift_signals) to a handle.
     // Unknown keys are ignored (config parse already warns on them).

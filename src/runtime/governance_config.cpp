@@ -2938,6 +2938,20 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
         if (cd.contains("max_contradictions") && cd["max_contradictions"].is_number_integer()) cfg.max_contradictions = cd["max_contradictions"].get<int>();
         if (cd.contains("check_interval_turns") && cd["check_interval_turns"].is_number_integer()) cfg.check_interval_turns = cd["check_interval_turns"].get<int>();
+        if (cd.contains("event_feed") && cd["event_feed"].is_string()) {
+            std::string feed = cd["event_feed"].get<std::string>();
+            if (feed == "turn_bucket" || feed == "since_last_check") {
+                cfg.event_feed = feed;
+            } else {
+                // Named rather than silently ignored: an unrecognised value here
+                // would otherwise leave the operator believing they had switched
+                // the feed, which is the A1c failure shape.
+                fmt::print(stderr, "[governance] Warning: unknown context_drift.event_feed "
+                                   "\"{}\" — valid values are \"turn_bucket\" and "
+                                   "\"since_last_check\"; keeping \"{}\"\n",
+                           feed, cfg.event_feed);
+            }
+        }
         if (cd.contains("fingerprint_window") && cd["fingerprint_window"].is_number_integer()) cfg.fingerprint_window = cd["fingerprint_window"].get<int>();
         if (cd.contains("rate_normalized") && cd["rate_normalized"].is_boolean()) cfg.rate_normalized = cd["rate_normalized"].get<bool>();
         if (cd.contains("rate_normalized_floor") && cd["rate_normalized_floor"].is_number()) cfg.rate_normalized_floor = std::max(0.0, std::min(1.0, cd["rate_normalized_floor"].get<double>()));
@@ -4087,6 +4101,18 @@ static bool checkRatchetViolation(
     else if (!new_r.context_drift.rate_normalized && old_r.context_drift.rate_normalized)
         notices.push_back("context_drift.rate_normalized: true -> false (tightened)");
     // Lowering the floor = loosening (firing signals pay less)
+    // event_feed is ratcheted in BOTH directions, unlike every other key here.
+    // The usual test is "did this loosen?", but this change is not uniformly
+    // signed: switching to since_last_check gives S3 and S5 more events (a
+    // tightening) while feeding non-agent components into S1's fingerprint, so
+    // two turns carrying an identical response can stop matching (a loosening
+    // of an objective signal). Neither direction is safe to make mid-run, so
+    // any change is a violation.
+    if (new_r.context_drift.event_feed != old_r.context_drift.event_feed)
+        violations.push_back(fmt::format("context_drift.event_feed: {} -> {} (mid-run change; "
+            "the feed changes what every event-reading signal sees, in both directions)",
+            old_r.context_drift.event_feed, new_r.context_drift.event_feed));
+
     if (new_r.context_drift.rate_normalized_floor < old_r.context_drift.rate_normalized_floor)
         violations.push_back(fmt::format("context_drift.rate_normalized_floor: {:.2f} -> {:.2f} (loosened)",
             old_r.context_drift.rate_normalized_floor, new_r.context_drift.rate_normalized_floor));

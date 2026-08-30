@@ -1324,6 +1324,19 @@ struct ContextDriftConfig {
     double coherence_threshold = 0.7;
     int max_contradictions = 5;
     int check_interval_turns = 3;
+    // Which events a CDD check sees.
+    //   "turn_bucket"      (default) events stamped with this turn number
+    //   "since_last_check" every event since the previous check
+    // The default is the historical behaviour and is byte-identical to it.
+    // Under it, an event raised between two sends carries the earlier send's
+    // turn and lands in a bucket that has already been consumed, so in a script
+    // with no registered tools only turn 0's events are ever visible to CDD
+    // (see open-investigations B6). Ships off because the change is NOT
+    // uniformly a tightening: S3 and S5 see more, while S1's fingerprint gains
+    // non-agent components and can stop matching two turns carrying an
+    // identical response. Any mid-run change is a ratchet violation in both
+    // directions for that reason.
+    std::string event_feed = "turn_bucket";
     int fingerprint_window = 20;
     bool rate_normalized = false;  // F5: scale penalties by rate (count/turns) instead of flat weight
     // Rationale: floor on the rate-normalized penalty as a fraction of the base
