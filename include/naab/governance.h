@@ -1647,6 +1647,34 @@ struct ContextDriftConfig {
         // the baseline -- so 24->2 is an UPPER BOUND, not a typical outcome. Real
         // persona drift that touches content trips the semantic signals first.
         //
+        // NOT A PURE LENIENCY CHANGE. The rate curve above measures the
+        // direction where the baseline is mis-set LOW and re-derives upward,
+        // which reduces firings. A live A/B on living-script_v3 (2026-08-29)
+        // found the OPPOSITE direction is also real: on uniform responses the
+        // re-derived stddev NARROWS (observed 2.67 -> 1.00, the floor below),
+        // tightening the 2-sigma band from +/-5.34 to +/-2.00 keywords. There
+        // the fix makes S17 MORE sensitive, not less.
+        //
+        // BUT THAT IS NOT A REGRESSION THIS INTRODUCES, and an earlier version
+        // of this comment overstated it. The stddev floor of 1.0 is applied in
+        // BOTH paths -- the original frozen establishment and the re-derivation
+        // -- so the minimum +/-2 keyword band predates the fix and is reachable
+        // without it whenever the warm-up turns happen to be uniform.
+        //
+        // What changes is WHERE the band is CENTRED, not how narrow it can get:
+        //     frozen    band >= +/-2, centred on WARM-UP turns, forever
+        //     adaptive  band >= +/-2, centred on CURRENT behaviour
+        // The v3 observation compared a frozen band that happened to be WIDE
+        // (varied warm-up, stddev 2.67) against a tracked one that went narrow
+        // on uniform output. That is the warm-up being unrepresentative, which
+        // is the defect itself -- a band centred on stale data is wrong whether
+        // it is wide or narrow.
+        //
+        // The genuinely open question is whether +/-2 keywords (deviation
+        // factor 2.0 x stddev floor 1.0) is the right MINIMUM tolerance at all.
+        // That is pre-existing, applies identically with the fix off, and is
+        // not a consequence of this change.
+        //
         // Set false to restore the frozen baseline. Tests that need a
         // persistently-firing S17 to create their conditions must pin it false --
         // test_relative_healing.sh does, because RH-10 was relying on this defect

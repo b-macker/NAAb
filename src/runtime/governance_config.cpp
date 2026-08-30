@@ -4059,10 +4059,25 @@ static bool checkRatchetViolation(
     // rate_normalized: disabling mid-run restores flat per-event penalties
     // (stricter), so false->true is the loosening direction — diluted penalties
     // let a paced adversary drift more cheaply.
-    // C1e: adaptive persona baseline. Enabling it lets S17's baseline follow the
-    // agent on otherwise-clean turns, which strictly REDUCES how often S17 fires,
-    // so false -> true is the loosening direction. Disabling it mid-run is a
-    // tightening and is accepted.
+    // C1e: adaptive persona baseline. An earlier version of this comment said
+    // enabling it "strictly REDUCES how often S17 fires". THAT IS FALSE, and was
+    // falsified by a live A/B on living-script_v3 (2026-08-29).
+    //
+    // The mechanism RECALIBRATES; the direction depends on the workload. The
+    // re-derivation recomputes stddev from the rolling window, so:
+    //   baseline mis-set low, responses grow richer -> re-derives UPWARD,
+    //       band widens, FEWER firings (the original defect case)
+    //   responses already uniform -> stddev NARROWS, band tightens,
+    //       MORE sensitive
+    // Observed: on a uniform-response model, stddev went 2.67 -> 1.00 (the
+    // floor), taking the 2-sigma band from +/-5.34 to +/-2.00. A response 12
+    // keywords from the mean would fire with the fix ON and not with it OFF.
+    //
+    // The ratchet still refuses false -> true, and that is deliberate rather
+    // than a leftover: when a change can loosen OR tighten depending on
+    // workload, refusing the mid-run enable is the fail-safe direction. It
+    // blocks the possible loosening; the cost is also blocking a possible
+    // tightening, which is the acceptable side to err on.
     if (new_r.context_drift.thresholds.persona_baseline_adaptive &&
         !old_r.context_drift.thresholds.persona_baseline_adaptive)
         violations.push_back("context_drift.thresholds.persona_baseline_adaptive: false -> true (loosened — S17 baseline follows the agent)");
