@@ -1655,11 +1655,25 @@ struct ContextDriftConfig {
         // tightening the 2-sigma band from +/-5.34 to +/-2.00 keywords. There
         // the fix makes S17 MORE sensitive, not less.
         //
-        // That is arguably the correct semantics -- deviation from CURRENT
-        // behaviour rather than from warm-up -- and the stddev floor bounds it
-        // at a +/-2 keyword tolerance. But it is UNMEASURED whether an agent
-        // with naturally mild variation starts paying under the tighter band.
-        // The boiling-frog sweep measured only the lenient direction.
+        // BUT THAT IS NOT A REGRESSION THIS INTRODUCES, and an earlier version
+        // of this comment overstated it. The stddev floor of 1.0 is applied in
+        // BOTH paths -- the original frozen establishment and the re-derivation
+        // -- so the minimum +/-2 keyword band predates the fix and is reachable
+        // without it whenever the warm-up turns happen to be uniform.
+        //
+        // What changes is WHERE the band is CENTRED, not how narrow it can get:
+        //     frozen    band >= +/-2, centred on WARM-UP turns, forever
+        //     adaptive  band >= +/-2, centred on CURRENT behaviour
+        // The v3 observation compared a frozen band that happened to be WIDE
+        // (varied warm-up, stddev 2.67) against a tracked one that went narrow
+        // on uniform output. That is the warm-up being unrepresentative, which
+        // is the defect itself -- a band centred on stale data is wrong whether
+        // it is wide or narrow.
+        //
+        // The genuinely open question is whether +/-2 keywords (deviation
+        // factor 2.0 x stddev floor 1.0) is the right MINIMUM tolerance at all.
+        // That is pre-existing, applies identically with the fix off, and is
+        // not a consequence of this change.
         //
         // Set false to restore the frozen baseline. Tests that need a
         // persistently-firing S17 to create their conditions must pin it false --
