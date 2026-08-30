@@ -2426,6 +2426,14 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     j["persona_baseline_stddev"] = s.persona_baseline_stddev;
     j["thinking_baseline_mean"] = s.thinking_baseline_mean;
     j["input_tokens_baseline_mean"] = s.input_tokens_baseline_mean;
+    // S5's baseline, and the only one of the four that was not reported here.
+    // It is also the earliest set -- fixed from turns 0-2, before
+    // baseline_complete -- so a run whose S5 fires every turn gave no way to
+    // read the number responsible out of preserved evidence. -1 means "not yet
+    // established": S5 needs vocab_contraction_window turns before it is set,
+    // and a handle that never reached that keeps the sentinel rather than
+    // reporting a misleading 0.
+    j["initial_entropy"] = s.initial_entropy;
     j["signal_override_mask"] = s.signal_override_mask;
     j["signal_override_values"] = s.signal_override_values;
 

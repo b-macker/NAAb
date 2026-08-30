@@ -62,6 +62,10 @@
 #          startup — sustained diversity earns nothing.
 #   VC-06  diversity introduced from turn 10 changes NOTHING in CDD output; the
 #          arm is signal-identical to the control that never did any of it.
+#   VC-07  the frozen baseline is READABLE from preserved evidence, and carries
+#          the value the arithmetic above predicts. Until this shipped it was
+#          the only one of the four baselines absent from snapshotState(), so a
+#          run that fired S5 every turn gave no way to see the number doing it.
 # ============================================================
 set -uo pipefail
 
@@ -118,7 +122,7 @@ run_case() {
 {
   "version": "5.0", "mode": "enforce",
   "security": { "sandbox_level": "elevated" },
-  "telemetry": { "enabled": true, "output_file": "tele.jsonl" },
+  "telemetry": { "enabled": true, "output_file": "tele.jsonl", "decision_snapshots": true },
   "behavioral_sequences": { "enabled": true },
   "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1,
     "reality_checkpoint": { "enabled": false } },
@@ -307,6 +311,42 @@ else
         pass "VC-06" "introducing 3 new event types at turn 10 left every CDD turn unchanged"
     else
         fail "VC-06" "the late arm differs from the control" "$(diff <(echo "$A") <(echo "$B") | head -4 | tr '\n' ' ')"
+    fi
+fi
+
+# initial_entropy as the engine itself reports it, from the LAST cdd_snapshot.
+snapshot_initial_entropy() {
+python3 - "$1" <<'PYEOF'
+import json, sys
+val=None
+for line in open(sys.argv[1]):
+    if "cdd_snapshot" not in line: continue
+    try: e=json.loads(line)
+    except Exception: continue
+    d=e.get("fields",e)
+    snap=d.get("cdd_snapshot")
+    if isinstance(snap,str):
+        try: snap=json.loads(snap)
+        except Exception: continue
+    if isinstance(snap,dict) and "initial_entropy" in snap:
+        val=snap["initial_entropy"]
+print("ABSENT" if val is None else "%.3f" % float(val))
+PYEOF
+}
+
+# ---------- VC-07: the baseline is readable, and is the predicted number ----------
+echo -e "${CYAN}--- VC-07: initial_entropy is in preserved evidence ---${NC}"
+if [ "$CONTROL_OK" != "1" ]; then
+    skip "VC-07" "control failed"
+else
+    E_CTL="$(snapshot_initial_entropy "$T_STEADY")"
+    E_K2="$(snapshot_initial_entropy "$T_K2")"
+    if [ "$E_CTL" = "ABSENT" ] || [ "$E_K2" = "ABSENT" ]; then
+        fail "VC-07" "initial_entropy is not in the snapshot" "control=$E_CTL k2=$E_K2 — the evidence gap is back"
+    elif [ "$E_CTL" = "1.000" ] && [ "$E_K2" = "1.811" ]; then
+        pass "VC-07" "reported baselines match the arithmetic: control $E_CTL, k=2 $E_K2"
+    else
+        fail "VC-07" "reported baseline is not the predicted value" "control=$E_CTL (want 1.000) k2=$E_K2 (want 1.811)"
     fi
 fi
 
