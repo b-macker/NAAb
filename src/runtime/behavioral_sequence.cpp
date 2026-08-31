@@ -175,6 +175,17 @@ void BehavioralSequenceDetector::updateConfig(const BehavioralSequenceConfig& co
 }
 
 void BehavioralSequenceDetector::buildDefaultPatterns() {
+    // Detail globs carry ONE alternative each. globMatch() splits only on '*'
+    // and requires every segment in order, so a single glob "*a*|*b*" demands
+    // the text contain a, then a literal '|', then b -- matchable only by a
+    // string literally containing the pipe. The config parser splits step
+    // strings on '|' into separate matchers before storing them; these
+    // built-ins bypass the parser, so they must be written pre-split.
+    // matchesStep pairs match_any[i] with detail_globs[i] and ORs across i,
+    // which is what makes repeating the type name per alternative correct.
+    // Measured before this change: env.get("MY_API_KEY") + http.get did NOT
+    // fire credential_harvesting, while an env var literally named
+    // "secret|key|token|password|KEY|SECRET|TOKEN" did.
     default_patterns_.clear();
 
     // Helper to create a step matching event types with optional detail globs
@@ -196,7 +207,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "credential_harvesting";
-        p.steps.push_back(makeStep({"env.get"}, {"*secret*|*key*|*token*|*password*|*KEY*|*SECRET*|*TOKEN*"}));
+        p.steps.push_back(makeStep({"env.get", "env.get", "env.get", "env.get", "env.get", "env.get", "env.get"}, {"*secret*", "*key*", "*token*", "*password*", "*KEY*", "*SECRET*", "*TOKEN*"}));
         p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 5;
         p.level = EnforcementLevel::SOFT;
@@ -208,7 +219,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "sandbox_probe_escape";
-        p.steps.push_back(makeStep({"file.read"}, {"*/etc/passwd*|*/proc/*|*/etc/shadow*"}));
+        p.steps.push_back(makeStep({"file.read", "file.read", "file.read"}, {"*/etc/passwd*", "*/proc/*", "*/etc/shadow*"}));
         p.steps.push_back(makeStep({"shell_exec", "process.exec"}));
         p.max_gap = 10;
         p.level = EnforcementLevel::SOFT;
@@ -248,7 +259,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
         p.name = "data_staging";
         p.steps.push_back(makeStep({"file.read"}));
         p.steps.push_back(makeStep({"file.read"}));
-        p.steps.push_back(makeStep({"file.write"}, {"*/tmp/*|*/temp/*"}));
+        p.steps.push_back(makeStep({"file.write", "file.write"}, {"*/tmp/*", "*/temp/*"}));
         p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 20;
         p.level = EnforcementLevel::SOFT;
@@ -286,7 +297,7 @@ void BehavioralSequenceDetector::buildDefaultPatterns() {
     {
         SequencePattern p;
         p.name = "tool_data_exfil";
-        p.steps.push_back(makeStep({"tool_call"}, {"*read*|*get*|*fetch*"}));
+        p.steps.push_back(makeStep({"tool_call", "tool_call", "tool_call"}, {"*read*", "*get*", "*fetch*"}));
         p.steps.push_back(makeStep({"net_connect"}));
         p.max_gap = 5;
         p.level = EnforcementLevel::SOFT;

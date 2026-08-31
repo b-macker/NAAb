@@ -39,6 +39,22 @@
 #   DP-05  declared mode: the same pattern BLOCKS. Without this pair, "observe"
 #          is indistinguishable from the patterns still being dead
 #   DP-06  an unrecognised enforcement value warns and keeps the default
+#
+# SECOND DEFECT, INDEPENDENT OF THE NAMES
+#
+# Correcting the step names left four built-ins still dead, for an unrelated
+# reason: a detail glob written "*a*|*b*" is matched LITERALLY. globMatch splits
+# only on '*' and requires every segment in order, so it demanded the text
+# contain a, then a '|', then b. The config parser splits step strings on '|'
+# before storing them; buildDefaultPatterns bypasses the parser, so only the
+# built-ins carried the unsplit form. Measured before the fix:
+# env.get("MY_API_KEY") + http.get did NOT fire credential_harvesting, while an
+# env var literally named "secret|key|token|password|KEY|SECRET|TOKEN" did.
+#
+#   DP-07  credential_harvesting fires on a REALISTIC secret-ish env var name
+#   DP-08  sandbox_probe_escape and data_staging fire on realistic inputs
+#   DP-09  NEGATIVE CONTROL: a benign program trips none of them. Without this,
+#          DP-07/08 pass equally on a build whose globs match everything
 # ============================================================
 set -uo pipefail
 
@@ -212,6 +228,80 @@ EOF
     fi
 else
     fail "DP-06" "stub failed"
+fi
+
+# ---------- DP-07..09: the alternation globs ----------
+# No agent needed: these three patterns are reachable from a plain script.
+echo -e "${CYAN}--- DP-07..09: detail globs with alternatives ---${NC}"
+GW="$TEST_TMP/globs"; mkdir -p "$GW"
+cat > "$GW/govern.json" <<'GEOF'
+{ "version": "5.0", "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "behavioral_sequences": { "enabled": true } }
+GEOF
+(cd "$GW" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+cat > "$GW/cred.naab" <<'GEOF'
+use env
+use http
+main { let k = env.get("MY_API_KEY") ?? "x" let r = http.get("http://127.0.0.1:9/x") print("DONE") }
+GEOF
+cat > "$GW/probe.naab" <<'GEOF'
+use file
+use process
+main { let p = file.read("/etc/passwd") let r = process.run("echo hi") print("DONE") }
+GEOF
+cat > "$GW/stage.naab" <<'GEOF'
+use file
+use http
+main {
+    file.write("a.txt","x")
+    let a = file.read("a.txt")
+    let b = file.read("a.txt")
+    file.write("/tmp/staged.txt","payload")
+    let r = http.get("http://127.0.0.1:9/x")
+    print("DONE")
+}
+GEOF
+cat > "$GW/benign.naab" <<'GEOF'
+use file
+use http
+main {
+    file.write("a.txt","x")
+    let a = file.read("a.txt")
+    file.write("b.txt","y")
+    let r = http.get("http://127.0.0.1:9/x")
+    print("DONE")
+}
+GEOF
+# Exit code is deliberately ignored: the sandbox SSRF guard denies the loopback
+# request and exits 1 AFTER the BSD event is emitted and the pattern completes.
+# Asserting exit 0 here would fail on a working engine.
+glob_fired() {
+    local o; o=$(cd "$GW" && timeout 60s "$NAAB" "$1" 2>&1)
+    case "$o" in *"INTEGRITY BLOCK"*) echo "INFRA_BLOCKED";; *)
+        echo "$o" | grep -oE "behavioral_sequences\.[a-z_]+" | sort -u | tr '\n' ' ';; esac
+}
+F_CRED="$(glob_fired cred.naab)"
+F_PROBE="$(glob_fired probe.naab)"
+F_STAGE="$(glob_fired stage.naab)"
+F_BENIGN="$(glob_fired benign.naab)"
+
+if echo "$F_CRED" | grep -q credential_harvesting; then
+    pass "DP-07" "credential_harvesting fires on a realistic env var name"
+else
+    fail "DP-07" "credential_harvesting silent on MY_API_KEY" "fired=[${F_CRED:-none}] — the alternation glob may be unsplit again"
+fi
+if echo "$F_PROBE" | grep -q sandbox_probe_escape && echo "$F_STAGE" | grep -q data_staging; then
+    pass "DP-08" "sandbox_probe_escape and data_staging fire on realistic inputs"
+else
+    fail "DP-08" "a repaired pattern stayed silent" "probe=[${F_PROBE:-none}] stage=[${F_STAGE:-none}]"
+fi
+if [ "$F_BENIGN" = "INFRA_BLOCKED" ]; then
+    fail "DP-09" "benign arm was integrity-blocked" "an unsigned govern.json silences every arm — this would pass for the wrong reason"
+elif [ -z "$F_BENIGN" ]; then
+    pass "DP-09" "NEGATIVE CONTROL: benign program trips nothing"
+else
+    fail "DP-09" "benign program tripped a pattern" "fired=[$F_BENIGN] — globs may now match too broadly"
 fi
 
 echo ""
