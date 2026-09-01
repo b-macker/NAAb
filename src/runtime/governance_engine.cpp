@@ -1750,6 +1750,32 @@ std::string GovernanceEngine::checkFilesystemImports(
     return "";
 }
 
+std::string GovernanceEngine::filesystemAccessMode(const std::string& module,
+                                                   const std::string& method) {
+    if (module == "file") {
+        if (method == "read" || method == "read_lines" || method == "exists" ||
+            method == "size" || method == "list_dir" || method == "is_file" ||
+            method == "is_dir") return "read";
+        return "write";
+    }
+    if (module == "csv") {
+        // parse/parse_dict/format_row/format_rows/stringify are pure string
+        // work and touch no file.
+        if (method == "read" || method == "read_dict" || method == "load" ||
+            method == "read_file" || method == "open") return "read";
+        if (method == "write" || method == "write_dict") return "write";
+        return "";
+    }
+    if (module == "log") {
+        // set_output names the sink; the ofstream is opened lazily on the
+        // first write after it. Gating the naming is what makes the check
+        // reachable before any file exists -- "stderr"/"stdout" are not files.
+        if (method == "set_output") return "write";
+        return "";
+    }
+    return "";
+}
+
 std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
     clearTrace();
     if (rules().filesystem_mode == "none") {

@@ -3041,6 +3041,25 @@ public:
     std::string checkLanguageAllowed(const std::string& language, int line = 0);
     std::string checkNetworkAllowed();
     std::string checkFilesystemAllowed(const std::string& mode);
+
+    // Which stdlib calls are filesystem access, and in which direction.
+    // Returns "" for calls that touch no file.
+    //
+    // Both engines gate mod=="file" and neither gated csv or log, so
+    // capabilities.filesystem.mode:"none" and an allowed_actions matrix
+    // without FS_WRITE were both bypassable: measured, csv.write("govern.json")
+    // exited 0 and overwrote the file in the same process where
+    // file.write("govern.json") was blocked at exit 3. csv_impl.cpp opens
+    // ifstream/ofstream directly and log_impl.cpp opens an ofstream on the
+    // first write after set_output, so the sandbox was the only thing in the
+    // path and it does not carry the governance policy.
+    //
+    // Shared by vm.cpp and call_dispatch.cpp deliberately: they are
+    // independent implementations of the same gate, and the csv gap existed
+    // because the module list was written out twice and only one of them was
+    // ever the subject of a test.
+    static std::string filesystemAccessMode(const std::string& module,
+                                            const std::string& method);
     std::string checkShellAllowed();
     std::string checkEnvVarRead(const std::string& var_name);
     std::string checkEnvVarWrite(const std::string& var_name);

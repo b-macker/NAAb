@@ -1438,13 +1438,15 @@ void Interpreter::visit(ast::CallExpr& node) {
                             }
                         }
                         // Filesystem check for file module
-                        if (module_alias == "file") {
-                            // file.read → read mode, everything else → write mode
-                            std::string fs_mode = (func_name == "read" || func_name == "read_lines"
-                                                   || func_name == "exists" || func_name == "size"
-                                                   || func_name == "list_dir" || func_name == "is_file"
-                                                   || func_name == "is_dir")
-                                                  ? "read" : "write";
+                        std::string fs_mode =
+                            governance::GovernanceEngine::filesystemAccessMode(module_alias, func_name);
+                        // log.set_output("stderr"/"stdout") names no file.
+                        if (fs_mode == "write" && module_alias == "log" &&
+                            !args.empty() && args[0].isString() &&
+                            (args[0].asString() == "stderr" || args[0].asString() == "stdout")) {
+                            fs_mode.clear();
+                        }
+                        if (!fs_mode.empty()) {
                             std::string err = governance_->checkFilesystemAllowed(fs_mode);
                             if (!err.empty()) throw std::runtime_error(err);
                             // Path-level access check (first arg = file path)

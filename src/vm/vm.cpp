@@ -1772,12 +1772,20 @@ interpreter::NaabVal VM::run() {
 
                         // Governance: check module-level permissions
                         if (governance_) {
-                            if (mod == "file") {
-                                std::string fs_mode = (method == "read" || method == "read_lines"
-                                                       || method == "exists" || method == "size"
-                                                       || method == "list_dir" || method == "is_file"
-                                                       || method == "is_dir")
-                                                      ? "read" : "write";
+                            std::string fs_mode =
+                                governance::GovernanceEngine::filesystemAccessMode(mod, method);
+                            if (!fs_mode.empty()) {
+                                // log.set_output("stderr"/"stdout") names no file.
+                                bool fs_is_file_sink = true;
+                                if (mod == "log" && argc > 0) {
+                                    interpreter::NaabVal sink = stack_top_[-argc];
+                                    if (sink.isString() && (sink.asString() == "stderr" ||
+                                                            sink.asString() == "stdout")) {
+                                        fs_is_file_sink = false;
+                                    }
+                                }
+                                if (!fs_is_file_sink) { /* not a filesystem access */ }
+                                else {
                                 std::string err = governance_->checkFilesystemAllowed(fs_mode);
                                 if (!err.empty()) runtimeError("%s", err.c_str());
                                 // Path-level access check (first arg = file path)
@@ -1796,7 +1804,9 @@ interpreter::NaabVal VM::run() {
                                         if (!perr.empty()) runtimeError("%s", perr.c_str());
                                     }
                                 }
-                            } else if (mod == "http") {
+                                }
+                            }
+                            if (mod == "http") {
                                 std::string err = governance_->checkNetworkAllowed();
                                 if (!err.empty()) runtimeError("%s", err.c_str());
                             } else if (mod == "env") {
