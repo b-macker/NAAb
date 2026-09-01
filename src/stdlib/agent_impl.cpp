@@ -143,6 +143,12 @@ struct DispatchCounters {
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> dead_keys;
     std::mutex dead_keys_mutex;
     std::mutex stop_reason_mutex;
+    // Seeds AgentTracker::key_offset at handle creation so concurrently
+    // dispatched handles do not all start their round-robin at keys[0].
+    // See agentCreate(). Monotonic and never reset -- it is a spreading
+    // seed, not a position, and is taken modulo the agent's own key list
+    // at selection time, so agents with different-length lists are fine.
+    std::atomic<size_t> key_stagger{0};
 };
 static DispatchCounters s_dispatch;
 
@@ -1178,6 +1184,22 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         auto& tracker = s_trackers[handle_id];
         tracker.nonce = nonce;
         tracker.config_name = config_name;
+        // key_offset is PER HANDLE and defaulted to 0, and agentCreate never
+        // touched it -- so every fresh handle began its round-robin at
+        // keys[0]. Handles do not share a rotation cursor, so concurrently
+        // dispatched agents all sent to the same key and a longer key list
+        // did not spread them out; they then advanced in lockstep, colliding
+        // again on every subsequent turn. Measured against a multi-key stub
+        // (test_concurrent_key_rotation.sh CK-04) and confirmed in live
+        // provider telemetry, where concurrent handles were observed cycling
+        // GK1 -> GK2 -> GK3 in the same order.
+        //
+        // Seed from a process-global counter instead of 0. This keeps the
+        // existing per-handle round-robin semantics exactly -- the cursor is
+        // still private and still advances only on that handle's own
+        // selections, so no send-path lock is added -- and only changes where
+        // each handle STARTS.
+        tracker.key_offset = s_dispatch.key_stagger.fetch_add(1, std::memory_order_relaxed);
         // Standing Lease: grant initial lease if configured
         if (config->standing_lease_turns > 0) {
             tracker.lease_granted_turn = 0;

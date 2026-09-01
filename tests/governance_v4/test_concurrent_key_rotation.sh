@@ -2,11 +2,13 @@
 # ============================================================
 # test_concurrent_key_rotation.sh — key selection under concurrent dispatch
 #
-# AgentTracker::key_offset (agent_impl.cpp:98) is PER HANDLE and initialises
-# to 0. agentCreate() sets nonce, config_name and lease but never touches it,
-# so every fresh handle starts its round-robin at keys[0]. Concurrent slots
-# therefore do not share a rotation cursor: they pick the SAME key on their
-# first attempt, and a wider key list does not spread them out.
+# AgentTracker::key_offset (agent_impl.cpp:98) is PER HANDLE. It defaulted to
+# 0 and agentCreate() never touched it, so every fresh handle started its
+# round-robin at keys[0]: concurrently dispatched slots all sent to the SAME
+# key, a wider key list did not spread them out, and they then advanced in
+# lockstep and collided again every turn. agentCreate() now seeds key_offset
+# from a process-global stagger counter, so handles start at different
+# positions while the cursor stays private to each handle.
 #
 # Retries are a separate matter and DO rotate -- key_offset advances on each
 # successful selection (:2638), so attempt N of one send uses key N. The claim
@@ -18,7 +20,8 @@
 #   CK-01  positive control — distinct keys ARE observable (401 forces rotation)
 #   CK-02  positive control — 401 emits AGENT_KEY_DISABLED
 #   CK-03  positive control — requests genuinely overlapped in wall time
-#   CK-04  THE CLAIM — concurrent handles' first attempts all carry one key
+#   CK-04  concurrent handles' first attempts spread across distinct keys
+#   CK-07  a single-key config still works (stagger must not skip the only key)
 #   CK-05  429 does NOT mark a key dead (skip_key_on defaults to [401])
 #   CK-06  consecutive_failures counts per ATTEMPT, not per send
 # ============================================================
@@ -221,13 +224,71 @@ else
 fi
 
 NKB=$(distinct_keys "$WDIR")
-if [ "$NKB" = "1" ]; then
-    pass "CK-04" "CONFIRMED: all 3 concurrent handles used the SAME key (keys[0])"
+if [ "$NKB" = "3" ]; then
+    pass "CK-04" "3 concurrent handles spread across all 3 keys"
+elif [ "$NKB" = "1" ]; then
+    fail "CK-04" "all 3 concurrent handles used ONE key — stagger is not applied" \
+         "$(keys_used "$WDIR" | sort | uniq -c | tr '\n' '; ')"
 elif [ "$NKB" -ge 2 ]; then
-    fail "CK-04" "concurrent handles spread across $NKB keys — claim is WRONG" \
+    fail "CK-04" "only $NKB of 3 keys used — stagger is partial" \
          "$(keys_used "$WDIR" | sort | uniq -c | tr '\n' '; ')"
 else
     fail "CK-04" "no keys recorded" "$OUT_B"
+fi
+
+# ── CK-07: the stagger must not break a single-key config ──
+# The seed is monotonic and unbounded, so a one-key agent gets offsets
+# 0,1,2,... which are only correct because selection takes them modulo the
+# agent's OWN key list. If that modulo were ever dropped, or the seed treated
+# as an index, a single-key config would find no key and every send would
+# fail -- which is the common case, not an edge case.
+WDIR="$TEST_TMP/b1"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [
+  {"content": "single key config still reaches the provider correctly", "output_tokens": 10}
+]}
+EOF
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "CK-07" "stub failed to start"; }
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agent_dispatch": { "max_concurrent": 3, "pool_size": 3 },
+    "agents": {
+        "alpha":   { "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20 },
+        "bravo":   { "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20 },
+        "charlie": { "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20 }
+    }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let ha = agent.create("alpha")
+    let hb = agent.create("bravo")
+    let hc = agent.create("charlie")
+    let rs = agent.batch([ha, hb, hc], ["go", "go", "go"])
+    print("BATCH_DONE:" + string(array.length(rs)))
+}
+NAABEOF
+OUT_B1=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
+stop_stub
+REQ_B1=$(wc -l < "$WDIR/keys.log" 2>/dev/null || echo 0)
+NKB1=$(distinct_keys "$WDIR")
+if [ "$REQ_B1" = "3" ] && [ "$NKB1" = "1" ] && echo "$OUT_B1" | grep -q "BATCH_DONE:3"; then
+    pass "CK-07" "single-key config unaffected by the stagger (3 sends, 1 key)"
+else
+    fail "CK-07" "single-key config broken by the stagger" \
+         "requests=$REQ_B1 distinct_keys=$NKB1 out=$(echo "$OUT_B1" | tail -2 | tr '\n' ' ')"
 fi
 
 # ── Group C: what a 429 does, and how failures are counted ──
