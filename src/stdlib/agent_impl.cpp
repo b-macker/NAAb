@@ -141,6 +141,11 @@ struct DispatchCounters {
     std::atomic<bool> hard_stopped{false};
     std::string stop_reason;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> dead_keys;
+    // Throttled != dead. A 429 means the key is rate-limited right now; it is
+    // deprioritised for a cooldown and then used again. Kept in its own map so
+    // dead_keys keeps its "invalid for the run" meaning and its existing
+    // key_retry_after_seconds semantics untouched. Guarded by dead_keys_mutex.
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> throttled_keys;
     std::mutex dead_keys_mutex;
     std::mutex stop_reason_mutex;
     // Seeds AgentTracker::key_offset at handle creation so concurrently
@@ -199,6 +204,22 @@ static bool isReservedToolName(const std::string& name) {
 // Get current tool agent context (for stdlib functions to check per-agent restrictions)
 const governance::AgentConfig* getToolAgentContext() {
     return t_tool_agent_context;
+}
+
+// Check if a key is currently rate-limited. Caller must hold
+// s_dispatch.dead_keys_mutex. Unlike isKeyDead() a throttle ALWAYS expires --
+// there is no never-revive mode, because a rate limit is by definition
+// temporary and a permanent one would be indistinguishable from key death.
+static bool isKeyThrottled(const std::string& key_env, int cooldown_seconds) {
+    if (cooldown_seconds <= 0) return false;  // throttling disabled
+    auto it = s_dispatch.throttled_keys.find(key_env);
+    if (it == s_dispatch.throttled_keys.end()) return false;
+    auto elapsed = std::chrono::steady_clock::now() - it->second;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() >= cooldown_seconds) {
+        s_dispatch.throttled_keys.erase(it);
+        return false;
+    }
+    return true;
 }
 
 // Check if a key is dead (with optional cooldown-based revival).
@@ -2641,25 +2662,40 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string api_key;
         bool found_key = false;
         size_t key_offset_before = key_offset;  // save for empty-response restore
-        for (size_t k = 0; k < keys.size(); k++) {
-            size_t idx = (key_offset + k) % keys.size();
-            {
-                bool was_revived = false;
-                std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
-                if (was_revived && gov_engine && gov_engine->isActive()) {
-                    gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
-                        {"api_key_env", keys[idx]},
-                        {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
-                    });
+        // Two passes. The first prefers a key that is neither dead nor
+        // currently throttled; the second ignores throttling entirely.
+        //
+        // Throttling has to be a PREFERENCE rather than a restriction, or it
+        // would turn a transient 429 into an immediate hard failure for any
+        // agent whose keys are all throttled -- most obviously a single-key
+        // agent, which is the common configuration. Falling through to a
+        // throttled key reproduces today's behaviour exactly in that case
+        // (retry the same key with backoff) while still spreading load
+        // whenever an alternative exists.
+        for (int pass = 0; pass < 2 && !found_key; pass++) {
+            const bool honour_throttle = (pass == 0);
+            for (size_t k = 0; k < keys.size(); k++) {
+                size_t idx = (key_offset + k) % keys.size();
+                {
+                    bool was_revived = false;
+                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                    if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
+                    if (was_revived && gov_engine && gov_engine->isActive()) {
+                        gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
+                            {"api_key_env", keys[idx]},
+                            {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
+                        });
+                    }
+                    if (honour_throttle &&
+                        isKeyThrottled(keys[idx], config->retry.throttle_cooldown_seconds)) continue;
                 }
-            }
-            api_key = runtime::resolveApiKey(keys[idx]);
-            if (!api_key.empty()) {
-                key_env = keys[idx];
-                key_offset = idx + 1;
-                found_key = true;
-                break;
+                api_key = runtime::resolveApiKey(keys[idx]);
+                if (!api_key.empty()) {
+                    key_env = keys[idx];
+                    key_offset = idx + 1;
+                    found_key = true;
+                    break;
+                }
             }
         }
         if (!found_key) {
@@ -2917,6 +2953,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:" + last_error);
             }
             throw std::runtime_error(last_error);
+        }
+
+        // Rate limited: deprioritise this key for a cooldown, but never mark it
+        // dead -- it is healthy, just busy. Recorded before the key-skip branch
+        // so a status appearing in both lists still ends up dead (the stronger
+        // classification), rather than depending on branch order.
+        if (config->retry.throttle_cooldown_seconds > 0) {
+            for (int code : config->retry.throttle_key_on) {
+                if (status != code) continue;
+                {
+                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                    s_dispatch.throttled_keys[key_env] = std::chrono::steady_clock::now();
+                }
+                if (gov_engine && gov_engine->isActive()) {
+                    gov_engine->writeAgentTelemetry("AGENT_KEY_THROTTLED", {
+                        {"api_key_env",      key_env},
+                        {"http_status",      std::to_string(status)},
+                        {"cooldown_seconds", std::to_string(config->retry.throttle_cooldown_seconds)}
+                    });
+                }
+                break;
+            }
         }
 
         // Mark dead key for rest of run (already classified above as is_key_skip)

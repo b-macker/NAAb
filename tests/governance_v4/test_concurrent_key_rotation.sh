@@ -23,6 +23,8 @@
 #   CK-04  concurrent handles' first attempts spread across distinct keys
 #   CK-07  a single-key config still works (stagger must not skip the only key)
 #   CK-05  429 does NOT mark a key dead (skip_key_on defaults to [401])
+#   CK-08  429 DOES throttle the key for a cooldown (AGENT_KEY_THROTTLED)
+#   CK-09  a single-key agent still retries through a 429 rather than failing
 #   CK-06  consecutive_failures counts per ATTEMPT, not per send
 # ============================================================
 set -uo pipefail
@@ -338,6 +340,58 @@ if grep -q '"AGENT_RETRY"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
     fi
 else
     fail "CK-05" "no AGENT_RETRY events — the 429 arm never ran" "$OUT_C"
+fi
+
+if grep -q '"AGENT_KEY_THROTTLED"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
+    pass "CK-08" "429 throttles the key for a cooldown (AGENT_KEY_THROTTLED)"
+else
+    fail "CK-08" "429 produced no throttle — the key is neither skipped nor deprioritised" \
+         "$(grep -o '"event_type":"AGENT_[A-Z_]*"' "$WDIR/telemetry.jsonl" 2>/dev/null | sort -u | tr '\n' ' ')"
+fi
+
+# CK-09: throttling must be a PREFERENCE, not a restriction. A single-key
+# agent has no alternative to fall back to, so if the selector treated a
+# throttle as disqualifying, attempt 2 would find no key at all and bail with
+# "All API keys exhausted" after ONE request. It must instead keep retrying
+# the throttled key, exactly as it did before throttling existed.
+WDIR="$TEST_TMP/c1"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [ {"status": 429, "error": "RESOURCE_EXHAUSTED"} ]}
+EOF
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "CK-09" "stub failed to start"; }
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agents": {
+        "worker": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20,
+            "retry": { "max_attempts": 3, "backoff_ms": 0 }
+        }
+    }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let h = agent.create("worker")
+    try { agent.send(h, "review the ledger") } catch (e) { print("SEND_FAILED") }
+    print("DONE")
+}
+NAABEOF
+OUT_C1=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+REQ_C1=$(wc -l < "$WDIR/keys.log" 2>/dev/null || echo 0)
+if [ "$REQ_C1" = "3" ]; then
+    pass "CK-09" "single-key agent retried through the throttle (3 attempts reached the API)"
+else
+    fail "CK-09" "throttle disqualified the only key — attempts stopped early" \
+         "requests=$REQ_C1 (expected 3), out=$(echo "$OUT_C1" | tail -2 | tr '\n' ' ')"
 fi
 
 # CK-06: consecutive_failures is incremented inside the RETRY loop

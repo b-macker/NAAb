@@ -2519,6 +2519,18 @@ struct AgentConfig {
         std::vector<int> fallback_model_on = {404, 503}; // advance model chain
         std::vector<int> never_retry = {400};         // bad request = don't retry
         int key_retry_after_seconds = 0;             // 0 = never revive dead keys (backward compat)
+        // Rate limiting is not key death. A 429 says "this key is throttled
+        // right now", not "this key is invalid", so it cannot reuse
+        // skip_key_on: that marks a key dead for the run, and with
+        // key_retry_after_seconds defaulting to 0 (never revive) one transient
+        // burst would permanently retire a healthy key. Throttled keys are
+        // tracked separately and always come back after the cooldown.
+        //
+        // Skipping is a PREFERENCE, not a restriction: if every key is
+        // throttled the selector falls back to using one anyway, so a
+        // single-key agent behaves exactly as it does today.
+        std::vector<int> throttle_key_on = {429};    // deprioritise key temporarily
+        int throttle_cooldown_seconds = 60;          // 0 = disable throttling
     };
     RetryConfig retry;
 
