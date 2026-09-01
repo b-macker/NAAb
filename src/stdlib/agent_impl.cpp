@@ -141,8 +141,19 @@ struct DispatchCounters {
     std::atomic<bool> hard_stopped{false};
     std::string stop_reason;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> dead_keys;
+    // Throttled != dead. A 429 means the key is rate-limited right now; it is
+    // deprioritised for a cooldown and then used again. Kept in its own map so
+    // dead_keys keeps its "invalid for the run" meaning and its existing
+    // key_retry_after_seconds semantics untouched. Guarded by dead_keys_mutex.
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> throttled_keys;
     std::mutex dead_keys_mutex;
     std::mutex stop_reason_mutex;
+    // Seeds AgentTracker::key_offset at handle creation so concurrently
+    // dispatched handles do not all start their round-robin at keys[0].
+    // See agentCreate(). Monotonic and never reset -- it is a spreading
+    // seed, not a position, and is taken modulo the agent's own key list
+    // at selection time, so agents with different-length lists are fine.
+    std::atomic<size_t> key_stagger{0};
 };
 static DispatchCounters s_dispatch;
 
@@ -193,6 +204,22 @@ static bool isReservedToolName(const std::string& name) {
 // Get current tool agent context (for stdlib functions to check per-agent restrictions)
 const governance::AgentConfig* getToolAgentContext() {
     return t_tool_agent_context;
+}
+
+// Check if a key is currently rate-limited. Caller must hold
+// s_dispatch.dead_keys_mutex. Unlike isKeyDead() a throttle ALWAYS expires --
+// there is no never-revive mode, because a rate limit is by definition
+// temporary and a permanent one would be indistinguishable from key death.
+static bool isKeyThrottled(const std::string& key_env, int cooldown_seconds) {
+    if (cooldown_seconds <= 0) return false;  // throttling disabled
+    auto it = s_dispatch.throttled_keys.find(key_env);
+    if (it == s_dispatch.throttled_keys.end()) return false;
+    auto elapsed = std::chrono::steady_clock::now() - it->second;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() >= cooldown_seconds) {
+        s_dispatch.throttled_keys.erase(it);
+        return false;
+    }
+    return true;
 }
 
 // Check if a key is dead (with optional cooldown-based revival).
@@ -1178,6 +1205,22 @@ static NaabVal agentCreate(std::vector<NaabVal>& args) {
         auto& tracker = s_trackers[handle_id];
         tracker.nonce = nonce;
         tracker.config_name = config_name;
+        // key_offset is PER HANDLE and defaulted to 0, and agentCreate never
+        // touched it -- so every fresh handle began its round-robin at
+        // keys[0]. Handles do not share a rotation cursor, so concurrently
+        // dispatched agents all sent to the same key and a longer key list
+        // did not spread them out; they then advanced in lockstep, colliding
+        // again on every subsequent turn. Measured against a multi-key stub
+        // (test_concurrent_key_rotation.sh CK-04) and confirmed in live
+        // provider telemetry, where concurrent handles were observed cycling
+        // GK1 -> GK2 -> GK3 in the same order.
+        //
+        // Seed from a process-global counter instead of 0. This keeps the
+        // existing per-handle round-robin semantics exactly -- the cursor is
+        // still private and still advances only on that handle's own
+        // selections, so no send-path lock is added -- and only changes where
+        // each handle STARTS.
+        tracker.key_offset = s_dispatch.key_stagger.fetch_add(1, std::memory_order_relaxed);
         // Standing Lease: grant initial lease if configured
         if (config->standing_lease_turns > 0) {
             tracker.lease_granted_turn = 0;
@@ -2606,6 +2649,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
     int attempts_made = 0;
     std::string last_error;
+    // Set by any attempt that failed for a reason that counts toward the
+    // run-level consecutive_failure_limit. Charged ONCE, after the retry loop.
+    bool send_countable_failure = false;
     std::string messages_str = messages_json.dump();
 
     // Get hard stop config
@@ -2619,25 +2665,40 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         std::string api_key;
         bool found_key = false;
         size_t key_offset_before = key_offset;  // save for empty-response restore
-        for (size_t k = 0; k < keys.size(); k++) {
-            size_t idx = (key_offset + k) % keys.size();
-            {
-                bool was_revived = false;
-                std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
-                if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
-                if (was_revived && gov_engine && gov_engine->isActive()) {
-                    gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
-                        {"api_key_env", keys[idx]},
-                        {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
-                    });
+        // Two passes. The first prefers a key that is neither dead nor
+        // currently throttled; the second ignores throttling entirely.
+        //
+        // Throttling has to be a PREFERENCE rather than a restriction, or it
+        // would turn a transient 429 into an immediate hard failure for any
+        // agent whose keys are all throttled -- most obviously a single-key
+        // agent, which is the common configuration. Falling through to a
+        // throttled key reproduces today's behaviour exactly in that case
+        // (retry the same key with backoff) while still spreading load
+        // whenever an alternative exists.
+        for (int pass = 0; pass < 2 && !found_key; pass++) {
+            const bool honour_throttle = (pass == 0);
+            for (size_t k = 0; k < keys.size(); k++) {
+                size_t idx = (key_offset + k) % keys.size();
+                {
+                    bool was_revived = false;
+                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                    if (isKeyDead(keys[idx], config->retry.key_retry_after_seconds, &was_revived)) continue;
+                    if (was_revived && gov_engine && gov_engine->isActive()) {
+                        gov_engine->writeAgentTelemetry("AGENT_KEY_REVIVED", {
+                            {"api_key_env", keys[idx]},
+                            {"cooldown_seconds", std::to_string(config->retry.key_retry_after_seconds)}
+                        });
+                    }
+                    if (honour_throttle &&
+                        isKeyThrottled(keys[idx], config->retry.throttle_cooldown_seconds)) continue;
                 }
-            }
-            api_key = runtime::resolveApiKey(keys[idx]);
-            if (!api_key.empty()) {
-                key_env = keys[idx];
-                key_offset = idx + 1;
-                found_key = true;
-                break;
+                api_key = runtime::resolveApiKey(keys[idx]);
+                if (!api_key.empty()) {
+                    key_env = keys[idx];
+                    key_offset = idx + 1;
+                    found_key = true;
+                    break;
+                }
             }
         }
         if (!found_key) {
@@ -2834,8 +2895,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 if (status == code) { is_key_skip = true; break; }
             }
         }
+        // Do NOT charge the run-level counter here. This is inside the retry
+        // loop, so incrementing per ATTEMPT meant one send exhausting its
+        // retries charged max_attempts failures on its own -- a single agent
+        // with max_attempts=5 could trip consecutive_failure_limit=3 without
+        // any other agent failing. "Consecutive failures" is charged once per
+        // failed SEND, after the retries are spent (see "All attempts
+        // exhausted" below). Key-skip errors still do not count at all.
         if (!is_key_skip) {
-            s_dispatch.consecutive_failures++;
+            send_countable_failure = true;
         }
 
         // Telemetry: retry event
@@ -2856,37 +2924,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             });
         }
 
-        // Consecutive failure hard stop
-        if (hs.consecutive_failure_limit > 0 &&
-            s_dispatch.consecutive_failures.load() >= hs.consecutive_failure_limit) {
-            std::string reason;
-            {
-                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
-                s_dispatch.hard_stopped = true;
-                s_dispatch.stop_reason = "consecutive_failure_limit (" +
-                    std::to_string(hs.consecutive_failure_limit) + ") reached";
-                reason = s_dispatch.stop_reason;
-            }
-            if (gov_engine && gov_engine->isActive() &&
-                gov_engine->getRules().context_drift.enabled) {
-                gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
-            }
-            if (gov_engine && gov_engine->isActive()) {
-                gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
-                    {"reason", reason},
-                    {"total_calls", std::to_string(s_dispatch.total_calls.load())},
-                    {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
-                });
-                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
-                    {"rule_name", "consecutive_failures"},
-                    {"level", "hard"},
-                    {"agent", config_name},
-                    {"reason", reason}
-                });
-            }
-            throw std::runtime_error("Agent error: Hard stop — " + reason +
-                "\n\n  Last error: " + last_error);
-        }
 
         // Never retry: abort immediately (real 400 bad request, not key error)
         if (should_never_retry) {
@@ -2895,6 +2932,28 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:" + last_error);
             }
             throw std::runtime_error(last_error);
+        }
+
+        // Rate limited: deprioritise this key for a cooldown, but never mark it
+        // dead -- it is healthy, just busy. Recorded before the key-skip branch
+        // so a status appearing in both lists still ends up dead (the stronger
+        // classification), rather than depending on branch order.
+        if (config->retry.throttle_cooldown_seconds > 0) {
+            for (int code : config->retry.throttle_key_on) {
+                if (status != code) continue;
+                {
+                    std::lock_guard<std::mutex> lock(s_dispatch.dead_keys_mutex);
+                    s_dispatch.throttled_keys[key_env] = std::chrono::steady_clock::now();
+                }
+                if (gov_engine && gov_engine->isActive()) {
+                    gov_engine->writeAgentTelemetry("AGENT_KEY_THROTTLED", {
+                        {"api_key_env",      key_env},
+                        {"http_status",      std::to_string(status)},
+                        {"cooldown_seconds", std::to_string(config->retry.throttle_cooldown_seconds)}
+                    });
+                }
+                break;
+            }
         }
 
         // Mark dead key for rest of run (already classified above as is_key_skip)
@@ -2950,6 +3009,44 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // All attempts exhausted
     if (!agent_resp.success) {
+        // One failed send = one consecutive failure, however many attempts it
+        // took. Reset on success still lives in the success branch above.
+        if (send_countable_failure) {
+            s_dispatch.consecutive_failures++;
+        }
+
+        // Consecutive failure hard stop
+        if (hs.consecutive_failure_limit > 0 &&
+            s_dispatch.consecutive_failures.load() >= hs.consecutive_failure_limit) {
+            std::string reason;
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+                s_dispatch.hard_stopped = true;
+                s_dispatch.stop_reason = "consecutive_failure_limit (" +
+                    std::to_string(hs.consecutive_failure_limit) + ") reached";
+                reason = s_dispatch.stop_reason;
+            }
+            if (gov_engine && gov_engine->isActive() &&
+                gov_engine->getRules().context_drift.enabled) {
+                gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
+            }
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
+                    {"reason", reason},
+                    {"total_calls", std::to_string(s_dispatch.total_calls.load())},
+                    {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
+                });
+                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                    {"rule_name", "consecutive_failures"},
+                    {"level", "hard"},
+                    {"agent", config_name},
+                    {"reason", reason}
+                });
+            }
+            throw std::runtime_error("Agent error: Hard stop — " + reason +
+                "\n\n  Last error: " + last_error);
+        }
+
         if (gov_engine && gov_engine->isActive() &&
             gov_engine->getRules().context_drift.enabled) {
             gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");

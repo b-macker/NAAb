@@ -2616,6 +2616,13 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         agent.retry.retry_on.clear();
                         for (const auto& c : r["retry_on"]) { if (c.is_number_integer()) agent.retry.retry_on.push_back(c.get<int>()); }
                     }
+                    if (r.contains("throttle_key_on") && r["throttle_key_on"].is_array()) {
+                        agent.retry.throttle_key_on.clear();
+                        for (const auto& c : r["throttle_key_on"]) { if (c.is_number_integer()) agent.retry.throttle_key_on.push_back(c.get<int>()); }
+                    }
+                    if (r.contains("throttle_cooldown_seconds") && r["throttle_cooldown_seconds"].is_number_integer()) {
+                        agent.retry.throttle_cooldown_seconds = std::max(0, r["throttle_cooldown_seconds"].get<int>());
+                    }
                     if (r.contains("skip_key_on") && r["skip_key_on"].is_array()) {
                         agent.retry.skip_key_on.clear();
                         for (const auto& c : r["skip_key_on"]) { if (c.is_number_integer()) agent.retry.skip_key_on.push_back(c.get<int>()); }

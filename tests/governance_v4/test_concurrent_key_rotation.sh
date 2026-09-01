@@ -2,11 +2,13 @@
 # ============================================================
 # test_concurrent_key_rotation.sh — key selection under concurrent dispatch
 #
-# AgentTracker::key_offset (agent_impl.cpp:98) is PER HANDLE and initialises
-# to 0. agentCreate() sets nonce, config_name and lease but never touches it,
-# so every fresh handle starts its round-robin at keys[0]. Concurrent slots
-# therefore do not share a rotation cursor: they pick the SAME key on their
-# first attempt, and a wider key list does not spread them out.
+# AgentTracker::key_offset (agent_impl.cpp:98) is PER HANDLE. It defaulted to
+# 0 and agentCreate() never touched it, so every fresh handle started its
+# round-robin at keys[0]: concurrently dispatched slots all sent to the SAME
+# key, a wider key list did not spread them out, and they then advanced in
+# lockstep and collided again every turn. agentCreate() now seeds key_offset
+# from a process-global stagger counter, so handles start at different
+# positions while the cursor stays private to each handle.
 #
 # Retries are a separate matter and DO rotate -- key_offset advances on each
 # successful selection (:2638), so attempt N of one send uses key N. The claim
@@ -18,9 +20,13 @@
 #   CK-01  positive control — distinct keys ARE observable (401 forces rotation)
 #   CK-02  positive control — 401 emits AGENT_KEY_DISABLED
 #   CK-03  positive control — requests genuinely overlapped in wall time
-#   CK-04  THE CLAIM — concurrent handles' first attempts all carry one key
+#   CK-04  concurrent handles' first attempts spread across distinct keys
+#   CK-07  a single-key config still works (stagger must not skip the only key)
 #   CK-05  429 does NOT mark a key dead (skip_key_on defaults to [401])
-#   CK-06  consecutive_failures counts per ATTEMPT, not per send
+#   CK-08  429 DOES throttle the key for a cooldown (AGENT_KEY_THROTTLED)
+#   CK-09  a single-key agent still retries through a 429 rather than failing
+#   CK-06  one send exhausting its retries is ONE failure, not max_attempts
+#   CK-10  the limit is still reachable across consecutive failed SENDS
 # ============================================================
 set -uo pipefail
 
@@ -221,13 +227,71 @@ else
 fi
 
 NKB=$(distinct_keys "$WDIR")
-if [ "$NKB" = "1" ]; then
-    pass "CK-04" "CONFIRMED: all 3 concurrent handles used the SAME key (keys[0])"
+if [ "$NKB" = "3" ]; then
+    pass "CK-04" "3 concurrent handles spread across all 3 keys"
+elif [ "$NKB" = "1" ]; then
+    fail "CK-04" "all 3 concurrent handles used ONE key — stagger is not applied" \
+         "$(keys_used "$WDIR" | sort | uniq -c | tr '\n' '; ')"
 elif [ "$NKB" -ge 2 ]; then
-    fail "CK-04" "concurrent handles spread across $NKB keys — claim is WRONG" \
+    fail "CK-04" "only $NKB of 3 keys used — stagger is partial" \
          "$(keys_used "$WDIR" | sort | uniq -c | tr '\n' '; ')"
 else
     fail "CK-04" "no keys recorded" "$OUT_B"
+fi
+
+# ── CK-07: the stagger must not break a single-key config ──
+# The seed is monotonic and unbounded, so a one-key agent gets offsets
+# 0,1,2,... which are only correct because selection takes them modulo the
+# agent's OWN key list. If that modulo were ever dropped, or the seed treated
+# as an index, a single-key config would find no key and every send would
+# fail -- which is the common case, not an edge case.
+WDIR="$TEST_TMP/b1"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [
+  {"content": "single key config still reaches the provider correctly", "output_tokens": 10}
+]}
+EOF
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "CK-07" "stub failed to start"; }
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agent_dispatch": { "max_concurrent": 3, "pool_size": 3 },
+    "agents": {
+        "alpha":   { "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20 },
+        "bravo":   { "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20 },
+        "charlie": { "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20 }
+    }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let ha = agent.create("alpha")
+    let hb = agent.create("bravo")
+    let hc = agent.create("charlie")
+    let rs = agent.batch([ha, hb, hc], ["go", "go", "go"])
+    print("BATCH_DONE:" + string(array.length(rs)))
+}
+NAABEOF
+OUT_B1=$(cd "$WDIR" && timeout 90s "$NAAB" test.naab 2>&1) || true
+stop_stub
+REQ_B1=$(wc -l < "$WDIR/keys.log" 2>/dev/null || echo 0)
+NKB1=$(distinct_keys "$WDIR")
+if [ "$REQ_B1" = "3" ] && [ "$NKB1" = "1" ] && echo "$OUT_B1" | grep -q "BATCH_DONE:3"; then
+    pass "CK-07" "single-key config unaffected by the stagger (3 sends, 1 key)"
+else
+    fail "CK-07" "single-key config broken by the stagger" \
+         "requests=$REQ_B1 distinct_keys=$NKB1 out=$(echo "$OUT_B1" | tail -2 | tr '\n' ' ')"
 fi
 
 # ── Group C: what a 429 does, and how failures are counted ──
@@ -279,10 +343,62 @@ else
     fail "CK-05" "no AGENT_RETRY events — the 429 arm never ran" "$OUT_C"
 fi
 
-# CK-06: consecutive_failures is incremented inside the RETRY loop
-# (agent_impl.cpp:2838, loop 2616-2949), so ONE send exhausting 5 attempts
-# charges 5. With limit=3 a single send must trip the run-level hard stop.
-# If the counter were per-send, one send = 1 failure < 3 and no stop fires.
+if grep -q '"AGENT_KEY_THROTTLED"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
+    pass "CK-08" "429 throttles the key for a cooldown (AGENT_KEY_THROTTLED)"
+else
+    fail "CK-08" "429 produced no throttle — the key is neither skipped nor deprioritised" \
+         "$(grep -o '"event_type":"AGENT_[A-Z_]*"' "$WDIR/telemetry.jsonl" 2>/dev/null | sort -u | tr '\n' ' ')"
+fi
+
+# CK-09: throttling must be a PREFERENCE, not a restriction. A single-key
+# agent has no alternative to fall back to, so if the selector treated a
+# throttle as disqualifying, attempt 2 would find no key at all and bail with
+# "All API keys exhausted" after ONE request. It must instead keep retrying
+# the throttled key, exactly as it did before throttling existed.
+WDIR="$TEST_TMP/c1"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [ {"status": 429, "error": "RESOURCE_EXHAUSTED"} ]}
+EOF
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "CK-09" "stub failed to start"; }
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agents": {
+        "worker": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20,
+            "retry": { "max_attempts": 3, "backoff_ms": 0 }
+        }
+    }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let h = agent.create("worker")
+    try { agent.send(h, "review the ledger") } catch (e) { print("SEND_FAILED") }
+    print("DONE")
+}
+NAABEOF
+OUT_C1=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+REQ_C1=$(wc -l < "$WDIR/keys.log" 2>/dev/null || echo 0)
+if [ "$REQ_C1" = "3" ]; then
+    pass "CK-09" "single-key agent retried through the throttle (3 attempts reached the API)"
+else
+    fail "CK-09" "throttle disqualified the only key — attempts stopped early" \
+         "requests=$REQ_C1 (expected 3), out=$(echo "$OUT_C1" | tail -2 | tr '\n' ' ')"
+fi
+
+# CK-06: consecutive_failures is charged ONCE per failed send, after the retry
+# loop. One send exhausting 5 attempts is 1 failure, so with limit=3 it must
+# NOT trip the run-level hard stop. It previously charged per ATTEMPT, so this
+# same arm hard-stopped -- a single agent could kill a run alone.
 WDIR="$TEST_TMP/d"; mkdir -p "$WDIR"
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [ {"status": 429, "error": "RESOURCE_EXHAUSTED"} ]}
@@ -319,10 +435,56 @@ OUT_D=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
 if grep -q '"AGENT_HARD_STOP"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
-    pass "CK-06" "CONFIRMED: ONE send tripped consecutive_failure_limit=3 (per-attempt)"
-else
-    fail "CK-06" "no hard stop from a single 5-attempt send — counter may be per-send" \
+    fail "CK-06" "one 5-attempt send tripped limit=3 — counter is still per-attempt" \
          "retries=$(grep -c '\"AGENT_RETRY\"' "$WDIR/telemetry.jsonl" 2>/dev/null || echo 0)"
+else
+    pass "CK-06" "one send exhausting 5 attempts is ONE failure (limit=3 not tripped)"
+fi
+
+# CK-10: the counter must still be able to reach the limit. Without this,
+# CK-06 would pass just as well for a counter that never increments at all.
+WDIR="$TEST_TMP/e"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [ {"status": 500, "error": "internal"} ]}
+EOF
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "CK-10" "stub failed to start"; }
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agent_dispatch": { "hard_stop": { "consecutive_failure_limit": 2 } },
+    "agents": {
+        "worker": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20,
+            "retry": { "max_attempts": 2, "backoff_ms": 0 }
+        }
+    }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let h = agent.create("worker")
+    let i = 0
+    while (i < 3) {
+        try { agent.send(h, "review the ledger") } catch (e) { print("SEND_FAILED") }
+        i = i + 1
+    }
+    print("DONE")
+}
+NAABEOF
+OUT_E=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+if grep -q '"AGENT_HARD_STOP"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
+    pass "CK-10" "consecutive failed SENDS still reach the limit (2 sends, limit=2)"
+else
+    fail "CK-10" "limit never reached — the counter may not increment at all" \
+         "sends_failed=$(echo "$OUT_E" | grep -c SEND_FAILED)"
 fi
 
 echo ""
