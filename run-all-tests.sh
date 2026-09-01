@@ -1791,6 +1791,32 @@ else
     echo "  test_undetermined_gate.sh: not found, skipping"
 fi
 
+# context_drift.enabled is inert unless behavioral_sequences is also on.
+BSDCDD_SCRIPT="tests/governance_v4/test_bsd_cdd_gate.sh"
+if [ -f "$BSDCDD_SCRIPT" ]; then
+    if run_shell_test "$BSDCDD_SCRIPT" 2>&1; then
+        echo "  test_bsd_cdd_gate.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_cdd_gate.sh")
+    fi
+else
+    echo "  test_bsd_cdd_gate.sh: not found, skipping"
+fi
+
+# Concurrent handles do not share a key rotation cursor.
+CKROT_SCRIPT="tests/governance_v4/test_concurrent_key_rotation.sh"
+if [ -f "$CKROT_SCRIPT" ]; then
+    if run_shell_test "$CKROT_SCRIPT" 2>&1; then
+        echo "  test_concurrent_key_rotation.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_concurrent_key_rotation.sh")
+    fi
+else
+    echo "  test_concurrent_key_rotation.sh: not found, skipping"
+fi
+
 # VM: break/continue out of a try must close its handler (and only its own).
 TRYLEAK_SCRIPT="tests/vm/test_try_handler_leak.sh"
 if [ -f "$TRYLEAK_SCRIPT" ]; then

@@ -3104,6 +3104,29 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // Context drift analysis runs INSIDE the BSD-gated block in agentSend()
+    // (agent_impl.cpp:4036), so "context_drift.enabled": true buys nothing on
+    // its own: checkContextDrift() is never called, not one of the 23 signals
+    // fires, and no CDD_TURN is emitted. The output admissibility gate is
+    // gated separately (circuit_breaker.*) and keeps running regardless --
+    // judging a coherence score that nothing ever wrote, and reporting
+    // baseline_state "calibrating", which reads as "window still filling"
+    // rather than "no turn was ever recorded".
+    //
+    // Two independent investigations misdiagnosed the same live run through
+    // that gap before the coupling was found, so it must not stay silent.
+    // Warn rather than auto-enable: turning BSD on for these configs would
+    // start firing detections on runs that pass today.
+    //
+    // Every in-tree CDD test sets both flags together, which is exactly why
+    // the suite never surfaced this.
+    if (rules_.context_drift.enabled && !rules_.behavioral_sequences.enabled) {
+        fprintf(stderr,
+            "[governance] Warning: \"context_drift.enabled\": true has no effect - "
+            "context drift analysis runs only when \"behavioral_sequences.enabled\" "
+            "is also true\n");
+    }
+
     // --- Exposure Tracking ---
     if (j.contains("exposure_tracking") && j["exposure_tracking"].is_object()) { rules_.explicitly_set.insert("exposure_tracking");
         auto& et = j["exposure_tracking"];
