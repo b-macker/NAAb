@@ -363,11 +363,18 @@ else
     fail "T39: BSD missing taint_bypass_via_agent pattern"
 fi
 
-# T40: taint_bypass_via_agent uses TAINT_VIOLATION steps
-if grep -A5 'taint_bypass_via_agent' "$SRC_BSD" | grep -q 'TAINT_VIOLATION'; then
-    pass "T40: taint_bypass_via_agent matches on TAINT_VIOLATION"
+# T40: taint_bypass_via_agent uses taint_violation steps.
+# The spelling is load-bearing and this assertion used to pin the WRONG one.
+# matchesStep compares normalizeEventTypeName(step) against eventTypeToString(),
+# which returns "taint_violation"; the enum spelling normalizes to
+# "taint.violation" and matches nothing, so this test was locking in a pattern
+# that could never fire. Note it greps SOURCE TEXT, not behaviour -- it cannot
+# tell a matching step name from a non-matching one, which is why the defect
+# survived it.
+if grep -A5 'taint_bypass_via_agent' "$SRC_BSD" | grep -q 'taint_violation'; then
+    pass "T40: taint_bypass_via_agent matches on taint_violation"
 else
-    fail "T40: taint_bypass_via_agent not matching TAINT_VIOLATION"
+    fail "T40: taint_bypass_via_agent not matching taint_violation"
 fi
 
 # T41: BSD has repeated_taint_violations default pattern

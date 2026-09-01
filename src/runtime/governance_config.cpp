@@ -2880,6 +2880,16 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         auto& cfg = rules_.behavioral_sequences;
         if (bs.contains("enabled") && bs["enabled"].is_boolean()) cfg.enabled = bs["enabled"].get<bool>();
         if (bs.contains("window_size") && bs["window_size"].is_number_unsigned()) cfg.window_size = bs["window_size"].get<size_t>();
+        if (bs.contains("default_pattern_enforcement") && bs["default_pattern_enforcement"].is_string()) {
+            std::string dpe = bs["default_pattern_enforcement"].get<std::string>();
+            if (dpe == "observe" || dpe == "declared") {
+                cfg.default_pattern_enforcement = dpe;
+            } else {
+                fmt::print(stderr, "[governance] Warning: unknown "
+                    "behavioral_sequences.default_pattern_enforcement \"{}\" — valid values are "
+                    "\"observe\" and \"declared\"; keeping \"{}\"\n", dpe, cfg.default_pattern_enforcement);
+            }
+        }
         parseRationale(bs, cfg.rationale);
         if (bs.contains("patterns") && bs["patterns"].is_array()) {
             for (auto& pat : bs["patterns"]) {
@@ -4108,6 +4118,12 @@ static bool checkRatchetViolation(
     // two turns carrying an identical response can stop matching (a loosening
     // of an objective signal). Neither direction is safe to make mid-run, so
     // any change is a violation.
+    // observe -> declared tightens (allowed); declared -> observe withdraws
+    // enforcement from every built-in pattern mid-run.
+    if (old_r.behavioral_sequences.default_pattern_enforcement == "declared" &&
+        new_r.behavioral_sequences.default_pattern_enforcement != "declared")
+        violations.push_back("behavioral_sequences.default_pattern_enforcement: declared -> observe (loosened)");
+
     if (new_r.context_drift.event_feed != old_r.context_drift.event_feed)
         violations.push_back(fmt::format("context_drift.event_feed: {} -> {} (mid-run change; "
             "the feed changes what every event-reading signal sees, in both directions)",

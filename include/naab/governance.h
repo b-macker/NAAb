@@ -1310,6 +1310,22 @@ struct BehavioralSequenceConfig {
     bool enabled = false;
     std::string rationale;
     size_t window_size = 200;             // max events in ring buffer
+    // Enforcement level applied to the BUILT-IN patterns.
+    //   "observe"  (default) every default pattern runs at ADVISORY
+    //   "declared"           each pattern uses the level it declares
+    // The built-in patterns shipped with enum-style step names ("TOOL_CALL")
+    // that never matched anything -- eventTypeToString returns "tool_call", and
+    // normalizeEventTypeName turns the enum form into "tool.call". Ten of the
+    // sixteen were dead at one or more steps, six of them at SOFT. Correcting
+    // the names is therefore not a repair of working behaviour but the first
+    // time these patterns have ever fired, and switching six blockers on during
+    // an upgrade is not something to do silently. credential_harvesting is the
+    // clearest case: env var matching *key*|*token*|*secret* followed by a
+    // network call inside 5 events is the intended detection AND what every
+    // legitimate API client does. Observe first, promote deliberately.
+    // Ratchet: "observe" -> "declared" tightens and is allowed; the reverse is
+    // a loosening violation.
+    std::string default_pattern_enforcement = "observe";
     std::vector<SequencePattern> patterns;
 };
 
@@ -3025,6 +3041,25 @@ public:
     std::string checkLanguageAllowed(const std::string& language, int line = 0);
     std::string checkNetworkAllowed();
     std::string checkFilesystemAllowed(const std::string& mode);
+
+    // Which stdlib calls are filesystem access, and in which direction.
+    // Returns "" for calls that touch no file.
+    //
+    // Both engines gate mod=="file" and neither gated csv or log, so
+    // capabilities.filesystem.mode:"none" and an allowed_actions matrix
+    // without FS_WRITE were both bypassable: measured, csv.write("govern.json")
+    // exited 0 and overwrote the file in the same process where
+    // file.write("govern.json") was blocked at exit 3. csv_impl.cpp opens
+    // ifstream/ofstream directly and log_impl.cpp opens an ofstream on the
+    // first write after set_output, so the sandbox was the only thing in the
+    // path and it does not carry the governance policy.
+    //
+    // Shared by vm.cpp and call_dispatch.cpp deliberately: they are
+    // independent implementations of the same gate, and the csv gap existed
+    // because the module list was written out twice and only one of them was
+    // ever the subject of a test.
+    static std::string filesystemAccessMode(const std::string& module,
+                                            const std::string& method);
     std::string checkShellAllowed();
     std::string checkEnvVarRead(const std::string& var_name);
     std::string checkEnvVarWrite(const std::string& var_name);
