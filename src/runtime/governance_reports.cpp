@@ -1484,6 +1484,10 @@ void GovernanceEngine::writeTelemetry() const {
     // a member, not a local, so dedup still holds across the multiple
     // writeTelemetry() calls a single run makes.
     size_t dedup_count = 0;
+    // Runtime results exempted from dedup because they carry no source site.
+    // Reported in the summary so the exemption is visible rather than implied
+    // by a count that no longer matches.
+    size_t runtime_exempt_count = 0;
     size_t events_written = 0;
 
     // Resume where the previous dump stopped. check_results_ is never cleared,
@@ -1494,10 +1498,30 @@ void GovernanceEngine::writeTelemetry() const {
     const size_t results_total = check_results_.size();
     for (size_t ri = telemetry_results_dumped_; ri < results_total; ++ri) {
         const auto& r = check_results_[ri];
-        // Fix 4B: skip duplicate (rule_name, file, line) entries
+        // Fix 4B: skip duplicate (rule_name, file, line) entries.
+        //
+        // Only entries that HAVE a source site. enforce() fills file/line from
+        // current_check_file_/current_check_line_, which the static scanners
+        // set; runtime checks (BSD, CDD, admission, output admissibility)
+        // leave them empty -- measured: file="" line=0 on every runtime row.
+        // For those the key degenerates to the rule name alone and the whole
+        // run collapses to its first occurrence, so a pattern that fired three
+        // times and one that fired once are indistinguishable in the record.
+        // Measured before this change, dedup on, one run: a BSD pattern firing
+        // 3 times produced 1 RuleViolation; 13 checks became 3 rows.
+        //
+        // Deduping a source site is the feature; deduping an event stream is
+        // not, and the two were the same code path only because a runtime
+        // result and an unlocated static result look alike. Runtime results
+        // are always distinct events and are never collapsed.
         if (rules().telemetry_output.deduplicate_checks) {
-            std::string key = r.rule_name + "|" + r.file + "|" + std::to_string(r.line);
-            if (!telemetry_dedup_seen_.insert(key).second) { dedup_count++; continue; }
+            const bool has_source_site = !(r.file.empty() && r.line == 0);
+            if (has_source_site) {
+                std::string key = r.rule_name + "|" + r.file + "|" + std::to_string(r.line);
+                if (!telemetry_dedup_seen_.insert(key).second) { dedup_count++; continue; }
+            } else {
+                runtime_exempt_count++;
+            }
         }
 
         nlohmann::json ev;
@@ -1557,7 +1581,8 @@ void GovernanceEngine::writeTelemetry() const {
     }
 
     // Fix 4B: emit summary event recording dedup stats
-    if (rules().telemetry_output.deduplicate_checks && dedup_count > 0) {
+    if (rules().telemetry_output.deduplicate_checks &&
+        (dedup_count > 0 || runtime_exempt_count > 0)) {
         nlohmann::json summary;
         summary["run_id"] = run_id_;
         summary["event_type"] = "GovernanceCheckSummary";
@@ -1565,6 +1590,10 @@ void GovernanceEngine::writeTelemetry() const {
         summary["total_checks"] = check_results_.size();
         summary["unique_sites"] = telemetry_dedup_seen_.size();
         summary["deduplicated"] = dedup_count;
+        // Runtime results (no source site) are never collapsed -- see the
+        // dedup guard above. Reported so "deduplicated" cannot be read as
+        // "everything repeated was collapsed".
+        summary["runtime_exempt"] = runtime_exempt_count;
         if (rules().telemetry_output.tamper_evidence.enabled) {
             std::lock_guard<std::mutex> hlock(telemetry_hash_mutex_);
             summary["prev_hash"] = chainPrevLocked(fp.get());
