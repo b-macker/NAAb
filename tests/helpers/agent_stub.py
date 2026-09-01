@@ -50,11 +50,28 @@ with no "routes" key behaves exactly as before.
 
 Prints "READY <port>" on stdout once listening. Writes request bodies to
 <state_dir>/req_N.json when state_dir is given (for test assertions).
+
+Also writes <state_dir>/keys.log, one line per request:
+
+    <request-number> <api-key-value-or--> <start_ms> <end_ms>
+
+The API key travels in a HEADER (x-goog-api-key / x-api-key), never the
+body, so req_N.json cannot answer "which key did this call use". Start/end
+are ms since stub start: OVERLAPPING windows are the only evidence that two
+requests were genuinely in flight together rather than merely adjacent in
+the log. Give a response "hold_ms" to keep its slot open long enough for
+that overlap to be observable -- a stub that answers instantly makes every
+arm look sequential no matter what the engine did.
+
+The server is threaded, so concurrent dispatch is served concurrently.
+StubState is mutated only under its lock, so response-queue semantics are
+unchanged from the single-threaded version.
 """
 import json
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 class StubState:
@@ -71,12 +88,29 @@ class StubState:
         self.global_idx = 0   # advances only on UNROUTED requests
         self.lock = threading.Lock()
 
+    def log_key(self, n, api_key, t0, t1):
+        """Record which API key served request n, and when.
+
+        The Gemini key travels in the x-goog-api-key HEADER, so a body-only
+        log cannot see it -- and "which key did each concurrent slot pick"
+        is unanswerable without this. t0/t1 are ms since stub start, so
+        overlapping [t0,t1] windows are what proves requests were genuinely
+        in flight together rather than merely adjacent in the log.
+        """
+        if not self.state_dir:
+            return
+        try:
+            with open("%s/keys.log" % self.state_dir, "a") as f:
+                f.write("%d %s %d %d\n" % (n, api_key or "-", t0, t1))
+        except OSError:
+            pass
+
     def _pick(self, responses, idx):
         if not responses:
             return {"content": "stub default response"}
         return responses[min(idx, len(responses) - 1)]
 
-    def next_response(self, body):
+    def next_response(self, body, api_key=None):
         with self.lock:
             self.count += 1
             n = self.count
@@ -104,10 +138,11 @@ class StubState:
                     f.write("%d %s\n" % (n, key if key is not None else "-"))
             except OSError:
                 pass
-        return self._pick(responses, idx)
+        return self._pick(responses, idx), n
 
 
 STATE = None
+START_MONO = time.monotonic()
 
 
 def gemini_body(spec, request_body=""):
@@ -153,7 +188,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8", errors="replace")
-        spec = STATE.next_response(body)
+        api_key = (self.headers.get("x-goog-api-key")
+                   or self.headers.get("x-api-key"))
+        t0 = int((time.monotonic() - START_MONO) * 1000)
+        spec, req_n = STATE.next_response(body, api_key)
 
         status = spec.get("status", 200)
         if status != 200:
@@ -167,7 +205,16 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
+        # Hold the slot open so genuinely-concurrent requests overlap in
+        # wall time. Without this a fast stub answers slot 1 before slot 2
+        # is even dispatched, and every arm looks sequential regardless of
+        # what the engine did.
+        hold = spec.get("hold_ms", 0)
+        if hold:
+            time.sleep(hold / 1000.0)
         self.wfile.write(data)
+        t1 = int((time.monotonic() - START_MONO) * 1000)
+        STATE.log_key(req_n, api_key, t0, t1)
 
     def log_message(self, fmt, *args):  # silence per-request stderr noise
         pass
@@ -182,7 +229,7 @@ def main():
     state_dir = sys.argv[3] if len(sys.argv) > 3 else None
     global STATE
     STATE = StubState(sys.argv[2], state_dir)
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print("READY %d" % server.server_address[1], flush=True)
     server.serve_forever()
     return 0
