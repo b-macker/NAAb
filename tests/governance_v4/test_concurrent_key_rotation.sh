@@ -25,7 +25,8 @@
 #   CK-05  429 does NOT mark a key dead (skip_key_on defaults to [401])
 #   CK-08  429 DOES throttle the key for a cooldown (AGENT_KEY_THROTTLED)
 #   CK-09  a single-key agent still retries through a 429 rather than failing
-#   CK-06  consecutive_failures counts per ATTEMPT, not per send
+#   CK-06  one send exhausting its retries is ONE failure, not max_attempts
+#   CK-10  the limit is still reachable across consecutive failed SENDS
 # ============================================================
 set -uo pipefail
 
@@ -394,10 +395,10 @@ else
          "requests=$REQ_C1 (expected 3), out=$(echo "$OUT_C1" | tail -2 | tr '\n' ' ')"
 fi
 
-# CK-06: consecutive_failures is incremented inside the RETRY loop
-# (agent_impl.cpp:2838, loop 2616-2949), so ONE send exhausting 5 attempts
-# charges 5. With limit=3 a single send must trip the run-level hard stop.
-# If the counter were per-send, one send = 1 failure < 3 and no stop fires.
+# CK-06: consecutive_failures is charged ONCE per failed send, after the retry
+# loop. One send exhausting 5 attempts is 1 failure, so with limit=3 it must
+# NOT trip the run-level hard stop. It previously charged per ATTEMPT, so this
+# same arm hard-stopped -- a single agent could kill a run alone.
 WDIR="$TEST_TMP/d"; mkdir -p "$WDIR"
 cat > "$WDIR/fixture.json" << 'EOF'
 {"responses": [ {"status": 429, "error": "RESOURCE_EXHAUSTED"} ]}
@@ -434,10 +435,56 @@ OUT_D=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
 stop_stub
 
 if grep -q '"AGENT_HARD_STOP"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
-    pass "CK-06" "CONFIRMED: ONE send tripped consecutive_failure_limit=3 (per-attempt)"
-else
-    fail "CK-06" "no hard stop from a single 5-attempt send — counter may be per-send" \
+    fail "CK-06" "one 5-attempt send tripped limit=3 — counter is still per-attempt" \
          "retries=$(grep -c '\"AGENT_RETRY\"' "$WDIR/telemetry.jsonl" 2>/dev/null || echo 0)"
+else
+    pass "CK-06" "one send exhausting 5 attempts is ONE failure (limit=3 not tripped)"
+fi
+
+# CK-10: the counter must still be able to reach the limit. Without this,
+# CK-06 would pass just as well for a counter that never increments at all.
+WDIR="$TEST_TMP/e"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [ {"status": 500, "error": "internal"} ]}
+EOF
+start_stub "$WDIR/fixture.json" "$WDIR" || { skip "CK-10" "stub failed to start"; }
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agent_dispatch": { "hard_stop": { "consecutive_failure_limit": 2 } },
+    "agents": {
+        "worker": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": "CKROT_K1", "max_tokens": 100, "max_turns": 20,
+            "retry": { "max_attempts": 2, "backoff_ms": 0 }
+        }
+    }
+}
+GOVEOF
+sign_govern "$WDIR"
+cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let h = agent.create("worker")
+    let i = 0
+    while (i < 3) {
+        try { agent.send(h, "review the ledger") } catch (e) { print("SEND_FAILED") }
+        i = i + 1
+    }
+    print("DONE")
+}
+NAABEOF
+OUT_E=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+stop_stub
+if grep -q '"AGENT_HARD_STOP"' "$WDIR/telemetry.jsonl" 2>/dev/null; then
+    pass "CK-10" "consecutive failed SENDS still reach the limit (2 sends, limit=2)"
+else
+    fail "CK-10" "limit never reached — the counter may not increment at all" \
+         "sends_failed=$(echo "$OUT_E" | grep -c SEND_FAILED)"
 fi
 
 echo ""

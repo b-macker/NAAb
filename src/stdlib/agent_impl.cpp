@@ -2649,6 +2649,9 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
     }
     int attempts_made = 0;
     std::string last_error;
+    // Set by any attempt that failed for a reason that counts toward the
+    // run-level consecutive_failure_limit. Charged ONCE, after the retry loop.
+    bool send_countable_failure = false;
     std::string messages_str = messages_json.dump();
 
     // Get hard stop config
@@ -2892,8 +2895,15 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 if (status == code) { is_key_skip = true; break; }
             }
         }
+        // Do NOT charge the run-level counter here. This is inside the retry
+        // loop, so incrementing per ATTEMPT meant one send exhausting its
+        // retries charged max_attempts failures on its own -- a single agent
+        // with max_attempts=5 could trip consecutive_failure_limit=3 without
+        // any other agent failing. "Consecutive failures" is charged once per
+        // failed SEND, after the retries are spent (see "All attempts
+        // exhausted" below). Key-skip errors still do not count at all.
         if (!is_key_skip) {
-            s_dispatch.consecutive_failures++;
+            send_countable_failure = true;
         }
 
         // Telemetry: retry event
@@ -2914,37 +2924,6 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
             });
         }
 
-        // Consecutive failure hard stop
-        if (hs.consecutive_failure_limit > 0 &&
-            s_dispatch.consecutive_failures.load() >= hs.consecutive_failure_limit) {
-            std::string reason;
-            {
-                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
-                s_dispatch.hard_stopped = true;
-                s_dispatch.stop_reason = "consecutive_failure_limit (" +
-                    std::to_string(hs.consecutive_failure_limit) + ") reached";
-                reason = s_dispatch.stop_reason;
-            }
-            if (gov_engine && gov_engine->isActive() &&
-                gov_engine->getRules().context_drift.enabled) {
-                gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
-            }
-            if (gov_engine && gov_engine->isActive()) {
-                gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
-                    {"reason", reason},
-                    {"total_calls", std::to_string(s_dispatch.total_calls.load())},
-                    {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
-                });
-                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
-                    {"rule_name", "consecutive_failures"},
-                    {"level", "hard"},
-                    {"agent", config_name},
-                    {"reason", reason}
-                });
-            }
-            throw std::runtime_error("Agent error: Hard stop — " + reason +
-                "\n\n  Last error: " + last_error);
-        }
 
         // Never retry: abort immediately (real 400 bad request, not key error)
         if (should_never_retry) {
@@ -3030,6 +3009,44 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
 
     // All attempts exhausted
     if (!agent_resp.success) {
+        // One failed send = one consecutive failure, however many attempts it
+        // took. Reset on success still lives in the success branch above.
+        if (send_countable_failure) {
+            s_dispatch.consecutive_failures++;
+        }
+
+        // Consecutive failure hard stop
+        if (hs.consecutive_failure_limit > 0 &&
+            s_dispatch.consecutive_failures.load() >= hs.consecutive_failure_limit) {
+            std::string reason;
+            {
+                std::lock_guard<std::mutex> lock(s_dispatch.stop_reason_mutex);
+                s_dispatch.hard_stopped = true;
+                s_dispatch.stop_reason = "consecutive_failure_limit (" +
+                    std::to_string(hs.consecutive_failure_limit) + ") reached";
+                reason = s_dispatch.stop_reason;
+            }
+            if (gov_engine && gov_engine->isActive() &&
+                gov_engine->getRules().context_drift.enabled) {
+                gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
+            }
+            if (gov_engine && gov_engine->isActive()) {
+                gov_engine->writeAgentTelemetry("AGENT_HARD_STOP", {
+                    {"reason", reason},
+                    {"total_calls", std::to_string(s_dispatch.total_calls.load())},
+                    {"consecutive_failures", std::to_string(s_dispatch.consecutive_failures.load())}
+                });
+                gov_engine->fireHook(gov_engine->getRules().hooks.on_violation, {
+                    {"rule_name", "consecutive_failures"},
+                    {"level", "hard"},
+                    {"agent", config_name},
+                    {"reason", reason}
+                });
+            }
+            throw std::runtime_error("Agent error: Hard stop — " + reason +
+                "\n\n  Last error: " + last_error);
+        }
+
         if (gov_engine && gov_engine->isActive() &&
             gov_engine->getRules().context_drift.enabled) {
             gov_engine->checkContextDrift(handle_id, current_turn, "infrastructure:api_call_failed");
