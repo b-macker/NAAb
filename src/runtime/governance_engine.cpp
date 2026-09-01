@@ -54,6 +54,38 @@ namespace governance {
     // C1: Thread-local rules snapshot for data-race-free access
     static thread_local std::shared_ptr<const GovernanceRules> t_rules_snapshot;
 
+// --- Event-stamping agent context (thread-local) ---
+//
+// agent.batch() and fan_out() run several sends CONCURRENTLY on pool threads,
+// and every one of them called setAgentContext() on one process-global pair.
+// emitEvent() stamped ev.turn and ev.agent_handle from those globals, so an
+// event was attributed to whichever agent had most recently set the context --
+// not the one that raised it.
+//
+// checkContextDrift() already filters the turn bucket down to "this handle's
+// events". That is correct code reading a corrupted field: the stamp it filters
+// on was written by a racing sibling. Measured with six agents dispatched
+// concurrently, each making exactly ONE call per round:
+//
+//     handle=1 events=4 fp='AR:65bdf062AR:fd45e466ASAS'   two siblings' responses
+//     handle=2 events=0 fp=''                             none of its own
+//     handle=3 events=1 fp='AS'                           its send, no response
+//
+// Degenerate buckets like 'AS' and '' repeat across turns, which fires S1
+// circular_actions on agents that repeated nothing -- and a different pair each
+// run, because it follows thread scheduling rather than behaviour.
+//
+// Only the STAMP moves to thread-local storage. The atomics stay as the "last
+// active agent" that printDashboard(), checkTemporalCoupling() and
+// checkGovernanceHealth() read from the MAIN thread after the pool threads are
+// gone; making those thread-local would read 0 there and silently drop the
+// dashboard's CDD line. Those consumers want "who ran last". Event attribution
+// wants "who is running HERE".
+static thread_local int t_event_agent_turn = 0;
+static thread_local int t_event_agent_handle = 0;
+static thread_local std::string t_event_agent_config;
+
+
     class GovernanceEngine::RulesSnapshot {
         std::shared_ptr<const GovernanceRules> prev_;
     public:
@@ -6438,11 +6470,10 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
     ev.thinking_tokens = thinking_tokens;
     ev.thinking_reported = thinking_reported;
     ev.content_keywords = content_keywords;
-    ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
-    ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);
+    ev.turn = t_event_agent_turn;
+    ev.agent_handle = t_event_agent_handle;
     {
-        std::lock_guard<std::mutex> lock(agent_config_mutex_);
-        ev.agent_config = current_agent_config_;
+        ev.agent_config = t_event_agent_config;
     }
     ev.timestamp = std::chrono::steady_clock::now();
 
@@ -6454,14 +6485,19 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
 }
 
 void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
+    t_event_agent_handle = handle_id;
+    t_event_agent_turn = turn;
     current_agent_handle_.store(handle_id, std::memory_order_relaxed);
     current_agent_turn_.store(turn, std::memory_order_relaxed);
 }
 
 void GovernanceEngine::setAgentContext(int handle_id, int turn,
                                        const std::string& config_name) {
+    t_event_agent_handle = handle_id;
+    t_event_agent_turn = turn;
     current_agent_handle_.store(handle_id, std::memory_order_relaxed);
     current_agent_turn_.store(turn, std::memory_order_relaxed);
+    t_event_agent_config = config_name;
     {
         std::lock_guard<std::mutex> lock(agent_config_mutex_);
         current_agent_config_ = config_name;
@@ -7904,11 +7940,10 @@ std::string GovernanceEngine::checkPreExecution(
     ev.detail = detail;
     ev.file = file;
     ev.line = line;
-    ev.turn = current_agent_turn_.load(std::memory_order_relaxed);
-    ev.agent_handle = current_agent_handle_.load(std::memory_order_relaxed);
+    ev.turn = t_event_agent_turn;
+    ev.agent_handle = t_event_agent_handle;
     {
-        std::lock_guard<std::mutex> lock(agent_config_mutex_);
-        ev.agent_config = current_agent_config_;
+        ev.agent_config = t_event_agent_config;
     }
     ev.timestamp = std::chrono::steady_clock::now();
 
