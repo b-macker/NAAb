@@ -2566,6 +2566,16 @@ std::string ContextDriftAnalyzer::snapshotState(int handle_id) const {
     j["mandate_keywords"] = set_entry(s.mandate_keywords);
     j["instruction_keywords"] = set_entry(s.instruction_keywords);
     j["prev_response_keywords"] = set_entry(s.prev_response_keywords);
+    // S1's turn fingerprints, not just S21's response hash. A circular_actions
+    // firing was previously undiagnosable from preserved evidence: the snapshot
+    // carried the S21 fingerprint only, so "why did circular fire" could not be
+    // answered from a run and needed a local reproduction. Bounded by
+    // fingerprint_window, and these are event-shape digests, never content.
+    {
+        nlohmann::json fps = nlohmann::json::array();
+        for (const auto& f : s.turn_fingerprints) fps.push_back(f);
+        j["turn_fingerprints"] = fps;
+    }
     j["last_response_fingerprint"] = s.response_fingerprints.empty()
         ? std::string() : s.response_fingerprints.back();
 

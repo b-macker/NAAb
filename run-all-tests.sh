@@ -1791,6 +1791,19 @@ else
     echo "  test_undetermined_gate.sh: not found, skipping"
 fi
 
+# Agent events must belong to the agent that raised them.
+AEATTR_SCRIPT="tests/governance_v4/test_agent_event_attribution.sh"
+if [ -f "$AEATTR_SCRIPT" ]; then
+    if run_shell_test "$AEATTR_SCRIPT" 2>&1; then
+        echo "  test_agent_event_attribution.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_agent_event_attribution.sh")
+    fi
+else
+    echo "  test_agent_event_attribution.sh: not found, skipping"
+fi
+
 # context_drift.enabled is inert unless behavioral_sequences is also on.
 BSDCDD_SCRIPT="tests/governance_v4/test_bsd_cdd_gate.sh"
 if [ -f "$BSDCDD_SCRIPT" ]; then
