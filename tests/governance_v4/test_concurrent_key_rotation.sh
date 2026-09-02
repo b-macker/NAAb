@@ -25,6 +25,7 @@
 #   CK-05  429 does NOT mark a key dead (skip_key_on defaults to [401])
 #   CK-08  429 DOES throttle the key for a cooldown (AGENT_KEY_THROTTLED)
 #   CK-09  a single-key agent still retries through a 429 rather than failing
+#   CK-11  the throttle names the key that FAILED, and that key is then avoided
 #   CK-06  one send exhausting its retries is ONE failure, not max_attempts
 #   CK-10  the limit is still reachable across consecutive failed SENDS
 # ============================================================
@@ -393,6 +394,90 @@ if [ "$REQ_C1" = "3" ]; then
 else
     fail "CK-09" "throttle disqualified the only key — attempts stopped early" \
          "requests=$REQ_C1 (expected 3), out=$(echo "$OUT_C1" | tail -2 | tr '\n' ' ')"
+fi
+
+# CK-11: CK-08 only asserts that SOME throttle event fired. It passes just as
+# well if the throttle names the wrong key, or if throttled_keys is written
+# correctly and the selector ignores it -- and those two are the behaviour that
+# actually matters. This arm pins both: the event must name the key that took
+# the error, and that key must not be selected again inside the cooldown.
+#
+# The cooldown is 300s, not the default 60, so it cannot expire mid-test and
+# turn a real regression into a pass.
+WDIR="$TEST_TMP/f"; mkdir -p "$WDIR"
+cat > "$WDIR/fixture.json" << 'EOF'
+{"responses": [
+  {"status": 429, "error": "RESOURCE_EXHAUSTED"},
+  {"content": "recovered on a second key after the first was throttled", "output_tokens": 12},
+  {"content": "second send must still avoid the throttled key", "output_tokens": 12},
+  {"content": "third send must still avoid the throttled key", "output_tokens": 12}
+]}
+EOF
+if start_stub "$WDIR/fixture.json" "$WDIR"; then
+cat > "$WDIR/govern.json" << GOVEOF
+{
+    "mode": "enforce",
+    "security": { "sandbox_level": "elevated" },
+    "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+    "context_drift": { "enabled": false },
+    "agents": {
+        "worker": {
+            "provider": "gemini", "model": "stub-model",
+            "api_base": "http://127.0.0.1:$STUB_PORT",
+            "api_key_env": ["CKROT_K1", "CKROT_K2", "CKROT_K3"],
+            "max_tokens": 100, "max_turns": 20,
+            "retry": { "max_attempts": 3, "backoff_ms": 0,
+                       "throttle_cooldown_seconds": 300 }
+        }
+    }
+}
+GOVEOF
+    sign_govern "$WDIR"
+    cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let h = agent.create("worker")
+    agent.send(h, "one")
+    agent.send(h, "two")
+    agent.send(h, "three")
+    print("DONE")
+}
+NAABEOF
+    OUT_F=$(cd "$WDIR" && timeout 60s "$NAAB" test.naab 2>&1) || true
+    stop_stub
+    # Parse as JSON: a flat grep pairs the wrong api_key_env with the wrong
+    # event, which is exactly how this behaviour got misread by hand once.
+    THR_ENV=$(python3 - "$WDIR/telemetry.jsonl" << 'PYEOF'
+import json, sys
+for line in open(sys.argv[1]):
+    d = json.loads(line)
+    if d.get("event_type") == "AGENT_KEY_THROTTLED":
+        print(d.get("api_key_env", "")); break
+PYEOF
+)
+    FIRST_VAL=$(awk 'NR==1{print $2}' "$WDIR/keys.log" 2>/dev/null)
+    # env var NAME -> the VALUE the stub actually saw in the header
+    THR_VAL=""
+    case "$THR_ENV" in
+        CKROT_K1) THR_VAL="$CKROT_K1" ;;
+        CKROT_K2) THR_VAL="$CKROT_K2" ;;
+        CKROT_K3) THR_VAL="$CKROT_K3" ;;
+    esac
+    THR_USES=$(awk -v v="$THR_VAL" '$2==v' "$WDIR/keys.log" 2>/dev/null | wc -l)
+
+    if [ -z "$THR_ENV" ]; then
+        fail "CK-11" "no throttle event at all" "$(echo "$OUT_F" | tail -2)"
+    elif [ "$THR_VAL" != "$FIRST_VAL" ]; then
+        fail "CK-11" "throttle named the wrong key" \
+             "failed key was '$FIRST_VAL', throttle named '$THR_ENV' ('$THR_VAL')"
+    elif [ "$THR_USES" != "1" ]; then
+        fail "CK-11" "throttled key was selected again inside the cooldown" \
+             "used $THR_USES times: $(awk '{print $2}' "$WDIR/keys.log" | tr '\n' ' ')"
+    else
+        pass "CK-11" "throttle names the failed key and it is not reused ($THR_ENV)"
+    fi
+else
+    skip "CK-11" "stub failed to start"
 fi
 
 # CK-06: consecutive_failures is charged ONCE per failed send, after the retry
