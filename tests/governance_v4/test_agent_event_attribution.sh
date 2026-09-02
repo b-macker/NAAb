@@ -23,6 +23,7 @@
 #   AE-01  6 concurrent agents, all DISTINCT responses => no circular fires
 #   AE-02  control — all IDENTICAL responses => circular fires for ALL of them
 #   AE-03  control — coherence is uniform across peers doing the same thing
+#   AE-04  ONE parrot among six working agents: only the parrot is charged
 #
 # AE-02 is the load-bearing arm, for two reasons. It rules out the likeliest bad
 # "fix" -- an S1 that no longer fires at all, which AE-01 cannot distinguish from
@@ -176,6 +177,104 @@ if run_arm "identical" "identical"; then
     fi
 else
     skip "AE-02" "stub failed to start"; skip "AE-03" "stub failed to start"
+fi
+
+# ── AE-04: discrimination, not uniformity ──
+# AE-01/02 move every agent together: all distinct, or all identical. That
+# cannot tell a discriminating engine from one that fires uniformly on whatever
+# is in front of it. This arm is the case users actually have -- six agents
+# doing real work and one that repeats itself -- and it requires the engine to
+# charge exactly one of seven.
+#
+# It is also the arm that caught a live run reporting the OPPOSITE of both
+# halves at once: the repeating agent scored a clean 1.0 while two agents
+# producing distinct 3000-char answers were charged circular. That pairing is
+# the attribution defect's signature, since a corrupted bucket both invents
+# repetition where there is none and hides it where there is.
+#
+# Because it asserts BOTH directions -- the parrot is charged AND the six are
+# not -- it catches the defect whichever way scheduling throws it. Measured
+# over three runs against the pre-fix build it failed 3/3, where AE-01 (which
+# can only see the false-positive half) failed 2/3:
+#
+#     run 1  parrot charged, but 2 working agents charged too
+#     run 2  parrot charged, but 3 working agents charged too
+#     run 3  parrot charged, but 3 working agents charged too
+#
+# The live run that prompted this arm failed the other assertion instead, with
+# the parrot uncharged. Keep both halves.
+WDIR="$TEST_TMP/parrot"; mkdir -p "$WDIR"
+python3 - "$WDIR/fixture.json" << 'PYEOF'
+import json, sys
+# The parrot is routed by a token planted in its system_prompt, so it gets the
+# same answer every turn while the others draw from the distinct pool.
+parrot = {"responses": [{"content": "I am the parrot and this is my identical "
+                                    "unchanging reply every single turn",
+                         "output_tokens": 20}]}
+others = [{"content": "distinct answer %d about ipv4 %s validation, different wording %s"
+             % (i, ["octets","masks","ranges","parsing","edges","limits"][i % 6], "z" * i),
+           "output_tokens": 30 + i} for i in range(1, 13)]
+json.dump({"routes": {"PARROT-TOKEN-XYZ": parrot}, "responses": others},
+          open(sys.argv[1], "w"))
+PYEOF
+if start_stub "$WDIR/fixture.json" "$WDIR"; then
+    python3 - "$WDIR/govern.json" "$STUB_PORT" << 'PYEOF'
+import json, sys
+port = sys.argv[2]
+base = {"provider": "gemini", "model": "stub-model",
+        "api_base": "http://127.0.0.1:%s" % port,
+        "api_key_env": "FAKE_KEY_AEATTR", "max_tokens": 100, "max_turns": 20}
+agents = {n: dict(base) for n in
+          ["coordinator", "researcher", "architect", "builder", "critic", "optimizer"]}
+agents["parrot"] = dict(base,
+    system_prompt="PARROT-TOKEN-XYZ reply with the identical sentence every turn")
+json.dump({
+    "mode": "enforce",
+    "security": {"sandbox_level": "elevated"},
+    "telemetry": {"enabled": True, "output_file": "telemetry.jsonl"},
+    "behavioral_sequences": {"enabled": True},
+    "context_drift": {"enabled": True, "level": "advisory", "check_interval_turns": 1},
+    "agent_dispatch": {"max_concurrent": 3, "pool_size": 3},
+    "agents": agents,
+}, open(sys.argv[1], "w"), indent=2)
+PYEOF
+    sign_govern "$WDIR"
+    cat > "$WDIR/test.naab" << 'NAABEOF'
+use agent
+main {
+    let hs = [agent.create("coordinator"), agent.create("researcher"),
+              agent.create("architect"),   agent.create("builder"),
+              agent.create("critic"),      agent.create("optimizer"),
+              agent.create("parrot")]
+    agent.batch(hs, ["a1", "b1", "c1", "d1", "e1", "f1", "g1"])
+    agent.batch(hs, ["a2", "b2", "c2", "d2", "e2", "f2", "g2"])
+    print("DONE")
+}
+NAABEOF
+    P_OUT=$(cd "$WDIR" && timeout 120s "$NAAB" test.naab 2>&1) || true
+    stop_stub
+    # Turn-2 CDD_TURN for the parrot, and for everyone else.
+    P_LINE=$(grep '"CDD_TURN"' "$WDIR/telemetry.jsonl" 2>/dev/null \
+             | grep '"config_name":"parrot"' | grep '"turn":"2"')
+    OTHER_PEN=$(grep '"CDD_TURN"' "$WDIR/telemetry.jsonl" 2>/dev/null \
+             | grep -v '"config_name":"parrot"' | grep -c 'circular=\|response_repetition=' || true)
+    [ -z "$OTHER_PEN" ] && OTHER_PEN=0
+    P_FIRED=$(echo "$P_LINE" | grep -c 'response_repetition=' || true)
+    [ -z "$P_FIRED" ] && P_FIRED=0
+
+    if [ -z "$P_LINE" ]; then
+        fail "AE-04" "no turn-2 CDD_TURN for the parrot" "$(echo "$P_OUT" | tail -2)"
+    elif [ "$P_FIRED" = "0" ]; then
+        fail "AE-04" "the parrot repeated itself verbatim and was NOT charged" \
+             "$(echo "$P_LINE" | grep -o '\"coherence\":\"[^\"]*\"\|\"signals_detail\":\"[^\"]*\"' | tr '\n' ' ')"
+    elif [ "$OTHER_PEN" != "0" ]; then
+        fail "AE-04" "parrot charged, but $OTHER_PEN working agents were charged too" \
+             "discrimination failed — the engine is firing on siblings' events"
+    else
+        pass "AE-04" "only the parrot is charged; six working agents untouched"
+    fi
+else
+    skip "AE-04" "stub failed to start"
 fi
 
 echo ""
