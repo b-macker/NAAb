@@ -31,12 +31,57 @@ if ! cd "$LANG_DIR" || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; th
     exit 0
 fi
 
-# Verify no uncommitted changes to files we'll inject into
+# Files this suite is permitted to `git checkout --`. Populated below, BEFORE
+# the EXIT trap is armed, and only with files that were clean (or held nothing
+# but our own leftovers) at startup.
+#
+# The trap used to revert both targets unconditionally. check_clean's `exit 1`
+# on a dirty file therefore FIRED the trap, so the guard that detected a
+# developer's uncommitted work was immediately followed by the cleanup that
+# destroyed it. Refusing now happens before the trap exists, and the trap only
+# ever touches files on this list.
+CLEANUP_FILES=()
+
+# A dirty target is one of two things, and they need opposite handling:
+# leftovers from a previous run that was SIGKILLed (the EXIT trap does not run
+# on SIGKILL, which is how container resets end long suites), or someone's
+# actual work. Every payload this suite injects contains "canary", so a diff
+# consisting only of added canary lines is ours to remove; anything else is
+# not, and we refuse rather than guess.
+classify_target() {
+    local file="$1"
+    local relfile="${file#$LANG_DIR/}"
+    if git diff --quiet -- "$relfile" 2>/dev/null; then
+        CLEANUP_FILES+=("$relfile")
+        return 0
+    fi
+    local foreign
+    foreign=$(git diff -- "$relfile" | grep -c '^[+-][^+-]' || true)
+    local ours
+    ours=$(git diff -- "$relfile" | grep -c '^[+-].*canary' || true)
+    if [ "$foreign" -gt 0 ] && [ "$foreign" -eq "$ours" ]; then
+        echo "  NOTE: $relfile holds canary leftovers from an interrupted run — reverting"
+        if ! git checkout -- "$relfile"; then
+            echo "ERROR: could not revert leftovers in $relfile"
+            exit 1
+        fi
+        CLEANUP_FILES+=("$relfile")
+        return 0
+    fi
+    echo "ERROR: $relfile has uncommitted changes that are not ours — refusing to run"
+    echo "       This suite reverts the files it injects into, which would destroy them."
+    echo "       Commit or stash them first."
+    exit 1
+}
+
+# Belt-and-braces: re-asserted before each injection. classify_target already
+# refused anything foreign, so reaching this means a canary leaked between
+# tests rather than that a developer had work in flight.
 check_clean() {
     local file="$1"
     local relfile="${file#$LANG_DIR/}"
     if ! git diff --quiet -- "$relfile" 2>/dev/null; then
-        echo "ERROR: $relfile has uncommitted changes — cannot inject canary"
+        echo "ERROR: $relfile is dirty mid-suite — a previous canary did not revert"
         exit 1
     fi
 }
@@ -50,7 +95,13 @@ inject() {
 revert() {
     local file="$1"
     local relfile="${file#$LANG_DIR/}"
-    git checkout -- "$relfile" 2>/dev/null
+    # No 2>/dev/null: a revert that fails leaves invalid C++ in the tree and
+    # breaks the NEXT build with an error far from its cause. Silence here was
+    # one of two candidate explanations for exactly that, observed 2026-08-30.
+    if ! git checkout -- "$relfile"; then
+        echo "  ERROR: revert FAILED for $relfile — working tree may hold a canary"
+        FAIL=$((FAIL + 1))
+    fi
 }
 
 run_prescan() {
@@ -70,13 +121,20 @@ else
     _SYSTMP="${TMPDIR:-/tmp}"
 fi
 PRESCAN_OUT="$_SYSTMP/canary_prescan_$$"
+# Classify the two injection targets before arming the trap, so a refusal
+# happens while cleanup() does not yet exist and cannot revert anything.
+classify_target "$SRC/interpreter/interpreter.cpp"
+classify_target "$SRC/runtime/governance_config.cpp"
+
 cleanup() {
-    # Always revert injected files — critical if killed mid-test (OOM, signal)
-    local relint="src/interpreter/interpreter.cpp"
-    local relcfg="src/runtime/governance_config.cpp"
+    # Revert only files classify_target() cleared. Reverting unconditionally
+    # meant any early exit -- including the dirty-file guard's own -- destroyed
+    # whatever it had just refused to touch.
     cd "$LANG_DIR" 2>/dev/null || true
-    git checkout -- "$relint" 2>/dev/null || true
-    git checkout -- "$relcfg" 2>/dev/null || true
+    local relfile
+    for relfile in ${CLEANUP_FILES+"${CLEANUP_FILES[@]}"}; do
+        git checkout -- "$relfile" 2>/dev/null || true
+    done
     rm -f "$PRESCAN_OUT"
 }
 trap cleanup EXIT
@@ -298,6 +356,26 @@ if [ "$NEW_P1" -gt "$BASELINE_P1" ] && [ "$NEW_P2" -gt "$BASELINE_P2" ] && [ "$N
     PASS=$((PASS + 1))
 else
     echo "  FAIL [C10] Combined injection: P1=$NEW_P1(was $BASELINE_P1) P2=$NEW_P2(was $BASELINE_P2) L10=$NEW_L10(was $BASELINE_L10)"
+    FAIL=$((FAIL + 1))
+fi
+
+# =====================================================================
+# C11: every target is clean AFTER the last injection
+# C7 checks the same property but runs before C8, C9 and C10 inject, so it is
+# structurally incapable of catching a leftover from any of them -- which is
+# how a run reported ALL PASSED while leaving an invalid function body inside
+# ~GovernanceEngine(), breaking the next build (observed 2026-08-30).
+# =====================================================================
+echo "--- C11: working tree clean after all injections ---"
+C11_DIRTY=""
+for _relfile in ${CLEANUP_FILES+"${CLEANUP_FILES[@]}"}; do
+    git diff --quiet -- "$_relfile" 2>/dev/null || C11_DIRTY="$C11_DIRTY $_relfile"
+done
+if [ -z "$C11_DIRTY" ]; then
+    echo "  PASS [C11] all injected files reverted"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL [C11] canary left in tree:$C11_DIRTY"
     FAIL=$((FAIL + 1))
 fi
 
