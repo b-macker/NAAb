@@ -82,34 +82,7 @@ export FAKE_KEY_UNDET="fake-key-undetermined"
 
 sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
-start_stub() {  # $1=fixture $2=workdir
-    local _fx="$1" _dir="$2" _try _i _tries=3
-    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) _tries=1 ;; esac
-    [ -n "${WINDIR:-}" ] && _tries=1
-    for _try in $(seq 1 $_tries); do
-        STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-        : > "$_dir/stub.log"
-        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$_fx" "$_dir" > "$_dir/stub.log" 2>&1 &
-        STUB_PID=$!
-        if [ "$_tries" -eq 1 ]; then
-            for _i in $(seq 1 50); do
-                grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
-                sleep 0.1
-            done
-            return 1
-        fi
-        for _i in $(seq 1 60); do
-            grep -q READY "$_dir/stub.log" 2>/dev/null && return 0
-            kill -0 "$STUB_PID" 2>/dev/null || break
-            sleep 0.5
-        done
-        kill -9 "$STUB_PID" 2>/dev/null; STUB_PID=""
-    done
-    echo "  start_stub: no READY after 3 port attempts — stub log tail:" >&2
-    tail -3 "$_dir/stub.log" >&2 2>/dev/null
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"  # D1: shared hardened launcher
 
 # ------------------------------------------------------------
 # Fixtures

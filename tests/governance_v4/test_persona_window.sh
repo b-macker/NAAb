@@ -77,23 +77,7 @@ export FAKE_KEY_PERSONAWIN="fake-key-personawin"
 
 sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
-start_stub() {  # $1=fixture $2=statedir
-    local attempt
-    for attempt in 1 2 3 4 5; do
-        STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-        : > "$2/stub.log"
-        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" >> "$2/stub.log" 2>&1 &
-        STUB_PID=$!
-        for _ in $(seq 1 50); do
-            grep -q READY "$2/stub.log" 2>/dev/null && return 0
-            kill -0 "$STUB_PID" 2>/dev/null || break
-            sleep 0.1
-        done
-        kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"  # D1: shared hardened launcher
 
 # Response length swings from turn one, so which samples the window retains
 # decides the baseline mean and stddev the rest of the run is judged against.

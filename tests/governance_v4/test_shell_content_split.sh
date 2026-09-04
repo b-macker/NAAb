@@ -68,32 +68,9 @@ if [ "$IS_WINDOWS" -eq 1 ]; then
         skip "$id" "stub-backed; unsupported on Windows/MSYS2"
     done
 else
-    start_stub() {  # $1=fixture $2=workdir
-        local _try _i
-        for _try in 1 2 3; do
-            STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-            : > "$2/stub.log"
-            python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-            STUB_PID=$!
-            for _i in $(seq 1 60); do
-                grep -q READY "$2/stub.log" 2>/dev/null && return 0
-                kill -0 "$STUB_PID" 2>/dev/null || break
-                sleep 0.5
-            done
-            kill -9 "$STUB_PID" 2>/dev/null; disown "$STUB_PID" 2>/dev/null || true
-            STUB_PID=""
-        done
-        return 1
-    }
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"  # D1: shared hardened launcher
     # disown, not wait: reaping a stub is not worth risking a hang, and it keeps
     # bash from printing a "Killed" job-control line over the results.
-    stop_stub() {
-        if [ -n "${STUB_PID:-}" ]; then
-            kill -9 "$STUB_PID" 2>/dev/null || true
-            disown "$STUB_PID" 2>/dev/null || true
-        fi
-        STUB_PID=""
-    }
 
     # The exact case that motivated the split: a runbook author writing an
     # install line. Nothing here is executed by anyone.
