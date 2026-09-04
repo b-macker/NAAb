@@ -1880,7 +1880,16 @@ interpreter::NaabVal VM::run() {
                             }
                             if (pre_check) {
                                 std::string pre_detail = full_method_name;
-                                if (argc > 0 && !first_arg_str.empty())
+                                // agent.send's first argument is the HANDLE DICT, which carries
+                                // __nonce -- the HMAC that ties the handle to server-side state.
+                                // Interpolating it put a nonce prefix into the block message, and
+                                // from there into stderr and RuleViolation details. It is also
+                                // useless as detail: a handle serialises to ids and a nonce, not
+                                // to anything a reader can act on. Every other pre-checked method
+                                // takes a path, URL or variable name as arg 0, which is exactly
+                                // what the detail wants.
+                                if (argc > 0 && !first_arg_str.empty() &&
+                                    full_method_name != "agent.send")
                                     pre_detail += "('" + first_arg_str.substr(0, 64) + "')";
                                 int pre_line = CURRENT_CHUNK().getLine(
                                     static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
