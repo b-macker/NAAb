@@ -1709,6 +1709,27 @@ struct ContextDriftConfig {
         // test_relative_healing.sh does, because RH-10 was relying on this defect
         // to supply the live signal it tests against.
         bool persona_baseline_adaptive = true;
+        // C1f: S5's sibling. `initial_entropy` is set ONCE from the first half
+        // of the sliding window the first time it reaches vocab_contraction_window
+        // -- i.e. from turns 0-2, which include PROCESS STARTUP. Steady-state
+        // action diversity is then compared against a startup-inflated baseline
+        // for the rest of the run, and once it fires it fires every remaining
+        // turn because the thing it is compared against never moves.
+        //
+        // Measured on shipped defaults, 40 turns, identical responses in every
+        // arm: two extra event types in turn 0 ALONE take the run from S5 0/40
+        // and coherence 1.0000 to S5 35/40 and coherence 0.0000 from turn 12.
+        // Adaptive baselining does not absorb it -- S5 never fires DURING the
+        // window, so its expected rate is 0 and every later firing pays full
+        // weight. With output_admissibility on, the same pair diverges to
+        // "completes 40/40" versus "terminated at turn 12".
+        //
+        // When true, the baseline is re-derived from the current early half on
+        // any turn that was clean APART FROM S5 -- the same exclusion S17 needs
+        // and for the same reason: while S5 is the only signal firing no turn is
+        // ever clean, so a baseline gated on cleanliness could never follow the
+        // agent and the permanent-penalty case would survive the fix.
+        bool entropy_baseline_adaptive = false;
         // 0.15: at least 15% of tool result keywords should appear in the agent's response
         // when it references that tool. Below this the agent may be fabricating results.
         double tool_result_recall_min = 0.15;

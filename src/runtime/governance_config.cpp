@@ -3020,6 +3020,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (th.contains("persona_deviation_factor") && th["persona_deviation_factor"].is_number()) cfg.thresholds.persona_deviation_factor = std::max(1.0, th["persona_deviation_factor"].get<double>());
             if (th.contains("persona_history_window") && th["persona_history_window"].is_number_integer()) cfg.thresholds.persona_history_window = std::max(2, th["persona_history_window"].get<int>());
                 if (th.contains("persona_baseline_adaptive") && th["persona_baseline_adaptive"].is_boolean()) cfg.thresholds.persona_baseline_adaptive = th["persona_baseline_adaptive"].get<bool>();
+                if (th.contains("entropy_baseline_adaptive") && th["entropy_baseline_adaptive"].is_boolean()) cfg.thresholds.entropy_baseline_adaptive = th["entropy_baseline_adaptive"].get<bool>();
             if (th.contains("tool_result_recall_min") && th["tool_result_recall_min"].is_number()) cfg.thresholds.tool_result_recall_min = std::max(0.0, std::min(1.0, th["tool_result_recall_min"].get<double>()));
             if (th.contains("claim_accuracy_min") && th["claim_accuracy_min"].is_number()) cfg.thresholds.claim_accuracy_min = std::max(0.0, std::min(1.0, th["claim_accuracy_min"].get<double>()));
             if (th.contains("prompt_compliance_mandate_min") && th["prompt_compliance_mandate_min"].is_number()) cfg.thresholds.prompt_compliance_mandate_min = std::max(0.0, std::min(1.0, th["prompt_compliance_mandate_min"].get<double>()));
@@ -4135,6 +4136,9 @@ static bool checkRatchetViolation(
     if (new_r.context_drift.thresholds.persona_baseline_adaptive &&
         !old_r.context_drift.thresholds.persona_baseline_adaptive)
         violations.push_back("context_drift.thresholds.persona_baseline_adaptive: false -> true (loosened — S17 baseline follows the agent)");
+    if (new_r.context_drift.thresholds.entropy_baseline_adaptive &&
+        !old_r.context_drift.thresholds.entropy_baseline_adaptive)
+        violations.push_back("context_drift.thresholds.entropy_baseline_adaptive: false -> true (loosened — S5 baseline follows the agent)");
 
     if (new_r.context_drift.rate_normalized && !old_r.context_drift.rate_normalized)
         violations.push_back("context_drift.rate_normalized: false -> true (loosened — penalties diluted by turn count)");

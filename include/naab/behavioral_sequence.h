@@ -172,6 +172,11 @@ struct DriftState {
     std::deque<std::unordered_set<std::string>> per_turn_types;  // action types per turn (sliding window)
     int vocabulary_contraction_count = 0;  // narrowing action diversity
     double initial_entropy = -1.0;        // F2: baseline Shannon entropy for contraction detection
+    // Early-half entropy as of the last analyzed turn. Recorded so the adaptive
+    // re-derivation can run beside the other baseline updates without recomputing
+    // the window a second time -- a duplicate that could silently diverge from
+    // the real gate, which is why S3/S5 stayed UNINSTRUMENTED in signals_starved.
+    double last_early_entropy = -1.0;
     std::unordered_set<std::string> prev_turn_blocked_caps;  // capabilities blocked in previous turn
 
     // Coherence dynamics (velocity/acceleration)

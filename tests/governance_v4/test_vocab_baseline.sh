@@ -14,8 +14,9 @@
 # `initial_entropy` is set ONCE, from the FIRST HALF of the sliding window the
 # first time that window reaches `vocab_contraction_window` (6) turns — i.e.
 # from turns 0-2 — and is never updated. It is the earliest-set of the four
-# frozen baselines (S5/S9/S12/S17): it is fixed BEFORE `baseline_complete`, and
-# it is the only one of the four not exposed in `snapshotState()`.
+# frozen baselines (S5/S9/S12/S17): it is fixed BEFORE `baseline_complete`. It
+# WAS also the only one of the four absent from `snapshotState()`; that shipped
+# separately and VC-07 now pins the exposure.
 #
 # A pure `agent.send()` loop is {AS, AR} forever: entropy 1.0, and 1.0 < 0.6 is
 # false, so S5 can never fire. Add k distinct non-agent event types in turn 0
@@ -62,6 +63,31 @@
 #          startup — sustained diversity earns nothing.
 #   VC-06  diversity introduced from turn 10 changes NOTHING in CDD output; the
 #          arm is signal-identical to the control that never did any of it.
+#   VC-08  `entropy_baseline_adaptive` re-derives the baseline on turns clean
+#          apart from S5, cutting the STARTUP ARTIFACT from 20 firings to 5 and
+#          coherence 0.0000 -> 0.2500. It does not eliminate it: while turn 0 is
+#          still inside the sliding window's early half that entropy is really
+#          there, so the residual is structural, not a half-done fix.
+#   VC-09  and it costs NOTHING on genuine narrowing — identical turns, identical
+#          coherence. Both narrowing arms run on the `since_last_check` feed,
+#          because under the DEFAULT feed every post-turn-0 event is invisible
+#          (VC-05/VC-06) and genuine narrowing cannot be expressed at all; an arm
+#          claiming to test it on the default feed would be vacuous.
+#   VC-10  the vacuity guard for VC-09: the baseline must actually have MOVED
+#          (2.000 frozen vs 1.918 adaptive). Without it "detection unchanged" is
+#          indistinguishable from "the mechanism never engaged".
+#
+# WHY IT SHIPS OFF
+#
+# The detection cost measured here is zero, which is the standard #176 used to
+# default S17's equivalent ON. Two things argue for waiting. This is ONE
+# narrowing fixture where #176 measured eight arms at different drift rates. And
+# under the DEFAULT feed the re-derived baseline converges to 1.000, at which
+# point S5 can never fire again — so defaulting this on would silently retire S5
+# for every existing config. That is defensible (under the default feed S5 can
+# only ever fire on the startup artifact) but it is too big a claim for one
+# fixture.
+#
 #   VC-07  the frozen baseline is READABLE from preserved evidence, and carries
 #          the value the arithmetic above predicts. Until this shipped it was
 #          the only one of the four baselines absent from snapshotState(), so a
@@ -113,7 +139,7 @@ json.dump({"responses": r}, open(sys.argv[1], "w"))
 PYEOF
 }
 
-# $1=arm name  $2=full NAAb program
+# $1=arm name  $2=full NAAb program  $3=extra context_drift JSON keys (optional)
 run_case() {
     WDIR="$TEST_TMP/$1"; mkdir -p "$WDIR"
     gen_fixture "$WDIR/fixture.json"
@@ -125,7 +151,7 @@ run_case() {
   "telemetry": { "enabled": true, "output_file": "tele.jsonl", "decision_snapshots": true },
   "behavioral_sequences": { "enabled": true },
   "context_drift": { "enabled": true, "level": "advisory", "check_interval_turns": 1,
-    "reality_checkpoint": { "enabled": false } },
+    "reality_checkpoint": { "enabled": false }${3:+, $3} },
   "circuit_breaker": { "enabled": true, "critical_threshold": 0.99 },
   "agents": { "worker": { "provider": "gemini", "model": "stub-model",
       "api_base": "http://127.0.0.1:$STUB_PORT",
@@ -147,6 +173,10 @@ OPS_K2='    let _a = env.get("HOME") ?? "x"
 
 mk_prog() {  # $1 = ops emitted before the loop, $2 = ops emitted inside the loop
     printf 'use agent\nuse env\nuse crypto\nmain {\n%s\n    let h = agent.create("worker")\n    let i = 0\n    while i < %d {\n%s\n        let r = agent.send(h, "continue the reconciliation")\n        i = i + 1\n    }\n    print("DONE")\n}\n' "$1" "$TURNS" "$2"
+}
+
+mk_prog_early() {  # varied ops for the FIRST 10 turns, then the agent narrows
+    printf 'use agent\nuse env\nuse crypto\nmain {\n    let h = agent.create("worker")\n    let i = 0\n    while i < %d {\n        if i < 10 {\n%s\n        }\n        let r = agent.send(h, "continue the reconciliation")\n        i = i + 1\n    }\n    print("DONE")\n}\n' "$TURNS" "$OPS_K2"
 }
 
 mk_prog_late() {  # varied ops only from iteration 10 onward
@@ -212,6 +242,17 @@ run_case k1_startup  "$(mk_prog "$OPS_K1"   '')"        && OK_K1=1
 run_case k2_startup  "$(mk_prog "$OPS_K2"   '')"        && OK_K2=1
 run_case k2_everyturn "$(mk_prog ''         "$OPS_K2")" && OK_EVERY=1
 run_case k2_late     "$(mk_prog_late)"                  && OK_LATE=1
+
+# C1f arms. ADAPT re-derives initial_entropy on any turn clean apart from S5.
+ADAPT='"thresholds": { "entropy_baseline_adaptive": true }'
+# The positive control needs the since_last_check feed: under the default feed
+# every post-turn-0 event is invisible (B6/VC-05/VC-06), so "genuine narrowing"
+# cannot be expressed at all and an arm claiming to test it would be vacuous.
+ADAPT_FEED='"event_feed": "since_last_check", "thresholds": { "entropy_baseline_adaptive": true }'
+FEED_ONLY='"event_feed": "since_last_check"'
+run_case k2_adapt    "$(mk_prog "$OPS_K2" '')" "$ADAPT"      && OK_ADAPT=1
+run_case narrow_frozen "$(mk_prog_early)"      "$FEED_ONLY"  && OK_NF=1
+run_case narrow_adapt  "$(mk_prog_early)"      "$ADAPT_FEED" && OK_NA=1
 
 T_STEADY="$TEST_TMP/steady/tele.jsonl"
 T_K1="$TEST_TMP/k1_startup/tele.jsonl"
@@ -348,6 +389,64 @@ else
     else
         fail "VC-07" "reported baseline is not the predicted value" "control=$E_CTL (want 1.000) k2=$E_K2 (want 1.811)"
     fi
+fi
+
+echo ""
+echo -e "${CYAN}--- VC-08/09/10: entropy_baseline_adaptive (C1f) ---${NC}"
+T_ADAPT="$TEST_TMP/k2_adapt/tele.jsonl"
+T_NF="$TEST_TMP/narrow_frozen/tele.jsonl"
+T_NA="$TEST_TMP/narrow_adapt/tele.jsonl"
+
+# VC-08: re-deriving the baseline shrinks the STARTUP ARTIFACT. It does not
+# eliminate it: while turn 0 is still inside the sliding window's early half the
+# high entropy is genuinely there, so the residual firings are structural rather
+# than a partial fix. Measured 20 -> 5 firings, coherence 0.0000 -> 0.2500.
+if [ -f "$T_ADAPT" ]; then
+    # s5_fire_turns prints ONE space-joined line, so count words not lines.
+    N_FROZEN=$(s5_fire_turns "$T_K2" | wc -w)
+    N_ADAPT=$(s5_fire_turns "$T_ADAPT" | wc -w)
+    if [ "$N_ADAPT" -lt "$N_FROZEN" ] && [ "$N_ADAPT" -le 8 ]; then
+        pass "VC-08" "adaptive baseline cuts the startup artifact: $N_FROZEN -> $N_ADAPT firings"
+    else
+        fail "VC-08" "adaptive baseline did not shrink the artifact" "frozen=$N_FROZEN adaptive=$N_ADAPT (want adaptive < frozen and <= 8)"
+    fi
+else
+    fail "VC-08" "k2_adapt arm produced no telemetry"
+fi
+
+# VC-09: and costs NOTHING on genuine narrowing. Both arms use the
+# since_last_check feed, because under the default feed every post-turn-0 event
+# is invisible (VC-05/VC-06) and "genuine narrowing" cannot be expressed at all
+# -- an arm claiming to test it on the default feed would be vacuous.
+if [ -f "$T_NF" ] && [ -f "$T_NA" ]; then
+    NF="$(s5_fire_turns "$T_NF" | tr '\n' ' ')"
+    NA="$(s5_fire_turns "$T_NA" | tr '\n' ' ')"
+    if [ -z "$NF" ]; then
+        fail "VC-09" "the narrowing fixture fires nothing even with a FROZEN baseline" \
+             "there is no detection here to preserve; VC-09 and VC-10 are vacuous"
+    elif [ "$NF" = "$NA" ]; then
+        pass "VC-09" "genuine narrowing still detected, identical turns [$NA]"
+    else
+        fail "VC-09" "adaptive baseline changed narrowing detection" "frozen=[$NF] adaptive=[$NA]"
+    fi
+else
+    fail "VC-09" "narrowing arms produced no telemetry"
+fi
+
+# VC-10: the vacuity guard for VC-09. Identical detection is only meaningful if
+# the mechanism was ENGAGED -- if the baseline never moved, "unchanged" would
+# mean "adaptive did nothing" and VC-09 would prove nothing at all.
+if [ -f "$T_NF" ] && [ -f "$T_NA" ]; then
+    E_NF="$(snapshot_initial_entropy "$T_NF")"
+    E_NA="$(snapshot_initial_entropy "$T_NA")"
+    if [ "$E_NF" != "$E_NA" ] && [ "$E_NA" != "ABSENT" ]; then
+        pass "VC-10" "the baseline actually moved: frozen $E_NF vs adaptive $E_NA"
+    else
+        fail "VC-10" "the adaptive baseline did not move — VC-09 is vacuous" \
+             "frozen=$E_NF adaptive=$E_NA"
+    fi
+else
+    fail "VC-10" "narrowing arms produced no telemetry"
 fi
 
 echo ""

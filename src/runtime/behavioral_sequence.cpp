@@ -1258,6 +1258,7 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 static_cast<size_t>(half), static_cast<size_t>(window));
 
             // Track initial entropy for baseline comparison
+            state.last_early_entropy = early_entropy;
             if (state.initial_entropy < 0.0 && early_entropy > 0.0) {
                 state.initial_entropy = early_entropy;
             }
@@ -2394,6 +2395,22 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
             state.persona_baseline_mean = sum / n;
             state.persona_baseline_stddev = std::sqrt(std::max(0.0, sq / n - (sum / n) * (sum / n)));
             if (state.persona_baseline_stddev < 1.0) state.persona_baseline_stddev = 1.0;
+        }
+    }
+    // C1f: re-derive S5's baseline on a turn that was clean APART FROM S5, for
+    // the same reason S17 excludes itself above -- while S5 is the only signal
+    // firing no turn is ever clean, so gating on total cleanliness would let the
+    // signal hold its own baseline hostage and the fix would do nothing.
+    //
+    // The frozen baseline's problem is not that it is old, it is that it is
+    // sampled from turns 0-2, which contain process startup. Any OTHER signal
+    // firing freezes it, so an agent that is genuinely degrading keeps paying.
+    if (config_->thresholds.entropy_baseline_adaptive &&
+        state.initial_entropy >= 0.0 &&
+        state.last_early_entropy > 0.0) {
+        double other = turn_penalty_total - turn_penalties[SIG_VOCAB_CONTRACTION];
+        if (other <= 0.0) {
+            state.initial_entropy = state.last_early_entropy;
         }
     }
     if (turn_penalty_total > 0.0) {
