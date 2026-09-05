@@ -1763,6 +1763,53 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // A4: initialize the GRANTED capability set on first send.
+    //
+    // `granted_capabilities` had no writer anywhere in the repository, so S7
+    // (capability_underutilization) could never fire -- its condition is
+    // `granted_capabilities.count(cap)` -- and agent.environment() reported
+    // capabilities_granted as an empty list for every agent that had ever run.
+    //
+    // Deliberately NOT gated on S7 being enabled, unlike the mandate keywords
+    // below. The environment dict reads this field unconditionally, so gating
+    // would leave that half of the bug in place for every config that does not
+    // opt into the signal -- which is all of them by default.
+    //
+    // Safe to populate unconditionally because S7 defaults FALSE
+    // (governance.h). Nothing that has not explicitly asked for the signal
+    // changes behaviour; configs that DID ask for it start getting the
+    // detection they enabled, which is the point.
+    //
+    // The four names are S7's own vocabulary, mapped from event types in
+    // behavioral_sequence.cpp. A per-agent grant can only restrict BELOW the
+    // global capability, never exceed it, so each is an intersection. An
+    // `allowed_actions` matrix, when non-empty, is the agent's separation-of-
+    // duties declaration and further narrows it. "environment" has no action in
+    // that matrix and no global on/off switch (capabilities.env_vars carries
+    // allow/block lists, not an enable flag), so it cannot be expressed there
+    // and is granted whenever the agent exists -- stated rather than silent,
+    // because it means an env-only matrix does not withhold it.
+    if (gov_engine && gov_engine->isActive() && current_turn == 0) {
+        const auto& caps = gov_engine->getRules().capabilities;
+        const auto& acts = config->allowed_actions;
+        auto declared = [&acts](const char* a) {
+            return acts.empty() ||
+                   std::find(acts.begin(), acts.end(), a) != acts.end();
+        };
+        std::unordered_set<std::string> granted;
+        if (caps.shell.enabled && config->shell_allowed && declared("SHELL_EXEC"))
+            granted.insert("execution");
+        if (caps.network.enabled && config->network_allowed && declared("NET_CONNECT"))
+            granted.insert("network");
+        if (caps.filesystem.mode != "none" &&
+            (acts.empty() ||
+             std::find(acts.begin(), acts.end(), "FS_READ") != acts.end() ||
+             std::find(acts.begin(), acts.end(), "FS_WRITE") != acts.end()))
+            granted.insert("filesystem");
+        granted.insert("environment");
+        gov_engine->initializeGrantedCapabilities(handle_id, granted);
+    }
+
     // Initialize mandate keywords on first send (for mandate alignment + prompt compliance signals)
     if (gov_engine && gov_engine->isActive() && current_turn == 0 &&
         !config->system_prompt.empty() &&

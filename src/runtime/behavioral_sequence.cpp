@@ -2950,6 +2950,12 @@ void ContextDriftAnalyzer::initializeMandateKeywords(
     drift_states_[handle_id].mandate_keywords = keywords;
 }
 
+void ContextDriftAnalyzer::initializeGrantedCapabilities(
+    int handle_id, const std::unordered_set<std::string>& caps) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    drift_states_[handle_id].granted_capabilities = caps;
+}
+
 void ContextDriftAnalyzer::addInstructionKeywords(
     int handle_id, const std::unordered_set<std::string>& keywords, int visible_turns) {
     std::lock_guard<std::mutex> lock(mutex_);

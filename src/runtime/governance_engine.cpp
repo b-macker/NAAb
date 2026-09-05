@@ -7914,6 +7914,11 @@ void GovernanceEngine::initializeMandateKeywords(
     drift_analyzer_.initializeMandateKeywords(handle_id, keywords);
 }
 
+void GovernanceEngine::initializeGrantedCapabilities(
+    int handle_id, const std::unordered_set<std::string>& caps) {
+    drift_analyzer_.initializeGrantedCapabilities(handle_id, caps);
+}
+
 void GovernanceEngine::addInstructionKeywords(
     int handle_id, const std::unordered_set<std::string>& keywords, int visible_turns) {
     drift_analyzer_.addInstructionKeywords(handle_id, keywords, visible_turns);

@@ -622,6 +622,15 @@ public:
     // Initialize mandate keywords from system_prompt (for mandate alignment signal)
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
 
+    // Initialize the capabilities this agent is GRANTED (for S7
+    // capability_underutilization, and for agent.environment()'s
+    // capabilities_granted). A4: nothing wrote granted_capabilities, so S7's
+    // firing condition -- granted_capabilities.count(cap) -- was never true and
+    // the environment dict reported an empty list for every agent that had ever
+    // run. Its sibling exercised_capabilities is written on the adjacent line,
+    // which is what makes the omission read as an oversight.
+    void initializeGrantedCapabilities(int handle_id, const std::unordered_set<std::string>& caps);
+
     // Add instruction keywords from user prompts (for instruction recall signal).
     // visible_turns: how many turns (including this prompt) fit in the context
     // window actually sent to the agent; 0 = no windowing (all turns visible).

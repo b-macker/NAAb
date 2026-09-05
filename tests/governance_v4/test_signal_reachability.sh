@@ -29,13 +29,18 @@
 #   makes S4 fire.
 #
 # THESE GATES PIN CURRENT, DEFECTIVE BEHAVIOUR so a fix reads as a deliberate
-# gate change. SR-02, SR-03 and SR-05 are all expected to flip when the defects
-# are fixed. SR-01, SR-04 and SR-06 are the controls and should hold either way.
+# gate change. SR-02 and SR-03 WERE flipped, on 2026-09-05, when A4 was fixed:
+# granted_capabilities is now populated at first send from the agent's config
+# intersected with the global capabilities, so S7 can reach its firing condition
+# and the environment dict reports a real grant list. SR-05 still pins A5's
+# defect and is still expected to flip. SR-01, SR-04 and SR-06 are the controls
+# and hold either way.
 #
 #   SR-01  VACUITY GUARD: the tool fixture really does execute tools
-#   SR-02  S7 does not fire, though a granted capability is first exercised
+#   SR-02  S7 DOES fire when a granted capability is first exercised at
+#          turn>=10 (this asserted the opposite until A4 was fixed)
 #          at turn >= underutilization_delay
-#   SR-03  ...and agent.environment() reports capabilities_granted EMPTY --
+#   SR-03  ...and agent.environment() reports capabilities_granted POPULATED --
 #          the direct observable of the unwritten field
 #   SR-04  CONTROL: the same fixture DOES fire scope_creep, so tool events
 #          demonstrably reach the live turn bucket. Without this, SR-02 is
@@ -187,16 +192,18 @@ else
 
     if [ "$TOOLS_OK" = "1" ]; then
         S7="$(cdd_signal_turns "$W1/tele.jsonl" capability_underutil)"
-        if [ -z "$S7" ]; then
-            pass "SR-02" "S7 never fires despite a granted capability first used at turn>=10"
+        if [ -n "$S7" ]; then
+            pass "SR-02" "S7 fires on a granted capability first used at turn>=10 (turns=[$S7])"
         else
-            fail "SR-02" "S7 fired" "turns=[$S7] — granted_capabilities is now being written; update this gate deliberately"
+            fail "SR-02" "S7 did not fire" \
+                "granted_capabilities is empty again — nothing writes it, so S7's condition granted_capabilities.count(cap) can never be true (A4)"
         fi
         GRANTED=$(grep -oE '^GRANTED=[0-9]+' "$W1/out.txt" 2>/dev/null | cut -d= -f2)
-        if [ "${GRANTED:-x}" = "0" ]; then
-            pass "SR-03" "agent.environment() reports capabilities_granted empty"
+        if [ "${GRANTED:-0}" -gt 0 ] 2>/dev/null; then
+            pass "SR-03" "agent.environment() reports capabilities_granted populated (${GRANTED})"
         else
-            fail "SR-03" "capabilities_granted is no longer empty" "GRANTED=${GRANTED:-<absent>}"
+            fail "SR-03" "capabilities_granted is empty" \
+                "GRANTED=${GRANTED:-<absent>} — every agent that has ever run reports an empty grant list (A4)"
         fi
         CREEP="$(cdd_signal_turns "$W1/tele.jsonl" scope_creep)"
         if [ -n "$CREEP" ]; then
