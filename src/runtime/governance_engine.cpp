@@ -85,6 +85,35 @@ static thread_local int t_event_agent_turn = 0;
 static thread_local int t_event_agent_handle = 0;
 static thread_local std::string t_event_agent_config;
 
+// B9(a): checkPreExecution CONSUMES the event it tests. When the pre-check
+// matched and the enforcement did NOT block, the action then runs and its
+// normal emitEvent records the SAME action a second time. Measured on a
+// two-step same-type ADVISORY pattern over six file.read calls: five matches
+// where the arithmetic is three (matches at reads 2,3,4,5,6 instead of 2,4,6),
+// against a control of six crypto.base64_decode calls -- a type that is emitted
+// but never pre-checked -- which produced exactly three.
+//
+// The duplicate does two things, and the second is what B9's headline finding
+// actually was. It leaves a phantom event in the sequence buffer, so every
+// pattern's max_gap budget is spent on an action that happened once; and
+// because the pre-check's recordEvent advances AND RESETS the pattern, the
+// duplicate arrives at step 0 and the completed path never fires for that
+// match. That is why an 8-turn ADVISORY run produced zero BSD_MATCH events
+// from checkBehavioralSequence: the pre-check was not merely silent, it was
+// stealing the match from the path that reports.
+//
+// The flag is set only when the pre-check recorded and the action was let
+// through, which is exactly when an emitEvent for the same action is still
+// coming. A blocked action never reaches emitEvent and must leave the flag
+// false, or the next unrelated event would be swallowed -- DETECT blocks
+// catchably, so a script does keep running past one. That case is already
+// safe by construction rather than by a guard: enforce() throws on every
+// blocking path, so the assignment is simply never reached, and the flag was
+// cleared on entry. Verified by inverting the assignment to an unconditional
+// true -- the DETECT-then-unrelated-event fixture was UNCHANGED, which is what
+// sent this comment back for a rewrite.
+static thread_local bool t_preexec_consumed = false;
+
 
     class GovernanceEngine::RulesSnapshot {
         std::shared_ptr<const GovernanceRules> prev_;
@@ -6459,6 +6488,17 @@ std::string GovernanceEngine::emitEvent(RuntimeEventType type, const std::string
                                          int input_tokens, bool thinking_reported) {
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
+    // B9(a): this action was already recorded by checkPreExecution, which tested
+    // it and let it through. Recording it again is the duplicate. One-shot --
+    // the next event on this thread records normally. Returning "" is right
+    // rather than merely convenient: the pre-check already ran enforce() for
+    // this match and its result was returned to the caller, so re-enforcing
+    // here would charge the same match twice through advisory escalation.
+    if (t_preexec_consumed) {
+        t_preexec_consumed = false;
+        return "";
+    }
+
     RuntimeEvent ev;
     ev.type = type;
     ev.detail = detail;
@@ -7939,6 +7979,9 @@ GovernanceEngine::CheckpointData GovernanceEngine::getCheckpointData(
 std::string GovernanceEngine::checkPreExecution(
     RuntimeEventType type, const std::string& detail,
     const std::string& file, int line) {
+    // Cleared on every path that does not consume: a stale true would make the
+    // next emitEvent drop a real event.
+    t_preexec_consumed = false;
     if (!bsd_enabled_.load(std::memory_order_acquire)) return "";
 
     RuntimeEvent ev;
@@ -7954,7 +7997,7 @@ std::string GovernanceEngine::checkPreExecution(
     ev.timestamp = std::chrono::steady_clock::now();
 
     auto match = sequence_detector_.wouldMatch(ev);
-    if (match.pattern_name.empty()) return "";
+    if (match.pattern_name.empty()) return "";  // nothing consumed; flag already false
 
     // Consume the event: advance + reset the pattern state so that the block is
     // recorded in the sequence log and subsequent normal calls aren't re-blocked
@@ -8000,7 +8043,7 @@ std::string GovernanceEngine::checkPreExecution(
     // budget for something that never happened is arguable either way. Left as
     // it was rather than changed silently alongside the evidence fix -- but it is
     // now a recorded choice instead of an omission nobody had looked at.
-    return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
+    std::string block = enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
         formatError(match.pattern->level,
             fmt::format("Behavioral sequence '{}' blocked before execution: '{}' would "
                 "complete a dangerous {}-step pattern",
@@ -8009,6 +8052,21 @@ std::string GovernanceEngine::checkPreExecution(
             "This action would complete a known dangerous sequence.\n"
             "The operation was blocked before execution.",
             "", ""));
+
+    // Decided on the OUTCOME, not on match.pattern->level: enforce() promotes
+    // ADVISORY to SOFT at governance level HIGH, advisory_escalation promotes
+    // after soft_after occurrences, and SOFT does not block under
+    // --governance-override. A level test up front would be wrong in all three.
+    // enforce() never RETURNS a block: every blocking path throws
+    // (GovernanceHardError for HARD/SOFT/escalated-ADVISORY, std::runtime_error
+    // for DETECT) and every non-blocking path returns "". So reaching this line
+    // means the action was let through and its emitEvent is still coming, and a
+    // throw skips the assignment entirely -- leaving the flag false from the
+    // clear at entry, which is what a blocked action needs. Written as the
+    // outcome test rather than `= true` so it stays correct if enforce ever
+    // gains a returning block path; it is not load-bearing today.
+    t_preexec_consumed = block.empty();
+    return block;
 }
 
 } // namespace governance
