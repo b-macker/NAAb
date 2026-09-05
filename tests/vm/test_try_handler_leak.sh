@@ -33,6 +33,21 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
 
+# Without this the suite is vacuous. Every scenario compares VM output against
+# tree-walk output, and a missing binary makes BOTH empty — the diff succeeds
+# and all 8 assertions report PASS having executed nothing. Observed exactly
+# that on a tree with no build/ directory.
+#
+# Existence is not enough either: any stand-in that exits quietly (/bin/true)
+# also yields two empty outputs that match, so ask the binary to identify
+# itself. A missing binary is a suite failure rather than a skip — this test
+# has no platform prerequisite to skip on.
+if ! "$NAAB" --version 2>/dev/null | grep -qi naab; then
+    echo "  FAIL [SETUP] $NAAB does not identify as naab-lang" >&2
+    echo "       -> build it first; an absent binary makes every comparison vacuous" >&2
+    exit 1
+fi
+
 if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
     _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 else
@@ -58,6 +73,14 @@ run_both() {  # $1=id  $2=source
     printf '%s\n' "$2" > "$d/t.naab"
     ( cd "$d" && "$NAAB" --no-governance t.naab 2>/dev/null | grep -E '^[A-Z0-9_]+=' ) > "$d/vm.txt" || true
     ( cd "$d" && "$NAAB" --no-governance --tree-walk t.naab 2>/dev/null | grep -E '^[A-Z0-9_]+=' ) > "$d/tw.txt" || true
+    # Empty is not agreement. Both engines silent means the program never ran
+    # (binary gone, source rejected, scenario rewritten into something that
+    # prints nothing) and the diff would pass on nothing. Every scenario here
+    # prints at least one line on both engines by construction, so treat an
+    # empty side as a distinct failure rather than a match.
+    if [ ! -s "$d/vm.txt" ] || [ ! -s "$d/tw.txt" ]; then
+        return 2
+    fi
     if diff -q "$d/vm.txt" "$d/tw.txt" >/dev/null 2>&1; then
         return 0
     fi
@@ -66,8 +89,12 @@ run_both() {  # $1=id  $2=source
 
 report() {  # $1=id $2=description
     local d="$TEST_TMP/$1"
-    if run_both "$1" "$3"; then
+    run_both "$1" "$3"
+    local rc=$?
+    if [ "$rc" -eq 0 ]; then
         pass "$1" "$2"
+    elif [ "$rc" -eq 2 ]; then
+        fail "$1" "$2" "no output from one or both engines — the scenario did not run"
     else
         fail "$1" "$2" "VM: $(tr '\n' ' ' < "$d/vm.txt") | tree-walk: $(tr '\n' ' ' < "$d/tw.txt")"
     fi

@@ -185,6 +185,18 @@ annoying: they fail in the direction you are least likely to question.
 Before reading meaning into an empty result, prove the pipeline that produced it
 can produce a non-empty one.
 
+The same failure hides inside **differential tests**, where it is harder to see.
+Once the oracle is the other engine, there is no hand-written expectation left
+to fail against, so two empty outputs agree and every assertion passes. Two
+tests here did exactly that with no binary built: `test_try_handler_leak.sh`
+reported 8/8, and `test_vm_treewalker_diff.sh` — which compares exit codes, so
+any stand-in exiting 0 twice matches — reported "18 passed, 0 failed, 0 known
+divergences" against `/bin/true`, a *better* result than the truthful 14 passed
+with 4 known. A vacuous differential does not merely fail to detect; it erases
+the divergences already documented. Any suite whose assertion is "these two
+agree" needs a separate proof that either side ran at all, and existence of the
+binary is not that proof.
+
 ### Do not mutate what you are observing
 
 Editing a script while it runs, running two jobs that share a build directory,

@@ -12,6 +12,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAAB="${NAAB:-$SCRIPT_DIR/../../build/naab-lang}"
+
+# Every assertion here compares the VM's exit code against the tree-walker's.
+# Two identical results are a match whatever produced them, so any stand-in that
+# exits 0 both times passes all 18 — verified: pointing NAAB at /bin/true
+# reported "18 passed, 0 failed" having run nothing. An existence test is not
+# enough for the same reason (/bin/true exists and is executable), so ask the
+# binary to identify itself.
+if ! "$NAAB" --version 2>/dev/null | grep -qi naab; then
+    echo "  FAIL [SETUP] $NAAB does not identify as naab-lang" >&2
+    echo "       -> build it first; engine-vs-engine comparison is vacuous without it" >&2
+    exit 1
+fi
+
 if [ -d "/data/data/com.termux/files/usr/tmp" ]; then
     _SYSTMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 else
