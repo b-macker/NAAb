@@ -1764,6 +1764,20 @@ else
     echo "  test_context_growth_ema.sh: not found, skipping"
 fi
 
+# B9(a): the BSD pre-check consumed the event and then let emitEvent record it
+# a second time, inflating match counts and spending every pattern's max_gap.
+PREEXECDR_SCRIPT="tests/governance_v4/test_bsd_preexec_double_record.sh"
+if [ -f "$PREEXECDR_SCRIPT" ]; then
+    if run_shell_test "$PREEXECDR_SCRIPT" 2>&1; then
+        echo "  test_bsd_preexec_double_record.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_preexec_double_record.sh")
+    fi
+else
+    echo "  test_bsd_preexec_double_record.sh: not found, skipping"
+fi
+
 # CI's SARIF merger corrupted result.ruleIndex for every file after the first,
 # and GitHub rejected the upload as a neutral check while the job stayed green.
 # Nothing could reach the merger while it was inline in the workflow YAML.
