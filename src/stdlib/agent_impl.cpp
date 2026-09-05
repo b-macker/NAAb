@@ -3812,6 +3812,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     if (std::regex_search(content, re)) {
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:shell_blocked(" + config_name + ")", "", 0);
+                        // A5: this turn throws on the next line and never reaches recordTurn,
+                        // so the event alone cannot arm S4. Feed it in out of band.
+                        gov_engine->recordBlockedCapability(handle_id,
+                            "agent_restriction:shell_blocked(" + config_name + ")");
                         throw std::runtime_error(fmt::format(
                             "Agent error: Response from '{}' contains shell command syntax\n\n"
                             "  Help:\n"
@@ -3830,6 +3834,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     // Fail-closed: broken pattern → block as if matched
                     gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                         "agent_restriction:shell_pattern_error(" + config_name + ")", "", 0);
+                    // A5: this turn throws on the next line and never reaches recordTurn,
+                    // so the event alone cannot arm S4. Feed it in out of band.
+                    gov_engine->recordBlockedCapability(handle_id,
+                        "agent_restriction:shell_pattern_error(" + config_name + ")");
                     throw std::runtime_error(fmt::format(
                         "Agent error: Shell command scan failed for '{}' (pattern compilation error)\n\n"
                         "  Help:\n"
@@ -3858,6 +3866,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         if (std::regex_search(content, re)) {
                             gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                                 "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
+                            // A5: this turn throws on the next line and never reaches recordTurn,
+                            // so the event alone cannot arm S4. Feed it in out of band.
+                            gov_engine->recordBlockedCapability(handle_id,
+                                "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")");
                             throw std::runtime_error(fmt::format(
                                 "Agent error: Response from '{}' references a blocked path\n\n"
                                 "  Help:\n"
@@ -3869,6 +3881,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         // Fail-closed: broken glob pattern → block as if matched
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:blocked_path_pattern_error(" + config_name + ":" + blocked + ")", "", 0);
+                        // A5: this turn throws on the next line and never reaches recordTurn,
+                        // so the event alone cannot arm S4. Feed it in out of band.
+                        gov_engine->recordBlockedCapability(handle_id,
+                            "agent_restriction:blocked_path_pattern_error(" + config_name + ":" + blocked + ")");
                         throw std::runtime_error(fmt::format(
                             "Agent error: Blocked path pattern '{}' could not compile for '{}'\n\n"
                             "  Help:\n"
@@ -3881,6 +3897,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     if (content.find(blocked) != std::string::npos) {
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
+                        // A5: this turn throws on the next line and never reaches recordTurn,
+                        // so the event alone cannot arm S4. Feed it in out of band.
+                        gov_engine->recordBlockedCapability(handle_id,
+                            "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")");
                         throw std::runtime_error(fmt::format(
                             "Agent error: Response from '{}' references a blocked path\n\n"
                             "  Help:\n"
@@ -3909,6 +3929,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 if (!allowed) {
                     gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                         "agent_restriction:path_not_allowed(" + config_name + ":" + path + ")", "", 0);
+                    // A5: this turn throws on the next line and never reaches recordTurn,
+                    // so the event alone cannot arm S4. Feed it in out of band.
+                    gov_engine->recordBlockedCapability(handle_id,
+                        "agent_restriction:path_not_allowed(" + config_name + ":" + path + ")");
                     throw std::runtime_error(fmt::format(
                         "Agent error: Response from '{}' references path '{}' not in allowed list\n\n"
                         "  Help:\n"

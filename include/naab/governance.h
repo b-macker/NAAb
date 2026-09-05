@@ -3498,6 +3498,7 @@ public:
     // Initialize mandate keywords for semantic mandate alignment signal
     void initializeMandateKeywords(int handle_id, const std::unordered_set<std::string>& keywords);
     void initializeGrantedCapabilities(int handle_id, const std::unordered_set<std::string>& caps);
+    void recordBlockedCapability(int handle_id, const std::string& detail);
 
     // Bind per-agent CDD signal overrides (context_drift_signals) to a handle
     void setSignalOverrides(int handle_id, const std::map<std::string, bool>& overrides);
