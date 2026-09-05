@@ -23,7 +23,17 @@
 # Note there was NO test for deduplicate_checks anywhere in the suite before
 # this file, which is why it survived.
 #
-#   DC-01  with dedup ON, a runtime rule firing N times produces N rows
+#   DC-01  with dedup ON, a runtime rule firing N times produces N rows.
+#          The fixture is four file.read calls against a two-step same-type
+#          pattern, so N is 2 -- matches at reads 2 and 4.
+#
+#          THE EXPECTED COUNT WAS 3 UNTIL 2026-09-05 and that 3 was wrong.
+#          checkPreExecution consumed the completing event and the action
+#          then ran, so emitEvent recorded it a second time; the phantom
+#          left a partial match that made read 3 complete the pattern early
+#          (B9(a), test_bsd_preexec_double_record.sh). This test was pinning
+#          that duplicate. Asserted exactly rather than >= so a returning
+#          duplicate fails here too, in the opposite direction.
 #   DC-02  CONTROL: static duplicates are STILL collapsed. Without this,
 #          DC-01 passes just as well on a build where dedup was deleted
 #   DC-03  the summary reports runtime_exempt, so "deduplicated" cannot be
@@ -119,10 +129,13 @@ for mode in true false; do
 done
 
 echo -e "${CYAN}--- DC-01/03/04: runtime events are no longer collapsed ---${NC}"
-if [ "${N_ON:-0}" -ge 3 ]; then
-    pass "DC-01" "dedup ON: the runtime rule produced ${N_ON} rows (was 1 before the fix)"
+if [ "${N_ON:-0}" = "2" ]; then
+    pass "DC-01" "dedup ON: the runtime rule produced ${N_ON} rows (1 before the dedup fix; 3 while the pre-check double-recorded)"
+elif [ "${N_ON:-0}" -le 1 ]; then
+    fail "DC-01" "runtime rows still collapsed" "got ${N_ON:-none}, expected 2"
 else
-    fail "DC-01" "runtime rows still collapsed" "got ${N_ON:-none}, expected >=3"
+    fail "DC-01" "more runtime rows than the fixture can produce" \
+        "got ${N_ON}, expected 2 — four reads against a two-step pattern match twice; a third row means an event is being recorded more than once (see B9(a))"
 fi
 if [ "${EXEMPT:-MISSING}" != "MISSING" ] && [ "${EXEMPT:-ABSENT}" != "ABSENT" ] && [ "${EXEMPT:-0}" -gt 0 ]; then
     pass "DC-03" "summary reports runtime_exempt=${EXEMPT}"
