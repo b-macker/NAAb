@@ -1,0 +1,161 @@
+// multiturn.naab — 3-agent x 8-turn experiment
+// Purpose: push agents past adaptive_baseline_window (5 turns)
+//          to see if statistical CDD signals charge post-calibration
+//
+// Agents: analyst, debater, parrot
+//   analyst — gives substantive analysis (should stay coherent)
+//   debater — argues/challenges (should stay coherent)
+//   parrot  — repeats identical text every turn (should degrade)
+//
+// Flow: 8 rounds of sequential sends to each agent
+//   Total: 24 API calls (3 agents x 8 turns), 24 sequential steps
+
+use agent
+use env
+use string
+use time
+
+fn safe_send(handle, message) {
+    try {
+        let resp = agent.send(handle, message)
+        let adm = resp.get("admissibility")
+        if adm != null && adm.get("admissible") == false {
+            print("[gov] quarantined (coherence: " + string(adm.get("coherence_score")) + ")")
+        }
+        return resp
+    } catch (e) {
+        print("[error] send failed: " + string(e))
+        return {"error": string(e), "content": "", "success": false}
+    }
+}
+
+fn get_content(resp) {
+    if resp.get("error") != null { return "[send failed]" }
+    if resp.get("success") == false { return "[send failed]" }
+    return resp.get("content") ?? "[empty response]"
+}
+
+fn validate_response(handle, resp) {
+    if resp.get("error") != null {
+        agent.record_validation(handle, false, "send failed: " + string(resp.get("error")))
+        return false
+    }
+    let c = resp.get("content") ?? ""
+    if len(c) < 50 {
+        agent.record_validation(handle, false, "response too short: " + string(len(c)) + " chars")
+        return false
+    }
+    agent.record_validation(handle, true, "content received: " + string(len(c)) + " chars")
+    return true
+}
+
+main {
+    let start = time.now()
+
+    let args = env.get_args()
+    if args.length() < 1 {
+        print("Usage: naab-lang multiturn.naab \"topic to discuss\"")
+        return
+    }
+    let topic = args[0]
+    let ai = 1
+    while ai < args.length() {
+        topic = topic + " " + args[ai]
+        ai = ai + 1
+    }
+
+    print("================================================================")
+    print("  MULTITURN EXPERIMENT (3 agents x 8 turns)")
+    print("================================================================")
+    print("Topic: " + topic)
+    print("")
+
+    // Create 3 agents
+    let h_analyst = agent.create("analyst")
+    let h_debater = agent.create("debater")
+    let h_parrot = agent.create("parrot")
+    print("[init] 3 agents created")
+    print("")
+
+    let names = ["analyst", "debater", "parrot"]
+    let handles = [h_analyst, h_debater, h_parrot]
+
+    let total_sends = 0
+    let total_errors = 0
+
+    // 8 rounds of conversation
+    // Each round: send to all 3 agents sequentially, validate between sends
+    // Vary the prompts to give real agents something substantive
+    let round_prompts = [
+        "Analyze this topic from first principles: " + topic,
+        "What are the strongest counter-arguments to your previous analysis?",
+        "How would you reconcile the tensions you identified? Propose a synthesis.",
+        "What real-world evidence supports or undermines your synthesis?",
+        "A skeptic says your entire framework is wrong. Defend or revise.",
+        "What are the second-order consequences nobody is thinking about?",
+        "If you had to bet your career on one prediction about this topic, what would it be and why?",
+        "Final summary: what is the single most important insight from this entire discussion?"
+    ]
+
+    let round = 0
+    while round < 8 {
+        print("================================================================")
+        print("  ROUND " + string(round + 1) + " / 8")
+        print("================================================================")
+
+        let base_prompt = round_prompts[round]
+
+        // Send to each agent sequentially (not batch — we want per-turn CDD)
+        let ri = 0
+        while ri < 3 {
+            let msg = base_prompt
+            if names[ri] == "parrot" {
+                // Parrot gets same generic prompt every time
+                msg = "Provide your analysis of the task."
+            }
+
+            let resp = safe_send(handles[ri], msg)
+            total_sends = total_sends + 1
+            if resp.get("error") != null {
+                total_errors = total_errors + 1
+            }
+
+            // Validate between sends
+            let passed = validate_response(handles[ri], resp)
+            let content = get_content(resp)
+            let status = "OK"
+            if !passed { status = "FAIL" }
+
+            print("[" + names[ri] + "] turn " + string(round + 1) + ": " + string(len(content)) + " chars (" + status + ")")
+
+            ri = ri + 1
+        }
+
+        print("")
+        round = round + 1
+    }
+
+    // Per-agent coherence
+    print("================================================================")
+    print("  FINAL COHERENCE")
+    print("================================================================")
+
+    let hi = 0
+    while hi < names.length() {
+        let env_data = agent.environment(handles[hi])
+        let state = env_data.get("state")
+        if state != null {
+            let c = state.get("coherence") ?? -1
+            let turns = state.get("turns_used") ?? 0
+            print(names[hi] + ": coherence=" + string(c) + " turns=" + string(turns))
+        }
+        hi = hi + 1
+    }
+
+    let elapsed = time.now() - start
+    print("")
+    print("API calls: " + string(total_sends) + " (errors: " + string(total_errors) + ")")
+    print("Elapsed: " + string(elapsed) + "ms")
+    print("")
+    print("MULTITURN|complete")
+}

@@ -1,0 +1,170 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "Hivemind-20 governance. Balanced: firm enough to prevent rubber-stamping, relaxed enough for genuine dissent and iteration. All gravity output is untrusted and taint-tracked.",
+
+  "languages": {
+    "allowed": ["shell"],
+    "per_language": {
+      "shell": {
+        "timeout": 300,
+        "max_lines": 50,
+        "banned_commands": ["rm -rf /", "mkfs", "dd if=/dev/zero"],
+        "shell_injection": true,
+        "shell_injection_level": "hard"
+      }
+    }
+  },
+
+  "capabilities": {
+    "network": {
+      "enabled": false,
+      "rationale": "All LLM access goes through gravity CLI, not NAAb network"
+    },
+    "filesystem": {
+      "mode": "read_write",
+      "blocked_paths": ["/etc/shadow", "/etc/passwd", "/etc/sudoers"],
+      "blocked_extensions": [".exe", ".dll", ".so", ".key", ".pem", ".env"]
+    },
+    "shell": {
+      "enabled": true,
+      "rationale": "Shell needed to invoke gravity CLI via process.run",
+      "blocked_commands": ["sudo", "su", "chmod +s", "rm -rf", "mkfs", "dd"],
+      "allow_pipes": true,
+      "allow_redirects": true,
+      "allow_backgrounding": true
+    },
+    "env_vars": {
+      "read": true,
+      "write": false,
+      "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN", "NAAB_SIGNING_KEY"],
+      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
+    },
+    "process": {
+      "max_processes": 25,
+      "allow_daemon": false
+    }
+  },
+
+  "subprocess_scrub_mode": "blocklist",
+  "blocked_subprocess_prefixes": ["AWS_", "GITHUB_", "NAAB_SIGNING", "ANTHROPIC_", "GK"],
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "soft",
+    "sources": ["process.run", "file.read", "io.read_line"],
+    "sinks": ["shell_exec", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
+    }
+  },
+
+  "restrictions": {
+    "max_output_lines": 5000,
+    "max_string_length": 200000,
+    "dangerous_calls": {
+      "enabled": true,
+      "level": "hard"
+    },
+    "shell_injection": {
+      "enabled": true,
+      "level": "hard"
+    },
+    "privilege_escalation": {
+      "block_sudo": true,
+      "block_su": true,
+      "block_chmod_suid": true,
+      "block_setuid": true,
+      "block_capability_changes": true
+    },
+    "data_exfiltration": {
+      "enabled": true
+    },
+    "code_injection": {
+      "block_dynamic_code_gen": true,
+      "block_template_injection": true
+    },
+    "resource_abuse": {
+      "block_fork_bomb": true,
+      "block_infinite_loops": true,
+      "max_temp_files": 50
+    }
+  },
+
+  "code_quality": {
+    "no_secrets": true,
+    "no_pii": true
+  },
+
+  "limits": {
+    "timeout": {
+      "global": 1800,
+      "per_block": 300,
+      "total_polyglot": 1800
+    },
+    "execution": {
+      "call_depth": 50,
+      "loop_iterations": 100000,
+      "total_executions": 500
+    },
+    "data": {
+      "string_length": 200000,
+      "nesting_depth": 15,
+      "output_size": 500000
+    }
+  },
+
+  "security": {
+    "sandbox_level": "elevated"
+  },
+
+  "codegen": {
+    "enabled": false,
+    "rationale": "Gravity output must never become executable code"
+  },
+
+  "exposure_tracking": {
+    "max_autonomous_actions": 200,
+    "max_unique_agents": 25
+  },
+
+  "telemetry": {
+    "enabled": true,
+    "output_file": "hivemind-telemetry.jsonl",
+    "tamper_evidence": { "enabled": true },
+    "decision_snapshots": true,
+    "transcript": {
+      "enabled": true,
+      "output_file": "hivemind-transcript.jsonl"
+    }
+  },
+
+  "audit": {
+    "level": "basic",
+    "output_file": "hivemind-audit.jsonl",
+    "tamper_evidence": { "enabled": true },
+    "log_events": {
+      "checks_passed": true,
+      "checks_failed": true,
+      "checks_warned": true,
+      "overrides": true,
+      "config_loaded": true,
+      "execution_start": true,
+      "execution_end": true,
+      "polyglot_executed": true
+    }
+  },
+
+  "integrity": {
+    "blocked_flags": ["--governance-override", "--drift-baseline-save"]
+  },
+
+  "meta": {
+    "require_signature": false
+  }
+}

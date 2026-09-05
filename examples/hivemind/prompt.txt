@@ -1,0 +1,128 @@
+Build a 4-agent hive-mind chat system in NAAb language. Two files: govern.json and hivemind.naab.
+
+CRITICAL: NAAb is NOT JavaScript or Python. Here is the exact syntax you must use:
+
+--- NAAb syntax reference ---
+// Imports (required at top of file, before main)
+use agent
+use env
+use string
+use json
+use time
+
+// Everything runs inside main { }
+main {
+    // Variables
+    let x = 42
+    let name = "hello"
+
+    // String concatenation with +
+    let msg = "count: " + string(x)
+
+    // Print to stdout
+    print("hello world")
+
+    // Command-line args (returns array, index 0 is first arg)
+    let args = env.get_args()
+    let prompt = args[0]
+    // Join multiple args:
+    let i = 1
+    while i < args.length() {
+        prompt = prompt + " " + args[i]
+        i = i + 1
+    }
+
+    // NO for loops — use while
+    let j = 0
+    while j < 3 {
+        print("iter " + string(j))
+        j = j + 1
+    }
+
+    // Agent API
+    let handle = agent.create("agent_name")  // name must match govern.json agents key
+    let resp = agent.send(handle, "your message here")
+    let content = resp.get("content")  // response text is in .get("content")
+
+    // Null coalescing
+    let val = resp.get("missing_key") ?? "default"
+
+    // Dicts
+    let d = {"key": "value", "num": 42}
+    let v = d.get("key")
+
+    // Functions (defined INSIDE main is ok)
+    fn helper(x) {
+        return x + 1
+    }
+
+    // Error handling
+    try {
+        let r = agent.send(handle, "msg")
+        return r
+    } catch (e) {
+        print("error: " + string(e))
+        return {"error": string(e)}
+    }
+
+    // Agent environment/coherence
+    let env_data = agent.environment(handle)
+    let state = env_data.get("state")
+    let coherence = state.get("coherence") ?? -1
+    let turns = state.get("turns_used") ?? 0
+}
+--- End NAAb syntax ---
+
+--- govern.json structure (ALL fields required) ---
+{
+  "version": "4.0",
+  "mode": "enforce",
+  "security": { "sandbox_level": "elevated" },
+  "limits": { "timeout": { "global": 300 } },
+  "telemetry": { "enabled": true, "output_file": "telemetry.jsonl" },
+  "context_drift": {
+    "enabled": true,
+    "check_interval_turns": 1,
+    "coherence_natural_healing": 0.03,
+    "reality_checkpoint": { "enabled": false },
+    "thresholds": { "context_growth_factor": 5.0 }
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "elevated_threshold": 0.5,
+    "high_threshold": 0.7,
+    "critical_threshold": 0.9,
+    "step_up_enabled": false,
+    "output_admissibility": { "enabled": true, "threshold": 0.3, "action": "quarantine", "max_quarantine_streak": 20 }
+  },
+  "agents": {
+    "agent_name": {
+      "provider": "gemini",
+      "model": "gemini-3.6-flash",
+      "api_key_env": ["GK1", "GK2", "GK3", "GK4", "GK5", "GK6"],
+      "max_tokens": 2048,
+      "max_turns": 20,
+      "max_total_tokens": 200000,
+      "thinking_budget": 1024,
+      "system_prompt": "Your role description here",
+      "context_window": 20,
+      "context_strategy": "recent",
+      "standing_lease_turns": 20,
+      "tools_enabled": false,
+      "shell_allowed": false,
+      "network_allowed": true,
+      "allowed_actions": ["AGENT_SEND"],
+      "rate_limit": { "requests_per_minute": 0, "delay_between_calls_ms": 1500 },
+      "retry": { "max_attempts": 3, "backoff_ms": 3000, "backoff_multiplier": 2.0, "jitter": true, "retry_on": [429, 500, 503], "skip_key_on": [401], "key_retry_after_seconds": 0 }
+    }
+  }
+}
+--- End govern.json ---
+
+Requirements:
+1. govern.json with 4 agents: coordinator, analyst, builder, critic. All use gemini-2.5-flash, api_key_env as array ["GK1"..."GK6"]. Include retry and rate_limit for each.
+2. hivemind.naab: reads prompt from env.get_args(), creates 4 agents, coordinator frames the task (1 send), fans out to 3 specialists (3 sends), shares all round 1 outputs with all specialists for round 2 (3 sends), coordinator synthesizes final answer (1 send). 8 total API calls.
+3. Use ONLY NAAb syntax shown above. NO JavaScript, NO template literals, NO for loops, NO dot-method calls like coordinator.send(). Use agent.send(handle, msg) and agent.create("name").
+4. Wrap all code in main { }. Use while loops. Use string() to convert numbers. Use + for string concat.
+5. On error, use print() to report and then return (no return value from main — just bare return).
+6. CRITICAL FOR FINAL SYNTHESIS: Output the COMPLETE govern.json and COMPLETE hivemind.naab with NO truncation. Minimal commentary — just the two files in code fences. The hivemind.naab MUST include ALL 8 agent.send calls through to the final coordinator synthesis and the closing } of main.

@@ -1,0 +1,292 @@
+// hivemind.naab — 6-agent hive-mind with parallel dispatch
+//
+// Architecture:
+//   coordinator  — frames tasks and synthesizes final answer
+//   researcher   — prior art, established approaches, context
+//   architect    — system design, patterns, component structure
+//   builder      — implementation, working code, artifacts
+//   critic       — quality assurance, bugs, edge cases
+//   optimizer    — efficiency, simplification, refinement
+//
+// Flow:
+//   1. User prompt -> coordinator framing (1 sequential call)
+//   2. Framed task -> 5 specialists R1 via agent.batch() (5 parallel calls)
+//   3. All R1 outputs -> 5 specialists R2 via agent.batch() (5 parallel calls)
+//   4. All R2 outputs -> coordinator synthesis (1 sequential call)
+//   Total: 12 API calls, 4 sequential steps
+//
+// Usage: naab-lang hivemind.naab "your question or task here"
+
+use agent
+use env
+use json
+use string
+use time
+
+fn safe_send(handle, message) {
+    try {
+        let resp = agent.send(handle, message)
+        let adm = resp.get("admissibility")
+        if adm != null && adm.get("admissible") == false {
+            print("[gov] quarantined (coherence: " + string(adm.get("coherence_score")) + ")")
+        }
+        return resp
+    } catch (e) {
+        print("[error] send failed: " + string(e))
+        return {"error": string(e), "content": "", "success": false}
+    }
+}
+
+fn get_content(resp) {
+    if resp.get("error") != null { return "[send failed]" }
+    if resp.get("success") == false { return "[send failed]" }
+    return resp.get("content") ?? "[empty response]"
+}
+
+fn count_errors(results) {
+    let errs = 0
+    let i = 0
+    while i < results.length() {
+        if results[i].get("error") != null {
+            errs = errs + 1
+        } else if results[i].get("success") == false {
+            errs = errs + 1
+        }
+        i = i + 1
+    }
+    return errs
+}
+
+fn validate_response(handle, resp) {
+    if resp.get("error") != null {
+        agent.record_validation(handle, false, "send failed: " + string(resp.get("error")))
+        return false
+    }
+    let c = resp.get("content") ?? ""
+    if len(c) < 50 {
+        agent.record_validation(handle, false, "response too short: " + string(len(c)) + " chars")
+        return false
+    }
+    agent.record_validation(handle, true, "content received: " + string(len(c)) + " chars")
+    return true
+}
+
+fn validate_batch(handles, results, names) {
+    let vi = 0
+    while vi < results.length() {
+        let passed = validate_response(handles[vi], results[vi])
+        if !passed {
+            print("[validate] " + names[vi] + ": FAILED")
+        }
+        vi = vi + 1
+    }
+}
+
+fn print_bar(label) {
+    print("================================================================")
+    print("  " + label)
+    print("================================================================")
+}
+
+main {
+    let start = time.now()
+
+    // Read prompt from command-line args
+    let args = env.get_args()
+    if args.length() < 1 {
+        print("Usage: naab-lang hivemind.naab \"your question or task\"")
+        return
+    }
+    let prompt = args[0]
+    let ai = 1
+    while ai < args.length() {
+        prompt = prompt + " " + args[ai]
+        ai = ai + 1
+    }
+
+    print_bar("HIVEMIND v2 (parallel)")
+    print("Prompt: " + prompt)
+    print("")
+
+    // Create all 7 agents
+    let h_coord = agent.create("coordinator")
+    let h_research = agent.create("researcher")
+    let h_arch = agent.create("architect")
+    let h_build = agent.create("builder")
+    let h_critic = agent.create("critic")
+    let h_optim = agent.create("optimizer")
+    let h_parrot = agent.create("parrot")
+    print("[init] 7 agents created")
+
+    let total_sends = 0
+    let total_errors = 0
+
+    // ============================================================
+    // PHASE 1: Coordinator frames the task (1 sequential call)
+    // ============================================================
+    print_bar("PHASE 1: COORDINATOR FRAMING")
+
+    let frame_msg = "A user asks the hive-mind team:\n\n" + prompt
+    frame_msg = frame_msg + "\n\nFrame this task for your five specialists (researcher, architect, builder, critic, optimizer). "
+    frame_msg = frame_msg + "For each specialist, specify exactly what they should focus on. "
+    frame_msg = frame_msg + "Clarify the goal, add context, define success criteria. "
+    frame_msg = frame_msg + "Output a single block the whole team will receive."
+
+    let frame_resp = safe_send(h_coord, frame_msg)
+    total_sends = total_sends + 1
+    if frame_resp.get("error") != null { total_errors = total_errors + 1 }
+    validate_response(h_coord, frame_resp)
+    let framing = get_content(frame_resp)
+    print("Coordinator framing (" + string(len(framing)) + " chars)")
+    print("")
+
+    // ============================================================
+    // PHASE 2: Round 1 — 5 specialists in PARALLEL via batch
+    // ============================================================
+    print_bar("PHASE 2: ROUND 1 (parallel independent work)")
+
+    let r1_base = "TASK FROM COORDINATOR:\n\n" + framing + "\n\nORIGINAL USER PROMPT: " + prompt + "\n\n"
+
+    let r1_handles = [h_research, h_arch, h_build, h_critic, h_optim, h_parrot]
+    let r1_names = ["researcher", "architect", "builder", "critic", "optimizer", "parrot"]
+    let r1_messages = [
+        r1_base + "You are the RESEARCHER. Identify prior art, established solutions, relevant patterns, and known pitfalls for this task. Ground the team in what already exists. This is round 1 — work independently.",
+        r1_base + "You are the ARCHITECT. Propose the overall system design: components, responsibilities, interactions, data flow, and design patterns. Produce a concrete blueprint the builder can implement. This is round 1 — work independently.",
+        r1_base + "You are the BUILDER. Produce a complete first implementation. Include all imports, error handling, and comments for non-obvious logic. No placeholders, no TODOs. This is round 1 — work independently.",
+        r1_base + "You are the CRITIC. Identify potential failure modes, edge cases, security concerns, and missing requirements. Be specific — say what could break and how to prevent it. This is round 1 — work independently.",
+        r1_base + "You are the OPTIMIZER. Identify where the solution could be simpler, faster, or more elegant. Suggest concrete simplifications. Never remove safety checks. This is round 1 — work independently.",
+        r1_base + "Provide your analysis of the task."
+    ]
+
+    let r1_results = agent.batch(r1_handles, r1_messages)
+    total_sends = total_sends + r1_results.length()
+    total_errors = total_errors + count_errors(r1_results)
+    validate_batch(r1_handles, r1_results, r1_names)
+
+    // Dump batch errors for diagnosis
+    let di = 0
+    while di < r1_results.length() {
+        let err = r1_results[di].get("error")
+        if err != null {
+            print("[BATCH ERROR] " + r1_names[di] + ": " + string(err))
+        }
+        di = di + 1
+    }
+
+    let r1_research = get_content(r1_results[0])
+    let r1_arch = get_content(r1_results[1])
+    let r1_build = get_content(r1_results[2])
+    let r1_critic = get_content(r1_results[3])
+    let r1_optim = get_content(r1_results[4])
+    let r1_parrot = get_content(r1_results[5])
+
+    print("[researcher] R1: " + string(len(r1_research)) + " chars")
+    print("[architect]  R1: " + string(len(r1_arch)) + " chars")
+    print("[builder]    R1: " + string(len(r1_build)) + " chars")
+    print("[critic]     R1: " + string(len(r1_critic)) + " chars")
+    print("[optimizer]  R1: " + string(len(r1_optim)) + " chars")
+    print("[parrot]     R1: " + string(len(r1_parrot)) + " chars")
+    print("")
+
+    // ============================================================
+    // PHASE 3: Round 2 — 5 specialists see ALL R1 output, PARALLEL
+    // ============================================================
+    print_bar("PHASE 3: ROUND 2 (parallel cross-pollination)")
+
+    let hive_ctx = "ROUND 1 OUTPUTS FROM ALL SPECIALISTS:\n\n"
+    hive_ctx = hive_ctx + "=== RESEARCHER ===\n" + r1_research + "\n\n"
+    hive_ctx = hive_ctx + "=== ARCHITECT ===\n" + r1_arch + "\n\n"
+    hive_ctx = hive_ctx + "=== BUILDER ===\n" + r1_build + "\n\n"
+    hive_ctx = hive_ctx + "=== CRITIC ===\n" + r1_critic + "\n\n"
+    hive_ctx = hive_ctx + "=== OPTIMIZER ===\n" + r1_optim + "\n\n"
+    hive_ctx = hive_ctx + "ORIGINAL USER PROMPT: " + prompt + "\n\n"
+
+    let r2_messages = [
+        hive_ctx + "You are the RESEARCHER. Review all Round 1 outputs. Verify the team's approach against established best practices. Flag where the team is reinventing the wheel or ignoring proven solutions. Validate the architect's design choices against real-world precedent. Produce your FINAL refined analysis.",
+        hive_ctx + "You are the ARCHITECT. Review all Round 1 outputs. Refine your design: incorporate the researcher's context, address structural issues the critic found, apply optimizer's simplifications. Resolve component conflicts. Produce your FINAL consistent design.",
+        hive_ctx + "You are the BUILDER. Review all Round 1 outputs. Restructure to match the architect's design. Fix every issue the critic identified. Apply the optimizer's simplifications. Use the researcher's recommended patterns. Produce your FINAL, COMPLETE implementation — no shortcuts, no truncation.",
+        hive_ctx + "You are the CRITIC. Review all Round 1 outputs. Audit the builder's code for bugs and logic errors. Challenge the architect's design. Verify the researcher's claims are relevant. Assess optimizer's simplifications for safety. Give a clear VERDICT: ship / fix-then-ship / rethink, with specific blockers.",
+        hive_ctx + "You are the OPTIMIZER. Review all Round 1 outputs. Propose specific refactorings for the builder's code. Cut redundancy and dead code. NEVER remove error handling or security checks. Focus on highest-impact simplifications. Produce your FINAL optimization recommendations.",
+        hive_ctx + "Provide your analysis of the task."
+    ]
+
+    let r2_results = agent.batch(r1_handles, r2_messages)
+    total_sends = total_sends + r2_results.length()
+    total_errors = total_errors + count_errors(r2_results)
+    validate_batch(r1_handles, r2_results, r1_names)
+
+    let r2_research = get_content(r2_results[0])
+    let r2_arch = get_content(r2_results[1])
+    let r2_build = get_content(r2_results[2])
+    let r2_critic = get_content(r2_results[3])
+    let r2_optim = get_content(r2_results[4])
+    let r2_parrot = get_content(r2_results[5])
+
+    print("[researcher] R2: " + string(len(r2_research)) + " chars")
+    print("[architect]  R2: " + string(len(r2_arch)) + " chars")
+    print("[builder]    R2: " + string(len(r2_build)) + " chars")
+    print("[critic]     R2: " + string(len(r2_critic)) + " chars")
+    print("[optimizer]  R2: " + string(len(r2_optim)) + " chars")
+    print("[parrot]     R2: " + string(len(r2_parrot)) + " chars")
+    print("")
+
+    // ============================================================
+    // PHASE 4: Coordinator synthesizes final answer (1 sequential)
+    // ============================================================
+    print_bar("PHASE 4: COORDINATOR SYNTHESIS")
+
+    let synth_msg = "Your team of 5 specialists completed two rounds of parallel collaboration on this task:\n\n"
+    synth_msg = synth_msg + "USER PROMPT: " + prompt + "\n\n"
+    synth_msg = synth_msg + "ROUND 2 FINAL OUTPUTS:\n\n"
+    synth_msg = synth_msg + "=== RESEARCHER (final) ===\n" + r2_research + "\n\n"
+    synth_msg = synth_msg + "=== ARCHITECT (final) ===\n" + r2_arch + "\n\n"
+    synth_msg = synth_msg + "=== BUILDER (final) ===\n" + r2_build + "\n\n"
+    synth_msg = synth_msg + "=== CRITIC (final) ===\n" + r2_critic + "\n\n"
+    synth_msg = synth_msg + "=== OPTIMIZER (final) ===\n" + r2_optim + "\n\n"
+    synth_msg = synth_msg + "Synthesize into a single coherent response for the user.\n"
+    synth_msg = synth_msg + "Resolution priority when specialists disagree:\n"
+    synth_msg = synth_msg + "1. Critic's corrections (safety/correctness)\n"
+    synth_msg = synth_msg + "2. Optimizer's simplifications (if they preserve correctness)\n"
+    synth_msg = synth_msg + "3. Architect's structural decisions\n"
+    synth_msg = synth_msg + "4. Builder's implementation\n"
+    synth_msg = synth_msg + "5. Researcher's context\n\n"
+    synth_msg = synth_msg + "Include ALL code the builder produced — complete, untruncated.\n"
+    synth_msg = synth_msg + "If the critic's verdict was 'rethink', say so and explain why.\n"
+    synth_msg = synth_msg + "Present a clear, polished, actionable answer."
+
+    let synth_resp = safe_send(h_coord, synth_msg)
+    total_sends = total_sends + 1
+    if synth_resp.get("error") != null { total_errors = total_errors + 1 }
+    validate_response(h_coord, synth_resp)
+    let final_answer = get_content(synth_resp)
+
+    print_bar("HIVEMIND RESPONSE")
+    print(final_answer)
+    print("")
+
+    // ============================================================
+    // Stats
+    // ============================================================
+    let elapsed = time.now() - start
+    print_bar("STATS")
+    print("API calls: " + string(total_sends) + " (errors: " + string(total_errors) + ")")
+    print("Elapsed: " + string(elapsed) + "ms")
+
+    // Per-agent coherence
+    let all_names = ["coordinator", "researcher", "architect", "builder", "critic", "optimizer", "parrot"]
+    let all_handles = [h_coord, h_research, h_arch, h_build, h_critic, h_optim, h_parrot]
+    let hi = 0
+    while hi < all_names.length() {
+        let env_data = agent.environment(all_handles[hi])
+        let state = env_data.get("state")
+        if state != null {
+            let c = state.get("coherence") ?? -1
+            let turns = state.get("turns_used") ?? 0
+            print(all_names[hi] + ": coherence=" + string(c) + " turns=" + string(turns))
+        }
+        hi = hi + 1
+    }
+
+    print("")
+    print("HIVEMIND|complete")
+}
