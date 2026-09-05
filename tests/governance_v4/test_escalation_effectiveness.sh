@@ -97,8 +97,9 @@ source "$SCRIPT_DIR/../helpers/stub_platform.sh"
 skip_if_no_stub_support "test_escalation_effectiveness.sh"
 source "$SCRIPT_DIR/../helpers/trust_setup.sh"
 setup_isolated_trust
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"  # D1: shared hardened launcher
 STUB_PID=""
-cleanup() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "$TEST_TMP"; }
+cleanup() { stop_stub; teardown_isolated_trust; [ -n "${KEEP_TMP:-}" ] || rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
 mkdir -p "$TEST_TMP"
 [ -x "$NAAB" ] || { skip "EE-00" "build/naab-lang not found"; exit 0; }
@@ -114,11 +115,7 @@ WINDOW=3
 # drifts would never de-escalate, and EE-02 would pass without being tested.
 python3 "$SCRIPT_DIR/../../examples/drift-discrimination/gen_fixture.py" "$TEST_TMP/fx.json" >/dev/null
 
-STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$TEST_TMP/fx.json" "$TEST_TMP" > "$TEST_TMP/stub.log" 2>&1 &
-STUB_PID=$!
-for i in $(seq 1 60); do grep -q READY "$TEST_TMP/stub.log" 2>/dev/null && break; sleep 0.5; done
-grep -q READY "$TEST_TMP/stub.log" 2>/dev/null || { skip "EE-00" "stub failed to start"; exit 0; }
+start_stub "$TEST_TMP/fx.json" "$TEST_TMP" || { skip "EE-00" "stub failed to start"; exit 0; }
 
 cat > "$TEST_TMP/govern.json" <<GOVEOF
 {
@@ -163,7 +160,7 @@ NAABEOF
 
 export FAKE_KEY_EE
 DASH=$( (cd "$TEST_TMP" && timeout 180s "$NAAB" --governance-dashboard t.naab 2>&1) )
-kill "$STUB_PID" 2>/dev/null; STUB_PID=""
+stop_stub
 
 LINE=$(echo "$DASH" | grep -i "Escalation: level" | head -1)
 echo ""
@@ -242,11 +239,10 @@ for i, t in enumerate(sev):
     r.append({"content": "Consider %s." % t, "output_tokens": max(6, 18 - i), "thinking_tokens": 0})
 json.dump({"responses": r}, open(sys.argv[1], "w"))
 PYEOF
-P2=$(( (RANDOM % 20000) + 34000 ))
-python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$P2" "$W2/fx.json" "$W2" > "$W2/stub.log" 2>&1 &
-STUB_PID=$!
-for i in $(seq 1 60); do grep -q READY "$W2/stub.log" 2>/dev/null && break; sleep 0.5; done
-if ! grep -q READY "$W2/stub.log" 2>/dev/null; then
+# The launcher reports its port through STUB_PORT; this arm needs it under its
+# own name because the first stub's port is still referenced further down.
+if start_stub "$W2/fx.json" "$W2"; then P2="$STUB_PORT"; fi
+if [ -z "${P2:-}" ]; then
     skip "EE-04" "stub failed to start"
 else
 cat > "$W2/govern.json" <<GOVEOF
@@ -283,7 +279,7 @@ main {
 }
 NAABEOF
 D2=$( (cd "$W2" && timeout 180s "$NAAB" --governance-dashboard t.naab 2>&1) )
-kill "$STUB_PID" 2>/dev/null; STUB_PID=""
+stop_stub
 L2=$(echo "$D2" | grep -i "Escalation: level" | head -1)
 EFFVAL=$(echo "$L2" | sed -n 's/.*effectiveness=\(-\{0,1\}[0-9.]*\).*/\1/p')
 if [ -z "$EFFVAL" ]; then

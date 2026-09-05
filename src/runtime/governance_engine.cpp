@@ -7407,7 +7407,13 @@ std::string GovernanceEngine::checkBehavioralSequence(const SequenceMatchResult&
             {"pattern_name",  match.pattern_name},
             {"level",         levelToString(match.pattern->level)},
             {"steps_matched", std::to_string(match.matched_events.size())},
-            {"events",        events_joined}
+            {"events",        events_joined},
+            // Which enforce site produced this. "completed" = the sequence ran
+            // to completion and was caught after the fact; "pre_execution" =
+            // the final action was blocked before it happened. Consumers that
+            // count matches need to tell them apart, and until checkPreExecution
+            // emitted at all every match from that path was invisible.
+            {"path",          "completed"}
         });
     }
     return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
@@ -7959,6 +7965,41 @@ std::string GovernanceEngine::checkPreExecution(
     addTrace(fmt::format("BSD pre-check: '{}' would complete sequence '{}'",
         detail, match.pattern_name));
 
+    // B9: this path enforced without leaving any evidence. checkBehavioralSequence
+    // writes BSD_MATCH specifically so ADVISORY matches stay visible -- enforce()
+    // returns "" at ADVISORY, so without the event the match is invisible -- and
+    // this sibling defeated that for most real traffic. checkPreExecution handles
+    // agent.send, file.read/write, http.*, crypto encode, process.* and env.get/list,
+    // so it is the path most matches actually take: an 8-turn run whose pattern
+    // fired on every turn produced ZERO BSD_MATCH events.
+    //
+    // matched_events holds the steps BEFORE this one, hence the +1: the blocked
+    // action is the step that would have completed the sequence.
+    {
+        std::string events_joined;
+        for (size_t i = 0; i < match.matched_events.size(); i++) {
+            if (i > 0) events_joined += ",";
+            events_joined += match.matched_events[i].detail;
+        }
+        if (!events_joined.empty()) events_joined += ",";
+        events_joined += detail;
+        if (events_joined.size() > 300) events_joined = events_joined.substr(0, 300);
+        writeAgentTelemetry("BSD_MATCH", {
+            {"handle_id",     std::to_string(current_agent_handle_.load(std::memory_order_relaxed))},
+            {"turn",          std::to_string(current_agent_turn_.load(std::memory_order_relaxed))},
+            {"pattern_name",  match.pattern_name},
+            {"level",         levelToString(match.pattern->level)},
+            {"steps_matched", std::to_string(match.matched_events.size() + 1)},
+            {"events",        events_joined},
+            {"path",          "pre_execution"}
+        });
+    }
+
+    // Risk budget is deliberately NOT consumed here, unlike the completed path.
+    // A pre-execution block PREVENTS the action, so charging a run-level risk
+    // budget for something that never happened is arguable either way. Left as
+    // it was rather than changed silently alongside the evidence fix -- but it is
+    // now a recorded choice instead of an omission nobody had looked at.
     return enforce("behavioral_sequences." + match.pattern_name, match.pattern->level,
         formatError(match.pattern->level,
             fmt::format("Behavioral sequence '{}' blocked before execution: '{}' would "

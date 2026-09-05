@@ -48,17 +48,7 @@ sign_govern() {
     (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
 }
 
-start_stub() {
-    STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-    python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" > "$2/stub.log" 2>&1 &
-    STUB_PID=$!
-    for _ in $(seq 1 50); do
-        grep -q READY "$2/stub.log" 2>/dev/null && return 0
-        sleep 0.1
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"  # D1: shared hardened launcher
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"

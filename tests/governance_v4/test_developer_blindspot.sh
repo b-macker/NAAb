@@ -99,28 +99,7 @@ export FAKE_KEY_DEVBLIND="fake-key-devblind"
 
 sign_govern() { (cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true; }
 
-# Retries on a fresh port. A single random pick collides often enough to matter:
-# every stub-backed test in the suite draws from the same 20000-40000 range, and
-# a one-shot pick turned a busy port into a scenario that silently produced no
-# samples at all — which reads as a governance failure rather than a test that
-# never ran.
-start_stub() {  # $1=fixture $2=statedir
-    local attempt
-    for attempt in 1 2 3 4 5; do
-        STUB_PORT=$(( (RANDOM % 20000) + 20000 ))
-        : > "$2/stub.log"
-        python3 "$SCRIPT_DIR/../helpers/agent_stub.py" "$STUB_PORT" "$1" "$2" >> "$2/stub.log" 2>&1 &
-        STUB_PID=$!
-        for _ in $(seq 1 50); do
-            grep -q READY "$2/stub.log" 2>/dev/null && return 0
-            kill -0 "$STUB_PID" 2>/dev/null || break
-            sleep 0.1
-        done
-        kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""
-    done
-    return 1
-}
-stop_stub() { [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null; wait "$STUB_PID" 2>/dev/null; STUB_PID=""; }
+source "$SCRIPT_DIR/../helpers/stub_launch.sh"  # D1: shared hardened launcher
 
 # The global signal set is identical in both configs. Only the per-agent
 # context_drift_signals block differs, so any divergence is attributable to the

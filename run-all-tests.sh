@@ -1791,6 +1791,19 @@ else
     echo "  test_undetermined_gate.sh: not found, skipping"
 fi
 
+# The BSD pre-execution path must leave evidence.
+BSDPRE_SCRIPT="tests/governance_v4/test_bsd_preexec_evidence.sh"
+if [ -f "$BSDPRE_SCRIPT" ]; then
+    if run_shell_test "$BSDPRE_SCRIPT" 2>&1; then
+        echo "  test_bsd_preexec_evidence.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_bsd_preexec_evidence.sh")
+    fi
+else
+    echo "  test_bsd_preexec_evidence.sh: not found, skipping"
+fi
+
 # Agent events must belong to the agent that raised them.
 AEATTR_SCRIPT="tests/governance_v4/test_agent_event_attribution.sh"
 if [ -f "$AEATTR_SCRIPT" ]; then
