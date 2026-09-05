@@ -1749,6 +1749,21 @@ else
     echo "  test_persona_window.sh: not found, skipping"
 fi
 
+# B5: context_growth fired forever because its baseline EMA was gated on a flag
+# that defaulted off. That flag defaults on now — this measures whether the row
+# still describes shipped behaviour.
+CTXGROW_SCRIPT="tests/governance_v4/test_context_growth_ema.sh"
+if [ -f "$CTXGROW_SCRIPT" ]; then
+    if run_shell_test "$CTXGROW_SCRIPT" 2>&1; then
+        echo "  test_context_growth_ema.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_context_growth_ema.sh")
+    fi
+else
+    echo "  test_context_growth_ema.sh: not found, skipping"
+fi
+
 # CI's SARIF merger corrupted result.ruleIndex for every file after the first,
 # and GitHub rejected the upload as a neutral check while the job stayed green.
 # Nothing could reach the merger while it was inline in the workflow YAML.
