@@ -29,19 +29,32 @@
 #   makes S4 fire.
 #
 # THESE GATES PIN CURRENT, DEFECTIVE BEHAVIOUR so a fix reads as a deliberate
-# gate change. SR-02, SR-03 and SR-05 are all expected to flip when the defects
-# are fixed. SR-01, SR-04 and SR-06 are the controls and should hold either way.
+# gate change. SR-02 and SR-03 WERE flipped, on 2026-09-05, when A4 was fixed:
+# granted_capabilities is now populated at first send from the agent's config
+# intersected with the global capabilities, so S7 can reach its firing condition
+# and the environment dict reports a real grant list. SR-05 still pins A5's
+# defect and is still expected to flip. SR-01, SR-04 and SR-06 are the controls
+# and hold either way.
 #
 #   SR-01  VACUITY GUARD: the tool fixture really does execute tools
-#   SR-02  S7 does not fire, though a granted capability is first exercised
+#   SR-02  S7 DOES fire when a granted capability is first exercised at
+#          turn>=10 (this asserted the opposite until A4 was fixed)
 #          at turn >= underutilization_delay
-#   SR-03  ...and agent.environment() reports capabilities_granted EMPTY --
+#   SR-03  ...and agent.environment() reports capabilities_granted POPULATED --
 #          the direct observable of the unwritten field
 #   SR-04  CONTROL: the same fixture DOES fire scope_creep, so tool events
 #          demonstrably reach the live turn bucket. Without this, SR-02 is
 #          satisfied by "tool events never arrive at CDD at all"
-#   SR-05  S4: a response-scan-blocked turn produces NO CDD_TURN
+#   SR-05  S4: a response-scan-blocked turn produces NO CDD_TURN. Still true
+#          after the A5 fix and not changed by it -- the blocked turn still
+#          throws; what changed is that the NEXT turn now learns of the block.
 #   SR-06  CONTROL: on that same run the unblocked turns DO produce CDD_TURNs
+#   SR-07  S4 fires on the turn after a block when the run RETRIES the blocked
+#          capability -- the contradiction the signal exists to detect
+#   SR-08  CONTROL: the identical fixture that does NOT retry stays silent.
+#          Without it SR-07 is satisfied by a signal that fires on every turn
+#          after any block, which would be structural rather than diagnostic --
+#          and that distinction is what decided S4 keeps its default of true.
 # ============================================================
 set -uo pipefail
 
@@ -187,16 +200,18 @@ else
 
     if [ "$TOOLS_OK" = "1" ]; then
         S7="$(cdd_signal_turns "$W1/tele.jsonl" capability_underutil)"
-        if [ -z "$S7" ]; then
-            pass "SR-02" "S7 never fires despite a granted capability first used at turn>=10"
+        if [ -n "$S7" ]; then
+            pass "SR-02" "S7 fires on a granted capability first used at turn>=10 (turns=[$S7])"
         else
-            fail "SR-02" "S7 fired" "turns=[$S7] — granted_capabilities is now being written; update this gate deliberately"
+            fail "SR-02" "S7 did not fire" \
+                "granted_capabilities is empty again — nothing writes it, so S7's condition granted_capabilities.count(cap) can never be true (A4)"
         fi
         GRANTED=$(grep -oE '^GRANTED=[0-9]+' "$W1/out.txt" 2>/dev/null | cut -d= -f2)
-        if [ "${GRANTED:-x}" = "0" ]; then
-            pass "SR-03" "agent.environment() reports capabilities_granted empty"
+        if [ "${GRANTED:-0}" -gt 0 ] 2>/dev/null; then
+            pass "SR-03" "agent.environment() reports capabilities_granted populated (${GRANTED})"
         else
-            fail "SR-03" "capabilities_granted is no longer empty" "GRANTED=${GRANTED:-<absent>}"
+            fail "SR-03" "capabilities_granted is empty" \
+                "GRANTED=${GRANTED:-<absent>} — every agent that has ever run reports an empty grant list (A4)"
         fi
         CREEP="$(cdd_signal_turns "$W1/tele.jsonl" scope_creep)"
         if [ -n "$CREEP" ]; then
@@ -285,6 +300,93 @@ else
     else
         fail "SR-06" "CONTROL FAILED: CDD never ran at all" "SR-05 would pass for a build with CDD switched off"
     fi
+fi
+
+# ============================================================
+#  ARM 3 — S4 after the A5 fix: does the NEXT turn learn of the block?
+#
+#  Two runs differing in ONE line of NAAb: whether the script retries the
+#  blocked capability after each send. The stub responses, the govern.json and
+#  the block itself (turn 3, shell content, capability "execution") are
+#  identical, so any difference is the retry.
+#
+#  adaptive_baseline_enabled is pinned false: with baselining on, the first
+#  turns are inside the window and every statistical penalty is absorbed, which
+#  would make SR-08's silence unfalsifiable.
+# ============================================================
+echo -e "${CYAN}--- ARM 3: S4 arms the following turn (A5) ---${NC}"
+s4_arm() {  # $1=tag $2=retry-line -> "<blocked_at> <s4 turns>"
+    local W="$TEST_TMP/$1"; mkdir -p "$W"
+    python3 - "$W/fixture.json" <<'PYEOF'
+import json, sys
+r = []
+for i in range(12):
+    if i == 3:
+        r.append({"content": "Run this:\n```bash\nnpm install express\n```",
+                  "output_tokens": 30, "thinking_tokens": 10})
+    else:
+        r.append({"content": "Step %d: totals verified and recorded." % i,
+                  "output_tokens": 30, "thinking_tokens": 10})
+json.dump({"responses": r}, open(sys.argv[1], "w"))
+PYEOF
+    start_stub "$W/fixture.json" "$W" >/dev/null 2>&1 || { echo "STUBFAIL"; return; }
+    cat > "$W/govern.json" <<EOF
+{ "version":"5.0","mode":"enforce","security":{"sandbox_level":"elevated"},
+  "telemetry":{"enabled":true,"output_file":"tele.jsonl"},
+  "behavioral_sequences":{"enabled":true},
+  "context_drift":{"enabled":true,"level":"advisory","check_interval_turns":1,
+    "adaptive_baseline_enabled":false,
+    "reality_checkpoint":{"enabled":false}},
+  "circuit_breaker":{"enabled":true,"critical_threshold":0.99},
+  "agents":{"worker":{"provider":"gemini","model":"stub-model",
+     "api_base":"http://127.0.0.1:$STUB_PORT","api_key_env":"FAKE_KEY_SR",
+     "max_tokens":200,"max_turns":30,"shell_allowed":false,
+     "system_prompt":"You reconcile ledger data."}} }
+EOF
+    (cd "$W" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1) || true
+    cat > "$W/t.naab" <<EOF
+use agent
+use process
+main {
+    let h = agent.create("worker")
+    let i = 0
+    while i < 8 {
+        try { let r = agent.send(h, "continue") }
+        catch (e) { print("BLOCKED_AT=" + string(i)) }
+        $2
+        i = i + 1
+    }
+    print("DONE")
+}
+EOF
+    local out; out=$(cd "$W" && timeout 120s "$NAAB" t.naab 2>&1)
+    stop_stub
+    local blocked; blocked=$(echo "$out" | grep -oE 'BLOCKED_AT=[0-9]+' | head -1 | cut -d= -f2)
+    local turns; turns=$(cdd_signal_turns "$W/tele.jsonl" contradictions)
+    echo "${blocked:-none} ${turns:-}"
+}
+
+read -r RET_BLOCKED RET_TURNS <<<"$(s4_arm s4retry 'process.run("true", [])')"
+read -r NOR_BLOCKED NOR_TURNS <<<"$(s4_arm s4noretry 'let z = 1')"
+printf "  %-28s blocked_at=%s s4_turns=[%s]\n" "retries the capability" "$RET_BLOCKED" "${RET_TURNS:-}"
+printf "  %-28s blocked_at=%s s4_turns=[%s]\n" "does not retry"         "$NOR_BLOCKED" "${NOR_TURNS:-}"
+
+if [ "${RET_BLOCKED:-none}" = "none" ] || [ "${NOR_BLOCKED:-none}" = "none" ]; then
+    fail "SR-07" "an arm never hit the response-scan block" \
+        "retry=$RET_BLOCKED noretry=$NOR_BLOCKED — neither gate means anything without the block"
+    skip "SR-08" "premise failed"
+elif [ -n "${RET_TURNS:-}" ]; then
+    pass "SR-07" "S4 fires after a block when the capability is retried (turns=[$RET_TURNS])"
+    if [ -z "${NOR_TURNS:-}" ]; then
+        pass "SR-08" "CONTROL: the identical fixture without the retry stays silent"
+    else
+        fail "SR-08" "S4 also fired without any retry" \
+            "turns=[$NOR_TURNS] — the signal is structural, not diagnostic; its default of true would need revisiting"
+    fi
+else
+    fail "SR-07" "S4 did not fire even with a retry" \
+        "prev_turn_blocked_caps is empty again — the blocked turn throws before recordTurn, so nothing arms S4 (A5)"
+    skip "SR-08" "SR-07 failed"
 fi
 
 echo ""

@@ -4,6 +4,13 @@
 #include "naab/crypto_utils.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
+
+// A5: defined below beside recordBlockedCapability; declared here because
+// recordTurn's S4 block uses the same mapping and sits earlier in the file.
+namespace naab { namespace governance {
+static void capsFromBlockedDetail(const std::string& detail,
+                                  std::unordered_set<std::string>& out);
+}}
 #include <cmath>
 #include <sstream>
 #include <unordered_set>
@@ -1307,19 +1314,23 @@ bool ContextDriftAnalyzer::recordTurn(int handle_id, int turn_number,
                 // Extract capability category from the detail string
                 // Detail typically contains the check name (e.g., "filesystem", "network")
                 std::string det = ev.detail;
-                std::transform(det.begin(), det.end(), det.begin(), ::tolower);
-                if (det.find("file") != std::string::npos ||
-                    det.find("path") != std::string::npos) this_turn_blocked.insert("filesystem");
-                if (det.find("network") != std::string::npos ||
-                    det.find("http") != std::string::npos) this_turn_blocked.insert("network");
-                if (det.find("shell") != std::string::npos ||
-                    det.find("exec") != std::string::npos) this_turn_blocked.insert("execution");
-                if (det.find("env") != std::string::npos)
-                    this_turn_blocked.insert("environment");
+                capsFromBlockedDetail(det, this_turn_blocked);
             } else {
                 std::string cap = capCategory(ev.type);
                 if (!cap.empty()) this_turn_attempted.insert(cap);
             }
+        }
+
+        // A5: fold in blocks recorded out of band since the last analyzed turn.
+        // Those turns threw before reaching recordTurn, so this is the only way
+        // their CHECK_FAILED ever arms the signal. Merged BEFORE the attempt
+        // check below and cleared by the assignment at the end of this block,
+        // so a block arms exactly the following analyzed turn -- which is what
+        // "prev turn blocked" is supposed to mean.
+        if (!state.pending_blocked_caps.empty()) {
+            state.prev_turn_blocked_caps.insert(state.pending_blocked_caps.begin(),
+                                                state.pending_blocked_caps.end());
+            state.pending_blocked_caps.clear();
         }
 
         // Check if this turn attempts capabilities that were blocked in the previous turn
@@ -2948,6 +2959,33 @@ void ContextDriftAnalyzer::initializeMandateKeywords(
     int handle_id, const std::unordered_set<std::string>& keywords) {
     std::lock_guard<std::mutex> lock(mutex_);
     drift_states_[handle_id].mandate_keywords = keywords;
+}
+
+void ContextDriftAnalyzer::initializeGrantedCapabilities(
+    int handle_id, const std::unordered_set<std::string>& caps) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    drift_states_[handle_id].granted_capabilities = caps;
+}
+
+// A5: the same substring mapping the S4 block applies to CHECK_FAILED details,
+// factored out so the out-of-band feeder cannot drift from the in-band path.
+static void capsFromBlockedDetail(const std::string& detail,
+                                  std::unordered_set<std::string>& out) {
+    std::string det = detail;
+    std::transform(det.begin(), det.end(), det.begin(), ::tolower);
+    if (det.find("file") != std::string::npos ||
+        det.find("path") != std::string::npos) out.insert("filesystem");
+    if (det.find("network") != std::string::npos ||
+        det.find("http") != std::string::npos) out.insert("network");
+    if (det.find("shell") != std::string::npos ||
+        det.find("exec") != std::string::npos) out.insert("execution");
+    if (det.find("env") != std::string::npos) out.insert("environment");
+}
+
+void ContextDriftAnalyzer::recordBlockedCapability(
+    int handle_id, const std::string& detail) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    capsFromBlockedDetail(detail, drift_states_[handle_id].pending_blocked_caps);
 }
 
 void ContextDriftAnalyzer::addInstructionKeywords(

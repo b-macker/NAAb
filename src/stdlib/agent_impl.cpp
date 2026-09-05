@@ -1763,6 +1763,53 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
         }
     }
 
+    // A4: initialize the GRANTED capability set on first send.
+    //
+    // `granted_capabilities` had no writer anywhere in the repository, so S7
+    // (capability_underutilization) could never fire -- its condition is
+    // `granted_capabilities.count(cap)` -- and agent.environment() reported
+    // capabilities_granted as an empty list for every agent that had ever run.
+    //
+    // Deliberately NOT gated on S7 being enabled, unlike the mandate keywords
+    // below. The environment dict reads this field unconditionally, so gating
+    // would leave that half of the bug in place for every config that does not
+    // opt into the signal -- which is all of them by default.
+    //
+    // Safe to populate unconditionally because S7 defaults FALSE
+    // (governance.h). Nothing that has not explicitly asked for the signal
+    // changes behaviour; configs that DID ask for it start getting the
+    // detection they enabled, which is the point.
+    //
+    // The four names are S7's own vocabulary, mapped from event types in
+    // behavioral_sequence.cpp. A per-agent grant can only restrict BELOW the
+    // global capability, never exceed it, so each is an intersection. An
+    // `allowed_actions` matrix, when non-empty, is the agent's separation-of-
+    // duties declaration and further narrows it. "environment" has no action in
+    // that matrix and no global on/off switch (capabilities.env_vars carries
+    // allow/block lists, not an enable flag), so it cannot be expressed there
+    // and is granted whenever the agent exists -- stated rather than silent,
+    // because it means an env-only matrix does not withhold it.
+    if (gov_engine && gov_engine->isActive() && current_turn == 0) {
+        const auto& caps = gov_engine->getRules().capabilities;
+        const auto& acts = config->allowed_actions;
+        auto declared = [&acts](const char* a) {
+            return acts.empty() ||
+                   std::find(acts.begin(), acts.end(), a) != acts.end();
+        };
+        std::unordered_set<std::string> granted;
+        if (caps.shell.enabled && config->shell_allowed && declared("SHELL_EXEC"))
+            granted.insert("execution");
+        if (caps.network.enabled && config->network_allowed && declared("NET_CONNECT"))
+            granted.insert("network");
+        if (caps.filesystem.mode != "none" &&
+            (acts.empty() ||
+             std::find(acts.begin(), acts.end(), "FS_READ") != acts.end() ||
+             std::find(acts.begin(), acts.end(), "FS_WRITE") != acts.end()))
+            granted.insert("filesystem");
+        granted.insert("environment");
+        gov_engine->initializeGrantedCapabilities(handle_id, granted);
+    }
+
     // Initialize mandate keywords on first send (for mandate alignment + prompt compliance signals)
     if (gov_engine && gov_engine->isActive() && current_turn == 0 &&
         !config->system_prompt.empty() &&
@@ -3765,6 +3812,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     if (std::regex_search(content, re)) {
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:shell_blocked(" + config_name + ")", "", 0);
+                        // A5: this turn throws on the next line and never reaches recordTurn,
+                        // so the event alone cannot arm S4. Feed it in out of band.
+                        gov_engine->recordBlockedCapability(handle_id,
+                            "agent_restriction:shell_blocked(" + config_name + ")");
                         throw std::runtime_error(fmt::format(
                             "Agent error: Response from '{}' contains shell command syntax\n\n"
                             "  Help:\n"
@@ -3783,6 +3834,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     // Fail-closed: broken pattern → block as if matched
                     gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                         "agent_restriction:shell_pattern_error(" + config_name + ")", "", 0);
+                    // A5: this turn throws on the next line and never reaches recordTurn,
+                    // so the event alone cannot arm S4. Feed it in out of band.
+                    gov_engine->recordBlockedCapability(handle_id,
+                        "agent_restriction:shell_pattern_error(" + config_name + ")");
                     throw std::runtime_error(fmt::format(
                         "Agent error: Shell command scan failed for '{}' (pattern compilation error)\n\n"
                         "  Help:\n"
@@ -3811,6 +3866,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         if (std::regex_search(content, re)) {
                             gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                                 "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
+                            // A5: this turn throws on the next line and never reaches recordTurn,
+                            // so the event alone cannot arm S4. Feed it in out of band.
+                            gov_engine->recordBlockedCapability(handle_id,
+                                "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")");
                             throw std::runtime_error(fmt::format(
                                 "Agent error: Response from '{}' references a blocked path\n\n"
                                 "  Help:\n"
@@ -3822,6 +3881,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                         // Fail-closed: broken glob pattern → block as if matched
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:blocked_path_pattern_error(" + config_name + ":" + blocked + ")", "", 0);
+                        // A5: this turn throws on the next line and never reaches recordTurn,
+                        // so the event alone cannot arm S4. Feed it in out of band.
+                        gov_engine->recordBlockedCapability(handle_id,
+                            "agent_restriction:blocked_path_pattern_error(" + config_name + ":" + blocked + ")");
                         throw std::runtime_error(fmt::format(
                             "Agent error: Blocked path pattern '{}' could not compile for '{}'\n\n"
                             "  Help:\n"
@@ -3834,6 +3897,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                     if (content.find(blocked) != std::string::npos) {
                         gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                             "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")", "", 0);
+                        // A5: this turn throws on the next line and never reaches recordTurn,
+                        // so the event alone cannot arm S4. Feed it in out of band.
+                        gov_engine->recordBlockedCapability(handle_id,
+                            "agent_restriction:blocked_path(" + config_name + ":" + blocked + ")");
                         throw std::runtime_error(fmt::format(
                             "Agent error: Response from '{}' references a blocked path\n\n"
                             "  Help:\n"
@@ -3862,6 +3929,10 @@ static NaabVal agentSend(std::vector<NaabVal>& args) {
                 if (!allowed) {
                     gov_engine->emitEvent(governance::RuntimeEventType::CHECK_FAILED,
                         "agent_restriction:path_not_allowed(" + config_name + ":" + path + ")", "", 0);
+                    // A5: this turn throws on the next line and never reaches recordTurn,
+                    // so the event alone cannot arm S4. Feed it in out of band.
+                    gov_engine->recordBlockedCapability(handle_id,
+                        "agent_restriction:path_not_allowed(" + config_name + ":" + path + ")");
                     throw std::runtime_error(fmt::format(
                         "Agent error: Response from '{}' references path '{}' not in allowed list\n\n"
                         "  Help:\n"
