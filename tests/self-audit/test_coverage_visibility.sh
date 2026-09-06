@@ -14,6 +14,14 @@
 #        no runner at all, against 447 tests the suite reports. More test
 #        files are outside the sweep than inside it.
 #
+#        The 13th was found by fixing this gate's own encoding bug. An earlier
+#        version counted files by shelling out to `find {p}` UNQUOTED, so any
+#        directory whose name contains a space produced an error and a count of
+#        zero, and a zero count is skipped as "holds no tests". That hid
+#        `tests/chapter verification` -- two tracked files, one of them 110KB,
+#        in a directory one character away from `tests/chapter_verification`,
+#        which IS in TEST_DIRS. The counter walks the tree in-process now.
+#
 #        The largest is tests/gorilla — 491 .naab files and 36 shell scripts,
 #        including four assertions that grep C++ SOURCE TEXT for pattern names
 #        (register B10). A source-text grep passes whether or not anything
@@ -47,7 +55,7 @@ ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; }
 
 # Baselines. Raise ONLY with a reason; lowering is progress and is expected.
-BASELINE_ORPHAN_DIRS=12
+BASELINE_ORPHAN_DIRS=13
 BASELINE_UNISOLATED=81
 
 # Support directories: sourced by other tests or developer tooling, never run
@@ -62,8 +70,18 @@ echo -e "${CYAN}+==============================================================+
 echo ""
 
 read -r ORPHAN_DIRS ORPHAN_FILES ORPHAN_LIST <<<"$(python3 - <<'PY'
-import os, re, subprocess
-src = open('run-all-tests.sh').read()
+import os, re
+# Read with an EXPLICIT encoding. run-all-tests.sh contains non-ASCII (box
+# rules, em dashes), and Python's default for open() is the locale's encoding
+# -- cp1252 under MSYS2 on the Windows runner, which dies on those bytes with
+# UnicodeDecodeError. This exact bug shipped once already in
+# test_hivemind_governed.sh; LC_ALL=C does NOT reproduce it, because PEP 538
+# coerces the C locale back to UTF-8. Reproduce with:
+#   PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 LC_ALL=C bash tests/self-audit/test_coverage_visibility.sh
+# Directory walking is done in-process rather than by shelling out to find,
+# so there is no second locale-dependent decode to get wrong.
+with open('run-all-tests.sh', encoding='utf-8', errors='replace') as fh:
+    src = fh.read()
 m = re.search(r'TEST_DIRS=\((.*?)\n\)', src, re.S)
 covered = [l.strip().strip('"') for l in m.group(1).split('\n') if l.strip().startswith('"')]
 support = set(os.environ["SUPPORT_DIRS"].split())
@@ -71,8 +89,7 @@ dirs = files = 0; names = []
 for d in sorted(os.listdir('tests')):
     p = f'tests/{d}'
     if not os.path.isdir(p) or d in support: continue
-    n = int(subprocess.run(['bash','-c',f"find {p} -name '*.naab' -type f | wc -l"],
-                           capture_output=True, text=True).stdout.strip())
+    n = sum(1 for _, _, fs in os.walk(p) for f in fs if f.endswith('.naab'))
     if n == 0: continue
     # Covered if TEST_DIRS names it (or a descendant of it), or if
     # run-all-tests.sh names the path anywhere else -- a dedicated runner, as
