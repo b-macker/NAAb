@@ -139,3 +139,57 @@ The tool now takes any receiver expression rather than a curated list. That
 trades alias blindness for namesake risk, which is why **every flagged row is
 hand-traced** and why the tool's output is a table of outcomes rather than a
 count.
+
+### The self-test guarded one direction; it now guards both
+
+Independent review caught this and it is the sharper half of the story. The
+original `SELF_TEST_WRITTEN` is a positive control in the false-**dead**
+direction only — the direction that produced four rounds of invented findings.
+The complement was unguarded, and it is the direction that **hides** defects.
+
+Demonstrated rather than argued, twice, by two people independently. Adding
+
+```cpp
+struct TotallyUnrelated { int pipeline_depth = 0; };
+static void bogus() { TotallyUnrelated u; u.pipeline_depth = 7; }
+```
+
+to any file under `src/` moved `DriftState::pipeline_depth` from NEVER WRITTEN
+to `ok`, took the flagged count from **1 to 0**, and left the self-test reporting
+**zero failures**. The permissive accessor matches `anything.field`, so a write
+to a same-named member on any unrelated struct counts as a write to this one.
+That is the price of dropping the curated accessor list — which was itself the
+right call, since the curated version missed `drift_states_[handle_id]`,
+`tracker_it->second` and `pp`, each producing a false finding.
+
+`SELF_TEST_UNWRITTEN` now holds the namesake half. Re-running the injection with
+it in place fails loudly and names the offending file and line, exit 1.
+
+The set contains the A6 findings themselves. That is intentional and not
+circular: masking either one *is* the failure above, so the control fires on it.
+When a finding is fixed — `pipeline_depth` populated — this test **should** fail;
+that is the prompt to update the control and the register row in the same change
+that alters the behaviour.
+
+**Whether the blind spot actually bit was checked separately, and it did not.**
+A re-scan of all 119 parsed `DriftState` members by write-*receiver* left 11 with
+receivers not immediately attributable; 10 are the `it->second` map-iterator
+idiom, which is a genuine DriftState handle. The eleventh, `config_name`, exists
+on both `DriftState` and `AgentTracker` — and `DriftState::config_name` is
+genuinely written at `behavioral_sequence.cpp:2836` via `it->second`. So no
+finding was hiding behind a namesake at the time of the screen. The control
+exists so that stays true rather than being re-established by hand.
+
+### The tool is registered, because an unrun tool is not coverage
+
+It shipped unregistered. Register B10 had just established the failure that
+creates: three of `tests/gorilla`'s four source-text greps sat latent because
+nothing ran them, and a source-text grep passes whether or not anything fires.
+A screening pass nobody runs decays into a claim about the past.
+
+`tests/self-audit/test_state_field_screen.sh` now runs it in
+`run-all-tests.sh` and pins the flagged set as a baseline, mirroring A2's
+`inert_keys_baseline.txt`: A6S-01 asserts the tool's own self-test passes in both
+directions, A6S-02 asserts the flagged set is exactly the two registered findings.
+A new unwritten or unread field fails CI instead of waiting to be found by
+accident — which A6 observes has happened four times out of four.

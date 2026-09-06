@@ -35,7 +35,9 @@ PERMISSIVE = [r"[A-Za-z_]\w*(?:\s*(?:\.|->)\s*\w+)*(?:\s*\[[^\];]*\])?"]
 DRIFT_ACC = PERMISSIVE
 TRACK_ACC = PERMISSIVE
 
-# Instrument control: these MUST classify as written, or the tool is broken.
+# POSITIVE control: these MUST classify as written, or the tool is broken. This
+# guards the false-DEAD direction — the one that burned this tool four times and
+# invents findings.
 SELF_TEST_WRITTEN = {
     "DriftState": ["coherence_score", "cb_sustained_turns", "signal_baselines",
                    "last_validation_shrank", "trigger_penalty_mean",
@@ -45,6 +47,29 @@ SELF_TEST_WRITTEN = {
     # which is the shape that broke the declaration filter.
     "AgentTracker": ["nonce", "lease_expires_turn", "turns", "challenges_passed",
                      "last_challenge_turn", "key_offset"],
+}
+
+
+# NEGATIVE control: these MUST classify as UNWRITTEN, guarding the false-ALIVE
+# direction — the one that HIDES findings, and which the positive set cannot see.
+#
+# Demonstrated, not hypothesised: the accessor regex is permissive (`anything.field`),
+# so a write to a same-named member on an ANY unrelated struct counts as a write to
+# this one. Injecting `struct TotallyUnrelated { int pipeline_depth; }` with one
+# assignment moved DriftState::pipeline_depth from NEVER WRITTEN to ok and the
+# flagged count from 1 to 0, with the positive self-test still reporting zero
+# failures. Permissive accessors were adopted deliberately (a curated list missed
+# drift_states_[handle_id], tracker_it->second and pp, each producing a false
+# finding), so this trades alias blindness for namesake risk — and this set is what
+# holds the namesake half.
+#
+# NOTE these entries are the A6 findings themselves. That is intentional and not
+# circular: masking either one is exactly the failure above, so the control fires
+# on it. When a finding is FIXED (pipeline_depth populated), this test SHOULD fail
+# — that is the prompt to update both the control and the register row, in the same
+# change that alters the behaviour.
+SELF_TEST_UNWRITTEN = {
+    "DriftState": ["pipeline_depth"],          # A6a
 }
 
 
@@ -161,6 +186,16 @@ def main():
         for m in SELF_TEST_WRITTEN.get(name, []):
             if m in res and not res[m]["w"]:
                 print(f"!! SELF-TEST FAIL: {name}.{m} known-written but classified unwritten")
+                failures += 1
+        for m in SELF_TEST_UNWRITTEN.get(name, []):
+            if m not in res:
+                print(f"!! SELF-TEST FAIL: {name}.{m} no longer parsed as a member")
+                failures += 1
+            elif res[m]["w"]:
+                print(f"!! SELF-TEST FAIL: {name}.{m} known-unwritten but classified written "
+                      f"-- a namesake write is masking it, or the field was populated "
+                      f"(if populated deliberately, update SELF_TEST_UNWRITTEN and the A6 "
+                      f"register row together): {sorted(set(res[m]['w']))[:3]}")
                 failures += 1
         print(f"\n{'='*104}\n{name}  ({rel}:{a}-{b}) — {len(members)} members\n{'='*104}")
         print(f"{'member':40s} {'W':>3s} {'R':>3s}  outcome")
