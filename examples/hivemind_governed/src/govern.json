@@ -1,0 +1,192 @@
+{
+  "version": "5.0",
+  "mode": "enforce",
+  "description": "Governed hivemind. Derived from examples/hivemind/src/govern.json, with TWO real repairs: taint sinks restored (they had been narrowed to unblock the script), and behavioral sequence detection switched on (it was off, and it is the ONE engine layer that observes a process.run pipeline). A third was claimed and withdrawn — see the code_injection rationale, which records why the CONTRA-010 claim did not survive verification. Read README.md for what this config does and does NOT govern.",
+
+  "languages": {
+    "allowed": ["shell"],
+    "per_language": {
+      "shell": {
+        "timeout": 300,
+        "max_lines": 50,
+        "banned_commands": ["rm -rf /", "mkfs", "dd if=/dev/zero"],
+        "shell_injection": true,
+        "shell_injection_level": "hard"
+      }
+    }
+  },
+
+  "capabilities": {
+    "network": {
+      "enabled": false,
+      "rationale": "All LLM access goes through the gravity CLI via process.run, not NAAb network. With this false, a FILE_READ -> NET_CONNECT sequence is unreachable by construction, which is why that BSD pattern below is defence in depth rather than the primary control."
+    },
+    "filesystem": {
+      "mode": "read_write",
+      "blocked_paths": ["/etc/shadow", "/etc/passwd", "/etc/sudoers"],
+      "blocked_extensions": [".exe", ".dll", ".so", ".key", ".pem", ".env"]
+    },
+    "shell": {
+      "enabled": true,
+      "rationale": "Shell needed to invoke the gravity CLI via process.run",
+      "blocked_commands": ["sudo", "su", "chmod +s", "rm -rf", "mkfs", "dd"],
+      "allow_pipes": true,
+      "allow_redirects": true,
+      "allow_backgrounding": true
+    },
+    "env_vars": {
+      "read": true,
+      "write": false,
+      "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN", "NAAB_SIGNING_KEY"],
+      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
+    },
+    "process": {
+      "max_processes": 25,
+      "allow_daemon": false
+    }
+  },
+
+  "subprocess_scrub_mode": "blocklist",
+  "blocked_subprocess_prefixes": ["AWS_", "GITHUB_", "NAAB_SIGNING", "ANTHROPIC_", "GK"],
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "soft",
+    "rationale": "REPAIRED. The parent config listed only shell_exec and env.set_var as sinks. file.write/file.append had been removed because taint tracking correctly blocked untrusted gravity output being appended to the log, and that block was treated as a deployment problem rather than as the finding it was. Telemetry from the parent runs carries two taint_tracking.sink_violation events at SOFT that did exactly their job before the sinks were narrowed. Restoring them means every path from gravity output to disk must pass a declared sanitizer. The script now routes responses through sanitize_gravity_response(), which inspects rather than merely renames: it is the gate, not a cast.",
+    "sources": ["process.run", "file.read", "io.read_line"],
+    "sinks": ["shell_exec", "env.set_var", "file.write", "file.append"],
+    "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
+    }
+  },
+
+  "behavioral_sequences": {
+    "enabled": true,
+    "rationale": "REPAIRED. This was absent, so the field defaulted false (BehavioralSequenceConfig.enabled, governance.h). That mattered more than it looks: the VM emits PROCESS_EXEC, FILE_READ, FILE_WRITE, ENV_READ, ENV_WRITE, ENCODE and DECODE events from ordinary stdlib calls (vm.cpp, gated only on this flag), so BSD is the one engine layer that CAN see a process.run pipeline. context_drift is deliberately still absent below, because that one genuinely cannot.",
+    "window_size": 200,
+    "cross_agent": false,
+    "default_pattern_enforcement": "declared",
+    "patterns": [
+      {
+        "name": "env_harvest_to_subprocess",
+        "sequence": ["env.get", "process.exec"],
+        "max_gap": 4,
+        "level": "hard",
+        "rationale": "Reading an environment variable and then invoking a subprocess is credential exfiltration through the prompt channel. The legitimate script reads no env var on the dispatch path, so this shape does not occur in a clean run."
+      },
+      {
+        "name": "env_harvest_to_disk",
+        "sequence": ["env.get", "file.write"],
+        "max_gap": 4,
+        "level": "hard",
+        "rationale": "Environment values reaching the log, report or brief. Same reasoning as above, different sink."
+      },
+      {
+        "name": "decoded_content_to_subprocess",
+        "sequence": ["decode", "process.exec"],
+        "max_gap": 4,
+        "level": "hard",
+        "rationale": "Base64/hex decode followed by subprocess execution is the standard obfuscation shape for smuggling a command past a static source scan. The parent audit's section 2.3 is exactly this gap: the engine scanned the source line that builds the command, never the runtime value."
+      },
+      {
+        "name": "response_to_network",
+        "sequence": ["file.read", "net_connect"],
+        "max_gap": 6,
+        "level": "hard",
+        "rationale": "Reading a gravity response file and then opening a network connection. Unreachable while capabilities.network.enabled is false; declared so that flipping network on later does not silently open the exfil path."
+      }
+    ]
+  },
+
+  "restrictions": {
+    "max_output_lines": 5000,
+    "max_string_length": 200000,
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" },
+    "privilege_escalation": {
+      "block_sudo": true,
+      "block_su": true,
+      "block_chmod_suid": true,
+      "block_setuid": true,
+      "block_capability_changes": true
+    },
+    "data_exfiltration": { "enabled": true },
+    "code_injection": {
+      "block_dynamic_code_gen": true,
+      "block_template_injection": true,
+      "block_command_injection": true,
+      "rationale": "NOT a repair — corrected after the claim failed verification. This was written up as fixing contradiction.CONTRA-010, which fired as an ADVISORY on parent runs 1788615440875 and 1788616335353. It does not. CONTRA-010 tests restrictions.code_injection.ENABLED (governance_engine.cpp), and governance_config.cpp sets that true unconditionally whenever a code_injection object is present, whatever it contains — so the parent config already silenced the advisory by having the section at all, and the two runs that fired it predate that section. Verified both directions on this config: 0 CONTRA-010 lines with block_command_injection present AND with it removed. block_command_injection also already defaults true (governance.h), so setting it changes nothing; it is kept only as an explicit statement of intent, matching what governance_init.cpp writes into a fresh config. The trap worth naming: CONTRA-010 resolution text says \"Enable restrictions.code_injection with block_command_injection: true\", which points at the wrong key — tracing to that sentence instead of to the condition is what produced the wrong claim."
+    },
+    "resource_abuse": {
+      "block_fork_bomb": true,
+      "block_infinite_loops": true,
+      "max_temp_files": 50
+    }
+  },
+
+  "code_quality": {
+    "no_secrets": true,
+    "no_pii": true,
+    "rationale": "Both were already true in the parent config. They register zero hits on the gravity path and the audit read that as 'did not run'; the real reason is that checkSecrets()/checkPii() fire on LLM responses inside agentSend(), and this pipeline has no agent.send(). The script's own scan_secrets() covers that path instead."
+  },
+
+  "limits": {
+    "timeout": { "global": 1800, "per_block": 300, "total_polyglot": 1800 },
+    "execution": { "call_depth": 50, "loop_iterations": 100000, "total_executions": 500 },
+    "data": { "string_length": 200000, "nesting_depth": 15, "output_size": 500000 }
+  },
+
+  "security": { "sandbox_level": "elevated" },
+
+  "codegen": {
+    "enabled": false,
+    "rationale": "Gravity output must never become executable code"
+  },
+
+  "exposure_tracking": {
+    "max_autonomous_actions": 200,
+    "max_unique_agents": 25
+  },
+
+  "telemetry": {
+    "enabled": true,
+    "output_file": "hivemind-governed-telemetry.jsonl",
+    "tamper_evidence": { "enabled": true },
+    "decision_snapshots": true,
+    "transcript": {
+      "enabled": true,
+      "output_file": "hivemind-governed-transcript.jsonl",
+      "rationale": "Kept enabled, and kept honest: this file stays EMPTY for this pipeline. The transcript has 22 hook points, all of them inside agentSend(). No agent.send() means no transcript entries. It is left on so that porting the dispatch layer to the agent module starts producing content with no config change, not because it records anything today."
+    }
+  },
+
+  "audit": {
+    "level": "basic",
+    "output_file": "hivemind-governed-audit.jsonl",
+    "tamper_evidence": { "enabled": true },
+    "log_events": {
+      "checks_passed": true,
+      "checks_failed": true,
+      "checks_warned": true,
+      "overrides": true,
+      "config_loaded": true,
+      "execution_start": true,
+      "execution_end": true,
+      "polyglot_executed": true
+    }
+  },
+
+  "integrity": {
+    "blocked_flags": ["--governance-override", "--drift-baseline-save"]
+  },
+
+  "meta": {
+    "require_signature": false,
+    "rationale": "context_drift and an agents block are DELIBERATELY ABSENT. Both default false, and enabling them here would be theatre: the 23 CDD signals are fed from AGENT_RESPONSE events carrying content keywords and token counts, and those are emitted only by agent_impl.cpp. A pipeline that reaches its model through process.run produces none. Turning context_drift on without behavioral_sequences also prints '[governance] Warning: context_drift.enabled: true has no effect'; turning both on would silence that warning while still scoring nothing, which is strictly worse than leaving it off. If the dispatch layer is ever ported to agent.send(), add the agents block and context_drift THEN, and expect the config to fail the ratchet if it is loosened afterwards."
+  }
+}

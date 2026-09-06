@@ -248,7 +248,31 @@ static const std::vector<SecretPattern> SECRET_PATTERNS = {
     {"ghp_[a-zA-Z0-9]{36,}",            "GitHub Personal Access Token", "critical"},
     {"gho_[a-zA-Z0-9]{36,}",            "GitHub OAuth Token", "critical"},
     {"AKIA[0-9A-Z]{16}",                "AWS Access Key ID", "critical"},
-    {"-----BEGIN[\\s\\S]*PRIVATE KEY-----", "Private Key", "critical"},
+    // Bounded on purpose. This was "-----BEGIN[\\s\\S]*PRIVATE KEY-----", whose
+    // greedy [\\s\\S]* runs to end of input and then backtracks one position at a
+    // time. libstdc++ executes that recursively (_Executor::_M_dfs), so any
+    // input carrying "-----BEGIN" and roughly 30KB of following text exhausted
+    // the stack and killed the process with SIGSEGV. That is worse than a false
+    // negative: checkSecrets is a HARD check, and a crash renders no verdict at
+    // all — it neither blocks nor passes, and the process dies by signal rather
+    // than the documented exit 3.
+    //
+    // Reachable from untrusted input, but ONLY where the check is switched on:
+    // this function returns at its first line unless code_quality.no_secrets is
+    // set, and that defaults false. For configs that DID enable it the exposure
+    // is real and wide — the call sites cover the agent prompt, the response
+    // content, tool arguments and tool results, all of them model- or
+    // tool-influenced — so a response could terminate the interpreter by
+    // emitting a PEM header followed by enough text. Configs that never set the
+    // key were never running this regex at all. Stating the gate because the
+    // sentence above it describes the CALL SITES, and reading those as an
+    // unconditional scan is a documented way to misjudge this exact function.
+    //
+    // A real PEM header carries only uppercase
+    // letters and spaces between BEGIN and PRIVATE KEY, so the bounded class
+    // matches every genuine header while making the runaway unreachable.
+    // Regression: tests/security/test_secret_scan_redos.sh
+    {"-----BEGIN[A-Z0-9 ]{0,40}PRIVATE KEY-----", "Private Key", "critical"},
     {"xox[bpsa]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}", "Slack Token", "critical"},
     {"(?:sk|pk)_(?:test|live)_[a-zA-Z0-9]{24,}", "Stripe Key", "critical"},
     {"SG\\.[a-zA-Z0-9_-]{22}\\.[a-zA-Z0-9_-]{43}", "SendGrid Key", "critical"},
