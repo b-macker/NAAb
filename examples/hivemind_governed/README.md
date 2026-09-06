@@ -137,6 +137,73 @@ Fixed by bounding the pattern to `-----BEGIN[A-Z0-9 ]{0,40}PRIVATE KEY-----`,
 which matches every real PEM header while making the runaway unreachable.
 Regression: `tests/security/test_secret_scan_redos.sh`.
 
+## Two operational notes
+
+**Sign locally; do not commit the `.sig`.** `.gitignore:193` ignores `*.sig`,
+and `run-all-tests.sh` clears the trust store at startup with the comment "Test
+govern.json files are NOT signed — .sig files are gitignored". A signature was
+briefly force-added past that rule and the suite went red: the examples sweep
+runs this example in-place, so its success became dependent on whatever the
+ambient trust store held at that moment, and other tests populate one. Measured
+in all three states:
+
+| Your `~/.naab/trusted-keys` | Signed with your key | Signed with someone else's | Unsigned |
+|---|---|---|---|
+| empty / absent (CI, most clones) | runs | runs (warns, cannot verify) | runs |
+| holds your key | runs | INTEGRITY BLOCK | INTEGRITY BLOCK |
+
+Note the bottom-right two cells: once *any* trusted key is installed, every
+`govern.json` must be signed by a trusted key, regardless of
+`meta.require_signature`. So committing one person's signature does not help
+anyone else — it only moves a third party from "missing but trusted keys are
+installed" to "does not match any trusted key … may have been tampered with",
+which is worse guidance for a fresh clone. If you keep a trust store, sign your
+own copy and let git ignore it:
+
+```bash
+./build/naab-lang --sign-governance examples/hivemind_governed/src/govern.json
+```
+
+**The test suite never calls the model.** `tests/governance_v4/test_hivemind_governed.sh`
+Group E runs this example end to end, which means it dispatches to the gravity
+CLI. It originally did so for real: on a machine where `agy` works, every suite
+run made 15 live API calls and quietly spent the operator's quota — and 180s is
+not enough for 15 live calls, so it *also* failed there while passing anywhere
+`agy` was absent. One cause, two symptoms, both observed on a live run where the
+suite drained enough quota that the follow-up experiment could not finish.
+
+Group E now puts a stub `agy` first on `PATH`. That makes the suite hermetic and
+fast, and it buys something the live run could not: the stub writes an
+instruction-override marker in imperative position, one in a blockquote, and one
+in a fence, so E-05/E-06/E-07 exercise the discrimination through the real
+dispatch → read → sanitize → gate path. A stub proves the plumbing carries the
+distinction; it cannot tell you whether the marker list matches what a real
+model writes. That second question is still open — see below.
+
+## What a live run did and did not settle
+
+One run against Claude Opus 4.6 (Thinking) via `agy` (model read from agy's
+settings, and self-reported identically by the model):
+
+- **Settled:** the gate processes real model output without crashing;
+  quota-error text is classified `QUOTA_REJECTED` rather than scanned as
+  content; no false-positive quarantine across six responses that discussed
+  prompt injection at length; six distinct content hashes, so collusion
+  detection stayed correctly quiet; zero `BSD_MATCH` and zero taint violations.
+- **Not settled, and this is the important half:** `injection_observed_count`
+  was **0 on every response**. The model discussed prompt injection
+  conceptually without ever writing a marker string — not even as a quoted
+  example. So the quoted-vs-imperative discrimination, the thing this
+  calibration exists for, was never entered. A clean result and an untested one
+  look identical here, which is why E-05/E-06/E-07 now force the case in-suite.
+- **Lost entirely:** the adversarial second run hit the account quota on all 15
+  calls and produced no data.
+
+The open question is therefore not whether the gate discriminates — it does,
+end to end — but whether a marker list of fifteen literal phrases matches what
+an adversarial model actually emits. A model that writes "disregard the
+foregoing directive" rather than "ignore your instructions" walks past it.
+
 ## Running it
 
 ```bash
