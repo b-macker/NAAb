@@ -39,6 +39,9 @@ fi
 cat > "$WORK/govern.json" <<'JSON'
 {"version":"5.0","mode":"enforce","code_quality":{"no_secrets":true}}
 JSON
+if [ -n "${NAAB_SIGNING_KEY:-}" ] && [ -x "$NAAB" ]; then
+    "$NAAB" --sign-governance "$WORK/govern.json" >/dev/null 2>&1
+fi
 
 # ~40KB of filler, comfortably past the ~30KB stack-exhaustion threshold
 mk_filler() {

@@ -32,8 +32,6 @@ if [ ! -x "$NAAB" ]; then
     exit 0
 fi
 
-cp "$EX/govern.json" "$WORK/govern.json"
-
 ok()   { echo "  PASS [$1] $2"; PASS=$((PASS+1)); }
 bad()  { echo "  FAIL [$1] $2"; FAIL=$((FAIL+1)); }
 
@@ -114,6 +112,9 @@ gate_case "B-04 command substitution rejected" \
 gate_case "B-05 identical responses flagged as collusion" \
     'print("RESULT=" + string(len(detect_response_collusion(["h","h","z"],["a","b","c"]))))' "1"
 
+cp "$EX/govern.json" "$WORK/govern.json"
+cp "$EX/govern.json.sig" "$WORK/govern.json.sig" 2>/dev/null || true
+
 echo "=== Group C: engine taint sinks are live ==="
 echo "untrusted subprocess output" > "$WORK/src.txt"
 # C-01: this is the exact flow the parent config disabled. file.read is a taint
@@ -193,6 +194,7 @@ echo "=== Group E: the shipped example runs clean under its own config ==="
 # build. The example must complete under enforce mode with zero violations.
 RUN="$WORK/run"; mkdir -p "$RUN"
 cp "$EX/hivemind-governed.naab" "$EX/govern.json" "$RUN/"
+cp "$EX/govern.json.sig" "$RUN/" 2>/dev/null || true
 ( cd "$RUN" && timeout 180 "$NAAB" hivemind-governed.naab "smoke task" > run.txt 2>&1 )
 rc=$?
 if [ "$rc" -eq 0 ]; then ok "E-01 example completes under enforce" "exit 0"; else bad "E-01 example completes under enforce" "exit $rc"; fi
