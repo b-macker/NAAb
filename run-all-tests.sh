@@ -361,6 +361,16 @@ run_test() {
             # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
+        elif [ -f "$output_file" ] && grep -q "Agent error: API key not available" "$output_file"; then
+            # Live-agent examples (examples/experiment-coherence-tighten and
+            # friends) call agent.send() against a real provider and cannot run
+            # without a configured key. That is environmental absence, the same
+            # class as a missing compiler above, not a regression — and it is
+            # what a fresh container always looks like. The grep is deliberately
+            # tied to the no-key-configured error specifically, so a genuine
+            # auth failure (bad key, revoked key) still counts as a real FAIL.
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (no API key configured — live-agent example)"
         elif [ $exit_code -eq 124 ]; then
             echo "  TIMEOUT: $test_name (>$timeout_duration)"
             FAILED=$((FAILED + 1))
@@ -1273,6 +1283,24 @@ if [ -f "$GOV001_SCRIPT" ]; then
     fi
 else
     echo "  test_gov_string_prefix_gov001.sh: not found, skipping"
+fi
+
+# --- Secret-scan ReDoS (checkSecrets must render a verdict, never crash) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Secret Scanner ReDoS Tests (stack exhaustion in checkSecrets)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+REDOS_SCRIPT="tests/security/test_secret_scan_redos.sh"
+if [ -f "$REDOS_SCRIPT" ]; then
+    if run_shell_test "$REDOS_SCRIPT" 2>&1; then
+        echo "  test_secret_scan_redos.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_secret_scan_redos.sh")
+    fi
+else
+    echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
 # --- Governance Comment Style Stripping (V-GOV-002) ---

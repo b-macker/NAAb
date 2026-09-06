@@ -224,3 +224,21 @@ demos/agent-orchestration/report.json
 
 # Vendored dependency build artifacts
 external/quickjs-2021-03-27/.obj/
+
+# hivemind_governed run artifacts. The example is swept by run-all-tests.sh
+# (TEST_DIRS includes "examples"), so a suite run writes these into the source
+# tree; they are outputs, not fixtures.
+examples/hivemind_governed/src/hivemind-log.jsonl
+examples/hivemind_governed/src/hivemind-result.md
+examples/hivemind_governed/src/hivemind-governed-*.jsonl
+examples/hivemind_governed/src/hive-p-*.txt
+examples/hivemind_governed/src/hive-r-*.txt
+
+# The hivemind configs name their telemetry with a relative path, so a suite run
+# (which invokes the examples from the repo root) drops these at the top level
+# rather than beside the script.
+/hivemind-telemetry.jsonl
+/hivemind-governed-telemetry.jsonl
+/hivemind-governed-transcript.jsonl
+/hivemind-audit.jsonl
+/hivemind-governed-audit.jsonl
