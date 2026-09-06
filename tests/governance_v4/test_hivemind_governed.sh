@@ -112,7 +112,24 @@ gate_case "B-04 command substitution rejected" \
 gate_case "B-05 identical responses flagged as collusion" \
     'print("RESULT=" + string(len(detect_response_collusion(["h","h","z"],["a","b","c"]))))' "1"
 
+# A populated trust store makes signing mandatory: with any key installed an
+# UNSIGNED govern.json is an INTEGRITY BLOCK (exit 3), and --no-governance
+# cannot escape it. run-all-tests.sh clears the store at startup so the suite
+# is unaffected, but a developer running this file directly on a keyed machine
+# is not — measured 12/22 there before this helper, 22/22 after.
+#
+# NOT by shipping a .sig. That was tried in the commit before last and removed
+# in the last one: *.sig is gitignored, a committed signature only verifies for
+# the store holding its private half, and on a keyed machine the result was
+# 12/22 with it present and 12/22 with it deleted — it fixed nothing while
+# breaking the keyless examples sweep. Local signing is the whole fix.
+sign_local() {  # $1 = directory holding a govern.json
+    [ -n "${NAAB_SIGNING_KEY:-}" ] && [ -x "$NAAB" ] || return 0
+    ( cd "$1" && NAAB_SIGNING_KEY="$NAAB_SIGNING_KEY" "$NAAB" --sign-governance >/dev/null 2>&1 ) || true
+}
+
 cp "$EX/govern.json" "$WORK/govern.json"
+sign_local "$WORK"
 cp "$EX/govern.json.sig" "$WORK/govern.json.sig" 2>/dev/null || true
 
 echo "=== Group C: engine taint sinks are live ==="
@@ -270,6 +287,7 @@ chmod +x "$STUB/agy" "$STUB/proot-distro"
 
 RUN="$WORK/run"; mkdir -p "$RUN"
 cp "$EX/hivemind-governed.naab" "$EX/govern.json" "$RUN/"
+sign_local "$RUN"
 cp "$EX/govern.json.sig" "$RUN/" 2>/dev/null || true
 ( cd "$RUN" && PATH="$STUB:$PATH" timeout 180 "$NAAB" hivemind-governed.naab "smoke task" > run.txt 2>&1 )
 rc=$?
