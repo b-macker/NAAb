@@ -48,25 +48,40 @@ def mutation(name, expect):
 
 
 # ---- script-side gates ----------------------------------------------------
-@mutation("quarantine_never_set", ["A-01"])
+@mutation("quarantine_never_set", ["A-01", "E-05"])
 def _(naab, cfg):
     return mut_script(naab, "    if len(inj.get(\"hits\")) > 0 { quarantine = true }",
                             "    if false { quarantine = true }"), cfg
 
 
-@mutation("no_fence_discrimination", ["A-03"])
+@mutation("no_fence_discrimination", ["A-03", "E-07"])
 def _(naab, cfg):
     return mut_script(naab, "                if in_fence {", "                if false {"), cfg
 
 
-@mutation("no_quote_discrimination", ["A-02", "A-05"])
+@mutation("no_quote_discrimination", ["A-02", "A-05", "E-06"])
 def _(naab, cfg):
     # every quoted marker becomes an imperative hit — the naive scanner that
     # would have quarantined the audit's own section 2.4
     return mut_script(naab, "                    if quoted {", "                    if false {"), cfg
 
 
-@mutation("no_observed_recording", ["A-05"])
+# A-04 asserts ordinary prose is NOT quarantined. Nothing above breaks it —
+# the harness reported it as caught by no mutation, which means it was asserting
+# nothing enforceable. This is the mutation it exists to catch: a marker test
+# that matches every line, i.e. the scanner that flags all prose. Both the
+# line-level and the imperative-position test have to go, because disabling only
+# the first still routes plain prose to `observed` rather than to a hit.
+@mutation("marker_matches_every_line", ["A-04"])
+def _(naab, cfg):
+    naab = mut_script(naab, "            if string.contains(lower, marker) {",
+                            "            if true {")
+    naab = mut_script(naab, "                        if string.contains(head, marker) {",
+                            "                        if true {")
+    return naab, cfg
+
+
+@mutation("no_observed_recording", ["A-05", "E-06"])
 def _(naab, cfg):
     return mut_script(naab,
         "                        observed.push({marker: marker, line: i, context: \"quoted\"})",
@@ -102,7 +117,7 @@ def _(naab, cfg):
         "fn detect_response_collusion(hashes, names) {\n    if true { return [] }\n    let dupes = []"), cfg
 
 
-@mutation("no_content_gate_telemetry", ["E-03"])
+@mutation("no_content_gate_telemetry", ["E-03", "E-05", "E-06", "E-07"])
 def _(naab, cfg):
     return mut_script(naab, 'event: "CONTENT_GATE",', 'event: "GATE_CONTENT",'), cfg
 
