@@ -180,6 +180,41 @@ genuinely written at `behavioral_sequence.cpp:2836` via `it->second`. So no
 finding was hiding behind a namesake at the time of the screen. The control
 exists so that stays true rather than being re-established by hand.
 
+### Round five: the instrument's own reporting broke, on one platform only
+
+Registering the tool put it on the Windows runner for the first time, and it
+went red there while every Linux job stayed green. The cause was one character.
+
+The outcome column read `NEVER WRITTEN — reads: ...`. Python encodes stdout with
+the **locale's** encoding, so the same em dash failed the two platforms in
+opposite directions: MSYS2's cp1252 wrote it as the single byte `0x97` and the
+baseline parser died reading it back as UTF-8, while a bare C locale raises
+`UnicodeEncodeError` inside the tool. Neither is visible from a normal
+UTF-8 Linux shell.
+
+Three distinct defects sat in that one line, and each got its own control:
+
+| defect | fix | control |
+|---|---|---|
+| output encoding depended on the locale | the tool prints ASCII only | A6S-03, which greps the output for non-ASCII on **every** platform |
+| a decode error read as a result | parser opens with `errors="replace"` | reintroducing the byte now passes A6S-02 and fails A6S-03 — the failure is named correctly |
+| a crashed parser reported as drift | `PARSE_RC` checked before comparing | an injected parser fault reports "the baseline PARSER failed", not "drifted" |
+
+The third is the one worth keeping. `A6S-02` printed **`flagged set drifted from
+the pinned baseline`** and listed `<none parsed>` as the actual set — a
+confident, specific, entirely wrong finding, produced by an exception it never
+looked at. That is the method doc's *empty output is not a negative result*,
+reached not by reasoning about it but by shipping it. A baseline gate that
+cannot tell "nothing was flagged" from "nothing was read" will eventually
+report the wrong one, and the direction it fails in is the direction that hides
+findings.
+
+This is the fifth instrument failure in a row, and the first that the self-test
+could not have caught: `SELF_TEST_WRITTEN` and `SELF_TEST_UNWRITTEN` both guard
+the *classification*, which was correct on Windows — `A6S-01` passed there. What
+broke was the path from a correct answer to a reader, which no control covered
+until now.
+
 ### The tool is registered, because an unrun tool is not coverage
 
 It shipped unregistered. Register B10 had just established the failure that
@@ -190,6 +225,7 @@ A screening pass nobody runs decays into a claim about the past.
 `tests/self-audit/test_state_field_screen.sh` now runs it in
 `run-all-tests.sh` and pins the flagged set as a baseline, mirroring A2's
 `inert_keys_baseline.txt`: A6S-01 asserts the tool's own self-test passes in both
-directions, A6S-02 asserts the flagged set is exactly the two registered findings.
+directions, A6S-02 asserts the flagged set is exactly the two registered findings,
+and A6S-03 asserts the output is ASCII (see round five above).
 A new unwritten or unread field fails CI instead of waiting to be found by
 accident — which A6 observes has happened four times out of four.

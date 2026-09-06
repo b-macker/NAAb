@@ -30,6 +30,16 @@
 # a suite log ambiguous to anything that greps by id — including the mutation
 # harness pattern used elsewhere in this repo.
 #
+# A6S-03  the tool's output must be pure ASCII. Added after build-windows went
+#        red on af1303a while every Linux job was green: the outcome column
+#        carried an em dash, MSYS2's cp1252 stdout wrote it as byte 0x97, and
+#        A6S-02's UTF-8 parser died reading it back -- reporting the empty
+#        result as "flagged set drifted". Three separate defects in one line,
+#        each now closed by its own control: the tool prints ASCII, the parser
+#        reads with errors="replace", and PARSE_RC distinguishes a crashed
+#        parser from a real drift. The assertion runs on every platform on
+#        purpose; the one that breaks is not the one anyone runs before pushing.
+#
 # CHANGING THE BASELINE IS A DECISION, NOT A CHORE. A row leaving it means a
 # field was populated or removed — update this file, SELF_TEST_UNWRITTEN and the
 # A6 register row in the same change. A row entering it is a new finding and
@@ -76,7 +86,13 @@ AgentTracker.lease_granted_turn WRITTEN-NEVER-READ"
 ACTUAL="$(python3 - "$OUT" <<'PY'
 import re, sys
 struct, rows = None, []
-for line in open(sys.argv[1], encoding="utf-8"):
+# errors="replace": a stray byte must never be able to masquerade as drift.
+# This exact parse died on build-windows (af1303a) with UnicodeDecodeError on
+# byte 0x97 -- the tool's em dash, written through cp1252 -- and the empty
+# result was reported as "flagged set drifted from the pinned baseline". The
+# tool now emits ASCII (A6S-03 enforces it); this handle is the second line of
+# defence, and PARSE_RC below is what keeps a crash from reading as a result.
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
     m = re.match(r'^(DriftState|AgentTracker)\s+\(', line)
     if m:
         struct = m.group(1); continue
@@ -89,8 +105,12 @@ for line in open(sys.argv[1], encoding="utf-8"):
 print("\n".join(rows))
 PY
 )"
+PARSE_RC=$?
 
-if [ "$ACTUAL" = "$EXPECTED" ]; then
+if [ "$PARSE_RC" -ne 0 ]; then
+    bad "A6S-02" "the baseline PARSER failed (exit $PARSE_RC) -- this is NOT a drift result"
+    echo "       Empty output is not a negative result. Fix the parser, then re-run."
+elif [ "$ACTUAL" = "$EXPECTED" ]; then
     ok "A6S-02" "flagged set matches baseline (2 entries: A6a, A6b)"
 else
     bad "A6S-02" "flagged set drifted from the pinned baseline"
@@ -100,6 +120,21 @@ else
     echo "       baseline, SELF_TEST_UNWRITTEN and the A6 register row together."
     echo "       A row ENTERING is a new finding: it needs an empirical check with a"
     echo "       positive control before anything is acted on (A6's constraint)."
+fi
+
+# --- A6S-03: the tool's output must be pure ASCII ---
+# Not cosmetic, and not a Windows-only concern once asserted here. Python
+# encodes stdout with the LOCALE's encoding: cp1252 under MSYS2 silently writes
+# an em dash as byte 0x97 and the reader above dies on it; a bare C locale
+# raises UnicodeEncodeError in the tool instead. One character in the outcome
+# column reddened build-windows on af1303a while every Linux job stayed green,
+# so this assertion exists to fail on the Linux runner too -- the platform that
+# breaks is not the platform anyone runs before pushing.
+if LC_ALL=C grep -qP '[^\x00-\x7F]' "$OUT" 2>/dev/null; then
+    bad "A6S-03" "tool printed non-ASCII bytes (breaks cp1252/C-locale round-trip)"
+    LC_ALL=C grep -nP '[^\x00-\x7F]' "$OUT" | head -5 | sed 's/^/       /'
+else
+    ok "A6S-03" "tool output is ASCII-only (portable across stdout encodings)"
 fi
 
 echo ""

@@ -7,6 +7,17 @@ STATE FIELDS rather than config keys — A4 and A5 were unwritten/unrecordable
 fields, a shape the key-oriented A2 sweep cannot see.
 
 Run:  python3 tools/screen_state_fields.py
+
+EVERYTHING THIS PRINTS IS ASCII. Python encodes stdout with the LOCALE's
+encoding, which is cp1252 under MSYS2 on the Windows runner and ASCII under a
+bare C locale. The outcome column used to carry an em dash, and the two
+platforms failed it in opposite directions: cp1252 wrote it as the single byte
+0x97 and the test's UTF-8 parser died reading it back (build-windows, af1303a),
+while a C locale raised UnicodeEncodeError in the tool itself. ASCII output
+depends on no handle's encoding agreeing with any other's. test_state_field_screen.sh
+A6S-03 fails if a non-ASCII byte reappears here, on every platform, not just
+the one that breaks. Reproduce the write-side half with:
+  PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 LC_ALL=C python3 tools/screen_state_fields.py
 Exit 0 = self-test passed. A non-zero exit means the INSTRUMENT is broken; the
 table it printed is not a result.
 
@@ -158,7 +169,10 @@ def scan(members, accessors, declaring_file, decl_lo, decl_hi):
 
 def struct_members(rel_path, start, end):
     out = []
-    for i, line in enumerate(open(os.path.join(REPO, rel_path), encoding="utf-8"), 1):
+    # Explicit encoding + errors on BOTH read paths (see statements() above).
+    # The default is the locale's, which is cp1252 under MSYS2.
+    fh = open(os.path.join(REPO, rel_path), encoding="utf-8", errors="replace")
+    for i, line in enumerate(fh, 1):
         if not (start < i < end):
             continue
         t = line.strip()
@@ -197,18 +211,18 @@ def main():
                       f"(if populated deliberately, update SELF_TEST_UNWRITTEN and the A6 "
                       f"register row together): {sorted(set(res[m]['w']))[:3]}")
                 failures += 1
-        print(f"\n{'='*104}\n{name}  ({rel}:{a}-{b}) — {len(members)} members\n{'='*104}")
+        print(f"\n{'='*104}\n{name}  ({rel}:{a}-{b}) -- {len(members)} members\n{'='*104}")
         print(f"{'member':40s} {'W':>3s} {'R':>3s}  outcome")
         print("-"*104)
         rows = []
         for m in members:
             w, r = res[m]["w"], res[m]["r"]
             if not w and not r:
-                o = "NO ACCESS — declared, never touched"
+                o = "NO ACCESS -- declared, never touched"
             elif not w:
-                o = "NEVER WRITTEN — reads: " + ", ".join(sorted(set(r))[:3])
+                o = "NEVER WRITTEN -- reads: " + ", ".join(sorted(set(r))[:3])
             elif not r:
-                o = "WRITTEN, NEVER READ — writes: " + ", ".join(sorted(set(w))[:3])
+                o = "WRITTEN, NEVER READ -- writes: " + ", ".join(sorted(set(w))[:3])
             else:
                 o = "ok"
             rows.append((m, len(set(w)), len(set(r)), o))
