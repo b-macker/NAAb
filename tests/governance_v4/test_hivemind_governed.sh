@@ -39,10 +39,23 @@ bad()  { echo "  FAIL [$1] $2"; FAIL=$((FAIL+1)); }
 # code, not a copy that can drift away from it.
 python3 - "$EX/hivemind-governed.naab" "$WORK/gates.inc" <<'PY'
 import sys
-src = open(sys.argv[1]).read()
+# Explicit UTF-8 on both handles, and ASCII-only anchors.
+#
+# This failed on build-windows with ValueError: substring not found. The end
+# anchor used to be '// ── Structure Compliance', whose box-drawing characters
+# are U+2500. Python opens files with the LOCALE encoding, which is cp1252 on
+# the Windows runners, so the file's UTF-8 bytes did not decode to the same
+# characters the literal carried and the search missed. The start anchor is
+# pure ASCII, which is why line 3 succeeded and line 4 did not.
+#
+# Anchoring on 'Structure Compliance' alone keeps the search ASCII-only, so it
+# no longer depends on either handle's encoding agreeing about U+2500.
+src = open(sys.argv[1], encoding='utf-8').read()
 start = src.index('fn is_fence_line')
-end = src.index('// ── Structure Compliance')
-open(sys.argv[2], 'w').write(src[start:end])
+end = src.index('Structure Compliance')
+# Back up to the start of that comment line so the slice ends cleanly.
+end = src.rindex('\n', 0, end) + 1
+open(sys.argv[2], 'w', encoding='utf-8').write(src[start:end])
 PY
 if [ ! -s "$WORK/gates.inc" ]; then
     echo "FAIL: could not extract gate functions from $EX/hivemind-governed.naab"
