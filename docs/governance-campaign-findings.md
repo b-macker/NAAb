@@ -102,6 +102,57 @@ suite with no tests left passes**.
 - Test `test_validation_signal.sh` Groups L and M
 - **Live status: stub-only** — every live run reported monotonically non-decreasing counts, so nothing has yet presented the logic with a shrinking suite
 
+### 5b. The VM leaked a try's exception handler on `break`/`continue` (TRY-001)
+
+`Compiler::visit(BreakStmt)`/`visit(ContinueStmt)` emitted `OP_POPN` for locals
+but never `OP_TRY_END`, so jumping out of a `try` body leaked its handler onto
+the VM handler stack permanently. A later `throw` with no enclosing try resolved
+against the dead handler, re-entered the stale catch block and fell through it —
+absorbing an exception that should have terminated the run, and re-executing
+every statement between the stale `catch_ip` and the leak point. File writes,
+agent sends and telemetry emissions all sit in that window.
+
+The over-pop direction is the harder half: closing a handler belonging to a try
+that *encloses* the loop delivers a later exception to the wrong catch, which is
+worse than the leak. The fix bounds the emission by `loops.back().scope_depth`,
+the same bound `OP_POPN` already used, and E1-E3 in the test exist so "close
+everything on the way out" cannot pass.
+
+- Fix `293b3f1` (`CompilerState::open_try_depths`, one `OP_TRY_END` per try opened inside the innermost loop; the tree-walker was correct throughout and is the oracle)
+- Test `tests/vm/test_try_handler_leak.sh`; divergence write-up `docs/engine-divergences.md` TRY-001
+- **Live status: n/a for this harness — verified by parity, not by the live run.** Run 24 on the fixed binary showed no behavioural change in the living script: `AGENT_RESPONSE` 111 and `PROMPT_SCAN` 111, exactly 1:1, so nothing re-executed. That is the expected result, and it is worth recording because the prompt for that run predicted the opposite — that `SEND_ERRORS` would rise as previously-absorbed errors surfaced. It could not: `safe_send` wraps every send in its own `try`, so its handler is always nearer than any leaked one when a send throws. The harness never had a reachable path to the damage. TRY-001 is a correctness fix for NAAb programs generally, not a fix for this harness.
+
+Found while recording that status: **the test itself passed with no binary
+present.** Every scenario asserts VM output == tree-walk output, so an absent
+`build/naab-lang` made both sides empty, the diff succeeded, and all 8
+assertions reported PASS having executed nothing. The differential shape is what
+made it invisible — there is no hand-written expectation left to fail against
+once the oracle is the other engine.
+
+Treating that as a pattern rather than a one-off: the same shape needs
+engine-vs-engine comparison with no fixed expectation, so most `--tree-walk`
+tests are not exposed. Checked rather than assumed — `test_taint_engine_parity`,
+`test_sandbox_engine_parity` and `test_module_governance_parity` were run with
+the binary moved aside and all three correctly reported **0 passes, exit 1**,
+because they assert on expected content and not merely on agreement.
+`tests/vm/test_vm_treewalker_diff.sh` is the second real instance: it compares
+exit codes, two zeros match whatever produced them, and pointing `NAAB` at
+`/bin/true` reported **"18 passed, 0 failed, 0 known divergences"** — better
+than the truthful run, which is 14 passed with 4 known divergences. A vacuous
+differential does not merely fail to detect; it erases the divergences that are
+already documented.
+
+Closed in both with a setup guard that asks the binary to identify itself
+(`--version | grep -qi naab`). Existence is not enough — `/bin/true` exists and
+is executable — and a missing binary is a suite failure rather than a skip,
+since neither test has a platform prerequisite to skip on. `run_both` in the
+handler-leak test additionally rejects an empty side, which covers causes other
+than a bad binary (source rejected, a scenario rewritten into something that
+prints nothing); every scenario there prints at least one line on both engines
+by construction. Every guard was verified to FAIL when it should: both tests
+exit 1 against a nonexistent path and against `/bin/true`, and both still pass
+in full against the real binary.
+
 ### 6. Other engine fixes
 
 | Defect | Mechanism | Fix | Test |
