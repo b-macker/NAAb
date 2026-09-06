@@ -2418,6 +2418,21 @@ if [ -f "$CANARY_SCRIPT" ]; then
 else
     echo "  test_prescan_canaries.sh: not found, skipping"
 fi
+
+VISIBILITY_SCRIPT="tests/self-audit/test_coverage_visibility.sh"
+if [ -f "$VISIBILITY_SCRIPT" ]; then
+    # Two baseline gates on what this runner cannot see about itself: test
+    # directories reachable by no runner, and suites whose govern.json result
+    # depends on whatever populated the ambient trust store. Reads files only.
+    if run_shell_test "$VISIBILITY_SCRIPT" 2>&1; then
+        echo "  test_coverage_visibility.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_coverage_visibility.sh")
+    fi
+else
+    echo "  test_coverage_visibility.sh: not found, skipping"
+fi
 fi  # phase_runs shell
 
 # Print summary
