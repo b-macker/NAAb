@@ -10,10 +10,14 @@
 #
 # A crash is worse than a false negative here. code_quality.no_secrets is a HARD
 # check: crashing renders NO verdict — it neither blocks nor passes, and the
-# process dies with a signal rather than the documented exit code 3. It is also
-# reachable from untrusted input, because checkSecrets() runs on every agent
-# prompt, response and tool argument, so model output could terminate the
-# interpreter.
+# process dies with a signal rather than the documented exit code 3.
+#
+# Scope, because it is easy to overstate: checkSecrets() returns at its first
+# line unless code_quality.no_secrets is enabled, and that defaults false. Every
+# case below therefore sets it. Where it IS enabled the exposure is real and
+# untrusted — the call sites cover the agent prompt, response content, tool
+# arguments and tool results — so model output could terminate the interpreter.
+# Where it is not, the regex never runs.
 #
 # Group A is the crash regression. Group B is the positive control WITHOUT WHICH
 # GROUP A PROVES NOTHING: deleting the pattern outright also stops the crash, so

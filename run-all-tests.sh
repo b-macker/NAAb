@@ -131,6 +131,13 @@ EXPECTED_ERROR_TESTS["test_persistent_runtime_gov.naab"]=1 # languages.blocked (
 # NOTE: Termux has g++, nim, node, go, rustc, julia, csc/mono, ruby, php, python3.
 # CI runners may not have all of these, so tests that need multiple polyglot
 # executors should stay here even if they pass on Termux.
+# Live-agent examples: they call agent.send() against a real provider, so with
+# no key configured they cannot run at all. Named individually rather than
+# detected by message, so that a test which is SUPPOSED to have a key in CI and
+# silently loses one still fails instead of disappearing into this class.
+declare -A LIVE_AGENT_TESTS
+LIVE_AGENT_TESTS["experiment.naab"]=1   # examples/experiment-coherence-tighten
+
 declare -A MISSING_EXECUTOR_TESTS
 MISSING_EXECUTOR_TESTS["polyglot_optimization_test.naab"]=1   # needs numpy, Go, Nim, Ruby
 # feature_showcase pipes a Python value block into JavaScript; on non-pybind11
@@ -361,14 +368,22 @@ run_test() {
             # expressions have no value channel without the embedded executor).
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
-        elif [ -f "$output_file" ] && grep -q "Agent error: API key not available" "$output_file"; then
-            # Live-agent examples (examples/experiment-coherence-tighten and
-            # friends) call agent.send() against a real provider and cannot run
-            # without a configured key. That is environmental absence, the same
-            # class as a missing compiler above, not a regression — and it is
-            # what a fresh container always looks like. The grep is deliberately
-            # tied to the no-key-configured error specifically, so a genuine
-            # auth failure (bad key, revoked key) still counts as a real FAIL.
+        elif [ "${LIVE_AGENT_TESTS[$test_name]}" = "1" ] && [ -f "$output_file" ] && \
+             grep -q "Agent error: API key not available" "$output_file"; then
+            # Live-agent examples call agent.send() against a real provider and
+            # cannot run without a configured key. That is environmental absence,
+            # the same class as a missing compiler above, not a regression — and
+            # it is what a fresh container always looks like.
+            #
+            # TWO conditions, and both are load-bearing. The grep is tied to the
+            # no-key-configured error specifically, so a genuine auth failure
+            # (bad key, revoked key) still counts as a real FAIL. The membership
+            # test bounds WHICH tests may claim it: on the message alone this was
+            # a suite-wide rule, so any future test that was supposed to have a
+            # key in CI and silently lost one would have stopped failing and
+            # started XFAILing. That direction is invisible in a green run, which
+            # is exactly the kind of absence this suite is not supposed to have.
+            # Adding a live-agent example is now a one-line registration above.
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (no API key configured — live-agent example)"
         elif [ $exit_code -eq 124 ]; then
