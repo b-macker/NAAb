@@ -21,7 +21,9 @@ PASS=0
 FAIL=0
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 NAAB="$REPO/build/naab-lang"
-EX="$REPO/examples/hivemind_governed/src"
+# Overridable so the mutation harness can point the same assertions at a
+# deliberately broken copy. Defaults to the shipped example.
+EX="${HIVEMIND_GOVERNED_SRC:-$REPO/examples/hivemind_governed/src}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -197,11 +199,14 @@ if [ "$rc" -eq 0 ]; then ok "E-01 example completes under enforce" "exit 0"; els
 if grep -q '0 violations' "$RUN/run.txt"; then ok "E-02 zero governance violations" "clean run"; else bad "E-02 zero governance violations" "$(grep -o '[0-9]* violations' "$RUN/run.txt" | head -1)"; fi
 # The gate must leave evidence. A gate that runs and records nothing is
 # indistinguishable from one that never ran — the failure this example documents.
-if grep -q 'CONTENT_GATE' "$RUN/hivemind-log.jsonl" 2>/dev/null; then ok "E-03 CONTENT_GATE events recorded" "gate is observable"; else bad "E-03 CONTENT_GATE events recorded" "no CONTENT_GATE in structured log"; fi
+# Match the exact JSON field, not the bare token: a loose grep for CONTENT_GATE
+# also matches CONTENT_GATE_RENAMED (or any longer name), so renaming the event
+# out from under the assertion left it passing. Found by mutation, not review.
+if grep -q '"event": *"CONTENT_GATE"' "$RUN/hivemind-log.jsonl" 2>/dev/null; then ok "E-03 CONTENT_GATE events recorded" "gate is observable"; else bad "E-03 CONTENT_GATE events recorded" "no CONTENT_GATE in structured log"; fi
 # Prompts must be logged in full. The parent log stored responses as
 # full_content but prompts only as a 300-char preview, so the injection channel
 # section 2.4 describes was the half that was not recorded.
-if grep -q 'full_prompt' "$RUN/hivemind-log.jsonl" 2>/dev/null; then ok "E-04 prompts logged in full" "asymmetry closed"; else bad "E-04 prompts logged in full" "no full_prompt in structured log"; fi
+if grep -q '"full_prompt":' "$RUN/hivemind-log.jsonl" 2>/dev/null; then ok "E-04 prompts logged in full" "asymmetry closed"; else bad "E-04 prompts logged in full" "no full_prompt in structured log"; fi
 
 echo
 echo "hivemind governed gates: $PASS passed, $FAIL failed"

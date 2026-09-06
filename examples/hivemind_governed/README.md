@@ -21,7 +21,7 @@ Verified against the parent's committed telemetry (20,349 events, 13 runs):
 | BSD was off | `behavioral_sequences` was absent from `govern.json`, so the field took its `false` default. |
 | CDD was off | `context_drift` was absent likewise. |
 | Taint sinks had been narrowed | `file.write`/`file.append` removed from `sinks`, because taint tracking was blocking log writes. |
-| A config contradiction was carried unresolved | `contradiction.CONTRA-010` ADVISORY on two runs: shell `blocked_commands` set while `code_injection` lacked `block_command_injection`. |
+| `contradiction.CONTRA-010` fired on two runs | ADVISORY on `1788615440875` and `1788616335353`. See the correction below — it was already resolved before the audited run, and not by the key the advisory names. |
 
 Two corrections to the parent audit, both from the same telemetry:
 
@@ -43,6 +43,20 @@ Two corrections to the parent audit, both from the same telemetry:
 The 58:1 check ratio and the line-50 hot spot (9,457 checks against a
 `string.substring()` call) hold up unchanged and are not addressed here.
 
+**A correction to this document's own first draft.** It claimed adding
+`block_command_injection: true` repaired CONTRA-010. It does not, on two counts.
+The advisory's condition is `restrictions.code_injection.enabled`
+(`governance_engine.cpp`), and `governance_config.cpp` sets that true
+unconditionally whenever a `code_injection` object is present at all, whatever it
+contains — so the parent config already silenced it by having the section, and
+the two runs that fired it predate that section. Separately,
+`block_command_injection` already defaults **true** (`governance.h`), so setting
+it explicitly changes nothing. Verified both directions: zero CONTRA-010 lines
+with the key present and with it removed. The error came from trusting the
+advisory's own `resolution` string, which names `block_command_injection` while
+the check reads `enabled` — tracing to the point of mention rather than the point
+of effect, which is the first rule in `docs/investigation-method.md`.
+
 ## What this example changes
 
 ### Engine side — `src/govern.json`
@@ -56,7 +70,7 @@ The 58:1 check ratio and the line-50 hot spot (9,457 checks against a
    layer that observes a `process.run` pipeline.** Four patterns are declared
    for shapes that do not occur in a clean run: env-harvest to subprocess, env-
    harvest to disk, decode-then-execute, and response-to-network.
-3. **CONTRA-010 resolved** — `block_command_injection: true`.
+3. **`block_command_injection: true`** — explicit, but a no-op: it already defaults true. It is **not** the CONTRA-010 fix, despite that advisory's own resolution text naming it. See the correction below.
 
 ### Script side — `src/hivemind-governed.naab`
 

@@ -1,7 +1,7 @@
 {
   "version": "5.0",
   "mode": "enforce",
-  "description": "Governed hivemind. Derived from examples/hivemind/src/govern.json, with the three defects the Hivemind-6 audit found repaired: taint sinks restored (they had been narrowed to unblock the script), behavioral sequence detection switched on (it was off, and it is the ONE engine layer that observes a process.run pipeline), and the CONTRA-010 config contradiction resolved. Read README.md for what this config does and does NOT govern.",
+  "description": "Governed hivemind. Derived from examples/hivemind/src/govern.json, with TWO real repairs: taint sinks restored (they had been narrowed to unblock the script), and behavioral sequence detection switched on (it was off, and it is the ONE engine layer that observes a process.run pipeline). A third was claimed and withdrawn — see the code_injection rationale, which records why the CONTRA-010 claim did not survive verification. Read README.md for what this config does and does NOT govern.",
 
   "languages": {
     "allowed": ["shell"],
@@ -120,7 +120,7 @@
       "block_dynamic_code_gen": true,
       "block_template_injection": true,
       "block_command_injection": true,
-      "rationale": "REPAIRED. block_command_injection was absent, which raised contradiction.CONTRA-010 as an ADVISORY on parent runs 1788615440875 and 1788616335353: shell blocked_commands were configured while code_injection was disabled, so a non-shell language could reach the same commands through an API call. The advisory was correct and had been carried unresolved."
+      "rationale": "NOT a repair — corrected after the claim failed verification. This was written up as fixing contradiction.CONTRA-010, which fired as an ADVISORY on parent runs 1788615440875 and 1788616335353. It does not. CONTRA-010 tests restrictions.code_injection.ENABLED (governance_engine.cpp), and governance_config.cpp sets that true unconditionally whenever a code_injection object is present, whatever it contains — so the parent config already silenced the advisory by having the section at all, and the two runs that fired it predate that section. Verified both directions on this config: 0 CONTRA-010 lines with block_command_injection present AND with it removed. block_command_injection also already defaults true (governance.h), so setting it changes nothing; it is kept only as an explicit statement of intent, matching what governance_init.cpp writes into a fresh config. The trap worth naming: CONTRA-010 resolution text says \"Enable restrictions.code_injection with block_command_injection: true\", which points at the wrong key — tracing to that sentence instead of to the condition is what produced the wrong claim."
     },
     "resource_abuse": {
       "block_fork_bomb": true,
