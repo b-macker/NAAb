@@ -5,6 +5,7 @@
 //           visit(LiteralExpr), visit(DictExpr), visit(ListExpr),
 //           visit(RangeExpr), visit(StructLiteralExpr)
 
+#include "naab/limits.h"
 #include "naab/interpreter.h"
 #include "naab/governance.h"
 #include "naab/lexer.h"
@@ -311,8 +312,19 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 const auto& left_vec = left.asListConst();
                 const auto& right_vec = right.asListConst();
 
+                // limits.array_size applies to concatenation as well as to
+                // literals — see the matching note at OP_ADD in vm.cpp. Both
+                // engines must agree, or the limit enforces on one and not the
+                // other depending on --tree-walk.
+                size_t combined_size = left_vec.size() + right_vec.size();
+                naab::limits::checkArraySize(combined_size);
+                if (governance_ && governance_->isActive()) {
+                    std::string gerr = governance_->checkArraySize(combined_size);
+                    if (!gerr.empty()) throw std::runtime_error(gerr);
+                }
+
                 std::vector<NaabVal> combined;
-                combined.reserve(left_vec.size() + right_vec.size());
+                combined.reserve(combined_size);
                 combined.insert(combined.end(), left_vec.begin(), left_vec.end());
                 combined.insert(combined.end(), right_vec.begin(), right_vec.end());
 
@@ -321,6 +333,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // String concatenation or numeric addition
             else if (left.isString() ||
                 right.isString()) {
+                // MAX_STRING_LENGTH cap — see the matching note at OP_ADD in
+                // vm.cpp. Both engines must agree, or unbounded growth is
+                // reachable via --tree-walk.
+                size_t cat_total = left.toString().size() + right.toString().size();
+                if (cat_total > naab::limits::MAX_STRING_LENGTH) {
+                    throw std::runtime_error(
+                        "String concatenation too large: " + std::to_string(cat_total) +
+                        " bytes exceeds limit");
+                }
                 result_ = NaabVal::makeString(left.toString() + right.toString());
             } else if (left.isDouble() ||
                        right.isDouble()) {

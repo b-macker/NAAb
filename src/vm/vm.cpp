@@ -848,6 +848,17 @@ interpreter::NaabVal VM::run() {
                 }
                 if (a.isString() || b.isString()) {
                     // String concatenation with auto-coercion (must be before double check)
+                    // The same MAX_STRING_LENGTH cap that guards string REPETITION
+                    // twelve lines below applies here. It did not, so `s = s + s`
+                    // in a loop grew without bound: a 38MB path built that way took
+                    // a governance check ~17 minutes to decide (linear, ~26us/byte
+                    // -- slow, not superlinear), which is a verdict nobody waits for.
+                    // Fixed cap, deliberately NOT the configurable
+                    // limits.data.string_length: that key is intentionally inert and
+                    // test_inert_limits.sh LD-01 asserts it warns as unenforced.
+                    size_t cat_total = a.toString().size() + b.toString().size();
+                    if (cat_total > naab::limits::MAX_STRING_LENGTH)
+                        runtimeError("String concatenation too large: %zu bytes exceeds limit", cat_total);
                     push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
                     allocation_count_++;
                 } else if (a.isInt() && b.isInt()) {
@@ -868,6 +879,18 @@ interpreter::NaabVal VM::run() {
                 } else if (a.isList() && b.isList()) {
                     auto result = a.asListConst();
                     auto& blist = b.asListConst();
+                    // limits.array_size applies here too. It was wired into list
+                    // literals, ranges and spreads but NOT concatenation, so
+                    // `a = a + a` in a loop grew without bound: measured with the
+                    // limit set to 1000, a literal of 1500 blocked (exit 3) while
+                    // doubling to ~33M elements ran until bad_alloc. Both engines
+                    // had the same gap, so differential testing could not see it.
+                    size_t combined = result.size() + blist.size();
+                    naab::limits::checkArraySize(combined);
+                    if (governance_) {
+                        std::string gerr = governance_->checkArraySize(combined);
+                        if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                    }
                     result.insert(result.end(), blist.begin(), blist.end());
                     push(interpreter::NaabVal::makeList(std::move(result)));
                 } else {
