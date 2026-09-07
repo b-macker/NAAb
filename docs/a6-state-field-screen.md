@@ -215,6 +215,40 @@ the *classification*, which was correct on Windows — `A6S-01` passed there. Wh
 broke was the path from a correct answer to a reader, which no control covered
 until now.
 
+### Round six: the same commit's fix exposed a second invisible-character bug
+
+The encoding fix went green on `A6S-01` and `A6S-03` and `build-windows` failed
+again anyway, on `A6S-02`, printing this:
+
+```
+--- expected ---
+DriftState.pipeline_depth NEVER-WRITTEN
+AgentTracker.lease_granted_turn WRITTEN-NEVER-READ
+--- actual ---
+DriftState.pipeline_depth NEVER-WRITTEN
+AgentTracker.lease_granted_turn WRITTEN-NEVER-READ
+```
+
+Two identical lists, reported as a drift. Python's `print()` writes through a
+text wrapper that translates `\n` to `\r\n` on Windows; command substitution
+strips the trailing newline but not the embedded CRs, so `ACTUAL` compared
+unequal to `EXPECTED` while rendering the same on a terminal. Reproduced on
+Linux byte-for-byte by inserting `sys.stdout.reconfigure(newline="\r\n")` into
+the parser. Fixed by writing bytes (`sys.stdout.buffer.write`), with a `tr -d
+'\r'` normalisation behind it.
+
+Round five and round six are the same defect in different clothing: **a text
+handle whose behaviour depends on the platform, sitting between a correct answer
+and its reader.** The classification was right on Windows both times — `A6S-01`
+passed in both runs. What kept breaking was the reporting path, which had no
+control on it because it was never thought of as part of the instrument.
+
+So the failure output now also renders both sides through `sed -n l`, which
+makes control characters and end-of-line visible. Not cosmetic: for one CI cycle
+the assertion output was actively misleading, showing two identical lists under
+the words "drifted from the pinned baseline". A gate that cannot show why it
+failed will eventually be believed over the code.
+
 ### The tool is registered, because an unrun tool is not coverage
 
 It shipped unregistered. Register B10 had just established the failure that

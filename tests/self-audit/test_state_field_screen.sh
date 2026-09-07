@@ -40,6 +40,15 @@
 #        parser from a real drift. The assertion runs on every platform on
 #        purpose; the one that breaks is not the one anyone runs before pushing.
 #
+# TWO PLATFORM BUGS LIVED IN THE REPORTING PATH, NOT THE CLASSIFICATION. Both
+# reddened build-windows while A6S-01 passed there, which is the tell: the
+# screen's ANSWER was right and the path from it to a reader was not. First the
+# tool's stdout encoding (an em dash through cp1252, af1303a); then this
+# parser's newline translation (print() emitting CRLF, bd3ae57) -- which
+# compared unequal while printing IDENTICALLY, so the failure output itself was
+# misleading. Hence: bytes out of the parser, CR stripped before comparing, and
+# a `sed -n l` rendering on mismatch so control characters are visible.
+#
 # CHANGING THE BASELINE IS A DECISION, NOT A CHORE. A row leaving it means a
 # field was populated or removed — update this file, SELF_TEST_UNWRITTEN and the
 # A6 register row in the same change. A row entering it is a new finding and
@@ -102,10 +111,20 @@ for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
                 "WRITTEN, NEVER READ": "WRITTEN-NEVER-READ",
                 "NO ACCESS": "NO-ACCESS"}[m.group(2)]
         rows.append(f"{struct}.{m.group(1)} {kind}")
-print("\n".join(rows))
+# Write BYTES, not text. print() goes through a text wrapper that translates
+# "\n" to "\r\n" on Windows, and command substitution strips only the trailing
+# newline -- so ACTUAL came back carrying CRs, compared unequal to EXPECTED, and
+# both sides printed IDENTICALLY in the failure output. That is what reddened
+# build-windows on bd3ae57, one commit after the encoding fix. Reproduce on
+# Linux by inserting sys.stdout.reconfigure(newline="\r\n") above.
+sys.stdout.buffer.write(("\n".join(rows) + "\n").encode("utf-8"))
 PY
 )"
 PARSE_RC=$?
+# Second line of defence: normalise line endings before comparing. The source
+# fix above is the real one; this keeps any future CR from a different origin
+# (a tool rewrite, a shell wrapper) from reading as drift.
+ACTUAL="$(printf '%s' "$ACTUAL" | tr -d '\r')"
 
 if [ "$PARSE_RC" -ne 0 ]; then
     bad "A6S-02" "the baseline PARSER failed (exit $PARSE_RC) -- this is NOT a drift result"
@@ -116,6 +135,16 @@ else
     bad "A6S-02" "flagged set drifted from the pinned baseline"
     echo "       --- expected ---"; echo "$EXPECTED" | sed 's/^/       /'
     echo "       --- actual ---";   echo "${ACTUAL:-<none parsed>}" | sed 's/^/       /'
+    # Escaped form, because the plain rendering above is not always enough to
+    # SEE the difference: on bd3ae57 the two lists printed identically and the
+    # mismatch was invisible CRs. `sed -n l` shows control characters and marks
+    # end-of-line with $, so a whitespace-only difference is legible at a glance
+    # instead of looking like the assertion is lying.
+    if [ -n "$ACTUAL" ]; then
+        echo "       --- escaped (control chars visible, \$ = end of line) ---"
+        { echo "expected:"; echo "$EXPECTED"; echo "actual:"; echo "$ACTUAL"; } \
+            | sed -n l | sed 's/^/       /'
+    fi
     echo "       A row LEAVING means a field was populated or removed: update this"
     echo "       baseline, SELF_TEST_UNWRITTEN and the A6 register row together."
     echo "       A row ENTERING is a new finding: it needs an empirical check with a"
