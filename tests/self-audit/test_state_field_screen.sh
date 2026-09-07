@@ -60,6 +60,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TOOL="$REPO/tools/screen_state_fields.py"
+# Controls for the OUTPUT CHANNEL. Two platform bugs (below) lived in the path
+# from a correct answer to this test's comparison, not in the answer. The class
+# is generic, so the controls live in helpers and are exercised here as A6S-04.
+. "$REPO/tests/helpers/encoding_controls.sh"
 PASS=0; FAIL=0
 ok()  { echo "  PASS [$1] $2"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL [$1] $2"; FAIL=$((FAIL+1)); }
@@ -124,7 +128,7 @@ PARSE_RC=$?
 # Second line of defence: normalise line endings before comparing. The source
 # fix above is the real one; this keeps any future CR from a different origin
 # (a tool rewrite, a shell wrapper) from reading as drift.
-ACTUAL="$(printf '%s' "$ACTUAL" | tr -d '\r')"
+ACTUAL="$(printf '%s' "$ACTUAL" | enc_strip_cr)"
 
 if [ "$PARSE_RC" -ne 0 ]; then
     bad "A6S-02" "the baseline PARSER failed (exit $PARSE_RC) -- this is NOT a drift result"
@@ -141,9 +145,7 @@ else
     # end-of-line with $, so a whitespace-only difference is legible at a glance
     # instead of looking like the assertion is lying.
     if [ -n "$ACTUAL" ]; then
-        echo "       --- escaped (control chars visible, \$ = end of line) ---"
-        { echo "expected:"; echo "$EXPECTED"; echo "actual:"; echo "$ACTUAL"; } \
-            | sed -n l | sed 's/^/       /'
+        enc_escaped_diff expected "$EXPECTED" actual "$ACTUAL" | sed 's/^/       /'
     fi
     echo "       A row LEAVING means a field was populated or removed: update this"
     echo "       baseline, SELF_TEST_UNWRITTEN and the A6 register row together."
@@ -159,12 +161,27 @@ fi
 # column reddened build-windows on af1303a while every Linux job stayed green,
 # so this assertion exists to fail on the Linux runner too -- the platform that
 # breaks is not the platform anyone runs before pushing.
-if LC_ALL=C grep -qP '[^\x00-\x7F]' "$OUT" 2>/dev/null; then
+if OFFENDERS="$(enc_has_non_ascii "$OUT")"; then
     bad "A6S-03" "tool printed non-ASCII bytes (breaks cp1252/C-locale round-trip)"
-    LC_ALL=C grep -nP '[^\x00-\x7F]' "$OUT" | head -5 | sed 's/^/       /'
+    echo "$OFFENDERS" | sed 's/^/       /'
 else
     ok "A6S-03" "tool output is ASCII-only (portable across stdout encodings)"
 fi
+
+# --- A6S-04: the output-channel controls must themselves work ---
+# A helper nobody exercises is register B10's failure: it reads as coverage
+# while providing none. This runs the helper's own positive AND negative
+# controls (the ASCII check must fire on 0x97 and on U+2014, and must NOT fire
+# on pure ASCII or on a CR; the CRLF fixture must compare unequal before
+# normalising and equal after; the escaped renderer must actually surface the
+# CR). Each of the four was mutation-tested: breaking any one fails this.
+if enc_self_test > "$OUT.enc" 2>&1; then
+    ok "A6S-04" "output-channel controls pass their own self-test"
+else
+    bad "A6S-04" "tests/helpers/encoding_controls.sh self-test FAILED"
+    sed 's/^/       /' "$OUT.enc"
+fi
+rm -f "$OUT.enc"
 
 echo ""
 echo "state-field screen: $PASS passed, $FAIL failed"
