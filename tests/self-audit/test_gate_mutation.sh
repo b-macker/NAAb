@@ -36,6 +36,21 @@
 # gate. A full sweep is hours, so it is nightly/manual, not a per-commit gate.
 # The ledger makes it resumable — each run does as many gates as you ask for
 # and the coverage accumulates.
+#
+# KNOWN BLIND SPOT, and it produces FALSE UNPROTECTED verdicts, so read it
+# before trusting one. The probe is a modification to src/, and
+# run-all-tests.sh skips test_prescan_canaries.sh whenever src/ or include/ is
+# dirty (run-all-tests.sh:2444, because the canary injects there itself). So
+# during a probe the canary never runs, and a gate whose ONLY witness is a
+# canary assertion will be reported UNPROTECTED when it is not. This is
+# structural — the probe cannot both exist and leave src/ clean — so it is
+# documented rather than fixed. Confirm any UNPROTECTED verdict by hand against
+# tests/self-audit/test_prescan_canaries.sh before acting on it.
+#
+# The lock below is shared with the canary for the same reason: both edit
+# tracked source and both rebuild into one build directory, so running them
+# concurrently races on object files and can attribute one script's failure to
+# the other's mutation. Found by doing exactly that.
 # ============================================================
 set -uo pipefail
 
@@ -52,9 +67,11 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC
 
 # Serialize: this edits tracked source and rebuilds. Two runs would see each
 # other's injection and attribute the wrong verdict to the wrong gate.
-LOCKFILE="${TMPDIR:-/tmp}/naab_gate_mutation.lock"
+# Shared with test_prescan_canaries.sh: both inject into tracked source and
+# both rebuild into build/, so they must never overlap.
+LOCKFILE="${TMPDIR:-/tmp}/naab_prescan_canary.lock"
 exec 9>"$LOCKFILE"
-if ! flock -n 9; then echo "another gate-mutation run holds the lock — waiting"; flock 9; fi
+if ! flock -n 9; then echo "another source-injecting run holds the lock — waiting"; flock 9; fi
 
 BACKUP="$(mktemp "${TMPDIR:-/tmp}/engine-XXXXXX.cpp")"
 REVERTED=0
