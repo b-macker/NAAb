@@ -333,6 +333,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // String concatenation or numeric addition
             else if (left.isString() ||
                 right.isString()) {
+                // MAX_STRING_LENGTH cap — see the matching note at OP_ADD in
+                // vm.cpp. Both engines must agree, or unbounded growth is
+                // reachable via --tree-walk.
+                size_t cat_total = left.toString().size() + right.toString().size();
+                if (cat_total > naab::limits::MAX_STRING_LENGTH) {
+                    throw std::runtime_error(
+                        "String concatenation too large: " + std::to_string(cat_total) +
+                        " bytes exceeds limit");
+                }
                 result_ = NaabVal::makeString(left.toString() + right.toString());
             } else if (left.isDouble() ||
                        right.isDouble()) {

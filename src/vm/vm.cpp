@@ -848,6 +848,17 @@ interpreter::NaabVal VM::run() {
                 }
                 if (a.isString() || b.isString()) {
                     // String concatenation with auto-coercion (must be before double check)
+                    // The same MAX_STRING_LENGTH cap that guards string REPETITION
+                    // twelve lines below applies here. It did not, so `s = s + s`
+                    // in a loop grew without bound: a 38MB path built that way took
+                    // a governance check ~17 minutes to decide (linear, ~26us/byte
+                    // -- slow, not superlinear), which is a verdict nobody waits for.
+                    // Fixed cap, deliberately NOT the configurable
+                    // limits.data.string_length: that key is intentionally inert and
+                    // test_inert_limits.sh LD-01 asserts it warns as unenforced.
+                    size_t cat_total = a.toString().size() + b.toString().size();
+                    if (cat_total > naab::limits::MAX_STRING_LENGTH)
+                        runtimeError("String concatenation too large: %zu bytes exceeds limit", cat_total);
                     push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
                     allocation_count_++;
                 } else if (a.isInt() && b.isInt()) {
