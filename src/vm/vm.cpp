@@ -868,6 +868,18 @@ interpreter::NaabVal VM::run() {
                 } else if (a.isList() && b.isList()) {
                     auto result = a.asListConst();
                     auto& blist = b.asListConst();
+                    // limits.array_size applies here too. It was wired into list
+                    // literals, ranges and spreads but NOT concatenation, so
+                    // `a = a + a` in a loop grew without bound: measured with the
+                    // limit set to 1000, a literal of 1500 blocked (exit 3) while
+                    // doubling to ~33M elements ran until bad_alloc. Both engines
+                    // had the same gap, so differential testing could not see it.
+                    size_t combined = result.size() + blist.size();
+                    naab::limits::checkArraySize(combined);
+                    if (governance_) {
+                        std::string gerr = governance_->checkArraySize(combined);
+                        if (!gerr.empty()) runtimeError("%s", gerr.c_str());
+                    }
                     result.insert(result.end(), blist.begin(), blist.end());
                     push(interpreter::NaabVal::makeList(std::move(result)));
                 } else {
