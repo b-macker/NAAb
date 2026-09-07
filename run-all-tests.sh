@@ -1826,6 +1826,23 @@ else
     echo "  test_context_growth_ema.sh: not found, skipping"
 fi
 
+# C1a/C1c/C1d: the rows say de-escalation is unreachable ONCE COHERENCE FLOORS.
+# #203 measured that the flooring no longer happens on shipped defaults and
+# narrowed the premise. That behaviour is an ACCIDENT — a side effect of the
+# adaptive-baseline flip made for S17 (#176) — and nothing asserted it until
+# this. Pins the precondition only; it does not test de-escalation.
+COHFLOOR_SCRIPT="tests/governance_v4/test_coherence_floor_precondition.sh"
+if [ -f "$COHFLOOR_SCRIPT" ]; then
+    if run_shell_test "$COHFLOOR_SCRIPT" 2>&1; then
+        echo "  test_coherence_floor_precondition.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_coherence_floor_precondition.sh")
+    fi
+else
+    echo "  test_coherence_floor_precondition.sh: not found, skipping"
+fi
+
 # B9(a): the BSD pre-check consumed the event and then let emitEvent record it
 # a second time, inflating match counts and spending every pattern's max_gap.
 PREEXECDR_SCRIPT="tests/governance_v4/test_bsd_preexec_double_record.sh"
