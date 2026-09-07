@@ -162,42 +162,54 @@ else
         "$UNISO unisolated, baseline $BASELINE_UNISOLATED — source tests/helpers/trust_setup.sh and call setup_isolated_trust, or its result depends on whatever else populated ~/.naab/trusted-keys"
 fi
 
-read -r MISSING MISSING_LIST UNTRACKED UNTRACKED_LIST <<<"$(python3 - <<'PY'
-import os, re, subprocess
-# Explicit UTF-8: run-all-tests.sh carries box rules and em dashes, and Python's
-# default for open() is the locale's encoding -- cp1252 under MSYS2, which dies
-# on those bytes. LC_ALL=C does NOT reproduce that (PEP 538 coerces it back to
-# UTF-8); use PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 LC_ALL=C. See CLAUDE.md.
-with open('run-all-tests.sh', encoding='utf-8', errors='replace') as fh:
-    src = fh.read()
-paths = sorted(set(re.findall(r'^[A-Z_]+=\"((?:tests|examples)/[^\"]+)\"', src, re.M)))
-missing = [p for p in paths if not os.path.exists(p)]
-untracked = []
-for p in paths:
-    if p in missing:
-        continue
-    if subprocess.run(['git', 'ls-files', '--error-unmatch', p],
-                      capture_output=True).returncode != 0:
-        untracked.append(p)
-print(len(missing), ",".join(missing) or "-", len(untracked), ",".join(untracked) or "-")
-PY
-)"
+# Computed in BASH, not Python. The first version shelled out to git from
+# Python and died on the Windows runner with
+#   FileNotFoundError: [WinError 2] The system cannot find the file specified
+# because MSYS2's Python cannot CreateProcess `git` off the shell PATH. The
+# counts came back as EMPTY STRINGS, `[ "" -eq 0 ]` errored into the else
+# branch, and a measurement that never ran was reported as "found violations".
+# Bash has git on its PATH here, and reading the file with grep also sidesteps
+# the cp1252 decode problem that has bitten this repo three times.
+REGISTERED=""; MISSING_LIST=""; UNTRACKED_LIST=""
+MISSING=0; UNTRACKED=0; MEASURED=1
+while IFS= read -r pth; do
+    [ -n "$pth" ] || continue
+    REGISTERED="$REGISTERED $pth"
+    if [ ! -e "$pth" ]; then
+        MISSING=$((MISSING+1)); MISSING_LIST="$MISSING_LIST $pth"
+    elif ! git ls-files --error-unmatch "$pth" >/dev/null 2>&1; then
+        UNTRACKED=$((UNTRACKED+1)); UNTRACKED_LIST="$UNTRACKED_LIST $pth"
+    fi
+done < <(grep -oE '^[A-Z_]+="(tests|examples)/[^"]+"' run-all-tests.sh \
+         | sed 's/^[A-Z_]*="//; s/"$//' | sort -u)
 
-echo "  registered suite paths: $(grep -cE '^[A-Z_]+=\"(tests|examples)/' run-all-tests.sh)   missing: $MISSING   untracked: $UNTRACKED"
+NREG=$(echo $REGISTERED | wc -w)
+# A count of zero and a measurement that did not happen must not look alike.
+# That conflation is exactly what failed build-windows here, and it is the same
+# shape as the CRLF bug in tests/helpers/encoding_controls.sh: a broken probe
+# rendering as a finding.
+[ "$NREG" -gt 0 ] || MEASURED=0
+
+echo "  registered suite paths: $NREG   missing: $MISSING   untracked: $UNTRACKED"
 echo ""
 
-if [ "${MISSING:-99}" -eq 0 ]; then
-    ok "CV-03" "every registered suite path exists"
+if [ "$MEASURED" -eq 0 ]; then
+    bad "CV-03" "COULD NOT MEASURE — no registered suite paths were found" \
+        "grep matched nothing in run-all-tests.sh. This is an instrument failure, not a finding: do not read it as 'no suites are registered'."
+    bad "CV-04" "COULD NOT MEASURE — see CV-03"
 else
-    bad "CV-03" "a suite is registered in run-all-tests.sh but its file is not there" \
-        "$MISSING missing: $MISSING_LIST — the suite would print 'not found, skipping' and exit 0, because none of the 113 skip branches increments FAILED. Restore the file, or remove its registration; do not leave it registered and absent."
-fi
-
-if [ "${UNTRACKED:-99}" -eq 0 ]; then
-    ok "CV-04" "every registered suite path is tracked in git"
-else
-    bad "CV-04" "a suite is registered but not committed" \
-        "$UNTRACKED untracked: $UNTRACKED_LIST — it runs only on the machine that wrote it and skips silently everywhere else. Commit it, or remove the registration."
+    if [ "$MISSING" -eq 0 ]; then
+        ok "CV-03" "every registered suite path exists ($NREG registered)"
+    else
+        bad "CV-03" "a suite is registered in run-all-tests.sh but its file is not there" \
+            "$MISSING missing:$MISSING_LIST — the suite would print 'not found, skipping' and exit 0, because none of the 113 skip branches increments FAILED. Restore the file, or remove its registration."
+    fi
+    if [ "$UNTRACKED" -eq 0 ]; then
+        ok "CV-04" "every registered suite path is tracked in git"
+    else
+        bad "CV-04" "a suite is registered but not committed" \
+            "$UNTRACKED untracked:$UNTRACKED_LIST — it runs only on the machine that wrote it and skips silently everywhere else. Commit it, or remove the registration."
+    fi
 fi
 
 echo ""
