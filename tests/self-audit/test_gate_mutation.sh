@@ -126,8 +126,20 @@ echo "  preparing isolated worktree — your tree is not touched"
 if ! git -C "$REPO" worktree add --detach "$WT" HEAD >/dev/null 2>&1; then
     echo -e "  ${RED}could not create a worktree — aborting rather than mutating your tree${NC}"; exit 1
 fi
-[ -d "$REPO/build" ] || { echo -e "  ${RED}no build/ to copy — build first${NC}"; exit 1; }
-cp -a "$REPO/build" "$WT/build"
+# The build MUST be configured against the worktree, never copied. A copied
+# build/ carries CMAKE_HOME_DIRECTORY=<original repo> in its cache, so `make`
+# compiles the ORIGINAL sources and the probe never reaches the binary. That
+# produced a false UNPROTECTED on the positive control, and a sweep would have
+# reported EVERY gate unprotected — a catastrophic-looking headline number that
+# was entirely an artifact of the harness. Caught only because the control ran
+# first and had a known-correct answer to disagree with.
+echo "  configuring a build against the worktree (first run is slow)..."
+if ! cmake -S "$WT" -B "$WT/build" >/dev/null 2>&1; then
+    echo -e "  ${RED}cmake configure failed in the worktree${NC}"; exit 1
+fi
+if ! make -C "$WT/build" naab-lang -j4 >/dev/null 2>&1; then
+    echo -e "  ${RED}baseline build failed in the worktree${NC}"; exit 1
+fi
 ENGINE="$WT/src/runtime/governance_engine.cpp"
 # Pristine binary, kept for witness confirmation (see confirms_witness).
 PRISTINE_BIN="$WORK/naab-lang.pristine"
@@ -183,6 +195,22 @@ confirms_witness() {
     cp "$PROBED_BIN" "$WT/build/naab-lang" 2>/dev/null
     return $rc
 }
+
+# SANITY: prove the probe reaches the binary before any verdict is believed.
+# A harness that silently compiles unmutated source reports every gate
+# UNPROTECTED and looks like a devastating finding. This asserts the opposite of
+# a no-op: with a probe on a rule the engine definitely enforces, the binary must
+# differ from the baseline one.
+cp "$WT/build/naab-lang" "$WORK/baseline.bin"
+inject "__sanity_probe_rule__" && commit_probe && rebuild
+if cmp -s "$WORK/baseline.bin" "$WT/build/naab-lang"; then
+    echo -e "  ${RED}SANITY FAILED: injecting a probe did not change the binary.${NC}"
+    echo -e "  ${RED}The build is not compiling the worktree's sources — every verdict${NC}"
+    echo -e "  ${RED}would be a false UNPROTECTED. Refusing to report.${NC}"
+    exit 1
+fi
+echo "  sanity: probe reaches the binary"
+echo ""
 
 PROT=0; UNPROT=0; ERR=0
 for rule in $TARGETS; do
