@@ -40,8 +40,34 @@
 #        2026-09-06: 81 of 165 such suites have no isolation. The register
 #        said ~35.
 #
-# Both gates are BASELINE gates: they fail when the number GROWS, not while it
-# is nonzero. A gate that fails today would be switched off today.
+# CV-03  REGISTERED SUITES THAT ARE NOT THERE.
+#        run-all-tests.sh registers 88 shell suites by path, and every one of
+#        the 113 "not found, skipping" branches is a silent pass: none of them
+#        increments FAILED. Delete or rename any registered suite and CI stays
+#        green without mentioning it. Measured by walking each branch back to
+#        the if/elif that guards it: 112 of the 113 guard a path that is tracked
+#        in git and therefore SHOULD exist; the single exception is the LSP
+#        suite, whose script must exist but whose build/naab-lsp binary is
+#        genuinely optional.
+#
+#        Found the way it usually is -- by accident. Switching git branches
+#        under a running suite deleted a newly added test from the worktree; the
+#        suite printed "not found, skipping" and exited 0, and it was only
+#        noticed because someone happened to grep the log for that test's name.
+#
+#        This is asserted here rather than by editing 112 branches: one gate in
+#        one place, with a control, beats 112 mechanical edits and 112 chances
+#        to typo. It also keeps the assertion where a reader already looks for
+#        "what can this suite not see about itself".
+#
+# CV-04  REGISTERED BUT UNTRACKED. A suite registered by path but not committed
+#        exists only on the machine that wrote it, and skips silently for
+#        everyone else -- the same silence as CV-03 with a longer fuse.
+#
+# CV-01/CV-02 are BASELINE gates: they fail when the number GROWS, not while it
+# is nonzero. A gate that fails today would be switched off today. CV-03/CV-04
+# are ABSOLUTE: the correct count is zero and it is zero today, so there is no
+# baseline to erode.
 # ============================================================
 set -uo pipefail
 
@@ -134,6 +160,44 @@ if [ "$UNISO" -le "$BASELINE_UNISOLATED" ]; then
 else
     bad "CV-02" "a new suite writes an unsigned govern.json without isolating the trust store" \
         "$UNISO unisolated, baseline $BASELINE_UNISOLATED — source tests/helpers/trust_setup.sh and call setup_isolated_trust, or its result depends on whatever else populated ~/.naab/trusted-keys"
+fi
+
+read -r MISSING MISSING_LIST UNTRACKED UNTRACKED_LIST <<<"$(python3 - <<'PY'
+import os, re, subprocess
+# Explicit UTF-8: run-all-tests.sh carries box rules and em dashes, and Python's
+# default for open() is the locale's encoding -- cp1252 under MSYS2, which dies
+# on those bytes. LC_ALL=C does NOT reproduce that (PEP 538 coerces it back to
+# UTF-8); use PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 LC_ALL=C. See CLAUDE.md.
+with open('run-all-tests.sh', encoding='utf-8', errors='replace') as fh:
+    src = fh.read()
+paths = sorted(set(re.findall(r'^[A-Z_]+=\"((?:tests|examples)/[^\"]+)\"', src, re.M)))
+missing = [p for p in paths if not os.path.exists(p)]
+untracked = []
+for p in paths:
+    if p in missing:
+        continue
+    if subprocess.run(['git', 'ls-files', '--error-unmatch', p],
+                      capture_output=True).returncode != 0:
+        untracked.append(p)
+print(len(missing), ",".join(missing) or "-", len(untracked), ",".join(untracked) or "-")
+PY
+)"
+
+echo "  registered suite paths: $(grep -cE '^[A-Z_]+=\"(tests|examples)/' run-all-tests.sh)   missing: $MISSING   untracked: $UNTRACKED"
+echo ""
+
+if [ "${MISSING:-99}" -eq 0 ]; then
+    ok "CV-03" "every registered suite path exists"
+else
+    bad "CV-03" "a suite is registered in run-all-tests.sh but its file is not there" \
+        "$MISSING missing: $MISSING_LIST — the suite would print 'not found, skipping' and exit 0, because none of the 113 skip branches increments FAILED. Restore the file, or remove its registration; do not leave it registered and absent."
+fi
+
+if [ "${UNTRACKED:-99}" -eq 0 ]; then
+    ok "CV-04" "every registered suite path is tracked in git"
+else
+    bad "CV-04" "a suite is registered but not committed" \
+        "$UNTRACKED untracked: $UNTRACKED_LIST — it runs only on the machine that wrote it and skips silently everywhere else. Commit it, or remove the registration."
 fi
 
 echo ""
