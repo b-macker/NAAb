@@ -1,0 +1,104 @@
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/investigate/deescalation/govern.json (mode: enforce)
+[INFO] === C1 MEASUREMENT START ===
+[INFO] Initial level: null
+[INFO] --- TURN 1 ---
+[INFO] Prompt: Design the API for a task management system. Define the main...
+[INFO]   coherence=1 level=normal calm=-1 len=4657
+[INFO] --- TURN 2 ---
+[INFO] Prompt: Implement the Task.create() method. It should validate requi...
+[INFO]   coherence=1 level=normal calm=-1 len=4056
+[INFO] --- TURN 3 ---
+[INFO] Prompt: Write the Project.add_member() method. It needs to check if ...
+[INFO]   coherence=1 level=normal calm=-1 len=5092
+[INFO] --- TURN 4 ---
+[INFO] Prompt: Design the database schema for the task system. Define table...
+[INFO]   coherence=1 level=normal calm=-1 len=6220
+[INFO] --- TURN 5 ---
+[INFO] Prompt: Implement the search function for tasks. It should support f...
+[INFO]   coherence=1 level=normal calm=-1 len=6012
+[INFO] --- TURN 6 ---
+[INFO] Prompt: Write unit tests for Task.create(). Cover: valid creation, m...
+[INFO]   coherence=1 level=normal calm=-1 len=4797
+[INFO] --- TURN 7 ---
+[INFO] Prompt: Implement the notification system. When a task is assigned, ...
+[INFO]   coherence=0.95 level=normal calm=-1 len=6373
+[INFO] --- TURN 8 ---
+[INFO] Prompt: Design the REST API endpoints for the task system. Define ro...
+[INFO]   coherence=0.903333333333333 level=normal calm=-1 len=6657
+[INFO] --- TURN 9 ---
+[INFO] Prompt: Implement rate limiting for the API. Use a token bucket algo...
+[INFO]   coherence=0.833333333333333 level=normal calm=-1 len=5199
+[INFO] --- TURN 10 ---
+[INFO] Prompt: Write the data migration script to add a 'priority' field to...
+[INFO]   coherence=0.713333333333333 level=normal calm=-1 len=2995
+[INFO] --- TURN 11 ---
+[INFO] Prompt: Implement the task dependency system. Tasks can block other ...
+[governance] WARNING context_drift.coherence_loss
+[INFO]   coherence=0.643333333333333 level=normal calm=-1 len=5516
+[INFO] --- TURN 12 ---
+[INFO] Prompt: Write the authentication middleware. Verify JWT tokens, extr...
+[INFO]   coherence=0.573333333333333 level=normal calm=-1 len=5607
+[INFO] --- TURN 13 ---
+[INFO] Prompt: Design the caching layer for frequently accessed project dat...
+[INFO]   coherence=0.503333333333333 level=normal calm=-1 len=5563
+[INFO] --- TURN 14 ---
+[INFO] Prompt: Implement the audit log system. Record all mutations to task...
+[INFO]   coherence=0.433333333333333 level=normal calm=-1 len=6911
+[INFO] --- TURN 15 ---
+[INFO] Prompt: Write the CLI tool for the task system. Implement the 'task ...
+[INFO]   coherence=0.363333333333333 level=normal calm=-1 len=7504
+[INFO] --- TURN 16 ---
+[INFO] Prompt: Implement webhook support. When task status changes, notify ...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=6601
+[INFO] --- TURN 17 ---
+[INFO] Prompt: Design the permissions model. Define roles (admin, member, v...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=5607
+[INFO] --- TURN 18 ---
+[INFO] Prompt: Write integration tests for the task search API. Test pagina...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=6991
+[INFO] --- TURN 19 ---
+[INFO] Prompt: Implement the task comment system. Users can add threaded co...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=5992
+[INFO] --- TURN 20 ---
+[INFO] Prompt: Design the file attachment system for tasks. Handle upload, ...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=7358
+[INFO] --- TURN 21 ---
+[INFO] Prompt: Implement the dashboard aggregation queries. Show: tasks per...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=5894
+[INFO] --- TURN 22 ---
+[INFO] Prompt: Write the configuration management module. Load settings fro...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=7110
+[INFO] --- TURN 23 ---
+[INFO] Prompt: Implement the task template system. Users can create reusabl...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=7576
+[INFO] --- TURN 24 ---
+[INFO] Prompt: Design the event sourcing architecture for the task system. ...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=7859
+[INFO] --- TURN 25 ---
+[INFO] Prompt: Write the load testing script. Use k6 to simulate 100 concur...
+[INFO]   coherence=0.275151515151515 level=normal calm=-1 len=5641
+[INFO] === C1 MEASUREMENT END ===
+[INFO] Final coherence: 0.275151515151515
+[INFO] Final level: null
+
+[governance] Summary (mode: enforce): 0 passed, 15 warnings, 0 blocked
+  ⚠ context_drift.coherence_loss        [advisory]  WARN
+
+[governance] Telemetry: 15 events written to telemetry.jsonl
+-- Governance: PASS (15 static, 0 runtime, 0 violations) --
+
+─── Agent Governance Summary ───
+Agent:      anonymous
+Mode:       enforce | Sandbox: elevated
+Checks:     0 passed, 0 blocked, 15 advisory
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+  Detail:   Warning: context_drift.coherence_loss — project governance policy.
+Telemetry:  15 events → telemetry.jsonl
+BSD:        50 events, 0 patterns matched
+CDD:        coherence=0.28 vel=0.000 accel=0.000 (25 turns analyzed)
+Exposure:   25 autonomous actions, 1 unique agents
+Dispatch:   32 calls (7 retries, 525079 tokens, 485143ms)
+Hard stop:  max_tokens_per_run (500000) exceeded
+────────────────────────────────
