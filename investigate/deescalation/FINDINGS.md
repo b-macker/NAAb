@@ -27,8 +27,16 @@ is unchanged.
 S17's frozen warm-up baseline, not for de-escalation. Nobody chose this
 resolution. No test asserts that de-escalation is reachable on shipped
 defaults. A future change to adaptive baselining (e.g. reverting the flip for
-an S17-related reason) could silently re-expose the entire cluster with no
-regression signal.
+an S17-related reason) could silently re-expose the entire cluster.
+
+**Partly addressed since this was written.** `tests/governance_v4/test_coherence_floor_precondition.sh`
+now asserts the PRECONDITION on shipped defaults, with a positive control
+(baselining off must still floor) and a detection control (verbatim repeats
+must still charge). So a revert of the flip fails loudly instead of silently.
+The sentence above still holds for the other half: **no test asserts that
+de-escalation is reachable**, because nothing has ever exercised
+`elevated -> normal`. That fixture is still unbuilt, and C1a's arithmetic
+remains untested rather than refuted.
 
 ## Recommendation
 
@@ -114,6 +122,26 @@ Coherence floors at 0.0 by turn 3. ELEVATED at turn 4, HIGH at turn 9.
 De-escalation calm counter never starts (4-6 signals fire every turn, so
 target level never drops below current). This reproduces the register's
 claims exactly.
+
+### Reproducing these runs
+
+The `govern.json` copies here are **unsigned**, deliberately. Two `.sig` files
+were committed with the original artifacts, but `*.sig` is gitignored
+(`.gitignore:193`) and they had been force-added past that rule. A committed
+signature only verifies against the trust store holding its private half, so it
+is inert on any other machine and actively misleading on this one — the same
+defect #198 removed from the gate suite.
+
+On a machine with **no** trusted keys installed, the configs run as-is. On a
+keyed machine an unsigned `govern.json` is an `INTEGRITY BLOCK` (exit 3) that
+`--no-governance` cannot escape, so sign them locally first:
+
+```
+NAAB_SIGNING_KEY=<your key> build/naab-lang --sign-governance   # run in this dir
+```
+
+If a run here reports no telemetry or an unexplained exit 3, check
+`ls ~/.naab/trusted-keys` before reading it as a finding.
 
 ### Provenance
 
