@@ -114,26 +114,40 @@ jobs:
           NAAB
           ./build/naab-lang.exe --no-governance pytest.naab
 
-      # Split so a killed runner is diagnosable. This job has stalled twice —
-      # the step sits in_progress for ~50 minutes, the runner is terminated,
-      # and GitHub uploads no logs (the archive 404s), so the only surviving
-      # evidence is per-step metadata: which step was running, and when it
-      # started. One monolithic step reduces that to "it died in the tests".
+      # Split so a killed runner is diagnosable. This job has stalled three
+      # times — the step sits in_progress for ~50 minutes, the runner is
+      # terminated, and GitHub uploads no logs (the archive 404s), so the only
+      # surviving evidence is per-step metadata: which step was running, and
+      # when it started. One monolithic step reduces that to "it died in the
+      # tests".
       #
-      # Both stalls were on commits that could not have caused them — one was
+      # All three were on commits that could not have caused them — one was
       # a docs-and-comments diff against a commit that had just passed in 13
-      # minutes — and both cleared on an unchanged re-run, which is why the
-      # working diagnosis is the runner rather than a hang. That diagnosis is
-      # currently unfalsifiable, and these steps are what make it testable: if
-      # future stalls cluster in one phase, the runner is not the cause.
+      # minutes — and all three cleared on an unchanged re-run, which is why
+      # the working diagnosis is the runner rather than a hang. These steps
+      # make that testable: if future stalls cluster in one phase, the runner
+      # is not the cause.
       #
-      # timeout-minutes is the other half of that. Without it a stall runs to
-      # GitHub's 360-minute job default and the runner is killed service-side,
-      # which is precisely the case where no logs are uploaded — so the stall we
-      # most want to read is the one that leaves nothing to read. A step-level
-      # timeout is enforced by the runner itself: the step is marked failed and
-      # the logs it produced are still uploaded. That turns each stall from an
-      # anecdote into a transcript naming where it stopped.
+      # The third stall (2026-09-07) is the first with the split active, so it
+      # is the first with a phase attached: "CLI tests — shell suites", 46
+      # minutes, against 4m11s for the same step on the same SHA in the re-run.
+      # That is one data point, not a cluster — the phase means nothing until a
+      # second stall lands in the same one.
+      #
+      # timeout-minutes was the other half of that, and the third stall
+      # FALSIFIED what this comment used to claim for it. The claim was: a
+      # step-level timeout is enforced by the runner itself, so the step is
+      # marked failed and its logs are still uploaded, turning each stall from
+      # an anecdote into a transcript. It does not hold. The step ran 46 minutes
+      # against a 25-minute bound, was never marked failed (it is still recorded
+      # as in_progress with no conclusion), and no logs were uploaded. The
+      # runner enforces its own step timeouts, so a runner wedged badly enough
+      # to stall the step is also too wedged to time it out — the timeout covers
+      # a hung TEST, which is worth having, but not a hung RUNNER, which is the
+      # case it was added for. That failure is itself evidence for the runner
+      # diagnosis rather than against it. Keep the bounds; do not rely on them
+      # to produce a transcript. Per-step metadata remains the only evidence
+      # that survives this failure mode, which is what the split is for.
       #
       # Bounds are set off measured times, with room for a slow runner:
       #   NAAb programs   57s observed  -> 15
