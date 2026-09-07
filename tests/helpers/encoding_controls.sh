@@ -74,9 +74,44 @@ enc_strip_cr() { tr -d '\r'; }
 # Render both values with control characters visible and "$" marking end of
 # line. Call this on EVERY baseline mismatch, not just suspected ones -- the
 # whole point is that you cannot tell in advance which mismatches are invisible.
+# Renders IN-PROCESS, with no external text tool in the path. The first
+# version piped through `sed -n l`, which reddened build-windows a third time:
+# the assertion that the renderer surfaces a CR passed on Linux and failed under
+# MSYS2. Two hypotheses fit that evidence and they demand DIFFERENT fixes —
+# MSYS2's sed rendering CR as octal \015 instead of \r (widen the grep), or
+# MSYS2's sed stripping a trailing CR on input as part of a CRLF line terminator
+# (nothing renders at all, and widening the grep fixes nothing). Rather than pick
+# one, the renderer stops asking a text tool. Bash parameter expansion sees the
+# bytes in the variable and no line-ending convention gets a vote.
+#
+# Note POSIX does list \r among `l`'s named escapes, so the octal hypothesis
+# needs sed to be non-conforming; that is why it is a hypothesis and not the
+# explanation. enc_platform_probe below records which one it actually is.
 enc_escaped_diff() {
     echo "--- escaped (control chars visible, \$ = end of line) ---"
-    { echo "$1:"; echo "$2"; echo "$3:"; echo "$4"; } | sed -n l
+    local lbl val
+    for lbl in "$1" "$3"; do
+        [ "$lbl" = "$1" ] && val="$2" || val="$4"
+        echo "$lbl:"
+        val="${val//\\/\\\\}"
+        val="${val//$'\r'/\\r}"
+        val="${val//$'\t'/\\t}"
+        printf '%s$\n' "$val"
+    done
+}
+
+# enc_platform_probe
+# Prints what THIS platform's text tools do with a known CRLF byte sequence.
+# Costs nothing, is never asserted on, and exists so a future failure here is
+# diagnosable from the CI log alone instead of costing another round-trip to a
+# runner nobody has locally. Three rounds were spent on this class already; two
+# of them ended in a one-line fix that turned out to be half the story.
+enc_platform_probe() {
+    echo "--- platform probe: rendering of a\r\n ---"
+    printf '  sed -n l : '; printf 'a\r\n' | sed -n l 2>&1 | head -1
+    printf '  od -c    : '; printf 'a\r\n' | od -c 2>&1 | head -1
+    printf '  cat -v   : '; printf 'a\r\n' | cat -v 2>&1 | head -1
+    echo "  (bash renderer is used by enc_escaped_diff; the above is FYI only)"
 }
 
 # enc_self_test
@@ -115,8 +150,18 @@ enc_self_test() {
 
     # (4) enc_escaped_diff must actually SHOW the difference -- a renderer that
     #     hides it is worse than none, since it argues the assertion is lying.
+    #     Rendering is in-process precisely so this assertion does not depend on
+    #     a platform's text tools; see the note on enc_escaped_diff.
     enc_escaped_diff expected "$b" actual "$a" | grep -q '\\r' \
-        || { echo "!! enc_escaped_diff did not surface the CR"; rc=1; }
+        || { echo "!! enc_escaped_diff did not surface the CR"
+             enc_platform_probe
+             rc=1; }
+
+    # (5) NEGATIVE CONTROL for (4). A renderer that emitted a literal \r for
+    #     every input would satisfy (4) unconditionally, and (4) would then be
+    #     asserting nothing. Clean ASCII must render with no \r.
+    enc_escaped_diff expected "$b" actual "$b" | grep -q '\\r' \
+        && { echo "!! enc_escaped_diff invented a CR on clean input"; rc=1; }
 
     rm -rf "$tmp"
     return $rc
