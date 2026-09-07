@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/limits.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/agent_review.h"
 #include "naab/agent_provider.h"
@@ -1912,6 +1913,27 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
 
 std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const std::string& mode) {
     clearTrace();
+
+    // Bound the input BEFORE weakly_canonical() below, which is linear in the
+    // path length (~26us/byte measured). Nothing upstream caps this: a path is
+    // an ordinary runtime string, and even with string growth capped a 38MB
+    // path is legal, costing ~17 minutes inside a HARD check — observed as a
+    // hang with no verdict rather than a decision. Rejected here as a path
+    // violation rather than passed through, so the run gets an audit record and
+    // exit 3 instead of stalling.
+    if (filepath.size() > naab::limits::MAX_GOVERNED_PATH_LENGTH) {
+        return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+            formatError(EnforcementLevel::HARD,
+                fmt::format("Path length {} exceeds the maximum governed path length of {}",
+                            filepath.size(), naab::limits::MAX_GOVERNED_PATH_LENGTH),
+                "",
+                "capabilities.filesystem",
+                "A filesystem path this long cannot name a real file - POSIX allows 4096 bytes.\n"
+                "This usually means a path was built by concatenation in a loop.",
+                "let p = base\n  while i < 20 { p = p + p }\n  file.read(p)",
+                "file.read(path.join(dir, name))"));
+    }
+
     // Canonicalize path for consistent prefix matching
     std::string canon;
     try {

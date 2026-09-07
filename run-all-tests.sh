@@ -1843,6 +1843,21 @@ else
     echo "  test_coherence_floor_precondition.sh: not found, skipping"
 fi
 
+# checkPathAccess canonicalizes whatever path it is handed, at ~26us/byte, and
+# nothing bounded that input: a 38MB path built by concatenation cost ~17 minutes
+# inside a HARD check and presented as a hang with no verdict.
+PATHBOUND_SCRIPT="tests/governance_v4/test_path_length_bound.sh"
+if [ -f "$PATHBOUND_SCRIPT" ]; then
+    if run_shell_test "$PATHBOUND_SCRIPT" 2>&1; then
+        echo "  test_path_length_bound.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_path_length_bound.sh")
+    fi
+else
+    echo "  test_path_length_bound.sh: not found, skipping"
+fi
+
 # B9(a): the BSD pre-check consumed the event and then let emitEvent record it
 # a second time, inflating match counts and spending every pattern's max_gap.
 PREEXECDR_SCRIPT="tests/governance_v4/test_bsd_preexec_double_record.sh"

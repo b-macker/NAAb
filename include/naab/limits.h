@@ -53,6 +53,14 @@ constexpr size_t MAX_DICT_SIZE = 1000000;  // 1 million entries
 // Maximum string length
 constexpr size_t MAX_STRING_LENGTH = 100 * 1024 * 1024;  // 100MB
 
+// Longest path any governance check will canonicalize. POSIX PATH_MAX is 4096
+// and Windows MAX_PATH is 260, so 8192 is well clear of every legitimate path
+// while bounding work that is otherwise linear in an attacker-chosen length:
+// checkPathAccess calls std::filesystem::weakly_canonical() on whatever it is
+// handed, measured at ~26us/byte, so a 38MB "path" cost ~17 minutes inside a
+// HARD check. A verdict nobody waits for is not a verdict.
+constexpr size_t MAX_GOVERNED_PATH_LENGTH = 8192;
+
 // Maximum JSON nesting depth (default 64, overridden by governance max_json_depth)
 inline int& getMaxJsonDepth() {
     static int depth = 64;
