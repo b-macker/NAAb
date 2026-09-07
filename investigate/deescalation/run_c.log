@@ -1,0 +1,88 @@
+[governance] Note: reality_checkpoint explicitly disabled — checkpoint enforcement is inactive
+[governance] WARNING contradiction.CONTRA-012
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/investigate/deescalation/govern.json (mode: enforce)
+[INFO] === C1 MEASUREMENT START ===
+[INFO] Initial level: null
+[INFO] --- TURN 1 ---
+[INFO] Prompt: Design the API for a task management system. Define the main...
+[INFO]   coherence=1 level=normal calm=-1 len=5898
+[INFO] --- TURN 2 ---
+[INFO] Prompt: Implement the Task.create() method. It should validate requi...
+[governance] WARNING context_drift.coherence_loss
+[INFO]   coherence=0.61 level=normal calm=-1 len=3827
+[INFO] --- TURN 3 ---
+[INFO] Prompt: Write the Project.add_member() method. It needs to check if ...
+[INFO]   coherence=0.22 level=normal calm=-1 len=5462
+[INFO] --- TURN 4 ---
+[INFO] Prompt: Design the database schema for the task system. Define table...
+[INFO]   coherence=0 level=elevated calm=-1 len=7106
+[INFO] --- TURN 5 ---
+[INFO] Prompt: Implement the search function for tasks. It should support f...
+[INFO]   coherence=0 level=elevated calm=-1 len=6515
+[INFO] --- TURN 6 ---
+[INFO] Prompt: Write unit tests for Task.create(). Cover: valid creation, m...
+[INFO]   ERROR: {"message": Agent error: All 5 attempts exhausted
+
+  Last error: Agent error: API returned status 503
+
+  Got: UNAVAILABLE: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.
+
+  Help:
+  - Check agent configuration in govern.json
+  - Verify the model name is valid
+
+  Models tried: 1
+
+  Help:
+  - Check API key validity and quota
+  - Review retry configuration in govern.json agents section
+
+  at <script>() [/data/data/com.termux/files/home/.naab/language/investigate/deescalation/measure.naab:0]}
+[INFO]   coherence=0 level=elevated (after error)
+[INFO] --- TURN 7 ---
+[INFO] Prompt: Implement the notification system. When a task is assigned, ...
+[INFO]   coherence=0 level=normal calm=-1 len=7320
+[INFO] --- TURN 8 ---
+[INFO] Prompt: Design the REST API endpoints for the task system. Define ro...
+[INFO]   coherence=0 level=elevated calm=-1 len=5810
+[INFO] --- TURN 9 ---
+[INFO] Prompt: Implement rate limiting for the API. Use a token bucket algo...
+[INFO]   coherence=0 level=elevated calm=-1 len=5977
+[INFO] --- TURN 10 ---
+[INFO] Prompt: Write the data migration script to add a 'priority' field to...
+[INFO]   coherence=0 level=high calm=-1 len=2275
+[INFO] --- TURN 11 ---
+[INFO] Prompt: Implement the task dependency system. Tasks can block other ...
+[INFO]   coherence=0 level=high calm=-1 len=4955
+[INFO] --- TURN 12 ---
+[INFO] Prompt: Write the authentication middleware. Verify JWT tokens, extr...
+[INFO]   coherence=0 level=high calm=-1 len=5770
+[INFO] --- TURN 13 ---
+[INFO] Prompt: Design the caching layer for frequently accessed project dat...
+[INFO]   coherence=0 level=high calm=-1 len=6947
+[INFO] --- TURN 14 ---
+[INFO] Prompt: Implement the audit log system. Record all mutations to task...
+[INFO]   coherence=0 level=high calm=-1 len=6691
+[INFO] --- TURN 15 ---
+[INFO] Prompt: Write the CLI tool for the task system. Implement the 'task ...
+[INFO]   coherence=0 level=high calm=-1 len=7699
+[INFO] --- TURN 16 ---
+[INFO] Prompt: Implement webhook support. When task status changes, notify ...
+[INFO]   coherence=0 level=high calm=-1 len=7880
+[INFO] --- TURN 17 ---
+[INFO] Prompt: Design the permissions model. Define roles (admin, member, v...
+[INFO]   coherence=0 level=high calm=-1 len=7077
+[INFO] --- TURN 18 ---
+[INFO] Prompt: Write integration tests for the task search API. Test pagina...
+[INFO]   coherence=0 level=high calm=-1 len=6477
+[INFO] --- TURN 19 ---
+[INFO] Prompt: Implement the task comment system. Users can add threaded co...
+[INFO]   coherence=0 level=high calm=-1 len=6466
+[INFO] --- TURN 20 ---
+[INFO] Prompt: Design the file attachment system for tasks. Handle upload, ...
+[INFO]   coherence=0 level=high calm=-1 len=7483
+[INFO] --- TURN 21 ---
+[INFO] Prompt: Implement the dashboard aggregation queries. Show: tasks per...
+[governance] Telemetry: 20 events written to telemetry.jsonl
+Error: Execution timeout: script exceeded the configured time limit
+  at <script>() [deescalation/measure.naab/:57]
