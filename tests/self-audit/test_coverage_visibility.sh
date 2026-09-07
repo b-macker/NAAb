@@ -75,9 +75,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO" || exit 1
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
+YELLOW='\033[1;33m'; RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
+skip() { echo -e "  ${YELLOW:-}SKIP${NC} [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; }
 
 # Baselines. Raise ONLY with a reason; lowering is progress and is expected.
@@ -171,13 +172,26 @@ fi
 # Bash has git on its PATH here, and reading the file with grep also sidesteps
 # the cp1252 decode problem that has bitten this repo three times.
 REGISTERED=""; MISSING_LIST=""; UNTRACKED_LIST=""
-MISSING=0; UNTRACKED=0; MEASURED=1
+MISSING=0; UNTRACKED=0; MEASURED=1; GIT_USABLE=1
+
+# Is git able to answer at all here? `git ls-files --error-unmatch` returns
+# non-zero BOTH for "this file is untracked" and for "I could not run" — and on
+# the Windows runner it was the second: every one of the 88 registered paths came
+# back untracked, and CV-04 reported 88 violations for a query that never
+# succeeded. That is the same conflation this file already guards for the
+# extraction step, missed one line further down: a broken probe rendering as a
+# finding. Probe once, on a path that is definitely tracked, and treat a failure
+# as UNMEASURABLE rather than as 88 uncommitted suites.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+   || ! git ls-files --error-unmatch run-all-tests.sh >/dev/null 2>&1; then
+    GIT_USABLE=0
+fi
 while IFS= read -r pth; do
     [ -n "$pth" ] || continue
     REGISTERED="$REGISTERED $pth"
     if [ ! -e "$pth" ]; then
         MISSING=$((MISSING+1)); MISSING_LIST="$MISSING_LIST $pth"
-    elif ! git ls-files --error-unmatch "$pth" >/dev/null 2>&1; then
+    elif [ "$GIT_USABLE" -eq 1 ] && ! git ls-files --error-unmatch "$pth" >/dev/null 2>&1; then
         UNTRACKED=$((UNTRACKED+1)); UNTRACKED_LIST="$UNTRACKED_LIST $pth"
     fi
 done < <(grep -oE '^[A-Z_]+="(tests|examples)/[^"]+"' run-all-tests.sh \
@@ -204,7 +218,9 @@ else
         bad "CV-03" "a suite is registered in run-all-tests.sh but its file is not there" \
             "$MISSING missing:$MISSING_LIST — the suite would print 'not found, skipping' and exit 0, because none of the 113 skip branches increments FAILED. Restore the file, or remove its registration."
     fi
-    if [ "$UNTRACKED" -eq 0 ]; then
+    if [ "$GIT_USABLE" -eq 0 ]; then
+        skip "CV-04" "UNMEASURABLE — git cannot answer here; not reporting untracked suites it never checked"
+    elif [ "$UNTRACKED" -eq 0 ]; then
         ok "CV-04" "every registered suite path is tracked in git"
     else
         bad "CV-04" "a suite is registered but not committed" \
