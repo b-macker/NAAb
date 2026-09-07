@@ -1,1 +1,0 @@
-capabilities.filesystem PROTECTED tests/governance_v4/test_filesystem_gate.sh 2026-09-07T03:29:26Z

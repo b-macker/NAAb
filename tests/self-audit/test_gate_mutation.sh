@@ -2,55 +2,58 @@
 # ============================================================
 # test_gate_mutation.sh — can each governance gate actually block anything?
 #
-# THE QUESTION. The engine has 172 enforce() call sites across ~64 distinct
-# rule names. A gate that no test exercises is indistinguishable, from CI, from
-# a gate that cannot fire at all — and this campaign has repeatedly found the
-# second kind: signals inert by construction, BSD patterns dead under the
-# tree-walker, checks gated on state nothing writes. Every one of those was
-# found by SAMPLING that population by hand. This enumerates it instead.
+# THE QUESTION. The engine has 172 enforce() call sites across 99 distinct rule
+# names. A gate no test exercises is indistinguishable, from CI, from a gate
+# that cannot fire at all — and this campaign has repeatedly found the second
+# kind: signals inert by construction, BSD patterns dead under the tree-walker,
+# checks gated on state nothing writes. Every one was found by SAMPLING that
+# population by hand, at a high hit rate. This enumerates it instead.
 #
-# THE METHOD is the canary test's, pointed at the engine rather than the
-# prescan: neuter one gate, rebuild, and see whether anything notices.
+# THE METHOD. Neuter one gate, rebuild, see whether anything notices.
+#   nothing fails   -> UNPROTECTED. No test distinguishes this gate working from
+#                      this gate absent. Not proof the gate is inert; proof CI
+#                      would not tell you if it were.
+#   something fails -> PROTECTED, and the failing test is recorded as witness.
 #
-#   nothing fails  -> UNPROTECTED. No test in the suite distinguishes this gate
-#                     working from this gate absent. That is not proof the gate
-#                     is inert, but it IS proof CI would not tell you if it were.
-#   something fails -> PROTECTED, and the failing test's name is the evidence.
+# ISOLATION: THIS NEVER TOUCHES YOUR WORKING TREE.
+# Everything happens in a throwaway `git worktree` with its own copy of build/.
+# That is a correction, not gold-plating. The first version injected into the
+# shared tree the way test_prescan_canaries.sh does, and in one afternoon that
+# pattern caused four separate confusions: a dirty `git status` mid-run that
+# nearly got an injected defect committed; the canary suite silently SKIPPED on
+# CI because src/ was dirty; a build race that failed test_vocab_baseline.sh
+# inside a full suite while it passed 11/0 alone; and a false-UNPROTECTED blind
+# spot in this harness. One cause: mutating shared state everything else reads.
+#
+# The probe is injected in the worktree AND COMMITTED THERE. Committing is what
+# removes the last of those four. run-all-tests.sh skips the canary whenever
+# src/ or include/ is dirty (run-all-tests.sh:2444), so an uncommitted probe
+# silently disables it, and a gate witnessed only by a canary assertion would
+# read UNPROTECTED when it is not. Committed, the worktree is clean against its
+# own HEAD, the canary runs, and the blind spot is gone. That commit dies with
+# the worktree and reaches no branch.
+#
+# Consequences: your tree stays clean, `git status` stays truthful, this is safe
+# to run while a full suite is going, and two can run at once. No lockfile is
+# needed because nothing shared is written.
 #
 # WHY THE MUTATION IS INJECTED, NOT A FLAG. A runtime switch that disables an
-# arbitrary gate by name is a governance backdoor, and shipping one in the
-# engine this repo exists to harden would be indefensible whatever the guard on
-# it. So the probe is INJECTED into the source, compiled, and reverted — it
-# exists only between this script's own mutate and revert steps, exactly like
-# test_prescan_canaries.sh injects defects into src/. The EXIT trap reverts
-# unconditionally and the run verifies the tree is clean before it reports.
+# arbitrary gate by name is a governance backdoor — a supported way to turn off
+# any check, shipped inside the engine this repo exists to harden. Indefensible
+# whatever guard sits on it. So the probe is compiled in, in a tree that is
+# thrown away.
 #
-# WHY A MENTION IS NOT COVERAGE. Candidate tests are ordered by whether they
-# mention the rule name, because running a likely test first is much cheaper
-# than the full suite. That is an ORDERING heuristic and never a verdict: a
-# test that names a rule may not exercise it, so a gate is only PROTECTED when
-# a test actually FAILS, and only UNPROTECTED after the full suite has run.
-# Trace to the point of effect, not the point of mention.
+# WHY A MENTION IS NOT COVERAGE. Tests naming the rule run first because that is
+# far cheaper than the full suite. That is an ORDERING heuristic, never a
+# verdict: a gate is PROTECTED only when a test actually FAILS, and UNPROTECTED
+# only after the full suite has run. Trace to the point of effect.
 #
-# COST, measured on this machine: 125s per incremental rebuild, one rebuild per
-# gate. A full sweep is hours, so it is nightly/manual, not a per-commit gate.
-# The ledger makes it resumable — each run does as many gates as you ask for
-# and the coverage accumulates.
+# COST, measured here: 125s per incremental rebuild, one per gate. A full sweep
+# is hours — nightly/manual, not per-commit. The ledger makes it resumable.
 #
-# KNOWN BLIND SPOT, and it produces FALSE UNPROTECTED verdicts, so read it
-# before trusting one. The probe is a modification to src/, and
-# run-all-tests.sh skips test_prescan_canaries.sh whenever src/ or include/ is
-# dirty (run-all-tests.sh:2444, because the canary injects there itself). So
-# during a probe the canary never runs, and a gate whose ONLY witness is a
-# canary assertion will be reported UNPROTECTED when it is not. This is
-# structural — the probe cannot both exist and leave src/ clean — so it is
-# documented rather than fixed. Confirm any UNPROTECTED verdict by hand against
-# tests/self-audit/test_prescan_canaries.sh before acting on it.
-#
-# The lock below is shared with the canary for the same reason: both edit
-# tracked source and both rebuild into one build directory, so running them
-# concurrently races on object files and can attribute one script's failure to
-# the other's mutation. Found by doing exactly that.
+# USAGE
+#   --gate NAME    probe one gate        --sample N   probe N not yet in ledger
+#   --all          sweep everything      --list       accumulated coverage
 # ============================================================
 set -uo pipefail
 
@@ -58,48 +61,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO" || exit 1
 
-ENGINE="src/runtime/governance_engine.cpp"
-LEDGER="tests/self-audit/gate_mutation_ledger.txt"
+LEDGER="$REPO/tests/self-audit/gate_mutation_ledger.txt"
 MARKER="NAAB_MUTATION_PROBE"
-BIN="build/naab-lang"
-
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
-# Serialize: this edits tracked source and rebuilds. Two runs would see each
-# other's injection and attribute the wrong verdict to the wrong gate.
-# Shared with test_prescan_canaries.sh: both inject into tracked source and
-# both rebuild into build/, so they must never overlap.
-LOCKFILE="${TMPDIR:-/tmp}/naab_prescan_canary.lock"
-exec 9>"$LOCKFILE"
-if ! flock -n 9; then echo "another source-injecting run holds the lock — waiting"; flock 9; fi
-
-BACKUP="$(mktemp "${TMPDIR:-/tmp}/engine-XXXXXX.cpp")"
-REVERTED=0
-revert_source() {
-    [ "$REVERTED" = "1" ] && return
-    cp "$BACKUP" "$ENGINE" 2>/dev/null && REVERTED=1
-}
-cleanup() {
-    revert_source
-    if grep -q "$MARKER" "$ENGINE" 2>/dev/null; then
-        echo -e "${RED}!! $ENGINE STILL CONTAINS THE PROBE — revert by hand before committing${NC}" >&2
-    fi
-    rm -f "$BACKUP"
-}
-trap cleanup EXIT INT TERM
-
-# Refuse to start on a dirty engine: a pre-existing edit would be reverted away
-# by this script's own cleanup, destroying work that is not ours.
-if ! git diff --quiet -- "$ENGINE" 2>/dev/null; then
-    echo -e "${RED}$ENGINE has uncommitted changes — commit or stash first.${NC}"
-    echo "This script rewrites that file and reverts it on exit; it will not risk your edits."
-    exit 1
-fi
-cp "$ENGINE" "$BACKUP"
-
-# --- gate enumeration -------------------------------------------------------
 list_gates() {
-    grep -rhoE 'enforce\("[a-z_.]+"' src/runtime/*.cpp src/stdlib/*.cpp 2>/dev/null \
+    grep -rhoE 'enforce\("[a-z_.]+"' "$REPO"/src/runtime/*.cpp "$REPO"/src/stdlib/*.cpp 2>/dev/null \
         | sed 's/enforce("//; s/"$//' | grep -vE '\.$' | sort -u
 }
 
@@ -118,21 +85,19 @@ mkdir -p "$(dirname "$LEDGER")"; touch "$LEDGER"
 ledger_has() { grep -q "^$1 " "$LEDGER" 2>/dev/null; }
 
 if [ "$MODE" = "list" ]; then
-    echo ""
-    echo -e "${CYAN}Gate mutation coverage${NC}"
+    echo ""; echo -e "${CYAN}Gate mutation coverage${NC}"
     tot=0; done_n=0; unprot=0
     while read -r g; do
         tot=$((tot+1))
         if ledger_has "$g"; then
             done_n=$((done_n+1))
-            v=$(grep "^$g " "$LEDGER" | tail -1 | awk '{print $2}')
-            [ "$v" = "UNPROTECTED" ] && { unprot=$((unprot+1)); printf "  %-46s %b\n" "$g" "${RED}UNPROTECTED${NC}"; }
+            [ "$(grep "^$g " "$LEDGER" | tail -1 | awk '{print $2}')" = "UNPROTECTED" ] && \
+                { unprot=$((unprot+1)); printf "  %-46s %b\n" "$g" "${RED}UNPROTECTED${NC}"; }
         else
             printf "  %-46s %b\n" "$g" "${YELLOW}not yet probed${NC}"
         fi
     done < <(list_gates)
-    echo ""
-    echo "  $done_n of $tot gates probed; $unprot UNPROTECTED"
+    echo ""; echo "  $done_n of $tot gates probed; $unprot UNPROTECTED"
     exit 0
 fi
 
@@ -141,64 +106,104 @@ case "$MODE" in
     all)    TARGETS="$(list_gates)";;
     sample) TARGETS="$(list_gates | while read -r g; do ledger_has "$g" || echo "$g"; done | head -"$N")";;
 esac
-[ -z "$TARGETS" ] && { echo "no gates selected (all probed already? try --all or --list)"; exit 0; }
+[ -z "$TARGETS" ] && { echo "no gates selected (all probed? try --all or --list)"; exit 0; }
 
-# --- mutation ---------------------------------------------------------------
-# Injects a single early-return keyed to ONE rule name, immediately after
-# enforce()'s parameter list. Re-targeting is a re-injection, so the sweep costs
-# one rebuild per gate rather than two.
-inject() {
-    local rule="$1"
-    cp "$BACKUP" "$ENGINE"
-    python3 - "$ENGINE" "$rule" "$MARKER" <<'PY'
-import sys
-path, rule, marker = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path, encoding='utf-8') as fh: lines = fh.read().split('\n')
-anchor = None
-for i, l in enumerate(lines):
-    if l.startswith('std::string GovernanceEngine::enforce('):
-        for j in range(i, min(i+8, len(lines))):
-            if lines[j].rstrip().endswith(') {'):
-                anchor = j; break
-        break
-if anchor is None:
-    sys.stderr.write('could not locate enforce() body\n'); sys.exit(1)
-probe = '    if (rule_name == "%s") return "";  // %s' % (rule, marker)
-lines.insert(anchor + 1, probe)
-with open(path, 'w', encoding='utf-8') as fh: fh.write('\n'.join(lines))
-PY
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/gate-probe-XXXXXX")"
+WT="$WORK/tree"
+cleanup() {
+    [ -d "$WT" ] && { git -C "$REPO" worktree remove --force "$WT" >/dev/null 2>&1 || rm -rf "$WT"; }
+    rm -rf "$WORK"
+    git -C "$REPO" worktree prune >/dev/null 2>&1
 }
-
-rebuild() { make -C build naab-lang -j4 >/dev/null 2>&1; }
-
-# Shell suites that MENTION this rule name. Ordering heuristic only.
-candidates() {
-    grep -rl -- "$1" tests --include='*.sh' 2>/dev/null | head -6
-}
+trap cleanup EXIT INT TERM
 
 echo ""
 echo -e "${CYAN}+==============================================================+${NC}"
 echo -e "${CYAN}|  Gate mutation: does anything notice when a gate stops?      |${NC}"
 echo -e "${CYAN}+==============================================================+${NC}"
 echo ""
+echo "  preparing isolated worktree — your tree is not touched"
+if ! git -C "$REPO" worktree add --detach "$WT" HEAD >/dev/null 2>&1; then
+    echo -e "  ${RED}could not create a worktree — aborting rather than mutating your tree${NC}"; exit 1
+fi
+[ -d "$REPO/build" ] || { echo -e "  ${RED}no build/ to copy — build first${NC}"; exit 1; }
+cp -a "$REPO/build" "$WT/build"
+ENGINE="$WT/src/runtime/governance_engine.cpp"
+# Pristine binary, kept for witness confirmation (see confirms_witness).
+PRISTINE_BIN="$WORK/naab-lang.pristine"
+PROBED_BIN="$WORK/naab-lang.probed"
+cp "$WT/build/naab-lang" "$PRISTINE_BIN"
+echo ""
+
+inject() {
+    git -C "$WT" checkout -q -- src/runtime/governance_engine.cpp 2>/dev/null
+    python3 - "$ENGINE" "$1" "$MARKER" <<'PY'
+import sys
+path, rule, marker = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path, encoding='utf-8') as fh: lines = fh.read().split('\n')
+anchor = None
+for i, l in enumerate(lines):
+    if l.startswith('std::string GovernanceEngine::enforce('):
+        for j in range(i, min(i + 8, len(lines))):
+            if lines[j].rstrip().endswith(') {'): anchor = j; break
+        break
+if anchor is None:
+    sys.stderr.write('could not locate enforce() body\n'); sys.exit(1)
+lines.insert(anchor + 1, '    if (rule_name == "%s") return "";  // %s' % (rule, marker))
+with open(path, 'w', encoding='utf-8') as fh: fh.write('\n'.join(lines))
+PY
+}
+commit_probe() {
+    git -C "$WT" add -A src/runtime/governance_engine.cpp >/dev/null 2>&1
+    git -C "$WT" -c user.email=probe@local -c user.name=probe \
+        commit -q --allow-empty -m "gate probe" >/dev/null 2>&1
+}
+rebuild() { make -C "$WT/build" naab-lang -j4 >/dev/null 2>&1; }
+# --include AFTER the path operand is IGNORED by this grep, which let
+# gate_mutation_ledger.txt through as a "candidate test" on the first real run.
+# bash could not run a .txt, the non-zero exit read as "a test failed", and the
+# gate was reported PROTECTED with the ledger as its witness — a FALSE
+# PROTECTED, which is the worst verdict this harness can produce because it
+# silently claims coverage that does not exist. Flags before the path, and the
+# result is filtered to real test scripts regardless.
+candidates() {
+    grep -rl --include='*.sh' -- "$1" "$WT/tests" 2>/dev/null \
+        | grep -E '(^|/)tests/.*/(test_|run_)[^/]*\.sh$' | head -6
+}
+
+# A candidate that FAILS under the probe is only a witness if it PASSES without
+# it. Otherwise a test broken for unrelated reasons is indistinguishable from
+# one the probe broke — the same conflation as above, one level up. Swapping the
+# pristine binary back is cheap (a copy, not a rebuild), and only happens on the
+# failing path.
+confirms_witness() {
+    local t="$1" rc
+    cp "$PRISTINE_BIN" "$WT/build/naab-lang" 2>/dev/null || return 1
+    ( cd "$WT" && timeout 600 bash "$t" >/dev/null 2>&1 ); rc=$?
+    cp "$PROBED_BIN" "$WT/build/naab-lang" 2>/dev/null
+    return $rc
+}
 
 PROT=0; UNPROT=0; ERR=0
 for rule in $TARGETS; do
     printf "  %-46s " "$rule"
     inject "$rule" || { echo -e "${RED}INJECT FAILED${NC}"; ERR=$((ERR+1)); continue; }
+    commit_probe
     if ! rebuild; then
-        echo -e "${YELLOW}BUILD FAILED (mutation not compilable)${NC}"
-        ERR=$((ERR+1)); continue
+        echo -e "${YELLOW}BUILD FAILED (mutation not compilable)${NC}"; ERR=$((ERR+1)); continue
     fi
 
+    cp "$WT/build/naab-lang" "$PROBED_BIN"
     verdict=""; witness=""
     for t in $(candidates "$rule"); do
-        if ! timeout 600 bash "$t" >/dev/null 2>&1; then
-            verdict="PROTECTED"; witness="$t"; break
+        if ! ( cd "$WT" && timeout 600 bash "$t" >/dev/null 2>&1 ); then
+            if confirms_witness "$t"; then
+                verdict="PROTECTED"; witness="${t#$WT/}"; break
+            fi
         fi
     done
     if [ -z "$verdict" ]; then
-        if ! timeout 3600 bash run-all-tests.sh >/dev/null 2>&1; then
+        if ! ( cd "$WT" && timeout 3600 bash run-all-tests.sh >/dev/null 2>&1 ); then
             verdict="PROTECTED"; witness="run-all-tests.sh"
         else
             verdict="UNPROTECTED"; witness="-"
@@ -213,15 +218,12 @@ for rule in $TARGETS; do
     printf '%s %s %s %s\n' "$rule" "$verdict" "$witness" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$LEDGER"
 done
 
-revert_source
-rebuild || echo -e "${YELLOW}  note: rebuild after revert failed — rebuild by hand${NC}"
-
 echo ""
 echo "  probed this run: $((PROT+UNPROT))   PROTECTED $PROT   UNPROTECTED $UNPROT   errors $ERR"
-if git diff --quiet -- "$ENGINE"; then
-    echo -e "  ${GREEN}source reverted cleanly${NC}"
+if git -C "$REPO" diff --quiet -- src/ include/; then
+    echo -e "  ${GREEN}your working tree was never modified${NC}"
 else
-    echo -e "  ${RED}SOURCE NOT CLEAN — inspect $ENGINE before committing${NC}"; exit 1
+    echo -e "  ${YELLOW}note: src/ is dirty — not from this script, which works in a worktree${NC}"
 fi
 [ "$ERR" -gt 0 ] && exit 1
 exit 0
