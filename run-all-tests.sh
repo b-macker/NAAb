@@ -1300,6 +1300,25 @@ else
     echo "  test_gov_string_prefix_gov001.sh: not found, skipping"
 fi
 
+# --- A6 state-field screen (pinned baseline; B10: an unrun self-audit tool
+# --- reads as coverage while providing none) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  State Field Screen (A6 — unwritten / unread struct members)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+SFSCREEN_SCRIPT="tests/self-audit/test_state_field_screen.sh"
+if [ -f "$SFSCREEN_SCRIPT" ]; then
+    if run_shell_test "$SFSCREEN_SCRIPT" 2>&1; then
+        echo "  test_state_field_screen.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_state_field_screen.sh")
+    fi
+else
+    echo "  test_state_field_screen.sh: not found, skipping"
+fi
+
 # --- Secret-scan ReDoS (checkSecrets must render a verdict, never crash) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
