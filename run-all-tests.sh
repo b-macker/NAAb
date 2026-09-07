@@ -1843,6 +1843,21 @@ else
     echo "  test_coherence_floor_precondition.sh: not found, skipping"
 fi
 
+# checkPathAccess canonicalizes whatever path it is handed, at ~26us/byte, and
+# nothing bounded that input: a 38MB path built by concatenation cost ~17 minutes
+# inside a HARD check and presented as a hang with no verdict.
+PATHBOUND_SCRIPT="tests/governance_v4/test_path_length_bound.sh"
+if [ -f "$PATHBOUND_SCRIPT" ]; then
+    if run_shell_test "$PATHBOUND_SCRIPT" 2>&1; then
+        echo "  test_path_length_bound.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_path_length_bound.sh")
+    fi
+else
+    echo "  test_path_length_bound.sh: not found, skipping"
+fi
+
 # limits.array_size was wired into list literals, ranges and spreads but not
 # into concatenation, so `a = a + a` grew unbounded past a configured limit
 # until bad_alloc — with no governance verdict emitted at all. Both engines had
