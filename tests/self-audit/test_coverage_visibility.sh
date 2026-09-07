@@ -40,8 +40,34 @@
 #        2026-09-06: 81 of 165 such suites have no isolation. The register
 #        said ~35.
 #
-# Both gates are BASELINE gates: they fail when the number GROWS, not while it
-# is nonzero. A gate that fails today would be switched off today.
+# CV-03  REGISTERED SUITES THAT ARE NOT THERE.
+#        run-all-tests.sh registers 88 shell suites by path, and every one of
+#        the 113 "not found, skipping" branches is a silent pass: none of them
+#        increments FAILED. Delete or rename any registered suite and CI stays
+#        green without mentioning it. Measured by walking each branch back to
+#        the if/elif that guards it: 112 of the 113 guard a path that is tracked
+#        in git and therefore SHOULD exist; the single exception is the LSP
+#        suite, whose script must exist but whose build/naab-lsp binary is
+#        genuinely optional.
+#
+#        Found the way it usually is -- by accident. Switching git branches
+#        under a running suite deleted a newly added test from the worktree; the
+#        suite printed "not found, skipping" and exited 0, and it was only
+#        noticed because someone happened to grep the log for that test's name.
+#
+#        This is asserted here rather than by editing 112 branches: one gate in
+#        one place, with a control, beats 112 mechanical edits and 112 chances
+#        to typo. It also keeps the assertion where a reader already looks for
+#        "what can this suite not see about itself".
+#
+# CV-04  REGISTERED BUT UNTRACKED. A suite registered by path but not committed
+#        exists only on the machine that wrote it, and skips silently for
+#        everyone else -- the same silence as CV-03 with a longer fuse.
+#
+# CV-01/CV-02 are BASELINE gates: they fail when the number GROWS, not while it
+# is nonzero. A gate that fails today would be switched off today. CV-03/CV-04
+# are ABSOLUTE: the correct count is zero and it is zero today, so there is no
+# baseline to erode.
 # ============================================================
 set -uo pipefail
 
@@ -49,9 +75,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO" || exit 1
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
+YELLOW='\033[1;33m'; RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo -e "  ${GREEN}PASS${NC} [$1] $2"; }
+skip() { echo -e "  ${YELLOW:-}SKIP${NC} [$1] $2"; }
 bad() { FAIL=$((FAIL+1)); echo -e "  ${RED}FAIL${NC} [$1] $2"; [ -n "${3:-}" ] && echo -e "       ${RED}-> $3${NC}"; }
 
 # Baselines. Raise ONLY with a reason; lowering is progress and is expected.
@@ -134,6 +161,71 @@ if [ "$UNISO" -le "$BASELINE_UNISOLATED" ]; then
 else
     bad "CV-02" "a new suite writes an unsigned govern.json without isolating the trust store" \
         "$UNISO unisolated, baseline $BASELINE_UNISOLATED — source tests/helpers/trust_setup.sh and call setup_isolated_trust, or its result depends on whatever else populated ~/.naab/trusted-keys"
+fi
+
+# Computed in BASH, not Python. The first version shelled out to git from
+# Python and died on the Windows runner with
+#   FileNotFoundError: [WinError 2] The system cannot find the file specified
+# because MSYS2's Python cannot CreateProcess `git` off the shell PATH. The
+# counts came back as EMPTY STRINGS, `[ "" -eq 0 ]` errored into the else
+# branch, and a measurement that never ran was reported as "found violations".
+# Bash has git on its PATH here, and reading the file with grep also sidesteps
+# the cp1252 decode problem that has bitten this repo three times.
+REGISTERED=""; MISSING_LIST=""; UNTRACKED_LIST=""
+MISSING=0; UNTRACKED=0; MEASURED=1; GIT_USABLE=1
+
+# Is git able to answer at all here? `git ls-files --error-unmatch` returns
+# non-zero BOTH for "this file is untracked" and for "I could not run" — and on
+# the Windows runner it was the second: every one of the 88 registered paths came
+# back untracked, and CV-04 reported 88 violations for a query that never
+# succeeded. That is the same conflation this file already guards for the
+# extraction step, missed one line further down: a broken probe rendering as a
+# finding. Probe once, on a path that is definitely tracked, and treat a failure
+# as UNMEASURABLE rather than as 88 uncommitted suites.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+   || ! git ls-files --error-unmatch run-all-tests.sh >/dev/null 2>&1; then
+    GIT_USABLE=0
+fi
+while IFS= read -r pth; do
+    [ -n "$pth" ] || continue
+    REGISTERED="$REGISTERED $pth"
+    if [ ! -e "$pth" ]; then
+        MISSING=$((MISSING+1)); MISSING_LIST="$MISSING_LIST $pth"
+    elif [ "$GIT_USABLE" -eq 1 ] && ! git ls-files --error-unmatch "$pth" >/dev/null 2>&1; then
+        UNTRACKED=$((UNTRACKED+1)); UNTRACKED_LIST="$UNTRACKED_LIST $pth"
+    fi
+done < <(grep -oE '^[A-Z_]+="(tests|examples)/[^"]+"' run-all-tests.sh \
+         | sed 's/^[A-Z_]*="//; s/"$//' | sort -u)
+
+NREG=$(echo $REGISTERED | wc -w)
+# A count of zero and a measurement that did not happen must not look alike.
+# That conflation is exactly what failed build-windows here, and it is the same
+# shape as the CRLF bug in tests/helpers/encoding_controls.sh: a broken probe
+# rendering as a finding.
+[ "$NREG" -gt 0 ] || MEASURED=0
+
+echo "  registered suite paths: $NREG   missing: $MISSING   untracked: $UNTRACKED"
+echo ""
+
+if [ "$MEASURED" -eq 0 ]; then
+    bad "CV-03" "COULD NOT MEASURE — no registered suite paths were found" \
+        "grep matched nothing in run-all-tests.sh. This is an instrument failure, not a finding: do not read it as 'no suites are registered'."
+    bad "CV-04" "COULD NOT MEASURE — see CV-03"
+else
+    if [ "$MISSING" -eq 0 ]; then
+        ok "CV-03" "every registered suite path exists ($NREG registered)"
+    else
+        bad "CV-03" "a suite is registered in run-all-tests.sh but its file is not there" \
+            "$MISSING missing:$MISSING_LIST — the suite would print 'not found, skipping' and exit 0, because none of the 113 skip branches increments FAILED. Restore the file, or remove its registration."
+    fi
+    if [ "$GIT_USABLE" -eq 0 ]; then
+        skip "CV-04" "UNMEASURABLE — git cannot answer here; not reporting untracked suites it never checked"
+    elif [ "$UNTRACKED" -eq 0 ]; then
+        ok "CV-04" "every registered suite path is tracked in git"
+    else
+        bad "CV-04" "a suite is registered but not committed" \
+            "$UNTRACKED untracked:$UNTRACKED_LIST — it runs only on the machine that wrote it and skips silently everywhere else. Commit it, or remove the registration."
+    fi
 fi
 
 echo ""

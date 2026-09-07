@@ -197,6 +197,35 @@ the divergences already documented. Any suite whose assertion is "these two
 agree" needs a separate proof that either side ran at all, and existence of the
 binary is not that proof.
 
+### A broken probe reports a finding, not an error
+
+When the instrument you measure WITH fails, the failure almost never surfaces as
+a failure. It surfaces as a value, and the value lands in the same column a real
+finding would. Three instances in one session, each patched at its own site
+before anyone noticed they were one bug:
+
+- `git ls-files --error-unmatch` is not invokable on one runner. The check read
+  "git could not answer" as "not tracked" and reported 88 untracked test suites.
+- A ledger `.txt` matched the glob selecting candidate tests. The mutation
+  harness "ran" it, observed no failure, and reported the gate PROTECTED.
+- A CRLF renderer piped through an external text tool that dropped the very
+  character it existed to reveal. Its silence read as "no CR present", above two
+  lists that rendered identically.
+
+The shape is constant: *absence of a working measurement is indistinguishable
+from a measured absence*, and the reading that gets published is the alarming
+one, because that is the one that looks like news.
+
+A probe needs a usability check distinct from its result, and the check needs
+its own outcome. Two-valued reporting has nowhere to put "the instrument did not
+run", so it silently redistributes those cases into PASS or FAIL. Report
+PASS / FAIL / UNMEASURABLE, and make UNMEASURABLE loud.
+
+A positive control catches this only when it runs through the same probe — the
+harness bugs above were all found by one control, and the `git` bug was found by
+none, because nothing exercised the tracked-file query on a case known to be
+tracked.
+
 ### Do not mutate what you are observing
 
 Editing a script while it runs, running two jobs that share a build directory,
