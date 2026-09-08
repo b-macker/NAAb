@@ -312,9 +312,7 @@ An outside read-only agent produced 16 findings across several messages. They
 are logged here IN FULL so none is lost, each with its verification state. **An
 external claim is a search direction, not evidence** — every row marked
 `queued` still needs its own positive control before it is acted on or believed.
-Spot-checks so far: 4 verified true (A7, A8, A10, A11), 1 partly wrong
-(max_functions), so the batch is high-yield but NOT uniformly correct — verify
-each.
+Final tally: **12 verified true** (A7, A8, A10-A18 covering F2/F5/F7/F8/F9/F10/F11/F12/F13/F14/F15/F16), F1 already fixed (#206), F3/F4 recorded as known-by-design, **1 partly wrong** (F6 max_functions — a removed key, not inert). So the batch was high-yield (every NEW security claim held under a positive control) but NOT uniformly correct — each was verified independently, not taken on the report's word.
 
 | # | claim (as reported) | state | where |
 |---|---|---|---|
