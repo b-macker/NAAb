@@ -174,9 +174,24 @@ static thread_local int t_in_tool_execution_for_handle = -1;
 // RAII guard for scoped tool agent context
 struct ScopedToolContext {
     const governance::AgentConfig* previous;
+    std::string prev_role;   // A12: engine-side effective role, restored on scope exit
     ScopedToolContext(const governance::AgentConfig* config)
-        : previous(t_tool_agent_context) { t_tool_agent_context = config; }
-    ~ScopedToolContext() { t_tool_agent_context = previous; }
+        : previous(t_tool_agent_context) {
+        t_tool_agent_context = config;
+        // A12: bind the per-agent role gates (checkPathAccess / checkFilesystem
+        // Allowed / checkNetworkAllowed / checkShellAllowed) to THIS agent's role
+        // for the duration of the tool callback, so a created agent's tools are
+        // scoped by its govern.json role rather than the CLI --agent-id. Cleared
+        // on exit, so the surrounding orchestration script is unaffected.
+        auto* eng = governance::GovernanceEngine::getCurrent();
+        if (eng && config) prev_role = eng->pushActiveToolRole(config->name);
+        else if (eng) prev_role = eng->pushActiveToolRole("");
+    }
+    ~ScopedToolContext() {
+        t_tool_agent_context = previous;
+        auto* eng = governance::GovernanceEngine::getCurrent();
+        if (eng) eng->popActiveToolRole(prev_role);
+    }
 };
 
 // Validate tool name: alphanumeric + underscore, reasonable length

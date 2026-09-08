@@ -2163,6 +2163,19 @@ else
     echo "  test_python_audit_hook.sh: not found, skipping"
 fi
 
+# A12: per-agent role binding for agent.create() tool actions.
+ROLEBIND_SCRIPT="tests/governance_v4/test_agent_role_binding.sh"
+if [ -f "$ROLEBIND_SCRIPT" ]; then
+    if run_shell_test "$ROLEBIND_SCRIPT" 2>&1; then
+        echo "  test_agent_role_binding.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_agent_role_binding.sh")
+    fi
+else
+    echo "  test_agent_role_binding.sh: not found, skipping"
+fi
+
 # S23 response_degenerate + adaptive absorption cap + propose diversity (stub-backed)
 ABSORB_SCRIPT="tests/governance_v4/test_absorption_degenerate.sh"
 if [ -f "$ABSORB_SCRIPT" ]; then
