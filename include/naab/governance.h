@@ -3018,6 +3018,11 @@ public:
 
     // --- Agent identity ---
     void setAgentId(const std::string& id) { agent_id_ = id; }
+    // A12: effective agent identity for per-agent role gates (tool role during
+    // tool execution, else CLI --agent-id). push/pop bracket a tool callback.
+    const std::string& effectiveAgentId() const;
+    std::string pushActiveToolRole(const std::string& role);
+    void popActiveToolRole(const std::string& prev);
     const std::string& getAgentId() const { return agent_id_; }
     void applyAgentRole();
 

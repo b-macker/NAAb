@@ -85,6 +85,13 @@ namespace governance {
 static thread_local int t_event_agent_turn = 0;
 static thread_local int t_event_agent_handle = 0;
 static thread_local std::string t_event_agent_config;
+// A12: role of the agent whose TOOL is currently executing on this thread.
+// Set by ScopedToolContext (agent_impl.cpp) around a tool callback and cleared
+// on exit, so it is non-empty ONLY while a tool the agent invoked is running.
+// The per-agent role gates consult it via effectiveAgentId() so a created
+// agent's tools are bound by its role, while the surrounding orchestration
+// script (not the agent) is not. Empty => fall back to the CLI --agent-id.
+static thread_local std::string t_active_tool_role;
 
 // B9(a): checkPreExecution CONSUMES the event it tests. When the pre-check
 // matched and the enforcement did NOT block, the action then runs and its
@@ -1621,17 +1628,17 @@ std::string GovernanceEngine::checkLanguageAllowed(
 
     // V-GOV-020: Per-agent language enforcement (defense-in-depth beyond applyAgentRole)
     for (const auto& role : rules().agents) {
-        if (role.name == agent_id_) {
+        if (role.name == effectiveAgentId()) {
             // Check per-agent blocked languages
             for (const auto& bl : role.blocked_languages) {
                 if (bl == language) {
                     return enforce("agent_role.language", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             fmt::format("Agent '{}' is blocked from using language \"{}\"",
-                                agent_id_, language),
+                                effectiveAgentId(), language),
                             "",
                             fmt::format("agents.{}.blocked_languages contains \"{}\"",
-                                agent_id_, language),
+                                effectiveAgentId(), language),
                             fmt::format("Your agent role does not permit the \"{}\" language.\n"
                                 "Check your agent's allowed_languages in govern.json.", language),
                             fmt::format("let result = <<{}\n...\n>>", language),
@@ -1656,10 +1663,10 @@ std::string GovernanceEngine::checkLanguageAllowed(
                     return enforce("agent_role.language", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             fmt::format("Agent '{}' is not allowed to use language \"{}\"",
-                                agent_id_, language),
+                                effectiveAgentId(), language),
                             "",
                             fmt::format("agents.{}.allowed_languages = [{}]",
-                                agent_id_, al_list),
+                                effectiveAgentId(), al_list),
                             fmt::format("Your agent role only permits: {}", al_list),
                             fmt::format("let result = <<{}\n...\n>>", language),
                             fmt::format("let result = <<{}\n...\n>>",
@@ -1689,13 +1696,13 @@ std::string GovernanceEngine::checkNetworkAllowed() {
     }
     // Per-agent network enforcement
     for (const auto& role : rules().agents) {
-        if (role.name == agent_id_) {
+        if (role.name == effectiveAgentId()) {
             if (role.network_allowed_set && !role.network_allowed) {
                 return enforce("agent_role.network", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
-                        "Agent '" + agent_id_ + "' is not allowed network access",
+                        "Agent '" + effectiveAgentId() + "' is not allowed network access",
                         "",
-                        "agents." + agent_id_ + ".network_allowed = false",
+                        "agents." + effectiveAgentId() + ".network_allowed = false",
                         "Your agent role does not permit network operations.\n"
                         "Use file-based data or NAAb stdlib instead.",
                         "http.get(\"https://api.example.com\")",
@@ -1710,9 +1717,9 @@ std::string GovernanceEngine::checkNetworkAllowed() {
                 if (!allowed) {
                     return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
-                            "Agent '" + agent_id_ + "' action matrix does not include NET_CONNECT",
+                            "Agent '" + effectiveAgentId() + "' action matrix does not include NET_CONNECT",
                             "",
-                            "agents." + agent_id_ + ".allowed_actions",
+                            "agents." + effectiveAgentId() + ".allowed_actions",
                             "Your agent's allowed_actions list does not include NET_CONNECT.\n"
                             "Add NET_CONNECT to the allowed_actions list to permit network access.",
                             "http.get(\"https://api.example.com\")",
@@ -1887,7 +1894,7 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
     }
     // Per-agent action matrix: check FS_READ/FS_WRITE
     for (const auto& role : rules().agents) {
-        if (role.name == agent_id_ && !role.allowed_actions.empty()) {
+        if (role.name == effectiveAgentId() && !role.allowed_actions.empty()) {
             std::string required = (mode == "write") ? "FS_WRITE" : "FS_READ";
             bool allowed = false;
             for (const auto& a : role.allowed_actions) {
@@ -1896,9 +1903,9 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
             if (!allowed) {
                 return enforce("agent_role.action_matrix", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
-                        "Agent '" + agent_id_ + "' action matrix does not include " + required,
+                        "Agent '" + effectiveAgentId() + "' action matrix does not include " + required,
                         "",
-                        "agents." + agent_id_ + ".allowed_actions",
+                        "agents." + effectiveAgentId() + ".allowed_actions",
                         "Your agent's allowed_actions list does not include " + required + ".\n"
                         "Add " + required + " to the allowed_actions list to permit this operation.",
                         mode == "write" ? "file.write(\"output.txt\", data)" : "file.read(\"input.txt\")",
@@ -2024,15 +2031,15 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
 
     // Layer 3+4: Agent role path restrictions
     for (const auto& role : rules().agents) {
-        if (role.name == agent_id_) {
+        if (role.name == effectiveAgentId()) {
             // Agent blocked_paths
             for (const auto& bp : role.blocked_paths) {
                 if (pathPrefixMatch(canon_n, canonAndNorm(bp))) {
                     return enforce("agent_role.path", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
-                            "Agent '" + agent_id_ + "' blocked from path: " + filepath,
+                            "Agent '" + effectiveAgentId() + "' blocked from path: " + filepath,
                             "",
-                            "agents." + agent_id_ + ".blocked_paths contains \"" + bp + "\"",
+                            "agents." + effectiveAgentId() + ".blocked_paths contains \"" + bp + "\"",
                             "Your agent role does not permit access to this path.\n"
                             "Use a path within your agent's allowed directories.",
                             "file." + mode + "(\"" + filepath + "\", ...)",
@@ -2053,9 +2060,9 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
                 if (!agent_allowed) {
                     return enforce("agent_role.path", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
-                            "Agent '" + agent_id_ + "' not allowed to access: " + filepath,
+                            "Agent '" + effectiveAgentId() + "' not allowed to access: " + filepath,
                             "",
-                            "agents." + agent_id_ + ".allowed_paths",
+                            "agents." + effectiveAgentId() + ".allowed_paths",
                             fmt::format("Your agent role restricts file access to: {}",
                                 [&]() { std::string l; for (const auto& p : role.allowed_paths) {
                                     if (!l.empty()) l += ", "; l += p; } return l; }()),
@@ -2086,11 +2093,11 @@ std::string GovernanceEngine::checkShellAllowed() {
     }
     // V-GOV-020: Per-agent shell enforcement (defense-in-depth beyond applyAgentRole)
     for (const auto& role : rules().agents) {
-        if (role.name == agent_id_) {
+        if (role.name == effectiveAgentId()) {
             if (role.shell_allowed_set && !role.shell_allowed) {
                 return enforce("agent_role.shell", EnforcementLevel::HARD,
                     formatError(EnforcementLevel::HARD,
-                        "Agent '" + agent_id_ + "' is not allowed to execute shell blocks",
+                        "Agent '" + effectiveAgentId() + "' is not allowed to execute shell blocks",
                         "",
                         "agents." + agent_id_ + ".shell_allowed = false",
                         "Your agent role does not permit shell execution.\n"
@@ -6575,6 +6582,24 @@ void GovernanceEngine::setAgentTurn(int handle_id, int turn) {
     t_event_agent_turn = turn;
     current_agent_handle_.store(handle_id, std::memory_order_relaxed);
     current_agent_turn_.store(turn, std::memory_order_relaxed);
+}
+
+// A12: effective agent identity for per-agent role gates. During a tool
+// callback the acting agent's role (t_active_tool_role) governs; otherwise the
+// process-level CLI --agent-id (agent_id_) does. This is what binds an
+// agent.create() handle's tool-driven file/net/shell access to its role.
+const std::string& GovernanceEngine::effectiveAgentId() const {
+    return t_active_tool_role.empty() ? agent_id_ : t_active_tool_role;
+}
+
+std::string GovernanceEngine::pushActiveToolRole(const std::string& role) {
+    std::string prev = t_active_tool_role;
+    t_active_tool_role = role;
+    return prev;
+}
+
+void GovernanceEngine::popActiveToolRole(const std::string& prev) {
+    t_active_tool_role = prev;
 }
 
 void GovernanceEngine::setAgentContext(int handle_id, int turn,
