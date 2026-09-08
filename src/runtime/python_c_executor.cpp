@@ -26,6 +26,45 @@ namespace runtime {
 // NOTE: Don't use 'using namespace interpreter' - causes type conflicts
 // Use fully qualified names instead
 
+// --- Sandbox audit policy --------------------------------------------------
+// The hook installed in python_c_wrapper.c calls this at the moment of a
+// sensitive operation. It asks the sandbox exactly the questions every other
+// I/O path in the tree already asks -- file_impl asks canRead/canWrite,
+// http_impl asks canConnect, process_impl asks canExecuteCommand -- so a
+// polyglot block becomes subject to the same declared policy as file.read
+// instead of being governed only by pre-execution source text.
+//
+// It deliberately mirrors the existing idiom, including its no-sandbox case:
+// every call site in the codebase is written `if (sandbox && !sandbox->canX())`,
+// i.e. no active sandbox means no policy to enforce. This adds no new
+// restriction and no new config key; it only lets policy the operator already
+// declared reach the one path that evaded it.
+extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int is_write) {
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return 1;   // no policy active -- same as every other call site
+
+    const std::string ev = event ? event : "";
+    const std::string tgt = target ? target : "";
+
+    if (ev == "open") {
+        if (tgt.empty()) return 1;            // bare fd: no path to adjudicate
+        return (is_write ? sandbox->canWrite(tgt) : sandbox->canRead(tgt)) ? 1 : 0;
+    }
+
+    if (ev == "os.system" || ev == "subprocess.Popen" ||
+        ev == "os.posix_spawn" || ev.rfind("os.exec", 0) == 0) {
+        // An empty target still represents an exec attempt; judge the
+        // capability rather than letting an unnamed command through.
+        return sandbox->canExecuteCommand(tgt.empty() ? std::string("python:exec") : tgt) ? 1 : 0;
+    }
+
+    if (ev == "socket.connect") {
+        return sandbox->getConfig().hasCapability(security::Capability::NET_CONNECT) ? 1 : 0;
+    }
+
+    return 1;
+}
+
 /**
  * Execute Python code (statement mode)
  */
