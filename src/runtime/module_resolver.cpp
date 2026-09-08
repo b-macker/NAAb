@@ -5,6 +5,8 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/bounded_read.h"
+#include "naab/governance.h"   // A23/A25: gate module network + filesystem reads
+#include "naab/sandbox.h"
 #include <fmt/core.h>
 #include <mutex>
 #include <shared_mutex>
@@ -12,6 +14,7 @@
 #include <sstream>
 #include <algorithm>
 #include <functional>
+#include <cstdio>
 #include <curl/curl.h>
 #include <toml++/toml.h>
 
@@ -219,12 +222,66 @@ static bool downloadUrl(const std::string& url, const fs::path& dest) {
     return true;
 }
 
+// A23: a URL module import is network egress that ends in code execution;
+// downloadUrl() called libcurl with no gate. Route the URL through the same
+// sandbox network posture http.get uses, BEFORE any download or cache hit.
+static bool isPrivateOrLoopbackHost(const std::string& host) {
+    if (host == "localhost" || host == "localhost.localdomain") return true;
+    // NOTE: numeric-form SSRF completeness (127.1, octal, 32-bit int) is the
+    // shared isPrivateHost limitation tracked as A11 — centralising that check
+    // fixes both http.get and this path.
+    unsigned a=0,b=0,c=0,d=0;
+    if (sscanf(host.c_str(), "%u.%u.%u.%u", &a,&b,&c,&d) == 4) {
+        if (a==127 || a==10 || a==0) return true;
+        if (a==172 && b>=16 && b<=31) return true;
+        if (a==192 && b==168) return true;
+        if (a==169 && b==254) return true;
+    }
+    return false;
+}
+
+static void checkUrlModuleGovernance(const std::string& url) {
+    auto* gov = governance::GovernanceEngine::getCurrent();
+    if (!gov || !gov->isActive()) return;
+    if (gov->getRules().capabilities.network.https_only && url.substr(0, 8) != "https://") {
+        throw std::runtime_error(
+            "Security: URL module import denied by governance\n\n"
+            "  URL: " + url + "\n"
+            "  capabilities.network.https_only is set; only https:// imports are allowed.\n");
+    }
+    bool is_https = url.substr(0, 8) == "https://";
+    size_t hs = url.find("://"); hs = (hs == std::string::npos) ? 0 : hs + 3;
+    size_t he = url.find_first_of(":/", hs);
+    std::string host = (he == std::string::npos) ? url.substr(hs) : url.substr(hs, he - hs);
+    int port = is_https ? 443 : 80;
+    if (he != std::string::npos && url[he] == ':') {
+        size_t pe = url.find('/', he + 1);
+        try { port = std::stoi(url.substr(he + 1, pe == std::string::npos ? std::string::npos : pe - he - 1)); } catch (...) {}
+    }
+    if (!host.empty() && isPrivateOrLoopbackHost(host)) {
+        throw std::runtime_error(
+            "Security: URL module import to a private network denied\n\n"
+            "  URL: " + url + "\n  Host: " + host + "\n\n"
+            "  Imports from private, loopback, and link-local addresses are blocked (SSRF).\n");
+    }
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox && !host.empty() && !sandbox->canConnect(host, port)) {
+        throw std::runtime_error(
+            "Security: URL module import denied by sandbox\n\n"
+            "  URL: " + url + "\n  Host: " + host + "\n\n"
+            "  The current sandbox does not permit network connections.\n");
+    }
+}
+
 std::optional<fs::path> ModuleResolver::resolve(
     const std::string& module_spec,
     const fs::path& current_file_dir) {
 
     // 0. URL imports: download and cache
     if (isUrl(module_spec)) {
+        // A23: gate before touching the cache or the network, so a poisoned
+        // cache entry from an earlier permissive run cannot be replayed either.
+        checkUrlModuleGovernance(module_spec);
         fs::path cached = urlToCachePath(module_spec);
         if (fs::exists(cached)) {
             return cached;  // Already cached
@@ -414,6 +471,17 @@ std::optional<fs::path> ModuleResolver::resolveFromSystem(const std::string& spe
 }
 
 std::unique_ptr<ast::Program> ModuleResolver::parseModuleFile(const fs::path& path) {
+    // A25: a module read is a filesystem read and must obey the same governance
+    // as file.read(). Gate at the one point every engine's import path reaches
+    // to read bytes from disk, so `import "x.naab"` cannot bypass
+    // capabilities.filesystem.mode:none / blocked_paths.
+    if (auto* gov = governance::GovernanceEngine::getCurrent(); gov && gov->isActive()) {
+        std::string fs_err = gov->checkFilesystemAllowed("read");
+        if (!fs_err.empty()) throw std::runtime_error(fs_err);
+        std::string path_err = gov->checkPathAccess(path.string(), "read");
+        if (!path_err.empty()) throw std::runtime_error(path_err);
+    }
+
     // V-RT-014 (R24): size-cap the read and reject symlinks (e.g. a malicious
     // workspace symlinking utils.naab -> /dev/zero would OOM the loader).
     auto src = naab::readFileBounded(path.string());

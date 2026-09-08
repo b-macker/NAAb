@@ -2147,6 +2147,19 @@ else
     echo "  test_extract_code.sh: not found, skipping"
 fi
 
+# A23/A24/A25: module-resolver + codegen ingestion governance.
+MODCODEGEN_SCRIPT="tests/governance_v4/test_module_codegen_governance.sh"
+if [ -f "$MODCODEGEN_SCRIPT" ]; then
+    if run_shell_test "$MODCODEGEN_SCRIPT" 2>&1; then
+        echo "  test_module_codegen_governance.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_module_codegen_governance.sh")
+    fi
+else
+    echo "  test_module_codegen_governance.sh: not found, skipping"
+fi
+
 # A7 fix: Python polyglot audit hook — the sandbox's runtime call site inside
 # CPython. AH-02 is load-bearing (obfuscated escape read blocked at the syscall,
 # where no source-text gate can see it); its negative control is documented in
