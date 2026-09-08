@@ -2341,6 +2341,19 @@ else
     echo "  test_module_codegen_governance.sh: not found, skipping"
 fi
 
+# F33: `use module` filesystem governance (companion to A25/#213 for the import path).
+USEMOD_SCRIPT="tests/governance_v4/test_use_module_governance.sh"
+if [ -f "$USEMOD_SCRIPT" ]; then
+    if run_shell_test "$USEMOD_SCRIPT" 2>&1; then
+        echo "  test_use_module_governance.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_use_module_governance.sh")
+    fi
+else
+    echo "  test_use_module_governance.sh: not found, skipping"
+fi
+
 # A7 fix: Python polyglot audit hook — the sandbox's runtime call site inside
 # CPython. AH-02 is load-bearing (obfuscated escape read blocked at the syscall,
 # where no source-text gate can see it); its negative control is documented in
