@@ -5,6 +5,9 @@
 #include <fmt/core.h>
 #include <stdexcept>
 
+// Defined in python_c_executor.cpp — the sandbox policy the audit hook calls.
+extern "C" int naabPythonAuditPolicy(const char* event, const char* target, int is_write);
+
 namespace naab {
 namespace runtime {
 
@@ -25,6 +28,13 @@ PythonInterpreterManager::PythonInterpreterManager()
     // - 5x faster than pybind11 (3μs vs 15μs per call)
     // - No Android CFI crashes (bypasses bionic linker CFI issue)
     // - Thread-safe parallel Python execution
+
+    // Give CPython the sandbox's call site before the interpreter exists.
+    // Must precede python_c_init(): the hook is installed ahead of
+    // Py_Initialize() and CPython guarantees audit hooks cannot be removed
+    // afterwards, so executed block code cannot displace it the way it can
+    // reassign builtins.__import__.
+    python_c_set_audit_policy(&naabPythonAuditPolicy);
 
     if (python_c_init() != 0) {
         throw std::runtime_error("Failed to initialize Python interpreter");

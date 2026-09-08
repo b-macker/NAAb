@@ -2147,6 +2147,22 @@ else
     echo "  test_extract_code.sh: not found, skipping"
 fi
 
+# A7 fix: Python polyglot audit hook — the sandbox's runtime call site inside
+# CPython. AH-02 is load-bearing (obfuscated escape read blocked at the syscall,
+# where no source-text gate can see it); its negative control is documented in
+# the suite header.
+PYAUDIT_SCRIPT="tests/governance_v4/test_python_audit_hook.sh"
+if [ -f "$PYAUDIT_SCRIPT" ]; then
+    if run_shell_test "$PYAUDIT_SCRIPT" 2>&1; then
+        echo "  test_python_audit_hook.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_python_audit_hook.sh")
+    fi
+else
+    echo "  test_python_audit_hook.sh: not found, skipping"
+fi
+
 # S23 response_degenerate + adaptive absorption cap + propose diversity (stub-backed)
 ABSORB_SCRIPT="tests/governance_v4/test_absorption_degenerate.sh"
 if [ -f "$ABSORB_SCRIPT" ]; then
