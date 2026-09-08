@@ -14,6 +14,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifndef _WIN32
+#  include <fcntl.h>   // O_ACCMODE / O_WRONLY for audit write-detection
+#endif
 
 // Global state
 static int python_initialized = 0;
@@ -26,6 +29,166 @@ static __thread PyThreadState* worker_tstate = NULL;
 // Sentinel value: python_c_gil_acquire returns -1 when using pre-created state
 #define GIL_HANDLE_PRECREATED (-1)
 
+// --- Sandbox audit hook (see python_c_wrapper.h) ---------------------------
+// Policy lives in C++ (it owns the sandbox); this side only decodes CPython's
+// audit arguments and recognises the interpreter loading its own modules.
+static NaabPyAuditPolicyFn audit_policy = NULL;
+
+void python_c_set_audit_policy(NaabPyAuditPolicyFn fn) {
+    audit_policy = fn;
+}
+
+// Cached module-search roots, resolved lazily on the first audit event that
+// arrives after the interpreter is usable.
+//
+// This carve-out is load-bearing, not cosmetic. Measured: three imports raise
+// 19 "open" events, 19 of 19 under the module search path. Reading the
+// interpreter's own files is the implementation of "you may run Python", not
+// an I/O capability the block exercised -- and under mode: enforce the sandbox
+// upgrades to `standard`, which refuses absolute paths, so without this every
+// block that imports anything would break.
+#define NAAB_MAX_ROOTS 64
+static char* runtime_roots[NAAB_MAX_ROOTS];
+static int runtime_roots_n = 0;
+static int runtime_roots_ready = 0;
+
+static void add_root(const char* p) {
+    if (!p || !*p || runtime_roots_n >= NAAB_MAX_ROOTS) return;
+    for (int i = 0; i < runtime_roots_n; i++) {
+        if (strcmp(runtime_roots[i], p) == 0) return;
+    }
+    runtime_roots[runtime_roots_n] = strdup(p);
+    if (runtime_roots[runtime_roots_n]) runtime_roots_n++;
+}
+
+static void resolve_runtime_roots(void) {
+    if (runtime_roots_ready) return;
+    if (!Py_IsInitialized()) return;
+    runtime_roots_ready = 1;  // one attempt; never retry from inside a hook
+
+    PyObject* sp = PySys_GetObject("path");   // borrowed
+    if (sp && PyList_Check(sp)) {
+        Py_ssize_t n = PyList_Size(sp);
+        for (Py_ssize_t i = 0; i < n; i++) {
+            PyObject* it = PyList_GetItem(sp, i);  // borrowed
+            if (it && PyUnicode_Check(it)) {
+                const char* c = PyUnicode_AsUTF8(it);
+                if (c && *c) add_root(c);
+            }
+        }
+    }
+    PyObject* px = PySys_GetObject("prefix");
+    if (px && PyUnicode_Check(px)) add_root(PyUnicode_AsUTF8(px));
+    PyObject* bx = PySys_GetObject("base_prefix");
+    if (bx && PyUnicode_Check(bx)) add_root(PyUnicode_AsUTF8(bx));
+}
+
+static int is_runtime_path(const char* path) {
+    if (!path || !*path) return 0;
+    resolve_runtime_roots();
+    for (int i = 0; i < runtime_roots_n; i++) {
+        size_t rl = strlen(runtime_roots[i]);
+        if (rl == 0) continue;
+        if (strncmp(path, runtime_roots[i], rl) == 0) return 1;
+    }
+    return 0;
+}
+
+// Pull argument `idx` out of the audit args tuple as a C long. Returns
+// have_val=0 when the slot is absent or not an integer (e.g. None).
+static long audit_long(PyObject* args, Py_ssize_t idx, int* have_val) {
+    *have_val = 0;
+    if (!args || !PyTuple_Check(args)) return 0;
+    if (PyTuple_Size(args) <= idx) return 0;
+    PyObject* o = PyTuple_GetItem(args, idx);  // borrowed
+    if (!o || !PyLong_Check(o)) return 0;
+    long v = PyLong_AsLong(o);
+    if (v == -1 && PyErr_Occurred()) { PyErr_Clear(); return 0; }
+    *have_val = 1;
+    return v;
+}
+
+// Pull argument `idx` out of the audit args tuple as a UTF-8 string.
+static const char* audit_str(PyObject* args, Py_ssize_t idx) {
+    if (!args || !PyTuple_Check(args)) return NULL;
+    if (PyTuple_Size(args) <= idx) return NULL;
+    PyObject* o = PyTuple_GetItem(args, idx);  // borrowed
+    if (!o) return NULL;
+    if (PyUnicode_Check(o)) return PyUnicode_AsUTF8(o);
+    return NULL;
+}
+
+static int naab_audit_hook(const char* event, PyObject* args, void* userData) {
+    (void)userData;
+    if (!audit_policy || !event) return 0;
+
+    const char* target = NULL;
+    int is_write = 0;
+    int relevant = 0;
+
+    if (strcmp(event, "open") == 0) {
+        // args: (path, mode, flags) -- path may be an int fd, which audit_str
+        // returns NULL for; a bare fd carries no path to adjudicate.
+        target = audit_str(args, 0);
+        // builtin open() carries a mode STRING (arg 1); os.open() carries
+        // mode=None and the O_* access mode in the integer flags (arg 2).
+        // Measured: os.open(p, O_WRONLY|O_CREAT) audits ("open", (p, None, int)),
+        // so reading only the mode string classified a low-level write as a
+        // read. Inspect both.
+        const char* mode = audit_str(args, 1);
+        if (mode && (strchr(mode, 'w') || strchr(mode, 'a') ||
+                     strchr(mode, '+') || strchr(mode, 'x'))) {
+            is_write = 1;
+        }
+        int have_flags = 0;
+        long flags = audit_long(args, 2, &have_flags);
+        if (have_flags) {
+#ifdef O_ACCMODE
+            if ((flags & O_ACCMODE) != O_RDONLY) is_write = 1;   // O_WRONLY / O_RDWR
+#else
+            if ((flags & 3) != 0) is_write = 1;   // POSIX access-mode bits
+#endif
+#ifdef O_CREAT
+            if (flags & O_CREAT) is_write = 1;
+#endif
+#ifdef O_TRUNC
+            if (flags & O_TRUNC) is_write = 1;
+#endif
+#ifdef O_APPEND
+            if (flags & O_APPEND) is_write = 1;
+#endif
+        }
+        if (target) {
+            // The interpreter loading its own modules is not block I/O.
+            if (!is_write && is_runtime_path(target)) return 0;
+            relevant = 1;
+        }
+    } else if (strcmp(event, "os.system") == 0) {
+        target = audit_str(args, 0);
+        relevant = 1;
+    } else if (strcmp(event, "subprocess.Popen") == 0) {
+        target = audit_str(args, 0);
+        relevant = 1;
+    } else if (strncmp(event, "os.exec", 7) == 0 ||
+               strcmp(event, "os.posix_spawn") == 0) {
+        target = audit_str(args, 0);
+        relevant = 1;
+    } else if (strcmp(event, "socket.connect") == 0) {
+        relevant = 1;   // address is a tuple; policy decides on capability
+    }
+
+    if (!relevant) return 0;
+
+    if (audit_policy(event, target, is_write)) return 0;
+
+    PyErr_Format(PyExc_PermissionError,
+                 "Governance: %s denied by sandbox policy%s%s",
+                 event,
+                 target ? ": " : "",
+                 target ? target : "");
+    return -1;
+}
+
 /**
  * Initialize Python interpreter
  */
@@ -33,6 +196,10 @@ int python_c_init(void) {
     if (python_initialized) {
         return 0;
     }
+
+    // Install the sandbox audit hook BEFORE Py_Initialize so it observes
+    // the interpreter from the start and cannot be displaced afterwards.
+    PySys_AddAuditHook(naab_audit_hook, NULL);
 
     // Initialize Python
     Py_Initialize();

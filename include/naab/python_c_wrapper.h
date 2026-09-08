@@ -44,6 +44,34 @@ typedef struct {
 int python_c_init(void);
 
 /**
+ * Audit policy callback — the sandbox's call site inside CPython.
+ *
+ * Every other I/O path in NAAb asks the sandbox directly (file.read ->
+ * canRead, http.get -> canConnect, process.run -> canExecuteCommand). A
+ * polyglot block is the one path with no NAAb call site: once control enters
+ * CPython there is nowhere to put the question, which is why polyglot
+ * governance has been source-text-only and why an object-graph traversal
+ * (reaching an already-cached module without importing) escaped it.
+ *
+ * PySys_AddAuditHook is CPython's own embedder hook. It fires at the moment
+ * of the operation regardless of how the module reference was obtained, so it
+ * supplies the missing call site. This wrapper handles the Python-side
+ * mechanics (decoding audit args, and recognising the interpreter loading its
+ * own modules); the policy decision belongs to C++, which owns the sandbox.
+ *
+ * Returns 1 to allow, 0 to deny. `target` is the primary argument for the
+ * event (path, command, or host) and may be NULL. `is_write` is 1 when the
+ * event carries write intent.
+ *
+ * Must be set before python_c_init(); the hook is installed prior to
+ * Py_Initialize() and, per CPython's guarantee, can never be removed
+ * afterwards — unlike the builtins.__import__ override, which the executed
+ * block can reassign.
+ */
+typedef int (*NaabPyAuditPolicyFn)(const char* event, const char* target, int is_write);
+void python_c_set_audit_policy(NaabPyAuditPolicyFn fn);
+
+/**
  * Create a Python thread state for the current thread.
  *
  * Safe to call from any thread WITHOUT the GIL.
