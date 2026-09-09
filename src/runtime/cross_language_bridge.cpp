@@ -278,9 +278,28 @@ JSValue CrossLanguageBridge::valueToJS(
 
 interpreter::NaabVal CrossLanguageBridge::jsToValue(
     JSContext* ctx,
-    JSValue val) {
+    JSValue val,
+    int depth) {
 
     conversions_count_++;
+
+    // F42: same unbounded-recursion defect as pyObjectToValue, same fix. A JS
+    // value that refers to itself -- `let a = []; a.push(a); a` -- recursed
+    // until the stack was exhausted and the process died with SIGSEGV, which
+    // renders no verdict and exits on a signal rather than a documented code.
+    // 64 matches the limit valueToPyObject and V-VM-002 already use.
+    if (depth > 64) {
+        failed_conversions_++;
+        throw std::runtime_error(
+            "Polyglot marshalling error: nested structure exceeds maximum depth (64)\n\n"
+            "  Help:\n"
+            "  - A self-referential structure (an array or object containing itself) has\n"
+            "    no finite depth and cannot cross the language boundary.\n"
+            "  - Flatten or break the cycle before returning the value.\n\n"
+            "  Example:\n"
+            "    x Wrong: let a = []; a.push(a); a\n"
+            "    v Right: let a = []; a.push(1); a\n");
+    }
 
     if (JS_IsNull(val) || JS_IsUndefined(val)) {
         return interpreter::NaabVal::makeNull();
@@ -323,7 +342,13 @@ interpreter::NaabVal CrossLanguageBridge::jsToValue(
 
         for (int32_t i = 0; i < length; ++i) {
             JSValue elem = JS_GetPropertyUint32(ctx, val, static_cast<uint32_t>(i));
-            arr.push_back(jsToValue(ctx, elem));
+            // Free before propagating a depth throw, or the element leaks.
+            try {
+                arr.push_back(jsToValue(ctx, elem, depth + 1));
+            } catch (...) {
+                JS_FreeValue(ctx, elem);
+                throw;
+            }
             JS_FreeValue(ctx, elem);
         }
 
@@ -342,7 +367,16 @@ interpreter::NaabVal CrossLanguageBridge::jsToValue(
 
                 if (key_str) {
                     JSValue prop_val = JS_GetProperty(ctx, val, tab[i].atom);
-                    dict[key_str] = jsToValue(ctx, prop_val);
+                    // Same as the array branch: free before propagating.
+                    try {
+                        dict[key_str] = jsToValue(ctx, prop_val, depth + 1);
+                    } catch (...) {
+                        JS_FreeValue(ctx, prop_val);
+                        JS_FreeCString(ctx, key_str);
+                        JS_FreeValue(ctx, prop_name);
+                        js_free(ctx, tab);
+                        throw;
+                    }
                     JS_FreeValue(ctx, prop_val);
                     JS_FreeCString(ctx, key_str);
                 }
@@ -409,7 +443,7 @@ interpreter::NaabVal CrossLanguageBridge::jsToStruct(
             JS_FreeValue(ctx, js_field);
             throw std::runtime_error("JS object missing field: " + field.name);
         }
-        struct_val->field_values[i] = jsToValue(ctx, js_field);
+        struct_val->field_values[i] = jsToValue(ctx, js_field, 0);
         JS_FreeValue(ctx, js_field);
     }
 
