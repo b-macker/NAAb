@@ -27,6 +27,10 @@ static std::unordered_map<std::string, std::chrono::steady_clock::time_point> g_
 // Static storage for snapshots (label -> {var_name -> value_string})
 static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> g_snapshots;
 
+interpreter::Interpreter* DebugModule::getInterpreter() {
+    return g_debug_interpreter;
+}
+
 void DebugModule::setInterpreter(interpreter::Interpreter* interp) {
     g_debug_interpreter = interp;
     // Bug 3: Clear stale state from previous runs

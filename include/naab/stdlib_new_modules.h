@@ -174,6 +174,9 @@ public:
 
     // Give debug module access to interpreter for scope inspection
     static void setInterpreter(interpreter::Interpreter* interp);
+    // F40: needed so ~Interpreter can clear this pointer ONLY when it still
+    // refers to the interpreter being destroyed. See the destructor's comment.
+    static interpreter::Interpreter* getInterpreter();
 
     // Check if a variable name is tainted by governance taint tracking
     static bool checkTainted(const std::string& var_name);
