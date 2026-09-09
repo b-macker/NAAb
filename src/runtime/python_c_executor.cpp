@@ -573,8 +573,22 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
         }
     }
 
-    // Convert PyObject to NAAb Value (still holding GIL)
-    interpreter::NaabVal value = pyObjectToValue(py_result);
+    // Convert PyObject to NAAb Value (still holding GIL).
+    // F42: pyObjectToValue can throw (depth limit, non-string dict key) and the
+    // GIL release below is NOT in a scope guard -- every release in this
+    // function is a manual call on the success path. An escaping exception
+    // therefore left the GIL held and py_result leaked, deadlocking the next
+    // Python block instead of reporting the error. The dict-key throw already
+    // had this shape; the depth guard makes it reachable from ordinary data, so
+    // release and DECREF before rethrowing.
+    interpreter::NaabVal value;
+    try {
+        value = pyObjectToValue(py_result);
+    } catch (...) {
+        Py_DECREF(py_result);
+        python_c_gil_release(gil_handle);
+        throw;
+    }
 
     // Release the Python object
     Py_DECREF(py_result);
@@ -594,7 +608,31 @@ interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code)
 /**
  * Convert PyObject* to NAAb Value
  */
-interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
+interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj, int depth) {
+    // F42: the INBOUND direction had no depth limit while valueToPyObject (the
+    // outbound twin, same file) has carried one since V-RT-005. A Python object
+    // that refers to itself -- `a = []; a.append(a); a` -- recursed until the
+    // stack was exhausted and the process died with SIGSEGV. A crash is worse
+    // than a rejection: it renders NO verdict, exits on a signal rather than a
+    // documented exit code, and is reachable from any polyglot block that
+    // returns a cyclic structure.
+    //
+    // Depth, not a visited-set: 64 matches valueToPyObject and V-VM-002
+    // (serializeForLanguage), and a cycle is unrepresentable in NaabVal anyway,
+    // so there is nothing to preserve by detecting it more precisely -- the
+    // structure cannot cross the boundary either way. Depth also catches
+    // legitimately-too-deep acyclic nesting, which a cycle detector would not.
+    if (depth > 64) {
+        throw std::runtime_error(
+            "Polyglot marshalling error: nested structure exceeds maximum depth (64)\n\n"
+            "  Help:\n"
+            "  - A self-referential structure (a list or dict containing itself) has no\n"
+            "    finite depth and cannot cross the language boundary.\n"
+            "  - Flatten or break the cycle before returning the value.\n\n"
+            "  Example:\n"
+            "    x Wrong: a = []; a.append(a); a\n"
+            "    v Right: a = []; a.append(1); a\n");
+    }
     if (!obj || obj == Py_None) {
         return interpreter::NaabVal::makeNull();
     }
@@ -638,7 +676,7 @@ interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
 
         for (Py_ssize_t i = 0; i < size; i++) {
             PyObject* item = PyList_GetItem(obj, i);
-            vec.push_back(pyObjectToValue(item));
+            vec.push_back(pyObjectToValue(item, depth + 1));
         }
 
         return interpreter::NaabVal::makeList(std::move(vec));
@@ -652,7 +690,7 @@ interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
 
         for (Py_ssize_t i = 0; i < size; i++) {
             PyObject* item = PyTuple_GetItem(obj, i);
-            vec.push_back(pyObjectToValue(item));
+            vec.push_back(pyObjectToValue(item, depth + 1));
         }
 
         return interpreter::NaabVal::makeList(std::move(vec));
@@ -675,7 +713,7 @@ interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
                 throw std::runtime_error("Failed to convert dictionary key to string");
             }
 
-            map[key_str] = pyObjectToValue(value);
+            map[key_str] = pyObjectToValue(value, depth + 1);
         }
 
         return interpreter::NaabVal::makeDict(std::move(map));

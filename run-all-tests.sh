@@ -1337,6 +1337,24 @@ else
     echo "  test_secret_scan_redos.sh: not found, skipping"
 fi
 
+# --- Polyglot marshalling recursion depth (F42: cyclic returns must not crash) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Polyglot Marshalling Depth (SIGSEGV on self-referential returns)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+MARSHAL_SCRIPT="tests/security/test_marshal_recursion_depth.sh"
+if [ -f "$MARSHAL_SCRIPT" ]; then
+    if run_shell_test "$MARSHAL_SCRIPT" 2>&1; then
+        echo "  test_marshal_recursion_depth.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_marshal_recursion_depth.sh")
+    fi
+else
+    echo "  test_marshal_recursion_depth.sh: not found, skipping"
+fi
+
 # --- Interpreter pointer retraction (F40: published pointers on destruction) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
