@@ -109,6 +109,104 @@ For any claim of the form "X doesn't work" or "X isn't used", verify all of:
 Any single one of these produces a confident wrong answer. All four were hit in
 sequence during the config-key sweep, each one narrowing the previous result.
 
+### Search backward from the sink, not forward from the gate
+
+The EFFECT rule above tells you what to verify once you are looking at a site.
+This tells you how to find the sites, and it points the opposite way from how
+most audits are run.
+
+Auditing forward from a policy — "here is the filesystem gate, who calls it?" —
+enumerates the callers the author remembered to wire. That set is, by
+construction, the set that is already governed. What you need is the complement:
+the code that reaches the same operating-system sink WITHOUT passing the gate.
+
+So enumerate leaf sinks first — `open`, `read`, `execve`, `fork`, `socket`,
+libcurl, `std::filesystem::*` — and grep outward to every caller. Then subtract
+the ones that consult the gate. Whatever is left is the finding.
+
+The two directions are not symmetric and only one of them can find a bypass. A
+forward audit of the NAAb filesystem policy returns the file module and reports
+the subsystem governed; a backward audit from `std::filesystem` returns the file
+module AND the path module, and the path module consults nothing.
+
+### Sibling methods do not share sibling gates
+
+When an API family grows a variant — `_strict`, `_with_args`, `_all`, `_bounded`
+— the author reliably implements the core behaviour and reliably forgets the
+cross-cutting gate. The gate is not part of what the new function is "for", so
+it is not part of what gets copied.
+
+This is the highest-yield search pattern in this repository. The method:
+enumerate a module's exported symbols as a SET, enumerate the symbols the
+cross-cutting filter recognises as a second set, and diff them. Every element in
+the first and not the second is a candidate bypass.
+
+Three instances, with their status as measured on `bc98d8d` rather than as
+reported:
+
+| family | gated | not gated | status |
+|---|---|---|---|
+| `codegen.run` / `run_with_args` / `run_strict` | first two checked taint | `run_strict` did not | **fixed** (#213) |
+| `env.get` / `env.list` / `env.get_all` | first two emit `ENV_READ` | `env.get_all` does not | **live** — `vm.cpp` names exactly the two |
+| `file.read` / `path.exists` | `file_impl` calls `checkFileSandbox()` | `path_impl` references no gate at all | **live** — measured below |
+
+The third was measured directly, with a matched positive control through the
+identical harness, under `capabilities.filesystem.mode: "none"`:
+
+    file.read("target.txt")    -> HARD block, "Filesystem access is not allowed"
+    path.exists("target.txt")  -> true, "0 violations"
+
+The control is the load-bearing half. Without `file.read` blocking in the same
+config, `path.exists` returning `true` is equally consistent with the gate being
+misconfigured, and the finding would be about the fixture rather than the code.
+
+Note how the fixed one was fixed: `codegen`'s three entry points now share a
+single dispatch branch, so the gate cannot be missed by a fourth variant. A
+family that shares one path cannot develop this defect; three parallel gates
+kept in agreement by discipline will develop it again.
+
+### A mechanism can be covered in one direction only
+
+A test can name the right mechanism, carry its own controls, be genuinely well
+built, pass — and be pointed the wrong way.
+
+Two suites here cover polyglot marshalling depth: `test_marshal_depth_rt005.sh`
+and `test_js_marshal_depth_rt006.sh`. Both have executor usability pre-checks.
+Both have shallow-depth false-positive controls. Both were green while a
+self-referential value returned from a polyglot block killed the process with
+SIGSEGV in both languages. Their headers say why: `valueToPyObject`, `valueToJS`,
+`toJSValue` — every one of them NAAb to language. The crash was language to
+NAAb.
+
+Anyone asking "is marshalling depth covered?" got a yes, from two tests, for the
+mirror image of the bug.
+
+For any symmetric mechanism — marshal in/out, encode/decode, serialise/
+deserialise, acquire/release, ingress/egress — coverage of one direction reads
+from a distance as coverage of the mechanism. Check the direction in the test's
+own assertions, not in its name. This is the sibling rule one layer up: sibling
+DIRECTIONS do not share coverage any more than sibling METHODS share gates.
+
+### Verify a fix against the symptom, not the patch site
+
+A fix is a hypothesis that this site causes that symptom. Testing that the site
+changed confirms only that you edited the file you meant to edit.
+
+An outside audit located a SIGSEGV in `cross_language_bridge.cpp`. That file was
+patched, the build was clean, and the crash was byte-for-byte unchanged: there
+are two `JSValue`-to-`NaabVal` converters and the path that crashes goes through
+the other one. A source-text assertion of the form "does the named file now
+contain a depth check?" would have gone green on a still-crashing build — and
+that is exactly the shape of assertion an audit harness reaches for.
+
+The symptom test caught it on the first run. The patch-site test would have
+shipped it.
+
+This is the sharper form of *validate changes by reverting them*: keep the
+original reproduction, run it against the fixed build, and require it to change
+verdict. If you cannot reproduce the symptom, you cannot verify the fix — say
+that, rather than substituting a proxy that can only confirm your own edit.
+
 ### Positive controls
 
 Never accept a negative result on its own. If nothing happened, prove the
@@ -225,6 +323,19 @@ A positive control catches this only when it runs through the same probe — the
 harness bugs above were all found by one control, and the `git` bug was found by
 none, because nothing exercised the tracked-file query on a case known to be
 tracked.
+
+**The direction flips in a regression test, and the flipped direction is the
+dangerous one.** In an audit, a broken probe raises a false alarm and someone
+investigates it. In a regression test, a broken probe reports the bug FIXED, and
+nobody looks again. Two instances, one session apart. An outside audit harness
+asserted `(no "0 violations" in output) AND (no payload marker)` — satisfied by
+any run that failed early, so a probe with a syntax error, or a missing file,
+reported the vulnerability patched. And a new regression test here wrote an
+unsigned `govern.json` without isolating the trust store: on any machine with a
+key installed, every probe exits 3 on the integrity block, which its assertion
+reads as "did not crash" — reporting a crash fix verified without one line of
+the subject ever executing. Ask of every green assertion: what would this print
+if the subject never ran?
 
 ### Do not mutate what you are observing
 
@@ -570,6 +681,25 @@ Before claiming something is inert:
 - [ ] Absent-key case tested separately from explicit-false
 - [ ] Compensators enumerated and confirmed LIVE in the run you measured
 - [ ] Checked whether this was already investigated and decided
+
+Before claiming a subsystem is governed:
+
+- [ ] Enumerated the OS leaf sinks (open / read / exec / curl / socket /
+      std::filesystem) and traced BACKWARD to every caller, rather than forward
+      from the gate to the callers already wired to it
+- [ ] Diffed the module's exported symbols against the symbols the
+      cross-cutting filter names — every symbol in the first set and not the
+      second is a candidate bypass until measured
+- [ ] Each claimed gate measured with a matched positive control through the
+      SAME harness, so "not blocked" cannot be a misconfigured fixture
+
+Before trusting existing coverage of a mechanism:
+
+- [ ] Read the DIRECTION out of the test's assertions, not its name — symmetric
+      mechanisms (in/out, encode/decode, acquire/release) are routinely covered
+      one way while the bug lives in the other
+- [ ] Confirmed the reproduction fails before the fix and passes after, rather
+      than confirming the patch site changed
 
 Before publishing a measurement:
 
