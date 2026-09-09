@@ -60,7 +60,7 @@ public:
     JSValue valueToJS(JSContext* ctx, const interpreter::NaabVal& val, int depth = 0);
 
     // Convert JSValue → NaabVal
-    interpreter::NaabVal jsToValue(JSContext* ctx, JSValue jsval);
+    interpreter::NaabVal jsToValue(JSContext* ctx, JSValue jsval, int depth = 0);
 
     // Convert struct → JSValue
     JSValue structToJS(JSContext* ctx, const std::shared_ptr<interpreter::StructValue>& s);

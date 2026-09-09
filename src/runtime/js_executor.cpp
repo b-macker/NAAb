@@ -29,7 +29,7 @@ namespace runtime {
 // Forward declarations of static helper functions
 // V-RT-006: toJSValue takes a depth parameter (default 0) to enforce a 64-level limit.
 static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val, int depth = 0);
-static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val);
+static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val, int depth = 0);
 
 JsExecutor::JsExecutor() : rt_(nullptr), ctx_(nullptr), timeout_triggered_(false) {
     // Create JavaScript runtime
@@ -688,7 +688,32 @@ static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val, int de
 }
 
 // Static helper: Convert JSValue to NaabVal
-static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val) {
+static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val, int depth) {
+    // F42: unbounded recursion here killed the process with SIGSEGV on a
+    // self-referential JS value (`let a = []; a.push(a); a`). A crash renders NO
+    // verdict -- it neither blocks nor allows, and exits on a signal rather than
+    // a documented exit code.
+    //
+    // NOTE FOR THE NEXT PERSON: there are TWO JSValue->NaabVal converters.
+    // CrossLanguageBridge::jsToValue (cross_language_bridge.cpp) is the one an
+    // outside audit named for this defect, but the polyglot `<<javascript>>`
+    // return path goes through THIS function. Patching only the other one left
+    // the crash exactly as it was -- the fix was verified, the bug remained.
+    // Both are guarded now; do not assume one covers the other.
+    //
+    // 64 matches valueToPyObject (V-RT-005) and serializeForLanguage (V-VM-002).
+    if (depth > 64) {
+        throw std::runtime_error(
+            "Polyglot marshalling error: nested structure exceeds maximum depth (64)\n\n"
+            "  Help:\n"
+            "  - A self-referential structure (an array or object containing itself) has\n"
+            "    no finite depth and cannot cross the language boundary.\n"
+            "  - Flatten or break the cycle before returning the value.\n\n"
+            "  Example:\n"
+            "    x Wrong: let a = []; a.push(a); a\n"
+            "    v Right: let a = []; a.push(1); a\n");
+    }
+
     // Null or undefined
     if (JS_IsNull(val) || JS_IsUndefined(val)) {
         return interpreter::NaabVal::makeNull();
@@ -747,7 +772,12 @@ static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val) {
                 continue;
             }
 
-            naab_array.push_back(fromJSValue(ctx, elem));
+            try {
+                naab_array.push_back(fromJSValue(ctx, elem, depth + 1));
+            } catch (...) {
+                JS_FreeValue(ctx, elem);   // else the element leaks past the throw
+                throw;
+            }
             JS_FreeValue(ctx, elem);
         }
 
@@ -779,7 +809,18 @@ static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val) {
                 continue;
             }
 
-            naab_dict[std::string(key)] = fromJSValue(ctx, prop_val);
+            try {
+                naab_dict[std::string(key)] = fromJSValue(ctx, prop_val, depth + 1);
+            } catch (...) {
+                // Release everything this iteration and the enumeration owns.
+                JS_FreeValue(ctx, prop_val);
+                JS_FreeCString(ctx, key);
+                for (uint32_t j = 0; j < prop_count; j++) {
+                    JS_FreeAtom(ctx, props[j].atom);
+                }
+                js_free(ctx, props);
+                throw;
+            }
             JS_FreeValue(ctx, prop_val);
             JS_FreeCString(ctx, key);
         }
