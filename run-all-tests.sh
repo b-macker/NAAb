@@ -1355,6 +1355,24 @@ else
     echo "  test_marshal_recursion_depth.sh: not found, skipping"
 fi
 
+# --- Interpreter pointer retraction (F40: published pointers on destruction) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Interpreter Pointer Retraction (dangling vs over-retracted)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RETRACT_SCRIPT="tests/security/test_interpreter_pointer_retraction.sh"
+if [ -f "$RETRACT_SCRIPT" ]; then
+    if run_shell_test "$RETRACT_SCRIPT" 2>&1; then
+        echo "  test_interpreter_pointer_retraction.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_interpreter_pointer_retraction.sh")
+    fi
+else
+    echo "  test_interpreter_pointer_retraction.sh: not found, skipping"
+fi
+
 # --- Governance Comment Style Stripping (V-GOV-002) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

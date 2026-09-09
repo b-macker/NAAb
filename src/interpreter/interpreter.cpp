@@ -655,10 +655,42 @@ Interpreter::Interpreter()
 
 // Phase 3.2: Destructor must be defined in .cpp where CycleDetector is complete
 Interpreter::~Interpreter() {
-    // Bug 2: Null out static debug interpreter pointer to prevent dangling access
-    stdlib::DebugModule::setInterpreter(nullptr);
-    // Clear thread-local governance pointer to prevent dangling access
-    governance::GovernanceEngine::setCurrent(nullptr);
+    // F40. The constructor publishes THREE pointers to this interpreter
+    // (g_current_interpreter, the debug module's, and the governance engine's).
+    // This destructor used to get two of them wrong in OPPOSITE directions:
+    //
+    //   g_current_interpreter was not cleared at all -> it outlived the object
+    //   it pointed at. All three of its readers null-check, which is useless
+    //   against a stale pointer: freed is not null. Reachable via the REST API,
+    //   where cpp-httplib POOLS worker threads (new ThreadPool(...)), so a
+    //   thread that served /execute keeps the dead pointer in its thread_local
+    //   and a later /check on that same worker builds a bare GovernanceEngine
+    //   with no interpreter of its own -> checkPolyglotBlock ->
+    //   checkPluginRules -> interp->getGlobalEnv() on freed memory. That last
+    //   hop needs governance plugins configured; without them the loop body
+    //   never runs and the pointer is read but not dereferenced.
+    //
+    //   The other two were cleared UNCONDITIONALLY, which is the mirror-image
+    //   bug. `p = std::make_unique<Interpreter>()` (cli/repl.cpp, the REPL's
+    //   .clear) constructs the new interpreter BEFORE destroying the old one,
+    //   so the old object's destructor nulled pointers the LIVE new interpreter
+    //   had just published. Verified with a standalone ordering probe: ctor(2)
+    //   runs, then dtor(1), and an unconditional clear leaves the pointer null
+    //   while object 2 is alive.
+    //
+    // Both directions are fixed by the same rule: a departing object may only
+    // retract a published pointer that still refers to IT. Do not "simplify"
+    // these back to unconditional clears -- that reintroduces the .clear bug,
+    // which is what an audit's proposed fix for F40 asked for.
+    if (stdlib::DebugModule::getInterpreter() == this) {
+        stdlib::DebugModule::setInterpreter(nullptr);
+    }
+    if (governance::GovernanceEngine::getCurrent() == governance_.get()) {
+        governance::GovernanceEngine::setCurrent(nullptr);
+    }
+    if (g_current_interpreter == this) {
+        g_current_interpreter = nullptr;
+    }
 }
 
 void Interpreter::defineBuiltins() {
